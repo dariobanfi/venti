@@ -36,7 +36,7 @@ VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then revi
 cargo run -p venti-ingest -- regions/alps-de-at/region.toml   # live run against the providers
 ```
 
-Cloud sessions reach the data providers only through the `venti` environment's host allowlist. A new provider needs its hosts added there before its fixtures can be recorded.
+Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
 
 ## Working practice
 

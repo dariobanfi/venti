@@ -99,7 +99,7 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 | Spike | Question it answers |
 |---|---|
 | Core bridge | Does a Rust core drive a SwiftUI shell cleanly through UniFFI under Swift 6 strict concurrency? **Yes, 2026-11-18.** Built with Xcode 26.6 and Swift 6.3 in Swift 6 language mode with no concurrency errors; the app ran on an iPhone 17 Pro simulator. See [architecture.md](architecture.md#the-bridge). Not yet tried: async calls, callbacks from Rust into Swift, a real device. |
-| 2D map | Does MapLibre Native on iOS render our self-hosted vector, terrain and contour tiles from local files at 60 fps with a few thousand live symbols? |
+| 2D map | Does MapLibre Native on iOS render our self-hosted vector, terrain and contour tiles from local files at 60 fps with a few thousand live symbols? **Partly answered, 2026-11-18.** Yes for rendering: vector base map, hillshading from terrain tiles and labels from bundled fonts all draw from files inside the app, on a simulator. Still open: contour tiles, and frame rate with thousands of live symbols, which needs a real phone. |
 | Background recording | Does a six-hour recording survive backgrounding, a phone call and low-power mode on iOS? |
 | Bluetooth vario | Can we connect to the owner's vario, parse its stream and drive vario audio in the background? |
 | 3D terrain | Is a small Rust terrain renderer on wgpu good enough on iPhone and in the browser? |

@@ -26,7 +26,8 @@ enum Leg {
         climb: f64,
     },
     /// Circles of 45 m radius, 28 s each, drifting east with a 3 m/s wind.
-    Thermal { circles: i64, climb: f64 },
+    /// Climbing in a thermal, or spiralling down when `climb` is negative.
+    Circles { circles: i64, climb: f64 },
 }
 
 /// The glider's state: metres east and north of the take-off, altitude, and
@@ -73,7 +74,7 @@ impl Glider {
                     self.record();
                 }
             }
-            Leg::Thermal { circles, climb } => {
+            Leg::Circles { circles, climb } => {
                 let (radius, period, wind) = (45.0, 28_i64, 3.0);
                 let (centre_east, centre_north) = (self.east + radius, self.north);
                 for step in 1..=circles * period {
@@ -89,9 +90,10 @@ impl Glider {
     }
 }
 
-/// A flight of about half an hour: a glide out from the take-off, a climb in
-/// a thermal, a glide, a second weaker climb, and a descent toward the
-/// valley. One fix a second.
+/// A flight of about half an hour over the Tegernsee valley: a glide out
+/// from the take-off, a climb in a thermal, a glide across the valley, a
+/// second weaker climb, a run up the valley and back, and a spiral down to
+/// just above the valley floor. One fix a second.
 pub fn synthetic_flight() -> IgcFile {
     let date = NaiveDate::from_ymd_opt(2026, 7, 4).expect("valid date");
     let mut glider = Glider {
@@ -111,7 +113,7 @@ pub fn synthetic_flight() -> IgcFile {
             speed: 10.5,
             climb: -1.2,
         },
-        Leg::Thermal {
+        Leg::Circles {
             circles: 9,
             climb: 2.4,
         },
@@ -121,21 +123,25 @@ pub fn synthetic_flight() -> IgcFile {
             speed: 11.0,
             climb: -1.1,
         },
-        Leg::Thermal {
+        Leg::Circles {
             circles: 6,
             climb: 1.6,
         },
         Leg::Glide {
-            seconds: 420,
-            heading: 250.0,
+            seconds: 300,
+            heading: 200.0,
             speed: 10.5,
             climb: -1.2,
         },
         Leg::Glide {
-            seconds: 300,
-            heading: 200.0,
-            speed: 9.5,
-            climb: -1.5,
+            seconds: 330,
+            heading: 20.0,
+            speed: 10.5,
+            climb: -1.2,
+        },
+        Leg::Circles {
+            circles: 8,
+            climb: -1.9,
         },
     ];
     for leg in &legs {
@@ -164,23 +170,25 @@ mod tests {
         let flight = synthetic_flight();
         let summary = summarise(&flight.fixes).unwrap();
 
-        // 90 + 9*28 + 380 + 6*28 + 420 + 300 seconds.
-        assert_eq!(summary.duration_s(), 1610);
-        assert_eq!(flight.fixes.len(), 1611);
-        // The first thermal climbs at 2.4 m/s; nothing climbs faster.
+        // 90 + 9*28 + 380 + 6*28 + 300 + 330 + 8*28 seconds.
+        assert_eq!(summary.duration_s(), 1744);
+        assert_eq!(flight.fixes.len(), 1745);
+        // The first thermal climbs at 2.4 m/s; nothing climbs faster. The
+        // final spiral sinks at 1.9 m/s; nothing sinks faster.
         assert!(
             (summary.max_climb_ms - 2.4).abs() < 0.05,
             "{}",
             summary.max_climb_ms
         );
         assert!(
-            (summary.max_sink_ms + 1.5).abs() < 0.05,
+            (summary.max_sink_ms + 1.9).abs() < 0.05,
             "{}",
             summary.max_sink_ms
         );
         // Top of the first climb: 1620 - 90*1.2 + 252*2.4.
         assert_eq!(summary.max_altitude_m, 2117);
-        assert!(summary.min_altitude_m > 700, "ends above the valley floor");
+        // It ends just above the valley floor at Rottach-Egern, about 740 m.
+        assert_eq!(summary.min_altitude_m, 786);
         assert!((12_000.0..22_000.0).contains(&summary.track_length_m));
     }
 

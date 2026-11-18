@@ -145,6 +145,7 @@ All map data is self-hosted open data, stored as PMTiles files and served as sta
 - `map/style.json` is the shared style. It names its tiles and fonts with placeholders that each app replaces with local or remote URLs.
 - A small demo region (the Tegernsee valley, about 7 MB) is bundled with the iOS app under `apps/ios/Venti/Resources/MapDemo`: a vector base map, terrain tiles and label fonts. `tools/demo-map/build.sh` rebuilds it. It uses the stock OpenMapTiles profile and terrain only to zoom 12; the custom profile, contours and high-resolution terrain are not built yet.
 - The iOS app draws that region with MapLibre Native 7.0 from the bundled files and overlays a flight track.
+- Confirmed on the simulator (2026-11-18): MapLibre Native reads vector and terrain archives through `pmtiles://file://` URLs, decodes the WebP elevation tiles, and loads label fonts from a `file://` glyph URL. No network is involved.
 
 ### 3D
 

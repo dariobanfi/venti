@@ -15,8 +15,8 @@ final class FlightModelTests: XCTestCase {
             return XCTFail("the sample flight did not load: \(model.state)")
         }
         XCTAssertEqual(flight.pilot, "Sample Pilot")
-        XCTAssertEqual(flight.track.count, 1611)
-        XCTAssertEqual(flight.durationS, 1610)
+        XCTAssertEqual(flight.track.count, 1745)
+        XCTAssertEqual(flight.durationS, 1744)
     }
 
     func testAFileThatIsNotAFlightShowsAReadableMessage() async {

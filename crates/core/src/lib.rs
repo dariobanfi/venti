@@ -187,10 +187,10 @@ mod tests {
         assert_eq!(view.pilot.as_deref(), Some("Sample Pilot"));
         assert_eq!(view.glider.as_deref(), Some("Sample Wing"));
         assert_eq!(view.recorder, "XVE 000");
-        assert_eq!(view.duration_s, 1610);
-        assert_eq!(view.track.len(), 1611);
+        assert_eq!(view.duration_s, 1744);
+        assert_eq!(view.track.len(), 1745);
         assert_eq!(view.track[0].seconds, 0);
-        assert_eq!(view.track.last().unwrap().seconds, 1610);
+        assert_eq!(view.track.last().unwrap().seconds, 1744);
         assert_eq!(view.max_altitude_m, 2117.0);
         assert!(view.bounds.south < view.bounds.north && view.bounds.west < view.bounds.east);
         assert_eq!(view.skipped_lines, 0);

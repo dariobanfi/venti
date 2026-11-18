@@ -1,3 +1,4 @@
+import CoreLocation
 import MapLibre
 import SwiftUI
 import VentiCore

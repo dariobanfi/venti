@@ -54,6 +54,7 @@ targets:
         # Xcode writes the Info.plist from the keys below and merges in this
         # file, which declares the flight-file type the app opens.
         INFOPLIST_FILE: Venti/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: Venti
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Venti shows your position on the map.
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"

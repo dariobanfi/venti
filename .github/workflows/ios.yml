@@ -129,3 +129,60 @@ jobs:
           name: ios-screenshots
           path: target/apple/screenshots
           if-no-files-found: warn
+
+  # An app for a real iPhone, built without a signature. Nobody's certificate
+  # is in this repository: whoever installs the app signs this file with
+  # their own certificate and provisioning profile.
+  device:
+    name: Unsigned build for an iPhone
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the Rust core for Apple platforms
+        run: apps/ios/scripts/build-core.sh
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios && xcodegen generate
+
+      - name: Build the app for an iPhone, unsigned
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project apps/ios/Venti.xcodeproj \
+            -scheme Venti \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath target/apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee target/apple/xcodebuild-device.log \
+            | grep -E "(error|warning): |\*\* BUILD"
+
+      - name: Keep the full build log when the build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-device-log
+          path: target/apple/xcodebuild-device.log
+
+      - name: Package the app as an .ipa file
+        run: |
+          mkdir -p target/apple/ipa/Payload
+          cp -R target/apple/DerivedData/Build/Products/Release-iphoneos/Venti.app target/apple/ipa/Payload/
+          cd target/apple/ipa
+          zip -qry ../Venti-unsigned.ipa Payload
+          ls -lh ../Venti-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: venti-unsigned-ipa
+          path: target/apple/Venti-unsigned.ipa
+          if-no-files-found: error

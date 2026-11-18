@@ -52,7 +52,8 @@ struct AltitudeChart: View {
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine()
-                AxisValueLabel(format: .dateTime.hour().minute())
+                // No AM or PM: the panel's heading already says which.
+                AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
             }
         }
         .chartYAxis {

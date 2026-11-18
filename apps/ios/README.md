@@ -20,6 +20,10 @@ The simulator needs no signing. A real iPhone does, and the settings for it are 
 
 Never commit a certificate, a profile or a team ID.
 
+### Without building on a Mac
+
+Every push that touches the app also builds it for a real iPhone without a signature, as the `venti-unsigned-ipa` artifact of the `iOS` workflow run. Sign that file with your own certificate and provisioning profile, using whatever tool you sign apps with, and install the result. The profile must list your iPhone, and the signing tool will set the bundle identifier the profile allows.
+
 ## Layout
 
 | Path | What it is |
@@ -30,6 +34,7 @@ Never commit a certificate, a profile or a team ID.
 | `Venti/Logbook/` | The logbook screen, its model over the core, and import. |
 | `Venti/Flight/` | One flight: map, panel, altitude chart, details sheet. |
 | `Venti/Map/` | The map tab, the shared map setup and the style preparation. |
+| `Venti/Assets.xcassets/` | The app icon, drawn by `tools/app-icon/make_icon.py`. |
 | `Venti/Info.plist` | Declares the flight-file type the app opens. Xcode generates the rest. |
 | `VentiTests/` | Unit tests that run inside the app on a simulator. |
 | `VentiUITests/` | Tests that use the app like a pilot and keep a screenshot of every screen. |

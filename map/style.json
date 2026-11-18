@@ -68,7 +68,7 @@
       "type": "hillshade",
       "source": "terrain",
       "paint": {
-        "hillshade-exaggeration": 0.45,
+        "hillshade-exaggeration": ["interpolate", ["linear"], ["zoom"], 6, 0.22, 11, 0.45],
         "hillshade-shadow-color": "#4a4336",
         "hillshade-highlight-color": "#ffffff",
         "hillshade-accent-color": "#6b6252"

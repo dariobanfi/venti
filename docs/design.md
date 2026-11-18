@@ -75,6 +75,10 @@ The five colours were checked together on 2026-11-18 with a palette validator: e
 
 To verify: no flying app we read documents which colours it uses for climb and sink, so "warm means up" is our choice, taken from weather maps and gliding instruments. Check it with pilots.
 
+## Icon
+
+A white paraglider on the accent violet; the pilot is a dot in the colour a climb has on a track. It is drawn by `tools/app-icon/make_icon.py`, so it can be changed as text like everything else.
+
 ## Type
 
 System text styles only, so the pilot's text-size setting applies everywhere. Titles and body text use the default face. Numbers use the rounded variant with fixed-width digits. No light weights, nothing below the caption size.
@@ -109,7 +113,6 @@ So: very large numbers, few of them, pages that change by themselves with the ph
 - German. All text is English and written in the code; it moves to a string catalogue with the first translation.
 - Units other than metric.
 - Names for flights. A row is titled by its date until the sites data source exists and a flight can be named after its take-off.
-- An app icon.
 
 ## Sources
 

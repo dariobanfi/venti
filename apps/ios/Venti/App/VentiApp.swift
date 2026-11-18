@@ -11,6 +11,7 @@ struct VentiApp: App {
                 RootScreen()
                     .environment(logbook)
                     .tint(Palette.accent)
+                    .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
                 ContentUnavailableView(
                     "Venti could not open its data",
@@ -48,6 +49,12 @@ enum LaunchOptions {
     /// Draw the map from the region bundled with the app instead of fetching
     /// tiles, so a screenshot does not depend on the network.
     static let usesBundledMap = arguments.contains("--bundled-map")
+
+    /// Dark appearance whatever the device is set to, for screenshots.
+    /// Normally the app follows the device.
+    static var forcedColorScheme: ColorScheme? {
+        arguments.contains("--dark") ? .dark : nil
+    }
 
     /// The folder the core keeps the pilot's flights in.
     static func dataFolder() throws -> URL {

@@ -9,9 +9,8 @@ import XCTest
 final class VentiUITests: XCTestCase {
     private func launch(bundledMap: Bool, dark: Bool = false) -> XCUIApplication {
         continueAfterFailure = false
-        XCUIDevice.shared.appearance = dark ? .dark : .light
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : [])
+        app.launchArguments = ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : []) + (dark ? ["--dark"] : [])
         app.launch()
         return app
     }
@@ -62,8 +61,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(chart.exists)
         chart.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
             .press(forDuration: 0.3, thenDragTo: chart.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
-        XCTAssertTrue(labelled(containing: "Altitude", in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Show flight totals"].exists)
+        XCTAssertTrue(app.buttons["Show flight totals"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("In the air", in: app).exists)
         sleep(1)
         keepScreenshot("light-4-flight-moment")
 
@@ -71,7 +70,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Best climb", in: app).waitForExistence(timeout: 10))
 
         app.buttons["Flight details"].tap()
-        XCTAssertTrue(app.staticTexts["Strongest sink"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.navigationBars["Flight details"].waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("light-5-flight-details")
         app.buttons["Done"].tap()
@@ -100,7 +99,6 @@ final class VentiUITests: XCTestCase {
 
     func testTheAppInDarkAppearance() {
         let app = launch(bundledMap: true, dark: true)
-        defer { XCUIDevice.shared.appearance = .light }
         addSampleFlightAndOpenIt(in: app, prefix: "dark")
 
         app.navigationBars.buttons.firstMatch.tap()

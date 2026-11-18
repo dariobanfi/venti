@@ -1,3 +1,4 @@
+import CoreLocation
 import MapLibre
 import UIKit
 import VentiCore
@@ -20,6 +21,8 @@ enum MapSetup {
         // The map is flat; tilting it shows nothing more.
         map.isPitchEnabled = false
         map.tintColor = Palette.accentOnMap
+        // The credits button is the map's, not one of the app's controls.
+        map.attributionButton.tintColor = UIColor(white: 0.25, alpha: 0.75)
         return map
     }
 

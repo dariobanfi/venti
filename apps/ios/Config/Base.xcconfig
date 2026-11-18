@@ -1,0 +1,11 @@
+// Settings shared by every build of the app.
+//
+// Anything that differs per developer (signing team, certificate, a personal
+// bundle identifier) goes in Local.xcconfig next to this file. That file is
+// not committed; copy Local.example.xcconfig to create it. Without it the
+// app still builds and runs in the simulator.
+
+VENTI_BUNDLE_ID = fly.venti.app
+VENTI_PROFILE =
+
+#include? "Local.xcconfig"

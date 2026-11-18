@@ -1,0 +1,25 @@
+// Copy this file to Local.xcconfig and fill in one of the two options to run
+// the app on a real iPhone. Local.xcconfig is ignored by git: never commit a
+// team ID, certificate or profile.
+
+// Option 1: your own Apple ID, free. Xcode creates the certificate and
+// profile for you. Builds expire after seven days and are then reinstalled
+// from Xcode.
+//   - Add your Apple ID in Xcode > Settings > Accounts.
+//   - Put its team ID here, or leave it empty and pick the team once in the
+//     Venti target's "Signing & Capabilities" tab.
+//   - Choose a bundle identifier nobody else has used.
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM =
+VENTI_BUNDLE_ID = fly.venti.app.yourname
+
+// Option 2: a certificate (.p12) and provisioning profile you obtained
+// yourself. Import the .p12 into Keychain Access and open the
+// .mobileprovision file once so Xcode knows it, then replace the three lines
+// above with these. The bundle identifier must be one the profile allows, and
+// the iPhone must be listed in the profile.
+// CODE_SIGN_STYLE = Manual
+// DEVELOPMENT_TEAM = ABCDE12345
+// CODE_SIGN_IDENTITY = Apple Development
+// VENTI_PROFILE = Name of the provisioning profile
+// VENTI_BUNDLE_ID = com.example.identifier-in-the-profile

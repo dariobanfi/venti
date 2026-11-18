@@ -4,21 +4,21 @@ A SwiftUI shell over the Rust core. The shell draws and talks to iOS; everything
 
 ## Building on a Mac
 
-Needs Xcode 16 or later, Rust (the version in `rust-toolchain.toml`) and XcodeGen (`brew install xcodegen`). Apple silicon only.
+Needs Xcode 26 or later, Rust from [rustup.rs](https://rustup.rs) (the toolchain in `rust-toolchain.toml` installs itself) and Homebrew.
 
 ```bash
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
+apps/ios/scripts/open-in-xcode.sh
 ```
 
-```bash
-apps/ios/scripts/build-core.sh
-```
+That builds the Rust core, installs XcodeGen if it is missing, generates `Venti.xcodeproj` and opens it. Pick an iPhone simulator and press Run.
 
-```bash
-cd apps/ios && xcodegen generate && open Venti.xcodeproj
-```
+Run `apps/ios/scripts/build-core.sh` again whenever the Rust core changes, and `xcodegen generate` in `apps/ios` whenever files are added or `project.yml` changes.
 
-Run `build-core.sh` again whenever the Rust core changes.
+## Running on your own iPhone
+
+The simulator needs no signing. A real iPhone does, and the settings for it are personal, so they live in `Config/Local.xcconfig`, which git ignores. The setup script creates it from `Config/Local.example.xcconfig`; that file explains the two options: a free Apple ID (builds last seven days) or a certificate and provisioning profile you already have.
+
+Never commit a certificate, a profile or a team ID.
 
 ## Layout
 
@@ -30,6 +30,8 @@ Run `build-core.sh` again whenever the Rust core changes.
 | `Packages/VentiCore/` | The Rust core as a Swift package. Its binary and its generated Swift interface are build products. |
 | `Packages/VentiCore/Tests/` | Tests of the Rust-to-Swift bridge. They run on the Mac with `swift test`, no simulator needed. |
 | `scripts/build-core.sh` | Builds the core for device, simulator and Mac and packages it. |
+| `scripts/open-in-xcode.sh` | From a fresh clone to the project open in Xcode. |
+| `Config/` | Build settings. `Local.xcconfig` holds personal signing settings and is not committed. |
 | `Venti/Resources/MapDemo/` | A small map region bundled for development: base map, terrain and fonts. Rebuilt by `tools/demo-map/build.sh`. |
 | `../../map/style.json` | The map style shared by all platforms. |
 

@@ -7,6 +7,9 @@ options:
   deploymentTarget:
     iOS: "18.0"
   developmentLanguage: en
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -44,8 +47,10 @@ targets:
         product: MapLibre
     settings:
       base:
-        # To be confirmed once the venti.fly domain is registered.
-        PRODUCT_BUNDLE_IDENTIFIER: fly.venti.app
+        # The default, fly.venti.app, is set in Config/Base.xcconfig and is to
+        # be confirmed once the venti.fly domain is registered.
+        PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID)
+        PROVISIONING_PROFILE_SPECIFIER: $(VENTI_PROFILE)
         INFOPLIST_KEY_CFBundleDisplayName: Venti
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -59,7 +64,7 @@ targets:
       - target: Venti
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: fly.venti.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID).tests
 schemes:
   Venti:
     build:

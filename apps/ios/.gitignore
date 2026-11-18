@@ -4,3 +4,5 @@ Venti.xcodeproj/
 Packages/VentiCore/VentiCoreFFI.xcframework/
 Packages/VentiCore/Sources/VentiCore/Generated/
 Packages/VentiCore/.build/
+# Personal signing settings; see Config/Local.example.xcconfig.
+Config/Local.xcconfig

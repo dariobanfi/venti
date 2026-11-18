@@ -39,10 +39,8 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Rust toolchain and Apple targets
-        run: |
-          rustup show
-          rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
+      - name: Rust toolchain
+        run: rustup show
 
       - uses: Swatinem/rust-cache@v2
 

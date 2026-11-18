@@ -50,7 +50,7 @@ This list is a draft. The owner has said more feature input will follow.
 - Later: cross-country route planner, hike & fly planner (trail up, glide range down, transit home), alerts such as "tell me when Wallberg is flyable".
 
 ### Fly
-The full checklist is in [xctrack-parity.md](xctrack-parity.md). The principles:
+The full checklist is in [xctrack-parity.md](xctrack-parity.md). XCTrack is Android-only and its developers state that they do not plan an iOS version, so an iPhone cockpit at that level does not exist today. The principles:
 - The recorder runs as a native background service. A UI crash or phone call never costs the track.
 - Everything works offline: maps, terrain, airspace, sites and the last forecast are on the device.
 - External Bluetooth varios are first-class, because phone barometers are too slow for a good vario.

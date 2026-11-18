@@ -1,0 +1,124 @@
+# Product plan
+
+Last revised: 2026-11-18
+
+## Goal
+
+Paragliding pilots use one app to check conditions, another to plan, another as flight computer, another to publish flights, and chat groups to organise flying days. None of them share data. This project puts those jobs into one free app with one community, so that a flight is planned, flown, analysed and shared in the same place.
+
+## Owner decisions
+
+These were set by the owner on 2026-11-18 and are not open for re-litigation in later sessions.
+
+1. **Free and open source.** No monetisation planned. Sponsorship may come later.
+2. **The project does not pay for AI.** Users connect their own assistant or credentials.
+3. **Native UI on every platform.** SwiftUI on iOS, Jetpack Compose on Android, a real web app in the browser. No React Native, no Flutter, no web views inside the mobile apps.
+4. **One Rust codebase** below the UI, shared by all clients and the server.
+5. **Self-hosted on one Linux server** the owner pays for. No services that bill by usage.
+6. **Every external data source sits behind an adapter.** Regions are configuration. See [data-sources.md](data-sources.md).
+7. **First region: Germany and Austria**, then the whole Alps. The owner is based in Munich.
+8. **iOS first.** The owner flies with an iPhone and an external Bluetooth vario.
+9. **XCTrack is the benchmark for the cockpit.** See [xctrack-parity.md](xctrack-parity.md).
+10. **Best available open maps, with very good terrain depiction.**
+11. **AI sessions write and maintain all code.** The repository must stay understandable to a session that has never seen it.
+
+## Modes
+
+The app has five modes on web and phone. The cockpit is phone-only.
+
+| Mode | Job |
+|---|---|
+| **Today** | What is flyable right now: live wind, webcams, who is in the air |
+| **Plan** | Forecast and route planning for cross-country and hike & fly |
+| **Fly** | Live cockpit and flight recorder |
+| **Review** | Logbook, 3D replay, insights, comparison with other pilots |
+| **Community** | Feed, groups, events, spontaneous flying days |
+
+All modes read and write the same objects through one API: sites, wind stations, airspace, flights, pilots, live positions. The assistant uses that same API as its tools.
+
+## Features
+
+This list is a draft. The owner has said more feature input will follow.
+
+### Today and Plan
+- Live wind stations from every usable network on one map, with history graphs.
+- Forecast layers with a time slider: wind at several altitudes, thermal strength, cloud base, cloud cover, rain, live radar.
+- Takeoffs and landings with allowed wind directions, a per-site flyability timeline, webcams, rules and recent flights.
+- Airspace with altitude and time filters; cable and obstacle hazards.
+- Thermal hotspots and common cross-country lines.
+- Lifts, public transport stops and hiking trails.
+- Later: cross-country route planner, hike & fly planner (trail up, glide range down, transit home), alerts such as "tell me when Wallberg is flyable".
+
+### Fly
+The full checklist is in [xctrack-parity.md](xctrack-parity.md). The principles:
+- The recorder runs as a native background service. A UI crash or phone call never costs the track.
+- Everything works offline: maps, terrain, airspace, sites and the last forecast are on the device.
+- External Bluetooth varios are first-class, because phone barometers are too slow for a good vario.
+- Safety-relevant warnings (airspace, terrain, landing options) are deterministic code. They never depend on a network connection or a language model.
+
+### Review
+- IGC upload and bulk import of existing flight history, with automatic scoring.
+- 3D replay, with photos and videos pinned to the moment and place they were taken.
+- Automatic breakdown of every thermal and glide, time spent climbing, gliding and searching, wind by altitude.
+- Comparison with pilots in the same area that day: climb rate in the same thermals, where lines diverged and what that cost, lift flown past.
+- Trends by season, wing and site.
+
+### Community
+- Profiles, follows, a feed of flights with media, comments, share pages with rich previews.
+- Groups with chat and a "flying today?" board, visible to the group or to pilots nearby.
+- Events with local discovery; site pages anyone can improve.
+- Privacy controls from the first release: private, followers-only or public flights, a hidden home zone, delayed or friends-only live tracking.
+- Later: leagues, classic-route leaderboards, club pages.
+
+### Assistant
+Users bring their own AI; details are in [architecture.md](architecture.md#bring-your-own-ai).
+- **Connector:** the server exposes its tools over MCP, so a pilot adds the app to their own Claude or ChatGPT and asks there ("how is the wind toward Innsbruck this afternoon?").
+- **In-app assistant:** runs on the pilot's own API key or account, speaks and listens in flight, and can raise proactive alerts.
+- **Flagship question:** "which valley gets me home tonight?" Reachable landings from the current height and wind, then nearest stops, then train and bus itineraries, ranked by arrival time and glide margin.
+
+## Roadmap
+
+Phases are ordered so that each one is useful to a single pilot before the community exists. Code is written by AI sessions, so calendar time is driven by what cannot be automated: flight testing on flyable days, App Store review, and permission emails to data owners.
+
+| Phase | Ships | Done when |
+|---|---|---|
+| **0 Foundations** | Repository, CI, Rust workspace, the adapter framework with two real adapters, and the spikes listed below | Every spike has a yes or no |
+| **1 Map** | Today and Plan for Germany/Austria on iOS and web; MCP connector with read-only weather and site tools | The owner opens it before every flight |
+| **2 Review** | Logbook, import, analysis, 3D replay, share pages | The owner's full flight history is in it |
+| **3 Fly** | Recorder and cockpit on iOS with offline maps, Bluetooth vario and live tracking | Ten cross-country flights as primary instrument without a lost track |
+| **4 Community** | Profiles, feed, groups, flying-today board, events; closed beta | The owner's group plans a flying day in it |
+| **5 Assistant in flight** | In-app assistant, voice, proactive alerts, landing-plus-transit planner | Used for a real retrieve |
+| **6 Breadth** | Android app, route and hike & fly planners, leagues, competition tasks, whole Alps | |
+
+Android follows iOS one phase behind once the shell patterns are settled. The cockpit must be testable on the ground by the time thermals return in March 2027.
+
+### Phase 0 spikes
+
+| Spike | Question it answers |
+|---|---|
+| Core bridge | Does a Rust core drive a SwiftUI shell cleanly through UniFFI under Swift 6 strict concurrency? |
+| 2D map | Does MapLibre Native on iOS render our self-hosted vector, terrain and contour tiles from local files at 60 fps with a few thousand live symbols? |
+| Background recording | Does a six-hour recording survive backgrounding, a phone call and low-power mode on iOS? |
+| Bluetooth vario | Can we connect to the owner's vario, parse its stream and drive vario audio in the background? |
+| 3D terrain | Is a small Rust terrain renderer on wgpu good enough on iPhone and in the browser? |
+| Adapters | Do DWD and GeoSphere Austria observations flow end to end through the framework, with fixtures and health reporting? |
+| Transit | How much memory and import time does the transit router need for Germany, Austria, Switzerland and northern Italy on the owner's server? |
+
+## Needed from the owner
+
+1. **A name**, then an empty GitHub repository. AI sessions cannot create repositories, only work in ones attached to them.
+2. **Apple Developer Program membership.** Needed for TestFlight and the App Store. iOS builds run on GitHub's macOS runners, which are free for public repositories.
+3. **Server details:** specification, operating system, and how deployments reach it.
+4. **The vario model**, for the first Bluetooth driver.
+5. **Permission emails.** AI sessions draft them, the owner sends them. The list is in [data-sources.md](data-sources.md#outreach).
+6. **Feature input** on the draft list above.
+7. **A licence decision.** See the decision log in [architecture.md](architecture.md#decision-log).
+
+## Risks
+
+1. **Scope.** This is three mature products at once. The phase order is the mitigation.
+2. **Empty community.** XContest has the network. The app must be the best logbook and cockpit with no friends on it, import history in bulk, and cross-post to XContest if XContest agrees.
+3. **Lost tracks.** iOS background limits and Android battery managers kill trackers. One lost long flight loses a pilot for good.
+4. **Data permissions.** Several sources that matter most at launch sites have no open licence: Holfuy wind stations, the DHV site database, airspace activation times, webcams.
+5. **Liability.** Airspace data and assistant answers can be wrong. Everything is advisory, shows the age of its data and cites its source.
+6. **Store review.** Background location and background audio need justifying; user content needs report, block and moderation.

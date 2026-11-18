@@ -1,6 +1,6 @@
-# Working title: to be decided
+# Venti
 
-One free, open-source app for free flight: check conditions, plan, fly, review and share. It starts with paragliding in the German and Austrian Alps.
+One free, open-source app for free flight: check conditions, plan, fly, review and share. It starts with paragliding in the German and Austrian Alps. *Venti* is Italian for "winds".
 
 **Status:** planning. There is no application code yet.
 
@@ -12,3 +12,7 @@ One free, open-source app for free flight: check conditions, plan, fly, review a
 | [docs/xctrack-parity.md](docs/xctrack-parity.md) | Cockpit feature checklist measured against XCTrack |
 
 The project is built and maintained by AI coding sessions under the direction of its owner. The documents above are the project's memory between sessions; [CLAUDE.md](CLAUDE.md) holds the working rules.
+
+## Licence
+
+GNU Affero General Public License, version 3 or later. See [LICENSE](LICENSE).

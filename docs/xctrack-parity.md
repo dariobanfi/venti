@@ -77,7 +77,7 @@ XCTrack supports several sensors at once with priorities and automatic fallback;
 
 `$XCTOD`, `$XCTRC`, `$LK8EX1`, `$LXWP0`, `$GPRMC`, `$GNRMC`, `$GPGGA`, `$GNGGA`, `$PCPROBE`, `PRSD`, `_PRS`, `PRS`, `_BAT`, `BAT`, `$VARIO`, `$PFLAA`, `$PFLAU`, `$PFLAC`, `$PDGFTL1`, `$PTAS1`, `$PLKAS`, `$BFV`, `$MIPRC`, and from 1.0.3 an HDG sentence for external compasses. FANET names come from `FNNGB`. *(tracker)*
 
-Ours, v1: `LK8EX1`, `LXWP0`, `XCTRC`, `PRS`, GGA and RMC, `PFLAA`, `PFLAU`, `FNNGB`. The rest follow as devices need them. Each is one parser in the `sensors` crate with recorded test streams.
+Ours, v1: `LK8EX1`, `LXWP0`, `XCTRC`, `POV` (OpenVario), `PRS`, GGA and RMC, `PFLAA`, `PFLAU`, `FNNGB`. The rest follow as devices need them. `POV` is not on XCTrack's list, but the owner's vario sends it. Each is one parser in the `sensors` crate with recorded test streams.
 
 ### Bluetooth LE services XCTrack subscribes to *(official)*
 
@@ -90,7 +90,14 @@ Ours, v1: `LK8EX1`, `LXWP0`, `XCTRC`, `PRS`, GGA and RMC, `PFLAA`, `PFLAU`, `FNN
 
 Over the UART-style services the payload is plain text sentences, one per line. *(tracker)*
 
-Ours, v1: the UART-style services and the Environmental Sensing Service, starting with the owner's vario. The owner's vario model decides which comes first.
+Ours, v1: the UART-style services and the Environmental Sensing Service.
+
+The first two drivers, in this order:
+
+1. **MipFly MipBip**, the owner's vario. Its manual says it sends `$LK8EX1` and `$POV` sentences over Bluetooth, supports Bluetooth LE, and expects the app to open the connection itself (not the phone's Bluetooth settings). Which Bluetooth service it uses is found by scanning the device in the Phase 0 spike. *(manual, to verify on the device)*
+2. **XC Tracer** (all current models), the most common vario among cross-country pilots. It has its own Bluetooth service and sends `XCTRC`, `LXWP0` or `LK8EX1` depending on its configuration. *(official)*
+
+After those, the goal is every popular Bluetooth LE vario on XCTrack's device list.
 
 ### Devices XCTrack lists *(official)*
 

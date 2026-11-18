@@ -21,6 +21,8 @@ These were set by the owner on 2026-11-18 and are not open for re-litigation in 
 9. **XCTrack is the benchmark for the cockpit.** See [xctrack-parity.md](xctrack-parity.md).
 10. **Best available open maps, with very good terrain depiction.**
 11. **AI sessions write and maintain all code.** The repository must stay understandable to a session that has never seen it.
+12. **The app is called Venti** and is licensed under AGPL-3.0-or-later.
+13. **It must be able to carry many users.** The server design starts on one machine and must be able to grow beyond it.
 
 ## Modes
 
@@ -106,13 +108,16 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 
 ## Needed from the owner
 
-1. **A name**, then an empty GitHub repository. AI sessions cannot create repositories, only work in ones attached to them.
-2. **Apple Developer Program membership.** Needed for TestFlight and the App Store. iOS builds run on GitHub's macOS runners, which are free for public repositories.
-3. **Server details:** specification, operating system, and how deployments reach it.
-4. **The vario model**, for the first Bluetooth driver.
-5. **Permission emails.** AI sessions draft them, the owner sends them. The list is in [data-sources.md](data-sources.md#outreach).
-6. **Feature input** on the draft list above.
-7. **A licence decision.** See the decision log in [architecture.md](architecture.md#decision-log).
+| Item | State |
+|---|---|
+| Name | **Venti**, decided 2026-11-18. Domain `venti.fly` was unregistered that day; the owner intends to buy it. |
+| Licence | **AGPL-3.0-or-later**, decided 2026-11-18. |
+| Vario | MipFly MipBip, with XC Tracer as the other first-class target. All popular Bluetooth varios should follow. |
+| GitHub repository | **Open.** The owner creates an empty public repository named `venti` and gives the Claude GitHub app access to it. AI sessions cannot create repositories. |
+| Server | **Open.** None yet. The recommended specification is in [architecture.md](architecture.md#sizing). |
+| Apple Developer Program membership | **Open.** Needed for TestFlight and the App Store. iOS builds run on GitHub's macOS runners, which are free for public repositories. |
+| Permission emails | **Open.** AI sessions draft them, the owner sends them. The list is in [data-sources.md](data-sources.md#outreach). |
+| Feature input | **Open.** The owner has said more will follow on the draft list above. |
 
 ## Risks
 

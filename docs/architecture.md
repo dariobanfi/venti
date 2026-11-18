@@ -179,9 +179,37 @@ Deliberate omissions: no Redis (live fan-out is in-process, the job queue is a P
 
 Passkeys, email link and Sign in with Apple. The server is also an OAuth 2.1 authorization server, because MCP clients require it (PKCE, client ID metadata documents or dynamic registration).
 
+### Sizing
+
+The owner has no server yet and wants the system to carry many users. The recommendation is one machine that is large enough for development now and for a public launch, so nothing has to be migrated in between.
+
+| Resource | Recommendation | Reason |
+|---|---|---|
+| CPU | 16 modern cores | Map builds, flight analysis and video transcoding. The API itself needs little. |
+| Memory | 128 GB, error-correcting | Transit router (estimated 16 to 32 GB), forecast service (8 to 16 GB), database cache, map builds. 64 GB is the working minimum. |
+| Fast storage | Two 2 TB NVMe drives, mirrored | Database, routing data, forecast data, map and terrain tiles |
+| Bulk storage | None at first | Add mirrored hard disks or network storage when 3D imagery and user video arrive |
+| Network | 1 Gbit/s without a traffic cap, in an EU data centre | Offline map downloads are the heaviest traffic |
+| Backup | About 5 TB at a different site | See Storage above |
+
+A Hetzner AX102 matches this (16 cores, 128 GB, two 1.92 TB NVMe drives). Its price could not be confirmed from this session: listings ranged from about 100 to 260 euros a month before VAT. Check the provider's configurator, and its auction of used servers, before ordering.
+
+What this is expected to carry, as estimates that have not been measured:
+
+- **API and live tracking:** tens of thousands of daily users and several thousand pilots in the air at once. Each pilot sends one small batch every 10 to 15 seconds.
+- **First limit, bandwidth:** 1 Gbit/s moves at most about 10 TB a day. At 3 to 5 GB per offline region, that is roughly two thousand new installs a day. The remedy is a second machine or a content delivery network for the tile files only.
+- **Second limit, disk:** user video. Clip length and resolution are capped from the start.
+- **Single point of failure:** if the machine dies, restoring from backup takes hours. The cockpit is unaffected because it works offline. Before a public launch, add a second machine as a warm standby with database replication.
+
+Growing beyond one machine does not need a redesign. The server binary's roles (API, live, ingestion, jobs) can run as separate processes on separate machines, PostgreSQL can replicate, and tiles are static files that any web server or CDN can serve.
+
+The transit router's real memory use and the size of the terrain tiles for the Alps are measured in Phase 0 before these numbers are trusted.
+
 ### Deployment
 
-How deployments reach the server is open until the owner describes it. Options are a pull-based updater on the server or a deploy job with a restricted SSH key. A self-hosted CI runner on a public repository is ruled out because forks could run code on the server.
+Recommended, pending the owner's server: CI publishes container images to GitHub's registry, and a timer on the server pulls tagged releases and restarts the affected services. The owner runs one bootstrap script once. No credential that can reach the server is stored in GitHub, and a self-hosted CI runner on a public repository is ruled out because forks could run code on the server.
+
+How an AI session inspects the running server when something breaks (logs, health) is still open.
 
 ## Bring your own AI
 
@@ -237,5 +265,7 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-18 | Self-hosted MOTIS for transit; Google by link only | Google's terms forbid the API with our map and with an assistant | Not expected |
 | 2026-11-18 | Self-hosted Open-Meteo for forecasts first, own model pipeline later | It already handles DWD's new native-grid feed; no usage limits when self-hosted | Soaring fields it lacks (boundary-layer height, model levels) are needed |
 | 2026-11-18 | Users bring their own AI; MCP connector plus in-app assistant on user credentials | Owner decision; Claude subscription login in third-party apps is prohibited | Provider policies change |
-| Open | Code licence | Recommendation: AGPL-3.0-or-later with an explicit permission for app-store distribution. It keeps forks open and allows reuse of GPL flight software such as XCSoar. A permissive licence would allow closed commercial forks. | Owner decides |
-| Open | Deployment path to the server | Depends on the owner's server setup | Owner describes the server |
+| 2026-11-18 | Name: Venti | Owner decision. It is a common word (Italian for "winds" and "twenty", a coffee size, a game character), so plain searches for "Venti" will not find the app; the domain and "Venti paragliding" will. | Not open |
+| 2026-11-18 | Licence: AGPL-3.0-or-later | Owner decision. Keeps forks open and allows reuse of GPL flight software such as XCSoar. The owner, as sole copyright holder, can publish in app stores. Before the first outside contribution is merged, a contributor agreement must let the owner keep doing so. | First outside contribution |
+| Recommended | Pull-based deployment from GitHub's container registry | No server credential in GitHub | Owner orders the server |
+| Open | How AI sessions inspect the running server | Needed to maintain it | Owner orders the server |

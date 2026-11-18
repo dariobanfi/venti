@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Vector data follows the OpenMapTiles schema. The three __…__ placeholders are replaced by each app with the URLs of its tiles and fonts, local or remote."
+    "about": "The one map style shared by the iOS, Android and web apps. Vector data follows the OpenMapTiles schema. The glyphs URL and the two source URLs are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {

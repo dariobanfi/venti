@@ -25,6 +25,19 @@ Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before ch
 - Data from different licence families is never merged into one record or bundle.
 - Sources marked "Ask" in the catalogue are not used until the owner has permission in writing.
 
+## Commands
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo deny check licenses bans sources
+VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then review the diff
+cargo run -p venti-ingest -- regions/alps-de-at/region.toml   # live run against the providers
+```
+
+Cloud sessions reach the data providers only through the `venti` environment's host allowlist. A new provider needs its hosts added there before its fixtures can be recorded.
+
 ## Working practice
 
 - Decisions go in the decision log in `docs/architecture.md`.

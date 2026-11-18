@@ -40,6 +40,7 @@ Cloud sessions for this repository use the `venti` environment, which has unrest
 
 ## Working practice
 
+- Commit directly to `main` and push. No feature branches and no pull requests: the owner works on this alone.
 - Decisions go in the decision log in `docs/architecture.md`.
 - Mark anything not checked against a primary source as "to verify". Do not present it as fact.
 - Prefer deleting code to adding a second way of doing something.

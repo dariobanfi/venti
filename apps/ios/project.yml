@@ -1,0 +1,61 @@
+# XcodeGen project description. The Xcode project is generated, not committed:
+#
+#   scripts/build-core.sh && xcodegen generate
+#
+name: Venti
+options:
+  deploymentTarget:
+    iOS: "18.0"
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: "YES"
+packages:
+  VentiCore:
+    path: Packages/VentiCore
+targets:
+  Venti:
+    type: application
+    platform: iOS
+    sources:
+      - path: Venti
+        excludes:
+          - "Resources/**"
+      - path: Venti/Resources
+        buildPhase: resources
+    dependencies:
+      - package: VentiCore
+        product: VentiCore
+    settings:
+      base:
+        # To be confirmed once the venti.fly domain is registered.
+        PRODUCT_BUNDLE_IDENTIFIER: fly.venti.app
+        INFOPLIST_KEY_CFBundleDisplayName: Venti
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.sports
+  VentiTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VentiTests
+    dependencies:
+      - target: Venti
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fly.venti.app.tests
+schemes:
+  Venti:
+    build:
+      targets:
+        Venti: all
+        VentiTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VentiTests

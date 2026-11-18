@@ -41,7 +41,7 @@ Three ideas carry the design:
 
 ## Rust workspace
 
-Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, and `ingest`. The rest are planned.
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `ingest`, `flight` (flight files and track summary only), `core` (opens a flight) and the first iOS shell in `apps/ios`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`.
 
 ```
 crates/

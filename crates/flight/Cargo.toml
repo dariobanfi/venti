@@ -1,0 +1,16 @@
+[package]
+name = "venti-flight"
+description = "The flight engine: flight files, track analysis and, later, the live cockpit calculations. No I/O and no clock."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

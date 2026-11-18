@@ -1,0 +1,21 @@
+[package]
+name = "venti-core"
+description = "The client application core that the iOS, Android and web shells call."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+# lib for Rust tests, staticlib for iOS, cdylib for Android and for generating bindings.
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+venti-domain.workspace = true
+venti-flight.workspace = true
+thiserror.workspace = true
+uniffi.workspace = true
+
+[lints]
+workspace = true

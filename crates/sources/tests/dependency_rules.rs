@@ -5,6 +5,9 @@
 //! - A provider crate (`venti-sources-*`) depends only on those two.
 //! - Only binaries that assemble the registry depend on provider crates, so
 //!   no other code can name a provider-specific type.
+//! - `venti-flight` depends only on `venti-domain`.
+//! - `venti-core`, the client core, never depends on the source framework:
+//!   clients talk to our server, never to a data provider.
 
 use std::collections::BTreeMap;
 use std::process::Command;
@@ -59,7 +62,8 @@ fn crate_dependencies_point_inward() {
     for (name, dependencies) in &graph {
         let allowed: Option<&[&str]> = match name.as_str() {
             "venti-domain" => Some(&[]),
-            "venti-sources" => Some(&["venti-domain"]),
+            "venti-sources" | "venti-flight" => Some(&["venti-domain"]),
+            "venti-core" => Some(&["venti-domain", "venti-flight"]),
             provider if is_provider(provider) => Some(&["venti-domain", "venti-sources"]),
             _ => None,
         };

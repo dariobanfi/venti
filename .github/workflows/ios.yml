@@ -1,0 +1,101 @@
+name: iOS
+
+# Builds the Rust core for Apple platforms, runs the bridge tests on the Mac,
+# then builds and tests the app on an iPhone simulator.
+
+on:
+  push:
+    paths:
+      - "apps/ios/**"
+      - "crates/core/**"
+      - "crates/flight/**"
+      - "crates/domain/**"
+      - "tools/uniffi-bindgen-swift/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: Core bridge and app
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tool versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Rust toolchain and Apple targets
+        run: |
+          rustup show
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the Rust core for Apple platforms
+        run: apps/ios/scripts/build-core.sh
+
+      - name: Bridge tests on the Mac
+        run: swift test --package-path apps/ios/Packages/VentiCore
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios && xcodegen generate
+
+      - name: Pick the newest iPhone simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          best = None
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not match:
+                  continue
+              version = (int(match.group(1)), int(match.group(2)))
+              for device in devices:
+                  if device["name"].startswith("iPhone") and (best is None or version > best[0]):
+                      best = (version, device["udid"], device["name"])
+          if best is None:
+              sys.exit("no iPhone simulator is installed")
+          print("using", best[2], "with iOS", ".".join(map(str, best[0])), file=sys.stderr)
+          print(best[1])
+          ')
+          echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+
+      - name: Build and test the app on the simulator
+        run: |
+          xcodebuild test \
+            -project apps/ios/Venti.xcodeproj \
+            -scheme Venti \
+            -destination "platform=iOS Simulator,id=$SIMULATOR" \
+            -derivedDataPath target/apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Screenshot of the running app
+        run: |
+          xcrun simctl bootstatus "$SIMULATOR" -b
+          xcrun simctl install "$SIMULATOR" target/apple/DerivedData/Build/Products/Debug-iphonesimulator/Venti.app
+          xcrun simctl launch "$SIMULATOR" fly.venti.app
+          sleep 10
+          xcrun simctl io "$SIMULATOR" screenshot target/apple/venti-ios.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshot
+          path: target/apple/venti-ios.png
+          if-no-files-found: error

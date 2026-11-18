@@ -49,6 +49,21 @@ impl GeoPoint {
     pub fn lon(&self) -> f64 {
         self.lon
     }
+
+    /// Great-circle distance to another point in metres, on the FAI sphere.
+    ///
+    /// The FAI sphere has a radius of 6371 km. Free-flight distances are
+    /// conventionally measured on it or on the WGS84 ellipsoid; the two differ
+    /// by at most about half a percent. Scoring that must match a league's
+    /// rules chooses its own earth model.
+    pub fn distance_m(&self, other: GeoPoint) -> f64 {
+        const FAI_SPHERE_RADIUS_M: f64 = 6_371_000.0;
+        let (lat1, lat2) = (self.lat.to_radians(), other.lat.to_radians());
+        let dlat = lat2 - lat1;
+        let dlon = (other.lon - self.lon).to_radians();
+        let a = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+        2.0 * FAI_SPHERE_RADIUS_M * a.sqrt().min(1.0).asin()
+    }
 }
 
 impl TryFrom<RawPoint> for GeoPoint {
@@ -138,6 +153,20 @@ mod tests {
         assert!(GeoPoint::new(91.0, 0.0).is_err());
         assert!(GeoPoint::new(0.0, 181.0).is_err());
         assert!(GeoPoint::new(f64::NAN, 0.0).is_err());
+    }
+
+    #[test]
+    fn distance_matches_known_values() {
+        // One degree of latitude on a 6371 km sphere is 111.195 km.
+        let a = GeoPoint::new(47.0, 11.0).unwrap();
+        let b = GeoPoint::new(48.0, 11.0).unwrap();
+        assert!((a.distance_m(b) - 111_194.9).abs() < 1.0);
+        assert_eq!(a.distance_m(a), 0.0);
+        // Munich to Innsbruck is a little under 100 km.
+        let munich = GeoPoint::new(48.137, 11.575).unwrap();
+        let innsbruck = GeoPoint::new(47.269, 11.404).unwrap();
+        let km = munich.distance_m(innsbruck) / 1000.0;
+        assert!((97.0..98.5).contains(&km), "{km}");
     }
 
     #[test]

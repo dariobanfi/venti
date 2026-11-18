@@ -36,6 +36,8 @@ VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then revi
 cargo run -p venti-ingest -- regions/alps-de-at/region.toml   # live run against the providers
 ```
 
+The iOS app cannot be built in a Linux cloud session. The `iOS` workflow builds it on GitHub's Mac runners on every push that touches the app or the core, runs the tests, and uploads a simulator screenshot as an artifact; read its logs with `gh run view`. On a Mac: `apps/ios/scripts/build-core.sh`, then `xcodegen generate` in `apps/ios`. After changing the sample flight generator, regenerate `apps/ios/Venti/Resources/sample.igc` with `cargo run -p venti-flight --example sample_flight`.
+
 Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
 
 ## Working practice

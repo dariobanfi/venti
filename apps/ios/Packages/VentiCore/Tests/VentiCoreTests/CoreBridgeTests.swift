@@ -1,3 +1,4 @@
+import Foundation
 import VentiCore
 import XCTest
 
@@ -16,13 +17,33 @@ final class CoreBridgeTests: XCTestCase {
         "",
     ].joined(separator: "\r\n")
 
-    func testTheCoreReportsItsVersion() {
-        XCTAssertFalse(Core().version().isEmpty)
+    private var folder: URL!
+
+    override func setUpWithError() throws {
+        folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-bridge-test-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    private func makeCore() throws -> Core {
+        try Core(dataFolder: folder.path)
+    }
+
+    func testTheCoreReportsItsVersion() throws {
+        XCTAssertFalse(try makeCore().version().isEmpty)
     }
 
     func testAFlightFileCrossesTheBridge() throws {
-        let flight = try Core().openFlight(igcText: Self.threeFixes)
+        let core = try makeCore()
+        let imported = try core.importFlight(igcText: Self.threeFixes)
+        XCTAssertFalse(imported.alreadyInLogbook)
 
+        let flight = try core.flight(id: imported.id)
+
+        XCTAssertEqual(flight.id, imported.id)
         XCTAssertEqual(flight.recorder, "XVE 000")
         XCTAssertEqual(flight.durationS, 20)
         XCTAssertEqual(flight.maxAltitudeM, 1620)
@@ -31,24 +52,53 @@ final class CoreBridgeTests: XCTestCase {
         XCTAssertEqual(flight.track[0].lat, 47 + 39.852 / 60, accuracy: 1e-9)
         XCTAssertEqual(flight.track[0].lon, 11 + 47.802 / 60, accuracy: 1e-9)
         XCTAssertEqual(flight.track[2].seconds, 20)
+        XCTAssertEqual(flight.track[1].climbMs, -0.1, accuracy: 1e-9)
+        XCTAssertEqual(flight.profile.map(\.altitudeM), [1620, 1619, 1618])
         XCTAssertNil(flight.pilot)
     }
 
-    func testAFileThatIsNotAFlightThrowsAReadableError() {
-        XCTAssertThrowsError(try Core().openFlight(igcText: "hello")) { error in
+    func testTheLogbookListsTotalsAndForgetsADeletedFlight() throws {
+        let core = try makeCore()
+        XCTAssertTrue(core.logbook().years.isEmpty)
+
+        let id = try core.importFlight(igcText: Self.threeFixes).id
+        XCTAssertTrue(try core.importFlight(igcText: Self.threeFixes).alreadyInLogbook)
+
+        let logbook = core.logbook()
+        XCTAssertEqual(logbook.totals.flights, 1)
+        XCTAssertEqual(logbook.totals.airtimeS, 20)
+        XCTAssertEqual(logbook.years.map(\.year), [2026])
+        XCTAssertEqual(logbook.years[0].flights.map(\.id), [id])
+        XCTAssertEqual(logbook.years[0].flights[0].outline.count, 3)
+
+        try core.deleteFlight(id: id)
+        XCTAssertTrue(core.logbook().years.isEmpty)
+    }
+
+    func testTheLogbookIsStillThereWhenTheCoreIsCreatedAgain() throws {
+        let id = try makeCore().importFlight(igcText: Self.threeFixes).id
+        XCTAssertEqual(try makeCore().logbook().years.first?.flights.first?.id, id)
+    }
+
+    func testAFileThatIsNotAFlightThrowsAReadableError() throws {
+        let core = try makeCore()
+        XCTAssertThrowsError(try core.importFlight(igcText: "hello")) { error in
             XCTAssertTrue(error is CoreError)
             XCTAssertTrue(error.localizedDescription.contains("not a flight file"))
+        }
+        XCTAssertThrowsError(try core.flight(id: "nothing")) { error in
+            XCTAssertTrue(error.localizedDescription.contains("no longer in the logbook"))
         }
     }
 
     func testTheCoreCanBeSharedAcrossTasks() async throws {
-        let core = Core()
-        let text = Self.threeFixes
+        let core = try makeCore()
+        let id = try core.importFlight(igcText: Self.threeFixes).id
 
         let counts = try await withThrowingTaskGroup(of: Int.self) { group in
             for _ in 0..<8 {
                 group.addTask {
-                    try core.openFlight(igcText: text).track.count
+                    try core.flight(id: id).track.count
                 }
             }
             var counts: [Int] = []

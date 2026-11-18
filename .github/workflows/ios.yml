@@ -1,7 +1,9 @@
 name: iOS
 
 # Builds the Rust core for Apple platforms, runs the bridge tests on the Mac,
-# then builds and tests the app on an iPhone simulator.
+# then builds the app and runs its unit tests and UI tests on an iPhone
+# simulator. The UI tests take a screenshot of every screen; they are
+# published as the `ios-screenshots` artifact.
 
 on:
   push:
@@ -83,6 +85,7 @@ jobs:
             -scheme Venti \
             -destination "platform=iOS Simulator,id=$SIMULATOR" \
             -derivedDataPath target/apple/DerivedData \
+            -resultBundlePath target/apple/Venti.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee target/apple/xcodebuild.log \
             | grep -E "^Test (Suite|Case) |Executed [0-9]+ tests|(error|warning): |\*\* TEST"
@@ -94,16 +97,35 @@ jobs:
           name: xcodebuild-log
           path: target/apple/xcodebuild.log
 
-      - name: Screenshot of the running app
+      - name: Collect the screenshots the UI tests took
+        if: always()
         run: |
-          xcrun simctl bootstatus "$SIMULATOR" -b
-          xcrun simctl install "$SIMULATOR" target/apple/DerivedData/Build/Products/Debug-iphonesimulator/Venti.app
-          xcrun simctl launch "$SIMULATOR" fly.venti.app
-          sleep 10
-          xcrun simctl io "$SIMULATOR" screenshot target/apple/venti-ios.png
+          [ -d target/apple/Venti.xcresult ] || exit 0
+          xcrun xcresulttool export attachments \
+            --path target/apple/Venti.xcresult \
+            --output-path target/apple/attachments
+          python3 - <<'EOF'
+          import json, pathlib, re, shutil
+
+          source = pathlib.Path("target/apple/attachments")
+          target = pathlib.Path("target/apple/screenshots")
+          target.mkdir(exist_ok=True)
+          for test in json.loads((source / "manifest.json").read_text()):
+              for attachment in test.get("attachments", []):
+                  exported = attachment["exportedFileName"]
+                  name = attachment.get("suggestedHumanReadableName") or exported
+                  # "light-1-map_0_<UUID>.png" becomes "light-1-map.png".
+                  name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", name)
+                  if name.endswith(".png"):
+                      shutil.copy(source / exported, target / name)
+          EOF
+          # Half size is enough to judge a screen and keeps the artifact small.
+          sips -Z 1400 target/apple/screenshots/*.png > /dev/null
+          ls -l target/apple/screenshots
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: ios-screenshot
-          path: target/apple/venti-ios.png
-          if-no-files-found: error
+          name: ios-screenshots
+          path: target/apple/screenshots
+          if-no-files-found: warn

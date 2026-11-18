@@ -5,7 +5,7 @@
 name: Venti
 options:
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
   developmentLanguage: en
 configFiles:
   Debug: Config/Base.xcconfig
@@ -51,9 +51,15 @@ targets:
         # be confirmed once the venti.fly domain is registered.
         PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID)
         PROVISIONING_PROFILE_SPECIFIER: $(VENTI_PROFILE)
+        # Xcode writes the Info.plist from the keys below and merges in this
+        # file, which declares the flight-file type the app opens.
+        INFOPLIST_FILE: Venti/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Venti
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Venti shows your position on the map.
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # iPhone in portrait for now: the flight screen is laid out for it.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.sports
   VentiTests:
     type: bundle.unit-test
@@ -65,15 +71,28 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID).tests
+  VentiUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: VentiUITests
+    dependencies:
+      - target: Venti
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(VENTI_BUNDLE_ID).uitests
+        TEST_TARGET_NAME: Venti
 schemes:
   Venti:
     build:
       targets:
         Venti: all
         VentiTests: [test]
+        VentiUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - VentiTests
+        - VentiUITests

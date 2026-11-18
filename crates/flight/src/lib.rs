@@ -5,10 +5,12 @@
 //! in text, positions and times, which makes every calculation replayable
 //! from a recorded flight.
 //!
-//! So far it reads and writes IGC flight files and summarises a track.
+//! So far it reads and writes IGC flight files, summarises a track and
+//! prepares it for drawing.
 
 pub mod igc;
 mod summary;
 pub mod testing;
+pub mod track;
 
 pub use summary::{FlightSummary, summarise};

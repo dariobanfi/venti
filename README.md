@@ -2,7 +2,14 @@
 
 One free, open-source app for free flight: check conditions, plan, fly, review and share. It starts with paragliding in the German and Austrian Alps. *Venti* is Italian for "winds".
 
-**Status:** planning. There is no application code yet.
+**Status:** Phase 0, foundations. The data-source framework and the first two weather adapters exist; there is no app yet.
+
+```bash
+cargo test --workspace
+cargo run -p venti-ingest -- regions/alps-de-at/region.toml
+```
+
+The second command fetches live station observations for the first region and prints a health line per source.
 
 | Document | What it covers |
 |---|---|

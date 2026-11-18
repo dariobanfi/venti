@@ -1,0 +1,120 @@
+{
+  "stations": [
+    {
+      "id": "dwd-10min:05792",
+      "name": "Zugspitze",
+      "position": {
+        "lat": 47.421,
+        "lon": 10.9848
+      },
+      "elevation_m": 2956.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T17:30:00Z",
+      "wind_speed_ms": 8.4,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 310.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.9,
+      "humidity_pct": 93.2,
+      "pressure_hpa": 693.2
+    },
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T17:40:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.0,
+      "humidity_pct": 91.8,
+      "pressure_hpa": 692.8
+    },
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T17:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.1,
+      "humidity_pct": 91.8,
+      "pressure_hpa": 693.5
+    },
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T18:00:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.2,
+      "humidity_pct": 91.5,
+      "pressure_hpa": 693.3
+    },
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T18:10:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 270.0,
+      "gust_direction_deg": null,
+      "temperature_c": -7.2,
+      "humidity_pct": 92.0,
+      "pressure_hpa": 693.4
+    },
+    {
+      "station": "dwd-10min:05792",
+      "time": "2026-11-18T18:20:00Z",
+      "wind_speed_ms": 14.9,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -7.1,
+      "humidity_pct": 91.8,
+      "pressure_hpa": 693.4
+    }
+  ],
+  "report": {
+    "source": "dwd-10min",
+    "requests": 6,
+    "failures": [
+      {
+        "tag": "data/extremes/05792",
+        "url": "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/extreme_wind/now/10minutenwerte_extrema_wind_05792_now.zip",
+        "error": "malformed response: not a zip archive: invalid Zip archive: Could not find EOCD"
+      }
+    ],
+    "skipped": [
+      {
+        "what": "       5792;202611181740;    2;  abc; 310;eor",
+        "reason": "FF_10: invalid float literal"
+      },
+      {
+        "what": "       5792;202611181750;    2",
+        "reason": "row is cut short"
+      },
+      {
+        "what": "       5792;20261340250099;    2;  11.9; 300;eor",
+        "reason": "time stamp: input is out of range"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "dwd-10min:05792",
+        "time": "2026-11-18T18:10:00Z",
+        "field": "wind_speed_ms",
+        "value": 999.0,
+        "reason": "outside 0..=120"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 1,
+    "observations": 6,
+    "newest_observation": "2026-11-18T18:20:00Z"
+  }
+}

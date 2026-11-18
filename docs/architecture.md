@@ -41,6 +41,8 @@ Three ideas carry the design:
 
 ## Rust workspace
 
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, and `ingest`. The rest are planned.
+
 ```
 crates/
   domain         Canonical types, units, identifiers. No I/O.
@@ -50,6 +52,8 @@ crates/
   sources        Adapter traits, manifest types, registry, pipeline.
   sources-*      One crate per provider (sources-dwd, sources-geosphere, ...).
   regions        Loads and validates region packs.
+  ingest         Runs a region's sources against the live providers. Development tool
+                 and canary until the server exists, then it is folded into `server`.
   store          Server persistence (PostgreSQL/PostGIS).
   client-store   Client offline store (SQLite) and sync.
   api-types      Request and response types shared by server and clients.
@@ -74,7 +78,7 @@ docs/
 - `flight` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
 - UI shells contain no business rules. If a shell needs an `if` about flying, the logic belongs in `core`.
 
-CI enforces the first three rules by checking the crate dependency graph.
+The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than a binary that assembles the registry depends on a provider crate. Add the rules for `flight` and `sensors` to it when those crates are created.
 
 ## Clients
 
@@ -248,7 +252,7 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 
 - **Replay tests.** The flight engine is tested by feeding it recorded flights and sensor logs and comparing against stored results. The cockpit can be run on the ground from a recorded flight.
 - **Adapter contract tests.** See [data-sources.md](data-sources.md#testing).
-- **CI gates:** formatting, lints, tests, the dependency-graph check, and a licence check on dependencies.
+- **CI gates:** formatting, lints with warnings as errors, tests, the dependency-graph test, and a licence check on dependencies (`deny.toml`). All of them run on every push.
 - **Decisions are written down.** A change to anything in the decision log below updates the log in the same commit.
 
 ## Decision log
@@ -268,4 +272,6 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-18 | Name: Venti | Owner decision. It is a common word (Italian for "winds" and "twenty", a coffee size, a game character), so plain searches for "Venti" will not find the app; the domain and "Venti paragliding" will. | Not open |
 | 2026-11-18 | Licence: AGPL-3.0-or-later | Owner decision. Keeps forks open and allows reuse of GPL flight software such as XCSoar. The owner, as sole copyright holder, can publish in app stores. Before the first outside contribution is merged, a contributor agreement must let the owner keep doing so. | First outside contribution |
 | Recommended | Pull-based deployment from GitHub's container registry | No server credential in GitHub | Owner orders the server |
+| 2026-11-18 | Adapters are pure: they plan requests and parse responses, and the pipeline does all I/O | Adapters are testable from recorded payloads alone, and none can skip archiving, request budgets or validation | Not expected |
+| 2026-11-18 | Validation removes an implausible value rather than the whole observation | One faulty sensor should not cost a good wind reading | Not expected |
 | Open | How AI sessions inspect the running server | Needed to maintain it | Owner orders the server |

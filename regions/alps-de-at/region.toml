@@ -1,0 +1,19 @@
+# Germany and Austria: the first region.
+#
+# The box covers Austria, the Bavarian Alps and their foothills up to Munich.
+# It is the area in which live data is collected, not a limit on where the app
+# can be used.
+
+id = "alps-de-at"
+name = "Germany and Austria"
+languages = ["de", "en"]
+
+[bounds]
+south = 46.3
+west = 9.4
+north = 48.5
+east = 17.2
+
+[observations]
+sources = ["dwd-10min", "geosphere-tawes"]
+priority = ["dwd-10min", "geosphere-tawes"]

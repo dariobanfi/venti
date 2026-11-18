@@ -1,0 +1,287 @@
+{
+ "media_type": "application/json",
+ "type": "FeatureCollection",
+ "version": "v1",
+ "timestamps": [
+  "2026-11-18T12:20+00:00",
+  "2026-11-18T13:00+00:00",
+  "2026-11-18T15:20+00:00",
+  "2026-11-18T18:50+00:00",
+  "not-a-time"
+ ],
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     11.462222222222222,
+     47.20888888888889
+    ]
+   },
+   "properties": {
+    "parameters": {
+     "FF": {
+      "name": "Windgeschwindigkeit",
+      "unit": "m/s",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       5.2
+      ]
+     },
+     "FFX": {
+      "name": "Windspitze",
+      "unit": "m/s",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       7.3
+      ]
+     },
+     "DD": {
+      "name": "Windrichtung",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       195.0
+      ]
+     },
+     "DDX": {
+      "name": "Windrichtung der Windspitze",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       184.0
+      ]
+     },
+     "TL": {
+      "name": "Lufttemperatur",
+      "unit": "°C",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       -2.6
+      ]
+     },
+     "RF": {
+      "name": "Relative Feuchte",
+      "unit": "%",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       97.0
+      ]
+     },
+     "P": {
+      "name": "Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       760.4
+      ]
+     }
+    },
+    "station": "11126"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     11.384166666666665,
+     47.26
+    ]
+   },
+   "properties": {
+    "parameters": {
+     "FF": {
+      "name": "Windgeschwindigkeit",
+      "unit": "m/s",
+      "data": [
+       1.0
+      ]
+     },
+     "FFX": {
+      "name": "Windspitze",
+      "unit": "m/s",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       1.4
+      ]
+     },
+     "DD": {
+      "name": "Windrichtung",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       281.0
+      ]
+     },
+     "DDX": {
+      "name": "Windrichtung der Windspitze",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       244.0
+      ]
+     },
+     "TL": {
+      "name": "Lufttemperatur",
+      "unit": "°C",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       7.8
+      ]
+     },
+     "RF": {
+      "name": "Relative Feuchte",
+      "unit": "%",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       84.0
+      ]
+     },
+     "P": {
+      "name": "Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       930.9
+      ]
+     }
+    },
+    "station": "11320"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     12.9575,
+     47.05416666666667
+    ]
+   },
+   "properties": {
+    "parameters": {
+     "FF": {
+      "name": "Windgeschwindigkeit",
+      "unit": "m/s",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       5.0
+      ]
+     },
+     "FFX": {
+      "name": "Windspitze",
+      "unit": "m/s",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       9.8
+      ]
+     },
+     "DD": {
+      "name": "Windrichtung",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       290.0
+      ]
+     },
+     "DDX": {
+      "name": "Windrichtung der Windspitze",
+      "unit": "°",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       270.0
+      ]
+     },
+     "TL": {
+      "name": "Lufttemperatur",
+      "unit": "°C",
+      "data": [
+       null,
+       null,
+       null,
+       999.0,
+       -7.7
+      ]
+     },
+     "RF": {
+      "name": "Relative Feuchte",
+      "unit": "%",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       92.0
+      ]
+     },
+     "P": {
+      "name": "Luftdruck",
+      "unit": "hPa",
+      "data": [
+       null,
+       null,
+       null,
+       null,
+       681.6
+      ]
+     }
+    },
+    "station": "11343"
+   }
+  }
+ ],
+ "datapoints": 105
+}

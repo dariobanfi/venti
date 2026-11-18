@@ -7,6 +7,7 @@ The app depends on dozens of external data providers, and the set differs by cou
 Status words used in the catalogue:
 
 - **Open:** licence allows our use and re-serving. Build the adapter.
+- **Built:** the adapter exists and its licence was verified on the provider's own pages.
 - **Ask:** usable only with written permission. See [Outreach](#outreach).
 - **Link only:** we may link or embed, not store or re-serve.
 - **Skip:** closed, or not worth it.
@@ -46,44 +47,51 @@ Each kind has one trait in the `sources` crate. An adapter implements the traits
 | Transit routing | `TransitRouter` | `Itinerary` |
 | Map layers | declared in the region pack only | |
 
-The traits are small. Sketch:
+Adapters are pure. They do no I/O and read no clock. An adapter says which URLs it needs and turns the bytes that come back into canonical records; where a provider needs several steps, a response can ask for further requests. The pipeline does the fetching, archiving, merging and validation, the same way for every source.
 
 ```rust
-#[async_trait]
 pub trait ObservationSource: Send + Sync {
     fn manifest(&self) -> &Manifest;
-    /// Stations this provider has inside the given area.
-    async fn stations(&self, area: &Area, ctx: &FetchCtx) -> Result<Vec<RawStation>, SourceError>;
-    /// Observations newer than `since`.
-    async fn observations(&self, since: Timestamp, ctx: &FetchCtx) -> Result<Vec<RawObservation>, SourceError>;
+    /// The requests that start a run.
+    fn plan(&self, ctx: &PlanCtx) -> Vec<Request>;
+    /// Converts one response into records and, if needed, further requests.
+    fn parse(&self, request: &Request, body: &[u8], ctx: &PlanCtx) -> Result<Parsed, SourceError>;
 }
 ```
 
-`FetchCtx` supplies the HTTP client, credentials, the clock and the rate limiter. Adapters never create their own, which is what makes them testable from recorded payloads.
+`PlanCtx` carries the time of the run and the area it covers. Because an adapter never touches the network, its tests are recorded payloads in and canonical records out, and no adapter can skip the archive, the request budget or validation.
 
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
 
 ### Manifest
 
 ```toml
-id          = "geosphere-tawes"
-provider    = "GeoSphere Austria"
-kinds       = ["observations"]
-coverage    = { countries = ["AT"] }
-cadence     = "10min"
-rate_limit  = { per_hour = 240 }
-auth        = "none"
+id = "geosphere-tawes"
+provider = "GeoSphere Austria"
+kinds = ["observations"]
+countries = ["AT"]
+cadence_seconds = 600
+auth = "none"
+
+[rate_limit]
+per_second = 5
+per_hour = 240
 
 [licence]
-name            = "CC BY 4.0"
-commercial      = true
-redistribution  = true
-share_alike     = false
-attribution     = "Datenquelle: GeoSphere Austria"
-constraints     = []
-verified_on     = "2026-11-18"
-verified_from   = "https://data.hub.geosphere.at/en/legal"
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+attribution = "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+constraints = ["Users must accept GeoSphere Austria's general terms and the Data Hub terms of use."]
+verified_on = "2026-11-18"
+verified_from = [
+    "https://data.hub.geosphere.at/dataset/tawes-v1-10min",
+    "https://data.hub.geosphere.at/en/legal",
+]
 ```
+
+Each adapter crate has its manifest in `manifest.toml`, compiled into the crate. Unknown fields are rejected, so a typo cannot silently drop a licence term.
 
 The manifest is data, not comments. The server reads it to:
 
@@ -95,24 +103,22 @@ The manifest is data, not comments. The server reads it to:
 ### Region pack
 
 ```toml
-id        = "alps-de-at"
-name      = "Germany and Austria"
-boundary  = "boundary.geojson"
+id = "alps-de-at"
+name = "Germany and Austria"
 languages = ["de", "en"]
 
+[bounds]
+south = 46.3
+west = 9.4
+north = 48.5
+east = 17.2
+
 [observations]
-sources  = ["dwd-10min", "geosphere-tawes", "lwd-tirol", "southtyrol-meteo", "metar", "ogn-fanet-stations"]
+sources = ["dwd-10min", "geosphere-tawes"]
 priority = ["dwd-10min", "geosphere-tawes"]   # wins when two sources report the same station
-
-[airspace]
-sources  = ["dfs-aixm", "austrocontrol-openair"]
-fallback = ["openaip"]
-
-[map]
-elevation = "mapterhorn"
-layers    = ["osm-alpine", "basemap-at", "bayern-dtk25"]
-imagery   = ["basemap-at-ortho", "bayern-dop20", "s2cloudless-2016"]
 ```
+
+Region packs live in `regions/<id>/region.toml`. The area is a bounding box for now; a boundary polygon replaces it when a region needs a shape a box cannot express. Sections for the other kinds (airspace, map layers and so on) are added as those kinds are built.
 
 ### Pipeline
 
@@ -121,7 +127,7 @@ Every payload goes through the same stages, in the `sources` crate:
 1. **Fetch.** The scheduler calls the adapter within its rate limit and cadence.
 2. **Archive.** The raw payload is written to disk and kept for a rolling window. A bug report can be replayed exactly.
 3. **Normalise.** The adapter converts to canonical types: SI units, UTC, WGS84, heights above mean sea level.
-4. **Validate.** Schema and range checks. Bad records are quarantined and counted; they never reach the store.
+4. **Merge and validate.** Partial observations for the same station and time are merged (some providers publish wind, gusts and temperature in separate files). Implausible values are removed and counted, so one faulty humidity sensor does not cost a good wind reading. An observation with nothing left is dropped. Nothing unvalidated reaches the store.
 5. **Resolve.** The same real-world object from two providers is matched (by position, name and type) and linked in a mapping table. The region pack's priority decides which fields win. Every stored field records its source.
 6. **Store and publish.** Canonical records go to the database; changes are published to the live channel and to the region-bundle builder.
 
@@ -141,7 +147,9 @@ Every adapter crate contains:
 
 - **Fixtures:** real recorded payloads, including at least one malformed one.
 - **Golden files:** the expected canonical output for each fixture. CI fails if normalisation changes.
-- **A canary:** a scheduled job that calls the live endpoint and alerts when the response no longer parses. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
+- **A canary:** the `Source canary` workflow runs every region's sources against the live providers once a day and fails when a source delivers nothing or reports problems. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
+
+Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, and the change is reviewed like any other diff.
 
 ### Adding a provider
 
@@ -158,14 +166,32 @@ Every adapter crate contains:
 3. Write the region pack and its boundary.
 4. Build the map and terrain extracts for the area.
 
+## What is built
+
+As of 2026-11-18:
+
+| Part | State |
+|---|---|
+| Canonical types for stations and observations (`venti-domain`) | Built |
+| Manifest, adapter trait, registry, pipeline stages 1 to 4 (`venti-sources`) | Built for observations |
+| Adapters: `dwd-10min`, `geosphere-tawes` | Built, with fixtures recorded 2026-11-18 and golden files |
+| Region pack loader and the `alps-de-at` pack (`venti-regions`) | Built for observations |
+| `venti-ingest`, which runs a region's sources live and writes the raw-payload archive | Built as a development tool; it moves into the server |
+| Daily canary | Built as a CI workflow |
+| Request limits | The per-run budget from the hourly limit and a concurrency cap at the per-second limit are enforced. Spacing runs by cadence belongs to the scheduler. |
+| Resolve stage, store, change events, scheduler, health page | Designed, not built |
+| Every kind other than observations | Designed, not built |
+
+A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
+
 ## Catalogue: Germany and Austria
 
 ### Live wind and weather stations
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| DWD open data, 10-minute observations | Wind, gusts, temperature across Germany | CC BY 4.0 | Open |
-| GeoSphere Austria, TAWES 10-minute | Austrian station network, real time | CC BY 4.0; 240 requests an hour, so fetch all stations in one call | Open |
+| DWD open data, 10-minute observations | Wind, gusts, temperature across Germany. One file per station and dataset. On 2026-11-18 the wind files were 20 to 30 minutes behind real time and the temperature files about 50 minutes (one evening's sample). | CC BY 4.0, verified 2026-11-18 | **Built** |
+| GeoSphere Austria, TAWES 10-minute | Austrian station network. All stations in one request; values were under 10 minutes old on 2026-11-18. Whether a time stamp marks the start or end of its interval is *to verify*. | CC BY 4.0, verified 2026-11-18; 240 requests an hour and 5 a second | **Built** |
 | Avalanche service Tirol (avalanche.report) | About 200 mountain stations with wind and gusts | Files are public; licence not stated in them, Land Tirol open data is CC BY 4.0 *(to verify)* | Open after confirmation |
 | South Tyrol open data | 95 to 120 stations, 5-minute | CC0 | Open |
 | MeteoSwiss open data | SwissMetNet | CC BY 4.0 | Open (for later) |

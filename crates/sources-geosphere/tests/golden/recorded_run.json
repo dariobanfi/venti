@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "geosphere-tawes:11126",
+      "name": "PATSCHERKOFEL",
+      "position": {
+        "lat": 47.20888888888889,
+        "lon": 11.462222222222222
+      },
+      "elevation_m": 2251.0
+    },
+    {
+      "id": "geosphere-tawes:11320",
+      "name": "INNSBRUCK/UNIVERSITAET",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.384166666666664
+      },
+      "elevation_m": 578.0
+    },
+    {
+      "id": "geosphere-tawes:11343",
+      "name": "SONNBLICK - AUTOM.",
+      "position": {
+        "lat": 47.05416666666667,
+        "lon": 12.9575
+      },
+      "elevation_m": 3109.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "geosphere-tawes:11126",
+      "time": "2026-11-18T19:00:00Z",
+      "wind_speed_ms": 5.2,
+      "wind_gust_ms": 7.3,
+      "wind_direction_deg": 195.0,
+      "gust_direction_deg": 184.0,
+      "temperature_c": -2.6,
+      "humidity_pct": 97.0,
+      "pressure_hpa": 760.4
+    },
+    {
+      "station": "geosphere-tawes:11320",
+      "time": "2026-11-18T19:00:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 1.4,
+      "wind_direction_deg": 281.0,
+      "gust_direction_deg": 244.0,
+      "temperature_c": 7.8,
+      "humidity_pct": 84.0,
+      "pressure_hpa": 930.9
+    },
+    {
+      "station": "geosphere-tawes:11343",
+      "time": "2026-11-18T19:00:00Z",
+      "wind_speed_ms": 5.0,
+      "wind_gust_ms": 9.8,
+      "wind_direction_deg": 290.0,
+      "gust_direction_deg": 270.0,
+      "temperature_c": -7.7,
+      "humidity_pct": 92.0,
+      "pressure_hpa": 681.6
+    }
+  ],
+  "report": {
+    "source": "geosphere-tawes",
+    "requests": 2,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T19:00:00Z"
+  }
+}

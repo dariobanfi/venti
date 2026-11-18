@@ -103,7 +103,7 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 | Background recording | Does a six-hour recording survive backgrounding, a phone call and low-power mode on iOS? |
 | Bluetooth vario | Can we connect to the owner's vario, parse its stream and drive vario audio in the background? |
 | 3D terrain | Is a small Rust terrain renderer on wgpu good enough on iPhone and in the browser? |
-| Adapters | Do DWD and GeoSphere Austria observations flow end to end through the framework, with fixtures and health reporting? |
+| Adapters | Do DWD and GeoSphere Austria observations flow end to end through the framework, with fixtures and health reporting? **Yes, 2026-11-18**, up to validated canonical records; see [data-sources.md](data-sources.md#what-is-built). Storing them waits for the server. |
 | Transit | How much memory and import time does the transit router need for Germany, Austria, Switzerland and northern Italy on the owner's server? |
 
 ## Needed from the owner

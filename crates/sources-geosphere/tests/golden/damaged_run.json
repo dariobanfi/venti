@@ -1,0 +1,61 @@
+{
+  "stations": [
+    {
+      "id": "geosphere-tawes:11126",
+      "name": "PATSCHERKOFEL",
+      "position": {
+        "lat": 47.20888888888889,
+        "lon": 11.462222222222222
+      },
+      "elevation_m": 2251.0
+    },
+    {
+      "id": "geosphere-tawes:11320",
+      "name": "INNSBRUCK/UNIVERSITAET",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.384166666666664
+      },
+      "elevation_m": 578.0
+    },
+    {
+      "id": "geosphere-tawes:11343",
+      "name": "SONNBLICK - AUTOM.",
+      "position": {
+        "lat": 47.05416666666667,
+        "lon": 12.9575
+      },
+      "elevation_m": 3109.0
+    }
+  ],
+  "observations": [],
+  "report": {
+    "source": "geosphere-tawes",
+    "requests": 2,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "not-a-time",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "geosphere-tawes:11320 FF",
+        "reason": "1 values for 5 time stamps"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "geosphere-tawes:11343",
+        "time": "2026-11-18T18:50:00Z",
+        "field": "temperature_c",
+        "value": 999.0,
+        "reason": "outside -80..=60"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 0,
+    "newest_observation": null
+  }
+}

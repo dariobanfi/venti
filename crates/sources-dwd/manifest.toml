@@ -1,0 +1,23 @@
+id = "dwd-10min"
+provider = "Deutscher Wetterdienst"
+kinds = ["observations"]
+countries = ["DE"]
+cadence_seconds = 600
+auth = "none"
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+attribution = "Quelle: Deutscher Wetterdienst"
+constraints = [
+    "Place the credit directly at the DWD information shown.",
+    "When values are altered, say so, for example: Datenbasis: Deutscher Wetterdienst, Einzelwerte gemittelt.",
+]
+verified_on = "2026-11-18"
+verified_from = [
+    "https://opendata.dwd.de/climate_environment/CDC/Terms_of_use.pdf",
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html",
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/vorlagen_quellenangabe.html",
+]

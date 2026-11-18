@@ -1,0 +1,114 @@
+{
+ "title": "TAWES",
+ "parameters": [
+  {
+   "name": "DD",
+   "long_name": "Windrichtung",
+   "desc": "Windrichtung der letzten 10 Minuten",
+   "unit": "°"
+  },
+  {
+   "name": "DDX",
+   "long_name": "Windrichtung der Windspitze",
+   "desc": "Windrichtung der Windspitze der letzetn 10 Minuten",
+   "unit": "°"
+  },
+  {
+   "name": "FF",
+   "long_name": "Windgeschwindigkeit",
+   "desc": "Windgeschwindigkeit über 10 Minuten",
+   "unit": "m/s"
+  },
+  {
+   "name": "FFX",
+   "long_name": "Windspitze",
+   "desc": "Windspitze der letzten 10 Minuten",
+   "unit": "m/s"
+  },
+  {
+   "name": "P",
+   "long_name": "Luftdruck",
+   "desc": "Luftdruck 10 Minuten",
+   "unit": "hPa"
+  },
+  {
+   "name": "RF",
+   "long_name": "Relative Feuchte",
+   "desc": "Relative Feuchte 10 Minuten",
+   "unit": "%"
+  },
+  {
+   "name": "TL",
+   "long_name": "Lufttemperatur",
+   "desc": "Lufttemperatur 10 Minuten",
+   "unit": "°C"
+  }
+ ],
+ "frequency": "10min",
+ "type": "station",
+ "mode": "current",
+ "response_formats": [
+  "geojson",
+  "csv"
+ ],
+ "time": "2026-11-18T19:00+00:00",
+ "stations": [
+  {
+   "type": "INDIVIDUAL",
+   "id": "11126",
+   "name": "PATSCHERKOFEL",
+   "state": "Tirol",
+   "lat": 47.20888888888889,
+   "lon": 11.462222222222222,
+   "altitude": 2251.0,
+   "valid_from": "1972-01-01T00:00:00",
+   "valid_to": "2027-11-18T19:03:48",
+   "has_sunshine": false,
+   "has_global_radiation": false,
+   "is_active": true
+  },
+  {
+   "type": "INDIVIDUAL",
+   "id": "11320",
+   "name": "INNSBRUCK/UNIVERSITAET",
+   "state": "Tirol",
+   "lat": 47.26,
+   "lon": 11.384166666666665,
+   "altitude": 578.0,
+   "valid_from": "2009-07-01T00:00:00",
+   "valid_to": "2027-11-18T19:03:48",
+   "has_sunshine": false,
+   "has_global_radiation": false,
+   "is_active": true
+  },
+  {
+   "type": "INDIVIDUAL",
+   "id": "11343",
+   "name": "SONNBLICK - AUTOM.",
+   "state": "Salzburg",
+   "lat": 47.05416666666667,
+   "lon": 12.9575,
+   "altitude": 3109.0,
+   "valid_from": "1997-08-31T00:00:00",
+   "valid_to": "2027-11-18T19:03:48",
+   "has_sunshine": false,
+   "has_global_radiation": false,
+   "is_active": true
+  },
+  {
+   "type": "INDIVIDUAL",
+   "id": "11384",
+   "name": "HIRSCHENKOGEL",
+   "state": "Niederösterreich",
+   "lat": 47.623333333333335,
+   "lon": 15.833333333333334,
+   "altitude": 1318.0,
+   "valid_from": "1994-06-13T00:00:00",
+   "valid_to": "2025-05-21T00:00:00",
+   "has_sunshine": false,
+   "has_global_radiation": false,
+   "is_active": false
+  }
+ ],
+ "id_type": "Synop"
+}

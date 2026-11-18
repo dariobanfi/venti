@@ -1,0 +1,17 @@
+[package]
+name = "venti-sources-dwd"
+description = "Adapter for the Deutscher Wetterdienst 10-minute station observations."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+venti-sources.workspace = true
+chrono.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

@@ -16,6 +16,9 @@ settings:
 packages:
   VentiCore:
     path: Packages/VentiCore
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    exactVersion: 7.0.0
 targets:
   Venti:
     type: application
@@ -24,11 +27,21 @@ targets:
       - path: Venti
         excludes:
           - "Resources/**"
-      - path: Venti/Resources
+      - path: Venti/Resources/sample.igc
+        buildPhase: resources
+      # A folder reference, so the files keep their layout inside the app:
+      # the map engine asks for fonts by folder and file name.
+      - path: Venti/Resources/MapDemo
+        type: folder
+        buildPhase: resources
+      # The map style shared by all platforms.
+      - path: ../../map/style.json
         buildPhase: resources
     dependencies:
       - package: VentiCore
         product: VentiCore
+      - package: MapLibre
+        product: MapLibre
     settings:
       base:
         # To be confirmed once the venti.fly domain is registered.

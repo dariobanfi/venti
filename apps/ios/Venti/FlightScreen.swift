@@ -1,7 +1,7 @@
 import SwiftUI
 import VentiCore
 
-/// Shows one recorded flight: its track and its headline numbers.
+/// Shows one recorded flight: its track on the map and its headline numbers.
 struct FlightScreen: View {
     @State private var model = FlightModel()
 
@@ -22,6 +22,7 @@ struct FlightScreen: View {
                 }
             }
             .navigationTitle("Venti")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .task {
             await model.loadSample()
@@ -33,14 +34,16 @@ private struct FlightDetail: View {
     let flight: FlightView
 
     var body: some View {
+        VStack(spacing: 0) {
+            FlightMap(flight: flight)
+                .frame(height: 380)
+                .accessibilityLabel("Map of the flight")
+            numbers
+        }
+    }
+
+    private var numbers: some View {
         List {
-            Section {
-                TrackShape(points: flight.track, bounds: flight.bounds)
-                    .stroke(.tint, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    .aspectRatio(1.5, contentMode: .fit)
-                    .padding(.vertical, 8)
-                    .accessibilityLabel("Flight track")
-            }
             Section("Flight") {
                 LabeledContent("Date", value: Format.date(unixSeconds: flight.startUnixS))
                 LabeledContent("Duration", value: Format.duration(seconds: flight.durationS))

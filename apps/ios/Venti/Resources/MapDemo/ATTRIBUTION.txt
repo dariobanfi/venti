@@ -1,0 +1,15 @@
+Map data bundled with Venti for development: the Tegernsee valley.
+Rebuilt with tools/demo-map/build.sh.
+
+basemap.pmtiles
+  Map data (c) OpenStreetMap contributors, Open Database License 1.0.
+  https://www.openstreetmap.org/copyright
+  Tile schema (c) OpenMapTiles, CC BY 4.0. https://openmaptiles.org
+
+terrain.pmtiles
+  Elevation tiles (c) Mapterhorn and the surveys it combines.
+  https://mapterhorn.com/attribution
+
+fonts/
+  Noto Sans (c) The Noto Project Authors, SIL Open Font License 1.1.
+  See fonts/OFL.txt.

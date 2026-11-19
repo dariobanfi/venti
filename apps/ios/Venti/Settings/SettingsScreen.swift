@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(WindModel.self) private var wind
+    @Environment(AccountModel.self) private var account
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
@@ -63,8 +64,13 @@ struct SettingsScreen: View {
                     .textContentType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    NavigationLink {
+                        AccountScreen()
+                    } label: {
+                        LabeledContent("Account", value: account.account.map { "@\($0.handle)" } ?? "Not signed in")
+                    }
                 } header: {
-                    Text("Live wind")
+                    Text("Venti server")
                 } footer: {
                     Text(serverNote)
                 }
@@ -86,7 +92,7 @@ struct SettingsScreen: View {
     /// What the address field means, and whether what is in it is usable.
     private var serverNote: String {
         if wind.address.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "The address of a Venti server. The map shows the wind stations it collects, and the assistant can look them up. Without one, the map has no wind."
+            return "The address of a Venti server. The map shows the wind stations it collects, the assistant can look them up, and with an account your flights are kept there and can be shared. Without one, everything stays on this iPhone and the map has no wind."
         }
         if wind.server == nil {
             return "This is not an address the app can use. It should look like wind.example.org."

@@ -1,0 +1,271 @@
+import Foundation
+import Observation
+import UIKit
+import VentiCore
+
+/// The pilot's account on a Venti server, as the screens see it.
+///
+/// What to ask the server and what its answers mean is the core's. This
+/// class sends the requests, keeps the session token in the Keychain and
+/// runs the sync that keeps the logbook and the server in step.
+@MainActor
+@Observable
+final class AccountModel {
+    /// Sends a request and returns the HTTP status, the body and the
+    /// answer's `Retry-After` in seconds, if it had one.
+    typealias Transport = @Sendable (URLRequest) async throws -> (Int, Data, UInt32?)
+
+    /// The account this iPhone is signed in to.
+    private(set) var account: AccountView?
+    /// Whether a request or a sync is under way.
+    private(set) var isWorking = false
+    /// What the last sync did, for the account screen.
+    private(set) var lastSync: SyncSummary?
+    /// Something the pilot must be told.
+    var problem: String?
+
+    @ObservationIgnored private let core: Core
+    @ObservationIgnored private let transport: Transport
+    @ObservationIgnored private let readToken: () -> String?
+    @ObservationIgnored private let saveToken: (String?) -> Void
+    /// Called after a sync changed the logbook, so its screens can catch up.
+    @ObservationIgnored var onLogbookChanged: () -> Void = {}
+    @ObservationIgnored private var lastAutomaticSync: Date?
+
+    init(
+        core: Core,
+        transport: @escaping Transport = AccountModel.send,
+        readToken: @escaping () -> String? = SessionStore.read,
+        saveToken: @escaping (String?) -> Void = AccountModel.keep
+    ) {
+        self.core = core
+        self.transport = transport
+        self.readToken = readToken
+        self.saveToken = saveToken
+        account = try? core.account()
+    }
+
+    /// Whether the pilot is signed in and the session still holds.
+    var isSignedIn: Bool {
+        account.map { !$0.needsSignIn } ?? false
+    }
+
+    // MARK: Signing in and out
+
+    /// Signs in on the given server.
+    func signIn(server: URL, handle: String, password: String) async {
+        await enter(server: server) {
+            try core.signInRequest(handle: handle, password: password, device: UIDevice.current.name)
+        }
+    }
+
+    /// Creates an account on the given server and signs in.
+    func createAccount(
+        server: URL, handle: String, displayName: String, password: String, invite: String
+    ) async {
+        await enter(server: server) {
+            try core.createAccountRequest(
+                handle: handle, displayName: displayName, password: password,
+                invite: invite, device: UIDevice.current.name
+            )
+        }
+    }
+
+    private func enter(server: URL, request: () throws -> ServerRequest) async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let (status, body, _) = try await ask(try request(), of: server.absoluteString)
+            let signedIn = try core.signedIn(server: server.absoluteString, status: status, body: body)
+            saveToken(signedIn.token)
+            account = signedIn.account
+        } catch {
+            problem = Self.words(for: error)
+            return
+        }
+        await runSync()
+    }
+
+    /// Signs this iPhone out. The flights in the logbook stay.
+    func signOut() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        // The server is told if it can be reached; the iPhone forgets the
+        // session either way.
+        if let account, let request = try? core.signOutRequest() {
+            _ = try? await ask(request, of: account.server)
+        }
+        try? core.signedOut()
+        saveToken(nil)
+        account = nil
+        lastSync = nil
+    }
+
+    /// Deletes the account on the server, with its flights there. The
+    /// logbook on this iPhone stays. Returns whether it is gone.
+    func deleteAccount(password: String) async -> Bool {
+        guard !isWorking, let account else { return false }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let request = try core.deleteAccountRequest(password: password)
+            let (status, body, _) = try await ask(request, of: account.server)
+            try core.accountDeleted(status: status, body: body)
+            saveToken(nil)
+            self.account = nil
+            lastSync = nil
+            return true
+        } catch {
+            problem = Self.words(for: error)
+            return false
+        }
+    }
+
+    // MARK: Sync
+
+    /// Brings the logbook and the server in step, if the pilot is signed
+    /// in. Called when the app comes to the front and after the logbook
+    /// changed. `force` skips the pause between runs. A run the pilot did
+    /// not ask for is quiet: being offline after a flight is no news.
+    func sync(force: Bool = false, quietly: Bool = true) async {
+        guard isSignedIn, !isWorking else { return }
+        if !force, let last = lastAutomaticSync, Date().timeIntervalSince(last) < 60 {
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        await runSync(reportsProblems: !quietly)
+    }
+
+    private func runSync(reportsProblems: Bool = true) async {
+        guard let server = account?.server else { return }
+        lastAutomaticSync = Date()
+        let run = core.sync()
+        var step = run.start(nowUnixS: Int64(Date().timeIntervalSince1970))
+        while case .send(let request) = step {
+            do {
+                let (status, body, retryAfter) = try await ask(request, of: server)
+                step = run.receive(status: status, body: body, retryAfterS: retryAfter)
+            } catch {
+                // What was done so far is kept; the next sync goes on.
+                if reportsProblems {
+                    problem = Self.words(for: error)
+                }
+                break
+            }
+        }
+        switch step {
+        case .finished(let summary):
+            lastSync = summary
+        case .failed(let message, let needsSignIn):
+            if needsSignIn {
+                saveToken(nil)
+            }
+            if reportsProblems || needsSignIn {
+                problem = message
+            }
+        case .send:
+            break
+        }
+        account = try? core.account()
+        onLogbookChanged()
+    }
+
+    // MARK: Sharing
+
+    /// How a flight is shared, if the server has it.
+    func sharing(of flight: String) -> FlightSharing? {
+        try? core.flightSharing(id: flight)
+    }
+
+    /// Changes who may see a flight, and returns how it is shared now.
+    func share(_ flight: String, with visibility: FlightVisibility) async -> FlightSharing? {
+        guard let account, !isWorking else { return nil }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let request = try core.shareRequest(id: flight, visibility: visibility)
+            let (status, body, _) = try await ask(request, of: account.server)
+            return try core.shared(id: flight, status: status, body: body)
+        } catch {
+            problem = Self.words(for: error)
+            return nil
+        }
+    }
+
+    // MARK: Requests
+
+    /// Sends one of the core's requests to the server, with the session
+    /// token where the request needs it and nowhere else.
+    private func ask(_ request: ServerRequest, of server: String) async throws -> (UInt16, Data, UInt32?) {
+        guard let url = URL(string: server + request.path) else {
+            throw URLError(.badURL)
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = request.method
+        urlRequest.timeoutInterval = 120
+        urlRequest.httpBody = request.body
+        if let contentType = request.contentType {
+            urlRequest.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        if request.needsToken {
+            guard let token = readToken() else {
+                throw URLError(.userAuthenticationRequired)
+            }
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (status, body, retryAfter) = try await transport(urlRequest)
+        return (UInt16(clamping: status), body, retryAfter)
+    }
+
+    private static func words(for error: any Error) -> String {
+        if error is CoreError {
+            return error.words
+        }
+        if (error as? URLError)?.code == .userAuthenticationRequired {
+            return "This iPhone is no longer signed in. Sign in again."
+        }
+        return "The server could not be reached. \(error.localizedDescription)"
+    }
+
+    /// Keeps the session token in the Keychain, or removes it.
+    nonisolated static func keep(_ token: String?) {
+        guard let token else {
+            SessionStore.remove()
+            return
+        }
+        _ = SessionStore.save(token)
+    }
+
+    /// Sends with the system's networking, keeping nothing: answers about
+    /// an account are not for a cache, and there are no cookies.
+    nonisolated static func send(_ request: URLRequest) async throws -> (Int, Data, UInt32?) {
+        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
+        let http = response as? HTTPURLResponse
+        let retryAfter = http?.value(forHTTPHeaderField: "Retry-After").flatMap { UInt32($0) }
+        return (http?.statusCode ?? 0, data, retryAfter)
+    }
+}
+
+extension FlightVisibility {
+    /// The setting in words, for a list to choose from.
+    var title: String {
+        switch self {
+        case .private: "Only me"
+        case .unlisted: "Anyone with the link"
+        case .public: "Everyone"
+        }
+    }
+
+    /// What the setting means.
+    var explanation: String {
+        switch self {
+        case .private: "The flight is kept on the server for your devices. Nobody else can see it."
+        case .unlisted: "Whoever has the link can see the flight. It is listed nowhere."
+        case .public: "Anyone can see the flight, and it is listed on your page."
+        }
+    }
+}

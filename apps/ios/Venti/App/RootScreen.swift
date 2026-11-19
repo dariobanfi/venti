@@ -34,6 +34,8 @@ final class AppNavigation {
 
 struct RootScreen: View {
     @Environment(LogbookModel.self) private var logbook
+    @Environment(AccountModel.self) private var account
+    @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
 
@@ -60,6 +62,17 @@ struct RootScreen: View {
         // A flight that was being recorded when the app last stopped.
         .task {
             await logbook.adoptInterruptedRecordings()
+        }
+        // With an account, the logbook is brought in step with the server
+        // when the app comes to the front and whenever the logbook has
+        // changed: after an import, a deletion or a flight.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active {
+                Task { await account.sync() }
+            }
+        }
+        .onChange(of: logbook.view.totals.flights) {
+            Task { await account.sync(force: true) }
         }
         // A flight file opened from Files, Mail or another app.
         .onOpenURL { url in

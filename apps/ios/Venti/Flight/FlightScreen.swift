@@ -22,6 +22,7 @@ struct FlightScreen: View {
     /// The flight's file, written out for sharing.
     @State private var exported: URL?
     @State private var isConfirmingDelete = false
+    @State private var isSharing = false
 
     var body: some View {
         Group {
@@ -43,6 +44,9 @@ struct FlightScreen: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
+                    Button("Share with a link", systemImage: "link") {
+                        isSharing = true
+                    }
                     if let exported {
                         ShareLink("Share flight file", item: exported)
                     }
@@ -51,6 +55,10 @@ struct FlightScreen: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $isSharing) {
+            ShareFlightSheet(flight: id)
+                .presentationDetents([.medium, .large])
         }
         .confirmationDialog("Delete this flight?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete flight", role: .destructive) {

@@ -67,6 +67,12 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 
 To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
 
+### Account and sharing
+
+The account lives under Settings, beside the server's address, because it is optional and belongs to the server. Signing in is one form with a switch between "Sign in" and "New account"; the form says what an account does before it asks for anything, and where a password is chosen it says that a forgotten one cannot be recovered. Signed in, the screen shows how the logbook and the server stand (flights there, flights still to send, in step since when), one button to sync now, and sign out and delete.
+
+A flight is shared from its own screen: More, "Share with a link". The sheet lists the three answers to "who can see this flight" with what each means, the chosen one ticked, and below them the link once the flight is not private. Nothing is ever shared by default.
+
 ## Colour
 
 | Role | Light | Dark | Notes |

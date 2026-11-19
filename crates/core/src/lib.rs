@@ -23,12 +23,14 @@ use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
+mod account;
 mod airspace;
 mod analysis;
 mod assistant;
 mod cockpit;
 mod export;
 mod logbook;
+mod server;
 mod statistics;
 mod storage;
 #[cfg(test)]
@@ -36,6 +38,7 @@ mod testing;
 mod waypoints;
 mod wind;
 
+pub use account::*;
 pub use airspace::*;
 pub use analysis::*;
 pub use assistant::*;
@@ -451,7 +454,10 @@ impl Core {
 
     /// Removes a flight from the logbook for good.
     pub fn delete_flight(&self, id: String) -> Result<(), CoreError> {
-        Ok(self.logbook.delete(&id)?)
+        self.logbook.delete(&id)?;
+        // With an account, the server's copy goes at the next sync.
+        self.note_flight_deleted(&id);
+        Ok(())
     }
 }
 

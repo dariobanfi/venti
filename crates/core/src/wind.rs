@@ -15,6 +15,7 @@ use venti_api_types::v1::{
 };
 use venti_domain::{BoundingBox, StationId};
 
+use crate::server::answer;
 use crate::{Coordinate, CoreError};
 
 /// A reading older than this many minutes is shown as old. Ten-minute
@@ -209,35 +210,6 @@ pub fn station_history(
         ),
         readings: response.observations.iter().map(reading).collect(),
         credits: response.attributions.iter().map(credit).collect(),
-    })
-}
-
-/// Decodes an answer, or explains to the pilot why there is none.
-fn answer<T: serde::de::DeserializeOwned>(status: u16, body: &[u8]) -> Result<T, CoreError> {
-    if (200..300).contains(&status) {
-        return serde_json::from_slice(body).map_err(|_| CoreError::Server {
-            message: "The server's answer could not be read. The app may be older than the server."
-                .to_owned(),
-        });
-    }
-    // The server's own message is written for developers; the pilot gets
-    // ours, and the code for a bug report. The code is read as plain text
-    // so that one this version does not know is still passed on.
-    let code = serde_json::from_slice::<serde_json::Value>(body)
-        .ok()
-        .and_then(|answer| {
-            answer
-                .get("error")?
-                .get("code")?
-                .as_str()
-                .map(str::to_owned)
-        });
-    Err(CoreError::Server {
-        message: match (status, code) {
-            (503, _) => "The server is busy or being restarted. Try again in a moment.".to_owned(),
-            (_, Some(code)) => format!("The server could not answer ({code})."),
-            _ => format!("The server could not answer (status {status})."),
-        },
     })
 }
 

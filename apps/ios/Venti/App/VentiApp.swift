@@ -8,7 +8,7 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace):
+            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
@@ -16,6 +16,7 @@ struct VentiApp: App {
                     .environment(wind)
                     .environment(waypoints)
                     .environment(airspace)
+                    .environment(account)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -32,7 +33,7 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel)
+    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel)
     case failed(String)
 
     static func start() -> Session {
@@ -74,7 +75,14 @@ enum Session {
             )
             let fly = FlySession(dataFolder: folder)
             fly.airspace = { airspace.set }
-            return .ready(logbook, fly, chat, wind, waypoints, airspace)
+            // A test starts signed out, whatever an earlier one left in
+            // the simulator's Keychain.
+            if LaunchOptions.isUITesting {
+                SessionStore.remove()
+            }
+            let account = AccountModel(core: core)
+            account.onLogbookChanged = { logbook.refresh() }
+            return .ready(logbook, fly, chat, wind, waypoints, airspace, account)
         } catch {
             return .failed(error.words)
         }

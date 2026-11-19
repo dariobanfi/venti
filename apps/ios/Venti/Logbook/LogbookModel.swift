@@ -21,6 +21,15 @@ final class LogbookModel {
         view = core.logbook()
     }
 
+    /// Reads the logbook again, after something other than this model
+    /// changed it: a sync with the server.
+    func refresh() {
+        let latest = core.logbook()
+        if latest != view {
+            view = latest
+        }
+    }
+
     /// Opens the logbook kept in `folder`, creating it on first use.
     static func open(folder: URL) throws -> LogbookModel {
         LogbookModel(core: try Core(dataFolder: folder.path), folder: folder)

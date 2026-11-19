@@ -337,6 +337,59 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("wind-4-assistant")
     }
 
+    /// An account on a Venti server: signing in as the development
+    /// server's demo pilot brings that pilot's three flights into the
+    /// logbook, and one of them is shared with a link. Skipped without a
+    /// server, like the wind test.
+    func testAPilotSignsInAndSharesAFlight() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+
+        openTab("Settings", in: app)
+        let link = labelled(containing: "Not signed in", in: app)
+        for _ in 0..<3 where !link.isHittable {
+            app.swipeUp()
+        }
+        link.tap()
+        let handle = app.textFields["Handle"]
+        XCTAssertTrue(handle.waitForExistence(timeout: 15))
+        keepScreenshot("account-1-sign-in")
+        handle.tap()
+        handle.typeText("demo")
+        let password = app.secureTextFields["Password"]
+        password.tap()
+        password.typeText("demo-pilot-password")
+        element("account-submit", in: app).tap()
+
+        // Signed in, and the sync that follows has fetched the flights.
+        XCTAssertTrue(labelled(containing: "@demo", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Sync now"].waitForExistence(timeout: 60))
+        sleep(2)
+        keepScreenshot("account-2-signed-in")
+
+        openTab("Logbook", in: app)
+        let row = element("logbook-row", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("account-3-logbook")
+
+        // Share the newest flight with everyone, and get its link.
+        row.tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
+        app.buttons["More"].tap()
+        app.buttons["Share with a link"].tap()
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
+        everyone.tap()
+        XCTAssertTrue(labelled(containing: "Share the link", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "/f/", in: app).exists)
+        sleep(1)
+        keepScreenshot("account-4-share")
+    }
+
     /// The same screens with tiles fetched from the public servers, as a
     /// pilot's phone draws them. Only the screenshots matter here: the test
     /// does not fail when the network is slow.

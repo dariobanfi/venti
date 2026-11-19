@@ -24,7 +24,7 @@ use venti_flight::igc::{self, IgcFile};
 use venti_flight::{summarise, track};
 
 /// Bump when [`Summary`] changes shape or meaning; older indexes are rebuilt.
-const INDEX_VERSION: u32 = 1;
+const INDEX_VERSION: u32 = 2;
 
 /// The most points an outline keeps. Enough for a recognisable thumbnail and
 /// an overview map, small enough to hold thousands of flights in memory.

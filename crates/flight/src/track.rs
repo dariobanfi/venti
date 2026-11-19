@@ -115,21 +115,29 @@ pub fn altitude_profile(fixes: &[Fix], max_points: usize) -> Vec<ProfilePoint> {
     profile
 }
 
+/// Seconds over which positions are averaged before the outline is drawn:
+/// about one circle in a thermal.
+const OUTLINE_SMOOTHING_S: i64 = 30;
+
 /// The shape of the track, reduced to at most `max_points` points.
 ///
-/// Points are dropped where leaving them out moves the line the least (the
+/// Positions are first averaged over half a minute, which turns the circles
+/// of a thermal into the line the glider drifted along while climbing. Then
+/// points are dropped where leaving them out moves the line the least (the
 /// Ramer-Douglas-Peucker method), starting with a tolerance of a few
 /// thousandths of the track's extent and loosening it until the outline is
-/// small enough. Thermal circles collapse to short kinks, which is what a
-/// thumbnail or an overview map should show.
+/// small enough. The first and last points are the track's own.
+///
+/// This is what a thumbnail or an overview map should show. It is not the
+/// track: nothing may be measured on it.
 pub fn outline(fixes: &[Fix], max_points: usize) -> Vec<GeoPoint> {
-    let Some(first) = fixes.first() else {
+    let (Some(first), Some(last)) = (fixes.first(), fixes.last()) else {
         return Vec::new();
     };
-    let max_points = max_points.max(2);
-    if fixes.len() <= max_points {
+    if fixes.len() <= 2 {
         return fixes.iter().map(|fix| fix.position).collect();
     }
+    let max_points = max_points.max(2);
 
     // Local flat coordinates in metres are accurate enough over one flight.
     let (lat0, lon0) = (first.position.lat(), first.position.lon());
@@ -143,25 +151,62 @@ pub fn outline(fixes: &[Fix], max_points: usize) -> Vec<GeoPoint> {
             )
         })
         .collect();
+    let seconds: Vec<i64> = fixes
+        .iter()
+        .map(|fix| (fix.time - first.time).num_seconds())
+        .collect();
 
-    let (mut min, mut max) = ((0.0_f64, 0.0_f64), (0.0_f64, 0.0_f64));
-    for &(x, y) in &flat {
+    let smooth = smoothed(&flat, &seconds, OUTLINE_SMOOTHING_S / 2);
+
+    let (mut min, mut max) = (smooth[0], smooth[0]);
+    for &(x, y) in &smooth {
         min = (min.0.min(x), min.1.min(y));
         max = (max.0.max(x), max.1.max(y));
     }
     let extent = (max.0 - min.0).hypot(max.1 - min.1);
 
     let mut tolerance = (extent * 0.004).max(15.0);
-    loop {
-        let kept = simplify(&flat, tolerance);
+    let kept = loop {
+        let kept = simplify(&smooth, tolerance);
         if kept.len() <= max_points {
-            return kept
-                .into_iter()
-                .map(|index| fixes[index].position)
-                .collect();
+            break kept;
         }
         tolerance *= 1.6;
-    }
+    };
+
+    let end = fixes.len() - 1;
+    kept.into_iter()
+        .map(|index| match index {
+            0 => first.position,
+            index if index == end => last.position,
+            index => {
+                let (x, y) = smooth[index];
+                GeoPoint::new(lat0 + y / M_PER_DEG_LAT, lon0 + x / m_per_deg_lon)
+                    .expect("an average of positions on the track is a valid position")
+            }
+        })
+        .collect()
+}
+
+/// Each point replaced by the average of the points within `half_window_s`
+/// seconds of it. `seconds` must not decrease.
+fn smoothed(points: &[(f64, f64)], seconds: &[i64], half_window_s: i64) -> Vec<(f64, f64)> {
+    let (mut from, mut to) = (0, 0);
+    let mut sum = points[0];
+    (0..points.len())
+        .map(|index| {
+            while to + 1 < points.len() && seconds[to + 1] <= seconds[index] + half_window_s {
+                to += 1;
+                sum = (sum.0 + points[to].0, sum.1 + points[to].1);
+            }
+            while seconds[from] < seconds[index] - half_window_s {
+                sum = (sum.0 - points[from].0, sum.1 - points[from].1);
+                from += 1;
+            }
+            let count = (to - from + 1) as f64;
+            (sum.0 / count, sum.1 / count)
+        })
+        .collect()
 }
 
 /// The indices of the points Ramer-Douglas-Peucker keeps, in order.
@@ -308,9 +353,44 @@ mod tests {
         let flight = synthetic_flight();
         let outline = outline(&flight.fixes, 96);
 
-        assert!((8..=96).contains(&outline.len()), "{}", outline.len());
         assert_eq!(outline.first(), Some(&flight.fixes[0].position));
         assert_eq!(outline.last(), Some(&flight.fixes.last().unwrap().position));
+        // Four glides and three thermals, each close to a straight line once
+        // the circles are averaged away.
+        assert!((6..=24).contains(&outline.len()), "{}", outline.len());
+    }
+
+    #[test]
+    fn thermal_circles_become_the_line_the_glider_drifted_along() {
+        // Twenty circles of 45 m radius, 28 s each, drifting east at 3 m/s.
+        let start = Utc.with_ymd_and_hms(2026, 7, 1, 10, 0, 0).unwrap();
+        let fixes: Vec<Fix> = (0..=20 * 28)
+            .map(|second| {
+                let angle = std::f64::consts::TAU * f64::from(second) / 28.0;
+                let east = 3.0 * f64::from(second) - 45.0 * angle.cos();
+                let north = 45.0 * angle.sin();
+                Fix {
+                    time: start + Duration::seconds(i64::from(second)),
+                    position: GeoPoint::new(
+                        47.0 + north / M_PER_DEG_LAT,
+                        11.0 + east / (M_PER_DEG_LAT * 47.0_f64.to_radians().cos()),
+                    )
+                    .unwrap(),
+                    gps_altitude_m: 1000 + second,
+                    pressure_altitude_m: 0,
+                    valid: true,
+                }
+            })
+            .collect();
+
+        let outline = outline(&fixes, 96);
+
+        assert!(outline.len() <= 6, "{}", outline.len());
+        // Away from the two ends, the outline stays near the drift line.
+        for point in &outline[1..outline.len() - 1] {
+            let north = (point.lat() - 47.0) * M_PER_DEG_LAT;
+            assert!(north.abs() < 15.0, "{north}");
+        }
     }
 
     #[test]

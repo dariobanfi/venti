@@ -69,7 +69,8 @@ final class CoreBridgeTests: XCTestCase {
         XCTAssertEqual(logbook.totals.airtimeS, 20)
         XCTAssertEqual(logbook.years.map(\.year), [2026])
         XCTAssertEqual(logbook.years[0].flights.map(\.id), [id])
-        XCTAssertEqual(logbook.years[0].flights[0].outline.count, 3)
+        // Three fixes in a straight line: the outline is its two ends.
+        XCTAssertEqual(logbook.years[0].flights[0].outline.count, 2)
 
         try core.deleteFlight(id: id)
         XCTAssertTrue(core.logbook().years.isEmpty)

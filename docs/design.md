@@ -46,7 +46,9 @@ The map fills the screen. A panel floats over its lower part with, from top to b
 
 ### Map
 
-The map fills the screen under the tab bar. One round glass button, bottom right, centres the map on the pilot and follows until the map is dragged. Logbook flights are drawn as accent-coloured lines.
+The map fills the screen under the tab bar. One round glass button, bottom right, centres the map on the pilot and follows until the map is dragged. Logbook flights are drawn as accent-coloured lines, with thermal circles smoothed into the line the glider drifted along, so many flights stay readable together.
+
+Wherever a map reaches the top of the screen, a soft band of the background colour sits behind the clock and status icons to keep them readable.
 
 ## Colour
 

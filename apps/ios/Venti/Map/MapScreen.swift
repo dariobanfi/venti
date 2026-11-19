@@ -15,6 +15,8 @@ struct MapScreen: View {
                 .ignoresSafeArea()
                 .accessibilityLabel("Map")
 
+            StatusBarScrim()
+
             Button {
                 isFollowing.toggle()
             } label: {

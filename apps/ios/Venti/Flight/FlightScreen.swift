@@ -93,6 +93,8 @@ private struct FlightDetail: View {
                 .ignoresSafeArea()
                 .accessibilityLabel("Map of the flight")
 
+                StatusBarScrim()
+
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     FlightPanel(flight: flight, cursor: $cursor, isShowingDetails: $isShowingDetails)

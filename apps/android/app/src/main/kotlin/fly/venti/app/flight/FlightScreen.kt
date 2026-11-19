@@ -53,11 +53,14 @@ import fly.venti.app.map.StatusBarScrim
 import fly.venti.app.pilotMessage
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
+import fly.venti.app.account.AccountModel
+import fly.venti.app.account.ShareFlightSheet
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.wind.grown
 import fly.venti.core.AirspaceShape
 import fly.venti.core.FlightAirspace
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -76,9 +79,19 @@ private sealed interface Phase {
  * its numbers and altitude profile.
  */
 @Composable
-fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onBack: () -> Unit) {
+fun FlightScreen(
+    id: String,
+    logbook: LogbookModel,
+    airspace: AirspaceModel,
+    /** The pilot's account on a Venti server, to share the flight with a link. */
+    account: AccountModel,
+    /** Where requests to that server run, so that one carries on when the pilot leaves the flight. */
+    requests: CoroutineScope,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var isSharing by remember { mutableStateOf(false) }
     var phase by remember(id) { mutableStateOf<Phase>(Phase.Loading) }
     // Arrives a moment after the flight itself; the screen does not wait
     // for it.
@@ -128,6 +141,7 @@ fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onB
         }
         TopButtons(
             onBack = onBack,
+            onShareWithALink = { isSharing = true },
             onShare = {
                 scope.launch {
                     try {
@@ -141,6 +155,10 @@ fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onB
             },
             onDelete = { isConfirmingDelete = true },
         )
+    }
+
+    if (isSharing) {
+        ShareFlightSheet(id, account, requests, onDismiss = { isSharing = false })
     }
 
     if (isConfirmingDelete) {
@@ -162,7 +180,7 @@ fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onB
 
 /** Back and "more", as round buttons floating over the map. */
 @Composable
-private fun TopButtons(onBack: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
+private fun TopButtons(onBack: () -> Unit, onShareWithALink: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     var isShowingMenu by remember { mutableStateOf(false) }
     val colours = IconButtonDefaults.filledTonalIconButtonColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -180,6 +198,14 @@ private fun TopButtons(onBack: () -> Unit, onShare: () -> Unit, onDelete: () -> 
                 Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
             }
             DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Share with a link") },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_link), contentDescription = null) },
+                    onClick = {
+                        isShowingMenu = false
+                        onShareWithALink()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text("Share flight file") },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },

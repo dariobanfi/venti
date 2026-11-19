@@ -38,6 +38,9 @@ enum class SettingsRoute {
 
     /** The pilot's airspace. */
     Airspace,
+
+    /** The pilot's account on a Venti server. */
+    Account,
 }
 
 /** A screen reached from the Fly tab. */

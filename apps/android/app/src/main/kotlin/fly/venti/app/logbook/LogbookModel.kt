@@ -6,6 +6,9 @@ import androidx.compose.runtime.setValue
 import fly.venti.app.AppFiles
 import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
+import fly.venti.app.account.AccountModel
+import fly.venti.app.account.AccountTransport
+import fly.venti.app.account.SessionStore
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
@@ -202,6 +205,30 @@ class LogbookModel(
         transport: suspend (String) -> HttpAnswer = { url -> Http.get(url) },
     ): AirspaceModel = AirspaceModel(core, background, now, remembered, scope, transport)
 
+    /**
+     * The pilot's account on a Venti server, which the core remembers
+     * beside the logbook. `session` keeps the token; `device` is what this
+     * phone is called in the account's list of devices; requests go out
+     * through `transport`; `clock` is this device's, in milliseconds
+     * since 1970.
+     */
+    fun makeAccount(
+        session: SessionStore,
+        device: String?,
+        transport: AccountTransport = AccountModel.overHttp,
+        clock: () -> Long = System::currentTimeMillis,
+    ): AccountModel {
+        val account = AccountModel(core, session, device, transport, clock, background)
+        // A sync fetches flights and removes them: the list is read again.
+        account.onLogbookChanged = ::refresh
+        return account
+    }
+
+    /** Reads the logbook again, after something other than this model changed it: a sync with the server. */
+    fun refresh() {
+        view = core.logbook()
+    }
+
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()
 
@@ -209,9 +236,7 @@ class LogbookModel(
      * What deleting a flight means, for the question that comes before it.
      * With an account the next sync deletes the flight on the server and
      * from there on the pilot's other devices; saying "from this phone"
-     * alone would then be a half-truth. The Android app cannot sign in
-     * yet, so today it is the whole truth: this asks the core, and will say
-     * the rest the day an account is there.
+     * alone would then be a half-truth.
      */
     val deletionWarning: String
         get() = deletionWarning(signedIn = runCatching { core.account() }.getOrNull() != null)

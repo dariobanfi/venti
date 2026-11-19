@@ -274,44 +274,47 @@ private fun Loaded(
 @Composable
 private fun ModelRow(models: List<ModelForecast>, shown: ModelForecast, onChoose: (String) -> Unit) {
     var isOpen by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("forecast-model")
-                .clickable(role = Role.DropdownList) { isOpen = true }
-                .heightIn(min = 52.dp)
-                .padding(start = 16.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Weather model", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Text(
-                shown.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Icon(
-                painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
-            for (model in models) {
-                DropdownMenuItem(
-                    text = { Text(if (model.grid.isEmpty()) model.name else "${model.name}, ${model.grid}") },
-                    onClick = {
-                        isOpen = false
-                        onChoose(model.model)
-                    },
-                    leadingIcon = {
-                        if (model.model == shown.model) {
-                            Icon(painterResource(R.drawable.ic_check), contentDescription = "Chosen")
-                        } else {
-                            Spacer(Modifier.size(24.dp))
-                        }
-                    },
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("forecast-model")
+            .clickable(role = Role.DropdownList) { isOpen = true }
+            .heightIn(min = 52.dp)
+            .padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Weather model", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        // The menu opens where the chosen model stands, at the row's end.
+        Box {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    shown.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Icon(
+                    painterResource(R.drawable.ic_arrow_drop_down),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
+                for (model in models) {
+                    DropdownMenuItem(
+                        text = { Text(if (model.grid.isEmpty()) model.name else "${model.name}, ${model.grid}") },
+                        onClick = {
+                            isOpen = false
+                            onChoose(model.model)
+                        },
+                        leadingIcon = {
+                            if (model.model == shown.model) {
+                                Icon(painterResource(R.drawable.ic_check), contentDescription = "Chosen")
+                            } else {
+                                Spacer(Modifier.size(24.dp))
+                            }
+                        },
+                    )
+                }
             }
         }
     }

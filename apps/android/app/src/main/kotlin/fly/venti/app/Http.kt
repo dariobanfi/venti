@@ -8,15 +8,20 @@ import java.net.InetAddress
 import java.net.URI
 import java.net.URL
 
-/** What a server answered: the HTTP status and the body. */
-class HttpAnswer(val status: Int, val body: ByteArray)
+/**
+ * What a server answered: the HTTP status, the body and, if it said when to
+ * ask again, after how many seconds.
+ */
+class HttpAnswer(val status: Int, val body: ByteArray, val retryAfterSeconds: UInt? = null)
 
 /**
  * The app's requests to servers, with the platform's own networking: the
- * assistant's to its provider, and the wind map's to a Venti server. What
- * to ask and how to read the answer is the core's; this sends the bytes.
+ * assistant's to its provider, and the map's and the account's to a Venti
+ * server. What to ask and how to read the answer is the core's; this sends
+ * the bytes.
  *
- * Nothing is cached and no cookies are kept.
+ * Nothing is cached, no cookies are kept, and nothing is logged: a request
+ * may carry a password or a session's token.
  */
 object Http {
     private const val CONNECT_MILLISECONDS = 20_000
@@ -44,6 +49,30 @@ object Http {
             connection.outputStream.use { it.write(body.toByteArray()) }
         }
 
+    /**
+     * Sends a request with any method, with or without a body, and returns
+     * the answer, whatever its status. The pilot's account talks to its
+     * server this way: it creates, changes and deletes.
+     */
+    suspend fun send(
+        method: String,
+        url: String,
+        headers: List<Pair<String, String>>,
+        body: ByteArray?,
+        answerWithinMilliseconds: Int,
+    ): HttpAnswer =
+        request(url, answerWithinMilliseconds) { connection ->
+            connection.requestMethod = method
+            for ((name, value) in headers) {
+                connection.setRequestProperty(name, value)
+            }
+            if (body != null) {
+                connection.doOutput = true
+                connection.setFixedLengthStreamingMode(body.size)
+                connection.outputStream.use { it.write(body) }
+            }
+        }
+
     private suspend fun request(
         url: String,
         answerWithinMilliseconds: Int,
@@ -65,7 +94,12 @@ object Http {
             val status = connection.responseCode
             // An error's body explains it; the core reads that too.
             val stream = if (status >= 400) connection.errorStream else connection.inputStream
-            HttpAnswer(status, stream?.use { it.readBytes() } ?: ByteArray(0))
+            HttpAnswer(
+                status,
+                stream?.use { it.readBytes() } ?: ByteArray(0),
+                // Only the form in seconds: a server of ours sends no other.
+                retryAfterSeconds = connection.getHeaderField("Retry-After")?.trim()?.toUIntOrNull(),
+            )
         } finally {
             connection.disconnect()
         }

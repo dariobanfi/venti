@@ -2,8 +2,10 @@
 <!--
   What Android may copy out of the app, from Android 12 on. Nothing goes to a
   cloud backup: the app tells the pilot that flights stay on the phone. A
-  transfer from this phone straight to a new one has no rule here, which
-  means everything goes along: the logbook moves with its pilot.
+  transfer from this phone straight to a new one takes everything along but
+  the session on the pilot's Venti server: the logbook moves with its pilot,
+  and the new phone signs in for itself. The token is sealed with a key that
+  stays in the old phone's keystore, so it could not be read there anyway.
 
   To verify on real phones: nobody has moved a logbook this way yet.
 -->
@@ -25,4 +27,9 @@
             domain="external"
             path="." />
     </cloud-backup>
+    <device-transfer>
+        <exclude
+            domain="sharedpref"
+            path="venti-session.xml" />
+    </device-transfer>
 </data-extraction-rules>

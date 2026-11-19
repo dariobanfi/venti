@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
@@ -182,21 +183,6 @@ private fun NearbyDevices(vario: VarioLink) {
         "Switch the vario on and choose it here, not in the phone's Bluetooth settings. Venti reads " +
             "LK8EX1, OpenVario, XC Tracer, LXWP0 and BlueFly data.",
     )
-}
-
-/** A row that does something when pressed, set in a colour that says what kind of thing. */
-@Composable
-private fun ActionRow(title: String, colour: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, color = colour)
-    }
 }
 
 /** Offers the report to other apps as text: mail, a messenger, a note. */

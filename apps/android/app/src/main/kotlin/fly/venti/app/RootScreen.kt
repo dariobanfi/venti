@@ -18,8 +18,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import fly.venti.app.account.AccountScreen
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.flight.FlightScreen
@@ -36,6 +41,7 @@ import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.waypoints.WaypointsScreen
 import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /**
@@ -82,6 +88,23 @@ fun RootScreen(
                 notice = report.notice
             }
         }
+    }
+
+    // With an account, the logbook is brought in step with the server when
+    // the app comes to the front and whenever the logbook has changed:
+    // after an import, a deletion or a flight. The sync runs in the app's
+    // own scope, so that leaving a screen does not cut it short.
+    val account = session.account
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle, account) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            session.scope.launch { account.sync() }
+        }
+    }
+    LaunchedEffect(logbook, account) {
+        snapshotFlow { logbook.view.totals.flights }
+            .drop(1)
+            .collect { session.scope.launch { account.sync(force = true) } }
     }
 
     if (fly.mode != null) {
@@ -179,7 +202,14 @@ private fun Sections(
                     LogbookScreen(logbook, navigation, imports = session.scope, onNotice = onNotice, bars = bars)
                 }
                 is LogbookRoute.Flight -> kept.SaveableStateProvider("flight-${route.id}") {
-                    FlightScreen(route.id, logbook, session.airspace, onBack = { navigation.back() })
+                    FlightScreen(
+                        route.id,
+                        logbook,
+                        session.airspace,
+                        session.account,
+                        requests = session.scope,
+                        onBack = { navigation.back() },
+                    )
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
                     StatisticsScreen(
@@ -198,11 +228,15 @@ private fun Sections(
                     WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                 }
                 SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                SettingsRoute.Account -> kept.SaveableStateProvider("account") {
+                    AccountScreen(session.account, session.wind, session.scope, onBack = { navigation.back() })
+                }
                 null -> kept.SaveableStateProvider("settings") {
                     SettingsScreen(
                         session.preferences,
                         session.fly,
                         session.wind,
+                        session.account,
                         onOpen = { navigation.settingsRoute = it },
                         bars = bars,
                     )

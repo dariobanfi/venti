@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.BuildConfig
 import fly.venti.app.R
 import fly.venti.app.SettingsRoute
+import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.app.design.Group
@@ -59,6 +61,7 @@ fun SettingsScreen(
     preferences: Preferences,
     fly: FlySession,
     wind: WindModel,
+    account: AccountModel,
     /** Opens a screen on top of the settings. */
     onOpen: (SettingsRoute) -> Unit,
     bars: PaddingValues,
@@ -153,7 +156,7 @@ fun SettingsScreen(
                     "inside either of them makes that line one side of an FAI triangle.",
             )
 
-            SectionHeader("Live wind")
+            SectionHeader("Venti server")
             OutlinedTextField(
                 value = wind.address,
                 onValueChange = wind::use,
@@ -166,6 +169,20 @@ fun SettingsScreen(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
+            Spacer(Modifier.height(8.dp))
+            Group {
+                row {
+                    // The account is optional and belongs to the server.
+                    LinkRow(
+                        "Account",
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("account-link"),
+                        value = account.account?.let { "@${it.handle}" } ?: "Not signed in",
+                    ) {
+                        onOpen(SettingsRoute.Account)
+                    }
+                }
+            }
             SectionFooter(wind.addressNote)
 
             SectionHeader("About")

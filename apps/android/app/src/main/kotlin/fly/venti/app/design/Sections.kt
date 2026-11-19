@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -144,7 +145,8 @@ fun ValueRow(
 
 /**
  * A row that leads somewhere: another screen, or the browser. `icon` at its
- * end says which; `leading`, if given, is a picture of what it leads to.
+ * end says which; `leading`, if given, is a picture of what it leads to,
+ * and `value` what stands there now.
  */
 @Composable
 fun LinkRow(
@@ -152,6 +154,7 @@ fun LinkRow(
     @DrawableRes icon: Int,
     modifier: Modifier = Modifier,
     @DrawableRes leading: Int? = null,
+    value: String? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -167,6 +170,37 @@ fun LinkRow(
             Spacer(Modifier.width(16.dp))
         }
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (value != null) {
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(4.dp))
+        }
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * A row that does something when pressed, set in a colour that says what
+ * kind of thing. One that cannot be pressed just now is set in grey.
+ */
+@Composable
+fun ActionRow(title: String, colour: Color, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) colour else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
     }
 }

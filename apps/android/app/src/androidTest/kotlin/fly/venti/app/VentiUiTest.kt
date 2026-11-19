@@ -437,7 +437,7 @@ class VentiUiTest {
         // The settings hold the server's address, and the credits name
         // whose stations it delivers.
         tap(tab("Settings"))
-        waitFor(hasText("Live wind"))
+        waitFor(hasText("Venti server"))
         screen.onNode(hasText("Data and licences")).performScrollTo()
         keepScreenshot("$prefix-wind-6-settings")
         tap(hasText("Data and licences"))
@@ -594,6 +594,149 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(line and hasText("None"))
         assertTrue(exists(hasText("Without airspace the cockpit warns of none.", substring = true)))
+    }
+
+    /** From the map to the account screen, by way of the settings. */
+    private fun openTheAccount() {
+        waitFor(described("Show my position"))
+        tap(tab("Settings"))
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
+        tap(hasTestTag("account-link"))
+        waitFor(hasTestTag("account-handle"))
+    }
+
+    /**
+     * An account on a Venti server: signing in as the development server's
+     * demo pilot brings that pilot's three flights into the logbook, and
+     * one of them is shared with a link. Skipped without a server, like
+     * the wind.
+     */
+    private fun signInAndShareAFlight(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        openTheAccount()
+        // The form says what an account does before it asks for anything.
+        assertTrue(exists(hasText("A flight stays private until you share it.", substring = true)))
+        keepScreenshot("$prefix-account-1-sign-in")
+
+        // The demo pilot of the server's development mode; neither the
+        // handle nor the password is a secret.
+        screen.onNode(hasTestTag("account-handle")).performTextInput("demo")
+        screen.onNode(hasTestTag("account-password")).performTextInput("demo-pilot-password")
+        tap(hasTestTag("account-submit"))
+
+        // Signed in, and the sync that follows has fetched the flights.
+        waitFor(hasText("@demo"))
+        waitFor(hasText("Sync now"))
+        waitFor(hasText("In step since"))
+        assertTrue(exists(hasText("Flights on the server")))
+        assertTrue(exists(hasTestTag("account-last-sync")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-2-signed-in")
+        tap(described("Back"))
+        waitFor(hasTestTag("account-link") and hasText("@demo"))
+
+        tap(tab("Logbook"))
+        waitFor(hasTestTag("logbook-row"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-3-logbook")
+
+        // Share the newest flight with those who have its link. Whatever
+        // the demo pilot had chosen for it before, that is the choice now.
+        tap(hasTestTag("logbook-row"))
+        waitFor(described("Flight details"))
+        tap(described("More"))
+        waitFor(hasText("Share with a link"))
+        tap(hasText("Share with a link"))
+        val withTheLink = hasTestTag("share-unlisted")
+        waitFor(withTheLink)
+        tap(withTheLink)
+        waitFor(withTheLink and isSelected())
+        waitFor(hasTestTag("share-link") and hasText("/f/", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-4-share")
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(withTheLink) }
+
+        // With an account, deleting a flight reaches the server and the
+        // pilot's other devices, and the question says so. Not answered
+        // with yes: the next test needs the demo pilot's flights.
+        tap(described("More"))
+        waitFor(hasText("Delete flight"))
+        tap(hasText("Delete flight"))
+        waitFor(hasText("from your Venti server and from your other devices", substring = true))
+        keepScreenshot("$prefix-account-5-delete")
+        tap(hasText("Cancel"))
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
+
+        // Signing out leaves the flights on the phone.
+        tap(tab("Settings"))
+        waitFor(hasTestTag("account-link"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        waitFor(hasTestTag("account-sign-out"))
+        screen.onNode(hasTestTag("account-sign-out")).performScrollTo()
+        tap(hasTestTag("account-sign-out"))
+        waitFor(hasText("Sign out?"))
+        assertTrue(exists(hasText("Your flights stay on this phone and on the server.")))
+        tap(hasTestTag("account-sign-out-confirm"))
+        waitFor(hasTestTag("account-handle"))
+        tap(described("Back"))
+        waitFor(hasTestTag("account-link") and hasText("Not signed in"))
+        tap(tab("Logbook"))
+        waitFor(hasTestTag("logbook-row"))
+    }
+
+    @Test
+    fun aPilotSignsInAndSharesAFlight() = signInAndShareAFlight("light", dark = false)
+
+    @Test
+    fun theAccountInDarkAppearance() = signInAndShareAFlight("dark", dark = true)
+
+    /**
+     * A new account, made on the server and deleted again: both ask more
+     * of the phone's own networking than reading does, a body sent with a
+     * request that deletes among them. The development mode takes any
+     * registration without an invite. Skipped without a server.
+     */
+    @Test
+    fun aNewAccountIsMadeAndDeletedAgain() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        openTheAccount()
+
+        // A handle nobody has: an earlier run may have left its own behind.
+        val handle = "t${System.currentTimeMillis() % 1_000_000_000}"
+        val password = "a password for this test"
+        tap(hasTestTag("account-new"))
+        waitFor(hasTestTag("account-invite"))
+        screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
+        screen.onNode(hasTestTag("account-name")).performTextInput("Test Pilot (not real)")
+        screen.onNode(hasTestTag("account-password")).performTextInput(password)
+        // Where a password is chosen it says that a forgotten one cannot be recovered.
+        assertTrue(exists(hasText("A forgotten password cannot be recovered", substring = true)))
+        keepScreenshot("account-6-new-account")
+        screen.onNode(hasTestTag("account-submit")).performScrollTo()
+        tap(hasTestTag("account-submit"))
+
+        waitFor(hasText("@$handle"))
+        waitFor(hasText("Sync now"))
+        assertTrue(exists(hasText("Test Pilot (not real)")))
+
+        // Deleting asks for the password, not only for a yes.
+        screen.onNode(hasTestTag("account-delete")).performScrollTo()
+        tap(hasTestTag("account-delete"))
+        waitFor(hasText("Delete your account?"))
+        keepScreenshot("account-7-delete-account")
+        screen.onNode(hasTestTag("account-delete-password")).performTextInput(password)
+        tap(hasTestTag("account-delete-confirm"))
+        waitFor(hasTestTag("account-handle"))
+        assertFalse(exists(hasText("@$handle")))
     }
 
     /**

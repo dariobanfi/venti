@@ -3,7 +3,11 @@ package fly.venti.app
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.text.format.DateFormat
+import fly.venti.app.account.AccountModel
+import fly.venti.app.account.KeystoreSessionStore
+import fly.venti.app.account.MemorySessionStore
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceVoice
 import fly.venti.app.assistant.AssistantChat
@@ -34,8 +38,8 @@ import java.util.UUID
 
 /**
  * What the app holds for as long as it runs: the logbook, the flying
- * session, the vario link, the conversation with the assistant, and the
- * wind and the flying sites on the map.
+ * session, the vario link, the conversation with the assistant, the wind
+ * and the flying sites on the map, and the pilot's account on a server.
  *
  * It belongs to the app's process, not to a screen. Android rebuilds the
  * screen whenever it likes, and a flight being recorded has to carry on
@@ -51,6 +55,7 @@ sealed interface Session {
         val waypoints: WaypointsModel,
         val airspace: AirspaceModel,
         val sites: SitesModel,
+        val account: AccountModel,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -61,6 +66,16 @@ sealed interface Session {
     class Failed(val message: String) : Session
 
     companion object {
+        /**
+         * What this phone is called in an account's list of devices: its
+         * maker and model, "Google Pixel 8". Not the name the pilot gave
+         * it, which is often the pilot's own.
+         */
+        fun deviceName(maker: String = Build.MANUFACTURER.orEmpty(), model: String = Build.MODEL.orEmpty()): String {
+            val made = maker.replaceFirstChar { it.uppercase() }
+            return if (model.startsWith(made, ignoreCase = true)) model else "$made $model".trim()
+        }
+
         /**
          * Opens the logbook in `folder` and gets the cockpit and the
          * assistant ready. For a test the pilot's settings are left alone
@@ -148,7 +163,15 @@ sealed interface Session {
             // Flying sites come from that server too.
             val sites = SitesModel(scope)
             sites.server = { (wind.server as? WindServer.Usable)?.url }
-            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, sites, preferences, files, scope)
+            // The pilot's account on that server, if there is one. A test
+            // starts signed out, and its token stays out of the keystore.
+            val account = logbook.makeAccount(
+                session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
+                device = deviceName(),
+            )
+            return Ready(
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, account, preferences, files, scope,
+            )
         }
     }
 }

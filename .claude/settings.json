@@ -31,7 +31,32 @@
       "Bash(unzip *)",
       "Bash(pdftotext *)",
       "Bash(echo *)",
-      "Bash(./target/*)"
+      "Bash(./target/*)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(docker *)",
+      "Bash(psql *)",
+      "Bash(pg_ctl *)",
+      "Bash(pg_isready *)",
+      "Bash(initdb *)",
+      "Bash(createdb *)",
+      "Bash(wasm-pack *)",
+      "Bash(wasm-bindgen *)",
+      "Bash(date *)",
+      "Bash(sleep *)",
+      "Bash(chmod *)",
+      "Bash(touch *)",
+      "Bash(diff *)",
+      "Bash(tar *)",
+      "Bash(df *)",
+      "Bash(test *)",
+      "Bash(basename *)",
+      "Bash(dirname *)",
+      "Bash(tr *)",
+      "Bash(cut *)",
+      "Bash(xargs *)",
+      "Bash(tee *)"
     ]
   }
 }

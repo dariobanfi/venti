@@ -17,15 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup show
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --locked -p venti-server
+      # The canary runs from the image a server runs. So it also notices
+      # when the image itself can no longer reach a provider, for example
+      # because its list of trusted certificates has gone stale.
+      - name: Build the server image
+        run: docker build --file deploy/Dockerfile --tag venti-server:canary .
       - name: Run each region pack
         run: |
           status=0
           for region in regions/*/region.toml; do
             echo "::group::$region"
-            ./target/release/venti-server ingest "$region" || status=1
+            docker run --rm venti-server:canary ingest "/app/$region" || status=1
             echo "::endgroup::"
           done
           exit $status

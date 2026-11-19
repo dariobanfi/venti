@@ -149,7 +149,7 @@ Every adapter crate contains:
 
 - **Fixtures:** real recorded payloads, including at least one malformed one. The healthy ones are also compiled into the crate (`fixtures::recorded()`), where the server's development mode finds them.
 - **Golden files:** the expected canonical output for each fixture. CI fails if normalisation changes.
-- **A canary:** the `Source canary` workflow runs every region's sources against the live providers once a day (`venti-server ingest`) and fails when a source delivers nothing or reports problems. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
+- **A canary:** the `Source canary` workflow runs every region's sources against the live providers once a day (`venti-server ingest`, run from the image a server runs) and fails when a source delivers nothing or reports problems. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
 
 Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, and the change is reviewed like any other diff.
 

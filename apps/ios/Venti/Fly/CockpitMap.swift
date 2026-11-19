@@ -25,6 +25,10 @@ struct CockpitMap: UIViewRepresentable {
     /// Whether the map shows the whole flight, with the scored route and
     /// the FAI triangle areas, instead of following the glider closely.
     var showsWholeFlight = false
+    /// The task being flown, for its cylinders.
+    var task: TaskView?
+    /// Where the flight stands in it, for the way still to fly.
+    var taskStatus: TaskStatusView?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -48,6 +52,8 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.airspaceDistance = airspaceDistance
         context.coordinator.fai = fai
         context.coordinator.showsWholeFlight = showsWholeFlight
+        context.coordinator.task = task
+        context.coordinator.taskStatus = taskStatus
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -78,6 +84,12 @@ struct CockpitMap: UIViewRepresentable {
         var showsWholeFlight = false
         /// The box the map shows while it shows the whole flight.
         private var wholeFlight: Bounds?
+        var task: TaskView?
+        var taskStatus: TaskStatusView?
+        /// The task whose cylinders are drawn, and which of them as the next.
+        private var drawnTask: TaskView?
+        private var drawnTaskNext: UInt32?
+        private var drawnTaskWay: [Coordinate]?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all.
@@ -91,6 +103,25 @@ struct CockpitMap: UIViewRepresentable {
             edges.lineDashPattern = NSExpression(forConstantValue: [3, 2])
             edges.lineOpacity = NSExpression(forConstantValue: 0.85)
             style.addLayer(edges)
+
+            // The task: its cylinders and goal in the map's ink, the one to
+            // fly to next with a heavier line, and the shortest way still
+            // to fly as a thin line through them.
+            let zones = MLNShapeSource(identifier: "cockpit-task", shape: nil, options: nil)
+            style.addSource(zones)
+            let rings = MapSetup.line("cockpit-task-line", from: zones, color: UIColor(hex: 0x1F1F1D), width: 1.5)
+            rings.predicate = NSPredicate(format: "next == 0")
+            style.addLayer(rings)
+            let nextRing = MapSetup.line("cockpit-task-next", from: zones, color: UIColor(hex: 0x1F1F1D), width: 3.5)
+            nextRing.predicate = NSPredicate(format: "next == 1")
+            style.addLayer(nextRing)
+            let ahead = MLNShapeSource(identifier: "cockpit-task-way", shape: nil, options: nil)
+            style.addSource(ahead)
+            let aheadLine = MapSetup.line(
+                "cockpit-task-way-line", from: ahead, color: UIColor(hex: 0x1F1F1D), width: 1.5
+            )
+            aheadLine.lineOpacity = NSExpression(forConstantValue: 0.6)
+            style.addLayer(aheadLine)
 
             // The route the flight scores along: a thin line in the accent
             // colour, under everything that moves.
@@ -168,6 +199,9 @@ struct CockpitMap: UIViewRepresentable {
             drawnThermals = nil
             drawnFaiSide = nil
             drawnRoute = nil
+            drawnTask = nil
+            drawnTaskNext = nil
+            drawnTaskWay = nil
             show(route, on: mapView)
             if let shown {
                 self.shown = nil
@@ -195,8 +229,10 @@ struct CockpitMap: UIViewRepresentable {
                 target = way.position
             }
             let isWholeFlightShown = wholeFlight != nil
+            let nextTurnpoint = taskStatus?.next?.number
             guard view.position != shown?.position || view.circling != shown?.circling || target != shownTarget
                 || fai?.side != drawnFaiSide || showsWholeFlight != isWholeFlightShown
+                || task != drawnTask || nextTurnpoint != drawnTaskNext
             else { return }
             shown = view
             guard isStyleLoaded, let style = map.style, let position = view.position else { return }
@@ -233,11 +269,30 @@ struct CockpitMap: UIViewRepresentable {
                 source.shape = MLNShapeCollectionFeature(shapes: outlines)
             }
 
+            if task != drawnTask || nextTurnpoint != drawnTaskNext,
+               let source = style.source(withIdentifier: "cockpit-task") as? MLNShapeSource
+            {
+                drawnTask = task
+                drawnTaskNext = nextTurnpoint
+                source.shape = MLNShapeCollectionFeature(
+                    shapes: Self.taskFeatures(task?.turnpoints ?? [], next: nextTurnpoint)
+                )
+            }
+            let ahead = taskStatus?.way ?? []
+            if ahead != drawnTaskWay, let source = style.source(withIdentifier: "cockpit-task-way") as? MLNShapeSource {
+                drawnTaskWay = ahead
+                let corners = ahead.map(\.location)
+                source.shape = corners.count >= 2
+                    ? MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                    : nil
+            }
+
             // The whole flight: everything it has to show in one view,
             // refitted only when something has grown out of it.
             if showsWholeFlight {
                 var places = [position] + route
                 places += fai?.outlines.flatMap { $0 } ?? []
+                places += task?.turnpoints.flatMap(\.outline) ?? []
                 places += [view.takeoff, target].compactMap { $0 }
                 let box = Self.box(around: places)
                 if wholeFlight.map({ !$0.contains(box) }) ?? true {
@@ -315,6 +370,17 @@ struct CockpitMap: UIViewRepresentable {
         }
 
         /// A thermal the glider has left, as the map draws it.
+        /// The outlines of a task's turnpoints, each marked with whether it
+        /// is the one to fly to next.
+        static func taskFeatures(_ turnpoints: [TaskTurnpointView], next: UInt32?) -> [MLNPolylineFeature] {
+            turnpoints.filter { $0.outline.count >= 2 }.map { turnpoint in
+                let corners = turnpoint.outline.map(\.location)
+                let ring = MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                ring.attributes = ["next": turnpoint.number == next ? 1 : 0]
+                return ring
+            }
+        }
+
         static func thermalFeature(for mark: ThermalMarkView) -> MLNPointFeature {
             let feature = MLNPointFeature()
             feature.coordinate = mark.position.location

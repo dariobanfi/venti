@@ -43,6 +43,14 @@ final class FlySession {
     /// The airspace to warn about, asked for when a session starts. The
     /// app sets this to the pilot's airspace files.
     @ObservationIgnored var airspace: () -> AirspaceSet? = { nil }
+    /// The task to fly, asked for when a session starts. The app sets
+    /// this to the task the pilot keeps.
+    @ObservationIgnored var taskFile: () -> TaskFile? = { nil }
+    /// Where the flight stands in its task. Absent without a task, and
+    /// until there is a position.
+    private(set) var task: TaskStatusView?
+    /// The name of the place the pilot chose to fly to, if any.
+    private(set) var chosenPlace: String?
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
     /// Whether the vario is silent. Remembered between flights.
@@ -115,10 +123,19 @@ final class FlySession {
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
     }
 
-    /// Chooses the place to navigate to; `nil` goes back to the take-off.
+    /// Chooses the place to navigate to; `nil` goes back to the task, or
+    /// without one to the take-off.
     func goTo(_ place: TargetPlace?) {
         guard let session else { return }
         session.goTo(place: place)
+        chosenPlace = place?.name
+        refresh(elapsed: 0)
+    }
+
+    /// Moves the task on to its next turnpoint, or back to the one before.
+    func stepTask(forward: Bool) {
+        guard let session else { return }
+        session.stepTask(forward: forward)
         refresh(elapsed: 0)
     }
 
@@ -169,6 +186,8 @@ final class FlySession {
         score = nil
         faiAreas = nil
         daylight = nil
+        task = nil
+        chosenPlace = nil
         airspaceWarnings = []
         airspaceCheck = .noAirspace
         handedAirspace = nil
@@ -187,6 +206,15 @@ final class FlySession {
             trimSpeedMs: defaults.double(forKey: Preferences.trimSpeed) / 3.6,
             glideRatio: defaults.double(forKey: Preferences.glideRatio)
         )
+        // The task of the day, on the day of the flight: a replay's day is
+        // the day it was flown.
+        do {
+            try session.flyTask(
+                fileText: taskFile()?.text, nowUnixS: replay?.now() ?? Date().timeIntervalSince1970
+            )
+        } catch {
+            problem = error.words
+        }
         sound.isMuted = isMuted
         // A cockpit that dims and locks is no use.
         UIApplication.shared.isIdleTimerDisabled = true
@@ -221,6 +249,18 @@ final class FlySession {
         self.view = view
         way = session.navigation(nowUnixS: now)
         sound.play(view.tone)
+
+        let status = session.taskStatus(nowUnixS: now)
+        if status != task {
+            task = status
+        }
+        // What happens in the task is said once: the start taken, a
+        // turnpoint reached, the goal. Tests have nobody listening.
+        while let event = session.takeTaskEvent() {
+            if !LaunchOptions.isUnderTest {
+                voice.say(event.words)
+            }
+        }
 
         // The core works the score out anew every half minute of flight;
         // asking every few seconds is enough to show it promptly.

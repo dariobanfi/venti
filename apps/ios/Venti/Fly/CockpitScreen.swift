@@ -13,7 +13,9 @@ struct CockpitScreen: View {
 
     @Environment(FlySession.self) private var fly
     @Environment(AirspaceModel.self) private var airspace
+    @Environment(TaskModel.self) private var tasks
     @State private var isConfirmingFinish = false
+    @State private var isShowingTask = false
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
@@ -31,7 +33,9 @@ struct CockpitScreen: View {
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
                     route: fly.score?.route ?? [],
                     fai: hidesFaiAreas ? nil : fly.faiAreas,
-                    showsWholeFlight: showsWholeFlight
+                    showsWholeFlight: showsWholeFlight,
+                    task: fly.task == nil ? nil : tasks.task,
+                    taskStatus: fly.task
                 )
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
@@ -92,6 +96,15 @@ struct CockpitScreen: View {
                                 .padding(10)
                         }
                     }
+                // With a task: where the flight stands in it, above the
+                // line that says where to fly, which is then its next
+                // turnpoint unless the pilot chose another place.
+                if let status = fly.task {
+                    TaskStrip(status: status) {
+                        isShowingTask = true
+                    }
+                    Divider()
+                }
                 TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
                     isChoosingTarget = true
                 }
@@ -132,10 +145,15 @@ struct CockpitScreen: View {
                 WindByHeightSheet()
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $isShowingTask) {
+                TaskProgressSheet()
+                    .presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $isChoosingTarget) {
                 TargetPicker(
                     position: view.position,
-                    chosen: fly.way.flatMap { $0.isTakeoff ? nil : $0.name }
+                    chosen: fly.chosenPlace,
+                    fliesTask: fly.task != nil
                 ) { waypoint in
                     fly.goTo(waypoint?.place)
                 }

@@ -8,7 +8,9 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites):
+            case .ready(
+                let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks
+            ):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
@@ -18,6 +20,7 @@ struct VentiApp: App {
                     .environment(airspace)
                     .environment(account)
                     .environment(sites)
+                    .environment(tasks)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -35,7 +38,8 @@ struct VentiApp: App {
 @MainActor
 enum Session {
     case ready(
-        LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel
+        LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
+        TaskModel
     )
     case failed(String)
 
@@ -80,8 +84,13 @@ enum Session {
                 server: { wind.server?.absoluteString },
                 now: { wind.now }
             )
+            if LaunchOptions.usesSampleTask {
+                _ = try? core.keepTask(text: LaunchOptions.sampleTask)
+            }
+            let tasks = TaskModel(core: core)
             let fly = FlySession(dataFolder: folder)
             fly.airspace = { airspace.set }
+            fly.taskFile = { tasks.file }
             // A test starts signed out, whatever an earlier one left in
             // the simulator's Keychain.
             if LaunchOptions.isUITesting {
@@ -89,7 +98,7 @@ enum Session {
             }
             let account = AccountModel(core: core)
             account.onLogbookChanged = { logbook.refresh() }
-            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites)
+            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks)
         } catch {
             return .failed(error.words)
         }
@@ -145,6 +154,25 @@ enum LaunchOptions {
         AH 9000ft AMSL
         V X=47:42:00 N 011:44:00 E
         DC 1
+        """
+
+    /// Start with a made-up task along the sample flight, so the cockpit's
+    /// task can be tested without picking a file.
+    static let usesSampleTask = arguments.contains("--sample-task")
+
+    /// The made-up task, as a file in the XCTSK format: out of a start
+    /// cylinder around the sample flight's take-off two minutes into it,
+    /// to a turnpoint the flight passes, and to a goal it reaches. Its
+    /// names say that it is not real.
+    static let sampleTask = """
+        {"taskType":"CLASSIC","version":1,"earthModel":"WGS84","turnpoints":[
+        {"type":"TAKEOFF","radius":400,"waypoint":{"name":"Sample launch","lat":47.6642,"lon":11.7967,"altSmoothed":1620}},
+        {"type":"SSS","radius":1000,"waypoint":{"name":"Sample start","lat":47.6642,"lon":11.7967,"altSmoothed":1620}},
+        {"radius":400,"waypoint":{"name":"Sample turnpoint west","lat":47.6894,"lon":11.7506,"altSmoothed":800}},
+        {"radius":400,"waypoint":{"name":"Sample goal","lat":47.6638,"lon":11.7432,"altSmoothed":760}}],
+        "takeoff":{"timeOpen":"09:00:00Z","timeClose":"11:00:00Z"},
+        "sss":{"type":"RACE","direction":"EXIT","timeGates":["10:32:00Z"]},
+        "goal":{"type":"CYLINDER","deadline":"12:00:00Z"}}
         """
 
     /// The Venti server to use, given as `--server <address>`: the UI tests

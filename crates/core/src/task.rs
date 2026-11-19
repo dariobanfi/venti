@@ -62,6 +62,8 @@ pub struct TaskTurnpointView {
     pub role: TaskRole,
     /// The same in words: "Launch", "Start", "Goal line".
     pub role_in_words: String,
+    /// Whether it is a goal line. Then `radius_m` is half its length.
+    pub is_line: bool,
     /// Where the shortest way through the task touches it.
     pub touch: Coordinate,
     /// The length of the shortest way from the turnpoint before to this
@@ -364,8 +366,8 @@ fn view(task: &Task, now_unix_s: i64) -> TaskView {
         east = east.max(point.lon);
     };
     for (index, turnpoint) in task.turnpoints.iter().enumerate() {
-        let ring = task
-            .zone(index)
+        let zone = task.zone(index);
+        let ring = zone
             .map(|zone| outline(task.earth, &zone))
             .unwrap_or_default();
         stretch(coordinate(turnpoint.position));
@@ -389,6 +391,7 @@ fn view(task: &Task, now_unix_s: i64) -> TaskView {
             radius_m: turnpoint.radius_m,
             role: role(task, index),
             role_in_words: role_in_words(task, index),
+            is_line: matches!(zone, Some(Zone::Line { .. })),
             touch: coordinate(
                 measured
                     .points
@@ -745,6 +748,7 @@ mod tests {
         let ring = &task.turnpoints[2].outline;
         assert_eq!(ring.len(), 73);
         assert_eq!(ring.first(), ring.last());
+        assert!(task.turnpoints[4].is_line && !task.turnpoints[3].is_line);
         let line = &task.turnpoints[4].outline;
         assert_eq!(line.len(), 20);
         assert_eq!(line.first(), line.last());

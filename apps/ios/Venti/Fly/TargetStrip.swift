@@ -106,9 +106,13 @@ struct TargetStrip: View {
 struct TargetPicker: View {
     /// Where the glider is, to list the nearest places first.
     let position: Coordinate?
-    /// The place the cockpit is navigating to now; `nil` for the take-off.
+    /// The place the pilot chose to fly to; `nil` when none is chosen and
+    /// the cockpit leads along the task or back to the take-off.
     let chosen: String?
-    /// Called with the chosen place; `nil` for the take-off.
+    /// Whether a task is being flown. Without a place chosen the cockpit
+    /// then leads to the task's next turnpoint, not to the take-off.
+    var fliesTask = false
+    /// Called with the chosen place; `nil` for none.
     let choose: (WaypointView?) -> Void
 
     @Environment(WaypointsModel.self) private var waypoints
@@ -127,11 +131,11 @@ struct TargetPicker: View {
                         dismiss()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "house.circle")
+                            Image(systemName: fliesTask ? "flag.checkered" : "house.circle")
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
                                 .frame(width: 28)
-                            Text("Take-off")
+                            Text(fliesTask ? "Along the task" : "Take-off")
                             Spacer(minLength: 8)
                             if chosen == nil {
                                 Image(systemName: "checkmark")
@@ -143,7 +147,11 @@ struct TargetPicker: View {
                     }
                     .buttonStyle(.plain)
                 } footer: {
-                    Text("Without a place chosen, the cockpit shows the way back to where you took off.")
+                    Text(
+                        fliesTask
+                            ? "Without a place chosen, the cockpit leads to the task's next turnpoint."
+                            : "Without a place chosen, the cockpit shows the way back to where you took off."
+                    )
                 }
 
                 Section("Waypoints") {

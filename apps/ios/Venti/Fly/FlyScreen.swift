@@ -8,6 +8,7 @@ struct FlyScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(WaypointsModel.self) private var waypoints
     @Environment(AirspaceModel.self) private var airspace
+    @Environment(TaskModel.self) private var tasks
 
     @State private var isChoosingVario = false
 
@@ -37,6 +38,18 @@ struct FlyScreen: View {
                         }
                     }
                     .accessibilityIdentifier("airspace-before-takeoff")
+                    // The task of the day, or a route planned for the
+                    // flight: the cockpit leads along it.
+                    NavigationLink {
+                        TaskScreen()
+                    } label: {
+                        LabeledContent {
+                            Text(tasks.task?.inALine ?? "None")
+                        } label: {
+                            Label("Task", systemImage: "flag.checkered")
+                        }
+                    }
+                    .accessibilityIdentifier("task-before-takeoff")
                 } footer: {
                     Text(
                         airspace.isEmpty
@@ -88,6 +101,7 @@ struct FlyScreen: View {
             .environment(fly)
             .environment(waypoints)
             .environment(airspace)
+            .environment(tasks)
         }
         .alert(
             "Flying",

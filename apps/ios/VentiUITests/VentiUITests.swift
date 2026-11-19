@@ -408,6 +408,66 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("wind-4-assistant")
     }
 
+    /// A task: the Fly tab says which one the cockpit will fly, its page
+    /// shows it and hands it on as a QR code, and in a replay of the
+    /// sample flight the cockpit counts down to the start, takes it and
+    /// leads on to the next turnpoint.
+    func testATaskLeadsThroughTheCockpit() {
+        let app = launch(bundledMap: true, extra: ["--sample-task"])
+        openTab("Fly", in: app)
+        let row = element("task-before-takeoff", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(saying("4 turnpoints", in: app).exists)
+        row.tap()
+        XCTAssertTrue(app.navigationBars["Task"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Sample turnpoint west", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("task-sketch", in: app).exists)
+        sleep(1)
+        keepScreenshot("task-1-task")
+
+        app.buttons["More"].tap()
+        let showCode = app.buttons["Show as a QR code"]
+        XCTAssertTrue(showCode.waitForExistence(timeout: 10))
+        showCode.tap()
+        XCTAssertTrue(element("task-code", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("task-2-code")
+        app.buttons["Done"].tap()
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // The flight leaves the start cylinder seven minutes in, which at
+        // twenty times its speed is after some twenty seconds.
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        app.buttons["Replay the sample flight"].tap()
+        app.buttons["20 times faster"].tap()
+        let strip = element("task-strip", in: app)
+        XCTAssertTrue(strip.waitForExistence(timeout: 30))
+        XCTAssertTrue(valued(containing: "Sample start", in: app).waitForExistence(timeout: 10))
+        keepScreenshot("task-3-before-start")
+
+        XCTAssertTrue(valued(containing: "On task", in: app).waitForExistence(timeout: 60))
+        XCTAssertTrue(valued(containing: "Sample turnpoint west", in: app).waitForExistence(timeout: 10))
+        app.buttons["Show the whole flight"].tap()
+        XCTAssertTrue(app.buttons["Follow the glider"].waitForExistence(timeout: 10))
+        sleep(2)
+        keepScreenshot("task-4-on-task")
+
+        // The whole task with what is reached, and the two buttons for
+        // when the task and the flight have come apart.
+        strip.tap()
+        XCTAssertTrue(app.navigationBars["Task"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Skip to the next turnpoint"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("task-5-progress")
+        app.buttons["Done"].tap()
+
+        app.buttons["End replay"].tap()
+        let close = app.buttons["Close the cockpit"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+    }
+
     /// Airspace from the pilot's server: with a server set, the app has
     /// fetched the airspace around the map by itself. It says before
     /// take-off what the cockpit will warn from, and lists it with its

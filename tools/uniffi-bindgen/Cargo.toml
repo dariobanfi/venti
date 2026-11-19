@@ -1,0 +1,11 @@
+[package]
+name = "uniffi-bindgen"
+description = "Generates the Kotlin bindings for venti-core. Build tool, not part of the app."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+uniffi = { workspace = true, features = ["cli"] }

@@ -222,6 +222,8 @@ class VentiUiTest {
         waitFor(described("Glide"), seconds = 40)
         assertTrue(exists(described("Speed")))
         assertTrue(exists(described("Wind")))
+        // Beside the glide it is making, the glide it needs to get home.
+        assertTrue(exists(described("Needs")))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
@@ -236,7 +238,6 @@ class VentiUiTest {
         keepScreenshot("$prefix-fly-4-fly-to")
         tap(described("Sample landing field"))
         waitFor(strip and saying("Sample landing field"), seconds = 10)
-        assertTrue(exists(described("Needs")))
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-5-to-landing")
 

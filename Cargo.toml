@@ -11,6 +11,7 @@ publish = false
 
 [workspace.dependencies]
 venti-domain = { path = "crates/domain" }
+venti-airspace = { path = "crates/airspace" }
 venti-api-types = { path = "crates/api-types" }
 venti-store = { path = "crates/store" }
 venti-sources = { path = "crates/sources" }

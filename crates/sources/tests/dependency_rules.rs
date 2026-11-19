@@ -5,7 +5,8 @@
 //! - A provider crate (`venti-sources-*`) depends only on those two.
 //! - Only the server, which assembles the registry, depends on provider
 //!   crates, so no other code can name a provider-specific type.
-//! - `venti-flight` and `venti-sensors` depend only on `venti-domain`.
+//! - `venti-flight`, `venti-sensors` and `venti-airspace` depend only on
+//!   `venti-domain`.
 //! - `venti-api-types`, the wire format shared by server and clients, and
 //!   `venti-store`, the server's persistence, depend only on `venti-domain`.
 //! - `venti-core`, the client core, never depends on the source framework:
@@ -70,8 +71,8 @@ fn crate_dependencies_point_inward() {
     for (name, dependencies) in &graph {
         let allowed: Option<&[&str]> = match name.as_str() {
             "venti-domain" => Some(&[]),
-            "venti-sources" | "venti-flight" | "venti-sensors" | "venti-api-types"
-            | "venti-store" => Some(&["venti-domain"]),
+            "venti-sources" | "venti-flight" | "venti-sensors" | "venti-airspace"
+            | "venti-api-types" | "venti-store" => Some(&["venti-domain"]),
             "venti-regions" => Some(&["venti-domain", "venti-sources"]),
             // The assistant's two crates stand alone: they know JSON and
             // HTTP shapes, nothing about flying or about this app's data.
@@ -80,6 +81,7 @@ fn crate_dependencies_point_inward() {
                 "venti-domain",
                 "venti-flight",
                 "venti-sensors",
+                "venti-airspace",
                 "venti-api-types",
                 "venti-llm",
                 "venti-tools",

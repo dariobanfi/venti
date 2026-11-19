@@ -41,13 +41,15 @@ Three ideas carry the design:
 
 ## Rust workspace
 
-Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `api-types`, `store`, `server`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `sensors` (sentence parsers for external varios), `llm` and `tools` (the assistant's provider format and its tools), `core` (the logbook on the device, the cockpit session and the assistant), `core-wasm` (the core for the browser), the iOS shell in `apps/ios`, the Android shell in `apps/android` and the web shell in `apps/web`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`, and with its second program, `uniffi-bindgen`, the Kotlin interface.
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `api-types`, `store`, `server`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `airspace` (the OpenAir reader, airspace queries and airspace warnings; see [airspace.md](airspace.md)), `sensors` (sentence parsers for external varios), `llm` and `tools` (the assistant's provider format and its tools), `core` (the logbook on the device, the cockpit session and the assistant), `core-wasm` (the core for the browser), the iOS shell in `apps/ios`, the Android shell in `apps/android` and the web shell in `apps/web`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`, and with its second program, `uniffi-bindgen`, the Kotlin interface.
 
 ```
 crates/
   domain         Canonical types, units, identifiers. No I/O.
   flight         IGC read/write, vario filter, wind estimate, thermal detection,
-                 glide and airspace geometry, scoring, task logic. No I/O.
+                 glide geometry, scoring, task logic. No I/O.
+  airspace       OpenAir files, airspace queries (what is here, what is near,
+                 side view) and the cockpit's airspace warnings. No I/O.
   sensors        Parsers for external instrument protocols. No I/O.
   sources        Adapter traits, manifest types, registry, pipeline.
   sources-*      One crate per provider (sources-dwd, sources-geosphere, ...).
@@ -77,14 +79,14 @@ docs/
 
 ### Dependency rules
 
-- Dependencies point inward. `domain` depends on nothing in the workspace. `flight`, `sensors` and `sources` depend on `domain`. Everything else may depend on those.
+- Dependencies point inward. `domain` depends on nothing in the workspace. `flight`, `airspace`, `sensors` and `sources` depend on `domain`. Everything else may depend on those.
 - A `sources-*` crate depends only on `domain` and `sources`. No other crate may name a provider-specific type; only `server`, which assembles the registry, depends on the provider crates.
 - `api-types` and `store` depend only on `domain`. The wire format must stay usable in a browser and on a phone, and the store must not know how data was fetched.
 - Nothing a client is built from reaches a server-side crate: `core`, and every crate that depends on it, never depends on `store`, `server`, `sources`, `regions` or a provider crate, not even through another crate.
-- `flight` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
+- `flight`, `airspace` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
 - UI shells contain no business rules. If a shell needs an `if` about flying, the logic belongs in `core`.
 
-The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than `server` depends on a provider crate, if `api-types` or `store` grows a workspace dependency besides `domain`, or if a client crate can reach a server-side one, and it holds `core-wasm` to depending on `core` alone. Add the rules for `flight` and `sensors` to it when those crates are created.
+The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than `server` depends on a provider crate, if `api-types` or `store` grows a workspace dependency besides `domain`, or if a client crate can reach a server-side one, and it holds `core-wasm` to depending on `core` alone. `flight`, `sensors` and `airspace` are held to `domain` alone.
 
 ## Clients
 
@@ -231,6 +233,7 @@ screen and vario tone                            (shell: draws and synthesises)
 - **Circling** uses the rule XCTrack documents (90° of turn within 30 s while not sinking faster than 0.5 m/s). It ends when the turn within 30 s drops under 30°.
 - **Recording** cannot lose a track to a crash: each fix is appended to `recordings/<start>.igc` in the data folder as it arrives, and that file is a complete flight file at every moment. Stopping imports it into the logbook and removes it; one found at launch is imported then.
 - **The vario tone** is described by the core (pitch, rhythm) and synthesised by the shell.
+- **Airspace warnings** come from `airspace::WarningEngine`, which is fed the computer's state once a second and, like the computer, reads no clock. It is built and tested and not yet wired into the session; [airspace.md](airspace.md#feeding-the-engine-from-the-cockpit) says how.
 
 To verify in the air: the take-off and landing thresholds, the tone table and the filter's settings are first values. None has flown yet.
 
@@ -467,6 +470,15 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-19 | Everything shown about a flight describes the flown part of its recording: take-off to landing, found by the cockpit's own rules. The file is kept whole. | A recorder left on at the car park would otherwise inflate airtime and distance, and the app's own recorder runs from "Start flight", not from take-off | Recordings with several flights turn out to be common; then they are split |
 | 2026-11-19 | Flight analysis judges circling with a window centred on each moment, unlike the cockpit's backward-looking rule | With the whole track available a thermal can be dated to when circling began, not to when it could be recognised | Not expected |
 | 2026-11-19 | Flights are scored by the World XContest's published rules (free flight, free and FAI triangle, the 20% and 5% closing limits), searched on the track's corners: at most 400 for free flight with dynamic programming, at most 240 for triangles by trying every three | Exact search over every fix is far too slow, and the best turnpoints lie on corners. The points are labelled as ours: to verify against XContest's own result for the same flights, including which Earth model it measures on. | A flight scores differently on XContest |
+| 2026-11-19 | Airspace is its own crate, `airspace`, depending on `domain` only, and not a part of `flight` | The server must read and check airspace without the flight engine, and a client must have it without the source framework | Not expected |
+| 2026-11-19 | An airspace's edges are straight lines in longitude and latitude; distances are measured on the FAI sphere | It is the GeoJSON standard's definition and what a map draws; no source in use says otherwise | A source defines edges as great circles or rhumb lines (the DFS data sets do) |
+| 2026-11-19 | Circles and arcs are turned into polygons that are never smaller than the true shape and at most 10 m larger | A pilot the polygon reports as outside must be outside | Not expected |
+| 2026-11-19 | What is unknown about height is taken toward the pilot: a limit above ground without the ground elevation, and a flight level without a pressure altitude (standard atmosphere, widened for 980 to 1040 hPa and 7 % of temperature), make the answer "inside, uncertain" | A wrong "clear" is the worst answer. The phone's barometer makes the flight-level case exact | A terrain lookup exists; then pass it in everywhere |
+| 2026-11-19 | Limits above mean sea level are compared with the cockpit's altitude, not with a barometric altitude at the local pressure setting | The app has no QNH. XCTrack uses one | A QNH is available, from the pilot or from nearby airfield reports |
+| 2026-11-19 | Every airspace counts as active, and glider sectors, Austrian TRAs and HX airspace never open the airspace around them by themselves | There is no feed of activations. The pilot opens an airspace by hand, for a time | An activation source is built |
+| 2026-11-19 | Airspace warnings use XCTrack's margins (100 m and 500 m of height, four times that over the ground) as two boxes, with a prediction of our own from the path of the last 20 s | The benchmark's values, read in its manual; a box is never later than its blended distance. The course of one second is useless in a thermal | The first flights with it |
+| 2026-11-19 | Which airspaces warn is a table of data, read top down, with "avoid" for whatever fits no rule | It is a question about air law, which must be reviewable in one place, with its sources, by someone who does not read code | A pilot profile exists (radio, transponder, country) |
+| 2026-11-19 | The OpenAir reader replaces a limit it cannot read by the widest one and skips, with a report, an airspace whose shape it cannot read | Larger than published is safe; half a shape is not; silence is worst | Not expected |
 | 2026-11-19 | The assistant's provider code builds requests and reads replies without doing I/O; the core steps the conversation and the shell sends the bytes | The same pattern as the data-source adapters: testable from fixed replies, and the pilot's key touches one header and nothing else | Streaming replies need a different shape |
 | 2026-11-19 | The assistant defaults to Anthropic's most capable current model and lets the pilot choose a cheaper one | The pilot pays per token on their own account; the choice is theirs | Not expected |
 | 2026-11-19 | The Android app is one Gradle module in Kotlin and Compose with Material 3; Gradle builds the Rust core and generates its Kotlin interface | One command from a fresh clone, as on iOS, and nothing generated in the repository. One module, because there is one app and the bridge has no code of ours to keep apart. | A second Android target (a watch, a widget) needs the core |

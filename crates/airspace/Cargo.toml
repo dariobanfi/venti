@@ -1,0 +1,19 @@
+[package]
+name = "venti-airspace"
+description = "Airspace for the cockpit and the map: reads OpenAir files and answers where a pilot is in relation to airspace. No I/O and no clock."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+fastrand.workspace = true
+
+[lints]
+workspace = true

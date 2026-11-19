@@ -442,6 +442,39 @@ A public or unlisted flight has a page at `/f/{id}` and a picture at `/f/{id}/pr
 
 Everything on the page that a pilot or a file supplied is escaped, and the page forbids itself all scripts with a content security policy, so a mistake in the escaping could deface a page but not run code. The addresses in the page come from the configured `public_url`, never from the request.
 
+#### Proposal, not built: a link the pilot can renew
+
+Finding L7 of the security review of 2026-11-19. This is a design for the owner to accept, change or drop. Nothing of it is in the code.
+
+**What is so today.** The link to a flight is `/f/` and the flight's address, and the address is worked out from the account and the flight's identity (above). It is the same value that names the flight in every path of the API. So:
+
+- A link never changes. A pilot who made a flight unlisted, sent the link to a group and later thinks better of it can make the flight private; when they share it again, with anyone, the old link works again for everyone who ever had it.
+- A flight that is deleted and uploaded again gets its old address, and its old links with it.
+- The key to an unlisted flight is in every path its pilot's own devices ask for, and so in any log of requests. The server names the path when it logs a request that failed; Caddy keeps no log of requests as it is set up.
+
+**The proposal.**
+
+| | |
+|---|---|
+| A share token | Each flight gets a second value beside its address: 26 characters from 128 random bits, like a session's identifier. It is drawn when the flight first becomes unlisted or public, and kept in a column of its own with a unique index. A private flight that was never shared has none |
+| The link | `/f/{token}` and `/f/{token}/preview.png`. The flight's address opens no page |
+| What goes with a link | Without a session, a public flight is still read by its address under `/v1/flights/{id}`: it is listed in its pilot's public logbook anyway. An unlisted flight is read without a session only by its token, under `/v1/shared/{token}` and `/v1/shared/{token}/igc`, which are what its page links to |
+| For the pilot | The flight as its own pilot reads it gains `share_path`, the text `/f/{token}`, left out while the flight is private. Nobody else is shown it |
+| Renewing | `POST /v1/flights/{id}/share-link`, signed in, for one's own flight that is not private: a new token is drawn, the old link answers with the page for "no such flight" from that moment, and the answer is the flight with its new `share_path`. Counted per account, as uploads are, so that it cannot be asked for without end |
+| Going private | Discards the token. Sharing the flight again draws a new one: a link lives until the pilot stops sharing or asks for another. *(For the owner to decide: the other choice keeps the token, so that hiding a flight for a while breaks no link)* |
+| Flights shared before the change | Their token is set to their address, once, when the column is added, so every link that was handed out keeps working until its pilot renews it |
+
+**Why it is not built.** The apps make the link themselves: the core builds it from the server's address and the flight's `id` (`crates/core/src/account.rs`; `share_path` in the API's types does the same). A server that changed what a link is made of would have every app showing links that open nothing. The change therefore starts in the core and the three apps, which were outside the work that wrote this down.
+
+**What it takes.**
+
+1. Server and store: the column and its index, the token drawn on the first sharing, `share_path` in the pilot's view of a flight, the page and the picture found by token, the two `/v1/shared/` reads, the renewing request, and the store's suite for all of it on both stores.
+2. The API's types and the core: `share_path` read from the flight instead of built, and a call for renewing. A record of the core gains a field, which the web app's hand-built test records then need.
+3. The apps: "New link" beside "Copy link", with one sentence saying that the old link stops working.
+4. In this order, so that nothing breaks on the way: the server first, answering both the old address and the token; the apps next; then the server stops opening pages by address for flights whose token was renewed or drawn after the change. Flights shared before it keep their old link, which is their address, until renewed.
+
+**What it does not change.** Whoever has a link sees what an unlisted flight shows: its numbers, its track and its file. What a share hands out is a separate decision of the owner's.
+
 ### Storage
 
 - **PostgreSQL:** users, flights with their files, sites, airspace, stations, community data. Observations are partitioned by month and kept for thirteen whole months unless configured otherwise. Airspace is kept as the latest whole set of each source.
@@ -759,6 +792,7 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-19 | A preview picture is drawn once per flight and change number and kept in memory, the 64 asked for last and at most 8 MB of them | Found by the security review of 2026-11-19: the picture was drawn for every request that did not already hold it, about 10 ms of a core each, at an address anyone may ask as often as they like. Keyed by the change number, because what the picture shows changes only with it; bounded, so that asking for many flights' pictures takes no memory. Two requests that arrive in the same instant may both draw | Pictures get a map under the track and become expensive: then they are stored with the flight |
 | 2026-11-19 | An answer to a request with a session token is `no-store` and has no `ETag`; an answer about a shared flight to anyone else may be kept and must be checked before every reuse (`no-cache`) | A fingerprint of private data does not belong in a cache or a log. A flight made private must be gone at once, not when a cache gets round to it | Measurements show the checks cost too much; then a short `max-age` for public flights |
 | 2026-11-19 | A request whose body is JSON is refused with `415` unless it says `Content-Type: application/json` | Found by the security review of 2026-11-19: the server read any body as JSON. A browser sends a body typed `text/plain` to any site without asking first, so a hostile page could make its visitors' browsers try passwords or invite codes here, from their addresses and against their limits; for `application/json` the browser asks first and the server's answer about origins stops it. The apps send the type already (the core sets it on every JSON request) | Not expected |
+| 2026-11-19 | Proposed, not built: a random share token for each flight, which its pilot can renew, in place of the flight's address in the link ("Proposal, not built" under Share pages has the design) | Finding L7 of the security review: a link is worked out from the account and the flight and so never changes; a flight made private and shared again, or deleted and uploaded again, answers every link it ever had, and the key to an unlisted flight is in every path its pilot's devices ask for and so in any log of requests. Not built because the apps make the link themselves from the flight's `id`, so the change starts in the core and the apps | The owner accepts, changes or drops the proposal. With it: whether going private discards the link or keeps it |
 | 2026-11-19 | Text that has not the form of an identifier is the identifier of nothing, and the database is not asked about it: the API checks a session's identifier as it checks a flight's address, and the store answers "no such session" for text PostgreSQL would refuse | Found by the same review: `DELETE /v1/sessions/%00` reached PostgreSQL, which takes no zero byte in text, and the answer was `500` | Not expected |
 | 2026-11-19 | The request log names a request's method and path, and nothing else of it | Headers carry tokens and bodies carry passwords; a query string should carry neither, but a client that puts one there by mistake must not find it in the log | Not expected |
 | 2026-11-19 | No log line is written once per request that a stranger can send for nothing. A refusal for too many requests is one line per address and window; a failure that repeats with every request (database away, server busy, time ran out) is one line at once and then one every ten seconds with a count. A wrong password stays a line each: each one cost the sender a password hash. Docker rotates every service's log (five files of 10 MB) | Found by the security review of 2026-11-19: one address that kept asking the connector after being refused wrote about a megabyte of warnings a second, and Docker kept all of it. The rotation bounds what the rule misses | A line per request is wanted for an investigation: raise the log level for that time |

@@ -96,9 +96,9 @@ class VentiUiTest {
         node.config.getOrNull(SemanticsProperties.StateDescription)?.contains(text) == true
     }
 
-    /** Lets the map finish drawing: it draws on its own thread and tells nobody. */
+    /** Lets the app run and the map finish drawing; see [TestDevice.letTheAppRun]. */
     private fun letTheMapDraw(seconds: Int = 4) {
-        Thread.sleep(seconds * 1000L)
+        TestDevice.letTheAppRun(screen, seconds)
     }
 
     /** From an empty logbook to a flight on the map. */
@@ -141,7 +141,7 @@ class VentiUiTest {
 
         tap(described("Flight details"))
         waitFor(hasText("Cross-country"))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-5-flight-details")
 
         // Pulling the sheet up opens it fully; further down it lists every
@@ -149,7 +149,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("flight-details")).performTouchInput { swipeUp() }
         screen.onNode(hasTestTag("flight-details")).performScrollToNode(hasTestTag("thermal-row"))
         waitFor(hasTestTag("thermal-row"))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-5b-flight-thermals")
         tap(hasTestTag("thermal-row"))
         waitFor(described("Show flight totals"))
@@ -161,14 +161,14 @@ class VentiUiTest {
         // Back to the logbook, where the flight is now listed.
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-6-logbook")
 
         // The totals lead to the statistics.
         tap(hasTestTag("logbook-totals"))
         waitFor(hasText("Your bests"))
         assertTrue(exists(hasText("Longest flight")))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-6b-statistics")
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
@@ -232,7 +232,7 @@ class VentiUiTest {
         tap(strip)
         waitFor(hasText("Fly to"))
         waitFor(described("Sample landing field"))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-fly-4-fly-to")
         tap(described("Sample landing field"))
         waitFor(strip and saying("Sample landing field"), seconds = 10)
@@ -289,7 +289,7 @@ class VentiUiTest {
 
         waitFor(hasText("Your logbook has one flight", substring = true), seconds = 20)
         assertTrue(exists(hasText("Looked up your list of flights")))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-assistant-2-answer")
 
         // The menu holds the models, a new conversation and the key.
@@ -349,13 +349,13 @@ class VentiUiTest {
         waitFor(described("Zugspitze"))
         // A name the provider writes in capitals is shown in ordinary case.
         assertTrue(exists(described("Patscherkofel")))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-wind-3-stations")
 
         // One station: what it measures, its last day, and whose data it is.
         tap(described("Zugspitze"))
         waitFor(hasTestTag("wind-chart"), seconds = 30)
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-wind-4-station")
         screen.onNode(hasTestTag("station-page"))
             .performScrollToNode(hasText("Deutscher Wetterdienst", substring = true))
@@ -374,7 +374,7 @@ class VentiUiTest {
         tap(question)
         waitFor(hasText("Zugspitze: 54 km/h", substring = true), seconds = 30)
         assertTrue(exists(hasText("Looked up the wind stations around a place")))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-wind-5-assistant")
 
         // The settings hold the server's address, and the credits name
@@ -412,7 +412,7 @@ class VentiUiTest {
         tap(banner)
         waitFor(hasText("Seen: quiet for 10 minutes"), seconds = 10)
         assertTrue(exists(hasText("Class D control zone", substring = true)))
-        Thread.sleep(1000)
+        letTheMapDraw(1)
         keepScreenshot("$prefix-fly-9-airspace-warnings")
         // "Seen" would speak again as the glider comes closer; "does not
         // apply today" stays quiet, which is what this test can rely on.

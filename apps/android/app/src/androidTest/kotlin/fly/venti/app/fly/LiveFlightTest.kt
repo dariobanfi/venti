@@ -160,7 +160,7 @@ class LiveFlightTest {
 
         // The receiver reported height above the ellipsoid; the cockpit
         // shows height above the sea, some 46 m less in this valley.
-        Thread.sleep(5000)
+        TestDevice.letTheAppRun(screen, seconds = 5)
         val altitude = checkNotNull(reading("Altitude")).filter { it.isDigit() }.toInt()
         assertTrue("altitude $altitude", altitude in 1440..1470)
         screen.waitForIdle()

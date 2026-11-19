@@ -4,8 +4,10 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.RectF
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.maplibre.android.geometry.LatLng
@@ -32,6 +34,26 @@ object TestDevice {
         shell("settings put global hide_error_dialogs 1")
         shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
     }
+
+    /**
+     * Lets the app run for so long, and the map draw: the map draws on its
+     * own thread and tells nobody when it is done.
+     *
+     * A test that simply slept would look at a frozen screen. Compose draws
+     * a test's frames when the test asks for them, so while a test sleeps
+     * nothing the app has changed reaches the screen, the map included.
+     * This wait keeps asking.
+     */
+    fun letTheAppRun(screen: ComposeTestRule, seconds: Int) {
+        val until = SystemClock.uptimeMillis() + seconds * 1000L
+        screen.waitUntil(seconds * 1000L + 15_000) { SystemClock.uptimeMillis() >= until }
+        // The last frame the app asked for, drawn by the map as well.
+        screen.waitForIdle()
+        Thread.sleep(MAP_FRAME_MILLISECONDS)
+    }
+
+    /** What the map's own thread is given to draw the frame it was last asked for. */
+    private const val MAP_FRAME_MILLISECONDS = 400L
 
     /**
      * Keeps a picture of the whole screen, the map and the system's bars

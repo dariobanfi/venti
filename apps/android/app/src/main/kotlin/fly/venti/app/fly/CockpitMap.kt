@@ -34,9 +34,7 @@ import kotlin.math.abs
  *
  * The glider and its track are handed to the map as one piece, so the map
  * can never draw one without the other: a glider ahead of its track, or a
- * track that ends short of it. And the map is given no more than a few
- * steps a second. A real flight has a new position a second; a replay at
- * twenty times that would hand a slow phone more than it can draw.
+ * track that ends short of it.
  */
 class CockpitMap : MapContent {
     private var map: MapLibreMap? = null
@@ -47,7 +45,6 @@ class CockpitMap : MapContent {
     private var wanted: CockpitView? = null
     private var shown: CockpitView? = null
     private var shownAt = 0L
-    private var isWaiting = false
 
     private var wasCircling: Boolean? = null
     private var drawnTakeoff: Coordinate? = null
@@ -119,7 +116,7 @@ class CockpitMap : MapContent {
     /**
      * Called with every refresh of the cockpit, with the way to the place
      * being navigated to, if any, and the route the flight scores along so
-     * far; the map follows in its own steps.
+     * far.
      */
     fun show(view: CockpitView, way: WayToTarget?, route: List<Coordinate>) {
         wanted = view
@@ -130,34 +127,19 @@ class CockpitMap : MapContent {
         update()
     }
 
-    /** Gives the map the newest state, now or as soon as its next step is due. */
+    /** Gives the map the newest state, once its style is there. */
     private fun update() {
         val map = map ?: return
         val style = style ?: return
         val mapView = mapView ?: return
-        // A step that was waiting may come due after the cockpit has been
-        // closed and its map taken down. A style that is gone must not be
-        // touched: the map engine throws.
+        // A map that has been taken down must not be touched: the map
+        // engine throws when a style that is gone is asked for a source.
         if (mapView.isDestroyed || !style.isFullyLoaded) return
         val view = wanted ?: return
         val position = view.position ?: return
         if (view === shown) return
 
         val now = SystemClock.elapsedRealtime()
-        val wait = shownAt + STEP_MILLISECONDS - now
-        if (wait > 0) {
-            if (!isWaiting) {
-                isWaiting = true
-                mapView.postDelayed(
-                    {
-                        isWaiting = false
-                        update()
-                    },
-                    wait,
-                )
-            }
-            return
-        }
         val sinceLastStep = now - shownAt
         val previous = shown
         shown = view
@@ -179,7 +161,7 @@ class CockpitMap : MapContent {
             map.moveCamera(move)
         } else {
             // At an even pace, arriving as the next position is due.
-            val glide = sinceLastStep.coerceIn(STEP_MILLISECONDS, LONGEST_GLIDE_MILLISECONDS).toInt()
+            val glide = sinceLastStep.coerceIn(SHORTEST_GLIDE_MILLISECONDS, LONGEST_GLIDE_MILLISECONDS).toInt()
             map.easeCamera(move, glide, false)
         }
     }
@@ -246,8 +228,8 @@ class CockpitMap : MapContent {
         const val CRUISE_ZOOM = 13.0
         const val THERMAL_ZOOM = 15.5
 
-        /** The shortest time between two steps of the map. */
-        const val STEP_MILLISECONDS = 250L
+        /** The shortest the map takes to slide to the glider's new position: the cockpit's own refresh. */
+        const val SHORTEST_GLIDE_MILLISECONDS = 200L
 
         /** The longest the map takes to slide to the glider's new position. */
         const val LONGEST_GLIDE_MILLISECONDS = 1000L

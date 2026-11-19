@@ -113,7 +113,13 @@ val coreSources: FileCollection = files(
     repositoryRoot.file("Cargo.toml"),
     repositoryRoot.file("Cargo.lock"),
     repositoryRoot.file("rust-toolchain.toml"),
-    fileTree(repositoryRoot.dir("crates")) { include("core/**", "flight/**", "sensors/**", "domain/**") },
+    // The core and every crate of the workspace it is built from.
+    fileTree(repositoryRoot.dir("crates")) {
+        include(
+            "core/**", "flight/**", "sensors/**", "domain/**",
+            "airspace/**", "api-types/**", "llm/**", "tools/**",
+        )
+    },
     fileTree(repositoryRoot.dir("tools/uniffi-bindgen-swift")),
 )
 

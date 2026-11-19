@@ -1,8 +1,10 @@
 package fly.venti.app.logbook
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import fly.venti.app.AppFiles
 import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
@@ -228,9 +230,21 @@ class LogbookModel(
         return account
     }
 
+    /**
+     * How often a sync with the server has read the logbook again. What a
+     * sync brought in needs no sync of its own: whoever syncs after the
+     * logbook changed looks here first.
+     */
+    var syncs: Int by mutableIntStateOf(0)
+        private set
+
     /** Reads the logbook again, after something other than this model changed it: a sync with the server. */
     fun refresh() {
-        view = core.logbook()
+        // Both at once, so that nobody sees the flights of a sync without its count.
+        Snapshot.withMutableSnapshot {
+            syncs += 1
+            view = core.logbook()
+        }
     }
 
     /** The logbook looked at as a whole: months, gliders, bests. */

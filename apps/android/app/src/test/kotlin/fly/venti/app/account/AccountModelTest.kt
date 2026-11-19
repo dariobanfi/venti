@@ -98,6 +98,8 @@ class AccountModelTest {
         assertEquals(1u, account.lastSync?.sent)
         assertEquals("1 sent", syncSummaryInWords(checkNotNull(account.lastSync)))
         assertEquals(0u, account.account?.flightsToSend)
+        // The logbook was read again, and says that a sync did it.
+        assertTrue(logbook.syncs > 0)
         assertEquals(1u, account.account?.flightsOnServer)
         assertFalse(account.isWorking)
 

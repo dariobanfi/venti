@@ -121,9 +121,16 @@ fun RootScreen(
         }
     }
     LaunchedEffect(logbook, account) {
-        snapshotFlow { logbook.view.totals.flights }
+        var seen = logbook.syncs
+        snapshotFlow { logbook.view.totals.flights to logbook.syncs }
             .drop(1)
-            .collect { session.scope.launch { account.sync(force = true) } }
+            .collect { (_, syncs) ->
+                // What a sync itself brought in needs no sync of its own.
+                if (syncs == seen) {
+                    session.scope.launch { account.sync(force = true) }
+                }
+                seen = syncs
+            }
     }
 
     if (fly.mode != null) {

@@ -686,6 +686,33 @@ class VentiUiTest {
     @Test
     fun theTaskInDarkAppearance() = flyATask("dark", dark = true)
 
+    /**
+     * A task file opened from another app is kept, said so, and found on
+     * the Fly tab; a file of that name that holds no task is said too.
+     */
+    @Test
+    fun aTaskFileOpenedFromAnotherAppIsKept() {
+        val file = File(context.cacheDir, "sample-task.xctsk")
+        file.writeText(LaunchOptions.SAMPLE_TASK_FILE)
+        launch {
+            action = Intent.ACTION_VIEW
+            data = Uri.fromFile(file)
+        }
+        waitFor(hasText("Task kept"))
+        keepScreenshot("task-7-opened-from-another-app")
+        tap(hasText("OK") and hasClickAction())
+        waitFor(hasTestTag("task-before-takeoff") and hasText("4 turnpoints", substring = true))
+        app?.close()
+
+        file.writeText("hello")
+        launch {
+            action = Intent.ACTION_VIEW
+            data = Uri.fromFile(file)
+        }
+        waitFor(hasText("The task could not be read"))
+        tap(hasText("OK") and hasClickAction())
+    }
+
     /** From the map to the account screen, by way of the settings. */
     private fun openTheAccount() {
         waitFor(described("Show my position"))

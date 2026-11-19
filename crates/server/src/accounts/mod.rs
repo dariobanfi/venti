@@ -104,10 +104,26 @@ pub struct Limits {
     pub connector_requests_per_network: u32,
     /// The window for both.
     pub connector_window: Duration,
+    /// Forecasts one address may ask for within
+    /// [`forecast_window`](Self::forecast_window) that make the server ask
+    /// its forecast service: places nobody asked for in the last half
+    /// hour. A forecast that is at hand costs nothing and is not counted.
+    ///
+    /// What the service may be asked in an hour is one budget for
+    /// everyone (400 requests, some ninety places), and it was the
+    /// only bound: one client asking for place after place used it up for
+    /// all, for up to an hour. Twelve places an hour is more than a pilot
+    /// looks up before a flight, since neighbouring take-offs share a
+    /// place of two kilometres, and an eighth of the budget.
+    pub forecast_fetches_per_address: u32,
+    /// The same, from one IPv6 /48 network.
+    pub forecast_fetches_per_network: u32,
+    /// The window for both.
+    pub forecast_window: Duration,
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
-    /// has six. The size is not what the server expects to need, which is
+    /// has seven. The size is not what the server expects to need, which is
     /// some hundreds: it is what someone who wants to fill a table has to
     /// bring. With IPv6 counted at two levels that is 100,000 IPv4
     /// addresses within a window, or some hundreds to thousands of IPv6
@@ -137,6 +153,9 @@ impl Default for Limits {
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
+            forecast_fetches_per_address: 12,
+            forecast_fetches_per_network: 48,
+            forecast_window: Duration::hours(1),
             watched_keys: 100_000,
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
@@ -162,6 +181,8 @@ impl Limits {
             uploads_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,
+            forecast_fetches_per_address: u32::MAX,
+            forecast_fetches_per_network: u32::MAX,
             ..Self::default()
         }
     }

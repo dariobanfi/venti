@@ -194,6 +194,8 @@ pub struct Api<S> {
     mcp: venti_mcp::Server,
     /// Requests to the connector, by client address.
     connector_requests: Throttle,
+    /// Forecasts that had to be fetched, by client address.
+    forecast_fetches: Throttle,
     /// Where requests come from, to notice a setup that hides it.
     clients: clients::ClientWatch,
     /// Where forecasts come from, on a server that was told where its
@@ -259,6 +261,11 @@ impl<S: Store> Api<S> {
             connector_requests: Throttle::new(
                 "addresses that asked the connector",
                 limits.connector_window,
+                limits.watched_keys,
+            ),
+            forecast_fetches: Throttle::new(
+                "addresses that asked for forecasts of new places",
+                limits.forecast_window,
                 limits.watched_keys,
             ),
             clients: clients::ClientWatch::default(),

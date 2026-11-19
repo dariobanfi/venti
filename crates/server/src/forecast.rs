@@ -113,6 +113,16 @@ pub trait Forecasts: Send + Sync {
     /// young enough, a fetched one otherwise.
     fn forecast(&self, point: GeoPoint) -> BoxFuture<'_, Result<Arc<Forecast>, Refusal>>;
 
+    /// Whether asking for this place now would make the service ask its
+    /// sources: the place is one it answers for, no forecast for its cell
+    /// is at hand that is young enough, and none is being fetched.
+    ///
+    /// The API asks this to count such requests per client. What the
+    /// sources may be asked in an hour is shared by everyone, and without
+    /// a count of its own one client asking for place after place uses
+    /// it up for all.
+    fn would_fetch(&self, point: GeoPoint) -> bool;
+
     /// The server's regular look at a source: a forecast for the middle of
     /// the area the source is listed for, fetched now whatever is at hand,
     /// and archived. `None` if the service has no such source.
@@ -415,6 +425,18 @@ where
     A: Archive + Send + 'static,
 {
     /// The sources that are listed for a place, by their position.
+    /// The cell a place is answered with. Recorded answers exist for a few
+    /// places: the nearest stands in, and the answer names it.
+    fn cell_of(&self, point: GeoPoint) -> Cell {
+        let nearest = self.recorded.as_ref().and_then(|places| {
+            places
+                .iter()
+                .copied()
+                .min_by(|a, b| a.distance_m(point).total_cmp(&b.distance_m(point)))
+        });
+        Cell::of(nearest.unwrap_or(point))
+    }
+
     fn covering(&self, point: GeoPoint) -> Vec<usize> {
         (0..self.sources.len())
             .filter(|&index| self.sources[index].area.contains(point))
@@ -526,6 +548,20 @@ where
     F: Fetch + Send + 'static,
     A: Archive + Send + 'static,
 {
+    fn would_fetch(&self, point: GeoPoint) -> bool {
+        let inner = &self.0;
+        if inner.covering(point).is_empty() {
+            return false;
+        }
+        let now = inner.clock.now();
+        let cells = unpoisoned(inner.cells.lock());
+        match cells.get(&inner.cell_of(point)) {
+            Some(Slot::Kept { until, .. }) => now >= *until,
+            Some(Slot::Fetching(_)) => false,
+            None => true,
+        }
+    }
+
     fn forecast(&self, point: GeoPoint) -> BoxFuture<'_, Result<Arc<Forecast>, Refusal>> {
         let inner = &self.0;
         async move {
@@ -533,15 +569,7 @@ where
             if asked.is_empty() {
                 return Err(Refusal::OutsideRegion);
             }
-            // Recorded answers exist for a few places: the nearest stands
-            // in, and the answer names it.
-            let nearest = inner.recorded.as_ref().and_then(|places| {
-                places
-                    .iter()
-                    .copied()
-                    .min_by(|a, b| a.distance_m(point).total_cmp(&b.distance_m(point)))
-            });
-            let cell = Cell::of(nearest.unwrap_or(point));
+            let cell = inner.cell_of(point);
             let now = inner.clock.now();
 
             let fetching = {

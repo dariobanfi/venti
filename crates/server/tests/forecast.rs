@@ -9,15 +9,16 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::http::{StatusCode, header};
+use axum::http::{Method, StatusCode, header};
 use chrono::{Duration, TimeZone, Utc};
 use venti_api_types::v1::{
     ErrorCode, ForecastRequest, ForecastResponse, ForecastsHealth, HealthResponse,
 };
 use venti_domain::GeoPoint;
 use venti_regions::RegionPack;
+use venti_server::accounts::Limits;
 use venti_server::adapters::{self, Providers};
-use venti_server::api::{Api, Cors};
+use venti_server::api::{Api, Cors, Settings};
 use venti_server::clock::{Clock, FixedClock};
 use venti_server::forecast::{self, Asking};
 use venti_server::ingest::DirArchive;
@@ -27,7 +28,7 @@ use venti_store::MemoryStore;
 
 mod common;
 
-use common::{TestClock, get, get_with, golden, recorded, server, settings};
+use common::{TestClock, ask, get, get_with, golden, recorded, server, settings};
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -46,11 +47,16 @@ fn place(lat: f64, lon: f64) -> String {
 /// A server whose forecast service asks `fetch` and nothing else, as a
 /// live one: any place of the first region, each asked for as it is.
 fn server_asking(fetch: FixtureFetch) -> Router {
+    let clock = Arc::new(FixedClock(adapters::forecasts_recorded_at()));
+    server_asking_with(fetch, settings(), clock)
+}
+
+/// The same with settings and a clock of the test's choosing.
+fn server_asking_with(fetch: FixtureFetch, settings: Settings, clock: Arc<dyn Clock>) -> Router {
     let providers = Providers::recorded();
     let registry = adapters::registry_for(&providers).unwrap();
     let pack = RegionPack::from_toml(FIRST_REGION).unwrap();
     let jobs = plan::plan(&[pack], &registry).unwrap();
-    let clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::forecasts_recorded_at()));
     let forecasts = forecast::service_for(
         &jobs,
         adapters::forecast_sources(&providers).unwrap(),
@@ -61,7 +67,7 @@ fn server_asking(fetch: FixtureFetch) -> Router {
     )
     .unwrap();
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
-    Api::new(Arc::new(MemoryStore::new()), clock, manifests, settings())
+    Api::new(Arc::new(MemoryStore::new()), clock, manifests, settings)
         .with_forecasts(forecasts)
         .router(&Cors::Origins(Vec::new()))
 }
@@ -280,6 +286,92 @@ async fn a_server_that_was_not_told_where_its_forecast_service_is_has_no_forecas
     get(&router, TEGERNSEE)
         .await
         .error(StatusCode::NOT_IMPLEMENTED, ErrorCode::NoForecasts);
+}
+
+#[tokio::test]
+async fn one_client_cannot_use_up_what_the_forecast_service_may_be_asked() {
+    // A clock the test moves, set to when the forecasts were recorded.
+    let clock = TestClock::new();
+    clock.advance(adapters::forecasts_recorded_at() - adapters::recorded_at());
+    let settings = Settings {
+        limits: Limits {
+            forecast_fetches_per_address: 2,
+            forecast_fetches_per_network: 3,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let fetch = FixtureFetch::new().with_all(venti_sources_openmeteo::fixtures::recorded());
+    let router = server_asking_with(fetch, settings, Arc::new(clock.clone()));
+    let ask_from = |peer: &'static str, lat: f64, lon: f64| {
+        let router = router.clone();
+        async move {
+            ask(Method::GET, &place(lat, lon))
+                .from(peer)
+                .send(&router)
+                .await
+        }
+    };
+    // The five places the recorded service answers for.
+    let (tegernsee, wallberg) = ((47.70, 11.80), (47.66, 11.80));
+    let (takeoff, landing, middle) = ((47.68, 11.90), (47.70, 11.88), (47.40, 13.30));
+    const PILOT: &str = "198.51.100.7";
+
+    // Two places nobody has asked for: the server fetches them for this
+    // client, and that is as many as one client may have fetched.
+    for (lat, lon) in [tegernsee, wallberg] {
+        assert_eq!(ask_from(PILOT, lat, lon).await.status, StatusCode::OK);
+    }
+    let answer = ask_from(PILOT, takeoff.0, takeoff.1).await;
+    let message = answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert!(message.contains("new places"), "{message}");
+    assert_eq!(answer.header(header::RETRY_AFTER), "3600");
+
+    // What is at hand costs nothing, and the same client gets it as often
+    // as it likes: the places it asked for, and anywhere in their two
+    // kilometres.
+    for _ in 0..20 {
+        let answer = ask_from(PILOT, tegernsee.0, tegernsee.1).await;
+        assert_eq!(answer.status, StatusCode::OK);
+    }
+    assert_eq!(ask_from(PILOT, 47.703, 11.797).await.status, StatusCode::OK);
+    // Asking for what the server does not answer at all is not counted
+    // either, and stays what it was.
+    let answer = ask_from(PILOT, 52.5, 13.4).await;
+    answer.error(StatusCode::NOT_FOUND, ErrorCode::OutsideRegion);
+
+    // Somebody else asks for the third place. It is fetched for them, and
+    // then it is at hand for the first client too.
+    assert_eq!(
+        ask_from("203.0.113.50", takeoff.0, takeoff.1).await.status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        ask_from(PILOT, takeoff.0, takeoff.1).await.status,
+        StatusCode::OK
+    );
+    // A fourth place is still one too many for the first.
+    let answer = ask_from(PILOT, landing.0, landing.1).await;
+    assert_eq!(answer.status, StatusCode::TOO_MANY_REQUESTS);
+
+    // An hour later the count starts again. By then nothing is at hand
+    // any more, so every place is a new one.
+    clock.advance(Duration::hours(1));
+    assert_eq!(
+        ask_from(PILOT, landing.0, landing.1).await.status,
+        StatusCode::OK
+    );
+
+    // Whoever has many IPv6 networks is one client here as elsewhere:
+    // three places for all of a /48, whichever of its networks asks.
+    let networks = ["2001:db8:7:1::1", "2001:db8:7:2::1", "2001:db8:7:3::1"];
+    for (peer, (lat, lon)) in networks.into_iter().zip([tegernsee, wallberg, takeoff]) {
+        assert_eq!(ask_from(peer, lat, lon).await.status, StatusCode::OK);
+    }
+    let answer = ask_from("2001:db8:7:4::1", middle.0, middle.1).await;
+    assert_eq!(answer.status, StatusCode::TOO_MANY_REQUESTS);
+    let answer = ask_from("2001:db8:8:1::1", middle.0, middle.1).await;
+    assert_eq!(answer.status, StatusCode::OK);
 }
 
 #[tokio::test]

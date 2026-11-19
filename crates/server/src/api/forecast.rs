@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use axum::extract::{Query, State};
@@ -9,8 +10,10 @@ use venti_domain::GeoPoint;
 use venti_sources::Kind;
 use venti_store::Store;
 
+use super::auth::Client;
 use super::error::ApiError;
 use super::{Api, cache};
+use crate::accounts::client::counting_keys;
 use crate::forecast::Refusal;
 
 const POSITION_HELP: &str =
@@ -26,6 +29,7 @@ pub(crate) struct Params {
 /// place, one layer per source and one series per model.
 pub(crate) async fn forecast<S: Store>(
     State(api): State<Arc<Api<S>>>,
+    Client(client): Client,
     headers: HeaderMap,
     Query(params): Query<Params>,
 ) -> Result<Response, ApiError> {
@@ -35,7 +39,7 @@ pub(crate) async fn forecast<S: Store>(
             format!("{error}; {POSITION_HELP}"),
         )
     })?;
-    let answer = api.forecast_for(point).await?;
+    let answer = api.forecast_for(point, client).await?;
     Ok(cache::json(&headers, &answer))
 }
 
@@ -45,7 +49,17 @@ impl<S: Store> Api<S> {
     /// A server that was not told where its forecast service is has no
     /// forecasts and says so; it asks nobody else. Only the layers of
     /// sources this server is configured to serve go out.
-    pub(crate) async fn forecast_for(&self, point: GeoPoint) -> Result<ForecastResponse, ApiError> {
+    ///
+    /// `client` is the address that asks. A forecast that is at hand is
+    /// anyone's as often as they like. One that has to be fetched is
+    /// counted for the client, and a client that has made the server
+    /// fetch as many as one may in an hour is told to wait: what the
+    /// forecast service may be asked is one budget for everyone.
+    pub(crate) async fn forecast_for(
+        &self,
+        point: GeoPoint,
+        client: IpAddr,
+    ) -> Result<ForecastResponse, ApiError> {
         let serves_forecasts = self
             .sources
             .values()
@@ -59,7 +73,40 @@ impl<S: Store> Api<S> {
             ));
         };
 
-        let forecast = forecasts.forecast(point).await.map_err(refused)?;
+        // Counted before the fetch, as every attempt is counted before
+        // what it costs. Between this question and the fetch another
+        // request may have fetched the place: this one is then counted
+        // for a fetch it did not cause, which errs on the side of the
+        // budget.
+        let counted = if forecasts.would_fetch(point) {
+            let address = counting_keys(client);
+            let by_address = address.counted(
+                self.limits.forecast_fetches_per_address,
+                self.limits.forecast_fetches_per_network,
+            );
+            let reserved = self
+                .forecast_fetches
+                .reserve(&by_address, self.clock.now())
+                .map_err(|refused| {
+                    ApiError::rate_limited(
+                        refused,
+                        "this address has asked for the forecasts of as many new places as \
+                         one address may in an hour; a place that was asked for in the last \
+                         half hour is still answered",
+                    )
+                })?;
+            Some(reserved)
+        } else {
+            None
+        };
+        let outcome = forecasts.forecast(point).await;
+        if let (Some(reserved), Err(Refusal::AskedEnough { .. } | Refusal::OutsideRegion)) =
+            (counted, &outcome)
+        {
+            // Nothing was fetched for this request.
+            self.forecast_fetches.give_back(reserved);
+        }
+        let forecast = outcome.map_err(refused)?;
         let layers: Vec<ForecastLayer> = forecast
             .layers
             .iter()

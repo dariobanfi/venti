@@ -1019,8 +1019,11 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 |---|---|---|
 | `400` | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
 | `404` | `outside_region` | The place lies outside the area the server has forecasts for: its regions |
+| `429` | `rate_limited` | This address has asked for the forecasts of 12 places within an hour that the server had to fetch, which is as many as one address may; for an IPv6 client the address is its /64 network, and one /48 network together gets 48. `Retry-After` says when the hour is over. Places that are at hand, which is every place anyone asked for in the last half hour, are still answered, and are never counted |
 | `501` | `no_forecasts` | The server was not told where its forecast service is. `/v1/health` says the same with `"forecasts": "not_configured"`. Asking again does not help, and the server asks nobody else |
 | `503` | `unavailable` | No forecast for the place is at hand and none could be fetched: the forecast service did not answer, the forecast is still being fetched (the first one for a place can take longer than a request waits), or the server has asked its service as often as it may in an hour. `Retry-After` says when to ask again |
+
+**Why a client is counted.** The server may ask its forecast service 400 times an hour, which is some ninety places, for everyone together. A forecast that is at hand costs nothing; one that has to be fetched comes out of that. An app that shows forecasts asks for the place the pilot opens, not for every place on the map. A request that is refused because the server has asked its service often enough (`503`) is not counted against the client.
 
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 

@@ -8,6 +8,7 @@ struct FlightScreen: View {
 
     @Environment(LogbookModel.self) private var logbook
     @Environment(AirspaceModel.self) private var airspace
+    @Environment(AccountModel.self) private var account
     @Environment(\.dismiss) private var dismiss
 
     private enum Phase {
@@ -77,7 +78,7 @@ struct FlightScreen: View {
                 }
             }
         } message: {
-            Text("Its file is removed from this iPhone. This cannot be undone.")
+            Text(account.deletionWarning)
         }
         .task(id: id) {
             do {

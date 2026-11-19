@@ -53,6 +53,16 @@ final class AccountModel {
         account.map { !$0.needsSignIn } ?? false
     }
 
+    /// What deleting a flight means, said before the pilot confirms it.
+    /// With an account the next sync deletes the flight on the server and
+    /// from there on the pilot's other devices; saying "from this iPhone"
+    /// alone would be a half-truth.
+    var deletionWarning: String {
+        account == nil
+            ? "Its file is removed from this iPhone. This cannot be undone."
+            : "Its file is removed from this iPhone, from your Venti server and from your other devices. This cannot be undone."
+    }
+
     // MARK: Signing in and out
 
     /// Signs in on the given server.

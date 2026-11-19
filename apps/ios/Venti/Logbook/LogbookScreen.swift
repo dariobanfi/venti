@@ -5,6 +5,7 @@ import VentiCore
 /// The pilot's flights, newest first, by year.
 struct LogbookScreen: View {
     @Environment(LogbookModel.self) private var logbook
+    @Environment(AccountModel.self) private var account
     @Environment(AppNavigation.self) private var navigation
 
     @State private var isChoosingFiles = false
@@ -73,7 +74,7 @@ struct LogbookScreen: View {
                 delete(entry)
             }
         } message: { _ in
-            Text("Its file is removed from this iPhone. This cannot be undone.")
+            Text(account.deletionWarning)
         }
     }
 

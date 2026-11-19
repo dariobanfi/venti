@@ -61,6 +61,8 @@ npm run build && npm run test:e2e                     # the built site in a real
 
 The browser tests keep a screenshot of every screen in `apps/web/screenshots/`, at a phone's and a desktop's width, light and dark; the `Web` workflow uploads them as the `web-screenshots` artifact. A field added to a record of the core is a type error in the web app's hand-built test records until they have it, so run `npm run check` after changing a record.
 
+Every checkout and every git worktree needs its own `target` folder. Two that share one, by a link or by `CARGO_TARGET_DIR`, take each other's builds for fresh, and tests then pass or fail against code that is not there.
+
 Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
 
 ## Working practice

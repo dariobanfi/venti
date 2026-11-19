@@ -27,6 +27,8 @@ final class FlySession {
     /// The way to the place the cockpit navigates to: the one the pilot
     /// chose, or the take-off. Absent until there is one to go to.
     private(set) var way: WayToTarget?
+    /// How the flight scores as a cross-country flight so far.
+    private(set) var score: LiveScore?
     /// The airspace warnings of the moment, the most urgent first.
     private(set) var airspaceWarnings: [AirspaceWarning] = []
     /// The airspace to warn about, asked for when a session starts. The
@@ -52,6 +54,8 @@ final class FlySession {
     @ObservationIgnored private let barometer = BarometerProvider()
     @ObservationIgnored private let sound = VarioSound()
     @ObservationIgnored private let voice = AirspaceVoice()
+    /// Refreshes of the screen since the score was last asked for.
+    @ObservationIgnored private var ticksSinceScore = 0
 
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
@@ -151,6 +155,7 @@ final class FlySession {
         mode = nil
         view = nil
         way = nil
+        score = nil
         airspaceWarnings = []
         return recording
     }
@@ -200,6 +205,17 @@ final class FlySession {
         self.view = view
         way = session.navigation(nowUnixS: now)
         sound.play(view.tone)
+
+        // The core works the score out anew every half minute of flight;
+        // asking every few seconds is enough to show it promptly.
+        ticksSinceScore += 1
+        if ticksSinceScore >= 10 {
+            ticksSinceScore = 0
+            let latest = session.liveScore()
+            if latest != score {
+                score = latest
+            }
+        }
 
         let warnings = session.airspaceWarnings()
         if warnings != airspaceWarnings {

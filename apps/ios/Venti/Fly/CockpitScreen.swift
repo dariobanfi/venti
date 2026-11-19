@@ -20,7 +20,7 @@ struct CockpitScreen: View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
-                StatusLine(view: view, mode: fly.mode, varioName: fly.vario.connectedName)
+                StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
                 CockpitMap(view: view, way: fly.way, airspace: fly.airspace())
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
@@ -116,6 +116,8 @@ struct CockpitScreen: View {
 /// The line at the top: is it recording, how long, and are the sensors there.
 private struct StatusLine: View {
     let view: CockpitView
+    /// How the flight scores so far.
+    let score: LiveScore?
     let mode: FlySession.Mode?
     let varioName: String?
 
@@ -131,6 +133,21 @@ private struct StatusLine: View {
                 Text(Format.stopwatch(seconds: seconds))
                     .monospacedDigit()
             }
+            // The cross-country distance so far, once there is a kilometre
+            // of it, with a triangle when it scores as one.
+            if let score, score.distanceM >= 1000 {
+                Label(
+                    "\(Format.kilometres(metres: score.distanceM)) km",
+                    systemImage: score.kind == .freeFlight ? "arrow.up.right" : "triangle"
+                )
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Cross-country distance")
+                .accessibilityValue(
+                    "\(Format.kilometres(metres: score.distanceM)) kilometres, \(Self.kindWords(score))"
+                )
+            }
             Spacer(minLength: 8)
             if positionIsLost {
                 Label("No position", systemImage: "location.slash.fill")
@@ -143,6 +160,14 @@ private struct StatusLine: View {
         .lineLimit(1)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private static func kindWords(_ score: LiveScore) -> String {
+        switch score.kind {
+        case .freeFlight: "free flight"
+        case .freeTriangle: score.closed ? "closed triangle" : "triangle"
+        case .faiTriangle: score.closed ? "closed FAI triangle" : "FAI triangle"
+        }
     }
 
     /// No position for five seconds means the fix is gone.

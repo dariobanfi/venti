@@ -28,10 +28,11 @@ use venti_flight::live::navigation::{self, Glider, Target};
 use venti_flight::live::{
     self, FlightComputer, Phase, PositionSample, VarioSource, atmosphere, tone,
 };
+use venti_flight::scoring;
 use venti_sensors::{Battery, SentenceReader};
 
 use crate::airspace::AirspaceWatch;
-use crate::{AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError};
+use crate::{AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind};
 
 /// How long an external instrument may be silent, in seconds, before it
 /// counts as disconnected and the phone's own pressure sensor takes over.
@@ -196,6 +197,35 @@ pub struct CockpitView {
     pub instrument: Option<InstrumentView>,
 }
 
+/// How the flight scores as a cross-country flight so far, by the same
+/// rules as a finished flight in the logbook.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct LiveScore {
+    /// What it scores as.
+    pub kind: RouteKind,
+    /// For a triangle, whether it is closed to within 5%.
+    pub closed: bool,
+    /// The scoring distance so far, metres.
+    pub distance_m: f64,
+    /// The points so far.
+    pub points: f64,
+    /// For a triangle, the gap between its start and its finish, metres:
+    /// how far there is to fly to close it.
+    pub closing_m: Option<f64>,
+    /// The route the score runs along, for drawing.
+    pub route: Vec<Coordinate>,
+}
+
+/// Seconds between the positions kept for scoring the flight in the air.
+const SCORE_FIX_EVERY_S: f64 = 10.0;
+
+/// The score is worked out again once this many new positions are there:
+/// every half minute.
+const SCORE_AGAIN_AFTER_FIXES: usize = 3;
+
+/// The most positions kept for scoring: more than a day in the air.
+const SCORE_FIXES_AT_MOST: usize = 10_000;
+
 /// A place for the cockpit to navigate to.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct TargetPlace {
@@ -273,6 +303,11 @@ struct Inner {
     glider: Glider,
     /// The airspace warnings, once the shell has handed over the airspace.
     watch: Option<AirspaceWatch>,
+    /// The flight since take-off, a position every ten seconds, for
+    /// scoring it in the air.
+    flown: Vec<Fix>,
+    /// The latest score, and how many positions it was worked out from.
+    score: Option<(usize, scoring::Score)>,
 }
 
 /// Which sensor is supplying pressure.
@@ -328,8 +363,31 @@ impl FlightSession {
                 target: None,
                 glider: Glider::default(),
                 watch: None,
+                flown: Vec::new(),
+                score: None,
             }),
         })
+    }
+
+    /// How the flight scores as a cross-country flight so far. Worked out
+    /// anew every half minute of flight; asking more often costs nothing.
+    /// `None` on the ground and for the first moments in the air.
+    pub fn live_score(&self) -> Option<LiveScore> {
+        // The scoring runs on a copy, outside the lock, so that positions
+        // keep arriving while it does.
+        let flown = {
+            let inner = self.lock();
+            match &inner.score {
+                Some((scored, score)) if inner.flown.len() < scored + SCORE_AGAIN_AFTER_FIXES => {
+                    return Some(live_score(score, &inner.flown));
+                }
+                _ => inner.flown.clone(),
+            }
+        };
+        let score = scoring::score(&flown)?;
+        let view = live_score(&score, &flown);
+        self.lock().score = Some((flown.len(), score));
+        Some(view)
     }
 
     /// Hands the session the airspace to warn about: the set from
@@ -472,6 +530,22 @@ impl FlightSession {
 
         let state = inner.computer.state(sample.time_unix_s);
         let pressure_altitude = state.pressure_altitude_m;
+        if state.phase == Phase::Flying {
+            let due = inner.flown.last().is_none_or(|last| {
+                sample.time_unix_s - last.time.timestamp() as f64 >= SCORE_FIX_EVERY_S
+            });
+            if due && inner.flown.len() < SCORE_FIXES_AT_MOST {
+                let altitude = state.altitude_m.or(sample.altitude_m).unwrap_or(0.0);
+                inner.flown.push(Fix {
+                    time: DateTime::from_timestamp(sample.time_unix_s as i64, 0)
+                        .unwrap_or_default(),
+                    position,
+                    gps_altitude_m: altitude.round() as i32,
+                    pressure_altitude_m: 0,
+                    valid: true,
+                });
+            }
+        }
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
                 sample.time_unix_s,
@@ -654,6 +728,30 @@ impl FlightSession {
                 damaged: instrument.damaged,
             }),
         }
+    }
+}
+
+/// A score as the cockpit shows it.
+fn live_score(score: &scoring::Score, flown: &[Fix]) -> LiveScore {
+    LiveScore {
+        kind: match score.kind {
+            scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
+            scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
+            scoring::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
+        },
+        closed: score.closed,
+        distance_m: score.distance_m,
+        points: score.points,
+        closing_m: score.closing_m,
+        route: score
+            .route
+            .iter()
+            .filter_map(|&index| flown.get(index))
+            .map(|fix| Coordinate {
+                lat: fix.position.lat(),
+                lon: fix.position.lon(),
+            })
+            .collect(),
     }
 }
 
@@ -1074,6 +1172,39 @@ mod tests {
         // Choosing nothing goes back to the take-off.
         session.go_to(None);
         assert!(session.navigation(replay.now()).unwrap().is_takeoff);
+    }
+
+    #[test]
+    fn the_flight_is_scored_while_it_is_flown() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        // On the ground there is nothing to score.
+        assert_eq!(session.live_score(), None);
+
+        let replay = Replay::new(sample()).unwrap();
+        replay.advance(session.clone(), 600.0);
+        let early = session.live_score().unwrap();
+        assert!(early.distance_m > 1000.0, "{}", early.distance_m);
+        assert!(early.route.len() >= 2);
+        // Asked again at once, the same answer comes back.
+        assert_eq!(session.live_score(), Some(early.clone()));
+
+        while replay.advance(session.clone(), 30.0) {}
+        let whole = session.live_score().unwrap();
+        assert!(whole.distance_m > early.distance_m);
+
+        // The same flight in the logbook scores the same to within the
+        // ten seconds between the positions kept in the air.
+        let finished = scoring::score(venti_flight::analysis::flown_part(
+            &igc::parse(&sample()).unwrap().fixes,
+        ))
+        .unwrap();
+        assert!(
+            (whole.distance_m - finished.distance_m).abs() < 400.0,
+            "{} against {}",
+            whole.distance_m,
+            finished.distance_m
+        );
     }
 
     #[test]

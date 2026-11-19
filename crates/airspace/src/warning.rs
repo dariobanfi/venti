@@ -284,9 +284,13 @@ pub struct WarningEngine {
     config: Config,
     tracks: BTreeMap<AirspaceId, Track>,
     quiet: BTreeMap<AirspaceId, Quiet>,
+    /// Airspaces the pilot set aside before the first sample, when there
+    /// was no time yet to count from.
+    set_aside_early: BTreeMap<AirspaceId, Silence>,
     /// Recent positions, for the direction of travel.
     path: VecDeque<(f64, GeoPoint)>,
-    now_s: f64,
+    /// The time of the latest sample, if there has been one.
+    now_s: Option<f64>,
 }
 
 impl WarningEngine {
@@ -296,8 +300,9 @@ impl WarningEngine {
             config,
             tracks: BTreeMap::new(),
             quiet: BTreeMap::new(),
+            set_aside_early: BTreeMap::new(),
             path: VecDeque::new(),
-            now_s: f64::NEG_INFINITY,
+            now_s: None,
         }
     }
 
@@ -323,13 +328,16 @@ impl WarningEngine {
             return Err(SampleError::Altitude);
         }
         let now = sample.time_s;
-        if now < self.now_s {
+        if self.now_s.is_some_and(|before| now < before) {
             // Time ran backwards: a replay was rewound. What was built up
             // from later samples no longer describes the flight.
             self.tracks.clear();
             self.path.clear();
         }
-        self.now_s = now;
+        self.now_s = Some(now);
+        for (airspace, silence) in std::mem::take(&mut self.set_aside_early) {
+            self.quiet.entry(airspace).or_default().ignored_until = Some(until(silence, now));
+        }
         self.quiet.retain(|_, quiet| {
             quiet.acknowledged = quiet.acknowledged.filter(|&(_, until)| until > now);
             quiet.ignored_until = quiet.ignored_until.filter(|&until| until > now);
@@ -464,11 +472,11 @@ impl WarningEngine {
     /// urgent than it is now: acknowledging "near" does not silence
     /// "inside". Does nothing if there is no warning for the airspace.
     pub fn acknowledge(&mut self, airspace: &AirspaceId, silence: Silence) {
-        let Some(level) = self.tracks.get(airspace).map(|track| track.level) else {
+        let (Some(track), Some(now)) = (self.tracks.get(airspace), self.now_s) else {
             return;
         };
-        let until = self.until(silence);
-        self.quiet.entry(airspace.clone()).or_default().acknowledged = Some((level, until));
+        let acknowledged = (track.level, until(silence, now));
+        self.quiet.entry(airspace.clone()).or_default().acknowledged = Some(acknowledged);
     }
 
     /// The pilot says this airspace does not apply for now: an area known
@@ -477,31 +485,28 @@ impl WarningEngine {
     /// Any warning for it stays in the answers, marked [`Silenced::Ignored`],
     /// at whatever level, until the time is up. This is the pilot's decision
     /// and responsibility; the engine cannot check it.
+    ///
+    /// It may be said before the first sample, at the briefing on the
+    /// ground: the time then counts from the first sample.
     pub fn ignore(&mut self, airspace: &AirspaceId, silence: Silence) {
-        let until = self.until(silence);
-        self.quiet
-            .entry(airspace.clone())
-            .or_default()
-            .ignored_until = Some(until);
+        match self.now_s {
+            Some(now) => {
+                self.quiet
+                    .entry(airspace.clone())
+                    .or_default()
+                    .ignored_until = Some(until(silence, now));
+            }
+            None => {
+                self.set_aside_early.insert(airspace.clone(), silence);
+            }
+        }
     }
 
     /// Takes back what [`WarningEngine::acknowledge`] and
     /// [`WarningEngine::ignore`] did for an airspace.
     pub fn unsilence(&mut self, airspace: &AirspaceId) {
         self.quiet.remove(airspace);
-    }
-
-    /// The time a silence ends, counted from the latest sample.
-    fn until(&self, silence: Silence) -> f64 {
-        match silence {
-            Silence::For { seconds } => self.now_s + seconds,
-            Silence::Until { time_s } => time_s,
-            Silence::RestOfDay { utc_offset_s } => {
-                let offset = f64::from(utc_offset_s);
-                let local_day = ((self.now_s + offset) / 86_400.0).floor();
-                (local_day + 1.0) * 86_400.0 - offset
-            }
-        }
+        self.set_aside_early.remove(airspace);
     }
 
     /// Speed in metres per second and direction in degrees: over the recent
@@ -529,6 +534,19 @@ impl WarningEngine {
                 Some((speed.max(0.0), course))
             }
             _ => None,
+        }
+    }
+}
+
+/// The time a silence ends, counted from the latest sample.
+fn until(silence: Silence, now_s: f64) -> f64 {
+    match silence {
+        Silence::For { seconds } => now_s + seconds,
+        Silence::Until { time_s } => time_s,
+        Silence::RestOfDay { utc_offset_s } => {
+            let offset = f64::from(utc_offset_s);
+            let local_day = ((now_s + offset) / 86_400.0).floor();
+            (local_day + 1.0) * 86_400.0 - offset
         }
     }
 }

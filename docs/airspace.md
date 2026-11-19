@@ -73,7 +73,7 @@ The format follows Naviter's specification, [SeeYou OpenAir file format](https:/
 
 **Circles and arcs become polygons that are never smaller than the true shape.** A circle gets a polygon that touches it from outside. An arc that bulges outward gets pieces outside its circle; an arc that curves inward gets pieces through points on it, which run on the airspace side. Either way the polygon is at most 10 m from the curve (`ARC_MAX_ERROR_M`). A circle of 5 nautical miles becomes 68 corners. The pieces themselves are straight on the map and not great circles, which can take back up to 0.2 m of that on arcs of 60 nautical miles.
 
-**The reader never drops an airspace without saying so.** `OpenAir::problems` lists, with line numbers, three kinds of trouble:
+**The reader never drops an airspace without saying so.** `OpenAir::skipped()` is the number of airspaces left out, exact for any file. `OpenAir::problems` lists, with line numbers, three kinds of trouble:
 
 | Kind | What happened | What the app must do |
 |---|---|---|
@@ -81,7 +81,7 @@ The format follows Naviter's specification, [SeeYou OpenAir file format](https:/
 | `Assumed` | Something could not be read and the cautious reading was taken. A limit that could not be read or was missing, or a floor above its ceiling: the floor became the ground or the ceiling "unlimited". An airspace that begins with its name, its class line missing: it is kept apart from the one before and has no class, which warns | Nothing is lost: the airspace is larger, or more restricted, than published |
 | `LineIgnored` | A line the reader does not know, outside any shape | Nothing |
 
-A hostile file cannot make the reader panic, loop or eat memory: one airspace may have 50,000 points and one file 2,000,000, radii end at 500 nautical miles, and at most 1,000 problems are kept, the rest counted. The tests feed it the sample file cut off at every byte, with its lines shuffled 500 ways, with 3,000 random damages, with random bytes, and with a megabyte in one line.
+A hostile file cannot make the reader panic, loop or eat memory: one airspace may have 50,000 points and one file 2,000,000, radii end at 500 nautical miles, and the list of problems keeps the first 1,000 airspaces left out and the first 1,000 lesser problems, the rest counted in `problems_omitted`. The two have room of their own so that a file full of stray lines cannot push a left-out airspace off the list. The tests feed it the sample file cut off at every byte, with its lines shuffled 500 ways, with 3,000 random damages, with random bytes, and with a megabyte in one line.
 
 What the reader cannot notice: a file cut off between two corners of its last airspace. That airspace is closed where it stands and has a wrong shape.
 
@@ -142,7 +142,7 @@ Whether a point is inside an outline is decided in the plane of longitude and la
 **The pilot can silence a warning, in two ways the engine keeps apart.**
 
 - `acknowledge(id, silence)`: "I have seen it." The warning stays in the answers, marked, and is quiet at its present level and below. If it becomes more urgent it speaks again: acknowledging "near" does not silence "inside".
-- `ignore(id, silence)`: "This airspace does not apply to me now", for an area known to be inactive today or one the pilot has permission for. Quiet at every level. The engine cannot check the claim.
+- `ignore(id, silence)`: "This airspace does not apply to me now", for an area known to be inactive today or one the pilot has permission for. Quiet at every level. The engine cannot check the claim. It may be said before the first sample, at the briefing on the ground; the time then counts from the first sample.
 
 Both take a time: `Silence::For { seconds }`, `Silence::Until { time_s }` or `Silence::RestOfDay { utc_offset_s }`, which ends at local midnight. When a silence runs out while the warning still holds, the warning is new again.
 
@@ -199,7 +199,7 @@ Not in the table, because the app cannot know them: airspace marked HX, which is
 The cockpit has everything a sample needs in `LiveState`, the flight computer's output: `position`, `altitude_m`, `pressure_altitude_m`, `ground_speed_ms`, `course_deg` and `average_climb_ms`. The ground elevation comes from the terrain model once there is one; until then pass `None`. Build the index once, when the airspace is loaded, and keep the engine for the flight.
 
 ```rust
-use venti_airspace::openair::{self, Options, ProblemKind};
+use venti_airspace::openair::{self, Options};
 use venti_airspace::{
     AirspaceIndex, Config, Level, PressureAltitude, Sample, Silence, WarningEngine,
 };
@@ -217,13 +217,9 @@ V X=47:15:37 N 011:20:38 E
 DC 5
 ";
 let file = openair::parse(text, &Options::new(SourceId::new("my-file")?));
-// An airspace the reader had to leave out will never warn: say so.
-let left_out = file
-    .problems
-    .iter()
-    .filter(|problem| problem.kind == ProblemKind::AirspaceSkipped)
-    .count();
-assert_eq!(left_out, 0);
+// An airspace the reader had to leave out will never warn: say so, and
+// name them from `file.problems`.
+assert_eq!(file.skipped(), 0);
 
 let index = AirspaceIndex::new(file.airspaces);
 let mut engine = WarningEngine::new(Config::default());
@@ -267,7 +263,7 @@ What the shell has to do, because the engine cannot:
 
 - Show the source and the age of the data with every warning (`airspace.id.source()`, `airspace.validity`), and say when the data is old. openAIP's exports are rebuilt daily; an AIRAC cycle is 28 days.
 - Tell the pilot when a file left airspaces out, and which area the loaded data covers.
-- Mark a warning whose `uncertain()` is set, and say what is missing: `vertical.floor.unknown` or `vertical.ceiling.unknown` is the ground elevation or the pressure.
+- Mark a warning whose `uncertain()` is set, and say what is missing: `vertical.missing()` is the ground elevation or the pressure, taken from the limit the doubt comes from. It is `None` when no measurement would settle it, as for a ceiling that may be raised on request.
 - Keep per-frame drawing off the bridge: ask `in_box` when the map moves, not on every frame.
 
 ## Measured

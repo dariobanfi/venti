@@ -622,6 +622,54 @@ fn an_ignored_airspace_stays_quiet_whatever_happens_until_the_day_ends() {
 }
 
 #[test]
+fn an_airspace_set_aside_at_the_briefing_is_quiet_from_the_first_sample() {
+    let index = airspace();
+    let inside = point(47.25, 11.35);
+    // 2026-07-01 13:00:00 UTC, which is 15:00 in Innsbruck in summer.
+    let afternoon = 1_782_910_800.0;
+
+    // Before any sample there is no time to count from: the day and the
+    // ten minutes begin with the first sample.
+    let mut engine = WarningEngine::new(Config::default());
+    engine.ignore(&id("CTR"), Silence::RestOfDay { utc_offset_s: 7200 });
+    let warnings = engine
+        .update(&index, &sample(afternoon, inside, 1200.0))
+        .unwrap();
+    let ctr = warnings.iter().find(|w| w.airspace.name == "CTR").unwrap();
+    assert_eq!(ctr.level, Level::Inside);
+    assert_eq!(ctr.silenced, Some(Silenced::Ignored));
+    assert_eq!(ctr.silenced_until_s, Some(afternoon + 9.0 * 3600.0));
+    assert_eq!(warnings[0].airspace.name, "TMA");
+    assert_eq!(warnings[0].silenced, None);
+
+    let mut engine = WarningEngine::new(Config::default());
+    engine.ignore(&id("CTR"), Silence::For { seconds: 600.0 });
+    let warnings = engine
+        .update(&index, &sample(afternoon, inside, 1200.0))
+        .unwrap();
+    let ctr = warnings.iter().find(|w| w.airspace.name == "CTR").unwrap();
+    assert_eq!(ctr.silenced_until_s, Some(afternoon + 600.0));
+
+    // Taken back before the first sample, it warns as if never said.
+    let mut engine = WarningEngine::new(Config::default());
+    engine.ignore(&id("CTR"), Silence::RestOfDay { utc_offset_s: 7200 });
+    engine.unsilence(&id("CTR"));
+    let warnings = engine
+        .update(&index, &sample(afternoon, inside, 1200.0))
+        .unwrap();
+    assert!(warnings.iter().all(|w| w.silenced.is_none()));
+
+    // Acknowledging needs a warning to acknowledge: before the first
+    // sample there is none, and nothing is silenced.
+    let mut engine = WarningEngine::new(Config::default());
+    engine.acknowledge(&id("CTR"), Silence::For { seconds: 600.0 });
+    let warnings = engine
+        .update(&index, &sample(afternoon, inside, 1200.0))
+        .unwrap();
+    assert!(warnings.iter().all(|w| w.silenced.is_none()));
+}
+
+#[test]
 fn samples_that_are_not_numbers_are_refused_and_a_rewind_starts_afresh() {
     let index = airspace();
     let mut engine = WarningEngine::new(Config::default());

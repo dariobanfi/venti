@@ -89,8 +89,9 @@ pub const MAX_FILE_POINTS: usize = 2_000_000;
 /// Largest radius accepted for a circle or an arc, in nautical miles.
 pub const MAX_RADIUS_NM: f64 = 500.0;
 
-/// Most problems kept in [`OpenAir::problems`]. Further ones are counted in
-/// [`OpenAir::problems_omitted`].
+/// Most problems of one sort kept in [`OpenAir::problems`]: this many
+/// airspaces left out, and this many of all the lesser kinds together.
+/// Further ones are counted in [`OpenAir::problems_omitted`].
 pub const MAX_PROBLEMS: usize = 1_000;
 
 /// Longest name kept, in characters.
@@ -156,10 +157,18 @@ pub struct Problem {
 pub struct OpenAir {
     /// The airspaces that could be read, in the order of the file.
     pub airspaces: Vec<Airspace>,
-    /// What could not be used as written, in the order of the file.
+    /// What could not be used as written, in the order of the file. The
+    /// first [`MAX_PROBLEMS`] airspaces left out are always here, and the
+    /// first [`MAX_PROBLEMS`] problems of the lesser kinds. A file with more
+    /// than that has the rest counted, not listed: for the number of
+    /// airspaces left out, ask [`OpenAir::skipped`].
     pub problems: Vec<Problem>,
-    /// How many further problems were found after [`MAX_PROBLEMS`].
+    /// How many further problems, of any kind, were found and are not in the
+    /// list.
     pub problems_omitted: usize,
+    /// How many airspaces of the file were left out. Exact, however many
+    /// problems the file had.
+    pub airspaces_skipped: usize,
     /// The format version the file names in its header, if any.
     pub version: Option<String>,
     /// The program or person the header says wrote the file, if any.
@@ -167,13 +176,12 @@ pub struct OpenAir {
 }
 
 impl OpenAir {
-    /// How many airspaces of the file are missing from [`OpenAir::airspaces`],
-    /// among the problems that were kept.
+    /// How many airspaces of the file are missing from
+    /// [`OpenAir::airspaces`]. The pilot will not be warned about any of
+    /// them. The number is exact also when the file had more problems than
+    /// [`OpenAir::problems`] keeps.
     pub fn skipped(&self) -> usize {
-        self.problems
-            .iter()
-            .filter(|problem| problem.kind == ProblemKind::AirspaceSkipped)
-            .count()
+        self.airspaces_skipped
     }
 }
 
@@ -263,6 +271,10 @@ struct Reader<'a> {
     airspaces: Vec<Airspace>,
     problems: Vec<Problem>,
     problems_omitted: usize,
+    /// Airspaces left out so far.
+    skipped: usize,
+    /// Problems of the other kinds so far.
+    lesser_problems: usize,
     version: Option<String>,
     written_by: Option<String>,
     /// How often each derived identifier has been given out.
@@ -278,6 +290,8 @@ impl<'a> Reader<'a> {
             airspaces: Vec::new(),
             problems: Vec::new(),
             problems_omitted: 0,
+            skipped: 0,
+            lesser_problems: 0,
             version: None,
             written_by: None,
             ids: BTreeMap::new(),
@@ -286,17 +300,8 @@ impl<'a> Reader<'a> {
     }
 
     fn problem(&mut self, line: usize, kind: ProblemKind, message: impl Into<String>) {
-        if self.problems.len() >= MAX_PROBLEMS {
-            self.problems_omitted += 1;
-            return;
-        }
         let airspace = self.draft.as_ref().and_then(|draft| draft.name.clone());
-        self.problems.push(Problem {
-            line,
-            airspace,
-            kind,
-            message: message.into(),
-        });
+        self.push_problem(line, airspace, kind, message.into());
     }
 
     fn line(&mut self, number: usize, raw: &str) {
@@ -681,6 +686,8 @@ impl<'a> Reader<'a> {
         }
     }
 
+    /// Notes a problem. Airspaces left out have room of their own in the
+    /// list, so that a file full of lesser problems cannot push them out.
     fn push_problem(
         &mut self,
         line: usize,
@@ -688,7 +695,13 @@ impl<'a> Reader<'a> {
         kind: ProblemKind,
         message: String,
     ) {
-        if self.problems.len() >= MAX_PROBLEMS {
+        let listed = if kind == ProblemKind::AirspaceSkipped {
+            &mut self.skipped
+        } else {
+            &mut self.lesser_problems
+        };
+        *listed += 1;
+        if *listed > MAX_PROBLEMS {
             self.problems_omitted += 1;
             return;
         }
@@ -841,6 +854,7 @@ impl<'a> Reader<'a> {
             airspaces: self.airspaces,
             problems: self.problems,
             problems_omitted: self.problems_omitted,
+            airspaces_skipped: self.skipped,
             version: self.version,
             written_by: self.written_by,
         }
@@ -1864,6 +1878,61 @@ DB 47:33:00 N 011:20:00 E, 47:27:00 N 011:20:00 E
             file.problems.len(),
             MAX_PROBLEMS.min(3000 - file.airspaces.len())
         );
+        assert_eq!(file.skipped(), 3000 - file.airspaces.len());
+    }
+
+    #[test]
+    fn lesser_problems_cannot_push_the_airspaces_left_out_off_the_list() {
+        // Two thousand stray lines, more than the list keeps, and then
+        // three airspaces without a shape and one good one.
+        let mut text = "stray line\n".repeat(2000);
+        for index in 0..3 {
+            let _ = write!(text, "AC R\nAN SHAPELESS {index}\nAL GND\nAH UNL\n");
+        }
+        text.push_str("AC D\nAN GOOD\nAL GND\nAH FL100\nV X=47:00:00N 011:00:00E\nDC 2\n");
+        let file = read(&text);
+
+        assert_eq!(file.airspaces.len(), 1);
+        assert_eq!(file.skipped(), 3);
+        assert_eq!(file.problems.len(), MAX_PROBLEMS + 3);
+        assert_eq!(file.problems_omitted, 2000 - MAX_PROBLEMS);
+        let left_out: Vec<_> = file
+            .problems
+            .iter()
+            .filter(|problem| problem.kind == ProblemKind::AirspaceSkipped)
+            .map(|problem| problem.airspace.as_deref())
+            .collect();
+        assert_eq!(
+            left_out,
+            [
+                Some("SHAPELESS 0"),
+                Some("SHAPELESS 1"),
+                Some("SHAPELESS 2")
+            ]
+        );
+    }
+
+    #[test]
+    fn the_number_of_airspaces_left_out_is_exact_however_many_there_are() {
+        // Two thousand stray lines, and then fifteen hundred airspaces
+        // without a shape: more of both than the list keeps.
+        let mut text = "stray line\n".repeat(2000);
+        for index in 0..1500 {
+            let _ = write!(text, "AC R\nAN SHAPELESS {index}\nAL GND\nAH UNL\n");
+        }
+        let file = read(&text);
+
+        assert!(file.airspaces.is_empty());
+        assert_eq!(file.skipped(), 1500);
+        assert_eq!(file.airspaces_skipped, 1500);
+        assert_eq!(file.problems.len(), 2 * MAX_PROBLEMS);
+        assert_eq!(file.problems_omitted, 2000 + 1500 - 2 * MAX_PROBLEMS);
+        let listed = file
+            .problems
+            .iter()
+            .filter(|problem| problem.kind == ProblemKind::AirspaceSkipped)
+            .count();
+        assert_eq!(listed, MAX_PROBLEMS);
     }
 
     #[test]

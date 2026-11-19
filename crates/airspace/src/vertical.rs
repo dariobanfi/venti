@@ -146,7 +146,12 @@ pub struct ResolvedLimit {
     /// The highest the limit can be. Equal to `low_m` when the limit is
     /// known exactly; infinite for "unlimited".
     pub high_m: f64,
-    /// Why the two differ, when they do.
+    /// What is missing to place the limit, when its place is in doubt.
+    ///
+    /// `None` for the ground itself even when its elevation is unknown:
+    /// wherever the ground is, the pilot is above it, so nothing about the
+    /// answer is in doubt. To name what makes an answer uncertain, ask
+    /// [`VerticalStatus::missing`].
     pub unknown: Option<Unknown>,
 }
 
@@ -197,10 +202,12 @@ pub fn resolve(limit: &VerticalLimit, altitudes: &Altitudes) -> ResolvedLimit {
         VerticalReference::MeanSeaLevel => ResolvedLimit::exactly(metres),
         VerticalReference::Ground => match altitudes.ground_elevation_m {
             Some(ground) => ResolvedLimit::exactly(ground.min(altitude)),
+            // Somewhere between the lowest land and the pilot. Whichever,
+            // the pilot is not under it, so this puts nothing in doubt.
             None => ResolvedLimit {
                 low_m: LOWEST_GROUND_M.min(altitude),
                 high_m: altitude,
-                unknown: Some(Unknown::GroundElevation),
+                unknown: None,
             },
         },
         VerticalReference::AboveGround => match altitudes.ground_elevation_m {
@@ -292,8 +299,31 @@ pub struct VerticalStatus {
     pub ceiling: ResolvedLimit,
     /// The pilot is reported inside only because something is unknown: with
     /// the ground elevation or the pressure the answer might be "below" or
-    /// "above". `floor.unknown` and `ceiling.unknown` say what is missing.
+    /// "above". [`VerticalStatus::missing`] says what is missing.
     pub uncertain: bool,
+}
+
+impl VerticalStatus {
+    /// What is missing to tell whether the pilot is really inside, when
+    /// [`VerticalStatus::uncertain`] is set: the ground elevation or the
+    /// pressure. It names the limit the doubt comes from, the floor before
+    /// the ceiling if it comes from both.
+    ///
+    /// `None` when the answer is certain, and also when it is uncertain for
+    /// a reason no measurement would settle: a ceiling that may be raised
+    /// on request.
+    pub fn missing(&self) -> Option<Unknown> {
+        if !self.uncertain {
+            return None;
+        }
+        // The pilot is below the highest the floor can be.
+        let floor_in_doubt = self.above_floor_m < self.floor.high_m - self.floor.low_m;
+        if floor_in_doubt {
+            self.floor.unknown.or(self.ceiling.unknown)
+        } else {
+            self.ceiling.unknown.or(self.floor.unknown)
+        }
+    }
 }
 
 /// Works out where the pilot is in relation to an airspace's floor and ceiling.
@@ -612,6 +642,58 @@ mod tests {
         // Below sea level too.
         let status = vertical_status(&ctr, &Altitudes::gps(-600.0));
         assert_eq!(status.relation, VerticalRelation::Inside);
+    }
+
+    #[test]
+    fn an_uncertain_answer_names_what_is_missing() {
+        let fl = |level| VerticalLimit::flight_level(level).unwrap();
+        let agl = |value| feet(VerticalReference::AboveGround, value);
+        let msl = |value| feet(VerticalReference::MeanSeaLevel, value);
+
+        // A certain answer misses nothing.
+        let ctr = airspace(VerticalLimit::ground(), msl(5000.0));
+        let status = vertical_status(&ctr, &Altitudes::gps(700.0));
+        assert_eq!(status.missing(), None);
+        // The ground as a floor is never what is missing, whether or not
+        // its elevation is known.
+        assert_eq!(status.floor.unknown, None);
+
+        // From the ground to a flight level, without a barometer, near the
+        // ceiling: the doubt is the pressure, not the ground.
+        let low = airspace(VerticalLimit::ground(), fl(65));
+        let status = vertical_status(&low, &Altitudes::gps(2300.0));
+        assert!(status.uncertain);
+        assert_eq!(status.missing(), Some(Unknown::Pressure));
+        assert_eq!(
+            status.floor.unknown.or(status.ceiling.unknown),
+            Some(Unknown::Pressure)
+        );
+
+        // A floor above ground under a ceiling at a flight level, with a
+        // barometer: the doubt is the ground.
+        let sector = airspace(agl(1000.0), fl(100));
+        let with_barometer = Altitudes {
+            altitude_m: 900.0,
+            pressure: Some(PressureAltitude::standard(900.0)),
+            ground_elevation_m: None,
+        };
+        let status = vertical_status(&sector, &with_barometer);
+        assert!(status.uncertain);
+        assert_eq!(status.missing(), Some(Unknown::GroundElevation));
+
+        // A floor above sea level that the pilot is clearly over, under a
+        // ceiling above ground: the doubt comes from the ceiling.
+        let layer = airspace(msl(1000.0), agl(3000.0));
+        let status = vertical_status(&layer, &Altitudes::gps(2500.0));
+        assert!(status.uncertain);
+        assert_eq!(status.missing(), Some(Unknown::GroundElevation));
+
+        // A ceiling that may be raised: uncertain, and no measurement would settle it.
+        let mut raised = airspace(VerticalLimit::ground(), msl(5000.0));
+        raised.upper_at_most = Some(msl(8000.0));
+        let status = vertical_status(&raised, &Altitudes::gps(2000.0));
+        assert!(status.uncertain);
+        assert_eq!(status.missing(), None);
     }
 
     #[test]

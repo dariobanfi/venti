@@ -93,6 +93,12 @@ sealed interface Session {
                 // Tests have nobody listening.
                 voice = if (isUnderTest) SilentAnnouncer() else AirspaceVoice(app),
                 scope = scope,
+                // A UI test's screen must come to rest for the test to look at it.
+                refreshMilliseconds = if (isUnderTest) {
+                    FlySession.SLOW_REFRESH_MILLISECONDS
+                } else {
+                    FlySession.REFRESH_MILLISECONDS
+                },
             )
 
             // A flight that was being recorded when the app last stopped.

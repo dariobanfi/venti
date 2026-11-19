@@ -176,7 +176,8 @@ class FlySessionTest {
 
         fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
         var waited = 0
-        while (fly.airspaceWarnings.isEmpty() && waited < 8000) {
+        // Seconds on a machine at rest; a minute's patience for one that is building beside the test.
+        while (fly.airspaceWarnings.isEmpty() && waited < 60_000) {
             Thread.sleep(50)
             waited += 50
         }

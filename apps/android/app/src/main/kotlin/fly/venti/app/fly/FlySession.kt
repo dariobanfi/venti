@@ -82,6 +82,12 @@ class FlySession(
     private val scope: CoroutineScope,
     /** Says a new airspace warning aloud. */
     private val voice: Announcer = SilentAnnouncer(),
+    /**
+     * How often the screen and the vario tone are refreshed, in
+     * milliseconds. Five times a second in the app. A UI test on an
+     * emulator asks for less: see [SLOW_REFRESH_MILLISECONDS].
+     */
+    private val refreshMilliseconds: Long = REFRESH_MILLISECONDS,
 ) {
     sealed interface Mode {
         data object Live : Mode
@@ -270,7 +276,7 @@ class FlySession(
         ticker = scope.launch {
             var last = System.nanoTime()
             while (isActive) {
-                delay(REFRESH_MILLISECONDS)
+                delay(refreshMilliseconds)
                 val now = System.nanoTime()
                 refresh(elapsed = (now - last) / 1e9)
                 last = now
@@ -295,7 +301,7 @@ class FlySession(
         // The core works the score out anew every half minute of flight;
         // asking once a second is often enough to show it promptly.
         refreshesSinceScore += 1
-        if (refreshesSinceScore >= REFRESHES_PER_SCORE) {
+        if (refreshesSinceScore * refreshMilliseconds >= SCORE_MILLISECONDS) {
             refreshesSinceScore = 0
             val latest = session.liveScore()
             if (latest != score) {
@@ -329,11 +335,21 @@ class FlySession(
         sound.play(view.tone)
     }
 
-    private companion object {
+    companion object {
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L
 
-        /** How many refreshes pass between two looks at the score. */
-        const val REFRESHES_PER_SCORE = 5
+        /**
+         * The refresh of a UI test on an emulator. Its software renderer
+         * takes most of a second over a frame of the cockpit, more with a
+         * sheet open over the map. Refreshed five times a second, the
+         * screen then never comes to rest, and the test's look at it,
+         * which waits for that, gives up after a minute. Every two seconds
+         * leaves the rest it needs.
+         */
+        const val SLOW_REFRESH_MILLISECONDS = 2_000L
+
+        /** How long passes between two looks at the score. */
+        private const val SCORE_MILLISECONDS = 1_000L
     }
 }

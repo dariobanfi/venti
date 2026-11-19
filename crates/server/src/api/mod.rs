@@ -57,7 +57,6 @@ use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, header};
 use axum::routing::{any, delete, get, post, put};
-use tokio::sync::Semaphore;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
@@ -97,9 +96,6 @@ const UPLOAD_DEADLINE: Duration = Duration::from_secs(150);
 
 /// How long a browser may reuse the answer to a CORS preflight request.
 const PREFLIGHT_MAX_AGE: Duration = Duration::from_secs(3600);
-
-/// How many preview pictures are drawn at the same time.
-const PICTURES_AT_ONCE: usize = 2;
 
 /// A source whose data the server serves, with what the API says about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,7 +185,9 @@ pub struct Api<S> {
     uploads: Throttle,
     /// Uploads under way.
     uploading: flights::Uploading,
-    pictures: Semaphore,
+    /// The preview pictures of shared flights: the turns at drawing one,
+    /// and the ones drawn last.
+    pictures: share::Pictures,
     /// The connector's side of the Model Context Protocol.
     mcp: venti_mcp::Server,
     /// Requests to the connector, by client address.
@@ -256,7 +254,7 @@ impl<S: Store> Api<S> {
                 limits.watched_keys,
             ),
             uploading: flights::Uploading::new(),
-            pictures: Semaphore::new(PICTURES_AT_ONCE),
+            pictures: share::Pictures::default(),
             mcp,
             connector_requests: Throttle::new(
                 "addresses that asked the connector",

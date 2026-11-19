@@ -1,0 +1,602 @@
+import { readFileSync } from 'node:fs';
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import {
+	AccountSource,
+	deviceName,
+	type Send,
+	type ServerAnswer,
+	wholeSeconds
+} from './account-source';
+import { IdbStore } from './idb-store';
+import type { ServerRequest } from './pkg/venti_core_wasm.js';
+import { UNREACHABLE } from './protocol';
+import { CoreSession } from './session';
+import { sampleFlight, sampleFlightOn, startCore } from './testing';
+
+beforeAll(startCore);
+
+/** The server's own recorded answers, which its tests keep current. */
+function recorded(name: string): Uint8Array {
+	return readFileSync(
+		new URL(`../../../../../crates/server/tests/golden/${name}`, import.meta.url)
+	);
+}
+
+const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+const text = (bytes: Uint8Array | undefined) => new TextDecoder().decode(bytes);
+
+/** The token the recorded sign-in hands out. */
+const TOKEN = 'venti_3x7k9q2m4r8t1v6w0y5a2b3c4d5e6f7g8h9j0kmnpqrstvwxyz01';
+
+const SERVER = 'https://venti.example';
+
+/** 18 November 2026, 19:05 UTC, in milliseconds. */
+const NOW = 1_795_028_700_000;
+
+/** The sample flight as the server's list of changes describes it. */
+const SAMPLE_THERE = JSON.parse(text(recorded('flight_changes.json'))).flights[1];
+
+/** A list of changes with nothing after it. */
+function changes(given: { flights?: unknown[]; deleted?: unknown[] } = {}): ServerAnswer {
+	return answer(
+		200,
+		json({ flights: [], deleted: [], cursor: 'end', more: false, reset: false, ...given })
+	);
+}
+
+function answer(status: number, body: Uint8Array = new Uint8Array()): ServerAnswer {
+	return { status, body, retryAfterS: undefined };
+}
+
+function refusal(status: number, code: string): ServerAnswer {
+	return answer(status, json({ error: { code, message: 'for developers' } }));
+}
+
+/**
+ * A Venti server played from the recorded answers. It notes what it was
+ * asked and with which token. `instead` answers a request differently, or
+ * throws to be out of reach.
+ */
+class Server {
+	asked: { method: string; path: string; token: string | undefined; body: string }[] = [];
+	/** What the server's list of changes says. */
+	changes = changes();
+	instead: (request: ServerRequest) => ServerAnswer | undefined = () => undefined;
+
+	send: Send = async (request, token) => {
+		this.asked.push({
+			method: request.method,
+			path: request.path,
+			// Only a request that needs the token may be given it.
+			token: request.needsToken ? token : undefined,
+			body: text(request.body)
+		});
+		const { method, path } = request;
+		const other = this.instead(request);
+		if (other) return other;
+		if (method === 'POST' && (path === '/v1/sessions' || path === '/v1/accounts')) {
+			return answer(201, recorded('sign_in.json'));
+		}
+		if (method === 'GET' && path.startsWith('/v1/flights/changes')) return this.changes;
+		if (method === 'GET' && path.endsWith('/igc')) {
+			return answer(200, new TextEncoder().encode(sampleFlight()));
+		}
+		if (method === 'POST' && path === '/v1/flights') return answer(201, recorded('upload.json'));
+		if (method === 'PATCH') return answer(200, recorded('flight.json'));
+		if (method === 'DELETE') return answer(204);
+		return refusal(404, 'not_found');
+	};
+
+	/** What was asked, in short. */
+	get lines(): string[] {
+		return this.asked.map(({ method, path }) => `${method} ${path.split('?')[0]}`);
+	}
+}
+
+/** One browser's storage for the site. Every tab opened on it shares it. */
+class Browser {
+	#factory = new IDBFactory();
+	#open: CoreSession[] = [];
+	server = new Server();
+
+	async tab(): Promise<{ session: CoreSession; account: AccountSource }> {
+		const session = await CoreSession.open(await IdbStore.open('venti', this.#factory));
+		this.#open.push(session);
+		const account = new AccountSource(session, this.server.send, SERVER, 'Test browser', () => NOW);
+		return { session, account };
+	}
+
+	/** What the database holds, read behind the app's back. */
+	async stored(): Promise<{ names: string[]; token: string | undefined }> {
+		const store = await IdbStore.open('venti', this.#factory);
+		const { names } = await store.snapshot();
+		const token = await store.token();
+		store.close();
+		return { names: names.sort(), token };
+	}
+
+	closeTabs(): void {
+		for (const session of this.#open.splice(0)) session.close();
+	}
+}
+
+let browser: Browser;
+afterEach(() => browser?.closeTabs());
+
+describe('signing in', () => {
+	it('stores the account and its token together, the token apart from the core’s files', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		expect(await account.account()).toBeUndefined();
+
+		const signedIn = await account.signIn('demo', 'demo-pilot-password');
+
+		expect(signedIn).toMatchObject({
+			handle: 'demo',
+			displayName: 'Demo Pilot',
+			server: SERVER,
+			needsSignIn: false
+		});
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'POST',
+				path: '/v1/sessions',
+				token: undefined,
+				body: '{"handle":"demo","password":"demo-pilot-password","device":"Test browser"}'
+			}
+		]);
+		const stored = await browser.stored();
+		expect(stored.names).toEqual(['account.json', 'logbook-index.json']);
+		expect(stored.token).toBe(TOKEN);
+	});
+
+	it('is still signed in after a reload', async () => {
+		browser = new Browser();
+		await (await browser.tab()).account.signIn('demo', 'demo-pilot-password');
+		browser.closeTabs();
+
+		const { account } = await browser.tab();
+
+		expect((await account.account())?.handle).toBe('demo');
+	});
+
+	it('says in the core’s words why the server refused, and stores nothing', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = () => refusal(401, 'invalid_credentials');
+
+		await expect(account.signIn('demo', 'wrong')).rejects.toMatchObject({
+			name: 'Server',
+			message: 'The handle or the password is wrong.'
+		});
+
+		expect(await account.account()).toBeUndefined();
+		expect((await browser.stored()).token).toBeUndefined();
+	});
+
+	it('asks the server for nothing when there is nothing to send', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		await expect(account.signIn(' ', '')).rejects.toThrow('Enter your handle and your password.');
+
+		expect(browser.server.asked).toEqual([]);
+	});
+
+	it('says so when the server cannot be reached', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = () => {
+			const error = new Error('The server could not be reached.');
+			error.name = UNREACHABLE;
+			throw error;
+		};
+
+		await expect(account.signIn('demo', 'demo-pilot-password')).rejects.toMatchObject({
+			name: UNREACHABLE
+		});
+		expect(await account.account()).toBeUndefined();
+	});
+});
+
+describe('a new account', () => {
+	it('is refused by the core before the server is asked, in words', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		const wanted = { handle: 'dario', displayName: 'Dario', password: 'too short', invite: '' };
+
+		await expect(account.createAccount(wanted)).rejects.toThrow('at least 15 characters');
+		await expect(account.createAccount({ ...wanted, handle: 'ab' })).rejects.toThrow(
+			'A handle has at least 3 characters.'
+		);
+
+		expect(browser.server.asked).toEqual([]);
+	});
+
+	it('is created with the invite code when one was entered, and signs in', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		await account.createAccount({
+			handle: 'Dario_B',
+			displayName: ' Dario B. ',
+			password: 'correct horse battery staple',
+			invite: ' 7k3m-9q2x '
+		});
+
+		expect(JSON.parse(browser.server.asked[0].body)).toEqual({
+			handle: 'dario_b',
+			display_name: 'Dario B.',
+			password: 'correct horse battery staple',
+			invite: '7k3m-9q2x',
+			device: 'Test browser'
+		});
+		expect(browser.server.asked[0].path).toBe('/v1/accounts');
+		expect((await browser.stored()).token).toBe(TOKEN);
+	});
+
+	it('hears the server’s refusal of an invite code in the core’s words', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = () => refusal(403, 'invalid_invite');
+
+		await expect(
+			account.createAccount({
+				handle: 'dario',
+				displayName: 'Dario',
+				password: 'correct horse battery staple',
+				invite: ''
+			})
+		).rejects.toThrow('The invite code is missing, mistyped, already used or expired.');
+	});
+});
+
+describe('a sync', () => {
+	it('fetches what is missing here and sends what is missing there', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		// Here: a flight the server lacks. There: the sample flight.
+		await session.importFlight(sampleFlightOn(3));
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
+		browser.server.asked = [];
+
+		const outcome = await account.sync();
+
+		expect(outcome).toEqual({
+			kind: 'finished',
+			summary: { sent: 1, fetched: 1, removedHere: 0, removedThere: 0, refused: 0 },
+			said: '1 sent, 1 fetched'
+		});
+		expect(browser.server.lines).toEqual([
+			'GET /v1/flights/changes',
+			`GET /v1/flights/${SAMPLE_THERE.id}/igc`,
+			'POST /v1/flights'
+		]);
+		// Every one of them carried the token, and the flight went as its file.
+		expect(browser.server.asked.map((asked) => asked.token)).toEqual([TOKEN, TOKEN, TOKEN]);
+		expect(browser.server.asked[2].body).toBe(sampleFlightOn(3));
+		expect(session.logbook().totals.flights).toBe(2);
+		expect(await account.account()).toMatchObject({
+			flightsOnServer: 2,
+			flightsToSend: 0,
+			lastSyncUnixS: NOW / 1000
+		});
+
+		// All of it is stored: a reload finds two flights and nothing to do.
+		browser.closeTabs();
+		const reloaded = await browser.tab();
+		expect(reloaded.session.logbook().totals.flights).toBe(2);
+		browser.server.changes = changes();
+		expect(await reloaded.account.sync()).toMatchObject({ said: 'Nothing to send or fetch' });
+	});
+
+	it('deletes on the server what was deleted here, before anything else', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		const { id } = await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
+		await account.sync();
+
+		await session.deleteFlight(id);
+		browser.server.changes = changes();
+		browser.server.asked = [];
+		const outcome = await account.sync();
+
+		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed on the server' });
+		expect(browser.server.lines).toEqual([
+			`DELETE /v1/flights/${SAMPLE_THERE.id}`,
+			'GET /v1/flights/changes'
+		]);
+		expect(session.logbook().totals.flights).toBe(0);
+	});
+
+	it('removes here what was deleted on another device', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		const { id } = await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
+		await account.sync();
+
+		browser.server.changes = changes({ deleted: [{ id: SAMPLE_THERE.id, identity: id }] });
+		const outcome = await account.sync();
+
+		expect(outcome).toMatchObject({ kind: 'finished', said: '1 removed here' });
+		expect(session.logbook().totals.flights).toBe(0);
+		expect((await browser.stored()).names).toEqual(['account.json', 'logbook-index.json']);
+	});
+
+	it('stops when the session has ended, says so, and forgets the token', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = () => refusal(401, 'unauthorized');
+
+		const outcome = await account.sync();
+
+		expect(outcome).toEqual({
+			kind: 'failed',
+			message: 'This device is no longer signed in. Sign in again.',
+			needsSignIn: true
+		});
+		expect((await account.account())?.needsSignIn).toBe(true);
+		expect((await browser.stored()).token).toBeUndefined();
+	});
+
+	it('passes on how long the server asks to wait', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = () => ({ ...refusal(429, 'rate_limited'), retryAfterS: 30 });
+
+		expect(await account.sync()).toMatchObject({
+			kind: 'failed',
+			message: 'The server asks to wait 30 seconds. What was done so far is kept.'
+		});
+	});
+
+	it('keeps what it did when the server goes out of reach half-way', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await session.importFlight(sampleFlightOn(3));
+		await session.importFlight(sampleFlightOn(5));
+		await account.signIn('demo', 'demo-pilot-password');
+		let uploads = 0;
+		browser.server.instead = (request) => {
+			if (request.method !== 'POST' || request.path !== '/v1/flights') return undefined;
+			uploads += 1;
+			if (uploads === 2) throw new Error('offline');
+			return undefined;
+		};
+
+		await expect(account.sync()).rejects.toThrow('offline');
+
+		// The first flight arrived, and that is remembered across a reload.
+		browser.closeTabs();
+		const reloaded = await browser.tab();
+		expect(await reloaded.account.account()).toMatchObject({
+			flightsOnServer: 1,
+			flightsToSend: 1
+		});
+	});
+
+	it('is not run by a browser that is not signed in', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		expect(await account.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
+		expect(browser.server.asked).toEqual([]);
+	});
+
+	it('starts over when another tab changes the logbook under it', async () => {
+		browser = new Browser();
+		const first = await browser.tab();
+		const second = await browser.tab();
+		await first.session.importFlight(sampleFlightOn(3));
+		await first.account.signIn('demo', 'demo-pilot-password');
+		await second.session.reload();
+		// While the first tab's flight is on its way, the second imports another.
+		let interfered = false;
+		const send: Send = async (request, token) => {
+			if (!interfered && request.method === 'POST' && request.path === '/v1/flights') {
+				interfered = true;
+				await second.session.importFlight(sampleFlightOn(5));
+			}
+			return browser.server.send(request, token);
+		};
+		const account = new AccountSource(first.session, send, SERVER, 'Test browser', () => NOW);
+
+		const outcome = await account.sync();
+
+		// Both flights end up on the server, whichever run sent them.
+		expect(outcome.kind).toBe('finished');
+		expect(await account.account()).toMatchObject({ flightsOnServer: 2, flightsToSend: 0 });
+	});
+});
+
+describe('signing out', () => {
+	it('tells the server, and forgets the account and the token', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.asked = [];
+
+		await account.signOut();
+
+		expect(browser.server.asked).toEqual([
+			{ method: 'DELETE', path: '/v1/sessions/3kq9x2m7r4t8v1w6y0a5b3c2d4', token: TOKEN, body: '' }
+		]);
+		expect(await account.account()).toBeUndefined();
+		const stored = await browser.stored();
+		expect(stored.token).toBeUndefined();
+		expect(stored.names).not.toContain('account.json');
+		// The flights in the logbook stay.
+		expect(session.logbook().totals.flights).toBe(1);
+	});
+
+	it('forgets them also when the server cannot be reached', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = () => {
+			throw new Error('offline');
+		};
+
+		await account.signOut();
+
+		expect(await account.account()).toBeUndefined();
+		expect((await browser.stored()).token).toBeUndefined();
+	});
+
+	it('signs the site’s other tabs out with it', async () => {
+		browser = new Browser();
+		const first = await browser.tab();
+		const second = await browser.tab();
+		await first.account.signIn('demo', 'demo-pilot-password');
+		await second.session.reload();
+		expect((await second.account.account())?.handle).toBe('demo');
+
+		await first.account.signOut();
+		await second.session.reload();
+
+		expect(await second.account.account()).toBeUndefined();
+	});
+});
+
+describe('deleting the account', () => {
+	it('needs the password, and keeps the account when it is wrong', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.instead = (request) =>
+			request.path === '/v1/account' ? refusal(403, 'wrong_password') : undefined;
+
+		await expect(account.deleteAccount('wrong')).rejects.toThrow('The password is wrong.');
+
+		expect((await account.account())?.handle).toBe('demo');
+		expect((await browser.stored()).token).toBe(TOKEN);
+	});
+
+	it('forgets the account here and keeps the logbook', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.asked = [];
+
+		await account.deleteAccount('demo-pilot-password');
+
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'DELETE',
+				path: '/v1/account',
+				token: TOKEN,
+				body: '{"password":"demo-pilot-password"}'
+			}
+		]);
+		expect(await account.account()).toBeUndefined();
+		expect((await browser.stored()).token).toBeUndefined();
+		expect(session.logbook().totals.flights).toBe(1);
+	});
+});
+
+describe('sharing a flight', () => {
+	it('is not possible before the server has the flight', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		const { id } = await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+
+		expect(await account.sharing(id)).toBeUndefined();
+		await expect(account.share(id, 'public')).rejects.toThrow(
+			'This flight is not on the server yet. Sync first.'
+		);
+	});
+
+	it('changes who may see it and remembers the answer, with a link on this site', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		const { id } = await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
+		await account.sync();
+		expect(await account.sharing(id)).toEqual({
+			visibility: 'unlisted',
+			link: `${SERVER}/f/${SAMPLE_THERE.id}`
+		});
+		browser.server.asked = [];
+
+		const now = await account.share(id, 'public');
+
+		expect(browser.server.asked).toEqual([
+			{
+				method: 'PATCH',
+				path: `/v1/flights/${SAMPLE_THERE.id}`,
+				token: TOKEN,
+				body: '{"visibility":"public"}'
+			}
+		]);
+		// The recorded answer is the server's public flight.
+		expect(now.visibility).toBe('public');
+		expect(now.link).toMatch(new RegExp(`^${SERVER}/f/[a-z0-9]{26}$`));
+		expect(await account.sharing(id)).toEqual(now);
+	});
+
+	it('says in the core’s words when the server no longer has the flight', async () => {
+		browser = new Browser();
+		const { session, account } = await browser.tab();
+		const { id } = await session.importFlight(sampleFlight());
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.changes = changes({ flights: [SAMPLE_THERE] });
+		await account.sync();
+		browser.server.instead = () => refusal(404, 'flight_not_found');
+
+		await expect(account.share(id, 'private')).rejects.toThrow(
+			'The server no longer has this flight.'
+		);
+	});
+});
+
+describe('what a browser is called among the account’s devices', () => {
+	it('is its name and the system it runs on, as far as it says', () => {
+		const said = (agent: string) => deviceName(agent);
+		expect(said('Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0')).toBe(
+			'Firefox on Linux'
+		);
+		expect(
+			said(
+				'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1'
+			)
+		).toBe('Safari on iPhone');
+		expect(
+			said(
+				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0'
+			)
+		).toBe('Edge on Windows');
+		expect(
+			said(
+				'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36'
+			)
+		).toBe('Chrome on Android');
+		expect(
+			said(
+				'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15'
+			)
+		).toBe('Safari on Mac');
+		expect(said('something else')).toBe('Web browser');
+	});
+});
+
+describe('how long a server asks to wait', () => {
+	it('is read when given in seconds, and passed over otherwise', () => {
+		expect(wholeSeconds('30')).toBe(30);
+		expect(wholeSeconds(' 120 ')).toBe(120);
+		expect(wholeSeconds('Wed, 21 Oct 2026 07:28:00 GMT')).toBeUndefined();
+		expect(wholeSeconds('-5')).toBeUndefined();
+		expect(wholeSeconds(null)).toBeUndefined();
+	});
+});

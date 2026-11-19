@@ -18,6 +18,8 @@
 	// while the pages are written out at build time.
 	onMount(() => {
 		void app.start();
+		// With an account, the logbook follows the server from here on.
+		return app.keepInStep();
 	});
 </script>
 

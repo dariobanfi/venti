@@ -276,6 +276,167 @@ dialog::backdrop {
 	background: var(--scrim);
 }
 
+/* A screen of settings: a column of readable width with a title, under an
+   optional way back. The iPhone has its navigation bar for this. */
+.settings-page {
+	max-width: 40rem;
+	margin: 0 auto;
+	padding: calc(0.5rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))
+		calc(1.5rem + var(--nav-bottom)) calc(var(--gutter) + var(--safe-left));
+}
+
+.settings-page > header {
+	min-height: var(--target);
+}
+
+.settings-page h1 {
+	margin-bottom: 0.75rem;
+	font-size: var(--large-title);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+.back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.125rem;
+	min-height: var(--target);
+	margin-left: -0.5rem;
+	padding: 0 0.75rem 0 0.25rem;
+	border-radius: var(--radius-control);
+	color: var(--accent);
+}
+
+/* Rows that belong together stand on one rounded surface, with what they
+   are about above it and a line of explanation below: the iPhone's grouped
+   list. */
+.group {
+	margin-top: 1.5rem;
+}
+
+.group-title {
+	padding: 0 1rem 0.375rem;
+	font-size: var(--subheadline);
+	font-weight: 600;
+	color: var(--text-secondary);
+}
+
+.group-card {
+	background: var(--surface);
+	border-radius: var(--radius-card);
+	overflow: hidden;
+}
+
+.group-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	width: 100%;
+	min-height: var(--target);
+	padding: 0.5rem 1rem;
+	text-align: left;
+}
+
+.group-card > * + *,
+.group-card > dl > * + *,
+.group-card > ul > * + * {
+	box-shadow: inset 0 0.5px 0 var(--separator);
+}
+
+/* What a row says about its subject, at its trailing edge. */
+.group-row dd,
+.group-value {
+	color: var(--text-secondary);
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+
+/* A row that does something or leads somewhere. */
+button.group-row {
+	color: var(--accent);
+}
+
+button.group-row.destructive {
+	color: var(--danger);
+}
+
+.group-row:focus-visible {
+	outline-offset: -0.1875rem;
+	border-radius: 0.75rem;
+}
+
+.group-note {
+	padding: 0.5rem 1rem 0;
+	font-size: var(--footnote);
+	color: var(--text-secondary);
+}
+
+.group-note + .group-note {
+	padding-top: 0.375rem;
+}
+
+/* Something the pilot must not overlook, among the rows it concerns. */
+.group-warning {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	color: var(--danger);
+}
+
+.group-warning svg {
+	font-size: 0.875em;
+	margin-top: 0.1em;
+}
+
+@media (hover: hover) {
+	a.group-row:hover,
+	button.group-row:not(:disabled):hover,
+	.back-link:hover {
+		background: var(--fill);
+	}
+}
+
+/* A text field in a row: its name in front, what is typed after it. */
+.field {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	min-height: var(--target);
+	padding: 0 1rem;
+}
+
+.field span {
+	flex: none;
+	min-width: 6.5rem;
+}
+
+.field input {
+	flex: 1;
+	min-width: 0;
+	min-height: var(--target);
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text);
+	font: inherit;
+}
+
+.field input::placeholder {
+	color: var(--icon-quiet);
+}
+
+/* The whole row shows where the keyboard is, not a box inside it. */
+.field input:focus-visible {
+	outline: none;
+}
+
+.field:has(input:focus-visible) {
+	outline: 0.1875rem solid var(--accent);
+	outline-offset: -0.1875rem;
+	border-radius: 0.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

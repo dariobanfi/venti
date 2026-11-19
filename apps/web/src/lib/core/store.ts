@@ -4,6 +4,10 @@
  * The core decides what is stored: whole files under short names such as
  * `flights/<id>.igc` (see `crates/core/src/storage.rs`). A store only reads
  * and writes them. It knows nothing about flights.
+ *
+ * Beside the files a store keeps one thing the core never sees: the session
+ * token of the pilot's account. A phone keeps it in its Keychain; a browser
+ * has nothing of the kind, and `apps/web/README.md` says what that means.
  */
 
 /**
@@ -37,8 +41,18 @@ export interface FileStore {
 	 * another tab has changed the store since, nothing is written and a
 	 * {@link StaleStoreError} is thrown: the caller's picture of the store is
 	 * out of date and so, possibly, are its changes.
+	 *
+	 * `token` is a session token to keep from now on, or `null` to forget the
+	 * one kept. It is written with the changes or not at all, so the account
+	 * the core remembers and the token for it arrive and leave together.
 	 */
-	commit(changes: FileChange[], revision: number): Promise<number>;
+	commit(changes: FileChange[], revision: number, token?: string | null): Promise<number>;
+
+	/** The session token of the account this browser is signed in to, if any. */
+	token(): Promise<string | undefined>;
+
+	/** Forgets the session token, when the server no longer takes it. */
+	forgetToken(): Promise<void>;
 
 	/**
 	 * Calls `listener` whenever another tab has changed the store. Returns a
@@ -67,6 +81,7 @@ export class MemoryStore implements FileStore {
 
 	#files = new Map<string, Uint8Array>();
 	#revision = 0;
+	#token: string | undefined;
 
 	async snapshot(): Promise<Snapshot> {
 		return { names: [...this.#files.keys()], revision: this.#revision };
@@ -76,14 +91,23 @@ export class MemoryStore implements FileStore {
 		return this.#files.get(name);
 	}
 
-	async commit(changes: FileChange[], revision: number): Promise<number> {
+	async commit(changes: FileChange[], revision: number, token?: string | null): Promise<number> {
 		if (revision !== this.#revision) throw new StaleStoreError();
 		for (const [name, contents] of changes) {
 			if (contents) this.#files.set(name, contents);
 			else this.#files.delete(name);
 		}
+		if (token !== undefined) this.#token = token ?? undefined;
 		this.#revision += 1;
 		return this.#revision;
+	}
+
+	async token(): Promise<string | undefined> {
+		return this.#token;
+	}
+
+	async forgetToken(): Promise<void> {
+		this.#token = undefined;
 	}
 
 	onChangedElsewhere(): () => void {

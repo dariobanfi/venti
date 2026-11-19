@@ -10,6 +10,7 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
 	import { logbookHref } from '#lib/app/routes.ts';
 	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -36,6 +37,7 @@
 
 	/** What can be done with the flight besides looking at it. */
 	const actions: MenuItem[] = $derived([
+		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
 		{ label: 'Download flight file', icon: 'download', onselect: ondownload },
 		{ label: 'Delete flight', icon: 'trash', destructive: true, onselect: ondelete }
 	]);
@@ -45,6 +47,8 @@
 	/** Whether the marker is moving through the flight by itself. */
 	let playing = $state(false);
 	let showingDetails = $state(false);
+	/** Whether the sheet that says who can see the flight is open. */
+	let sharing = $state(false);
 
 	// Playing moves the marker from where it is to the end of the flight in
 	// about half a minute, whatever the flight's length.
@@ -154,6 +158,8 @@
 		<FlightDetails {flight} {analysis} onselect={mark} />
 	</Sheet>
 {/if}
+
+<ShareFlightSheet open={sharing} flight={flight.id} onclose={() => (sharing = false)} />
 
 <style>
 	/* Narrow: the map is the screen; bar, buttons and panel float on it. */

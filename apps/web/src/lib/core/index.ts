@@ -15,9 +15,16 @@
  * - `idb-store.ts` keeps the core's files in IndexedDB; `store.ts` says what
  *   a store is and has one that lives in memory.
  * - `wind-source.ts` asks the Venti server for the wind, from the worker.
+ * - `account-source.ts` talks to the Venti server about the pilot's account
+ *   and keeps the logbook in step with it, also from the worker.
  */
 
 export type {
+	AccountView,
+	AirspaceFile,
+	AirspaceImport,
+	AirspacePolicy,
+	AirspaceShape,
 	BestFlight,
 	Bounds,
 	Coordinate,
@@ -28,7 +35,9 @@ export type {
 	FlightFile,
 	FlightMoment,
 	FlightScore,
+	FlightSharing,
 	FlightView,
+	FlightVisibility,
 	GliderStatistics,
 	GlideSummary,
 	ImportedFlight,
@@ -40,6 +49,7 @@ export type {
 	ProfilePoint,
 	RouteKind,
 	StationHistory,
+	SyncSummary,
 	ThermalSummary,
 	Totals,
 	TrackPoint,
@@ -54,6 +64,7 @@ export type {
 import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 
+export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
 export type { WindAnswer } from './wind-source';
 
@@ -73,7 +84,7 @@ export function isCoreError(error: unknown): boolean {
 
 /**
  * Whether an error's message was written for the pilot and can be shown as
- * it is: the core's own errors, and a wind server out of reach.
+ * it is: the core's own errors, and a server out of reach.
  */
 export function isInWords(error: unknown): boolean {
 	return isCoreError(error) || (error instanceof Error && error.name === UNREACHABLE);

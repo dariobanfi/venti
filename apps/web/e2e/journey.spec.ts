@@ -296,6 +296,8 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	const more = page.getByRole('button', { name: 'More' });
 	await more.focus();
 	await page.keyboard.press('Enter');
+	await expect(page.getByRole('menuitem', { name: 'Share with a link' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Download flight file' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Delete flight' })).toBeFocused();

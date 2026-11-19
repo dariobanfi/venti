@@ -1,6 +1,7 @@
 /**
- * What the app holds for as long as the page is open: the logbook and the
- * wind, once the core has started, and whatever the pilot has to be told.
+ * What the app holds for as long as the page is open: the logbook, the
+ * wind and the pilot's account, once the core has started, and whatever the
+ * pilot has to be told.
  *
  * It is created once, in the root layout, and reached from every screen
  * through {@link getApp}.
@@ -8,6 +9,7 @@
 
 import { createContext } from 'svelte';
 import { goto } from '$app/navigation';
+import { AccountModel } from '#lib/account/model.svelte.ts';
 import { askToKeepStorage, CoreClient } from '#lib/core/index.ts';
 import {
 	flightToShow,
@@ -26,6 +28,9 @@ export class App {
 	/** Live wind for the map. Nothing until the core has started. */
 	wind = $state.raw<WindModel>();
 
+	/** The pilot's account on the Venti server. Nothing until the core has started. */
+	account = $state.raw<AccountModel>();
+
 	/** Why the core could not start, if it could not. */
 	failure = $state.raw<string>();
 
@@ -40,7 +45,17 @@ export class App {
 		this.#started ??= CoreClient.open()
 			.then(async (core) => {
 				this.wind = new WindModel(core);
-				this.logbook = await LogbookModel.open(core);
+				const logbook = await LogbookModel.open(core);
+				// A sync may have fetched or removed flights.
+				const account = await AccountModel.open(core, () => logbook.refresh());
+				// Another tab imported, deleted, synced or signed out: show
+				// what is stored now.
+				core.onChangedElsewhere = () => {
+					void logbook.refresh();
+					void account.refresh();
+				};
+				this.logbook = logbook;
+				this.account = account;
 			})
 			.catch((error) => {
 				this.failure = error instanceof Error ? error.message : String(error);
@@ -71,9 +86,34 @@ export class App {
 	async #finish(report: ImportReport): Promise<void> {
 		// From now on there is something worth keeping.
 		if (report.added.length > 0 && this.logbook?.durable) askToKeepStorage();
+		// With an account, new flights go to the server without being asked.
+		if (report.added.length > 0) void this.account?.sync({ force: true });
 		this.notice = importNotice(report);
 		const id = flightToShow(report);
 		if (id) await goto(flightHref(id));
+	}
+
+	/**
+	 * Deletes a flight from the logbook. With an account, the server's copy
+	 * goes with the sync that follows.
+	 */
+	async deleteFlight(id: string): Promise<void> {
+		await this.logbook?.delete(id);
+		void this.account?.sync({ force: true });
+	}
+
+	/**
+	 * Keeps the logbook in step with the server while the page is open: now,
+	 * and whenever the page comes back to the front. Returns what to call
+	 * when the page goes away.
+	 */
+	keepInStep(): () => void {
+		const sync = () => {
+			if (document.visibilityState === 'visible') void this.account?.sync();
+		};
+		void this.#started?.then(sync);
+		document.addEventListener('visibilitychange', sync);
+		return () => document.removeEventListener('visibilitychange', sync);
 	}
 }
 

@@ -4,7 +4,8 @@
  * nothing the core does can hold up the page.
  */
 
-import type { Bounds } from './pkg/venti_core_wasm.js';
+import type { NewAccount } from './account-source';
+import type { Bounds, FlightVisibility } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
 	type Calls,
@@ -97,6 +98,66 @@ export class CoreClient {
 	/** What a wind station measured over the last 24 hours. */
 	stationHistory(stationId: string) {
 		return this.#call('stationHistory', stationId);
+	}
+
+	/** Whether this site has a Venti server behind it. */
+	hasServer() {
+		return this.#call('hasServer', undefined);
+	}
+
+	/** The account this browser is signed in to, if any. */
+	account() {
+		return this.#call('account', undefined);
+	}
+
+	signIn(handle: string, password: string) {
+		return this.#call('signIn', { handle, password });
+	}
+
+	createAccount(wanted: NewAccount) {
+		return this.#call('createAccount', wanted);
+	}
+
+	signOut() {
+		return this.#call('signOut', undefined);
+	}
+
+	/** Deletes the account on the server. It needs the password. */
+	deleteAccount(password: string) {
+		return this.#call('deleteAccount', password);
+	}
+
+	/** Brings the logbook and the server in step. */
+	sync() {
+		return this.#call('sync', undefined);
+	}
+
+	/** How a flight is shared, if the server has it. */
+	flightSharing(id: string) {
+		return this.#call('flightSharing', id);
+	}
+
+	/** Changes who may see a flight. */
+	shareFlight(id: string, visibility: FlightVisibility) {
+		return this.#call('shareFlight', { id, visibility });
+	}
+
+	/** Takes in an airspace file. Its bytes are handed over, not copied. */
+	importAirspace(name: string, bytes: ArrayBuffer) {
+		return this.#call('importAirspace', { name, bytes }, [bytes]);
+	}
+
+	airspaceFiles() {
+		return this.#call('airspaceFiles', undefined);
+	}
+
+	deleteAirspaceFile(storedName: string) {
+		return this.#call('deleteAirspaceFile', storedName);
+	}
+
+	/** The airspaces that touch a box of the map. */
+	airspaceIn(box: Bounds) {
+		return this.#call('airspaceIn', box);
 	}
 
 	#call<Name extends CallName>(

@@ -9,6 +9,7 @@
 	import type { BestFlight, LogbookStatistics, MonthStatistics } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Segmented from '#lib/design/Segmented.svelte';
 	import MonthChart from '#lib/logbook/MonthChart.svelte';
 
 	const app = getApp();
@@ -89,13 +90,12 @@
 		<section aria-labelledby="months">
 			<h2 id="months">Last twelve months</h2>
 			<div class="card chart">
-				<div class="measures" role="radiogroup" aria-label="Shown">
-					{#each measures as option (option.name)}
-						<label class:chosen={shown === option.name}>
-							<input type="radio" name="measure" value={option.name} bind:group={shown} />
-							{option.name}
-						</label>
-					{/each}
+				<div class="measures">
+					<Segmented
+						label="Shown"
+						options={measures.map((measure) => measure.name)}
+						bind:value={shown}
+					/>
 				</div>
 				<MonthChart
 					months={statistics.months}
@@ -192,47 +192,8 @@
 		padding: 1rem;
 	}
 
-	/* One of three: a row of choices, the chosen one raised. */
 	.measures {
-		display: flex;
-		gap: 0.125rem;
 		margin-bottom: 1rem;
-		padding: 0.125rem;
-		border-radius: 0.625rem;
-		background: var(--fill);
-	}
-
-	.measures label {
-		flex: 1;
-		display: grid;
-		place-items: center;
-		min-height: 2rem;
-		border-radius: 0.5rem;
-		font-size: var(--subheadline);
-		cursor: pointer;
-	}
-
-	.measures .chosen {
-		background: var(--surface);
-		font-weight: 600;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
-	}
-
-	@media (prefers-color-scheme: dark) {
-		.measures .chosen {
-			background: var(--fill-strong);
-		}
-	}
-
-	/* The radio buttons themselves are not drawn, but they take the keyboard. */
-	.measures input {
-		position: absolute;
-		opacity: 0;
-	}
-
-	.measures label:has(:focus-visible) {
-		outline: 0.1875rem solid var(--accent);
-		outline-offset: 0.125rem;
 	}
 
 	.row {

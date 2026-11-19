@@ -67,6 +67,17 @@ export function importNotice(report: ImportReport): Notice | undefined {
 }
 
 /**
+ * What deleting a flight means, to be read before it is done. With an
+ * account the flight also goes from the server, and from there from the
+ * pilot's other devices.
+ */
+export function deletionWarning(signedIn: boolean): string {
+	return signedIn
+		? 'Its file is removed from this browser and, with the next sync, from your Venti server and your other devices. This cannot be undone.'
+		: 'Its file is removed from this browser. This cannot be undone.';
+}
+
+/**
  * The flight to open straight after an import: the new one, if the import
  * brought exactly one and nothing went wrong.
  */

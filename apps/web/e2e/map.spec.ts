@@ -73,8 +73,21 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 		'page'
 	);
 
+	// The settings, and the account under them, are one section.
+	await navigation.getByRole('link', { name: 'Settings', exact: true }).click();
+	await expect(page).toHaveTitle('Settings · Venti');
+	await page.getByRole('link', { name: /^Account/ }).click();
+	await expect(page).toHaveTitle('Account · Venti');
+	await expect(navigation.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await page.getByRole('main').getByRole('link', { name: 'Settings' }).click();
+	await expect(page).toHaveTitle('Settings · Venti');
+
 	// A flight fills a narrow screen, so the bar steps aside there. A wide
 	// screen keeps its rail.
+	await navigation.getByRole('link', { name: 'Logbook', exact: true }).click();
 	await page.getByRole('button', { name: 'Add a sample flight' }).click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await expect(page).toHaveTitle('Sat, 4 Jul 2026 · Venti');

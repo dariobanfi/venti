@@ -9,11 +9,12 @@
 	import { asset } from '$app/paths';
 	import { page } from '$app/state';
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
-	import { logbookHref, mapHref } from './routes';
+	import { logbookHref, mapHref, settingsHref } from './routes';
 
 	const sections: { name: string; icon: IconName; href: () => string; root: string }[] = [
 		{ name: 'Map', icon: 'map', href: mapHref, root: '/' },
-		{ name: 'Logbook', icon: 'book', href: logbookHref, root: '/logbook' }
+		{ name: 'Logbook', icon: 'book', href: logbookHref, root: '/logbook' },
+		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings' }
 	];
 
 	/** The section the current page belongs to: the deepest one its route is under. */
@@ -79,9 +80,9 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.0625rem;
-		min-width: 6rem;
+		min-width: 5.5rem;
 		height: 100%;
-		padding: 0 1rem;
+		padding: 0 0.75rem;
 		border-radius: 999px;
 		font-size: var(--caption);
 		font-weight: 600;

@@ -94,6 +94,19 @@ export class WindSource {
 		};
 	}
 
+	/**
+	 * Whether this site has a Venti server behind it. A server that could
+	 * not be asked counts as one: what is wrong with it is said when it is
+	 * next needed.
+	 */
+	async present(): Promise<boolean> {
+		try {
+			return await this.#readClock();
+		} catch {
+			return true;
+		}
+	}
+
 	/** What a station measured over the last 24 hours. */
 	async stationHistory(stationId: string): Promise<StationHistory> {
 		const answer = await this.#get(stationHistoryPath(stationId));

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { AccountSource } from './account-source';
 import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
@@ -30,7 +31,9 @@ class SameProcess implements Channel {
 	postMessage({ id, call, given }: Request, transfer: Transferable[] = []): void {
 		this.transferred.push(...transfer);
 		void this.#session
-			.then((session) => answer({ session, wind: this.#wind }, call, given))
+			.then((session) =>
+				answer({ session, wind: this.#wind, account: account(session) }, call, given)
+			)
 			.then(
 				(result): Reply => ({ id, answer: result }),
 				(error): Reply => ({ id, failure: describeFailure(error) })
@@ -42,6 +45,14 @@ class SameProcess implements Channel {
 	changeElsewhere(): void {
 		this.onmessage?.({ data: { changedElsewhere: true } } as MessageEvent<Reply>);
 	}
+}
+
+/** An account on a server that is never asked in these tests. */
+function account(session: CoreSession): AccountSource {
+	const unreachable = async () => {
+		throw new Error('No server in this test.');
+	};
+	return new AccountSource(session, unreachable, 'https://venti.example', 'Test browser');
 }
 
 async function open() {

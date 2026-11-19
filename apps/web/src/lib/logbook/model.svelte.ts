@@ -31,8 +31,6 @@ export class LogbookModel {
 	private constructor(core: CoreClient, view: LogbookView) {
 		this.#core = core;
 		this.view = $state.raw(view);
-		// Another tab imported or deleted something: show what is stored now.
-		core.onChangedElsewhere = () => void this.#refresh();
 	}
 
 	/** Opens the logbook the browser holds for this site. */
@@ -89,7 +87,7 @@ export class LogbookModel {
 				this.progress = { done: index + 1, of: files.length };
 			}
 		} finally {
-			await this.#refresh();
+			await this.refresh();
 			this.progress = undefined;
 		}
 		return report;
@@ -137,12 +135,15 @@ export class LogbookModel {
 		try {
 			await this.#core.deleteFlight(id);
 		} finally {
-			await this.#refresh();
+			await this.refresh();
 		}
 	}
 
-	/** Asks the core for the logbook as it is now. */
-	async #refresh(): Promise<void> {
+	/**
+	 * Asks the core for the logbook as it is now: after a change made here,
+	 * by a sync with the server, or in another tab.
+	 */
+	async refresh(): Promise<void> {
 		try {
 			this.view = await this.#core.logbook();
 		} catch {

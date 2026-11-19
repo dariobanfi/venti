@@ -39,6 +39,8 @@ const MAX_FILE_BYTES: usize = 32 * 1024 * 1024;
 /// How the app treats an airspace, for a paraglider without a radio or a
 /// transponder. The table and its sources are in `docs/airspace.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum AirspacePolicy {
     /// Entering needs a clearance or equipment a paraglider normally
     /// lacks, or is forbidden while the airspace is active.
@@ -93,6 +95,8 @@ pub enum AirspaceOrigin {
 
 /// One airspace as a map draws it.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AirspaceShape {
     /// Its identifier.
     pub id: String,
@@ -162,6 +166,8 @@ pub struct AirspaceWarning {
 
 /// What importing an airspace file did.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AirspaceImport {
     /// How many airspaces the file gave.
     pub airspaces: u32,
@@ -178,6 +184,8 @@ pub struct AirspaceImport {
 
 /// One stored airspace file.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AirspaceFile {
     /// The name it is stored under, to delete it.
     pub stored_name: String,
@@ -448,10 +456,19 @@ impl Core {
             let Some((day, slug, name)) = stored_parts(&stored) else {
                 continue;
             };
-            // One file that cannot be read must not cost the pilot the
-            // airspace of the others. The list of files shows it as empty.
-            let Ok(Some(bytes)) = self.storage.read(&format!("{FOLDER}/{stored}")) else {
-                continue;
+            let bytes = match self.storage.read(&format!("{FOLDER}/{stored}")) {
+                Ok(Some(bytes)) => bytes,
+                // Not unreadable, only not fetched yet by storage that
+                // fetches on request. A set built without this file would
+                // draw and warn as if its airspace did not exist: the host
+                // fetches the file and asks again.
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    return Err(storage_error(error));
+                }
+                // One file that cannot be read must not cost the pilot the
+                // airspace of the others. The list of files shows it as
+                // empty.
+                _ => continue,
             };
             let source = source_for(&slug);
             let mut options = Options::new(source.clone());
@@ -1088,6 +1105,49 @@ AH FL 100
             assert!(error.to_string().contains(expected), "{error}");
         }
         assert!(core.airspace_files().unwrap().is_empty());
+    }
+
+    #[test]
+    fn storage_that_fetches_is_asked_for_every_file_before_any_airspace_is_given() {
+        // A browser's storage: it knows the two stored files by name and
+        // hands their contents over only after it was asked for them.
+        let stored =
+            ["20261118-zones.txt", "20261118-more.txt"].map(|name| format!("{FOLDER}/{name}"));
+        let other = FILE
+            .replace("CTR TEST", "CTR OTHER")
+            .replace("011:44:00", "011:50:00");
+        let contents = [FILE.as_bytes().to_vec(), other.into_bytes()];
+        let staged = Arc::new(crate::StagedStorage::new(stored.clone()));
+        let core = Core::with_storage(Arc::clone(&staged) as Arc<dyn crate::Storage>).unwrap();
+
+        // A set without the files not yet fetched would draw a map with
+        // airspace missing, and say nothing: the core asks instead, one
+        // file at a time, and builds no set until it has them all.
+        let mut asked = Vec::new();
+        let set = loop {
+            match core.airspace() {
+                Ok(set) => break set,
+                Err(error) => {
+                    assert!(matches!(error, CoreError::Storage { .. }), "{error:?}");
+                    let wanted = staged.take_wanted();
+                    assert_eq!(wanted.len(), 1, "{error}");
+                    let at = stored.iter().position(|name| *name == wanted[0]).unwrap();
+                    staged.provide(&wanted[0], Some(contents[at].clone()));
+                    asked.extend(wanted);
+                }
+            }
+        };
+        asked.sort();
+        let mut expected = stored.to_vec();
+        expected.sort();
+        assert_eq!(asked, expected);
+        // A control zone from each file, and the danger area both have, once.
+        assert_eq!(set.count(), 3);
+
+        // The set is kept: the files can leave memory again.
+        staged.release();
+        assert_eq!(core.airspace().unwrap().count(), 3);
+        assert!(staged.take_wanted().is_empty());
     }
 
     #[test]

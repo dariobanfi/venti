@@ -52,7 +52,11 @@ export const test = base.extend<Fixtures>({
 		const problems: string[] = [];
 		page.on('pageerror', (error) => problems.push(error.message));
 		page.on('console', (message) => {
-			if (message.type() === 'error') problems.push(message.text());
+			// A request that failed is named with its address, to be found again.
+			const address = message.location().url;
+			if (message.type() === 'error') {
+				problems.push(address ? `${message.text()} (${address})` : message.text());
+			}
 		});
 		await use(problems);
 	},

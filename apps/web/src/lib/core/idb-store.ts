@@ -7,7 +7,9 @@
  *
  * - `files`: a file's bytes under its name, exactly the names the core uses
  *   on a phone's disk.
- * - `meta`: the store's revision, a counter that goes up with every change.
+ * - `meta`: the store's revision, a counter that goes up with every change,
+ *   and the session token of the pilot's account. The token is not one of
+ *   the core's files and the core never reads it.
  *
  * Every change is one transaction over both, and it first checks that the
  * revision is still the one the tab last saw. Two tabs therefore cannot
@@ -20,6 +22,7 @@ import { type FileChange, type FileStore, type Snapshot, StaleStoreError } from 
 const FILES = 'files';
 const META = 'meta';
 const REVISION = 'revision';
+const TOKEN = 'session-token';
 
 export class IdbStore implements FileStore {
 	readonly durable = true;
@@ -74,7 +77,7 @@ export class IdbStore implements FileStore {
 		return result<Uint8Array | undefined>(transaction.objectStore(FILES).get(name));
 	}
 
-	async commit(changes: FileChange[], revision: number): Promise<number> {
+	async commit(changes: FileChange[], revision: number, token?: string | null): Promise<number> {
 		const transaction = this.#database.transaction([FILES, META], 'readwrite');
 		const finished = completion(transaction);
 		const meta = transaction.objectStore(META);
@@ -91,12 +94,26 @@ export class IdbStore implements FileStore {
 			if (contents) files.put(contents, name);
 			else files.delete(name);
 		}
+		if (token === null) meta.delete(TOKEN);
+		else if (token !== undefined) meta.put(token, TOKEN);
 		meta.put(revision + 1, REVISION);
 		// A full disk shows here: the transaction aborts and nothing of it is kept.
 		await finished;
 
 		this.#channel?.postMessage(revision + 1);
 		return revision + 1;
+	}
+
+	token(): Promise<string | undefined> {
+		const transaction = this.#database.transaction(META, 'readonly');
+		return result<string | undefined>(transaction.objectStore(META).get(TOKEN));
+	}
+
+	async forgetToken(): Promise<void> {
+		const transaction = this.#database.transaction(META, 'readwrite');
+		const finished = completion(transaction);
+		transaction.objectStore(META).delete(TOKEN);
+		await finished;
 	}
 
 	onChangedElsewhere(listener: () => void): () => void {

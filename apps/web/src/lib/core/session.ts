@@ -7,18 +7,23 @@
  * the writing and repeats the call. `crates/core-wasm` describes the core's
  * side.
  *
- * Nothing here knows what a flight is. Every rule about the logbook is in
- * the core.
+ * Nothing here knows what a flight is. Every rule about the logbook, the
+ * account and airspace is in the core.
  */
 
-import { Core, StoredFiles } from './pkg/venti_core_wasm.js';
+import { Core, type FlightSync, StoredFiles } from './pkg/venti_core_wasm.js';
 import type {
+	AirspaceFile,
+	AirspaceImport,
+	AirspaceShape,
+	Bounds,
 	FlightAnalysis,
 	FlightFile,
 	FlightView,
 	ImportedFlight,
 	LogbookStatistics,
-	LogbookView
+	LogbookView,
+	SyncStep
 } from './pkg/venti_core_wasm.js';
 import { type FileStore, StaleStoreError } from './store';
 
@@ -31,12 +36,34 @@ const FETCHED_AT_ONCE = 8;
 /** How often a change is tried again when another tab keeps changing the store first. */
 const ATTEMPTS = 4;
 
+/**
+ * What a change does to the session token kept beside the files: a token
+ * to keep from now on, `null` to forget the one kept, nothing to leave it.
+ */
+export type TokenChange = string | null | undefined;
+
+/**
+ * One run of the core's sync: the core says what to send to the server and
+ * reads each answer, and what a step changed is stored before the next one
+ * is taken. `account-source.ts` sends the requests in between.
+ */
+export interface SyncRun {
+	/** Begins. `nowUnixS` is kept as the time of the sync. */
+	start(nowUnixS: number): Promise<SyncStep>;
+	/** Takes the server's answer to the request of the step before. */
+	receive(status: number, body: Uint8Array, retryAfterS: number | undefined): Promise<SyncStep>;
+	/** Lets go of the run, finished or not. */
+	end(): void;
+}
+
 export class CoreSession {
 	#store: FileStore;
 	#files!: StoredFiles;
 	#core!: Core;
 	/** The store's revision that `#files` describes. */
 	#revision = 0;
+	/** How many times the core has been built from the store. */
+	#generation = 0;
 	/** The end of the queue of calls: they run one at a time. */
 	#last: Promise<unknown> = Promise.resolve();
 	#stopListening: () => void;
@@ -82,25 +109,119 @@ export class CoreSession {
 	}
 
 	importFlight(igcText: string): Promise<ImportedFlight> {
-		return this.#change((core) => core.importFlight(igcText));
+		return this.change((core) => core.importFlight(igcText));
 	}
 
 	flight(id: string): Promise<FlightView> {
-		return this.#inTurn(() => fetching(this.#files, this.#store, () => this.#core.flight(id)));
+		return this.ask((core) => core.flight(id));
 	}
 
 	flightAnalysis(id: string): Promise<FlightAnalysis> {
-		return this.#inTurn(() =>
-			fetching(this.#files, this.#store, () => this.#core.flightAnalysis(id))
-		);
+		return this.ask((core) => core.flightAnalysis(id));
 	}
 
 	flightFile(id: string): Promise<FlightFile> {
-		return this.#inTurn(() => fetching(this.#files, this.#store, () => this.#core.flightFile(id)));
+		return this.ask((core) => core.flightFile(id));
 	}
 
 	deleteFlight(id: string): Promise<void> {
-		return this.#change((core) => core.deleteFlight(id));
+		return this.change((core) => core.deleteFlight(id));
+	}
+
+	/** Takes in an airspace file as the pilot picked or dropped it. */
+	importAirspace(fileName: string, bytes: Uint8Array, nowUnixS: number): Promise<AirspaceImport> {
+		return this.change((core) => core.importAirspace(fileName, bytes, nowUnixS));
+	}
+
+	/** The airspace files the pilot has brought in. */
+	airspaceFiles(): Promise<AirspaceFile[]> {
+		return this.ask((core) => core.airspaceFiles());
+	}
+
+	deleteAirspaceFile(storedName: string): Promise<void> {
+		return this.change((core) => core.deleteAirspaceFile(storedName));
+	}
+
+	/** The airspaces that touch a box of the map. */
+	airspaceIn(box: Bounds): Promise<AirspaceShape[]> {
+		return this.ask((core) => core.airspaceIn(box.south, box.west, box.north, box.east));
+	}
+
+	/**
+	 * Asks the core something that changes nothing, fetching the stored
+	 * files the answer turns out to need.
+	 */
+	ask<T>(call: (core: Core) => T): Promise<T> {
+		return this.#inTurn(() => fetching(this.#files, this.#store, () => call(this.#core)));
+	}
+
+	/**
+	 * Makes a call that changes what is stored, and stores the change. Only
+	 * when it is stored does the caller hear that it worked.
+	 *
+	 * `token` says, from the call's result, what becomes of the session
+	 * token: it is written with the change or not at all.
+	 */
+	change<T>(call: (core: Core) => T, token?: (result: T) => TokenChange): Promise<T> {
+		return this.#inTurn(async () => {
+			for (let attempt = 1; ; attempt += 1) {
+				const result = await fetching(this.#files, this.#store, () => call(this.#core));
+				try {
+					await this.#commit(token?.(result));
+					return result;
+				} catch (error) {
+					// The core now believes in a change the store does not
+					// hold. Start again from the store, whatever went wrong.
+					await this.#load();
+					// Another tab got there first: its change is in now, so
+					// the call is made again and may well turn out differently.
+					if (!(error instanceof StaleStoreError) || attempt === ATTEMPTS) throw error;
+				}
+			}
+		});
+	}
+
+	/** The session token of the account this browser is signed in to, if any. */
+	token(): Promise<string | undefined> {
+		return this.#store.token();
+	}
+
+	/** Forgets the session token, when the server no longer takes it. */
+	forgetToken(): Promise<void> {
+		return this.#store.forgetToken();
+	}
+
+	/**
+	 * Starts a run of the core's sync. Other calls take their turns between
+	 * its steps, so the page stays usable while flights travel.
+	 *
+	 * A run belongs to the core that began it. When the store changes behind
+	 * that core, in another tab or because a step could not be stored, the
+	 * run's next step throws a {@link StaleStoreError}: every step before it
+	 * is stored, and a new run goes on from there.
+	 */
+	async beginSync(): Promise<SyncRun> {
+		const { run, generation } = await this.#inTurn(async () => ({
+			run: this.#core.sync(),
+			generation: this.#generation
+		}));
+		const step = (take: (run: FlightSync) => SyncStep) =>
+			this.#inTurn(async () => {
+				if (generation !== this.#generation) throw new StaleStoreError();
+				const result = await fetching(this.#files, this.#store, () => take(run));
+				try {
+					await this.#commit();
+					return result;
+				} catch (error) {
+					await this.#load();
+					throw error;
+				}
+			});
+		return {
+			start: (nowUnixS) => step((run) => run.start(nowUnixS)),
+			receive: (status, body, retryAfterS) => step((run) => run.receive(status, body, retryAfterS)),
+			end: () => run.free()
+		};
 	}
 
 	/** Starts again from what is stored. */
@@ -115,34 +236,11 @@ export class CoreSession {
 		this.#store.close();
 	}
 
-	/**
-	 * Makes a call that changes the logbook and stores the change. Only
-	 * when it is stored does the caller hear that it worked.
-	 */
-	#change<T>(call: (core: Core) => T): Promise<T> {
-		return this.#inTurn(async () => {
-			for (let attempt = 1; ; attempt += 1) {
-				const result = await fetching(this.#files, this.#store, () => call(this.#core));
-				try {
-					await this.#commit();
-					return result;
-				} catch (error) {
-					// The core now believes in a change the store does not
-					// hold. Start again from the store, whatever went wrong.
-					await this.#load();
-					// Another tab got there first: its change is in now, so
-					// the call is made again and may well turn out differently.
-					if (!(error instanceof StaleStoreError) || attempt === ATTEMPTS) throw error;
-				}
-			}
-		});
-	}
-
 	/** Hands the core's staged changes to the store. */
-	async #commit(): Promise<void> {
+	async #commit(token?: TokenChange): Promise<void> {
 		const changes = this.#files.takeStaged();
-		if (changes.length > 0) {
-			this.#revision = await this.#store.commit(changes, this.#revision);
+		if (changes.length > 0 || token !== undefined) {
+			this.#revision = await this.#store.commit(changes, this.#revision, token);
 		}
 	}
 
@@ -163,6 +261,7 @@ export class CoreSession {
 		this.#files = files;
 		this.#core = core;
 		this.#revision = revision;
+		this.#generation += 1;
 		old.core?.free();
 		old.files?.free();
 

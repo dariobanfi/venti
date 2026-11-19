@@ -160,7 +160,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map and the Logbook; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map, the Logbook and, under Settings, the pilot's account; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -184,6 +184,15 @@ Where the web's wind differs from the iPhone's:
 - **A station's chart** is read by a mouse passing over it, by a finger dragged along it, and by the arrow keys one reading at a time.
 - **The arrow in the list** has the white edge it has on the map. Without it the darkest blue is lost on a dark surface.
 
+Where the web's account and sharing differ from the iPhone's:
+
+- **No server address.** The account is on the server the site is served from, whose name stands over the form. A site without a server says so instead of offering a form.
+- **Refusals stand where they belong**, not in an alert: under the fields of the form, in the dialog that asks for the password, among the rows about the logbook. The words are the core's.
+- **What the last sync did** is a row of its own: "3 sent, 1 fetched".
+- **The link** of a shared flight opens its page in a new tab, and a button copies it; a browser has no share sheet to hand it to.
+- **Deleting a flight** says, when signed in, that the server's copy and those on the pilot's other devices go with it.
+- **Passwords** are fields a password manager recognises: the handle as the user name, the password as a current or a new one.
+
 What stands in for the system:
 
 | On the iPhone | In the browser |
@@ -195,6 +204,8 @@ What stands in for the system:
 | SF Symbols | A small set of outline icons drawn for the app (`apps/web/src/lib/design/Icon.svelte`). |
 | Alerts, sheets, menus | The browser's dialog and popover, which bring focus handling, Escape and the dimmed background with them. |
 | Swipe to delete | The flight screen's menu, and on a wide screen a button on the row. |
+| The grouped list of a settings screen | Rows on a rounded surface, with what they are about above it and a line of explanation below. A text field is a row with its name in front. |
+| The segmented control | A row of radio buttons drawn as segments, the chosen one raised. |
 | Accessibility settings | "Reduce motion" stops the animations; "reduce transparency" and "increase contrast" turn glass into a solid surface. |
 
 Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.

@@ -8,12 +8,19 @@
  * something.
  */
 
+import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
 import { flightFileText } from './flight-text';
 import type {
+	AccountView,
+	AirspaceFile,
+	AirspaceImport,
+	AirspaceShape,
 	Bounds,
 	FlightAnalysis,
 	FlightFile,
+	FlightSharing,
 	FlightView,
+	FlightVisibility,
 	ImportedFlight,
 	LogbookStatistics,
 	LogbookView,
@@ -46,6 +53,27 @@ export interface Calls {
 	wind: { given: Bounds; answer: WindAnswer | undefined };
 	/** Given a station's identifier: what it measured over the last 24 hours. */
 	stationHistory: { given: string; answer: StationHistory };
+	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
+	hasServer: { given: undefined; answer: boolean };
+	/** The account this browser is signed in to, if any. */
+	account: { given: undefined; answer: AccountView | undefined };
+	signIn: { given: { handle: string; password: string }; answer: AccountView };
+	createAccount: { given: NewAccount; answer: AccountView };
+	signOut: { given: undefined; answer: undefined };
+	/** Given the password: deletes the account on the server. */
+	deleteAccount: { given: string; answer: undefined };
+	/** Brings the logbook and the server in step. */
+	sync: { given: undefined; answer: SyncOutcome };
+	/** Given a flight's identifier: how it is shared, if the server has it. */
+	flightSharing: { given: string; answer: FlightSharing | undefined };
+	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
+	/** An airspace file's name and bytes, as the pilot picked or dropped it. */
+	importAirspace: { given: { name: string; bytes: ArrayBuffer }; answer: AirspaceImport };
+	airspaceFiles: { given: undefined; answer: AirspaceFile[] };
+	/** Given the name a file is stored under. */
+	deleteAirspaceFile: { given: string; answer: undefined };
+	/** The airspaces that touch a box of the map. */
+	airspaceIn: { given: Bounds; answer: AirspaceShape[] };
 }
 
 export type CallName = keyof Calls;
@@ -65,15 +93,16 @@ export type Reply =
 	/** Not an answer: another tab changed the logbook, and the core has caught up. */
 	| { changedElsewhere: true };
 
-/** What answers the calls: the logbook's core, and the way to the wind server. */
+/** What answers the calls: the core over the browser's store, and the ways to the server. */
 export interface Answering {
 	session: CoreSession;
 	wind: WindSource;
+	account: AccountSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind }: Answering,
+	{ session, wind, account }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -87,14 +116,28 @@ export async function answer<Name extends CallName>(
 		flightFile: (id) => session.flightFile(id),
 		deleteFlight: (id) => session.deleteFlight(id),
 		wind: (box) => wind.windMap(box),
-		stationHistory: (id) => wind.stationHistory(id)
+		stationHistory: (id) => wind.stationHistory(id),
+		hasServer: () => wind.present(),
+		account: () => account.account(),
+		signIn: ({ handle, password }) => account.signIn(handle, password),
+		createAccount: (wanted) => account.createAccount(wanted),
+		signOut: () => account.signOut(),
+		deleteAccount: (password) => account.deleteAccount(password),
+		sync: () => account.sync(),
+		flightSharing: (id) => account.sharing(id),
+		shareFlight: ({ id, visibility }) => account.share(id, visibility),
+		importAirspace: ({ name, bytes }) =>
+			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
+		airspaceFiles: () => session.airspaceFiles(),
+		deleteAirspaceFile: (storedName) => session.deleteAirspaceFile(storedName),
+		airspaceIn: (box) => session.airspaceIn(box)
 	};
 	return (await answers[call](given)) as Calls[Name]['answer'];
 }
 
 /**
- * The name of the error for a wind server that gave no answer at all. Like
- * the core's own errors, its message is written for the pilot.
+ * The name of the error for a server that gave no answer at all. Like the
+ * core's own errors, its message is written for the pilot.
  */
 export const UNREACHABLE = 'Unreachable';
 

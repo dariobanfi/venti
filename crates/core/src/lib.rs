@@ -466,6 +466,9 @@ impl Core {
 
     /// Removes a flight from the logbook for good.
     pub fn delete_flight(&self, id: String) -> Result<(), CoreError> {
+        // Storage that has yet to fetch the account says so now, while
+        // nothing is deleted and the call can be made again.
+        self.account_at_hand()?;
         self.logbook.delete(&id)?;
         // With an account, the server's copy goes at the next sync.
         self.note_flight_deleted(&id);

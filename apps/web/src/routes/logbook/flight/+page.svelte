@@ -16,6 +16,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
 	import { saveFile } from '#lib/logbook/flight-file.ts';
+	import { deletionWarning } from '#lib/logbook/import-report.ts';
 	import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
 	const app = getApp();
@@ -86,7 +87,7 @@
 		confirmingDelete = false;
 		if (!id || !app.logbook) return;
 		try {
-			await app.logbook.delete(id);
+			await app.deleteFlight(id);
 			await goto(logbookHref());
 		} catch (error) {
 			phase = { is: 'failed', message: reasonFor(error) };
@@ -126,7 +127,7 @@
 <ConfirmDialog
 	open={confirmingDelete}
 	title="Delete this flight?"
-	message="Its file is removed from this browser. This cannot be undone."
+	message={deletionWarning(app.account?.signedIn ?? false)}
 	confirm="Delete flight"
 	onconfirm={deleteFlight}
 	oncancel={() => (confirmingDelete = false)}

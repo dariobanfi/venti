@@ -31,6 +31,7 @@ use venti_api_types::v1::{
     SignInResponse, UpdateFlightRequest, UploadResponse, Visibility,
 };
 
+use crate::logbook::LogbookError;
 use crate::server::{answer, code, refusal};
 use crate::{Core, CoreError};
 
@@ -42,6 +43,8 @@ const CHANGES_AT_A_TIME: usize = 100;
 
 /// A request for the shell to send to the Venti server.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ServerRequest {
     /// The HTTP method: `GET`, `POST`, `PUT`, `PATCH` or `DELETE`.
     pub method: String,
@@ -49,6 +52,8 @@ pub struct ServerRequest {
     pub path: String,
     /// The body, if the request has one. It may hold a password: do not
     /// log it.
+    #[cfg_attr(feature = "wasm", serde(serialize_with = "as_bytes"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "Uint8Array | undefined"))]
     pub body: Option<Vec<u8>>,
     /// The body's content type, if it has a body.
     pub content_type: Option<String>,
@@ -59,6 +64,11 @@ pub struct ServerRequest {
 
 /// Who may see a flight on the server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum FlightVisibility {
     /// Only its pilot.
     Private,
@@ -70,6 +80,8 @@ pub enum FlightVisibility {
 
 /// The account this device is signed in to.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AccountView {
     /// The server, as an address without a slash at the end.
     pub server: String,
@@ -91,6 +103,8 @@ pub struct AccountView {
 
 /// The result of signing in or creating an account.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SignedIn {
     /// The account.
     pub account: AccountView,
@@ -101,6 +115,8 @@ pub struct SignedIn {
 
 /// How a flight is shared.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightSharing {
     /// Who may see it.
     pub visibility: FlightVisibility,
@@ -111,6 +127,11 @@ pub struct FlightSharing {
 
 /// What a sync did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SyncSummary {
     /// Flights sent to the server.
     pub sent: u32,
@@ -124,8 +145,39 @@ pub struct SyncSummary {
     pub refused: u32,
 }
 
+/// What a sync did, in a line for the pilot: "3 sent, 1 fetched". The same
+/// words on every platform.
+#[uniffi::export]
+pub fn sync_summary_in_words(summary: SyncSummary) -> String {
+    let parts: Vec<String> = [
+        (summary.sent, "sent"),
+        (summary.fetched, "fetched"),
+        (summary.removed_here, "removed here"),
+        (summary.removed_there, "removed on the server"),
+        (summary.refused, "not taken by the server"),
+    ]
+    .into_iter()
+    .filter(|(flights, _)| *flights > 0)
+    .map(|(flights, what)| format!("{flights} {what}"))
+    .collect();
+    if parts.is_empty() {
+        "Nothing to send or fetch".to_owned()
+    } else {
+        parts.join(", ")
+    }
+}
+
 /// What the shell does next in a sync.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    serde(
+        tag = "kind",
+        rename_all = "camelCase",
+        rename_all_fields = "camelCase"
+    )
+)]
 pub enum SyncStep {
     /// Send this request and pass the answer to `receive`.
     Send {
@@ -388,12 +440,30 @@ impl Core {
 
 impl Core {
     fn stored_account(&self) -> Result<Option<Stored>, CoreError> {
-        let Some(bytes) = self.storage.read(FILE).map_err(storage_error)? else {
+        self.read_account().map_err(storage_error)
+    }
+
+    /// The stored account, with the storage's own error: a caller that
+    /// must leave everything as it was when the file has yet to be fetched
+    /// ([`io::ErrorKind::WouldBlock`]) can tell.
+    fn read_account(&self) -> io::Result<Option<Stored>> {
+        let Some(bytes) = self.storage.read(FILE)? else {
             return Ok(None);
         };
         // A file that cannot be read is as good as no account: the pilot
         // signs in again and nothing but the sync's memory is lost.
         Ok(serde_json::from_slice(&bytes).ok())
+    }
+
+    /// Fails if the stored account has yet to be fetched by the storage,
+    /// and only then. Called before a flight is deleted: afterwards the
+    /// deletion could no longer be noted for the server, and the flight
+    /// would come back with the next sync.
+    pub(crate) fn account_at_hand(&self) -> Result<(), CoreError> {
+        match self.read_account() {
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => Err(storage_error(error)),
+            _ => Ok(()),
+        }
     }
 
     fn store_account(&self, stored: &Stored) -> Result<(), CoreError> {
@@ -470,13 +540,37 @@ struct Progress {
     summary: SyncSummary,
 }
 
-/// The request whose answer is awaited.
+/// What the sync waits for.
 #[derive(Debug)]
 enum Waiting {
-    Deletion { identity: String },
+    Deletion {
+        identity: String,
+    },
     Changes,
-    File { identity: String },
-    Upload { identity: String },
+    File {
+        identity: String,
+    },
+    Upload {
+        identity: String,
+    },
+    /// Not an answer: the last one was taken in, and the step after it
+    /// needs a stored file that the storage has yet to fetch.
+    Storage,
+}
+
+/// Why a step did not come about.
+enum Halt {
+    /// The storage has yet to fetch a file ([`io::ErrorKind::WouldBlock`]).
+    /// The same call goes through once it has.
+    Fetch(CoreError),
+    /// The sync is over, as the step says.
+    Over(SyncStep),
+}
+
+impl From<SyncStep> for Halt {
+    fn from(step: SyncStep) -> Self {
+        Self::Over(step)
+    }
 }
 
 #[uniffi::export]
@@ -484,6 +578,38 @@ impl FlightSync {
     /// Begins. `now_unix_s` is the current time, kept as the time of the
     /// sync.
     pub fn start(&self, now_unix_s: i64) -> SyncStep {
+        settled(self.try_start(now_unix_s))
+    }
+
+    /// Takes the server's answer to the last request. `retry_after_s` is
+    /// the answer's `Retry-After` header, if it had one.
+    pub fn receive(&self, status: u16, body: Vec<u8>, retry_after_s: Option<u32>) -> SyncStep {
+        settled(self.try_receive(status, &body, retry_after_s))
+    }
+}
+
+impl FlightSync {
+    /// [`start`](Self::start) for a host whose storage hands a file over
+    /// only after it was asked for it ([`crate::StagedStorage`]). An error
+    /// says that a stored file has to be fetched first: the host fetches
+    /// what the storage wants and makes the same call again.
+    pub fn start_when_fetched(&self, now_unix_s: i64) -> Result<SyncStep, CoreError> {
+        fetched(self.try_start(now_unix_s))
+    }
+
+    /// [`receive`](Self::receive) for such a host. After an error the host
+    /// fetches what the storage wants and makes the same call again, with
+    /// the same answer; the answer is taken in once however often that is.
+    pub fn receive_when_fetched(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<SyncStep, CoreError> {
+        fetched(self.try_receive(status, body, retry_after_s))
+    }
+
+    fn try_start(&self, now_unix_s: i64) -> Result<SyncStep, Halt> {
         let mut progress = self.lock();
         *progress = Progress {
             now_unix_s,
@@ -492,27 +618,55 @@ impl FlightSync {
         self.next(&mut progress)
     }
 
-    /// Takes the server's answer to the last request. `retry_after_s` is
-    /// the answer's `Retry-After` header, if it had one.
-    pub fn receive(&self, status: u16, body: Vec<u8>, retry_after_s: Option<u32>) -> SyncStep {
+    fn try_receive(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<SyncStep, Halt> {
         let mut progress = self.lock();
-        let Some(waiting) = progress.waiting_for.take() else {
-            return failed("Nothing was asked of the server.", false);
+        if progress.waiting_for.is_none() {
+            return Ok(failed("Nothing was asked of the server.", false));
+        }
+        // An answer is taken in once. If the call that did so then had to
+        // wait for the storage, this one only goes on from there.
+        if !matches!(progress.waiting_for, Some(Waiting::Storage)) {
+            self.take_in(&mut progress, status, body, retry_after_s)?;
+        }
+        progress.waiting_for = None;
+        let step = self.next(&mut progress);
+        if matches!(step, Err(Halt::Fetch(_))) {
+            progress.waiting_for = Some(Waiting::Storage);
+        }
+        step
+    }
+
+    /// Applies the server's answer to the request that is waiting for one,
+    /// and saves what was learned.
+    fn take_in(
+        &self,
+        progress: &mut Progress,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<(), Halt> {
+        // Read before anything is changed: if the storage has yet to fetch
+        // the account, the request goes on waiting for this same answer.
+        let Some(mut stored) = self.account()? else {
+            return Err(failed("This device is not signed in.", true).into());
         };
-        let mut stored = match self.core.stored_account() {
-            Ok(Some(stored)) => stored,
-            Ok(None) => return failed("This device is not signed in.", true),
-            Err(error) => return failed(&error.to_string(), false),
+        let Some(waiting) = progress.waiting_for.take() else {
+            return Ok(());
         };
 
         // What holds for every request.
         if status == 401 {
             stored.session_id.clear();
             let _ = self.core.store_account(&stored);
-            return failed("This device is no longer signed in. Sign in again.", true);
+            return Err(failed("This device is no longer signed in. Sign in again.", true).into());
         }
         if status == 429 || status == 503 {
-            return failed(
+            return Err(failed(
                 &match retry_after_s {
                     Some(seconds) if seconds > 90 => format!(
                         "The server asks to wait {} minutes. What was done so far is kept.",
@@ -524,22 +678,23 @@ impl FlightSync {
                     None => "The server is busy. Try again in a moment.".to_owned(),
                 },
                 false,
-            );
+            )
+            .into());
         }
 
         match waiting {
             Waiting::Deletion { identity } => {
                 // Gone already is as good as deleted.
                 if !(200..300).contains(&status) && status != 404 {
-                    return failed(&refusal(status, &body).to_string(), false);
+                    return Err(failed(&refusal(status, body).to_string(), false).into());
                 }
                 stored.deleted_here.remove(&identity);
                 progress.summary.removed_there += 1;
             }
             Waiting::Changes => {
-                let changes: FlightChangesResponse = match answer(status, &body) {
+                let changes: FlightChangesResponse = match answer(status, body) {
                     Ok(changes) => changes,
-                    Err(error) => return failed(&error.to_string(), false),
+                    Err(error) => return Err(failed(&error.to_string(), false).into()),
                 };
                 if changes.reset {
                     // The server no longer knows where this device read up
@@ -586,7 +741,7 @@ impl FlightSync {
             }
             Waiting::File { identity } => match status {
                 200..=299 => {
-                    let text = String::from_utf8_lossy(&body);
+                    let text = String::from_utf8_lossy(body);
                     if self.core.logbook.import(&text).is_ok() {
                         progress.summary.fetched += 1;
                     }
@@ -596,13 +751,13 @@ impl FlightSync {
                 404 => {
                     stored.flights.remove(&identity);
                 }
-                _ => return failed(&refusal(status, &body).to_string(), false),
+                _ => return Err(failed(&refusal(status, body).to_string(), false).into()),
             },
             Waiting::Upload { identity } => match status {
                 200..=299 => {
-                    let response: UploadResponse = match answer(status, &body) {
+                    let response: UploadResponse = match answer(status, body) {
                         Ok(response) => response,
-                        Err(error) => return failed(&error.to_string(), false),
+                        Err(error) => return Err(failed(&error.to_string(), false).into()),
                     };
                     stored.flights.insert(
                         identity,
@@ -620,37 +775,49 @@ impl FlightSync {
                     progress.summary.refused += 1;
                 }
                 _ => {
-                    return failed(
-                        &match code(&body) {
-                            Some(_) => refusal(status, &body).to_string(),
+                    return Err(failed(
+                        &match code(body) {
+                            Some(_) => refusal(status, body).to_string(),
                             None => format!("The server did not take a flight (status {status})."),
                         },
                         false,
-                    );
+                    )
+                    .into());
                 }
             },
+            // Not a request: `try_receive` never comes here with it.
+            Waiting::Storage => {}
         }
 
-        if let Err(error) = self.core.store_account(&stored) {
-            return failed(&error.to_string(), false);
-        }
-        self.next(&mut progress)
+        self.core
+            .store_account(&stored)
+            .map_err(|error| failed(&error.to_string(), false).into())
     }
-}
 
-impl FlightSync {
     fn lock(&self) -> MutexGuard<'_, Progress> {
         self.progress
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// The next request, or the end.
-    fn next(&self, progress: &mut Progress) -> SyncStep {
-        let mut stored = match self.core.stored_account() {
-            Ok(Some(stored)) if !stored.session_id.is_empty() => stored,
-            Ok(_) => return failed("This device is not signed in.", true),
-            Err(error) => return failed(&error.to_string(), false),
+    /// The stored account, or why the sync cannot go on.
+    fn account(&self) -> Result<Option<Stored>, Halt> {
+        self.core.read_account().map_err(|error| {
+            if error.kind() == io::ErrorKind::WouldBlock {
+                Halt::Fetch(storage_error(error))
+            } else {
+                Halt::Over(failed(&storage_error(error).to_string(), false))
+            }
+        })
+    }
+
+    /// The next request, or the end. Nothing the server said is waited
+    /// for when this is called, and nothing is lost if it has to be called
+    /// again because the storage had a file to fetch.
+    fn next(&self, progress: &mut Progress) -> Result<SyncStep, Halt> {
+        let mut stored = match self.account()? {
+            Some(stored) if !stored.session_id.is_empty() => stored,
+            _ => return Ok(failed("This device is not signed in.", true)),
         };
 
         // 1. What was deleted here is deleted there.
@@ -665,13 +832,13 @@ impl FlightSync {
             progress.waiting_for = Some(Waiting::Deletion {
                 identity: identity.clone(),
             });
-            return SyncStep::Send { request };
+            return Ok(SyncStep::Send { request });
         }
 
         // 2. What changed there is learned.
         if !progress.pulled {
             progress.waiting_for = Some(Waiting::Changes);
-            return SyncStep::Send {
+            return Ok(SyncStep::Send {
                 request: ServerRequest {
                     method: "GET".to_owned(),
                     path: FlightChangesRequest {
@@ -683,13 +850,13 @@ impl FlightSync {
                     content_type: None,
                     needs_token: true,
                 },
-            };
+            });
         }
 
         // 3. What this device lacks is fetched.
         if let Some((identity, address)) = progress.to_fetch.pop_front() {
             progress.waiting_for = Some(Waiting::File { identity });
-            return SyncStep::Send {
+            return Ok(SyncStep::Send {
                 request: ServerRequest {
                     method: "GET".to_owned(),
                     path: format!("{}/{address}/igc", api::FLIGHTS_PATH),
@@ -697,7 +864,7 @@ impl FlightSync {
                     content_type: None,
                     needs_token: true,
                 },
-            };
+            });
         }
 
         // 4. What the server lacks is sent, one flight after another.
@@ -708,30 +875,56 @@ impl FlightSync {
                 .filter(|id| !stored.flights.contains_key(id) && !stored.refused.contains(id))
                 .collect()
         });
-        while let Some(identity) = to_send.pop_front() {
-            // A flight whose file cannot be read stays where it is.
-            let Ok(file) = self.core.flight_file(identity.clone()) else {
-                continue;
+        while let Some(identity) = to_send.front().cloned() {
+            let text = match self.core.logbook.flight_text(&identity) {
+                Ok(text) => text,
+                // The storage has yet to fetch the file. The flight keeps
+                // its place in the queue until it has.
+                Err(LogbookError::Storage(error)) if error.kind() == io::ErrorKind::WouldBlock => {
+                    return Err(Halt::Fetch(CoreError::from(LogbookError::Storage(error))));
+                }
+                // A flight whose file cannot be read stays where it is.
+                Err(_) => {
+                    to_send.pop_front();
+                    continue;
+                }
             };
+            to_send.pop_front();
             progress.waiting_for = Some(Waiting::Upload { identity });
-            return SyncStep::Send {
+            return Ok(SyncStep::Send {
                 request: ServerRequest {
                     method: "POST".to_owned(),
                     path: api::FLIGHTS_PATH.to_owned(),
-                    body: Some(file.igc_text.into_bytes()),
+                    body: Some(text.into_bytes()),
                     content_type: Some("application/octet-stream".to_owned()),
                     needs_token: true,
                 },
-            };
+            });
         }
 
         stored.last_sync_unix_s = Some(progress.now_unix_s);
         if let Err(error) = self.core.store_account(&stored) {
-            return failed(&error.to_string(), false);
+            return Ok(failed(&error.to_string(), false));
         }
-        SyncStep::Finished {
+        Ok(SyncStep::Finished {
             summary: progress.summary,
-        }
+        })
+    }
+}
+
+/// A step for a shell whose storage never makes it wait: the phones'.
+fn settled(step: Result<SyncStep, Halt>) -> SyncStep {
+    match step {
+        Ok(step) | Err(Halt::Over(step)) => step,
+        Err(Halt::Fetch(error)) => failed(&error.to_string(), false),
+    }
+}
+
+/// A step for a host that fetches what the storage wants and calls again.
+fn fetched(step: Result<SyncStep, Halt>) -> Result<SyncStep, CoreError> {
+    match step {
+        Ok(step) | Err(Halt::Over(step)) => Ok(step),
+        Err(Halt::Fetch(error)) => Err(error),
     }
 }
 
@@ -757,6 +950,19 @@ fn not_signed_in() -> CoreError {
 fn storage_error(error: io::Error) -> CoreError {
     CoreError::Storage {
         message: format!("The account could not be read or written: {error}."),
+    }
+}
+
+/// A request's body for JavaScript: bytes as a `Uint8Array`, not as a list
+/// of numbers.
+#[cfg(feature = "wasm")]
+fn as_bytes<S: serde::Serializer>(
+    bytes: &Option<Vec<u8>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    match bytes {
+        Some(bytes) => serializer.serialize_bytes(bytes),
+        None => serializer.serialize_none(),
     }
 }
 
@@ -1302,5 +1508,257 @@ mod tests {
         assert_eq!(core.account().unwrap(), None);
         // The logbook on this device is the pilot's and stays.
         assert_eq!(core.logbook().totals.flights, 1);
+    }
+
+    #[test]
+    fn what_a_sync_did_is_said_in_a_line() {
+        let said = |summary: SyncSummary| sync_summary_in_words(summary);
+        assert_eq!(said(SyncSummary::default()), "Nothing to send or fetch");
+        assert_eq!(
+            said(SyncSummary {
+                sent: 3,
+                fetched: 1,
+                ..SyncSummary::default()
+            }),
+            "3 sent, 1 fetched"
+        );
+        assert_eq!(
+            said(SyncSummary {
+                sent: 0,
+                fetched: 0,
+                removed_here: 2,
+                removed_there: 1,
+                refused: 1,
+            }),
+            "2 removed here, 1 removed on the server, 1 not taken by the server"
+        );
+    }
+
+    /// A browser: a store that can only be read and written with a wait,
+    /// the storage in front of it, and the page's part done by hand.
+    struct Browser {
+        store: BTreeMap<String, Vec<u8>>,
+        staged: Arc<crate::StagedStorage>,
+        core: Arc<Core>,
+    }
+
+    impl Browser {
+        fn new() -> Self {
+            let staged = Arc::new(crate::StagedStorage::new([]));
+            let core = Core::with_storage(Arc::clone(&staged) as Arc<dyn crate::Storage>).unwrap();
+            let mut browser = Self {
+                store: BTreeMap::new(),
+                staged,
+                core,
+            };
+            browser.commit();
+            browser
+        }
+
+        /// Writes the core's changes to the store. Their contents are out
+        /// of memory afterwards, as are the files fetched before.
+        fn commit(&mut self) {
+            for file in self.staged.take_staged() {
+                match file.contents {
+                    Some(contents) => self.store.insert(file.name, contents),
+                    None => self.store.remove(&file.name),
+                };
+            }
+            self.staged.release();
+        }
+
+        /// Fetches the files the core asked for. Returns their names.
+        fn fetch(&self) -> Vec<String> {
+            let wanted = self.staged.take_wanted();
+            for name in &wanted {
+                self.staged.provide(name, self.store.get(name).cloned());
+            }
+            wanted
+        }
+
+        /// Makes a call the way a page does: again and again, fetching
+        /// what it wanted, until it no longer fails for want of a file.
+        /// Returns the result and every file that had to be fetched.
+        fn call<T>(&self, call: impl Fn() -> Result<T, CoreError>) -> (T, Vec<String>) {
+            let mut fetched = Vec::new();
+            loop {
+                match call() {
+                    Ok(result) => return (result, fetched),
+                    Err(error) => {
+                        let wanted = self.fetch();
+                        assert!(!wanted.is_empty(), "{error}");
+                        fetched.extend(wanted);
+                        assert!(fetched.len() < 20, "the core keeps asking: {fetched:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_sync_waits_for_storage_that_fetches_and_takes_each_answer_in_once() {
+        let mut browser = Browser::new();
+        let core = Arc::clone(&browser.core);
+        let here = core.import_flight(on_another_day("030725")).unwrap().id;
+        signed_in(&core);
+        browser.commit();
+        assert!(!browser.store["account.json"].is_empty());
+
+        let sync = Arc::clone(&core).sync();
+        // The account is in the store, not in memory: the first step asks
+        // for it, changes nothing, and goes through once it is there.
+        let error = sync.start_when_fetched(NOW).unwrap_err();
+        assert!(matches!(error, CoreError::Storage { .. }), "{error:?}");
+        let (step, fetched) = browser.call(|| sync.start_when_fetched(NOW));
+        assert_eq!(fetched, ["account.json"]);
+        assert!(request(&step).path.starts_with("/v1/flights/changes"));
+
+        // The page stores what each step changed, and nothing stays in
+        // memory. The next answer therefore needs the account again, and
+        // the step after it the file of the flight to send.
+        browser.commit();
+        let changes = golden("flight_changes.json");
+        let (step, fetched) = browser.call(|| sync.receive_when_fetched(200, &changes, None));
+        assert_eq!(fetched, ["account.json"]);
+        assert!(
+            request(&step)
+                .path
+                .starts_with("/v1/flights/changes?since=")
+        );
+
+        browser.commit();
+        let done = no_more_changes();
+        let (step, fetched) = browser.call(|| sync.receive_when_fetched(200, &done, None));
+        assert_eq!(fetched, ["account.json"]);
+        // Two flights the server has are not here: the first is fetched.
+        assert!(request(&step).path.ends_with("/igc"), "{step:?}");
+
+        browser.commit();
+        let file = on_another_day("150826").into_bytes();
+        let (step, _) = browser.call(|| sync.receive_when_fetched(200, &file, None));
+        assert!(request(&step).path.ends_with("/igc"), "{step:?}");
+        browser.commit();
+        let file = sample().into_bytes();
+        // This answer is given three times over: once for the account, once
+        // for the file of the flight to send, and then it goes through.
+        let (step, fetched) = browser.call(|| sync.receive_when_fetched(200, &file, None));
+        assert_eq!(fetched.len(), 2, "{fetched:?}");
+        assert_eq!(fetched[0], "account.json");
+        assert!(fetched[1].starts_with("flights/"), "{fetched:?}");
+        // What the server lacks is sent: the flight from 2025 and, in this
+        // test, the stand-in for the flight the server described.
+        let uploaded = golden("upload.json");
+        let mut sent = Vec::new();
+        let mut step = step;
+        while let SyncStep::Send { request: asked } = &step {
+            assert_eq!(asked.method, "POST");
+            sent.push(asked.body.clone().unwrap());
+            browser.commit();
+            step = browser
+                .call(|| sync.receive_when_fetched(201, &uploaded, None))
+                .0;
+        }
+        assert_eq!(sent.len(), 2);
+        assert!(sent.contains(&on_another_day("030725").into_bytes()));
+        // Each answer was taken in once, however often it was handed over.
+        assert_eq!(
+            step,
+            SyncStep::Finished {
+                summary: SyncSummary {
+                    sent: 2,
+                    fetched: 2,
+                    ..SyncSummary::default()
+                }
+            }
+        );
+        browser.commit();
+        assert_eq!(core.logbook().totals.flights, 3);
+        assert_eq!(
+            browser
+                .store
+                .keys()
+                .filter(|name| name.starts_with("flights/"))
+                .count(),
+            3
+        );
+        let (account, _) = browser.call(|| core.account());
+        let account = account.unwrap();
+        assert_eq!(account.flights_to_send, 0);
+        assert_eq!(account.last_sync_unix_s, Some(NOW));
+        let (sharing, _) = browser.call(|| core.flight_sharing(here.clone()));
+        assert_eq!(sharing.unwrap().visibility, FlightVisibility::Private);
+
+        // With nothing more to ask, a further answer is refused in words.
+        assert_eq!(
+            sync.receive_when_fetched(200, &done, None).unwrap(),
+            failed("Nothing was asked of the server.", false)
+        );
+    }
+
+    #[test]
+    fn the_phones_sync_is_told_in_words_when_storage_would_make_it_wait() {
+        // The phones' calls cannot ask to be made again. Their storage
+        // never makes them wait; if it did, the sync would stop and say so.
+        let mut browser = Browser::new();
+        let core = Arc::clone(&browser.core);
+        signed_in(&core);
+        browser.commit();
+
+        let step = Arc::clone(&core).sync().start(NOW);
+
+        assert!(
+            matches!(&step, SyncStep::Failed { needs_sign_in: false, message } if message.contains("account")),
+            "{step:?}"
+        );
+    }
+
+    #[test]
+    fn a_flight_is_not_deleted_before_storage_has_fetched_the_account() {
+        let mut browser = Browser::new();
+        let core = Arc::clone(&browser.core);
+        let id = core.import_flight(sample()).unwrap().id;
+        signed_in(&core);
+        browser.commit();
+        // A first sync, so that the server is known to have the flight.
+        let sync = Arc::clone(&core).sync();
+        browser.call(|| sync.start_when_fetched(NOW));
+        browser.commit();
+        let changes = golden("flight_changes.json");
+        browser.call(|| sync.receive_when_fetched(200, &changes, None));
+        browser.commit();
+
+        // The account is not in memory. Deleting says so before anything
+        // is gone: afterwards the server could no longer be told.
+        let error = core.delete_flight(id.clone()).unwrap_err();
+        assert!(matches!(error, CoreError::Storage { .. }), "{error:?}");
+        assert_eq!(core.logbook().totals.flights, 1);
+        assert!(browser.staged.take_staged().is_empty());
+
+        let ((), fetched) = browser.call(|| core.delete_flight(id.clone()));
+        assert_eq!(fetched, ["account.json"]);
+        browser.commit();
+        assert_eq!(core.logbook().totals.flights, 0);
+
+        // The next sync deletes it on the server first.
+        let sync = Arc::clone(&core).sync();
+        let (step, _) = browser.call(|| sync.start_when_fetched(NOW));
+        let asked = request(&step);
+        assert_eq!(
+            (asked.method.as_str(), asked.path.as_str()),
+            ("DELETE", "/v1/flights/7cf5ytrw45b0aeb5tcr8wet2km")
+        );
+    }
+
+    #[test]
+    fn without_an_account_a_flight_is_deleted_without_asking_for_one() {
+        let mut browser = Browser::new();
+        let core = Arc::clone(&browser.core);
+        let id = core.import_flight(sample()).unwrap().id;
+        browser.commit();
+
+        core.delete_flight(id).unwrap();
+
+        assert!(browser.staged.take_wanted().is_empty());
+        assert_eq!(core.logbook().totals.flights, 0);
     }
 }

@@ -9,6 +9,11 @@
 //! Rust definitions, so there is nothing to keep in step by hand. Live wind
 //! is a handful of plain functions beside it, as it is in the core.
 //!
+//! The core never talks to a server. For the pilot's account it hands out a
+//! [`ServerRequest`] and reads the answer; the page sends the request in
+//! between and keeps the session token. Keeping the logbook in step with
+//! the server is a run of such requests, [`FlightSync`].
+//!
 //! What differs in a browser is storage. A page cannot read or write
 //! anything without waiting, and the core's interface does not wait. So the
 //! core works on [`StoredFiles`], which knows what the browser holds and
@@ -34,8 +39,10 @@ use std::sync::Arc;
 use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
-    CoreError, FlightAnalysis, FlightFile, FlightView, ImportedFlight, LogbookStatistics,
-    LogbookView, ServerStatus, StagedStorage, StationHistory, Storage, WindMap,
+    AccountView, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError, FlightAnalysis,
+    FlightFile, FlightSharing, FlightView, FlightVisibility, ImportedFlight, LogbookStatistics,
+    LogbookView, ServerRequest, ServerStatus, SignedIn, StagedStorage, StationHistory, Storage,
+    SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -174,6 +181,260 @@ impl Core {
     pub fn refresh(&self) -> Result<(), JsValue> {
         self.session.refresh().map_err(thrown)
     }
+
+    // The pilot's account on the Venti server. The core says what to send
+    // and reads the answer; the page sends it and keeps the session token.
+
+    /// The account this browser is signed in to, if any.
+    pub fn account(&self) -> Result<Option<Ts<AccountView>>, JsValue> {
+        let account = self.session.call(|core| core.account()).map_err(thrown)?;
+        account.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that signs this browser in. `device` is what to call
+    /// it in the account's list of devices.
+    #[wasm_bindgen(js_name = signInRequest)]
+    pub fn sign_in_request(
+        &self,
+        handle: String,
+        password: String,
+        device: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .sign_in_request(handle, password, device)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that creates an account and signs this browser in.
+    /// What the server would refuse anyway is refused here, in words.
+    #[wasm_bindgen(js_name = createAccountRequest)]
+    pub fn create_account_request(
+        &self,
+        handle: String,
+        display_name: String,
+        password: String,
+        invite: Option<String>,
+        device: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .create_account_request(handle, display_name, password, invite, device)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to signing in or creating an account,
+    /// and remembers the account. `server` is the address the request was
+    /// sent to. The token in the answer is the page's to keep.
+    #[wasm_bindgen(js_name = signedIn)]
+    pub fn signed_in(
+        &self,
+        server: String,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<SignedIn>, JsValue> {
+        let signed_in = self
+            .session
+            .call(|core| core.signed_in(server, status, body))
+            .map_err(thrown)?;
+        to_js(&signed_in)
+    }
+
+    /// The request that signs this browser out on the server, if it is
+    /// signed in. Whatever the server answers, call `signedOut`.
+    #[wasm_bindgen(js_name = signOutRequest)]
+    pub fn sign_out_request(&self) -> Result<Option<Ts<ServerRequest>>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.sign_out_request())
+            .map_err(thrown)?;
+        request.as_ref().map(to_js).transpose()
+    }
+
+    /// Forgets the account in this browser. The flights in the logbook
+    /// stay, and so do their copies on the server.
+    #[wasm_bindgen(js_name = signedOut)]
+    pub fn signed_out(&self) -> Result<(), JsValue> {
+        self.session.call(|core| core.signed_out()).map_err(thrown)
+    }
+
+    /// The request that deletes the account on the server, with all its
+    /// flights there. It needs the password, not only the session.
+    #[wasm_bindgen(js_name = deleteAccountRequest)]
+    pub fn delete_account_request(&self, password: String) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .delete_account_request(password)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to deleting the account. On success the
+    /// account is forgotten here too; the logbook in this browser stays.
+    #[wasm_bindgen(js_name = accountDeleted)]
+    pub fn account_deleted(&self, status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+        self.session
+            .call(|core| core.account_deleted(status, body))
+            .map_err(thrown)
+    }
+
+    /// How a flight of the logbook is shared, if the server has it.
+    #[wasm_bindgen(js_name = flightSharing)]
+    pub fn flight_sharing(&self, id: String) -> Result<Option<Ts<FlightSharing>>, JsValue> {
+        let sharing = self
+            .session
+            .call(|core| core.flight_sharing(id))
+            .map_err(thrown)?;
+        sharing.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that changes who may see a flight.
+    #[wasm_bindgen(js_name = shareRequest)]
+    pub fn share_request(
+        &self,
+        id: String,
+        visibility: Ts<FlightVisibility>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let visibility = from_js(&visibility)?;
+        let request = self
+            .session
+            .call(|core| core.share_request(id, visibility))
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to `shareRequest` and remembers how the
+    /// flight is now shared.
+    pub fn shared(
+        &self,
+        id: String,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<FlightSharing>, JsValue> {
+        let sharing = self
+            .session
+            .call(|core| core.shared(id, status, body))
+            .map_err(thrown)?;
+        to_js(&sharing)
+    }
+
+    /// Starts bringing the logbook in step with the server.
+    pub fn sync(&self) -> FlightSync {
+        FlightSync {
+            sync: Arc::clone(&self.session.core).sync(),
+            staged: Arc::clone(&self.session.staged),
+        }
+    }
+
+    // Airspace, from the OpenAir files the pilot brings in.
+
+    /// Takes in an airspace file in OpenAir format. `file_name` is the
+    /// name of the file the pilot chose; `now_unix_s` the current time. A
+    /// file of the same name replaces the one brought in before.
+    #[wasm_bindgen(js_name = importAirspace)]
+    pub fn import_airspace(
+        &self,
+        file_name: String,
+        bytes: Vec<u8>,
+        now_unix_s: f64,
+    ) -> Result<Ts<AirspaceImport>, JsValue> {
+        let imported = self
+            .session
+            .call(|core| core.import_airspace(file_name, bytes, whole_seconds(now_unix_s)))
+            .map_err(thrown)?;
+        to_js(&imported)
+    }
+
+    /// The airspace files the pilot has brought in, by name.
+    #[wasm_bindgen(js_name = airspaceFiles)]
+    pub fn airspace_files(&self) -> Result<Vec<Ts<AirspaceFile>>, JsValue> {
+        let files = self
+            .session
+            .call(|core| core.airspace_files())
+            .map_err(thrown)?;
+        files.iter().map(to_js).collect()
+    }
+
+    /// Removes an airspace file. Its airspace is no longer drawn.
+    #[wasm_bindgen(js_name = deleteAirspaceFile)]
+    pub fn delete_airspace_file(&self, stored_name: String) -> Result<(), JsValue> {
+        self.session
+            .call(|core| core.delete_airspace_file(stored_name))
+            .map_err(thrown)
+    }
+
+    /// The airspaces of the pilot's files that touch a box of the map. Ask
+    /// when the map has moved, not for every frame.
+    #[wasm_bindgen(js_name = airspaceIn)]
+    pub fn airspace_in(
+        &self,
+        south: f64,
+        west: f64,
+        north: f64,
+        east: f64,
+    ) -> Result<Vec<Ts<AirspaceShape>>, JsValue> {
+        let area = Bounds {
+            south,
+            west,
+            north,
+            east,
+        };
+        // The core reads every file once and keeps the airspace; later
+        // calls only look it up.
+        let shapes = self
+            .session
+            .call(|core| Ok(core.airspace()?.in_area(area)))
+            .map_err(thrown)?;
+        shapes.iter().map(to_js).collect()
+    }
+}
+
+/// One run of bringing the logbook in step with the server.
+///
+/// The page sends each request the run hands out and passes the answer
+/// back, until the run says that it has finished or why it stopped. Like
+/// any other call, a step throws when the core needs a stored file first:
+/// the page fetches what `StoredFiles.takeWanted` names and makes the same
+/// call again. After every step it stores what `StoredFiles.takeStaged`
+/// holds, so a run that is cut off loses nothing.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct FlightSync {
+    sync: Arc<venti_core::FlightSync>,
+    staged: Arc<StagedStorage>,
+}
+
+#[wasm_bindgen]
+impl FlightSync {
+    /// Begins. `now_unix_s` is the current time, kept as the time of the
+    /// sync.
+    pub fn start(&self, now_unix_s: f64) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.start_when_fetched(whole_seconds(now_unix_s));
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+
+    /// Takes the server's answer to the last request. `retry_after_s` is
+    /// the answer's `Retry-After` header in seconds, if it had one.
+    pub fn receive(
+        &self,
+        status: u16,
+        body: &[u8],
+        retry_after_s: Option<u32>,
+    ) -> Result<Ts<SyncStep>, JsValue> {
+        let step = self.sync.receive_when_fetched(status, body, retry_after_s);
+        to_js(&settle(&self.staged, step).map_err(thrown)?)
+    }
+}
+
+/// What a sync did, in a line for the pilot: "3 sent, 1 fetched".
+#[wasm_bindgen(js_name = syncSummaryInWords)]
+pub fn sync_summary_in_words(summary: Ts<SyncSummary>) -> Result<String, JsValue> {
+    Ok(venti_core::sync_summary_in_words(from_js(&summary)?))
 }
 
 // Live wind from the Venti server. The core says what to ask the server for
@@ -276,6 +537,17 @@ fn to_js<T: Tsify + Serialize>(view: &T) -> Result<Ts<T>, JsValue> {
     Ts::from_rust(view).map_err(|error| js_sys::Error::new(&error.to_string()).into())
 }
 
+/// A value the page handed over as one of the core's own types.
+fn from_js<T>(value: &Ts<T>) -> Result<T, JsValue>
+where
+    T: Tsify + serde::de::DeserializeOwned,
+    T::JsType: Clone,
+{
+    value
+        .to_rust()
+        .map_err(|error| js_sys::Error::new(&error.to_string()).into())
+}
+
 /// The core's error as the JavaScript `Error` a call throws.
 fn thrown(error: CoreError) -> JsValue {
     let thrown = js_sys::Error::new(&error.to_string());
@@ -308,11 +580,7 @@ impl Session {
         &self,
         call: impl FnOnce(&venti_core::Core) -> Result<T, CoreError>,
     ) -> Result<T, CoreError> {
-        let result = call(&self.core);
-        if result.is_ok() || !self.staged.is_waiting() {
-            self.staged.release();
-        }
-        result
+        settle(&self.staged, call(&self.core))
     }
 
     /// Takes in the flight files fetched since the last time and drops them
@@ -323,6 +591,16 @@ impl Session {
         self.staged.release();
         result
     }
+}
+
+/// After a call to the core: drops from memory the files the page fetched
+/// for it. They stay only when the call failed for want of another file,
+/// because the page is about to fetch that one and make the call again.
+fn settle<T>(staged: &StagedStorage, result: Result<T, CoreError>) -> Result<T, CoreError> {
+    if result.is_ok() || !staged.is_waiting() {
+        staged.release();
+    }
+    result
 }
 
 #[cfg(test)]

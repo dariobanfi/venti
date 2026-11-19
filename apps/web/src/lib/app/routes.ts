@@ -22,6 +22,14 @@ export function statisticsHref(): string {
 	return resolve('/logbook/statistics');
 }
 
+export function settingsHref(): string {
+	return resolve('/settings');
+}
+
+export function accountHref(): string {
+	return resolve('/settings/account');
+}
+
 export function flightHref(id: string): string {
 	return `${resolve('/logbook/flight')}?id=${encodeURIComponent(id)}`;
 }

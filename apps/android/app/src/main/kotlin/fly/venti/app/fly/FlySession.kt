@@ -3,6 +3,7 @@ package fly.venti.app.fly
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.core.AirspaceCheck
@@ -10,10 +11,14 @@ import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightSession
+import fly.venti.core.LiveAudience
 import fly.venti.core.LiveScore
+import fly.venti.core.LiveShareState
+import fly.venti.core.LiveShareView
 import fly.venti.core.PendingRecording
 import fly.venti.core.FaiAreas
 import fly.venti.core.Replay
+import fly.venti.core.ServerRequest
 import fly.venti.core.TargetPlace
 import fly.venti.core.TaskFile
 import fly.venti.core.TaskStatusView
@@ -25,6 +30,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.security.SecureRandom
 import java.util.TimeZone
 
 /**
@@ -74,6 +80,11 @@ interface TonePlayer {
  *
  * A session is either live, fed by the sensors and recorded, or a replay of
  * a recorded flight, fed by the core and not recorded.
+ *
+ * A live flight the pilot shares is sent from here as well: this object
+ * lives as long as the app's process, which the recording's service keeps
+ * alive with the screen off, so the positions go out wherever the pilot
+ * looks. What is due, and when, is the core's to say.
  */
 class FlySession(
     private val dataFolder: File,
@@ -90,6 +101,14 @@ class FlySession(
      * emulator asks for less: see [SLOW_REFRESH_MILLISECONDS].
      */
     private val refreshMilliseconds: Long = REFRESH_MILLISECONDS,
+    /** The phone's clock, in seconds since 1970. */
+    private val clock: () -> Double = { System.currentTimeMillis() / 1000.0 },
+    /**
+     * So many bytes from the system's source of random numbers for secrets.
+     * The link of a shared flight is made of them, and whoever has the link
+     * sees the flight.
+     */
+    private val random: (Int) -> ByteArray = ::randomBytes,
 ) {
     sealed interface Mode {
         data object Live : Mode
@@ -162,6 +181,25 @@ class FlySession(
     var chosenPlace: String? by mutableStateOf(null)
         private set
 
+    /**
+     * How the flight is shared with others while it is under way. Absent
+     * while it is not.
+     */
+    var live: LiveShareView? by mutableStateOf(null)
+        private set
+
+    /**
+     * The address of the pilot's Venti server, if this phone is signed in
+     * to one. The app sets this.
+     */
+    var server: () -> String? = { null }
+
+    /**
+     * Carries a request to that server and brings back its answer, or
+     * `null` if none came. The app sets this.
+     */
+    var carry: suspend (ServerRequest) -> HttpAnswer? = { null }
+
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
 
@@ -182,6 +220,108 @@ class FlySession(
 
     /** Refreshes of the screen since the score was last asked for. */
     private var refreshesSinceScore = 0
+
+    /** When the core was last asked whether a request for the shared flight is due. */
+    private var askedForLiveRequest = 0.0
+
+    /** The request for the shared flight that is on its way to the server, if one is. */
+    private var sending: Job? = null
+
+    /** Whether the flight in the air is going out to others. */
+    val isSharingLive: Boolean get() = live?.let { it.state != LiveShareState.STOPPED } ?: false
+
+    /**
+     * Shows the flight in the air to these people, or to others than
+     * before. Does nothing without a flight, in a replay, without an
+     * account, and for nobody: taking a flight away from everyone is
+     * [deleteLiveTrack].
+     */
+    @Synchronized
+    fun share(audience: LiveAudience?) {
+        val session = session ?: return
+        if (mode != Mode.Live || audience == null) return
+        if (isSharingLive) {
+            session.setLiveAudience(audience)
+        } else {
+            val server = server() ?: return
+            try {
+                session.shareLive(server, random(LINK_BYTES), audience)
+            } catch (error: Exception) {
+                problem = error.pilotMessage
+            }
+        }
+        live = session.liveShare(clock())
+    }
+
+    /**
+     * Takes the flight away from everyone who could watch it: the track is
+     * removed from the server and nothing more is sent.
+     */
+    @Synchronized
+    fun deleteLiveTrack() {
+        val session = session ?: return
+        val request = session.deleteLive() ?: return
+        live = session.liveShare(clock())
+        scope.launch {
+            // Twice, in case the network was away the first time. The
+            // server removes the track by itself after two days.
+            if (carry(request) == null) {
+                delay(DELETE_AGAIN_MILLISECONDS)
+                carry(request)
+            }
+        }
+    }
+
+    /**
+     * Sends what the core says is due for the shared flight, and hands the
+     * answer back. The core hands out nothing further until it has an
+     * answer, or word that none came.
+     */
+    private fun sendLive(session: FlightSession, now: Double) {
+        // Once a second is as often as the core asks to be asked.
+        if (now - askedForLiveRequest < 1.0 && now >= askedForLiveRequest) return
+        askedForLiveRequest = now
+        val request = session.liveRequest(now) ?: return
+        sending = scope.launch { hand(session, request) }
+    }
+
+    private suspend fun hand(session: FlightSession, request: ServerRequest) {
+        val answer = carry(request)
+        if (answer != null) {
+            val status = answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
+            session.liveAnswer(status, answer.body, answer.retryAfterSeconds, clock())
+        } else {
+            session.liveNoAnswer(clock())
+        }
+    }
+
+    /**
+     * Tells the server that the flight is over, with what is still waiting,
+     * after the cockpit has closed: for a minute and a half at most, then
+     * the track simply goes quiet.
+     */
+    private fun sayLanded(session: FlightSession) {
+        if (session.liveShare(clock()) == null) return
+        session.endLive()
+        val onItsWay = sending
+        scope.launch {
+            // A request that is on its way is answered first: until then
+            // the core hands out nothing, the landing included.
+            onItsWay?.join()
+            val until = clock() + LANDED_WITHIN_SECONDS
+            while (clock() < until) {
+                val now = clock()
+                val request = session.liveRequest(now)
+                if (request != null) {
+                    hand(session, request)
+                } else if (session.liveShare(now)?.state == LiveShareState.WAITING) {
+                    delay(LANDED_AGAIN_MILLISECONDS)
+                } else {
+                    break
+                }
+            }
+        }
+    }
 
     /** "I have seen this warning": quiet for ten minutes, unless it becomes more urgent. */
     @Synchronized
@@ -241,6 +381,8 @@ class FlySession(
         }
         sensors.start(session) { problem = it }
         begin(session, Mode.Live)
+        // Shown to others from take-off, if the pilot chose so.
+        share(LiveChoice.stored(preferences).audience)
     }
 
     /** Plays a recorded flight through the cockpit, to try it on the ground. */
@@ -279,9 +421,13 @@ class FlySession(
             problem = error.pilotMessage
             null
         }
+        if (mode == Mode.Live) {
+            sayLanded(session)
+        }
         this.session = null
         replay = null
         mode = null
+        live = null
         view = null
         way = null
         score = null
@@ -304,11 +450,13 @@ class FlySession(
         // The task of the day, on the day of the flight: a replay's day is
         // the day it was flown.
         try {
-            session.flyTask(taskFile()?.text, replay?.now() ?: (System.currentTimeMillis() / 1000.0))
+            session.flyTask(taskFile()?.text, replay?.now() ?: clock())
         } catch (error: Exception) {
             problem = error.pilotMessage
         }
         refreshesSinceScore = 0
+        askedForLiveRequest = 0.0
+        sending = null
         sound.isMuted = isMuted
         sound.start()
         refresh(elapsed = 0.0)
@@ -333,7 +481,7 @@ class FlySession(
             replay.advance(session, elapsed * mode.speed)
             replay.now()
         } else {
-            System.currentTimeMillis() / 1000.0
+            clock()
         }
         val view = session.view(now)
         this.view = view
@@ -341,6 +489,15 @@ class FlySession(
         val status = session.taskStatus(now)
         if (status != task) {
             task = status
+        }
+        // A flight shared with others: what is due goes out, and the
+        // cockpit shows how it stands.
+        if (mode == Mode.Live) {
+            sendLive(session, now)
+            val shared = session.liveShare(now)
+            if (shared != live) {
+                live = shared
+            }
         }
         // What happens in the task is said once: the start taken, a
         // turnpoint reached, the goal.
@@ -401,5 +558,20 @@ class FlySession(
 
         /** How long passes between two looks at the score. */
         private const val SCORE_MILLISECONDS = 1_000L
+
+        /** The core makes a shared flight's link from this many random bytes. */
+        private const val LINK_BYTES = 26
+
+        /** So many bytes from the system's source of random numbers for secrets. */
+        fun randomBytes(size: Int): ByteArray = ByteArray(size).also(SecureRandom()::nextBytes)
+
+        /** How long after a deletion that got no answer it is sent once more. */
+        private const val DELETE_AGAIN_MILLISECONDS = 10_000L
+
+        /** How long the server is still told of the landing after the pilot ended the flight, seconds. */
+        const val LANDED_WITHIN_SECONDS = 90.0
+
+        /** How long to wait before asking the core again while the landing waits to be sent. */
+        private const val LANDED_AGAIN_MILLISECONDS = 2_000L
     }
 }

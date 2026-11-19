@@ -30,6 +30,7 @@ import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.fly.CockpitScreen
 import fly.venti.app.fly.FlyScreen
+import fly.venti.app.fly.LiveScreen
 import fly.venti.app.logbook.FlightFiles
 import fly.venti.app.logbook.ImportNotice
 import fly.venti.app.logbook.ImportNoticeDialog
@@ -141,6 +142,8 @@ fun RootScreen(
             waypoints = session.waypoints,
             airspace = session.airspace,
             tasks = session.tasks,
+            account = session.account,
+            preferences = session.preferences,
             varioName = session.vario.connectedName,
             showsFaiAreas = !session.preferences.hidesFaiAreas,
             onFinish = {
@@ -214,15 +217,24 @@ private fun Sections(
             AppTab.Fly -> when (navigation.flyRoute) {
                 FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                 FlyRoute.Task -> TaskScreen(session.tasks, session.waypoints, onBack = { navigation.back() })
+                FlyRoute.Live -> LiveScreen(
+                    session.fly,
+                    session.account,
+                    session.preferences,
+                    onBack = { navigation.back() },
+                )
                 null -> kept.SaveableStateProvider("fly") {
                     FlyScreen(
                         session.fly,
                         session.vario,
                         session.airspace,
                         session.tasks,
+                        session.account,
+                        session.preferences,
                         session.files,
                         onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
                         onOpenTask = { navigation.flyRoute = FlyRoute.Task },
+                        onOpenLive = { navigation.flyRoute = FlyRoute.Live },
                         bars = bars,
                     )
                 }

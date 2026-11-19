@@ -41,6 +41,12 @@ interface Preferences {
     /** Whether the cockpit's map leaves out the FAI triangle areas. */
     var hidesFaiAreas: Boolean
 
+    /**
+     * Whom flights are shown to while they are under way: "link", "public",
+     * or nothing for nobody.
+     */
+    var liveAudience: String
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -92,6 +98,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(HIDES_FAI_AREAS, false)
         set(value) = store.edit { putBoolean(HIDES_FAI_AREAS, value) }
 
+    override var liveAudience: String
+        get() = store.getString(LIVE_AUDIENCE, null).orEmpty()
+        set(value) = store.edit { putString(LIVE_AUDIENCE, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -104,6 +114,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
         const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
         const val HIDES_FAI_AREAS = "VentiCockpitHidesFaiAreas"
+        const val LIVE_AUDIENCE = "VentiLiveAudience"
     }
 }
 
@@ -119,4 +130,5 @@ class MemoryPreferences : Preferences {
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
     override var airspaceWithoutServer = false
     override var hidesFaiAreas = false
+    override var liveAudience = ""
 }

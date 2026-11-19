@@ -50,6 +50,9 @@ enum class FlyRoute {
 
     /** The pilot's task: what the cockpit will lead along. */
     Task,
+
+    /** Live tracking: who may watch a flight while it is under way. */
+    Live,
 }
 
 /**

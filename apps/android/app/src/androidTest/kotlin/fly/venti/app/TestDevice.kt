@@ -37,6 +37,18 @@ object TestDevice {
     }
 
     /**
+     * Gives the app what it would otherwise ask the pilot for in a dialog
+     * of Android's own, which a test cannot answer: to use the position and
+     * to show a notification, as a flight being recorded needs them.
+     */
+    fun allowToRecordAFlight() {
+        val app = instrumentation.targetContext.packageName
+        for (permission in listOf("ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS")) {
+            shell("pm grant $app android.permission.$permission")
+        }
+    }
+
+    /**
      * Lets the app run for so long, and the map draw: the map draws on its
      * own thread and tells nobody when it is done.
      *

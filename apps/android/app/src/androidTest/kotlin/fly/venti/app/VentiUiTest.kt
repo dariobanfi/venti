@@ -861,6 +861,121 @@ class VentiUiTest {
     }
 
     /**
+     * Live tracking: who may watch a flight is chosen on the Fly tab and
+     * kept; a flight that is started is shared from its start, the cockpit
+     * says how the sharing stands, and the track can be deleted again. The
+     * emulator does not fly, so the flight stays before its take-off and
+     * no position is sent. The pilot is a new one, made for this test: a
+     * flight is recorded here, and the demo pilot's logbook is other
+     * tests'. Skipped without a server.
+     */
+    private fun shareAFlightLive(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+
+        // Nobody watches until the pilot says who may. Without an account
+        // there is nobody to send positions to, and the page says so first.
+        tap(tab("Fly"))
+        waitFor(hasTestTag("live-before-takeoff") and hasText("Off"))
+        tap(hasTestTag("live-before-takeoff"))
+        waitFor(hasTestTag("live-needs-account"))
+        assertTrue(exists(hasTestTag("live-nobody") and isSelected()))
+        keepScreenshot("$prefix-live-1-no-account")
+        tap(described("Back"))
+        waitFor(hasText("Start flight"))
+
+        // A new account on the server.
+        val handle = "l${System.currentTimeMillis() % 1_000_000_000}"
+        tap(tab("Settings"))
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        waitFor(hasTestTag("account-handle"))
+        tap(hasTestTag("account-new"))
+        waitFor(hasTestTag("account-invite"))
+        screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
+        screen.onNode(hasTestTag("account-name")).performTextInput("Test Pilot (not real)")
+        screen.onNode(hasTestTag("account-password")).performTextInput("a password for this test")
+        screen.onNode(hasTestTag("account-submit")).performScrollTo()
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@$handle"))
+        waitFor(hasText("Sync now"))
+        tap(described("Back"))
+
+        // Everyone may watch: the choice is made once and shown on the Fly
+        // tab before every start.
+        tap(tab("Fly"))
+        waitFor(hasTestTag("live-before-takeoff"))
+        tap(hasTestTag("live-before-takeoff"))
+        waitFor(hasTestTag("live-everyone"))
+        assertFalse(exists(hasTestTag("live-needs-account")))
+        tap(hasTestTag("live-everyone"))
+        waitFor(hasTestTag("live-everyone") and isSelected())
+        // Before a flight there is no flight to say anything about.
+        assertFalse(exists(hasTestTag("live-status")))
+        keepScreenshot("$prefix-live-2-who-can-watch")
+        tap(described("Back"))
+        waitFor(hasTestTag("live-before-takeoff") and hasText("Everyone"))
+        keepScreenshot("$prefix-live-3-fly-tab")
+
+        // A flight, started as a pilot starts one. It is shared from the
+        // start, and waits for the take-off: the cockpit's button says so.
+        TestDevice.allowToRecordAFlight()
+        tap(hasText("Start flight"))
+        try {
+            waitFor(hasTestTag("live-button"))
+            // An emulator's location may be switched off; the app says so,
+            // and the flight goes on without a position.
+            if (exists(hasText("Flying")) && exists(hasText("OK"))) {
+                tap(hasText("OK"))
+            }
+            waitFor(hasTestTag("live-button") and saying("Begins at take-off"))
+            letTheMapDraw(2)
+            keepScreenshot("$prefix-live-4-cockpit")
+
+            // The page again, over the cockpit, now with this flight: how
+            // it stands, the link to send, and the way to take it back.
+            tap(hasTestTag("live-button"))
+            waitFor(hasTestTag("live-status"))
+            assertTrue(exists(hasTestTag("live-status") and hasText("Begins at take-off")))
+            assertTrue(exists(hasTestTag("live-everyone") and isSelected()))
+            assertTrue(exists(hasTestTag("live-send")))
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-live-5-this-flight")
+
+            // Taking the flight away from everyone is asked first: it
+            // deletes the track. After it nobody is the choice again.
+            screen.onNode(hasTestTag("live-delete")).performScrollTo()
+            tap(hasTestTag("live-delete"))
+            waitFor(hasText("Delete the track?"))
+            keepScreenshot("$prefix-live-6-delete-the-track")
+            tap(hasTestTag("live-delete-confirm"))
+            waitFor(hasTestTag("live-status") and hasText("You deleted the track."))
+            assertTrue(exists(hasTestTag("live-nobody") and isSelected()))
+            assertFalse(exists(hasTestTag("live-send")))
+            tap(hasText("Done"))
+            waitFor(hasTestTag("live-button") and saying("You deleted the track."))
+        } finally {
+            // Whatever happened, the flight is ended: its sensors and its
+            // recording belong to the app, not to this test's screen.
+            if (exists(hasText("Finish flight"))) {
+                tap(hasText("Finish flight"))
+                waitFor(hasText("Save flight"))
+                tap(hasText("Save flight"))
+                screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-button")) }
+            }
+        }
+    }
+
+    @Test
+    fun aFlightIsSharedWhileItIsUnderWay() = shareAFlightLive("light", dark = false)
+
+    @Test
+    fun liveTrackingInDarkAppearance() = shareAFlightLive("dark", dark = true)
+
+    /**
      * Flying sites: the same server knows the take-offs and landings its
      * source has. They are drawn once the map shows a valley and not a
      * country, here the one east of the Tegernsee, which the map shipped

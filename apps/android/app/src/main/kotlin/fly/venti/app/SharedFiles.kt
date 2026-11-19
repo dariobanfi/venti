@@ -7,9 +7,9 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * Files the app hands to other apps: a flight's file, the pilot's
- * waypoints. They are written to one folder, the only one other apps are
- * ever given a file from.
+ * What the app hands to other apps: a flight's file, the pilot's waypoints,
+ * the link to a flight. Files are written to one folder, the only one other
+ * apps are ever given a file from.
  */
 object SharedFiles {
     /** The folder a file is written to before it is shared. */
@@ -25,6 +25,19 @@ object SharedFiles {
             putExtra(Intent.EXTRA_TITLE, file.name)
             clipData = ClipData.newRawUri(file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(send, title))
+    }
+
+    /**
+     * Hands a link to other apps as text: a messenger, a mail, a note. A
+     * link to a flight is the key to it, so it goes nowhere but where the
+     * pilot sends it.
+     */
+    fun shareText(context: Context, text: String, title: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
         }
         context.startActivity(Intent.createChooser(send, title))
     }

@@ -1,7 +1,5 @@
 package fly.venti.app.account
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.SharedFiles
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionHeader
@@ -117,7 +116,7 @@ fun ShareFlightSheet(
                             }
                             row {
                                 ActionRow("Share the link", MaterialTheme.colorScheme.primary) {
-                                    hand(context, current.link)
+                                    SharedFiles.shareText(context, current.link, "Share the link")
                                 }
                             }
                         }
@@ -182,13 +181,4 @@ private fun VisibilityRow(visibility: FlightVisibility, isChosen: Boolean, enabl
             Spacer(Modifier.width(24.dp))
         }
     }
-}
-
-/** Hands the link to other apps as text: a messenger, a mail, a note. */
-private fun hand(context: Context, link: String) {
-    val send = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, link)
-    }
-    context.startActivity(Intent.createChooser(send, "Share the link"))
 }

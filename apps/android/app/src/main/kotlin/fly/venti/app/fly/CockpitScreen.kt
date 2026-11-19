@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceBanner
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceWarningsSheet
@@ -66,6 +67,7 @@ import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
+import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
@@ -98,6 +100,9 @@ fun CockpitScreen(
     airspace: AirspaceModel,
     /** The task the pilot keeps: its cylinders for the map, its turnpoints for the list. */
     tasks: TaskModel,
+    /** The pilot's account, through which a flight is shared, and the choice of who may watch. */
+    account: AccountModel,
+    preferences: Preferences,
     /** The connected vario's name, if one is connected. */
     varioName: String?,
     /** Whether the map draws where to fly for an FAI triangle: the pilot's setting. */
@@ -112,6 +117,7 @@ fun CockpitScreen(
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
     var isShowingTask by remember { mutableStateOf(false) }
+    var isShowingLive by remember { mutableStateOf(false) }
     // The task is drawn only while the session flies one.
     val taskStatus = fly.task
     val task = tasks.task.takeIf { taskStatus != null }
@@ -216,6 +222,12 @@ fun CockpitScreen(
                 ) {
                     Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
                 }
+                // Who watches the flight, and whether it is going out. Not
+                // in a replay: what is replayed is not shared.
+                if (!isReplay) {
+                    Spacer(Modifier.width(12.dp))
+                    LiveButton(fly.live, onOpen = { isShowingLive = true })
+                }
                 Spacer(Modifier.width(12.dp))
                 FilledTonalIconToggleButton(
                     checked = fly.isMuted,
@@ -259,6 +271,10 @@ fun CockpitScreen(
 
     if (isShowingTask) {
         TaskProgressSheet(task, taskStatus, onStep = fly::stepTask, onDismiss = { isShowingTask = false })
+    }
+
+    if (isShowingLive) {
+        LiveSheet(fly, account, preferences, onDismiss = { isShowingLive = false })
     }
 
     if (isConfirmingFinish) {

@@ -43,11 +43,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.AppFiles
 import fly.venti.app.R
+import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
-import fly.venti.app.task.TaskModel
-import fly.venti.app.task.inALine
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
+import fly.venti.app.settings.Preferences
+import fly.venti.app.task.TaskModel
+import fly.venti.app.task.inALine
 
 /** The Fly tab: what to check before take-off, and the way into the cockpit. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,11 +59,16 @@ fun FlyScreen(
     vario: VarioLink,
     airspace: AirspaceModel,
     tasks: TaskModel,
+    /** The pilot's account: a flight is shared with others through it. */
+    account: AccountModel,
+    preferences: Preferences,
     files: AppFiles,
     /** Called to show the list of the pilot's airspace. */
     onOpenAirspace: () -> Unit,
     /** Called to show the pilot's task. */
     onOpenTask: () -> Unit,
+    /** Called to show who may watch a flight while it is under way. */
+    onOpenLive: () -> Unit,
     bars: PaddingValues,
 ) {
     var isChoosingVario by remember { mutableStateOf(false) }
@@ -127,6 +134,17 @@ fun FlyScreen(
                         value = tasks.task?.inALine ?: "None",
                         onClick = onOpenTask,
                         modifier = Modifier.testTag("task-before-takeoff"),
+                    )
+                }
+                // Who may watch the flight while it is under way. The
+                // choice is kept, so it is shown before every start.
+                row {
+                    ChoiceRow(
+                        icon = R.drawable.ic_share_location,
+                        title = "Live tracking",
+                        value = LiveChoice.stored(preferences).summary(account.isSignedIn),
+                        onClick = onOpenLive,
+                        modifier = Modifier.testTag("live-before-takeoff"),
                     )
                 }
             }

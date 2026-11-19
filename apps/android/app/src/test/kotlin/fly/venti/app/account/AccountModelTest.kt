@@ -5,6 +5,7 @@ import fly.venti.app.Session
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.core.FlightVisibility
+import fly.venti.core.ServerRequest
 import fly.venti.core.syncSummaryInWords
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -25,8 +26,14 @@ import java.util.Collections
  * upload, and by short ones in the same format.
  */
 class AccountModelTest {
-    /** One request as the model sent it. */
-    private class Sent(val method: String, val url: String, val headers: Map<String, String>, val body: ByteArray?) {
+    /** One request as the model sent it, and how long it would wait for the answer. */
+    private class Sent(
+        val method: String,
+        val url: String,
+        val headers: Map<String, String>,
+        val body: ByteArray?,
+        val answerWithinMilliseconds: Int,
+    ) {
         val path: String get() = url.removePrefix(SERVER).substringBefore('?')
     }
 
@@ -37,8 +44,14 @@ class AccountModelTest {
         /** Answers in place of the usual ones, where a test wants a server in a particular mood. */
         var instead: suspend (Sent) -> HttpAnswer? = { null }
 
-        suspend fun answer(method: String, url: String, headers: List<Pair<String, String>>, body: ByteArray?): HttpAnswer {
-            val request = Sent(method, url, headers.toMap(), body)
+        suspend fun answer(
+            method: String,
+            url: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray?,
+            answerWithinMilliseconds: Int,
+        ): HttpAnswer {
+            val request = Sent(method, url, headers.toMap(), body, answerWithinMilliseconds)
             sent += request
             instead(request)?.let { return it }
             return when {
@@ -345,6 +358,60 @@ class AccountModelTest {
         assertNull(account.account)
         account.signIn(SERVER, "demo", "a password of the test")
         assertTrue(account.isSignedIn)
+    }
+
+    @Test
+    fun theCockpitsRequestsAreCarriedWithTheTokenAndNotWaitedForLong() = runBlocking {
+        val logbook = logbook()
+        val (server, session) = Server() to MemorySessionStore()
+        val account = model(logbook, server, session)
+        val positions = ServerRequest(
+            method = "POST",
+            path = "/v1/live/positions",
+            body = """{"fixes": []}""".toByteArray(),
+            contentType = "application/json",
+            needsToken = true,
+        )
+
+        // Signed in nowhere, there is nobody to carry anything to.
+        assertNull(account.carry(positions))
+        assertTrue(server.sent.isEmpty())
+
+        account.signIn(SERVER, "demo", "a password of the test")
+        // A flight's file is waited for two minutes; that is the usual wait.
+        assertTrue(server.sent.all { it.answerWithinMilliseconds == 120_000 })
+        server.sent.clear()
+        server.instead = { request ->
+            if (request.path == "/v1/live/positions") HttpAnswer(201, "{}".toByteArray(), retryAfterSeconds = 7u) else null
+        }
+
+        // The answer comes back as it is, the server's wish to wait included.
+        val answer = checkNotNull(account.carry(positions))
+        assertEquals(201, answer.status)
+        assertEquals(7u, answer.retryAfterSeconds)
+        val carried = server.sent.single()
+        assertEquals("POST", carried.method)
+        assertEquals("$SERVER/v1/live/positions", carried.url)
+        assertEquals("Bearer $TOKEN", carried.headers["Authorization"])
+        assertEquals("application/json", carried.headers["Content-Type"])
+        assertArrayEquals(positions.body, carried.body)
+        // Twenty seconds and no longer: the next positions are due by then.
+        assertEquals(20_000, carried.answerWithinMilliseconds)
+        // Nothing of it is the pilot's business: it is no problem to show.
+        assertNull(account.problem)
+
+        // No network: no answer, said as that and not as a failure.
+        server.instead = { throw IOException("no route to host") }
+        assertNull(account.carry(positions))
+        assertNull(account.problem)
+
+        // A phone whose token is gone has nothing to send it with: as good
+        // as the server's own refusal, and nothing is sent.
+        server.sent.clear()
+        session.remove()
+        val refused = checkNotNull(account.carry(positions))
+        assertEquals(401, refused.status)
+        assertTrue(server.sent.isEmpty())
     }
 
     @Test

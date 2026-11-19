@@ -19,12 +19,16 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Sends one request, with these headers and this body, and returns the server's answer. */
+/**
+ * Sends one request, with these headers and this body, waits so many
+ * milliseconds for the server's answer and returns it.
+ */
 typealias AccountTransport = suspend (
     method: String,
     url: String,
     headers: List<Pair<String, String>>,
     body: ByteArray?,
+    answerWithinMilliseconds: Int,
 ) -> HttpAnswer
 
 /**
@@ -273,6 +277,28 @@ class AccountModel(
         }
     }
 
+    // The cockpit's requests
+
+    /**
+     * Carries a request of the cockpit's to the pilot's server: the
+     * positions of a flight shared while it is under way. `null` when no
+     * answer came. It waits twenty seconds for one and no longer: the next
+     * positions are due by then.
+     */
+    suspend fun carry(request: ServerRequest): HttpAnswer? {
+        val server = account?.server ?: return null
+        return try {
+            ask(request, server, answerWithinMilliseconds = CARRY_WITHIN_MILLISECONDS)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: NotSignedIn) {
+            // No token to send it with: as good as the server's refusal.
+            HttpAnswer(401, ByteArray(0))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     // Requests
 
     /**
@@ -280,14 +306,19 @@ class AccountModel(
      * token where the request needs it and nowhere else. `token` is given
      * for the one request that is made before the token is kept.
      */
-    private suspend fun ask(request: ServerRequest, server: String, token: String? = null): HttpAnswer {
+    private suspend fun ask(
+        request: ServerRequest,
+        server: String,
+        token: String? = null,
+        answerWithinMilliseconds: Int = ANSWER_WITHIN_MILLISECONDS,
+    ): HttpAnswer {
         val headers = mutableListOf("Accept" to "application/json")
         request.contentType?.let { headers += "Content-Type" to it }
         if (request.needsToken) {
             val bearer = token ?: withContext(background) { session.read() } ?: throw NotSignedIn()
             headers += "Authorization" to "Bearer $bearer"
         }
-        return transport(request.method, server + request.path, headers, request.body)
+        return transport(request.method, server + request.path, headers, request.body, answerWithinMilliseconds)
     }
 
     /** Sends something whose answer changes nothing: a failure is no news. */
@@ -314,7 +345,10 @@ class AccountModel(
 
     companion object {
         /** How long a request may take: a flight's file is sent in one. */
-        private const val ANSWER_WITHIN_MILLISECONDS = 120_000
+        const val ANSWER_WITHIN_MILLISECONDS = 120_000
+
+        /** How long a request of the cockpit's may take. */
+        const val CARRY_WITHIN_MILLISECONDS = 20_000
 
         /** How long after a sync the next one that nobody asked for waits. */
         const val PAUSE_MILLISECONDS = 60_000L
@@ -323,8 +357,8 @@ class AccountModel(
          * Sends with the app's own networking, which keeps nothing: answers
          * about an account are not for a cache, and there are no cookies.
          */
-        val overHttp: AccountTransport = { method, url, headers, body ->
-            Http.send(method, url, headers, body, ANSWER_WITHIN_MILLISECONDS)
+        val overHttp: AccountTransport = { method, url, headers, body, answerWithinMilliseconds ->
+            Http.send(method, url, headers, body, answerWithinMilliseconds)
         }
     }
 }

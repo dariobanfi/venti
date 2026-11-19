@@ -172,6 +172,10 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // A flight shared while it is under way goes to the pilot's
+            // server, with the account's token.
+            fly.server = { account.account?.server.takeIf { account.isSignedIn } }
+            fly.carry = account::carry
             // The task the pilot keeps, which the cockpit flies.
             val tasks = logbook.makeTasks()
             if (sampleTask) {

@@ -3,10 +3,12 @@ package fly.venti.app.airspace
 import fly.venti.app.HttpAnswer
 import fly.venti.app.LaunchOptions
 import fly.venti.app.TestSupport
+import fly.venti.app.flight.FlightAirspaceWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.logbook.PickedFile
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
+import fly.venti.core.AirspaceCover
 import fly.venti.core.AirspaceFile
 import fly.venti.core.AirspaceImport
 import fly.venti.core.AirspaceOrigin
@@ -341,6 +343,42 @@ class AirspaceModelTest {
 
         later.useServer()
         assertFalse(remembered.airspaceWithoutServer)
+    }
+
+    @Test
+    fun aFinishedFlightIsCheckedAgainstTheAirspaceTheAppHas() = runBlocking {
+        val logbook = LogbookModel.open(TestSupport.newFolder("airspace"), TestSupport.files)
+        val flight = logbook.addSample().added.first()
+
+        // Without airspace nothing is checked, and the list says what to do.
+        val unchecked = logbook.airspace(flight)
+        assertEquals(AirspaceCover.NONE, unchecked.cover)
+        assertTrue(unchecked.crossings.isEmpty())
+        assertEquals(FlightAirspaceWords.NOT_CHECKED, FlightAirspaceWords.summary(unchecked))
+        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.NONE).startsWith("Add an airspace file"))
+
+        // With the sample zone: the flight clips it, twelve minutes in.
+        logbook.makeAirspace(now = { today }).importFiles(listOf(zone))
+        val checked = logbook.airspace(flight)
+        assertEquals(AirspaceCover.WHOLE, checked.cover)
+        assertNull(FlightAirspaceWords.summary(checked))
+        val crossing = checked.crossings.single()
+        assertEquals("SAMPLE ZONE (NOT REAL)", FlightAirspaceWords.name(crossing))
+        assertEquals("Class D control zone · GND to 9000 ft AMSL", FlightAirspaceWords.kind(crossing))
+        assertEquals(AirspacePolicy.AVOID, crossing.policy)
+        assertNull(crossing.uncertain)
+        assertTrue("$crossing", crossing.entry.seconds.toLong() > 600)
+        assertTrue("$crossing", crossing.seconds.toLong() in 20..90)
+        assertTrue(FlightAirspaceWords.duration(crossing), FlightAirspaceWords.duration(crossing).endsWith(" min"))
+        assertTrue(FlightAirspaceWords.moment(crossing, 0).endsWith(" m"))
+        assertTrue(
+            FlightAirspaceWords.caveat(AirspaceCover.WHOLE).contains("not the airspace of the day of the flight"),
+        )
+        assertTrue(FlightAirspaceWords.caveat(AirspaceCover.PARTLY).startsWith("Part of this flight lies where"))
+        assertEquals(
+            FlightAirspaceWords.NONE_ENTERED,
+            FlightAirspaceWords.summary(checked.copy(crossings = emptyList())),
+        )
     }
 
     @Test

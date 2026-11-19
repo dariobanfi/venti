@@ -249,6 +249,16 @@ class VentiUiTest {
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
+        // The wind of every band of height the glider circled in, from a
+        // tap on the wind over the map.
+        tap(hasTestTag("wind-badge"))
+        waitFor(hasText("Wind by height"))
+        waitFor(hasTestTag("wind-by-height-row"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-3b-wind-by-height")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Wind by height")) }
+
         // The cockpit shows the way back to the take-off until the pilot
         // chooses a place; the waypoints are listed nearest first.
         val strip = hasTestTag("target-strip")
@@ -474,6 +484,24 @@ class VentiUiTest {
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
         waitFor(described("Flight details"))
+
+        // The finished flight is checked against the same airspace: its
+        // map draws the zone, and its details say when it was inside and
+        // for how long. The check arrives a moment after the flight.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
+        tap(described("Flight details"))
+        waitFor(hasTestTag("flight-details"))
+        screen.onNode(hasTestTag("flight-details")).performTouchInput { swipeUp() }
+        val crossing = hasTestTag("airspace-crossing-row")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("flight-details")).performScrollToNode(crossing) }.isSuccess
+        }
+        assertTrue(exists(crossing and hasText("SAMPLE ZONE (NOT REAL)")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-flight-airspace")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("flight-details")) }
+
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
         tap(tab("Map"))
@@ -667,6 +695,11 @@ class VentiUiTest {
         // Twenty are in and listed; the twenty-first is being waited for.
         waitFor(hasTestTag("import-progress") and saying("20 of 22"))
         waitFor(hasTestTag("logbook-row"))
+        // The logbook came to the front a moment ago: without this the
+        // picture is of the map the app started on. The import stands
+        // still meanwhile, so there is no hurry.
+        letTheMapDraw(2)
+        assertTrue(exists(hasTestTag("import-progress") and saying("20 of 22")))
         keepScreenshot("$prefix-import-2-progress")
 
         held.writeText(flown(21))

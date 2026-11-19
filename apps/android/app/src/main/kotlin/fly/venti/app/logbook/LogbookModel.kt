@@ -12,6 +12,7 @@ import fly.venti.app.settings.Preferences
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
+import fly.venti.core.FlightAirspace
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
 import fly.venti.core.LogbookStatistics
@@ -167,6 +168,9 @@ class LogbookModel(
 
     /** What happened in one flight: thermals, glides, distance. */
     suspend fun analysis(id: String): FlightAnalysis = withContext(background) { core.flightAnalysis(id) }
+
+    /** One flight checked against the airspace the app has: where it was inside any of it. */
+    suspend fun airspace(id: String): FlightAirspace = withContext(background) { core.flightAirspace(id) }
 
     /**
      * Writes a flight's file into `folder`, to be shared or saved elsewhere,

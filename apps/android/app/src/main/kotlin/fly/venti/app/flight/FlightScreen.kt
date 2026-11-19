@@ -53,6 +53,10 @@ import fly.venti.app.map.StatusBarScrim
 import fly.venti.app.pilotMessage
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
+import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.wind.grown
+import fly.venti.core.AirspaceShape
+import fly.venti.core.FlightAirspace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -72,14 +76,29 @@ private sealed interface Phase {
  * its numbers and altitude profile.
  */
 @Composable
-fun FlightScreen(id: String, logbook: LogbookModel, onBack: () -> Unit) {
+fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var phase by remember(id) { mutableStateOf<Phase>(Phase.Loading) }
     // Arrives a moment after the flight itself; the screen does not wait
     // for it.
     var analysis by remember(id) { mutableStateOf<FlightAnalysis?>(null) }
+    // The flight checked against the airspace the app has. Arrives last,
+    // and again when that airspace changes.
+    var airspaceCheck by remember(id) { mutableStateOf<FlightAirspace?>(null) }
     var isConfirmingDelete by remember { mutableStateOf(false) }
+
+    val all = airspace.set
+    LaunchedEffect(id, all) {
+        airspaceCheck = try {
+            logbook.airspace(id)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Without the check the flight is still shown in full.
+            null
+        }
+    }
 
     LaunchedEffect(id) {
         try {
@@ -99,7 +118,13 @@ fun FlightScreen(id: String, logbook: LogbookModel, onBack: () -> Unit) {
         when (val current = phase) {
             Phase.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             is Phase.Failed -> Failure(current.message, Modifier.align(Alignment.Center))
-            is Phase.Loaded -> FlightDetail(current.flight, analysis)
+            is Phase.Loaded -> FlightDetail(
+                current.flight,
+                analysis,
+                airspaceCheck,
+                // The airspace around the flight, for its map.
+                airspace = remember(current.flight, all) { airspace.shapes(current.flight.bounds.grown(0.2)) },
+            )
         }
         TopButtons(
             onBack = onBack,
@@ -206,7 +231,12 @@ private fun Failure(message: String, modifier: Modifier = Modifier) {
  * covers so the track is fitted into the part that shows.
  */
 @Composable
-private fun FlightDetail(flight: FlightView, analysis: FlightAnalysis?) {
+private fun FlightDetail(
+    flight: FlightView,
+    analysis: FlightAnalysis?,
+    airspaceCheck: FlightAirspace?,
+    airspace: List<AirspaceShape>,
+) {
     // The position in the track the pilot is inspecting, if any.
     var cursor by rememberSaveable(flight.id) { mutableStateOf<Int?>(null) }
     // Whether the marker is running along the track by itself.
@@ -227,7 +257,7 @@ private fun FlightDetail(flight: FlightView, analysis: FlightAnalysis?) {
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map of the flight" },
-            onUpdate = { map.update(cursor?.let { flight.track.getOrNull(it) }, covered, analysis?.score) },
+            onUpdate = { map.update(cursor?.let { flight.track.getOrNull(it) }, covered, analysis?.score, airspace) },
         )
         StatusBarScrim()
         FlightPanel(
@@ -270,8 +300,9 @@ private fun FlightDetail(flight: FlightView, analysis: FlightAnalysis?) {
         FlightDetailsSheet(
             flight = flight,
             analysis = analysis,
+            airspace = airspaceCheck,
             onSelect = { index ->
-                // Show a thermal or glide the pilot picked from the list.
+                // Show a thermal, a glide or an airspace the pilot picked from the list.
                 isPlaying = false
                 cursor = min(index, flight.track.lastIndex)
                 isShowingDetails = false

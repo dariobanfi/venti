@@ -1,7 +1,9 @@
 package fly.venti.app.flight
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -21,14 +24,22 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import fly.venti.app.R
+import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
+import fly.venti.app.design.numbers
+import fly.venti.core.AirspaceCover
+import fly.venti.core.AirspaceCrossing
+import fly.venti.core.FlightAirspace
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightScore
 import fly.venti.core.FlightView
@@ -48,6 +59,8 @@ fun FlightDetailsSheet(
     flight: FlightView,
     /** What happened in the flight, once it has been worked out. */
     analysis: FlightAnalysis?,
+    /** The flight checked against the airspace the app has, once that is done. */
+    airspace: FlightAirspace?,
     /** Called with a position in the flight's track to mark. */
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -80,6 +93,9 @@ fun FlightDetailsSheet(
                 if (analysis.glides.isNotEmpty()) {
                     item { GlidesSection(analysis.glides, flight.startUnixS, onSelect) }
                 }
+            }
+            if (airspace != null) {
+                item { AirspaceSection(airspace, flight.startUnixS, onSelect) }
             }
             item { ExtremesSection(flight) }
             item { ColoursSection() }
@@ -192,6 +208,104 @@ private fun GlidesSection(glides: List<GlideSummary>, flightStart: Long, onSelec
                 )
             }
         }
+    }
+}
+
+/** What the list says about a flight checked against airspace. */
+object FlightAirspaceWords {
+    const val NOT_CHECKED = "Not checked: the app has no airspace where this flight was flown."
+    const val NONE_ENTERED = "The flight entered none of the airspace the app has."
+
+    /** What stands in place of the stretches when there are none to list, or `null`. */
+    fun summary(airspace: FlightAirspace): String? = when {
+        airspace.cover == AirspaceCover.NONE -> NOT_CHECKED
+        airspace.crossings.isEmpty() -> NONE_ENTERED
+        else -> null
+    }
+
+    /** What the check can and cannot say. */
+    fun caveat(cover: AirspaceCover): String {
+        val limits = "Checked against the airspace the app has today, not the airspace of the day of the " +
+            "flight, and without knowing what was active. A help for your own review, nothing more."
+        return when (cover) {
+            AirspaceCover.NONE ->
+                "Add an airspace file or set a Venti server under Settings, and the flight is checked " +
+                    "against what the app then has."
+            AirspaceCover.PARTLY ->
+                "Part of this flight lies where the app has no airspace; of that part nothing is known. $limits"
+            AirspaceCover.WHOLE -> limits
+        }
+    }
+
+    fun name(crossing: AirspaceCrossing): String = crossing.name.ifEmpty { "Unnamed airspace" }
+
+    /** "Class D control zone · GND to 9000 ft AMSL". */
+    fun kind(crossing: AirspaceCrossing): String = "${crossing.kind} · ${crossing.lower} to ${crossing.upper}"
+
+    /** When the flight went in, and between which heights it was inside: "10:12 · 1,704 to 1,727 m". */
+    fun moment(crossing: AirspaceCrossing, flightStart: Long): String =
+        "${Format.time(flightStart + crossing.entry.seconds.toLong())} · " +
+            "${Format.metres(crossing.lowestM)} to ${Format.metres(crossing.highestM)} m"
+
+    /** How long it stayed inside: "0:41 min". */
+    fun duration(crossing: AirspaceCrossing): String = "${Format.minutesSeconds(crossing.seconds.toLong())} min"
+}
+
+/**
+ * Where the flight was inside airspace the app has, or possibly inside.
+ * Choosing a stretch marks where it began.
+ */
+@Composable
+private fun AirspaceSection(airspace: FlightAirspace, flightStart: Long, onSelect: (Int) -> Unit) {
+    SectionHeader("Airspace")
+    Group {
+        for (crossing in airspace.crossings) {
+            row { AirspaceCrossingRow(crossing, flightStart) { onSelect(crossing.entry.trackIndex.toInt()) } }
+        }
+        FlightAirspaceWords.summary(airspace)?.let { summary ->
+            row {
+                Text(
+                    summary,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    SectionFooter(FlightAirspaceWords.caveat(airspace.cover))
+}
+
+/** One stretch of the flight inside an airspace, or possibly inside it. */
+@Composable
+private fun AirspaceCrossingRow(crossing: AirspaceCrossing, flightStart: Long, onClick: () -> Unit) {
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("airspace-crossing-row")
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            painterResource(if (crossing.uncertain == null) R.drawable.ic_warning else R.drawable.ic_help),
+            contentDescription = null,
+            tint = Color(0xFF000000 or AirspaceLayers.rgb(crossing.policy).toLong()),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(FlightAirspaceWords.name(crossing), style = MaterialTheme.typography.bodyLarge)
+            Text(FlightAirspaceWords.kind(crossing), style = MaterialTheme.typography.bodyMedium, color = quiet)
+            Text(
+                FlightAirspaceWords.moment(crossing, flightStart),
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = quiet,
+            )
+            crossing.uncertain?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(FlightAirspaceWords.duration(crossing), style = MaterialTheme.typography.bodyLarge.numbers)
     }
 }
 

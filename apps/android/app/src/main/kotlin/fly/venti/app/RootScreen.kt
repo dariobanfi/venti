@@ -178,7 +178,7 @@ private fun Sections(
                     LogbookScreen(logbook, navigation, imports = session.scope, onNotice = onNotice, bars = bars)
                 }
                 is LogbookRoute.Flight -> kept.SaveableStateProvider("flight-${route.id}") {
-                    FlightScreen(route.id, logbook, onBack = { navigation.back() })
+                    FlightScreen(route.id, logbook, session.airspace, onBack = { navigation.back() })
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
                     StatisticsScreen(

@@ -42,9 +42,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +102,7 @@ fun CockpitScreen(
     var isConfirmingFinish by remember { mutableStateOf(false) }
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
+    var isShowingWinds by remember { mutableStateOf(false) }
     val map = remember { CockpitMap() }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
@@ -131,7 +136,14 @@ fun CockpitScreen(
                     },
                 )
                 view.wind?.let { wind ->
-                    WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
+                    WindBadge(
+                        wind,
+                        onOpen = { isShowingWinds = true },
+                        // Less room above than the other badges: a badge
+                        // that can be pressed is given a taller touch
+                        // target than it is drawn, and stands in its middle.
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
+                    )
                 }
                 AirspaceBanner(
                     fly.airspaceWarnings,
@@ -186,6 +198,11 @@ fun CockpitScreen(
             onUnsilence = fly::unsilenceAirspace,
             onDismiss = { isShowingAirspace = false },
         )
+    }
+
+    if (isShowingWinds) {
+        // The running session's bands: the list fills while it is open.
+        WindByHeightSheet(view.windsByHeight, onDismiss = { isShowingWinds = false })
     }
 
     if (isChoosingTarget) {
@@ -294,6 +311,9 @@ private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mo
                 Text("${Format.kilometres(gap)} to close", style = style.numbers, color = quiet, maxLines = 1)
             }
         }
+        // A gap also when the line is full and the spring between its two
+        // halves has nothing left to give.
+        Spacer(Modifier.width(8.dp))
         Spacer(Modifier.weight(1f))
         // No position for five seconds means the fix is gone.
         if (view.positionAgeS?.let { it > 5 } != false) {
@@ -503,29 +523,47 @@ private fun VarioBar(climb: Double?) {
 
 /** A small raised surface over the map, for the wind and the flight's phase. */
 @Composable
-private fun Badge(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = 3.dp,
-    ) {
+private fun Badge(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    val row = @Composable {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             content()
         }
+    }
+    val colour = MaterialTheme.colorScheme.surfaceContainerLow
+    if (onClick == null) {
+        Surface(modifier = modifier, shape = CircleShape, color = colour, shadowElevation = 3.dp, content = row)
+    } else {
+        // A surface that can be pressed keeps its press inside its shape.
+        Surface(
+            onClick = onClick,
+            modifier = modifier,
+            shape = CircleShape,
+            color = colour,
+            shadowElevation = 3.dp,
+            content = row,
+        )
     }
 }
 
 /** The wind over the map: an arrow pointing the way the air moves, and its speed. */
 @Composable
-private fun WindBadge(wind: WindView, modifier: Modifier = Modifier) {
+private fun WindBadge(wind: WindView, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val speed = Format.kilometresPerHour(wind.speedMs)
     Badge(
-        modifier.clearAndSetSemantics {
-            contentDescription = "Wind"
-            stateDescription =
-                "${Format.spokenKilometresPerHour(wind.speedMs)} from ${Format.compassPoint(wind.fromDeg)}"
-        },
+        modifier
+            .testTag("wind-badge")
+            .clearAndSetSemantics {
+                contentDescription = "Wind"
+                stateDescription =
+                    "${Format.spokenKilometresPerHour(wind.speedMs)} from ${Format.compassPoint(wind.fromDeg)}"
+                role = Role.Button
+                onClick(label = "Show the wind by height") {
+                    onOpen()
+                    true
+                }
+            },
+        // A tap lists the wind of every band of height the glider has circled in.
+        onClick = onOpen,
     ) {
         Icon(
             painterResource(R.drawable.ic_arrow_upward),

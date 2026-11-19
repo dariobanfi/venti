@@ -3,6 +3,7 @@ package fly.venti.app.fly
 import android.graphics.PointF
 import android.os.SystemClock
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.design.ClimbBand
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.latLng
@@ -12,6 +13,7 @@ import fly.venti.core.AirspaceSet
 import fly.venti.core.Bounds
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
+import fly.venti.core.ThermalMarkView
 import fly.venti.core.WayToTarget
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -19,7 +21,9 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -74,6 +78,9 @@ class CockpitMap : MapContent {
     private var airspaceDrawnAt: Coordinate? = null
     private var airspaceIsNew = false
 
+    /** The thermals last drawn. */
+    private var drawnThermals: List<ThermalMarkView>? = null
+
     /** The route the flight scores along so far, and the one last drawn. */
     private var route: List<Coordinate> = emptyList()
     private var drawnRoute: List<Coordinate>? = null
@@ -123,6 +130,28 @@ class CockpitMap : MapContent {
 
         style.addSource(GeoJsonSource(FLIGHT))
         MapSetup.addBandLayers(style, FLIGHT, edgeWidth = 6f)
+
+        // The thermals already used: a dot in the colour of climb with the
+        // climb beside it, over the trail, so that the lift can be found
+        // again. A number that has no room gives way; its dot stays.
+        style.addSource(GeoJsonSource(THERMALS))
+        style.addLayer(
+            MapSetup.dot("cockpit-thermal-dot", THERMALS, 5f, MapSetup.colour(ClimbBand.Climb), MapSetup.WHITE),
+        )
+        style.addLayer(
+            SymbolLayer("cockpit-thermal-climb", THERMALS).withProperties(
+                PropertyFactory.textField(Expression.get(LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(13f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_LEFT),
+                PropertyFactory.textOffset(arrayOf(0.7f, 0f)),
+                PropertyFactory.textColor(0xFF0B0B0B.toInt()),
+                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloWidth(1.6f),
+            ),
+        )
+        drawnThermals = null
+
         style.addSource(GeoJsonSource(TAKEOFF))
         style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
         // The glider goes on top: the same mark as the one a finished
@@ -234,6 +263,13 @@ class CockpitMap : MapContent {
             FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
         )
 
+        if (view.thermals != drawnThermals) {
+            drawnThermals = view.thermals
+            style.getSourceAs<GeoJsonSource>(THERMALS)?.setGeoJson(
+                FeatureCollection.fromFeatures(view.thermals.map(::thermalFeature)),
+            )
+        }
+
         if (route != drawnRoute) {
             drawnRoute = route
             style.getSourceAs<GeoJsonSource>(ROUTE)?.setGeoJson(
@@ -260,6 +296,8 @@ class CockpitMap : MapContent {
         private const val COURSE = "cockpit-course"
         private const val ROUTE = "cockpit-route"
         private const val TARGET = "cockpit-target"
+        private const val THERMALS = "cockpit-thermals"
+        const val LABEL = "label"
         private const val CRUISE_ZOOM = 13.0
         private const val THERMAL_ZOOM = 15.5
 
@@ -271,6 +309,10 @@ class CockpitMap : MapContent {
 
         /** The longest the map takes to slide to the glider's new position. */
         private const val LONGEST_GLIDE_MILLISECONDS = 1000L
+
+        /** A thermal the glider has left, as the map draws it: a point with its climb to write beside it. */
+        fun thermalFeature(mark: ThermalMarkView): Feature =
+            Feature.fromGeometry(mark.position.point).apply { addStringProperty(LABEL, mark.label) }
 
         /**
          * The zoom for the kind of flying, or less if it takes less to

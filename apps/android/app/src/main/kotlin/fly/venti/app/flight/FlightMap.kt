@@ -1,10 +1,12 @@
 package fly.venti.app.flight
 
+import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.map.Covered
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.RouteShape
 import fly.venti.app.map.lineString
+import fly.venti.core.AirspaceShape
 import fly.venti.core.FlightScore
 import fly.venti.core.FlightView
 import fly.venti.core.TrackPoint
@@ -22,13 +24,16 @@ import kotlin.math.roundToInt
 
 /**
  * The map of one flight: its track coloured by climb, where it started and
- * ended, the scored route, and a marker at the moment the pilot is
- * inspecting.
+ * ended, the scored route, a marker at the moment the pilot is inspecting,
+ * and under it all the airspace the app has around it today.
  */
 class FlightMap(private val flight: FlightView) : MapContent {
     private var cursor: TrackPoint? = null
     private var score: FlightScore? = null
     private var covered = Covered()
+
+    /** The airspace around the flight that the app has, to draw under it. */
+    private var airspace: List<AirspaceShape> = emptyList()
 
     private var map: MapLibreMap? = null
     private var style: Style? = null
@@ -39,7 +44,11 @@ class FlightMap(private val flight: FlightView) : MapContent {
      * of the map the bars and the panel cover; and the scored route, once
      * the flight has been analysed.
      */
-    fun update(cursor: TrackPoint?, covered: Covered, score: FlightScore?) {
+    fun update(cursor: TrackPoint?, covered: Covered, score: FlightScore?, airspace: List<AirspaceShape> = emptyList()) {
+        if (airspace != this.airspace) {
+            this.airspace = airspace
+            drawAirspace()
+        }
         if (score != this.score) {
             this.score = score
             drawRoute()
@@ -64,6 +73,9 @@ class FlightMap(private val flight: FlightView) : MapContent {
         this.map = map
         this.style = style
         this.view = view
+        // Airspace lowest of all, under the route and the track.
+        AirspaceLayers.add(style)
+        drawAirspace()
         addRoute(style)
         addTrack(style)
         addEnds(style)
@@ -72,6 +84,14 @@ class FlightMap(private val flight: FlightView) : MapContent {
         view.post { if (!view.isDestroyed) frame() }
         drawRoute()
         markCursor()
+    }
+
+    /** Draws the airspace around the flight that the app has today. */
+    private fun drawAirspace() {
+        val style = style ?: return
+        val view = view ?: return
+        if (view.isDestroyed || !style.isFullyLoaded) return
+        AirspaceLayers.show(airspace, style)
     }
 
     /** Fits the whole track into the part of the map that shows. */

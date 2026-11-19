@@ -120,4 +120,6 @@ gh run download --name android-screenshots --dir /tmp/venti-screens
 
 The emulator is plain Android 16 without Google's services, which is also the check that the app needs none of them.
 
+It draws with the emulator's `swangle_indirect` software renderer. The usual one, `swiftshader_indirect`, draws none of the map's symbols: no place names, no wind arrows, no dashed lines, so a screenshot from it says nothing about a map. Now and then the renderer in use cuts off part of the clock and the icons in the status bar; that is the emulator, not the app. One test asks the map itself which place names it has placed, so missing fonts are found whatever the renderer draws.
+
 For the wind map the workflow starts `venti-server dev` and tells the tests where it is. To run that test yourself, start the server and add `-Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080` to the `connectedDebugAndroidTest` command; without the argument the test is skipped.

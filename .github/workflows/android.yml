@@ -102,6 +102,11 @@ jobs:
       # Plain Android 16 without Google's services: the app must not need
       # them. An emulator reaches the machine it runs on at 10.0.2.2, which
       # is where the wind map's test finds the server.
+      #
+      # The renderer is chosen for the map. The emulator's usual software
+      # renderer (swiftshader_indirect) draws none of the map's symbols:
+      # no place names, no wind arrows, no dashed lines. This one draws
+      # them as a phone does.
       - name: UI tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -111,7 +116,7 @@ jobs:
           profile: pixel_6
           cores: 3
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: apps/android
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080
 
@@ -140,74 +145,4 @@ jobs:
           path: |
             apps/android/app/build/reports
             apps/android/app/build/outputs/androidTest-results
-          if-no-files-found: ignore
-
-      # Two experiments, which cannot fail the run. The emulator's usual
-      # software renderer draws neither the map's place names nor dashed
-      # lines; its other one does, but cuts the clock in the status bar in
-      # half. The first pass runs every test on that other renderer; the
-      # second tries it with the emulator's Vulkan switched off, to see
-      # whether the status bar is whole then.
-      - name: Every UI test with the emulator's other software renderer
-        if: always()
-        continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          target: default
-          arch: x86_64
-          profile: pixel_6
-          cores: 3
-          disable-animations: true
-          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -no-snapshot-save
-          working-directory: apps/android
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080
-
-      - name: Collect the first experiment's screenshots
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p apps/android/build/screenshots-other-renderer
-          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
-            -exec cp {} apps/android/build/screenshots-other-renderer/ \;
-          ls -l apps/android/build/screenshots-other-renderer
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        continue-on-error: true
-        with:
-          name: android-screenshots-other-renderer
-          path: apps/android/build/screenshots-other-renderer
-          if-no-files-found: ignore
-
-      - name: One UI test with that renderer and without Vulkan
-        if: always()
-        continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          target: default
-          arch: x86_64
-          profile: pixel_6
-          cores: 3
-          disable-animations: true
-          emulator-options: -no-window -gpu swangle_indirect -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
-          working-directory: apps/android
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=fly.venti.app.VentiUiTest#aPilotImportsAFlightInspectsItAndDeletesIt
-
-      - name: Collect the second experiment's screenshots
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p apps/android/build/screenshots-without-vulkan
-          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
-            -exec cp {} apps/android/build/screenshots-without-vulkan/ \;
-          ls -l apps/android/build/screenshots-without-vulkan
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        continue-on-error: true
-        with:
-          name: android-screenshots-without-vulkan
-          path: apps/android/build/screenshots-without-vulkan
           if-no-files-found: ignore

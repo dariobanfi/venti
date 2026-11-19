@@ -1,0 +1,25 @@
+[package]
+name = "venti-core-wasm"
+description = "The client core as a WebAssembly module with TypeScript declarations, for the web app."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib is the WebAssembly module; lib lets the tests run on the build machine.
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+venti-core = { workspace = true, features = ["wasm"] }
+js-sys.workspace = true
+serde.workspace = true
+tsify.workspace = true
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+venti-flight.workspace = true
+
+[lints]
+workspace = true

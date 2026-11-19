@@ -25,12 +25,14 @@ use venti_flight::{igc, summarise, track};
 
 mod cockpit;
 mod logbook;
+mod storage;
 #[cfg(test)]
 mod testing;
 
 pub use cockpit::*;
 
 use logbook::{Logbook, LogbookError};
+pub use storage::{DiskStorage, StagedFile, StagedStorage, Storage};
 
 uniffi::setup_scaffolding!();
 
@@ -88,6 +90,8 @@ impl From<LogbookError> for CoreError {
 
 /// A place on the ground.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Coordinate {
     /// Latitude in degrees.
     pub lat: f64,
@@ -97,6 +101,8 @@ pub struct Coordinate {
 
 /// One point of a track, for drawing.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TrackPoint {
     /// Latitude in degrees.
     pub lat: f64,
@@ -113,6 +119,8 @@ pub struct TrackPoint {
 
 /// One point of an altitude profile, for a chart.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ProfilePoint {
     /// Seconds since the first point of the track.
     pub seconds: u32,
@@ -122,6 +130,8 @@ pub struct ProfilePoint {
 
 /// A rectangle in latitude and longitude.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Bounds {
     /// Southern edge, degrees.
     pub south: f64,
@@ -135,6 +145,8 @@ pub struct Bounds {
 
 /// Everything a screen needs to show one recorded flight.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightView {
     /// The flight's identifier in the logbook.
     pub id: String,
@@ -172,6 +184,8 @@ pub struct FlightView {
 
 /// The result of importing a flight file.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ImportedFlight {
     /// The flight's identifier in the logbook.
     pub id: String,
@@ -181,6 +195,8 @@ pub struct ImportedFlight {
 
 /// Flights counted together.
 #[derive(Debug, Clone, Copy, Default, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Totals {
     /// Number of flights.
     pub flights: u32,
@@ -192,6 +208,8 @@ pub struct Totals {
 
 /// One line of the logbook.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct LogbookEntry {
     /// The flight's identifier, to open or delete it.
     pub id: String,
@@ -216,6 +234,8 @@ pub struct LogbookEntry {
 
 /// The flights of one calendar year (UTC), newest first.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct LogbookYear {
     /// The year.
     pub year: i32,
@@ -227,6 +247,8 @@ pub struct LogbookYear {
 
 /// Everything the logbook screen shows.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct LogbookView {
     /// All flights counted together.
     pub totals: Totals,
@@ -246,9 +268,8 @@ impl Core {
     /// keeps the pilot's flights there and creates it if it does not exist.
     #[uniffi::constructor]
     pub fn new(data_folder: String) -> Result<Arc<Self>, CoreError> {
-        Ok(Arc::new(Self {
-            logbook: Logbook::open(Path::new(&data_folder))?,
-        }))
+        let disk = DiskStorage::open(Path::new(&data_folder)).map_err(LogbookError::from)?;
+        Self::with_storage(Arc::new(disk))
     }
 
     /// The version of the core, for the about screen and bug reports.
@@ -370,6 +391,17 @@ impl Core {
     /// Removes a flight from the logbook for good.
     pub fn delete_flight(&self, id: String) -> Result<(), CoreError> {
         Ok(self.logbook.delete(&id)?)
+    }
+}
+
+impl Core {
+    /// Creates the core over storage the caller chose. The phones' shells
+    /// use [`Core::new`], which keeps everything in a folder on disk; the
+    /// browser's binding passes a [`StagedStorage`].
+    pub fn with_storage(storage: Arc<dyn Storage>) -> Result<Arc<Self>, CoreError> {
+        Ok(Arc::new(Self {
+            logbook: Logbook::open(storage)?,
+        }))
     }
 }
 

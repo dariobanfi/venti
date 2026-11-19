@@ -11,6 +11,11 @@ publish.workspace = true
 # lib for Rust tests, staticlib for iOS, cdylib for Android and for generating bindings.
 crate-type = ["lib", "staticlib", "cdylib"]
 
+[features]
+# Lets the browser's binding (crates/core-wasm) hand the view types to
+# JavaScript and generates their TypeScript declarations. Off on the phones.
+wasm = ["dep:tsify", "dep:wasm-bindgen"]
+
 [dependencies]
 venti-domain.workspace = true
 venti-flight.workspace = true
@@ -20,7 +25,9 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+tsify = { workspace = true, optional = true }
 uniffi.workspace = true
+wasm-bindgen = { workspace = true, optional = true }
 
 [lints]
 workspace = true

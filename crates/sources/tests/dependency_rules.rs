@@ -8,6 +8,8 @@
 //! - `venti-flight` and `venti-sensors` depend only on `venti-domain`.
 //! - `venti-core`, the client core, never depends on the source framework:
 //!   clients talk to our server, never to a data provider.
+//! - `venti-core-wasm`, the browser's binding, depends only on `venti-core`:
+//!   like every shell it calls the core and nothing below it.
 
 use std::collections::BTreeMap;
 use std::process::Command;
@@ -64,6 +66,7 @@ fn crate_dependencies_point_inward() {
             "venti-domain" => Some(&[]),
             "venti-sources" | "venti-flight" | "venti-sensors" => Some(&["venti-domain"]),
             "venti-core" => Some(&["venti-domain", "venti-flight", "venti-sensors"]),
+            "venti-core-wasm" => Some(&["venti-core"]),
             provider if is_provider(provider) => Some(&["venti-domain", "venti-sources"]),
             _ => None,
         };

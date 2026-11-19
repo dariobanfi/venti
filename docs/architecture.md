@@ -1,6 +1,6 @@
 # Architecture
 
-Last revised: 2026-11-18. Facts marked *(to verify)* come from research that could not reach the primary source and must be checked before they are relied on.
+Last revised: 2026-11-19. Facts marked *(to verify)* come from research that could not reach the primary source and must be checked before they are relied on.
 
 ## Shape of the system
 
@@ -41,7 +41,7 @@ Three ideas carry the design:
 
 ## Rust workspace
 
-Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `ingest`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `sensors` (sentence parsers for external varios), `core` (the logbook on the device and the cockpit session) and the iOS shell in `apps/ios`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`.
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `ingest`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `sensors` (sentence parsers for external varios), `core` (the logbook on the device and the cockpit session), `core-wasm` (the core for the browser) and the iOS shell in `apps/ios`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`.
 
 ```
 crates/
@@ -59,9 +59,11 @@ crates/
   api-types      Request and response types shared by server and clients.
   tools          Assistant tool definitions: one definition, served in-app and over MCP.
   llm            Provider clients for the in-app assistant.
-  core           Client application core: state, events, view models. UniFFI and WASM exports.
-                 Today it keeps the logbook: flight files in the app's data folder and an
+  core           Client application core: state, events, view models. UniFFI exports.
+                 Today it keeps the logbook: flight files in the app's storage and an
                  index beside them. This moves into `client-store` when sync arrives.
+  core-wasm      The core as a WebAssembly module with TypeScript declarations
+                 (wasm-bindgen). The web app's only way into Rust.
   terrain3d      Terrain and flight-replay renderer on wgpu.
   server         The server binary.
 apps/
@@ -80,7 +82,7 @@ docs/
 - `flight` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
 - UI shells contain no business rules. If a shell needs an `if` about flying, the logic belongs in `core`.
 
-The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than a binary that assembles the registry depends on a provider crate. Add the rules for `flight` and `sensors` to it when those crates are created.
+The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than a binary that assembles the registry depends on a provider crate, and it holds `core-wasm` to depending on `core` alone. Add the rules for `flight` and `sensors` to it when those crates are created.
 
 ## Clients
 
@@ -89,7 +91,7 @@ The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules
 | Target | Mechanism |
 |---|---|
 | Swift, Kotlin | UniFFI (0.32 at the time of writing) |
-| Web | wasm-bindgen |
+| Web | wasm-bindgen (0.2.130 at the time of writing), in the crate `core-wasm` |
 
 The core follows the one-way pattern used by Proton Mail, Bitwarden and the Crux framework: the shell sends events in, the core returns a view model, and the shell performs the side effects the core asks for (network, storage, sensors). We adopt the pattern, not the Crux framework, to keep the dependency surface small.
 
@@ -106,7 +108,18 @@ What the Phase 0 spike showed (2026-11-18, UniFFI 0.32, Xcode 26.6, Swift 6.3):
 - The module map must be generated with the module name the generated Swift imports (`venti_coreFFI`); the generator's default name does not match.
 - Not yet exercised: async functions, callbacks from Rust into Swift, and a physical device. UniFFI's own notes say async code does not yet conform to `Sendable`.
 
-There is no first-party generator that covers WASM, so the Swift/Kotlin and web binding surfaces are maintained separately. BoltFFI would unify them but is young.
+There is no first-party generator that covers WASM, so the web has its own binding crate, `core-wasm`. It is thin. The view types are the core's own: built with its `wasm` feature, the core derives their TypeScript declarations from the Rust definitions (with `tsify`), doc comments included. Only the list of calls exists twice, once for UniFFI and once for wasm-bindgen. A failed call throws a JavaScript `Error` whose message is the core's and whose name is the kind of error. BoltFFI would unify the two bindings but is young.
+
+### Storage
+
+The core keeps whole files under short names (`flights/<id>.igc`, `logbook-index.json`) and reaches them through one small interface, `Storage`: list a folder, read a file, write one, remove one. What makes two files the same flight, the index, summaries and totals are built on top of it and are the same code on every platform. There are two implementations:
+
+- `DiskStorage` is a folder the app owns. The phones use it. The files are where they were before the interface existed.
+- `StagedStorage` is for a host that can only store things asynchronously, which is every browser, while the core's interface is synchronous. It knows the names of the stored files and holds none of their contents. A read of a file that is not in memory fails and notes the file as wanted; the host fetches it, hands it over and makes the same call again. Writes and removals are staged, and the host applies them to its own store after the call, all together. What the host handed over is dropped once the call has succeeded.
+
+This is the one-way pattern above applied to storage: the core decides what is stored, the shell does the reading and writing. It also keeps a long logbook out of memory. Opening needs the index only, and a flight's file is fetched when that flight is opened. A lost index is rebuilt a few files at a time.
+
+One suite of tests runs against both implementations (`crates/core/src/storage.rs` and `crates/core/src/logbook.rs`). How the web app stores the files is under [Web](#web). The cockpit's recorder is not behind this interface: it appends to a file in the data folder and exists only on the phones.
 
 ### iOS (first target)
 
@@ -334,6 +347,10 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-18 | Until the tile server exists, the iOS app fetches base map tiles from OpenFreeMap and terrain from Mapterhorn's public endpoint | A logbook has to show flights wherever they were flown, and the bundled demo region covers one valley. Both are the same open data we will host. | The server is up; in any case before a public release |
 | 2026-11-18 | The logbook lives in the core: flight files kept as received plus a rebuildable index | All three apps get the same import, duplicate detection and totals. Keeping the original file keeps the recorder's signature for later upload to leagues. | Sync with the server is built (`client-store`) |
 | 2026-11-18 | A flight's identity is a hash of its fixes, not of its file | The same recording downloaded from two places differs in headers but is one flight | Two recorders on one flight need to be recognised as one flight |
+| 2026-11-19 | The core reaches its files through a storage interface with two implementations: a folder on disk, and a staged one for hosts that can only store asynchronously | A browser has no synchronous storage that fits a logbook, and the core's interface stays synchronous for UniFFI. With the seam at whole files, a flight's identity, the index, summaries and totals stay one piece of code. | `client-store` (SQLite) replaces the logbook's files, or the core gets an asynchronous interface |
+| 2026-11-19 | In a browser the core holds the names of the stored files and the index, never every flight file | A logbook of a thousand flights is several hundred megabytes of text, more than a phone's browser should hold | Not expected |
+| 2026-11-19 | The web binding is its own crate, `core-wasm`; TypeScript types are generated from the core's Rust types with tsify, behind the core's `wasm` feature | A second, hand-written copy of every view type would drift. A separate crate keeps wasm-bindgen out of the phones' builds. | UniFFI or BoltFFI can generate the web binding |
+| 2026-11-19 | The UniFFI derives stay on in the WebAssembly build | The core compiles for `wasm32-unknown-unknown` with them. Their exports are dead weight in the browser (measured: 116 KB of 652 KB, 33 KB of 182 KB compressed), but switching them off would put a second attribute on every type in the core and break only the web build when one is forgotten. | The download size matters: remove the unused exports after linking, or gate the derives |
 | 2026-11-19 | The flight computer takes time from its samples and reads no clock | A recorded flight replays to exactly what the pilot saw, which makes the cockpit testable on the ground and in CI | Not expected |
 | 2026-11-19 | Climb rate from a two-state Kalman filter over altitude, with the external instrument's own vario preferred | Works at any sample rate and for any source; an instrument's vario already fuses sensors we cannot see | Accelerometer fusion is added for pilots without an external vario |
 | 2026-11-19 | Wind by fitting a circle to ground velocities | XCTrack's own tracker lists its perfect-circle wind estimate as weak; this needs only GPS and tolerates uneven circles | A compass or airspeed sensor is available |

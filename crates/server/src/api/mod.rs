@@ -28,6 +28,7 @@ mod airspace;
 mod auth;
 mod body;
 mod cache;
+mod clients;
 mod error;
 mod flights;
 mod health;
@@ -178,6 +179,8 @@ pub struct Api<S> {
     mcp: venti_mcp::Server,
     /// Requests to the connector, by client address.
     connector_requests: Throttle,
+    /// Where requests come from, to notice a setup that hides it.
+    clients: clients::ClientWatch,
 }
 
 impl<S: Store> Api<S> {
@@ -234,6 +237,7 @@ impl<S: Store> Api<S> {
                 limits.connector_window,
                 limits.watched_keys,
             ),
+            clients: clients::ClientWatch::default(),
             limits,
         }
     }
@@ -259,7 +263,8 @@ impl<S: Store> Api<S> {
     /// The router that answers every request.
     ///
     /// From the outside in, a request passes: the request log, response
-    /// compression, CORS, and then one of four groups of routes.
+    /// compression, CORS, a note of the address it came from ([`clients`]),
+    /// and then one of four groups of routes.
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
@@ -340,6 +345,7 @@ impl<S: Store> Api<S> {
             }))
             .layer(axum::middleware::from_fn(mcp::rpc_errors));
 
+        let api = Arc::new(self);
         Router::new()
             .merge(ordinary)
             .merge(upload)
@@ -347,7 +353,11 @@ impl<S: Store> Api<S> {
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .merge(share)
             .merge(connector)
-            .with_state(Arc::new(self))
+            .layer(axum::middleware::from_fn_with_state(
+                api.clone(),
+                clients::note::<S>,
+            ))
+            .with_state(api)
             .layer(cors_layer(cors))
             .layer(CompressionLayer::new())
             .layer(

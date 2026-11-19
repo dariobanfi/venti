@@ -63,6 +63,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let api = Api::new(store.clone(), clock.clone(), manifests, settings);
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
     tracing::info!("accounts: registration is {:?}", config.registration);
+    tracing::info!("client addresses: {}", config.trusted_proxies.in_words());
 
     let shutdown = CancellationToken::new();
     tokio::spawn(cancel_on_signal(shutdown.clone()));

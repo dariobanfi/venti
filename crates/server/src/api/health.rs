@@ -99,6 +99,7 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
         version: env!("CARGO_PKG_VERSION").to_owned(),
         time: now,
         forecasts: Some(forecasts),
+        client_addresses: api.clients.verdict(now),
         sources,
     };
 

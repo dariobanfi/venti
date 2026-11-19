@@ -64,7 +64,9 @@ pub use flights::{
     Visibility,
 };
 pub use forecast::{ForecastLayer, ForecastResponse};
-pub use health::{ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, SourceHealth};
+pub use health::{
+    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, SourceHealth,
+};
 pub use observations::{ObservationsResponse, Reading};
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,

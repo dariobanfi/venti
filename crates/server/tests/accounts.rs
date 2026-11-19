@@ -11,8 +11,9 @@ use axum::http::{Method, Request, StatusCode, header};
 use chrono::Duration;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AccountResponse, ChangePasswordRequest,
-    CreateAccountRequest, DeleteAccountRequest, ErrorCode, FLIGHTS_PATH, Password, SESSIONS_PATH,
-    SessionsResponse, SignInResponse, Visibility, flight_path, session_path, share_path,
+    ClientAddressesHealth, CreateAccountRequest, DeleteAccountRequest, ErrorCode, FLIGHTS_PATH,
+    HEALTH_PATH, HealthResponse, Password, SESSIONS_PATH, SessionsResponse, SignInResponse,
+    Visibility, flight_path, session_path, share_path,
 };
 use venti_server::accounts::client::TrustedProxies;
 use venti_server::accounts::invite;
@@ -696,6 +697,63 @@ async fn a_forwarded_address_is_believed_from_a_named_proxy_only() {
     )
     .await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn a_setup_that_hides_the_visitors_addresses_shows_in_the_health_answer() {
+    let clock = TestClock::new();
+    let forwarded_for = header::HeaderName::from_static("x-forwarded-for");
+    // Twenty-five requests that reach the server from `peer`, which says
+    // each came from the address `reported` gives; then what the health
+    // answer says about the addresses the server sees.
+    let after_requests = |router: Router, peer: &'static str, reported: fn(usize) -> String| {
+        let forwarded_for = forwarded_for.clone();
+        async move {
+            for n in 0..25 {
+                let answer = ask(Method::GET, HEALTH_PATH)
+                    .from(peer)
+                    .header(forwarded_for.clone(), &reported(n))
+                    .send(&router)
+                    .await;
+                assert_eq!(answer.status, StatusCode::OK);
+            }
+            let health: HealthResponse = get(&router, HEALTH_PATH).await.json();
+            health.client_addresses
+        }
+    };
+    const CADDY: &str = "172.30.250.2";
+
+    // Before anyone has asked, there is nothing to say.
+    let router = limited_server(&clock, &[CADDY]);
+    let health: HealthResponse = get(&router, HEALTH_PATH).await.json();
+    assert_eq!(health.client_addresses, None);
+
+    // Docker hands the proxy the gateway's address for every visitor, and
+    // the proxy passes it on in good faith.
+    let hidden = after_requests(router.clone(), CADDY, |_| "172.30.250.1".to_owned()).await;
+    assert_eq!(hidden, Some(ClientAddressesHealth::Hidden));
+    // The next hour, with the setup repaired: every visitor has an address.
+    clock.advance(Duration::hours(1));
+    let seen = after_requests(router, CADDY, |n| format!("198.51.100.{n}")).await;
+    assert_eq!(seen, Some(ClientAddressesHealth::Seen));
+
+    // The proxy is not at the address the configuration names: what it
+    // reports is not believed, and every request is the proxy's.
+    let router = limited_server(&clock, &[CADDY]);
+    let hidden = after_requests(router, "172.30.250.9", |n| format!("198.51.100.{n}")).await;
+    assert_eq!(hidden, Some(ClientAddressesHealth::Hidden));
+
+    // No proxy at all, and visitors that connect themselves.
+    let router = limited_server(&clock, &[]);
+    for n in 0..25 {
+        let peer = format!("203.0.113.{n}");
+        ask(Method::GET, HEALTH_PATH)
+            .from(&peer)
+            .send(&router)
+            .await;
+    }
+    let health: HealthResponse = get(&router, HEALTH_PATH).await.json();
+    assert_eq!(health.client_addresses, Some(ClientAddressesHealth::Seen));
 }
 
 #[tokio::test]

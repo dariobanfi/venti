@@ -15,6 +15,11 @@ pub struct HealthResponse {
     /// server older than forecasts, which has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forecasts: Option<ForecastsHealth>,
+    /// Whether the server sees the addresses of those who ask it. For
+    /// whoever runs the server; an app has no use for it. Left out while
+    /// too few requests have arrived to tell, and by an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_addresses: Option<ClientAddressesHealth>,
     /// One entry per data source the server collects, sorted by identifier:
     /// the sources of observations, of airspace, of flying sites and of
     /// forecasts alike.
@@ -46,6 +51,27 @@ pub enum ForecastsHealth {
     /// or none of its regions names one. `GET /v1/forecast` answers with
     /// [`ErrorCode::NoForecasts`](super::ErrorCode::NoForecasts).
     NotConfigured,
+    /// A state this version of the client does not know.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether a server sees the addresses of those who ask it.
+///
+/// A server counts attempts to sign in, and requests to its connector, by
+/// the address they come from. Behind a proxy that hides the addresses
+/// every visitor is the same one, and what one of them does is counted
+/// against all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientAddressesHealth {
+    /// Requests arrive from addresses of their own.
+    Seen,
+    /// A large share of the last hour's requests came from one and the
+    /// same private address. On a server on the internet that is a proxy
+    /// or a container network hiding the visitors; its log and its
+    /// runbook say more.
+    Hidden,
     /// A state this version of the client does not know.
     #[serde(other)]
     Unknown,
@@ -137,11 +163,25 @@ mod tests {
         let health: HealthResponse = serde_json::from_str(text).unwrap();
 
         assert_eq!(health.forecasts, None);
+        assert_eq!(health.client_addresses, None);
         assert_eq!(health.sources[0].sites, None);
         assert!(health.sources[0].models.is_empty());
         let written = serde_json::to_value(&health).unwrap();
         assert!(written.get("forecasts").is_none());
+        assert!(written.get("client_addresses").is_none());
         assert!(written["sources"][0].get("models").is_none());
+    }
+
+    #[test]
+    fn a_server_says_whether_it_sees_who_asks() {
+        let state = |text: &str| serde_json::from_str::<ClientAddressesHealth>(text).unwrap();
+        assert_eq!(state(r#""seen""#), ClientAddressesHealth::Seen);
+        assert_eq!(state(r#""hidden""#), ClientAddressesHealth::Hidden);
+        assert_eq!(state(r#""partly_hidden""#), ClientAddressesHealth::Unknown);
+        assert_eq!(
+            serde_json::to_string(&ClientAddressesHealth::Hidden).unwrap(),
+            r#""hidden""#
+        );
     }
 
     #[test]

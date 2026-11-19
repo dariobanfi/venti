@@ -27,10 +27,17 @@ services:
     logging: *logging
     depends_on:
       - server
+    # Published on the machine's IPv4 addresses and on no other. Without
+    # the "0.0.0.0" Docker also listens on IPv6 and hands such connections
+    # to this IPv4-only network through its own forwarder (its
+    # documentation, read 2026-11-19), and Caddy would then see one and
+    # the same private address for every IPv6 visitor: the server would
+    # count them all as one. README.md, "The visitor's address", says
+    # what serving IPv6 properly needs.
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # HTTP/3
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+      - "0.0.0.0:443:443/udp" # HTTP/3
     environment:
       VENTI_SITE_ADDRESS: ${VENTI_SITE_ADDRESS:?set VENTI_SITE_ADDRESS in .env}
     # A fixed address, so that the server can be told exactly whose word on

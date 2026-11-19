@@ -38,6 +38,22 @@ impl TrustedProxies {
             .map(Self)
     }
 
+    /// What the log says at start about whose word on a client's address
+    /// is believed.
+    pub fn in_words(&self) -> String {
+        if self.0.is_empty() {
+            return "no proxy is trusted: the address of each connection is taken for the \
+                    client's, and X-Forwarded-For is not read"
+                .to_owned();
+        }
+        let named: Vec<String> = self.0.iter().map(|net| trim_host(*net)).collect();
+        format!(
+            "X-Forwarded-For is believed from {} and from nowhere else; a request from there \
+             counts as coming from the address that proxy reports",
+            named.join(", ")
+        )
+    }
+
     fn trusts(&self, address: IpAddr) -> bool {
         let address = plain(address);
         self.0.iter().any(|net| net.contains(&address))
@@ -73,6 +89,15 @@ impl TrustedProxies {
             }
         }
         peer
+    }
+}
+
+/// A network as text; a single address without its `/32` or `/128`.
+fn trim_host(net: IpNet) -> String {
+    if net.prefix_len() == net.max_prefix_len() {
+        net.addr().to_string()
+    } else {
+        net.to_string()
     }
 }
 
@@ -219,6 +244,17 @@ mod tests {
         assert_eq!(
             named.client(ip("::ffff:172.18.0.2"), ["::ffff:198.51.100.1"]),
             ip("198.51.100.1")
+        );
+
+        assert_eq!(
+            proxies(&["172.30.250.2", "fd00::/8"]).in_words(),
+            "X-Forwarded-For is believed from 172.30.250.2, fd00::/8 and from nowhere else; \
+             a request from there counts as coming from the address that proxy reports"
+        );
+        assert!(
+            TrustedProxies::default()
+                .in_words()
+                .starts_with("no proxy is trusted")
         );
 
         assert!(TrustedProxies::parse(&["caddy"]).is_err());

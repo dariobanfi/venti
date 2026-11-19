@@ -163,6 +163,7 @@ How the server and each of its data sources are doing.
 | `version` | The server's version |
 | `time` | The server's clock. Compute the age of an observation against this, not against the device's clock, which may be wrong |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server without a forecast service. Left out by a server older than forecasts, which has none. No server answers forecasts yet |
+| `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
 | `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
 | `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. Left out if none ever did |

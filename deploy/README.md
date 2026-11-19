@@ -139,13 +139,38 @@ What to know as the person who runs this:
 
 The server counts by the address a request came from. Every request reaches it through Caddy, so it asks Caddy: Caddy writes the visitor's address into the `X-Forwarded-For` header, and the server believes that header from Caddy's address in the private network and from nowhere else (`VENTI_TRUSTED_PROXIES`, which `docker-compose.yml` sets). Caddy therefore has a fixed address there, `172.30.250.2`. If the range `172.30.250.0/24` is taken on the machine, set `VENTI_NETWORK` in `.env` to the first three numbers of a free one.
 
-Check once on a new server that the address is really the visitor's *(to verify on a real server)*: sign in with a wrong password from a phone on mobile data and read the log.
+**IPv4 only, for now.** `docker-compose.yml` publishes ports 80 and 443 on the machine's IPv4 addresses and not on its IPv6 ones. The services' network has no IPv6, and Docker would otherwise take IPv6 connections itself and pass them on over IPv4: its documentation says a port published without a host address is mapped from the host's IPv6 addresses to the container's IPv4 address by its "userland proxy" (docs.docker.com, "Port publishing and mapping", read 2026-11-19). Caddy would then see the same private address for every IPv6 visitor, the server would count them as one, and thirty wrong passwords from any of them would close sign-in for all of them. So:
 
-```bash
-docker compose logs --since 5m server | grep 'wrong password\|nobody has'
-```
+- **Give the domain an `A` record and no `AAAA` record.** Visitors on a network that has only IPv6, as some mobile networks do, are expected to reach the site all the same, through their provider's translation to IPv4 *(to verify from such a phone)*. With an `AAAA` record and the ports as they are, IPv6 visitors would get no answer on that address and depend on their browser trying IPv4 next.
+- **Serving IPv6 properly** *(to verify; nobody has done it with this stack)* needs four things together: an IPv6 network for the services (`enable_ipv6: true` and an IPv6 subnet under `networks.default.ipam` in `docker-compose.yml`, per Docker's page "Use IPv6 networking", read 2026-11-19); a fixed IPv6 address for Caddy there, beside its IPv4 one; that address added to `VENTI_TRUSTED_PROXIES`; and the ports published without the `0.0.0.0`. Then the check below, from a phone on a mobile network that has IPv6, before the `AAAA` record goes in.
 
-`client=` should show the phone's public address. If it shows an address that starts with `172.`, Docker is hiding the visitors' addresses from Caddy. On the development machine it did so for requests from the machine itself; whether it does for some real visitors, for example those who arrive over IPv6, has to be seen on the real server. Where it happens, every visitor counts as one, and thirty wrong passwords by anyone lock everyone out of signing in for an hour. Fix the Docker setup before letting people in.
+**Check once on a new server that the address is really the visitor's** *(to verify on a real server)*, in three places.
+
+1. The server's log says at start whose word it takes:
+
+   ```bash
+   docker compose logs server | grep 'client addresses'
+   ```
+
+   It should read `X-Forwarded-For is believed from 172.30.250.2 and from nowhere else`. If it says that no proxy is trusted, `VENTI_TRUSTED_PROXIES` did not arrive.
+
+2. Sign in with a wrong password from a phone on mobile data, with Wi-Fi off, and read the log:
+
+   ```bash
+   docker compose logs --since 5m server | grep 'wrong password\|nobody has'
+   ```
+
+   `client=` should show the phone's public address (the phone's browser shows it at any "what is my IP" page). If it shows an address that starts with `172.`, Docker is hiding the visitors' addresses from Caddy. On the development machine it did so for requests from the machine itself, which is harmless.
+
+3. After a day of use, ask the server what it has seen:
+
+   ```bash
+   curl -s https://<domain>/v1/health | grep -o '"client_addresses":"[a-z_]*"'
+   ```
+
+   `"seen"` is right. `"hidden"` means that in the last hour twenty or more requests, and at least a tenth of all, came from one private address and from no other private one; the log has a line then that names the address (`does not see its visitors' addresses`). Nothing at all means fewer than twenty requests have arrived. A server that one person uses at home, on a private network, says `"hidden"` and is fine.
+
+Where the addresses are hidden, every visitor counts as one: thirty wrong passwords by anyone lock everyone out of signing in for an hour, and the connector answers 120 requests a minute in total. Fix the setup before letting people in.
 
 ## The connector
 

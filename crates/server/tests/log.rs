@@ -12,7 +12,8 @@ use std::sync::{Arc, Mutex};
 use axum::http::{Method, StatusCode};
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, ChangePasswordRequest,
-    CreateAccountRequest, DeleteAccountRequest, Password, SESSIONS_PATH, SignInResponse,
+    CreateAccountRequest, DeleteAccountRequest, HEALTH_PATH, Password, SESSIONS_PATH,
+    SignInResponse,
 };
 
 mod common;
@@ -116,7 +117,24 @@ async fn no_password_and_no_token_reaches_the_log() {
         .await;
     assert_eq!(deleted.status, StatusCode::NO_CONTENT);
 
+    // Fifty requests that all come from one private address, as they do
+    // when a proxy or Docker hides the visitors.
+    for _ in 0..50 {
+        let answer = ask(Method::GET, HEALTH_PATH)
+            .from("172.30.250.1")
+            .send(&router)
+            .await;
+        assert_eq!(answer.status, StatusCode::OK);
+    }
+
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    // The server says once that it does not see who asks, and from where.
+    let hidden: Vec<&str> = log
+        .lines()
+        .filter(|line| line.contains("does not see its visitors' addresses"))
+        .collect();
+    assert_eq!(hidden.len(), 1, "{hidden:#?}");
+    assert!(hidden[0].contains("172.30.250.1"), "{}", hidden[0]);
     // The log did record all this...
     for expected in [
         "account created",

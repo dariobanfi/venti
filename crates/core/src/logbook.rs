@@ -10,16 +10,17 @@
 //! The logbook reaches its files only through [`Storage`], so it is the
 //! same on a phone's disk and in a browser.
 //!
-//! A flight's identity is a hash of its fixes. The same recording imported
-//! twice, or downloaded from two places with different headers, is one
-//! flight.
+//! A flight's identity is a hash of its fixes ([`venti_flight::identity`]).
+//! The same recording imported twice, or downloaded from two places with
+//! different headers, is one flight. The server computes the same identity
+//! for an uploaded file, so a flight imported on two devices is one record
+//! there too.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use venti_flight::igc::{self, IgcFile};
 use venti_flight::{analysis, scoring, summarise, track};
 
@@ -171,7 +172,7 @@ impl Logbook {
     /// was already in the logbook.
     pub fn import(&self, igc_text: &str) -> Result<(String, bool), LogbookError> {
         let (file, summary) = read(igc_text)?;
-        let id = identity(&file);
+        let id = venti_flight::identity(&file.fixes);
 
         let mut index = self.lock();
         if index.flights.contains_key(&id) {
@@ -287,23 +288,6 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
         }),
     };
     Ok((file, summary))
-}
-
-/// A flight's identifier: 32 hexadecimal characters from a hash of its fixes.
-fn identity(file: &IgcFile) -> String {
-    let mut hash = Sha256::new();
-    for fix in &file.fixes {
-        hash.update(fix.time.timestamp().to_le_bytes());
-        hash.update(fix.position.lat().to_bits().to_le_bytes());
-        hash.update(fix.position.lon().to_bits().to_le_bytes());
-        hash.update(fix.gps_altitude_m.to_le_bytes());
-        hash.update(fix.pressure_altitude_m.to_le_bytes());
-    }
-    hash.finalize()
-        .iter()
-        .take(16)
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 /// Whether the text has the form of a flight identifier. Identifiers arrive

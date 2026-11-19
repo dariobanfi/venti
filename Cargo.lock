@@ -2614,7 +2614,6 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "sha2",
  "thiserror",
  "tsify",
  "uniffi",
@@ -2653,6 +2652,7 @@ name = "venti-flight"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "sha2",
  "thiserror",
  "venti-domain",
 ]

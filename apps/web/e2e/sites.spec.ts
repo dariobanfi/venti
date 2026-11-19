@@ -188,6 +188,40 @@ test('a site is opened by its sign, and a station still by its arrow', async ({
 	await expect(site).toBeHidden();
 });
 
+test('a site named in a script the app has no letters for is drawn all the same', async ({
+	context,
+	page,
+	mapDrawn,
+	wide
+}) => {
+	// The map's labels are set in font files the app brings along: real
+	// letters for Latin, Greek and Cyrillic, and for every other script a
+	// file that says "no glyphs here", which the build keeps inside a
+	// script. The map asks for those too, and the site's content security
+	// policy has to let it: a refused font would cost a map tile all its
+	// labels. Any refusal fails this test, as it does every other.
+	await context.route('**/v1/sites**', async (route) => {
+		const response = await route.fetch();
+		const answer = await response.json();
+		for (const layer of answer.layers) {
+			for (const site of layer.sites) site.name = 'Старт تجربة ทดสอบ სტარტი';
+		}
+		await route.fulfill({ response, json: answer });
+	});
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
+	// The map places the signs and their names over a few frames.
+	await page.waitForTimeout(1500);
+
+	await page.getByRole('button', { name: 'Flying sites' }).click();
+	const list = page.getByRole('dialog', { name: 'Flying sites' });
+	await expect(list.getByRole('listitem').first()).toContainText('Старт تجربة ทดสอบ სტარტი');
+});
+
 test('a server that cannot be asked for sites is named in the list, and the map draws none', async ({
 	context,
 	page,

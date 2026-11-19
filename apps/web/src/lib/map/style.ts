@@ -10,21 +10,9 @@
 
 import type { RasterDEMSourceSpecification, StyleSpecification } from 'maplibre-gl';
 import template from '../../../../../map/style.json';
+import { ONLINE } from './online';
 
-/** The public endpoints that stand in for the project's own tile server until there is one. */
-export const ONLINE = {
-	/** OpenFreeMap: the base map, as a description of where its tiles are. */
-	basemap: 'https://tiles.openfreemap.org/planet',
-	/** Mapterhorn: elevation, for the relief shading and the terrain in 3D. */
-	terrainTiles: 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp',
-	/**
-	 * Mapterhorn serves terrain to this zoom everywhere; finer tiles exist
-	 * only for some countries. Asking for no more keeps the relief free of
-	 * holes.
-	 */
-	terrainMaxZoom: 12,
-	terrainAttribution: '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>'
-} as const;
+export { ONLINE };
 
 /**
  * The scheme of the address the style gives for its fonts. Nothing is

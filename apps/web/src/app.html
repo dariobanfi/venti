@@ -12,8 +12,11 @@
 			name="description"
 			content="Venti is a free, open-source app for paragliding. Keep your flights in a logbook and see each one on a terrain map."
 		/>
-		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<!-- The build writes the site's content security policy first of what
+		     follows (vite.config.ts). A policy in a page holds for what comes
+		     after it, so nothing that loads anything stands above this line. -->
 		%sveltekit.head%
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
 	</head>
 	<body>
 		<div class="app">%sveltekit.body%</div>

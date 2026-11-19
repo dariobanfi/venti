@@ -34,6 +34,11 @@ interface Fixtures {
 	wide: boolean;
 	/** What the page wrote to the console as errors. A test checks it is empty. */
 	problems: string[];
+	/**
+	 * What the browser refused because the site's content security policy
+	 * does not allow it. Every test fails if this is not empty.
+	 */
+	refused: string[];
 }
 
 export const test = base.extend<Fixtures>({
@@ -60,6 +65,32 @@ export const test = base.extend<Fixtures>({
 		});
 		await use(problems);
 	},
+
+	// The policy lists what the app may load, run and talk to. Every screen
+	// the tests open keeps that list true: whatever the browser refuses, in
+	// a page or in a worker, fails the test that came across it.
+	refused: [
+		async ({ context, page }, use) => {
+			const refused: string[] = [];
+			const note = (message: { text(): string }) => {
+				if (/content security policy/i.test(message.text())) refused.push(message.text());
+			};
+			page.on('console', note);
+			page.on('worker', (worker) => worker.on('console', note));
+			// The browser's own message does not always say what was asked for.
+			await context.addInitScript(() => {
+				document.addEventListener('securitypolicyviolation', (event) => {
+					console.error(
+						`Content security policy: ${event.effectiveDirective} refused ${event.blockedURI}` +
+							(event.sourceFile ? ` (${event.sourceFile}:${event.lineNumber})` : '')
+					);
+				});
+			});
+			await use(refused);
+			expect([...new Set(refused)]).toEqual([]);
+		},
+		{ auto: true }
+	],
 
 	mapDrawn: async ({ page }, use) => {
 		// The tiles on their way, with the moment each was asked for.

@@ -25,6 +25,9 @@ interface Preferences {
 
     /** The model the assistant uses. */
     var assistantModel: String?
+
+    /** The address of the Venti server that live wind comes from. */
+    var server: String
 }
 
 /** The settings in the phone's own store. */
@@ -51,6 +54,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString(ASSISTANT_MODEL, null)
         set(value) = store.edit { putString(ASSISTANT_MODEL, value) }
 
+    override var server: String
+        get() = store.getString(SERVER, null).orEmpty()
+        set(value) = store.edit { putString(SERVER, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -58,6 +65,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val VARIO_MUTED = "VentiVarioMuted"
         const val VARIO = "VentiVarioIdentifier"
         const val ASSISTANT_MODEL = "VentiAssistantModel"
+        const val SERVER = "VentiServerAddress"
     }
 }
 
@@ -68,4 +76,5 @@ class MemoryPreferences : Preferences {
     override var varioMuted = false
     override var rememberedVario: String? = null
     override var assistantModel: String? = null
+    override var server = ""
 }

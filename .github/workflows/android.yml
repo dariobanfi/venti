@@ -4,7 +4,8 @@ name: Android
 # tests against the real core, builds the app, and runs its UI tests on an
 # emulator. The UI tests take a screenshot of every screen; they are
 # published as the `android-screenshots` artifact, and the app itself as
-# `venti-debug-apk`.
+# `venti-debug-apk`. For the wind map the tests talk to a Venti server
+# started here in its development mode, which answers from recorded data.
 
 on:
   push:
@@ -14,10 +15,9 @@ on:
       # the Android app takes from where the iOS app keeps them.
       - "apps/ios/Venti/Resources/**"
       - "map/**"
-      - "crates/core/**"
-      - "crates/flight/**"
-      - "crates/sensors/**"
-      - "crates/domain/**"
+      # The core and everything it is built from, and the server the wind
+      # map's tests ask.
+      - "crates/**"
       - "tools/uniffi-bindgen-swift/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -89,7 +89,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Plain Android 16 without Google's services: the app must not need them.
+      - name: Start a Venti server on recorded data
+        run: |
+          cargo build -p venti-server
+          nohup target/debug/venti-server dev > target/venti-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/v1/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/v1/health
+
+      # Plain Android 16 without Google's services: the app must not need
+      # them. An emulator reaches the machine it runs on at 10.0.2.2, which
+      # is where the wind map's test finds the server.
       - name: UI tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -101,13 +113,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: apps/android
-          script: ./gradlew :app:connectedDebugAndroidTest
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080
 
       - name: Collect the screenshots the UI tests took
         if: always()
         run: |
           mkdir -p apps/android/build/screenshots
-          find apps/android/app/build/outputs \( -name '*.png' -o -name '*.txt' \) -path '*additional_output*' \
+          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
             -exec cp {} apps/android/build/screenshots/ \;
           ls -l apps/android/build/screenshots
 
@@ -130,10 +142,13 @@ jobs:
             apps/android/app/build/outputs/androidTest-results
           if-no-files-found: ignore
 
-      # An experiment, which cannot fail the run: one test on the same
-      # emulator with its other software renderer, to see whether that one
-      # draws the map's place names and dashed lines.
-      - name: One UI test with the emulator's other software renderer
+      # Two experiments, which cannot fail the run. The emulator's usual
+      # software renderer draws neither the map's place names nor dashed
+      # lines; its other one does, but cuts the clock in the status bar in
+      # half. The first pass runs every test on that other renderer; the
+      # second tries it with the emulator's Vulkan switched off, to see
+      # whether the status bar is whole then.
+      - name: Every UI test with the emulator's other software renderer
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -145,21 +160,52 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: apps/android
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=fly.venti.app.VentiUiTest#aPilotImportsAFlightInspectsItAndDeletesIt
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080
 
-      - name: Collect the experiment's screenshots
+      - name: Collect the first experiment's screenshots
         if: always()
         continue-on-error: true
         run: |
-          mkdir -p apps/android/build/screenshots-experiment
+          mkdir -p apps/android/build/screenshots-other-renderer
           find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
-            -exec cp {} apps/android/build/screenshots-experiment/ \;
-          ls -l apps/android/build/screenshots-experiment
+            -exec cp {} apps/android/build/screenshots-other-renderer/ \;
+          ls -l apps/android/build/screenshots-other-renderer
 
       - uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true
         with:
-          name: android-screenshots-experiment
-          path: apps/android/build/screenshots-experiment
+          name: android-screenshots-other-renderer
+          path: apps/android/build/screenshots-other-renderer
+          if-no-files-found: ignore
+
+      - name: One UI test with that renderer and without Vulkan
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          disable-animations: true
+          emulator-options: -no-window -gpu swangle_indirect -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          working-directory: apps/android
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=fly.venti.app.VentiUiTest#aPilotImportsAFlightInspectsItAndDeletesIt
+
+      - name: Collect the second experiment's screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p apps/android/build/screenshots-without-vulkan
+          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
+            -exec cp {} apps/android/build/screenshots-without-vulkan/ \;
+          ls -l apps/android/build/screenshots-without-vulkan
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: android-screenshots-without-vulkan
+          path: apps/android/build/screenshots-without-vulkan
           if-no-files-found: ignore

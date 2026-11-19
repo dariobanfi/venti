@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A pilot may run a Venti server at home and give its address with http://.
+  Android can allow requests without encryption for hosts named here or for
+  all hosts, but not for "the local network": this file knows names, not
+  ranges of addresses, and a home server's name is not known in advance.
+
+  So Android allows them, and the app itself draws the line: Http.mayBeAsked
+  sends a request without encryption only to this device, a name without a
+  dot or ending in .local, or an address from the private ranges. Everything
+  else is asked over https or not at all. The map engine fetches its tiles
+  over https; the style names no other address.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

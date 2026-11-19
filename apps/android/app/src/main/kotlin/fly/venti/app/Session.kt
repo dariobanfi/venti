@@ -18,6 +18,7 @@ import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
+import fly.venti.app.wind.WindModel
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -25,7 +26,8 @@ import java.util.UUID
 
 /**
  * What the app holds for as long as it runs: the logbook, the flying
- * session, the vario link and the conversation with the assistant.
+ * session, the vario link, the conversation with the assistant and the wind
+ * on the map.
  *
  * It belongs to the app's process, not to a screen. Android rebuilds the
  * screen whenever it likes, and a flight being recorded has to carry on
@@ -37,6 +39,7 @@ sealed interface Session {
         val fly: FlySession,
         val vario: VarioLink,
         val chat: AssistantChat,
+        val wind: WindModel,
         val preferences: Preferences,
         val files: AppFiles,
     ) : Session
@@ -49,13 +52,15 @@ sealed interface Session {
          * Opens the logbook in `folder` and gets the cockpit and the
          * assistant ready. For a test the pilot's settings are left alone
          * and no sound is made; `scriptedAssistant` answers the assistant's
-         * requests from a script, without a key or a network.
+         * requests from a script, without a key or a network; and the wind
+         * comes from `server`, or from nowhere.
          */
         fun start(
             context: Context,
             folder: File,
             isUnderTest: Boolean = false,
             scriptedAssistant: Boolean = false,
+            server: String? = null,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -89,7 +94,13 @@ sealed interface Session {
                 isUnderTest -> AssistantChat(logbook::makeAssistant, FixedKey(null), preferences, scope)
                 else -> AssistantChat(logbook::makeAssistant, EncryptedKeyStore(app), preferences, scope)
             }
-            return Ready(logbook, fly, vario, chat, preferences, files)
+            val wind = WindModel(
+                remembered = preferences,
+                // A test never asks the server the pilot has set.
+                address = if (isUnderTest) server.orEmpty() else preferences.server,
+                scope = scope,
+            )
+            return Ready(logbook, fly, vario, chat, wind, preferences, files)
         }
     }
 }
@@ -112,8 +123,13 @@ class VentiApplication : Application() {
     /** Starts over with an empty logbook, for a UI test. */
     fun startTestSession(options: LaunchOptions): Session {
         val folder = cacheDir.resolve("venti-ui-test-${UUID.randomUUID()}")
-        return Session.start(this, folder, isUnderTest = true, scriptedAssistant = options.usesScriptedAssistant)
-            .also { testSession = it }
+        return Session.start(
+            this,
+            folder,
+            isUnderTest = true,
+            scriptedAssistant = options.usesScriptedAssistant,
+            server = options.server,
+        ).also { testSession = it }
     }
 }
 
@@ -137,12 +153,15 @@ data class LaunchOptions(
     val usesScriptedAssistant: Boolean = false,
     /** Dark or light appearance whatever the phone is set to, for screenshots. `null` follows the phone. */
     val forcedDark: Boolean? = null,
+    /** The Venti server a test's map takes its wind from. `null` for none. */
+    val server: String? = null,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
         const val BUNDLED_MAP = "bundled-map"
         const val SCRIPTED_ASSISTANT = "scripted-assistant"
         const val DARK = "dark"
+        const val SERVER = "server"
 
         fun from(intent: Intent?): LaunchOptions {
             if (!BuildConfig.DEBUG || intent == null) return LaunchOptions()
@@ -151,6 +170,7 @@ data class LaunchOptions(
                 usesBundledMap = intent.getBooleanExtra(BUNDLED_MAP, false),
                 usesScriptedAssistant = intent.getBooleanExtra(SCRIPTED_ASSISTANT, false),
                 forcedDark = if (intent.hasExtra(DARK)) intent.getBooleanExtra(DARK, false) else null,
+                server = intent.getStringExtra(SERVER),
             )
         }
     }

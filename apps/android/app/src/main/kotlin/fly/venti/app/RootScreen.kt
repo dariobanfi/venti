@@ -132,7 +132,7 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
     ) { bars ->
         val logbook = session.logbook
         when (navigation.tab) {
-            AppTab.Map -> kept.SaveableStateProvider("map") { MapScreen(logbook, bars) }
+            AppTab.Map -> kept.SaveableStateProvider("map") { MapScreen(logbook, session.wind, bars) }
             AppTab.Fly -> kept.SaveableStateProvider("fly") {
                 FlyScreen(session.fly, session.vario, session.files, bars)
             }
@@ -151,12 +151,13 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
             }
             AppTab.Assistant -> kept.SaveableStateProvider("assistant") { AssistantScreen(session.chat, bars) }
             AppTab.Settings -> if (navigation.isShowingCredits) {
-                CreditsScreen(onBack = { navigation.back() })
+                CreditsScreen(session.wind, onBack = { navigation.back() })
             } else {
                 kept.SaveableStateProvider("settings") {
                     SettingsScreen(
                         session.preferences,
                         session.fly,
+                        session.wind,
                         onCredits = { navigation.isShowingCredits = true },
                         bars = bars,
                     )

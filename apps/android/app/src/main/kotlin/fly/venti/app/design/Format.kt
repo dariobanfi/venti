@@ -84,6 +84,9 @@ object Format {
     /** A number as it is, with no more decimals than it has: "1.4", "20". */
     fun plain(value: Double): String = NumberFormat.getNumberInstance().format(value)
 
+    /** A number rounded to a whole one: "24". */
+    fun whole(value: Double): String = number(value, decimals = 0)
+
     /** A count: "1,745". */
     fun count(count: Long): String = NumberFormat.getIntegerInstance().format(count)
 
@@ -92,6 +95,35 @@ object Format {
         val points = listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
         val index = ((degrees % 360 + 360 + 22.5) / 45).toInt() % 8
         return points[index]
+    }
+
+    /** Whole degrees Celsius. */
+    fun temperature(celsius: Double): String {
+        // Minus zero would read "-0".
+        val rounded = celsius.roundToLong()
+        return if (rounded < 0) "\u2212${number(-rounded.toDouble(), decimals = 0)}" else number(rounded.toDouble(), 0)
+    }
+
+    /** Whole minutes between two moments, never negative. */
+    fun minutes(from: Long, to: Long): Long = maxOf(0, (to - from) / 60)
+
+    /**
+     * How long ago something was measured: "just now", "25 minutes ago",
+     * "3 hours ago", "2 days ago".
+     */
+    fun age(minutes: Long): String = when {
+        minutes < 1 -> "just now"
+        minutes == 1L -> "1 minute ago"
+        minutes < 90 -> "$minutes minutes ago"
+        minutes < 36 * 60 -> "${(minutes + 30) / 60} hours ago"
+        else -> "${(minutes + 720) / 1440} days ago"
+    }
+
+    /** "a", "a and b", "a, b and c": a list in a sentence, in English like the rest of the app's words. */
+    fun list(items: List<String>): String = when (items.size) {
+        0 -> ""
+        1 -> items[0]
+        else -> items.dropLast(1).joinToString(", ") + " and " + items.last()
     }
 
     fun flights(count: UInt): String = if (count == 1u) "1 flight" else "${count(count.toLong())} flights"

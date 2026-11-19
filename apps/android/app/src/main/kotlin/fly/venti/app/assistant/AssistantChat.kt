@@ -3,6 +3,7 @@ package fly.venti.app.assistant
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.core.Assistant
@@ -19,11 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-/** What a provider answered: the HTTP status and the body. */
-class ProviderAnswer(val status: Int, val body: ByteArray)
-
 /** Sends a request to the provider and returns its answer. */
-typealias AssistantTransport = suspend (AssistantRequest) -> ProviderAnswer
+typealias AssistantTransport = suspend (AssistantRequest) -> HttpAnswer
 
 /**
  * One conversation with the assistant, as the screen sees it.

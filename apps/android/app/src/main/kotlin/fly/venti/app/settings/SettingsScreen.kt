@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import fly.venti.app.BuildConfig
 import fly.venti.app.R
@@ -43,11 +44,18 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.fly.FlySession
+import fly.venti.app.wind.WindModel
 
 /** The pilot's settings, and what the app is made of. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(preferences: Preferences, fly: FlySession, onCredits: () -> Unit, bars: PaddingValues) {
+fun SettingsScreen(
+    preferences: Preferences,
+    fly: FlySession,
+    wind: WindModel,
+    onCredits: () -> Unit,
+    bars: PaddingValues,
+) {
     val links = LocalUriHandler.current
     var pilot by remember { mutableStateOf(preferences.pilot) }
     var glider by remember { mutableStateOf(preferences.glider) }
@@ -98,10 +106,25 @@ fun SettingsScreen(preferences: Preferences, fly: FlySession, onCredits: () -> U
                 }
             }
 
+            SectionHeader("Live wind")
+            OutlinedTextField(
+                value = wind.address,
+                onValueChange = wind::use,
+                label = { Text("Server address") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Uri,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SectionFooter(wind.addressNote)
+
             SectionHeader("About")
             Group {
                 row { ValueRow("Version", BuildConfig.VERSION_NAME) }
-                row { LinkRow("Map data and licences", R.drawable.ic_chevron_right, onClick = onCredits) }
+                row { LinkRow("Data and licences", R.drawable.ic_chevron_right, onClick = onCredits) }
                 row {
                     LinkRow("Source code", R.drawable.ic_open_in_new) {
                         links.openUri("https://github.com/dariobanfi/venti")

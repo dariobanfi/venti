@@ -24,22 +24,23 @@ import androidx.core.net.toUri
 import fly.venti.app.R
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionHeader
+import fly.venti.app.wind.WindModel
 
 /**
  * Whose data and software the app uses, with the notices their licences
  * ask for.
  *
- * The map and the app itself are credited in the same words as on the
- * iPhone. The libraries are this app's own: what an Android app is built
- * from differs.
+ * The map, the wind and the app itself are credited in the same words as
+ * on the iPhone. The libraries are this app's own: what an Android app is
+ * built from differs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreditsScreen(onBack: () -> Unit) {
+fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Map data and licences") },
+                title = { Text("Data and licences") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
@@ -86,6 +87,27 @@ fun CreditsScreen(onBack: () -> Unit) {
                         "MapLibre Native, under the BSD 2-Clause License.",
                         link = "https://maplibre.org",
                     )
+                }
+            }
+
+            SectionHeader("Wind")
+            Group {
+                // Whose stations the server delivers is the server's to
+                // say: the credits come with its answers.
+                if (wind.credits.isEmpty()) {
+                    row {
+                        Text(
+                            "Wind stations come from the Venti server set in the settings. Each " +
+                                "station's page names whose data it is and under which licence.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                } else {
+                    for (source in wind.credits) {
+                        row { Credit(source.provider, "${source.text}. Under ${source.licence}.", link = source.url) }
+                    }
                 }
             }
 

@@ -22,6 +22,12 @@ object Palette {
 
     /** The near-black of dots and dashes drawn on the map. */
     val inkOnMap = Color(0xFF1F1F1D)
+
+    /** Mean wind in a chart: one blue, a step lighter on a dark ground. */
+    fun wind(dark: Boolean): Color = if (dark) Color(0xFF6DA7EC) else Color(0xFF256ABF)
+
+    /** The span from mean wind up to the gusts, in the same blue held back. */
+    fun gusts(dark: Boolean): Color = if (dark) Color(0xFF1C5CAB) else Color(0xFFB7D3F6)
 }
 
 /**

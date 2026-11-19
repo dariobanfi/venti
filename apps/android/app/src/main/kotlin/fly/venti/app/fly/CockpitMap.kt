@@ -8,45 +8,53 @@ import fly.venti.app.map.latLng
 import fly.venti.app.map.point
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
-import fly.venti.core.TrailPointView
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
 /**
- * The cockpit's map: the track behind the glider coloured by climb, and the
- * take-off. It keeps the glider in the middle by itself, north up, and
+ * The cockpit's map: the glider, the track behind it coloured by climb, and
+ * the take-off. It keeps the glider in the middle by itself, north up, and
  * zooms in while the glider circles.
  *
- * The glider itself is not on the map. It is always in the middle, so the
- * screen draws its mark there, over the map: a mark that is part of the map
- * arrives a moment after the map has moved, and at twenty times the speed
- * of flight that moment is half a screen.
+ * The glider and its track are handed to the map as one piece, so the map
+ * can never draw one without the other: a glider ahead of its track, or a
+ * track that ends short of it. And the map is given no more than a few
+ * steps a second. A real flight has a new position a second; a replay at
+ * twenty times that would hand a slow phone more than it can draw.
  */
 class CockpitMap : MapContent {
     private var map: MapLibreMap? = null
     private var style: Style? = null
+    private var mapView: MapView? = null
+
+    /** What the cockpit wants shown, and what the map was last given. */
+    private var wanted: CockpitView? = null
     private var shown: CockpitView? = null
+    private var shownAt = 0L
+    private var isWaiting = false
+
     private var wasCircling: Boolean? = null
     private var drawnTakeoff: Coordinate? = null
-    private var drawnTrail: List<TrailPointView> = emptyList()
-    private var trailDrawnAt = 0L
 
     override fun prepare(map: MapLibreMap, view: MapView) {
         // The map follows the glider; dragging it away would only have to
         // be undone with a gloved hand. Zooming stays, and zooms about the
-        // glider, wherever the fingers are.
+        // middle, where the glider is, wherever the fingers are.
         map.uiSettings.isScrollGesturesEnabled = false
         fun zoomAboutTheMiddle() {
             map.uiSettings.focalPoint = PointF(view.width / 2f, view.height / 2f)
         }
         zoomAboutTheMiddle()
         view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> zoomAboutTheMiddle() }
-        shown?.position?.let { position ->
+        wanted?.position?.let { position ->
             map.cameraPosition = CameraPosition.Builder().target(position.latLng).zoom(CRUISE_ZOOM).build()
         }
     }
@@ -54,31 +62,57 @@ class CockpitMap : MapContent {
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {
         this.map = map
         this.style = style
+        this.mapView = view
 
-        style.addSource(GeoJsonSource(TRAIL))
-        MapSetup.addBandLayers(style, TRAIL, edgeWidth = 6f)
+        style.addSource(GeoJsonSource(FLIGHT))
+        MapSetup.addBandLayers(style, FLIGHT, edgeWidth = 6f)
         style.addSource(GeoJsonSource(TAKEOFF))
         style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
+        // The glider goes on top: the same mark as the one a finished
+        // flight's map puts at the moment being inspected.
+        val glider = MapSetup.dot("cockpit-glider-dot", FLIGHT, 8f, MapSetup.accent, MapSetup.WHITE)
+        glider.setFilter(Expression.eq(Expression.geometryType(), Expression.literal("Point")))
+        style.addLayer(glider)
 
-        shown?.let { view ->
-            shown = null
-            show(view)
-        }
+        update()
     }
 
-    /** Called with every refresh of the cockpit; moves the map when the glider has moved. */
+    /** Called with every refresh of the cockpit; the map follows in its own steps. */
     fun show(view: CockpitView) {
-        val map = map
-        val style = style
-        val position = view.position
-        if (map == null || style == null || position == null) {
-            shown = view
+        wanted = view
+        update()
+    }
+
+    /** Gives the map the newest state, now or as soon as its next step is due. */
+    private fun update() {
+        val map = map ?: return
+        val style = style ?: return
+        val mapView = mapView ?: return
+        val view = wanted ?: return
+        val position = view.position ?: return
+        if (view === shown) return
+
+        val now = SystemClock.elapsedRealtime()
+        val wait = shownAt + STEP_MILLISECONDS - now
+        if (wait > 0) {
+            if (!isWaiting) {
+                isWaiting = true
+                mapView.postDelayed(
+                    {
+                        isWaiting = false
+                        update()
+                    },
+                    wait,
+                )
+            }
             return
         }
-        draw(view, style)
-
+        val sinceLastStep = now - shownAt
         val previous = shown
         shown = view
+        shownAt = now
+
+        draw(view, position, style)
         if (previous != null && position == previous.position && view.circling == previous.circling) return
 
         // Zoom only when the kind of flying changes, so a zoom level the
@@ -89,44 +123,41 @@ class CockpitMap : MapContent {
         } else {
             CameraUpdateFactory.newLatLng(position.latLng)
         }
-        if (MapSetup.movesAtOnce) map.moveCamera(move) else map.animateCamera(move, GLIDE_MILLISECONDS)
+        if (MapSetup.movesAtOnce) {
+            map.moveCamera(move)
+        } else {
+            // At an even pace, arriving as the next position is due.
+            val glide = sinceLastStep.coerceIn(STEP_MILLISECONDS, LONGEST_GLIDE_MILLISECONDS).toInt()
+            map.easeCamera(move, glide, false)
+        }
     }
 
-    /**
-     * Redraws what is on the map if it has changed: the take-off once, and
-     * the trail no more than once a second. A real flight has a new
-     * position a second; a replay at twenty times that would otherwise
-     * hand the map more than it can draw.
-     */
-    private fun draw(view: CockpitView, style: Style) {
+    private fun draw(view: CockpitView, position: Coordinate, style: Style) {
         val takeoff = view.takeoff
         if (takeoff != null && takeoff != drawnTakeoff) {
             style.getSourceAs<GeoJsonSource>(TAKEOFF)?.setGeoJson(takeoff.point)
             drawnTakeoff = takeoff
         }
-        val now = SystemClock.elapsedRealtime()
-        if (view.trail != drawnTrail && now - trailDrawnAt >= TRAIL_MILLISECONDS) {
-            style.getSourceAs<GeoJsonSource>(TRAIL)?.setGeoJson(
-                MapSetup.bandFeatures(
-                    places = view.trail.map { Point.fromLngLat(it.lon, it.lat) },
-                    climbs = view.trail.map { it.climbMs },
-                ),
-            )
-            drawnTrail = view.trail
-            trailDrawnAt = now
-        }
+        val trail = MapSetup.bandFeatures(
+            places = view.trail.map { Point.fromLngLat(it.lon, it.lat) },
+            climbs = view.trail.map { it.climbMs },
+        )
+        val glider = Feature.fromGeometry(position.point)
+        style.getSourceAs<GeoJsonSource>(FLIGHT)?.setGeoJson(
+            FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
+        )
     }
 
     private companion object {
-        const val TRAIL = "cockpit-trail"
+        const val FLIGHT = "cockpit-flight"
         const val TAKEOFF = "cockpit-takeoff"
         const val CRUISE_ZOOM = 13.0
         const val THERMAL_ZOOM = 15.5
 
-        /** How long the map takes to slide to the glider's new position. */
-        const val GLIDE_MILLISECONDS = 600
+        /** The shortest time between two steps of the map. */
+        const val STEP_MILLISECONDS = 250L
 
-        /** The shortest time between two drawings of the trail. */
-        const val TRAIL_MILLISECONDS = 1000L
+        /** The longest the map takes to slide to the glider's new position. */
+        const val LONGEST_GLIDE_MILLISECONDS = 1000L
     }
 }

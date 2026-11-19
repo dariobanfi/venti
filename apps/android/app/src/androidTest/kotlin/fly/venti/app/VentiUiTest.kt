@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -22,8 +23,10 @@ import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -224,7 +227,7 @@ class VentiUiTest {
         tap(tab("Settings"))
         waitFor(hasText("Vario sound"))
         keepScreenshot("$prefix-settings-1")
-        tap(hasText("Map data and licences"))
+        tap(hasText("Data and licences"))
         waitFor(hasText("Base map"))
         keepScreenshot("$prefix-settings-2-credits")
         tap(described("Back"))
@@ -272,27 +275,93 @@ class VentiUiTest {
         waitFor(question)
     }
 
+    /**
+     * The wind map, against a Venti server that answers from recorded data.
+     * The workflow starts one and names it in the `ventiServer` argument;
+     * without it the test is skipped. Here: `cargo run -p venti-server --
+     * dev`, then the tests with
+     * `-Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080`,
+     * which is the address an emulator reaches its host by.
+     */
+    private fun lookAtTheWind(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+
+        waitFor(described("Wind stations"), seconds = 90)
+        // The credit appears with the first answer from the server.
+        waitFor(hasTestTag("wind-credits"), seconds = 60)
+        assertTrue(exists(hasText("Wind: Deutscher Wetterdienst and GeoSphere Austria")))
+        screen.waitUntil(30_000) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
+        letTheMapDraw()
+        keepScreenshot("$prefix-wind-1-map")
+
+        // A tap on a station's arrow opens the station, with the map still
+        // in view. The Hohenpeißenberg stands alone, north of the others.
+        val hill = checkNotNull(TestDevice.onScreen(scenario, lat = 47.8009, lon = 11.0108))
+        TestDevice.tap(hill)
+        waitFor(hasText("Hohenpeißenberg"), seconds = 15)
+        waitFor(hasText("Last 24 hours"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-wind-2-station-from-the-map")
+        tap(hasText("Done"))
+        waitFor(described("Wind stations"))
+
+        // The same stations as a list, by name.
+        tap(described("Wind stations"))
+        waitFor(described("Zugspitze"))
+        // A name the provider writes in capitals is shown in ordinary case.
+        assertTrue(exists(described("Patscherkofel")))
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-wind-3-stations")
+
+        // One station: what it measures, its last day, and whose data it is.
+        tap(described("Zugspitze"))
+        waitFor(hasTestTag("wind-chart"), seconds = 30)
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-wind-4-station")
+        screen.onNode(hasTestTag("station-page"))
+            .performScrollToNode(hasText("Deutscher Wetterdienst", substring = true))
+        assertTrue(exists(hasText("CC BY 4.0", substring = true)))
+
+        // Back to the list, and from there to the map.
+        tap(described("Back"))
+        waitFor(described("Zugspitze"))
+        tap(hasText("Done"))
+        waitFor(described("Wind stations"))
+
+        // The settings hold the server's address, and the credits name
+        // whose stations it delivers.
+        tap(tab("Settings"))
+        waitFor(hasText("Live wind"))
+        screen.onNode(hasText("Data and licences")).performScrollTo()
+        keepScreenshot("$prefix-wind-5-settings")
+        tap(hasText("Data and licences"))
+        waitFor(hasText("GeoSphere Austria"))
+    }
+
+    @Test
+    fun theMapShowsLiveWindFromAServer() = lookAtTheWind("light", dark = false)
+
+    @Test
+    fun theWindInDarkAppearance() = lookAtTheWind("dark", dark = true)
+
     @Test
     fun aPilotImportsAFlightInspectsItAndDeletesIt() = importInspectAndDelete("light", dark = false)
 
     /**
      * Towns and villages are named on the map, in the font shipped inside
-     * the app. The map itself is asked which names it has placed, and the
-     * number is kept with the screenshots.
+     * the app. The map itself is asked which names it has placed: a
+     * screenshot does not always tell, because one of the emulator's
+     * software renderers draws none of the map's text.
      */
     @Test
     fun theMapNamesPlaces() {
         launch()
         waitFor(described("Show my position"), seconds = 90)
         val scenario = checkNotNull(app)
-        var names = 0
-        var seconds = 0
-        while (names == 0 && seconds < 30) {
-            Thread.sleep(1000)
-            seconds += 1
-            names = TestDevice.drawnOnTheMap(scenario, "place") ?: 0
-        }
-        TestDevice.keepNote("map-place-names", "$names place names after $seconds s")
+        screen.waitUntil(60_000) { (TestDevice.drawnOnTheMap(scenario, "place") ?: 0) > 0 }
     }
 
     @Test

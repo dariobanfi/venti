@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
-import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
 import fly.venti.core.CockpitView
@@ -97,9 +96,6 @@ fun CockpitScreen(
             StatusLine(view, fly.mode, varioName)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view) })
-                if (view.position != null) {
-                    GliderMark(Modifier.align(Alignment.Center))
-                }
                 view.wind?.let { wind ->
                     WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
                 }
@@ -397,19 +393,6 @@ private fun VarioBar(climb: Double?) {
             size = Size(size.width, length),
             cornerRadius = CornerRadius(3.dp.toPx()),
         )
-    }
-}
-
-/**
- * The glider: a dot in the accent colour with a white ring, in the middle
- * of the map, which the map keeps under it. The same mark as the one a
- * finished flight's map puts at the moment being inspected.
- */
-@Composable
-private fun GliderMark(modifier: Modifier = Modifier) {
-    Canvas(modifier.size(23.dp).clearAndSetSemantics {}) {
-        drawCircle(Color.White)
-        drawCircle(Palette.accentOnMap, radius = 9.dp.toPx())
     }
 }
 

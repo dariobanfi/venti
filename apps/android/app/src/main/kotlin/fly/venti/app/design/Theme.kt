@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 
@@ -18,8 +20,16 @@ import androidx.compose.ui.text.TextStyle
  */
 @Composable
 fun VentiTheme(dark: Boolean, content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (dark) DarkColours else LightColours, content = content)
+    CompositionLocalProvider(LocalDarkAppearance provides dark) {
+        MaterialTheme(colorScheme = if (dark) DarkColours else LightColours, content = content)
+    }
 }
+
+/**
+ * Whether the app is drawn in dark appearance. Material's colours follow by
+ * themselves; the few data colours with a second value for dark ask here.
+ */
+val LocalDarkAppearance = staticCompositionLocalOf { false }
 
 /**
  * Text style for numbers: digits of one width, so a value that changes under

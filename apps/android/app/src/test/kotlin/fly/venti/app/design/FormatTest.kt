@@ -66,6 +66,39 @@ class FormatTest {
     }
 
     @Test
+    fun aReadingsAgeIsSaidInWords() {
+        assertEquals("just now", Format.age(0))
+        assertEquals("1 minute ago", Format.age(1))
+        assertEquals("45 minutes ago", Format.age(45))
+        assertEquals("89 minutes ago", Format.age(89))
+        assertEquals("2 hours ago", Format.age(90))
+        assertEquals("3 hours ago", Format.age(165))
+        assertEquals("36 hours ago", Format.age(36 * 60 - 1))
+        assertEquals("2 days ago", Format.age(36 * 60))
+        assertEquals("7 days ago", Format.age(7 * 24 * 60))
+
+        assertEquals(45, Format.minutes(from = 1_000, to = 1_000 + 45 * 60 + 59))
+        // A reading from a clock that runs ahead is not from the future.
+        assertEquals(0, Format.minutes(from = 2_000, to = 1_000))
+    }
+
+    @Test
+    fun temperaturesWholeNumbersAndListsInASentence() {
+        assertEquals("5", Format.temperature(4.5))
+        assertEquals("0", Format.temperature(-0.4))
+        assertEquals("0", Format.temperature(0.4))
+        // A true minus sign, as wide as a plus.
+        assertEquals("−7", Format.temperature(-7.1))
+        assertEquals("24", Format.whole(24.4))
+        assertEquals("1,013", Format.whole(1013.2))
+
+        assertEquals("", Format.list(emptyList()))
+        assertEquals("a", Format.list(listOf("a")))
+        assertEquals("a and b", Format.list(listOf("a", "b")))
+        assertEquals("a, b and c", Format.list(listOf("a", "b", "c")))
+    }
+
+    @Test
     fun datesAndTimesAreShownWhereThePhoneIs() {
         // 4 July 2026, 10:30 UTC.
         val moment = 1_783_161_000L

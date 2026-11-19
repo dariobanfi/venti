@@ -19,6 +19,13 @@ object TestSupport {
 
     val sampleFlight: String get() = files.text(AppFiles.SAMPLE_FLIGHT)
 
+    /**
+     * The answers the Venti server's own tests keep: what it sends for its
+     * health, for the stations in a box and for one station's history.
+     */
+    val recordedAnswers: File
+        get() = File(checkNotNull(System.getProperty("venti.recorded-answers")) { "run the tests through Gradle" })
+
     /** A new, empty folder that is removed when the tests end. */
     fun newFolder(name: String): File =
         Files.createTempDirectory("venti-$name-").toFile().also { folder ->

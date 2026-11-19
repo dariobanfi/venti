@@ -6,47 +6,72 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
 import fly.venti.app.logbook.LogbookModel
+import fly.venti.app.wind.WindModel
+import fly.venti.app.wind.WindServer
+import fly.venti.app.wind.WindSheet
+import fly.venti.core.WindStation
 
 /**
- * The map tab. Today it shows terrain and the pilot's own flights; live
- * wind, sites and forecasts arrive with the server.
+ * The map tab: terrain, live wind from the stations of the pilot's Venti
+ * server, and the pilot's own flights. Sites and forecasts arrive later.
  */
 @Composable
-fun MapScreen(logbook: LogbookModel, bars: PaddingValues) {
+fun MapScreen(logbook: LogbookModel, wind: WindModel, bars: PaddingValues) {
     val context = LocalContext.current
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var showsStations by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<WindStation?>(null) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
+    map.onRegion = wind::show
+    map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
 
     val askForPosition = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -59,24 +84,51 @@ fun MapScreen(logbook: LogbookModel, bars: PaddingValues) {
         }
     }
 
+    // Asks again every minute while the map is on screen, and at once when
+    // the pilot changes the server. Not while the app is out of sight.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(wind.address, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { wind.keepCurrent() }
+    }
+
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
+    val stations = wind.stations
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
-                map.show(outlines, Covered(top = statusBar))
+                map.show(outlines, stations, Covered(top = statusBar))
                 map.follow(isFollowing)
             },
         )
         StatusBarScrim()
 
-        // One round button, bottom right: it centres the map on the pilot
-        // and follows until the map is dragged.
-        FloatingActionButton(
-            onClick = {
+        wind.notice?.let { text ->
+            Notice(text, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(16.dp, 8.dp))
+        }
+        wind.creditLine?.let { text ->
+            // Beside the map's own credits button, clear of the round buttons.
+            Credits(text, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 80.dp, bottom = 10.dp))
+        }
+
+        Column(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (wind.server is WindServer.Usable) {
+                // Everything the arrows say, as a list: for reading the
+                // numbers side by side, and for pilots who use TalkBack.
+                MapButton(R.drawable.ic_air, "Wind stations") { showsStations = true }
+            }
+            // Centres the map on the pilot and follows until the map is dragged.
+            MapButton(
+                icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,
+                description = "Show my position",
+                tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            ) {
                 when {
                     isFollowing -> isFollowing = false
                     mayUsePosition(context) -> {
@@ -85,21 +137,21 @@ fun MapScreen(logbook: LogbookModel, bars: PaddingValues) {
                     }
                     else -> askForPosition.launch(POSITION_PERMISSIONS)
                 }
-            },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = if (isFollowing) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        ) {
-            Icon(
-                painterResource(if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching),
-                contentDescription = "Show my position",
-            )
+            }
         }
+    }
+
+    if (showsStations || chosen != null) {
+        WindSheet(
+            wind = wind,
+            showsList = showsStations,
+            chosen = chosen,
+            onChoose = { chosen = it },
+            onDismiss = {
+                chosen = null
+                showsStations = false
+            },
+        )
     }
 
     problem?.let { text ->
@@ -108,6 +160,65 @@ fun MapScreen(logbook: LogbookModel, bars: PaddingValues) {
             title = { Text("Position unavailable") },
             text = { Text(text) },
             confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+        )
+    }
+}
+
+/** One of the round buttons over the map. */
+@Composable
+private fun MapButton(
+    @DrawableRes icon: Int,
+    description: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit,
+) {
+    FloatingActionButton(
+        onClick = onClick,
+        shape = CircleShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = tint,
+    ) {
+        Icon(painterResource(icon), contentDescription = description)
+    }
+}
+
+/** A line over the top of the map about wind that is missing or not current. */
+@Composable
+private fun Notice(text: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.testTag("wind-notice"),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 2.dp,
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(text, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/** Whose wind data is on the map, in small type at its lower edge. */
+@Composable
+private fun Credits(text: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.testTag("wind-credits"),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

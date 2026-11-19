@@ -1,50 +1,24 @@
 package fly.venti.app.assistant
 
+import fly.venti.app.Http
+import fly.venti.app.HttpAnswer
 import fly.venti.core.AssistantRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import java.net.HttpURLConnection
-import java.net.URL
 
 /** Sends the assistant's requests with the platform's own networking. */
 object AssistantHttp {
-    private const val CONNECT_MILLISECONDS = 30_000
-
     /** A long answer takes a model a while to write. */
     private const val ANSWER_MILLISECONDS = 120_000
 
     /**
      * Posts the request and returns the status and the body, whatever the
      * status. Throws an `IOException` if the provider cannot be reached.
-     *
-     * Nothing is cached and no cookies are kept: nothing about a
-     * conversation stays in the app outside the conversation itself.
      */
-    suspend fun send(request: AssistantRequest): ProviderAnswer = withContext(Dispatchers.IO) {
-        val connection = URL(request.url).openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "POST"
-            connection.connectTimeout = CONNECT_MILLISECONDS
-            connection.readTimeout = ANSWER_MILLISECONDS
-            connection.useCaches = false
-            connection.doOutput = true
-            for (header in request.headers) {
-                connection.setRequestProperty(header.name, header.value)
-            }
-            connection.outputStream.use { it.write(request.body.toByteArray()) }
-
-            val status = connection.responseCode
-            // An error's body explains it; the core reads that too.
-            val stream = if (status >= 400) connection.errorStream else connection.inputStream
-            ProviderAnswer(status, stream?.use { it.readBytes() } ?: ByteArray(0))
-        } finally {
-            connection.disconnect()
-        }
-    }
+    suspend fun send(request: AssistantRequest): HttpAnswer =
+        Http.post(request.url, request.headers.map { it.name to it.value }, request.body, ANSWER_MILLISECONDS)
 }
 
 /**
@@ -62,7 +36,7 @@ object ScriptedProvider {
         "The first was the stronger, at **2.4 m/s** in a westerly of about 11 km/h."
 
     @Suppress("RedundantSuspendModifier")
-    suspend fun answer(request: AssistantRequest): ProviderAnswer {
+    suspend fun answer(request: AssistantRequest): HttpAnswer {
         val hasToolResult = request.body.contains("\"tool_result\"")
         val content: JsonObject = if (hasToolResult) {
             buildJsonObject {
@@ -83,6 +57,6 @@ object ScriptedProvider {
             put("content", buildJsonArray { add(content) })
             put("stop_reason", if (hasToolResult) "end_turn" else "tool_use")
         }
-        return ProviderAnswer(200, body.toString().toByteArray())
+        return HttpAnswer(200, body.toString().toByteArray())
     }
 }

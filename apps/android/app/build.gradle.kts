@@ -270,11 +270,15 @@ androidComponents {
 }
 
 // The unit tests call the real core through the generated interface, and
-// read the shared files from where the build gathered them.
+// read the shared files from where the build gathered them. The wind map's
+// tests play the server with the answers the server's own tests keep.
 tasks.withType<Test>().configureEach {
     dependsOn(coreBindings, sharedAssets)
     val host = generated.map { it.dir("host").asFile.path }
     val assets = generated.map { it.dir("assets").asFile.path }
+    val recordedAnswers = repositoryRoot.dir("crates/server/tests/golden").asFile
+    inputs.dir(recordedAnswers).withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("venti.recorded-answers", recordedAnswers.path)
     doFirst {
         systemProperty("jna.library.path", host.get())
         systemProperty("venti.assets", assets.get())

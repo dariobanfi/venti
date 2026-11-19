@@ -53,15 +53,16 @@ The Gradle wrapper pins Gradle 9.9.1 and checks the download against its publish
 | `app/build.gradle.kts` | The app's build: Android settings, libraries, and the three tasks above. |
 | `uniffi.toml` | How the Kotlin interface of the core is generated. |
 | `app/src/main/AndroidManifest.xml` | Permissions, the one activity and the files it opens, the recording service. |
-| `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`). |
+| `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`), and the one place requests to servers are sent from (`Http`). |
 | `.../design/` | Colours, the Material theme, number formatting, the metric component, the pieces of list-like screens, chart axes. The rules behind them are in `docs/design.md`. |
 | `.../logbook/` | The logbook screen, its model over the core, import, the statistics. |
 | `.../flight/` | One flight: map, panel, altitude chart, details sheet. |
 | `.../fly/` | The cockpit: the Fly tab, the cockpit screen and its map, and the sensors (position, pressure, Bluetooth vario, vario sound, the recording service). |
 | `.../map/` | The map tab, the shared map setup and the style preparation. |
+| `.../wind/` | Live wind: asking a Venti server, the symbols for the map, a station's page with its charts, the list of stations. |
 | `.../assistant/` | The assistant: the chat screen, sending requests, the key in Android's keystore. |
 | `.../settings/` | The settings tab and the credits. |
-| `app/src/main/res/` | The app icon and the interface's icons as vector drawables, the window theme, backup rules. |
+| `app/src/main/res/` | The app icon and the interface's icons as vector drawables, the window theme, backup rules, and the note on requests without encryption. |
 | `app/src/test/` | Unit tests. They run on the build machine and call the real core through the generated interface. |
 | `app/src/androidTest/` | Tests that use the app like a pilot and keep a screenshot of every screen. |
 | `../../map/style.json` | The map style shared by all platforms. |
@@ -71,16 +72,24 @@ The Gradle wrapper pins Gradle 9.9.1 and checks the download against its publish
 
 - **Logbook.** Import IGC flight files with the plus button (several at once), or open one from a file manager or a mail with "Open with Venti", or share one to Venti. Flights are listed by year with totals and each flight's scored distance. Tap the totals for statistics: the last twelve months, your gliders and your bests. Press and hold a flight to delete it. Everything is stored on the phone only; Android's cloud backup is switched off for the app.
 - **Flight.** The track on a terrain map, coloured by climb and sink, with the altitude profile below. Drag along the profile to move a marker along the track and read time, altitude and climb at that moment; the play button runs the marker along the flight. The details list every thermal and glide, and how the flight scores as a cross-country flight; choose a thermal or glide to mark it on the map. The menu shares the flight's file.
-- **Map.** A terrain map with every logbook flight on it and, on request, your position.
+- **Map.** A terrain map with every logbook flight on it and, on request, your position. With a Venti server set, it shows live wind: every station in view as an arrow pointing where the wind blows, with mean wind and gusts in km/h. Tap an arrow for the station's reading, its last 24 hours and whose data it is; the button above the position button lists the stations by name.
 - **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.
 - **Assistant.** Ask about your own flying ("how was my season?", "where were my strongest thermals?"). It runs on your own Anthropic API key, which you paste in once and which is kept on the phone, encrypted under a key in Android's keystore; your questions and what it looks up in your logbook go from the phone to Anthropic and are billed to your account. It cannot see weather, sites or airspace yet.
-- **Settings.** Your name and glider, which go into the flights you record; the vario sound; and the credits for the map data and the libraries.
+- **Settings.** Your name and glider, which go into the flights you record; the vario sound; the address of a Venti server for live wind; and the credits for the map data, the wind data and the libraries.
 
 To connect a vario, open Fly, tap "Vario" and choose it from the list while it is switched on. Once connected, the same sheet shows the last lines it sent and has "Share a report": if the cockpit shows no climb from your vario, that report says why.
 
 A new logbook offers a sample flight. It is made up, generated by `venti-flight`, not a real pilot's.
 
 Map tiles are fetched from OpenFreeMap and Mapterhorn until the project has its own server; `docs/architecture.md` has the terms. Label fonts are inside the app.
+
+### Live wind
+
+The app has no server built in. Until the project's own is online, the wind comes from a Venti server you run yourself: write its address in Settings under "Live wind", with or without `https://`. Without an address the map works, without wind.
+
+The app asks a server on the internet over HTTPS only. An address that starts with `http://` is accepted for a server on your own network: this phone, a name without a dot or ending in `.local`, or an address from the private ranges (`10.x`, `172.16` to `172.31`, `192.168.x`, link-local, and `fc00::/7`). Android itself cannot draw that line, so its configuration allows requests without encryption and `Http.mayBeAsked` refuses the rest. Redirects are not followed.
+
+To try it against recorded data: `cargo run -p venti-server -- dev` in the repository, and `http://10.0.2.2:8080` as the address on an emulator, or the computer's own address on your network on a phone.
 
 ### Not verified
 
@@ -93,6 +102,7 @@ The app has run on an emulator in CI, driven by the UI tests. One of them record
 - **Bluetooth.** No vario has been connected: scanning, connecting, reconnecting after a loss, and listening to a device with no known serial service are untried.
 - **The vario tone** through a real loudspeaker, and whether it keeps sounding with the screen off on Android 15 and later.
 - **The assistant with the real service.** It has only ever talked to a scripted stand-in in tests: the first conversation with Anthropic is yours.
+- **Live wind from a server on the internet.** The wind map has only asked a server on the build machine, which answers from recorded data, without encryption. HTTPS to a real server, a slow connection and a server that stops answering mid-flight are untried on a phone.
 - **"Open with Venti"** from real file managers and mail apps. Flight files have no type Android knows, so each app describes them differently.
 - **Moving the logbook to a new phone**, which the backup rules allow from Android 12.
 
@@ -105,3 +115,5 @@ gh run download --name android-screenshots --dir /tmp/venti-screens
 ```
 
 The emulator is plain Android 16 without Google's services, which is also the check that the app needs none of them.
+
+For the wind map the workflow starts `venti-server dev` and tells the tests where it is. To run that test yourself, start the server and add `-Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080` to the `connectedDebugAndroidTest` command; without the argument the test is skipped.

@@ -1,6 +1,7 @@
 package fly.venti.app.assistant
 
 import com.sun.net.httpserver.HttpServer
+import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
@@ -109,7 +110,7 @@ class AssistantChatTest {
     fun aProvidersRefusalIsToldInTheCoresWords() = runBlocking {
         val chat = makeChat(
             transport = {
-                ProviderAnswer(
+                HttpAnswer(
                     401,
                     """{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"""
                         .toByteArray(),
@@ -131,7 +132,7 @@ class AssistantChatTest {
             keys = FixedKey(null),
             transport = {
                 requests += 1
-                ProviderAnswer(500, ByteArray(0))
+                HttpAnswer(500, ByteArray(0))
             },
         )
         assertFalse(chat.hasKey)

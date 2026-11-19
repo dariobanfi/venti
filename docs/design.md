@@ -124,11 +124,12 @@ The Android app is the same product with Android's own components: Material 3, u
 - **Lists.** Rows stand on rounded surfaces in groups, a heading in the accent colour above and a line of explanation below, in the logbook, the details, the statistics, the settings and the credits alike.
 - **Deleting a flight.** Press and hold its row, or use the flight screen's menu. Both ask first.
 - **The flight's details** are a bottom sheet over the map, as on the iPhone. The vario list is one too.
+- **Wind stations** open in a bottom sheet as well. A station tapped on the map opens at half height, with the map still in view above it; the list of stations opens at full height, with a field to find one by name, and leads to a station and back. TalkBack reads a row as the station's name and its wind in words. The line that credits the providers sits beside the map's own credits button.
 - **Type.** The system's typeface at Material's sizes, which follow the pilot's text-size setting. Numbers use digits of equal width. Android has no rounded system face, so numbers are not rounded here. A loss is set with a true minus sign, as wide as the plus of a gain.
-- **Charts.** Android has no chart of its own. The altitude profile and the months' bars are drawn by the app: the same axes as on the iPhone, round values on the trailing edge and times of day along the bottom.
-- **The assistant's answers** show the bold, italics, code and links a model writes in Markdown, read by a small reader of the app's own; Android has none. Under an answer, what was looked up is listed the way the phone's language lists things.
+- **Charts.** Android has no chart of its own. The altitude profile, the months' bars and a station's wind and direction over a day are drawn by the app: the same axes as on the iPhone, round values on the trailing edge and times of day along the bottom. A finger on a station's charts reads out that moment in the line above them.
+- **The assistant's answers** show the bold, italics, code and links a model writes in Markdown, read by a small reader of the app's own; Android has none.
 - **Maps** stay north up and flat: they cannot be turned or tilted. To verify with pilots whether turning is missed.
-- **The cockpit's sizes are fixed** in the screen's own units, and do not follow the text-size setting. The glider's mark is drawn over the middle of the map rather than in it, and pinching zooms about that middle wherever the fingers are, so the glider cannot leave it.
+- **The cockpit's sizes are fixed** in the screen's own units, and do not follow the text-size setting. The map cannot be dragged away from the glider, and pinching zooms about the middle of the map, where the glider is, wherever the fingers are.
 - **Icons** are Google's Material Symbols, outlined; the Fly tab's is a paraglider. The app icon is the same drawing as on the iPhone, as an adaptive icon with a one-colour version for themed icons.
 - Phone, portrait. Touch targets are at least 48 by 48 dp. Every custom element has a description for TalkBack; the chart and the legend describe themselves in words.
 

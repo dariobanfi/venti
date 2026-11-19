@@ -1,6 +1,5 @@
 package fly.venti.app.assistant
 
-import android.icu.text.ListFormatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +72,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.core.TranscriptEntry
@@ -281,7 +281,7 @@ private fun Bubble(entry: TranscriptEntry) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Looked up ${ListFormatter.getInstance().format(entry.lookedUp)}",
+                    "Looked up ${Format.list(entry.lookedUp)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

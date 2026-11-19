@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -41,11 +42,6 @@ object TestDevice {
         File(kept(), "$name.png").outputStream().use { picture.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    /** Keeps a line of text beside the screenshots. */
-    fun keepNote(name: String, text: String) {
-        File(kept(), "$name.txt").writeText(text + "\n")
-    }
-
     /** The folder the build collects after the tests. */
     private fun kept(): File {
         val folder = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
@@ -77,6 +73,35 @@ object TestDevice {
         }
         asked.await(10, TimeUnit.SECONDS)
         return count
+    }
+
+    /**
+     * Where on the screen the map shows a place, in pixels, or `null` if no
+     * map is on screen.
+     */
+    fun <A : Activity> onScreen(app: ActivityScenario<A>, lat: Double, lon: Double): Pair<Int, Int>? {
+        var place: Pair<Int, Int>? = null
+        val asked = CountDownLatch(1)
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                asked.countDown()
+            } else {
+                view.getMapAsync { map ->
+                    val inMap = map.projection.toScreenLocation(LatLng(lat, lon))
+                    val corner = IntArray(2).also(view::getLocationOnScreen)
+                    place = Pair(corner[0] + inMap.x.toInt(), corner[1] + inMap.y.toInt())
+                    asked.countDown()
+                }
+            }
+        }
+        asked.await(10, TimeUnit.SECONDS)
+        return place
+    }
+
+    /** A tap with a finger, as the phone itself takes one. */
+    fun tap(place: Pair<Int, Int>) {
+        shell("input tap ${place.first} ${place.second}")
     }
 
     private fun mapIn(view: View): MapView? = when (view) {

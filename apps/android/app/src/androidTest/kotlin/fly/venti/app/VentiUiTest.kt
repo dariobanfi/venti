@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
@@ -405,6 +406,18 @@ class VentiUiTest {
             .performScrollToNode(hasText("Deutscher Wetterdienst", substring = true))
         assertTrue(exists(hasText("CC BY 4.0", substring = true)))
 
+        // The forecast for the station's place, from the same server. On a
+        // summit the model's ground lies well below the station, and the
+        // forecast says so.
+        screen.onNode(hasTestTag("station-page")).performScrollToNode(hasTestTag("station-forecast"))
+        tap(hasTestTag("station-forecast"))
+        waitFor(hasTestTag("forecast-table"))
+        assertTrue(exists(hasText("The model's ground there is at", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-wind-4b-station-forecast")
+        tap(described("Back"))
+        waitFor(hasTestTag("station-page"))
+
         // Back to the list, and from there to the map.
         tap(described("Back"))
         waitFor(described("Zugspitze"))
@@ -639,6 +652,36 @@ class VentiUiTest {
         assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-4-site")
+
+        // The same server's forecast for the place: the wind at each
+        // height through the day, and the sky, with what it is worth.
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-forecast"))
+        tap(hasTestTag("site-forecast"))
+        waitFor(hasTestTag("forecast-table"))
+        assertTrue(exists(hasContentDescription("hPa", substring = true)))
+        assertTrue(exists(hasText("Nothing here says whether the day can be flown.", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-5-forecast")
+
+        // The day after, and the other weather model: one at a time.
+        tap(hasTestTag("forecast-day-1"))
+        waitFor(hasTestTag("forecast-day-1") and isSelected())
+        screen.onNode(hasTestTag("forecast-model")).performScrollTo()
+        assertTrue(exists(hasTestTag("forecast-model") and hasText("ICON-D2")))
+        assertTrue(exists(hasText("The model's ground here")))
+        assertTrue(exists(hasText("Weather data by Open-Meteo.com", substring = true)))
+        tap(hasTestTag("forecast-model"))
+        waitFor(hasText("ICON-EU, 7 km cells"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-6-forecast-models")
+        tap(hasText("ICON-EU, 7 km cells"))
+        waitFor(hasTestTag("forecast-model") and hasText("ICON-EU"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-7-forecast-other-model")
+
+        // Back on the site's page, which still knows that it was kept.
+        tap(described("Back"))
+        waitFor(hasText("In your waypoints"))
         tap(described("Back"))
         waitFor(described(takeoff))
         tap(hasText("Done"))
@@ -655,7 +698,7 @@ class VentiUiTest {
         waitFor(hasText("Wind it works in"))
         assertTrue(exists(hasText("E to WSW")))
         letTheMapDraw(1)
-        keepScreenshot("$prefix-sites-5-site-with-wind")
+        keepScreenshot("$prefix-sites-8-site-with-wind")
         tap(hasText("Done"))
         waitFor(described("Flying sites"))
 

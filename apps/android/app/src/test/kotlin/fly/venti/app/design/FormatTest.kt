@@ -49,6 +49,10 @@ class FormatTest {
         assertEquals("17.28", Format.points(17.284))
         assertEquals("24%", Format.percent(0.239))
         assertEquals("1.4", Format.plain(1.4))
+        assertEquals("1.2", Format.oneDecimal(1.24))
+        assertEquals("3.0", Format.oneDecimal(3.0))
+        // 2026-07-04 10:30 UTC.
+        assertEquals("Sat, 4 Jul at 10:30", Format.dayAndTime(1_783_161_000, ZoneOffset.UTC))
         assertEquals("1 flight", Format.flights(1u))
         assertEquals("3 flights", Format.flights(3u))
     }

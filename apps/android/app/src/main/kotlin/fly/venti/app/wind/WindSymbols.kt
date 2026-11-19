@@ -95,6 +95,18 @@ object WindSymbols {
     }
 }
 
+/**
+ * The map's dart, pointing up, in a square of this side: the shape every
+ * wind in the app is drawn with, turned to where the air moves.
+ */
+fun windDart(side: Float): ComposePath = ComposePath().apply {
+    moveTo(side * 0.5f, side * 0.13f)
+    lineTo(side * 0.78f, side * 0.87f)
+    lineTo(side * 0.5f, side * 0.69f)
+    lineTo(side * 0.22f, side * 0.87f)
+    close()
+}
+
 /** The map's symbol for a station, drawn for a list or a heading. */
 @Composable
 fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
@@ -102,14 +114,7 @@ fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
     ComposeCanvas(modifier.size(28.dp).rotate(mark.headingDeg.toFloat())) {
         when (val symbol = mark.symbol) {
             is WindSymbol.Arrow -> {
-                val side = size.minDimension
-                val dart = ComposePath().apply {
-                    moveTo(side * 0.5f, side * 0.13f)
-                    lineTo(side * 0.78f, side * 0.87f)
-                    lineTo(side * 0.5f, side * 0.69f)
-                    lineTo(side * 0.22f, side * 0.87f)
-                    close()
-                }
+                val dart = windDart(size.minDimension)
                 // The white edge the arrows have on the map: without it the
                 // two dark blues are lost on a dark list.
                 drawPath(dart, Color.White, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round))

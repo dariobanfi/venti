@@ -37,6 +37,10 @@ object Format {
     fun time(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         at(unixSeconds, if (uses24HourClock) "HH:mm" else "h:mm a", zone)
 
+    /** "Sat, 4 Jul at 10:30" */
+    fun dayAndTime(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        "${dayInYear(unixSeconds, zone)} at ${time(unixSeconds, zone)}"
+
     /** "10:30" on either clock: for chart axes, where the heading already says which half of the day. */
     fun timeOnAxis(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         at(unixSeconds, if (uses24HourClock) "HH:mm" else "h:mm", zone)
@@ -106,6 +110,9 @@ object Format {
 
     /** A number rounded to a whole one: "24". */
     fun whole(value: Double): String = number(value, decimals = 0)
+
+    /** A number with one decimal: "1.2". */
+    fun oneDecimal(value: Double): String = number(value, decimals = 1)
 
     /** A count: "1,745". */
     fun count(count: Long): String = NumberFormat.getIntegerInstance().format(count)

@@ -9,10 +9,13 @@ import fly.venti.app.design.Format
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
 import fly.venti.core.CoreException
 import fly.venti.core.Credit
+import fly.venti.core.ForecastView
 import fly.venti.core.StationHistory
 import fly.venti.core.WindStation
+import fly.venti.core.forecastPath
 import fly.venti.core.serverStatus
 import fly.venti.core.serverStatusPath
 import fly.venti.core.stationHistory
@@ -30,7 +33,9 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.TimeZone
 import kotlin.math.roundToLong
+import fly.venti.core.forecast as readForecast
 
 /** Fetches an address and returns the server's answer. */
 typealias WindTransport = suspend (String) -> HttpAnswer
@@ -95,6 +100,8 @@ class WindModel(
     private val clock: () -> Long = System::currentTimeMillis,
     /** Where the core reads an answer, so the screen stays responsive. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
+    /** How far this phone's clock is ahead of UTC, in seconds: a forecast's days are that clock's days. */
+    private val utcOffsetSeconds: () -> Int = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000 },
 ) {
     /** The stations around the part of the map in view. */
     var stations: List<WindStation> by mutableStateOf(emptyList())
@@ -251,6 +258,32 @@ class WindModel(
         return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, now) }
     }
 
+    /** How long to wait before asking again for a forecast the server is still fetching. */
+    var forecastPauseMilliseconds = 5_000L
+
+    /**
+     * What the weather models say about a place for today and the next
+     * days. The days are those of this phone's clock.
+     *
+     * The first forecast of a place is one the server has to fetch, and
+     * until it has it the server answers "not yet": it is asked again every
+     * few seconds, for about half a minute.
+     */
+    suspend fun forecast(place: Coordinate): ForecastView {
+        val server = url ?: throw IOException("No Venti server is set.")
+        val address = server + forecastPath(place.lat, place.lon)
+        var answer = transport(address)
+        var tries = 1
+        while (answer.status == NOT_YET && tries < FORECAST_TRIES) {
+            delay(forecastPauseMilliseconds)
+            answer = transport(address)
+            tries += 1
+        }
+        val body = answer.body
+        val status = answer.status.asStatus()
+        return withContext(background) { readForecast(status, body, utcOffsetSeconds()) }
+    }
+
     /** Changes the server, and drops everything learned from the old one. */
     fun use(address: String) {
         if (address == this.address) return
@@ -283,6 +316,12 @@ class WindModel(
 
         /** How long the map must rest before the server is asked. */
         const val REST_MILLISECONDS = 300L
+
+        /** How often a forecast the server is still fetching is asked for at most. */
+        const val FORECAST_TRIES = 7
+
+        /** The status of an answer that says "not yet, ask again". */
+        private const val NOT_YET = 503
     }
 }
 

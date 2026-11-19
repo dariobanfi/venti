@@ -142,9 +142,18 @@ fun ValueRow(
     }
 }
 
-/** A row that leads somewhere: another screen, or the browser. */
+/**
+ * A row that leads somewhere: another screen, or the browser. `icon` at its
+ * end says which; `leading`, if given, is a picture of what it leads to.
+ */
 @Composable
-fun LinkRow(title: String, @DrawableRes icon: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun LinkRow(
+    title: String,
+    @DrawableRes icon: Int,
+    modifier: Modifier = Modifier,
+    @DrawableRes leading: Int? = null,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -153,6 +162,10 @@ fun LinkRow(title: String, @DrawableRes icon: Int, modifier: Modifier = Modifier
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (leading != null) {
+            Icon(painterResource(leading), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(16.dp))
+        }
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }

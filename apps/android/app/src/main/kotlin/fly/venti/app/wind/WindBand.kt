@@ -28,6 +28,26 @@ val WindBand.rgb: Int
 
 val WindBand.color: Color get() = Color(0xFF000000 or rgb.toLong())
 
+/**
+ * The band's colour for a table, which follows the phone's appearance: on
+ * a dark surface the scale runs the other way, dim for light wind and
+ * bright for strong, so that every step still stands out. Both ramps were
+ * checked as ordered ramps against their surface (`docs/design.md`). The
+ * map keeps [color]: its arrows have a white edge and lie on a map that is
+ * light in both appearances.
+ */
+fun WindBand.ink(dark: Boolean): Color =
+    if (!dark) {
+        color
+    } else {
+        when (this) {
+            WindBand.LIGHT -> Color(0xFF256ABF)
+            WindBand.MODERATE -> Color(0xFF5598E7)
+            WindBand.FRESH -> Color(0xFF9CC4F3)
+            WindBand.STRONG -> Color(0xFFE3EEFC)
+        }
+    }
+
 /** How large the band's arrow is drawn, relative to the smallest. */
 val WindBand.arrowScale: Double
     get() = when (this) {

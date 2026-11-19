@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,7 +57,10 @@ import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
+import fly.venti.app.forecast.ForecastPage
+import fly.venti.app.forecast.ForecastPlace
 import fly.venti.app.waypoints.WaypointsModel
+import fly.venti.app.wind.WindModel
 import fly.venti.core.SiteView
 import fly.venti.core.WindSpan
 
@@ -70,6 +74,8 @@ import fly.venti.core.WindSpan
 fun SiteSheet(
     sites: SitesModel,
     waypoints: WaypointsModel,
+    /** Where a site's forecast is asked for. */
+    wind: WindModel,
     /** Whether the list is what the pilot opened. */
     showsList: Boolean,
     /** The site whose page shows, if any. */
@@ -77,18 +83,38 @@ fun SiteSheet(
     onChoose: (SiteView?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The place whose forecast shows, over the site's page.
+    var forecast by remember { mutableStateOf<ForecastPlace?>(null) }
+    // The sites kept as waypoints while this sheet is open: a page says so
+    // also when the pilot comes back to it from the forecast.
+    var kept by remember { mutableStateOf(emptySet<String>()) }
+    // The list opens at full height, for the search field and the names; a
+    // site tapped on the map leaves the map in view.
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = showsList)
+    // A forecast is a table of a whole day: it takes all the room there is.
+    LaunchedEffect(forecast) {
+        if (forecast != null) sheet.expand()
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        // The list opens at full height, for the search field and the
-        // names; a site tapped on the map leaves the map in view.
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = showsList),
+        sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        if (chosen != null) {
+        val place = forecast
+        if (place != null) {
+            ForecastPage(place, wind, onBack = { forecast = null }, onDone = onDismiss)
+        } else if (chosen != null) {
             SitePage(
                 site = chosen,
                 sites = sites,
-                waypoints = waypoints,
+                isKept = chosen.id in kept,
+                onKeep = {
+                    if (waypoints.add(chosen.name, chosen.position, chosen.elevationM)) {
+                        kept = kept + chosen.id
+                    }
+                },
+                // The forecast comes from the server the sites come from.
+                onForecast = { forecast = ForecastPlace(chosen.name, chosen.position) },
                 onBack = if (showsList) ({ onChoose(null) }) else null,
                 onDone = onDismiss,
             )
@@ -227,13 +253,16 @@ private fun SiteRow(site: SiteView, onClick: () -> Unit) {
 private fun SitePage(
     site: SiteView,
     sites: SitesModel,
-    waypoints: WaypointsModel,
+    /** Whether the pilot has kept the site as a waypoint from this sheet. */
+    isKept: Boolean,
+    onKeep: () -> Unit,
+    /** Opens the forecast for the site's place. */
+    onForecast: () -> Unit,
     /** Back to the list of sites, if that is where the pilot came from. */
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
 ) {
     val links = LocalUriHandler.current
-    var isKept by remember(site.id) { mutableStateOf(false) }
 
     Column {
         Row(
@@ -292,9 +321,20 @@ private fun SitePage(
             item {
                 Group {
                     row {
-                        KeepRow(isKept) {
-                            isKept = waypoints.add(site.name, site.position, site.elevationM)
-                        }
+                        LinkRow(
+                            "Forecast for this place",
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("site-forecast"),
+                            leading = R.drawable.ic_partly_cloudy_day,
+                            onClick = onForecast,
+                        )
+                    }
+                }
+            }
+            item {
+                Group {
+                    row {
+                        KeepRow(isKept, onKeep)
                     }
                 }
                 SectionFooter("As a waypoint the cockpit can navigate to it, also without a network.")

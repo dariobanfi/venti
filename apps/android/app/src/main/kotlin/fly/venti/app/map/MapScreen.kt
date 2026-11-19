@@ -210,6 +210,7 @@ fun MapScreen(
         SiteSheet(
             sites = sites,
             waypoints = waypoints,
+            wind = wind,
             showsList = showsSites,
             chosen = chosenSite,
             onChoose = { chosenSite = it },

@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,8 @@ import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.numbers
+import fly.venti.app.forecast.ForecastPage
+import fly.venti.app.forecast.ForecastPlace
 import fly.venti.core.WindMark
 import fly.venti.core.WindStation
 import fly.venti.core.WindSymbol
@@ -69,19 +72,30 @@ fun WindSheet(
     onChoose: (WindStation?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The place whose forecast shows, over the station's page.
+    var forecast by remember { mutableStateOf<ForecastPlace?>(null) }
+    // The list opens at full height, for the search field and the names; a
+    // station tapped on the map leaves the map in view.
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = showsList)
+    // A forecast is a table of a whole day: it takes all the room there is.
+    LaunchedEffect(forecast) {
+        if (forecast != null) sheet.expand()
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        // The list opens at full height, for the search field and the
-        // names; a station tapped on the map leaves the map in view.
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = showsList),
+        sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        if (chosen != null) {
+        val place = forecast
+        if (place != null) {
+            ForecastPage(place, wind, onBack = { forecast = null }, onDone = onDismiss)
+        } else if (chosen != null) {
             StationPage(
                 // The newest reading, if the stations were fetched again
                 // while the page was open.
                 station = wind.stations.firstOrNull { it.id == chosen.id } ?: chosen,
                 wind = wind,
+                onForecast = { forecast = ForecastPlace(chosen.name, chosen.position) },
                 onBack = if (showsList) ({ onChoose(null) }) else null,
                 onDone = onDismiss,
             )

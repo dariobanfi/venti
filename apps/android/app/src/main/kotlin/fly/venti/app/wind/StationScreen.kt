@@ -35,6 +35,7 @@ import androidx.core.net.toUri
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.Metric
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
@@ -61,6 +62,8 @@ private sealed interface History {
 fun StationPage(
     station: WindStation,
     wind: WindModel,
+    /** Opens the forecast for the station's place. */
+    onForecast: () -> Unit,
     /** Back to the list of stations, if that is where the pilot came from. */
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
@@ -138,6 +141,20 @@ fun StationPage(
                                 }
                             }
                         }
+                    }
+                }
+            }
+            item {
+                // What the weather models say about the same place.
+                Group(Modifier.padding(top = 24.dp)) {
+                    row {
+                        LinkRow(
+                            "Forecast for this place",
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("station-forecast"),
+                            leading = R.drawable.ic_partly_cloudy_day,
+                            onClick = onForecast,
+                        )
                     }
                 }
             }

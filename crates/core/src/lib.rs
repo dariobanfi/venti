@@ -25,6 +25,7 @@ use venti_flight::{igc, summarise, track};
 
 mod analysis;
 mod cockpit;
+mod export;
 mod logbook;
 mod storage;
 #[cfg(test)]
@@ -32,6 +33,7 @@ mod testing;
 
 pub use analysis::*;
 pub use cockpit::*;
+pub use export::*;
 
 use logbook::{Logbook, LogbookError};
 pub use storage::{DiskStorage, StagedFile, StagedStorage, Storage};

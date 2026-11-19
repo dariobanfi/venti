@@ -141,6 +141,21 @@ private struct VarioSheet: View {
                         }
                     }
                 }
+                if vario.connectedName != nil {
+                    Section {
+                        LabeledContent("Received", value: "\(vario.report.bytes.formatted()) bytes")
+                        ForEach(Array(vario.report.lines.enumerated()), id: \.offset) { line in
+                            Text(line.element)
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                        }
+                        ShareLink("Share a report", item: vario.reportText)
+                    } header: {
+                        Text("What it sends")
+                    } footer: {
+                        Text("If the cockpit shows no climb from this vario, share the report with the project: it says what the device offers and sends.")
+                    }
+                }
                 Section {
                     ForEach(vario.devices) { device in
                         Button {

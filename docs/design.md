@@ -24,6 +24,7 @@ A change to a screen that contradicts this document updates it in the same commi
 | **Logbook** | Flights by year with totals; import; one flight on the map with its profile | Analysis, comparison, 3D replay: the Review mode |
 | **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view. Not yet flown. | Airspace, navigation, live tracking, and the rest of the XCTrack checklist |
 | Community | Not built | Feed, groups, events |
+| **Settings** | The pilot's name and glider (written into recorded flights), the vario sound, and the credits the map data's licences ask for | Units, account |
 
 A tab appears when there is something real behind it. An empty section explains itself rather than being hidden or disabled.
 

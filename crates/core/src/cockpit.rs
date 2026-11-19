@@ -357,10 +357,17 @@ impl FlightSession {
     }
 
     /// Starts writing fixes to a recording. Does nothing if one is running.
-    pub fn start_recording(&self) -> Result<(), CoreError> {
+    /// The pilot's and the glider's names go into the flight file's header,
+    /// if given.
+    pub fn start_recording(
+        &self,
+        pilot: Option<String>,
+        glider: Option<String>,
+    ) -> Result<(), CoreError> {
         let mut inner = self.lock();
         if inner.recorder.is_none() {
-            inner.recorder = Some(Recorder::new(&inner.folder).map_err(storage)?);
+            let recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider));
+            inner.recorder = Some(recorder.map_err(storage)?);
         }
         Ok(())
     }
@@ -542,10 +549,24 @@ fn storage(error: io::Error) -> CoreError {
     }
 }
 
+/// A name made fit for a flight file's header: the format is plain ASCII,
+/// one line per field. Returns `None` if nothing usable is left.
+fn header_text(name: Option<String>) -> Option<String> {
+    let cleaned: String = name?
+        .chars()
+        .filter(|c| c.is_ascii_graphic() || *c == ' ')
+        .take(60)
+        .collect();
+    let cleaned = cleaned.trim();
+    (!cleaned.is_empty()).then(|| cleaned.to_owned())
+}
+
 /// Writes a flight file fix by fix.
 #[derive(Debug)]
 struct Recorder {
     folder: PathBuf,
+    pilot: Option<String>,
+    glider: Option<String>,
     /// The open file and its name, once the first fix has given the date.
     file: Option<(File, String)>,
     last_second: Option<i64>,
@@ -553,11 +574,13 @@ struct Recorder {
 }
 
 impl Recorder {
-    fn new(data_folder: &Path) -> io::Result<Self> {
+    fn new(data_folder: &Path, pilot: Option<String>, glider: Option<String>) -> io::Result<Self> {
         let folder = recordings_folder(data_folder);
         fs::create_dir_all(&folder)?;
         Ok(Self {
             folder,
+            pilot,
+            glider,
             file: None,
             last_second: None,
             fixes: 0,
@@ -591,8 +614,8 @@ impl Recorder {
                 manufacturer: "XVE".to_owned(),
                 recorder_id: "001".to_owned(),
                 date: time.date_naive(),
-                pilot: None,
-                glider_type: None,
+                pilot: self.pilot.clone(),
+                glider_type: self.glider.clone(),
                 glider_id: None,
                 fixes: Vec::new(),
                 skipped_lines: 0,
@@ -732,7 +755,7 @@ mod tests {
     fn fly(folder: &TempFolder, seconds: f64, record: bool) -> (Arc<FlightSession>, Arc<Replay>) {
         let session = FlightSession::new(folder_text(folder));
         if record {
-            session.start_recording().unwrap();
+            session.start_recording(None, None).unwrap();
         }
         let replay = Replay::new(sample()).unwrap();
         replay.advance(session.clone(), seconds);
@@ -860,10 +883,34 @@ mod tests {
     }
 
     #[test]
+    fn the_pilot_and_glider_are_written_into_the_recording_as_plain_text() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        session
+            .start_recording(
+                Some("  Jörg\nMüller ".to_owned()),
+                Some("Advance Iota DLS 25".to_owned()),
+            )
+            .unwrap();
+        Replay::new(sample())
+            .unwrap()
+            .advance(session.clone(), 10.0);
+
+        let recording = session.stop_recording().unwrap().unwrap();
+        let file = igc::parse(&recording.igc_text).unwrap();
+        // The format is ASCII: letters it cannot hold are dropped, and a
+        // line break cannot smuggle in a second header line.
+        assert_eq!(file.pilot.as_deref(), Some("JrgMller"));
+        assert_eq!(file.glider_type.as_deref(), Some("Advance Iota DLS 25"));
+        assert_eq!(file.skipped_lines, 0);
+        assert_eq!(header_text(Some(" \n ".to_owned())), None);
+    }
+
+    #[test]
     fn a_recording_without_a_fix_leaves_nothing_behind() {
         let folder = TempFolder::new();
         let session = FlightSession::new(folder_text(&folder));
-        session.start_recording().unwrap();
+        session.start_recording(None, None).unwrap();
         assert_eq!(session.stop_recording().unwrap(), None);
         assert!(pending_recordings(folder_text(&folder)).is_empty());
     }
@@ -872,7 +919,7 @@ mod tests {
     fn positions_within_one_second_are_recorded_once() {
         let folder = TempFolder::new();
         let session = FlightSession::new(folder_text(&folder));
-        session.start_recording().unwrap();
+        session.start_recording(None, None).unwrap();
         for tenth in 0..25 {
             session.on_location(LocationSample {
                 time_unix_s: 1_783_161_000.0 + f64::from(tenth) / 10.0,

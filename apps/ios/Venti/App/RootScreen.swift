@@ -6,6 +6,7 @@ enum AppTab: Hashable {
     case map
     case fly
     case logbook
+    case settings
 }
 
 /// A flight to show, as a step in a navigation stack.
@@ -43,6 +44,9 @@ struct RootScreen: View {
             }
             Tab("Logbook", systemImage: "book.closed", value: AppTab.logbook) {
                 LogbookScreen()
+            }
+            Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
+                SettingsScreen()
             }
         }
         .environment(navigation)

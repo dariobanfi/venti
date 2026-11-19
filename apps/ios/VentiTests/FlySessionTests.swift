@@ -49,7 +49,7 @@ final class FlySessionTests: XCTestCase {
         // Record the first two minutes of the sample through the core, as a
         // flight would be.
         let session = FlightSession(dataFolder: folder.path)
-        try session.startRecording()
+        try session.startRecording(pilot: "Test Pilot", glider: nil)
         let replay = try Replay(igcText: try sampleText())
         _ = replay.advance(session: session, seconds: 120)
         let recording = try XCTUnwrap(try session.stopRecording())
@@ -60,13 +60,20 @@ final class FlySessionTests: XCTestCase {
         XCTAssertEqual(logbook.view.totals.flights, 1)
         XCTAssertEqual(logbook.view.years.first?.flights.first?.id, id)
         XCTAssertEqual(logbook.view.totals.airtimeS, 120)
+        let flight = try await logbook.flight(id: id)
+        XCTAssertEqual(flight.pilot, "Test Pilot")
+
+        // The flight can be handed back out as a file with a recorder-style name.
+        let exported = try await logbook.exportFile(id: id)
+        XCTAssertEqual(exported.lastPathComponent, "2026-07-04-XVE-001-01.igc")
+        XCTAssertEqual(try String(contentsOf: exported, encoding: .utf8), recording.igcText)
         XCTAssertTrue(pendingRecordings(dataFolder: folder.path).isEmpty)
     }
 
     func testARecordingLeftBehindIsAdoptedAtTheNextLaunch() async throws {
         let folder = makeFolder()
         let session = FlightSession(dataFolder: folder.path)
-        try session.startRecording()
+        try session.startRecording(pilot: nil, glider: nil)
         _ = try Replay(igcText: try sampleText()).advance(session: session, seconds: 60)
         // The app stops here without finishing the flight.
 

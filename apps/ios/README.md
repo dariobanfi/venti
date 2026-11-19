@@ -35,6 +35,7 @@ Every push that touches the app also builds it for a real iPhone without a signa
 | `Venti/Flight/` | One flight: map, panel, altitude chart, details sheet. |
 | `Venti/Fly/` | The cockpit: the Fly tab, the cockpit screen and its map, and the sensors (position, pressure, Bluetooth vario, vario sound). |
 | `Venti/Map/` | The map tab, the shared map setup and the style preparation. |
+| `Venti/Settings/` | The settings tab and the credits. |
 | `Venti/Assets.xcassets/` | The app icon, drawn by `tools/app-icon/make_icon.py`. |
 | `Venti/Info.plist` | Declares the flight-file type the app opens. Xcode generates the rest. |
 | `VentiTests/` | Unit tests that run inside the app on a simulator. |
@@ -53,6 +54,10 @@ Every push that touches the app also builds it for a real iPhone without a signa
 - **Flight.** The track on a terrain map, coloured by climb and sink, with the altitude profile below. Drag along the profile to move a marker along the track and read time, altitude and climb at that moment. The details list every thermal and glide and the free distance; choose one to mark it on the map. Time on the ground before take-off and after landing is left out.
 - **Map.** A terrain map with every logbook flight on it and, on request, your position.
 - **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment, with the screen off too, and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.
+
+- **Settings.** Your name and glider, which go into the flights you record; the vario sound; and the credits for the map data.
+
+To connect a vario, open Fly, tap "Vario" and choose it from the list while it is switched on. Once connected, the same sheet shows the last lines it sent and has "Share a report": if the cockpit shows no climb from your vario, that report says why.
 
 The cockpit has been tested with replayed flights on a simulator. It has not been flown, and nobody has yet connected a real vario to it. Fly it only beside the instrument you trust.
 

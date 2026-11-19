@@ -26,8 +26,12 @@ final class FlySession {
     private(set) var view: CockpitView?
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
-    var isMuted = false {
-        didSet { sound.isMuted = isMuted }
+    /// Whether the vario is silent. Remembered between flights.
+    var isMuted = UserDefaults.standard.bool(forKey: Preferences.varioMuted) {
+        didSet {
+            sound.isMuted = isMuted
+            UserDefaults.standard.set(isMuted, forKey: Preferences.varioMuted)
+        }
     }
 
     let vario = VarioLink()
@@ -52,7 +56,11 @@ final class FlySession {
         guard mode == nil else { return }
         let session = FlightSession(dataFolder: dataFolder.path)
         do {
-            try session.startRecording()
+            let defaults = UserDefaults.standard
+            try session.startRecording(
+                pilot: defaults.string(forKey: Preferences.pilot),
+                glider: defaults.string(forKey: Preferences.glider)
+            )
         } catch {
             problem = error.localizedDescription
             return
@@ -113,6 +121,7 @@ final class FlySession {
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
+        sound.isMuted = isMuted
         // A cockpit that dims and locks is no use.
         UIApplication.shared.isIdleTimerDisabled = true
         if !LaunchOptions.isUnderTest {

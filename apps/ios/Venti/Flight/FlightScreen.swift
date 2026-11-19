@@ -19,6 +19,8 @@ struct FlightScreen: View {
     /// Arrives a moment after the flight itself; the screen does not wait
     /// for it.
     @State private var analysis: FlightAnalysis?
+    /// The flight's file, written out for sharing.
+    @State private var exported: URL?
     @State private var isConfirmingDelete = false
 
     var body: some View {
@@ -41,6 +43,9 @@ struct FlightScreen: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
+                    if let exported {
+                        ShareLink("Share flight file", item: exported)
+                    }
                     Button("Delete flight", systemImage: "trash", role: .destructive) {
                         isConfirmingDelete = true
                     }
@@ -68,6 +73,7 @@ struct FlightScreen: View {
             }
             // Without the analysis the flight is still shown in full.
             analysis = try? await logbook.analysis(id: id)
+            exported = try? await logbook.exportFile(id: id)
         }
     }
 }

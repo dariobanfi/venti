@@ -31,9 +31,21 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
         case connected(String)
     }
 
+    /// What the connected device offers and what it has sent lately. This
+    /// is how a vario nobody has documented is worked out: the pilot shares
+    /// the report.
+    struct Report: Equatable {
+        /// Every characteristic the device has, as "service / characteristic".
+        var characteristics: [String] = []
+        var bytes = 0
+        /// The last lines of text it sent.
+        var lines: [String] = []
+    }
+
     private(set) var state: State = .idle
     /// Devices found while scanning, likely varios first.
     private(set) var devices: [Device] = []
+    private(set) var report = Report()
 
     /// Called with every chunk of bytes the vario sends.
     @ObservationIgnored var onBytes: ((Data) -> Void)?
@@ -42,6 +54,7 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
     @ObservationIgnored private var found: [UUID: CBPeripheral] = [:]
     @ObservationIgnored private var chosen: CBPeripheral?
     @ObservationIgnored private var wantsScan = false
+    @ObservationIgnored private var unfinishedLine = ""
 
     private let serialServices: [CBUUID: CBUUID] = Dictionary(
         uniqueKeysWithValues: varioSerialServices().map {
@@ -54,6 +67,16 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
     /// The name of the connected vario, if one is connected.
     var connectedName: String? {
         if case .connected(let name) = state { name } else { nil }
+    }
+
+    /// The report as text, to be shared.
+    var reportText: String {
+        ([
+            "Vario: \(connectedName ?? "not connected")",
+            "Received: \(report.bytes) bytes",
+            "Characteristics (service / characteristic):",
+        ] + report.characteristics + ["Last lines:"] + report.lines)
+            .joined(separator: "\n")
     }
 
     /// Whether the pilot has used a vario before. Asking the system for
@@ -179,6 +202,8 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         state = .connected(peripheral.name ?? "Vario")
+        report = Report()
+        unfinishedLine = ""
         peripheral.discoverServices(nil)
     }
 
@@ -228,14 +253,30 @@ final class VarioLink: NSObject, @preconcurrency CBCentralManagerDelegate, @prec
             if notifies && wanted {
                 peripheral.setNotifyValue(true, for: characteristic)
             }
+            let role = notifies ? (wanted ? "listening" : "notifies") : "silent"
+            report.characteristics.append(
+                "\(service.uuid.uuidString) / \(characteristic.uuid.uuidString) (\(role))"
+            )
         }
     }
 
     func peripheral(
         _ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: (any Error)?
     ) {
-        if let data = characteristic.value, !data.isEmpty {
-            onBytes?(data)
+        guard let data = characteristic.value, !data.isEmpty else { return }
+        onBytes?(data)
+        note(data)
+    }
+
+    /// Keeps the last few lines of what the vario sent, for the report.
+    private func note(_ data: Data) {
+        report.bytes += data.count
+        unfinishedLine += String(decoding: data, as: UTF8.self)
+        var lines = unfinishedLine.components(separatedBy: .newlines)
+        unfinishedLine = String((lines.popLast() ?? "").suffix(200))
+        lines.removeAll { $0.isEmpty }
+        if !lines.isEmpty {
+            report.lines = Array((report.lines + lines).suffix(8))
         }
     }
 }

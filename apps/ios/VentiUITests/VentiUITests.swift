@@ -149,6 +149,14 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         close.tap()
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+
+        // Settings, and the credits the map data's licences ask for.
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
+        keepScreenshot("settings-1")
+        app.buttons["Map data and licences"].tap()
+        XCTAssertTrue(app.staticTexts["Base map"].waitForExistence(timeout: 15))
+        keepScreenshot("settings-2-credits")
     }
 
     /// The same screens with tiles fetched from the public servers, as a

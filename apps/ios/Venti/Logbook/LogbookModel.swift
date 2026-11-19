@@ -110,6 +110,21 @@ final class LogbookModel {
         }.value
     }
 
+    /// Writes a flight's file to a temporary folder, to be shared or saved
+    /// elsewhere, and returns where it is.
+    func exportFile(id: String) async throws -> URL {
+        let core = self.core
+        return try await Task.detached(priority: .userInitiated) { () throws -> URL in
+            let file = try core.flightFile(id: id)
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("venti-export", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent(file.name)
+            try file.igcText.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        }.value
+    }
+
     /// Removes a flight for good.
     func delete(id: String) throws {
         defer { view = core.logbook() }

@@ -81,6 +81,8 @@ mod tests {
                 let registered = match kind {
                     Kind::Observations => registry.observations(&manifest.id).is_some(),
                     Kind::Airspace => registry.airspace(&manifest.id).is_some(),
+                    Kind::Forecasts => registry.forecasts(&manifest.id).is_some(),
+                    Kind::Sites => registry.sites(&manifest.id).is_some(),
                 };
                 assert!(registered, "{} is not registered for {kind:?}", manifest.id);
             }

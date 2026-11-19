@@ -1,0 +1,47 @@
+id = "osm-free-flying"
+provider = "OpenStreetMap contributors"
+kinds = ["sites"]
+# OpenStreetMap covers the world and the adapter asks for a box, not for
+# countries. These are the countries the first region's box takes in.
+countries = ["AT", "CH", "CZ", "DE", "HU", "IT", "LI", "SI", "SK"]
+# Sites change rarely, and the public Overpass instances are a shared
+# resource: one request a day.
+cadence_seconds = 86400
+auth = "none"
+
+# The main public instance asks whoever uses it regularly to stay under 100
+# queries a day and to run one at a time. A run needs one request; the
+# budget leaves room for nothing else.
+[rate_limit]
+per_second = 1
+per_hour = 2
+
+[licence]
+name = "ODbL 1.0"
+commercial = true
+redistribution = true
+# A database made from the data may be passed on only under the same licence.
+share_alike = true
+attribution = "© OpenStreetMap contributors"
+link = "https://www.openstreetmap.org/copyright"
+# The OpenStreetMap Foundation asks that the licence be made clear where the
+# data is passed on as data; the operator of the main Overpass instance asks
+# for the link that lets people correct it.
+notice = "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+constraints = [
+    "Credit OpenStreetMap wherever the data is shown, in a way that needs no click to see, and link the credit to https://www.openstreetmap.org/copyright.",
+    "The licence is share-alike: sites from OpenStreetMap stay a layer of their own and are merged with no other source's records.",
+    "Which Overpass instance answers is the operator's choice (the server setting overpass_url). The main public instance, overpass-api.de, asks regular users for fewer than 100 queries and 10 MB a day, one query at a time, a User-Agent that names the application, and a pause of 30 seconds after an error; commercial services should use their own instance.",
+    "Sites in OpenStreetMap are entered by anyone. A record is no permission to fly and no statement that a place is safe.",
+]
+verified_on = "2026-11-19"
+verified_from = [
+    "https://www.openstreetmap.org/copyright",
+    "https://osmfoundation.org/wiki/Licence/Attribution_Guidelines",
+    "https://wiki.openstreetmap.org/wiki/Tag:sport%3Dfree_flying",
+    "https://wiki.openstreetmap.org/wiki/Key:direction",
+    "https://wiki.openstreetmap.org/wiki/Key:ele",
+    "https://wiki.openstreetmap.org/wiki/Overpass_API",
+    "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+    "https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/",
+]

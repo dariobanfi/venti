@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use venti_domain::{Airspace, BoundingBox, Observation, Station, Timestamp};
+use venti_domain::{
+    Airspace, BoundingBox, ForecastSeries, GeoPoint, Observation, Site, Station, Timestamp,
+};
 
 use crate::Manifest;
 
@@ -130,4 +132,80 @@ pub trait AirspaceSource: Send + Sync {
         body: &[u8],
         ctx: &PlanCtx,
     ) -> Result<ParsedAirspace, SourceError>;
+}
+
+/// What a site adapter made of one response.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ParsedSites {
+    /// Sites found in the response.
+    pub sites: Vec<Site>,
+    /// The date the response's data is of, if the response says: a source
+    /// that answers from a copy of a database names the moment the copy
+    /// was taken.
+    pub as_of: Option<Timestamp>,
+    /// Further requests the adapter needs now that it has seen this response.
+    pub follow_up: Vec<Request>,
+    /// Records, or parts of the response, that were left out, and why.
+    pub skipped: Vec<Skipped>,
+}
+
+/// An adapter for a source of flying sites.
+///
+/// Pure, like [`ObservationSource`]. Like an airspace run, a site run is a
+/// snapshot: it delivers every site the source has in the area, and that
+/// set replaces the one before. See [`run_sites`](crate::run_sites).
+pub trait SiteSource: Send + Sync {
+    /// The declared facts about this source.
+    fn manifest(&self) -> &Manifest;
+
+    /// The requests that start a run.
+    fn plan(&self, ctx: &PlanCtx) -> Vec<Request>;
+
+    /// Converts the response to one request into canonical records and, where
+    /// the provider needs several steps, further requests.
+    fn parse(
+        &self,
+        request: &Request,
+        body: &[u8],
+        ctx: &PlanCtx,
+    ) -> Result<ParsedSites, SourceError>;
+}
+
+/// What a forecast adapter made of one response.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ParsedForecast {
+    /// The series found in the response: one per model.
+    pub series: Vec<ForecastSeries>,
+    /// Further requests the adapter needs now that it has seen this
+    /// response. A provider that says in one place which run of a model it
+    /// holds and in another what the model forecasts is asked in two steps.
+    pub follow_up: Vec<Request>,
+    /// Parts of the response that could not be converted.
+    pub skipped: Vec<Skipped>,
+}
+
+/// An adapter for a source of point forecasts.
+///
+/// Pure, like [`ObservationSource`]. What differs is what a run is asked
+/// for: not an area on a schedule but one place, when somebody wants to
+/// know. The adapter names the requests for that place and turns the
+/// answers into one [`ForecastSeries`] per weather model. Every series must
+/// say which run of its model it is from; an adapter that cannot find that
+/// out delivers no series. See [`run_forecast`](crate::run_forecast).
+pub trait ForecastSource: Send + Sync {
+    /// The declared facts about this source.
+    fn manifest(&self) -> &Manifest;
+
+    /// The requests that start the forecast for `point`.
+    fn plan(&self, point: GeoPoint, ctx: &PlanCtx) -> Vec<Request>;
+
+    /// Converts the response to one request into series and, where the
+    /// provider needs several steps, further requests.
+    fn parse(
+        &self,
+        request: &Request,
+        body: &[u8],
+        point: GeoPoint,
+        ctx: &PlanCtx,
+    ) -> Result<ParsedForecast, SourceError>;
 }

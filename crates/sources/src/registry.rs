@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use venti_domain::SourceId;
 
-use crate::{AirspaceSource, Kind, Manifest, ObservationSource};
+use crate::{AirspaceSource, ForecastSource, Kind, Manifest, ObservationSource, SiteSource};
 
 /// Why an adapter could not be registered.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -24,6 +24,8 @@ pub enum RegistryError {
 pub struct Registry {
     observations: BTreeMap<SourceId, Box<dyn ObservationSource>>,
     airspace: BTreeMap<SourceId, Box<dyn AirspaceSource>>,
+    forecasts: BTreeMap<SourceId, Box<dyn ForecastSource>>,
+    sites: BTreeMap<SourceId, Box<dyn SiteSource>>,
 }
 
 impl Registry {
@@ -58,6 +60,29 @@ impl Registry {
         Ok(())
     }
 
+    /// Adds a forecast source.
+    pub fn register_forecasts(
+        &mut self,
+        source: Box<dyn ForecastSource>,
+    ) -> Result<(), RegistryError> {
+        let id = declared(source.manifest(), Kind::Forecasts)?;
+        if self.forecasts.contains_key(&id) {
+            return Err(RegistryError::Duplicate(id));
+        }
+        self.forecasts.insert(id, source);
+        Ok(())
+    }
+
+    /// Adds a source of flying sites.
+    pub fn register_sites(&mut self, source: Box<dyn SiteSource>) -> Result<(), RegistryError> {
+        let id = declared(source.manifest(), Kind::Sites)?;
+        if self.sites.contains_key(&id) {
+            return Err(RegistryError::Duplicate(id));
+        }
+        self.sites.insert(id, source);
+        Ok(())
+    }
+
     /// The observation source with this identifier, if the build contains it.
     pub fn observations(&self, id: &SourceId) -> Option<&dyn ObservationSource> {
         self.observations.get(id).map(Box::as_ref)
@@ -68,12 +93,28 @@ impl Registry {
         self.airspace.get(id).map(Box::as_ref)
     }
 
+    /// The forecast source with this identifier, if it is registered.
+    ///
+    /// A forecast source is a service somebody has to run, and its adapter
+    /// is registered only by a server that was told where the service is.
+    pub fn forecasts(&self, id: &SourceId) -> Option<&dyn ForecastSource> {
+        self.forecasts.get(id).map(Box::as_ref)
+    }
+
+    /// The source of flying sites with this identifier, if the build
+    /// contains it.
+    pub fn sites(&self, id: &SourceId) -> Option<&dyn SiteSource> {
+        self.sites.get(id).map(Box::as_ref)
+    }
+
     /// The declared facts about the source with this identifier, if the
     /// build contains an adapter of it for this kind of data.
     pub fn manifest(&self, id: &SourceId, kind: Kind) -> Option<&Manifest> {
         match kind {
             Kind::Observations => self.observations(id).map(ObservationSource::manifest),
             Kind::Airspace => self.airspace(id).map(AirspaceSource::manifest),
+            Kind::Forecasts => self.forecasts(id).map(ForecastSource::manifest),
+            Kind::Sites => self.sites(id).map(SiteSource::manifest),
         }
     }
 
@@ -85,7 +126,9 @@ impl Registry {
             .observations
             .values()
             .map(|source| source.manifest())
-            .chain(self.airspace.values().map(|source| source.manifest()));
+            .chain(self.airspace.values().map(|source| source.manifest()))
+            .chain(self.forecasts.values().map(|source| source.manifest()))
+            .chain(self.sites.values().map(|source| source.manifest()));
         for manifest in all {
             manifests.entry(&manifest.id).or_insert(manifest);
         }

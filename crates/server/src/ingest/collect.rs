@@ -92,6 +92,12 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         match job.kind {
             Kind::Observations => self.collect_observations(job).await,
             Kind::Airspace => self.collect_airspace(job).await,
+            Kind::Forecasts | Kind::Sites => {
+                // The framework knows these kinds; the server does not
+                // collect them yet, and no plan names such a job.
+                tracing::error!(source = %job.source, "{:?} are not collected yet", job.kind);
+                false
+            }
         }
     }
 

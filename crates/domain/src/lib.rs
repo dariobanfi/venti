@@ -16,11 +16,17 @@
 //! the value, unit and reference it was published with (`FL 95`,
 //! `1000 ft AGL`), because turning it into metres above sea level needs the
 //! air pressure or the terrain, which a record does not have.
+//!
+//! A forecast has two kinds of height beside those above mean sea level: a
+//! height above the model's own, smoothed ground, and a surface of equal
+//! air pressure. Each field says which it is.
 
 mod airspace;
+mod forecast;
 mod geo;
 mod ids;
 mod observation;
+mod site;
 mod station;
 
 pub use airspace::{
@@ -28,9 +34,11 @@ pub use airspace::{
     HeightUnit, MAX_HOLES, MAX_RING_POINTS, MAX_SPAN_DEG, METRES_PER_FOOT, OperatingHours, Polygon,
     Validity, VerticalLimit, VerticalReference,
 };
+pub use forecast::{ForecastHour, ForecastSeries, WindAloft};
 pub use geo::{BoundingBox, GeoError, GeoPoint};
-pub use ids::{AirspaceId, IdError, SourceId, StationId};
+pub use ids::{AirspaceId, IdError, ModelId, SiteId, SourceId, StationId};
 pub use observation::Observation;
+pub use site::{Site, SiteUse, WindSector};
 pub use station::Station;
 
 /// A point in time, always UTC.

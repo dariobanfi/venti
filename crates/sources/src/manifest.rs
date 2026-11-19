@@ -37,6 +37,10 @@ pub enum Kind {
     Observations,
     /// Airspace.
     Airspace,
+    /// Point forecasts from weather models.
+    Forecasts,
+    /// Flying sites: take-offs and landings.
+    Sites,
 }
 
 /// What credential a provider requires.

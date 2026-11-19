@@ -41,7 +41,7 @@ Three ideas carry the design:
 
 ## Rust workspace
 
-Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `sources-openaip`, `regions`, `api-types`, `store`, `server`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `airspace` (the OpenAir reader, airspace queries and airspace warnings; see [airspace.md](airspace.md)), `sensors` (sentence parsers for external varios), `llm` and `tools` (the assistant's provider format and its tools), `mcp` (the protocol of the server's connector), `core` (the logbook on the device, the cockpit session and the assistant), `core-wasm` (the core for the browser), the iOS shell in `apps/ios`, the Android shell in `apps/android` and the web shell in `apps/web`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`, and with its second program, `uniffi-bindgen`, the Kotlin interface.
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `sources-openaip`, `sources-osm`, `regions`, `api-types`, `store`, `server`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `airspace` (the OpenAir reader, airspace queries and airspace warnings; see [airspace.md](airspace.md)), `sensors` (sentence parsers for external varios), `llm` and `tools` (the assistant's provider format and its tools), `mcp` (the protocol of the server's connector), `core` (the logbook on the device, the cockpit session and the assistant), `core-wasm` (the core for the browser), the iOS shell in `apps/ios`, the Android shell in `apps/android` and the web shell in `apps/web`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`, and with its second program, `uniffi-bindgen`, the Kotlin interface.
 
 ```
 crates/
@@ -359,6 +359,33 @@ Every airspace carries the date of the file it was read from. openAIP's files ha
 
 How the server is run on a machine is in [deploy/README.md](../deploy/README.md).
 
+### Forecasts
+
+Decided on 2026-11-19. The canonical series, the adapter trait and the run are built in `domain` and `sources`; the adapter for Open-Meteo and the server's part are not built yet.
+
+A point forecast is the one kind of data the server does not collect ahead. The self-hosted Open-Meteo instance beside it already is a store of forecasts that answers for any point at the model's own resolution. So the server asks it when a pilot asks, and keeps the answer for a while:
+
+```
+GET /v1/forecast?lat=&lon=
+        │  the place, rounded to 0.02°
+        ▼
+  an answer kept for that place, younger than half an hour?  ── yes ──▶ serve it
+        │ no
+        ▼
+  sources::run_forecast (the pipeline: plan, fetch, archive, parse, validate)
+        │  per model: which run does the instance hold, then the series
+        ▼
+  keep the answer, serve it
+```
+
+- **One path.** The request goes through the pipeline and the fetcher every source uses, so it is archived, budgeted and validated like everything else, and the adapter stays pure.
+- **Honest about age.** Every series names its model and the run of the model, and the answer says when the server fetched it. An answer is reused for half an hour at most, so what a pilot sees is never more than that behind what the instance holds.
+- **Bounded load on the instance.** Answers are reused; a place that many ask for at once is fetched once; and the server asks the instance for no more than its manifest's hourly limit allows, after which a forecast that is not at hand is answered with "try again later". Only places inside the server's regions are answered.
+- **Health on a schedule.** The scheduler runs the same forecast for the middle of the regions every ten minutes. Its outcome is the source's entry in `/v1/health`, with the run each model is at.
+- **No fallback.** A server that was not told where its Open-Meteo instance is has no forecasts and says so, in `/v1/health` and at the endpoint. It never asks Open-Meteo's public service, whose terms are for non-commercial use within daily limits per address.
+
+The alternative was to collect forecasts on a schedule for the region's flying sites and a grid, and to answer from PostgreSQL. A grid as fine as ICON-D2 is 43,000 points for the first region, renewed every three hours, to answer the few places pilots ask about; a coarser grid would answer for a mountain with the valley's values. It would also be a second copy of what Open-Meteo holds. Forecast layers for the map, wind over a whole region with a time slider, are a different kind of data and will be collected: they are fields, not points.
+
 ### Flights
 
 A pilot's flights live on the phone first. The server is where they are kept safe, reach the pilot's other devices, and can be shared.
@@ -632,6 +659,13 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-18 | The interface is checked by UI tests that publish screenshots | AI sessions cannot run Xcode or a simulator; without this nobody sees a change before the owner does | A session can drive a Mac directly |
 | 2026-11-18 | Adapters are pure: they plan requests and parse responses, and the pipeline does all I/O | Adapters are testable from recorded payloads alone, and none can skip archiving, request budgets or validation | Not expected |
 | 2026-11-18 | Validation removes an implausible value rather than the whole observation | One faulty sensor should not cost a good wind reading | Not expected |
+| 2026-11-19 | A point forecast is fetched when it is asked for, through the pipeline and its fetcher, and kept for half an hour; nothing is collected ahead for sites or a grid. See [Forecasts](#forecasts) | The Open-Meteo instance beside the server already is a store of forecasts that answers for any point at the model's own resolution. A copy in PostgreSQL as fine as ICON-D2 is 43,000 points for the first region, fetched and archived every three hours to answer the few places pilots ask about; a coarser one answers for a mountain with the valley's values. Asked on demand, the load on the instance follows what pilots ask and is bounded by reuse and an hourly budget | Forecast layers for the map need fields over a whole region: those are collected, as a kind of their own |
+| 2026-11-19 | A forecast series is one model's. ICON-D2 and ICON-EU are asked for separately and never blended, and the source's "seamless" blends are not used | A pilot must be able to tell values on a 2 km grid from values on a 7 km grid, and each model has its own run and its own reach. A blend does not say where one model ends | Not expected |
+| 2026-11-19 | A series says which run of its model the source held, and nothing is delivered for a model whose run cannot be read | The age of a forecast is the age of its run. A number without it would be shown as current for ever | Not expected |
+| 2026-11-19 | Flying sites come from OpenStreetMap through an Overpass API instance: one query a day for a region's box, to an instance the server's configuration names | The answer for the first region is 165 kB, against 1.5 GB a day for regional extracts and a reader for their format. One query a day is far inside what the public instances ask of regular users, and the operator of the main one asks that its address not be built into applications | The public instances refuse the server, or the regions grow beyond what one query answers: then an instance of our own |
+| 2026-11-19 | A site's wind directions are read only where they can be read for certain: a point written with an `O`, a range under the deprecated key, and a range that spans more than half the compass when read clockwise are left out, and with them the whole value | `O` is east in German and west in Italian and French, all spoken in the first region, and a fifth of the ranges are written the wrong way round. A take-off shown as working in a wind it does not work in is worse than one shown without directions. 34 of 149 tagged values are lost to this in the first region | OpenStreetMap's data is cleaned up, by us or by others |
+| 2026-11-19 | A place that carries the free-flying tags and names no use is kept as a site without a use; a school, club or shop that names none is left out; no use is guessed from a name | A fifth of the first region's places say nothing about their use, and many are landing fields by their name. They are worth showing, and "Landeplatz" in a name is not data | Not expected |
+| 2026-11-19 | A site set, like an airspace set, is replaced whole and only by a run in which every request worked. An Overpass answer that carries a remark is a failed request | A set with a hole in it would show as "no sites here". An instance that runs out of time answers with what it found so far, a remark and a success status | Not expected |
 | 2026-11-19 | `ingest` is a subcommand of the server, not a crate | One place holds the HTTP fetcher, the archive and the registry; the canary runs the code the server runs | Not expected |
 | 2026-11-19 | The store is one interface with two implementations, PostgreSQL and in memory, held to one behavioural suite | The development mode and every API test run without a database, and cannot drift from what PostgreSQL does | A third store is wanted |
 | 2026-11-19 | `tokio-postgres` with a `deadpool` pool and hand-written SQL; migrations are numbered SQL files compiled in and applied at start, all pending ones in one transaction | Few dependencies, no macros, no build-time database; a failed upgrade leaves the schema as it was. The connection is not encrypted because the database is on the same host. | The database moves to another machine (add TLS), or a migration needs a statement that cannot run in a transaction |

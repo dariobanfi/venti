@@ -1,0 +1,21 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-18T21:21:02Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+{"type": "node", "id": 5914647717, "lat": 47.6652, "lon": 12.0355, "tags": {"free_flying:official": "yes", "free_flying:paragliding": "yes", "free_flying:site": "takeoff", "free_flying:site_orientation": "W", "name": "Vogelsang West", "sport": "free_flying"}},
+{"type": "node", "id": 9911173431, "tags": {"free_flying:hanggliding": "yes", "free_flying:official": "yes", "free_flying:site": "takeoff", "free_flying:site_orientation": "NE", "name": "Vogelsang Ost", "sport": "free_flying"}},
+{"type": "way", "id": 1080986173, "tags": {"ele": "1560", "free_flying:site": "takeoff", "name": "Fluggelände Jägerkamp/Nagelspitz", "sport": "free_flying"}},
+{"type": "node", "id": "abc", "lat": 47.7243, "lon": 12.0434, "tags": {"free_flying:site": "takeoff", "name": "Startplatz (GS)", "sport": "free_flying"}},
+{"type": "area", "id": 3632129875, "lat": 47.7448, "lon": 12.0627, "tags": {"free_flying:site": "takeoff", "sport": "free_flying"}},
+{"type": "node", "id": 3632129877, "lat": 47.7258, "lon": 12.1844, "tags": ["free_flying:site", "takeoff"]},
+{"type": "way", "id": 1563512595, "center": {"lat": 147.7472, "lon": 12.2483}, "tags": {"free_flying:site": "takeoff", "name": "Startplatz West", "sport": "free_flying"}},
+{"type": "way", "id": 353926562, "center": {"lat": 47.7485, "lon": 12.2503}, "tags": {"ele": "4987 ft", "free_flying:site": "takeoff", "free_flying:site_orientation": "N,NO", "name": "Startplatz Nord", "sport": "free_flying"}},
+{"type": "way", "id": 295964050, "center": {"lat": 47.7483, "lon": 12.2507}, "tags": {"direction": "NE-N", "free_flying:takeoff": "maybe", "free_flying:site": "takeoff;picnic", "name": "Nordoststart", "sport": "free_flying"}},
+{"type": "node", "id": 5964676196, "lat": 47.6652, "lon": 11.7954, "tags": {"free_flying:takeoff": "no", "free_flying:landing": "no"}},
+{"type": "node", "id": 4749626837, "lat": 47.7322, "lon": 12.1118, "tags": {"free_flying:school": "yes", "name": "Flugschule Hochries", "shop": "sports", "sport": "free_flying;paragliding"}}
+  ]
+}

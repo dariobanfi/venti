@@ -1,0 +1,46 @@
+overpass_alps.json in this folder is data of OpenStreetMap,
+https://www.openstreetmap.org, © OpenStreetMap contributors, available under
+the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/.
+It is not covered by the licence of the code around it.
+
+It was recorded on 2026-11-19 at 18:09 UTC from the Overpass instance
+"Overpass Europe" at https://ovp.dresel.systems/api/interpreter, which
+holds Geofabrik's extract of Europe and said that its copy of OpenStreetMap
+was of 2026-11-18 21:21:02 UTC. The main public instance, overpass-api.de,
+and overpass.private.coffee did not accept connections from the machine
+that recorded it. The query was the adapter's own for the box of the first
+region, with a time limit of 60 seconds where the adapter asks for 90. The
+instance took 53 seconds:
+
+    [out:json][timeout:60][bbox:46.3,9.4,48.5,17.2];
+    (nwr["sport"~"free_flying"];nwr["free_flying:site"];
+     nwr["free_flying:takeoff"];nwr["free_flying:landing"];
+     nwr["free_flying:towing"];nwr["free_flying:training"];);
+    out tags center qt;
+
+All 517 elements of the answer are in the file, in the order of the
+answer, each with its type, number and position as the instance sent them.
+One thing was changed: of an element's tags only those the adapter reads
+are kept (name, ele, sport, direction, the free_flying:* keys for uses,
+orientation, official, paragliding, hanggliding, unsafe, school, shop,
+repair, club and tandem, and shop, office, amenity, tourism, craft and
+building). 89 other keys were removed, among them operator, phone, email
+and website: an operator is often a person, and this repository holds no
+personal data. The file is written with one element per line, which the
+instance does not do.
+
+To record it again: send the query above to an Overpass instance, keep the
+tags listed, then run the tests with VENTI_UPDATE_GOLDEN=1 and review what
+changed. The test "the_first_region_holds_what_was_measured" pins the
+counts that docs/data-sources.md quotes.
+
+overpass_damaged.json is not OpenStreetMap's data as published: it is
+eleven elements of overpass_alps.json, ten of them deliberately broken or
+changed, to test how the adapter reports what it cannot read and what it
+leaves out. The test that uses it says how each is broken.
+overpass_timeout.json is what an instance answers when it runs out of
+time: written from the Overpass API's documented behaviour, not recorded.
+To verify against a real answer of that kind.
+
+Sites in OpenStreetMap are entered by anyone. A record is no permission
+to fly and no statement that a place is safe.

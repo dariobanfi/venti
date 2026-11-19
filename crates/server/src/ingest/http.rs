@@ -17,9 +17,11 @@ impl HttpFetch {
     /// to name a contact there; what to put in it is the operator's
     /// decision, so the default names only the program and its version.
     pub fn new(user_agent: &str) -> Result<Self, String> {
+        // Two minutes for a whole request: an Overpass instance may work on
+        // a region's query for a minute and more before it answers.
         let client = reqwest::Client::builder()
             .user_agent(user_agent)
-            .timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(120))
             .build()
             .map_err(|e| format!("cannot create the HTTP client: {e}"))?;
         Ok(Self { client })

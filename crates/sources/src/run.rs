@@ -98,10 +98,10 @@ pub struct RunOutput {
 }
 
 /// What the fetching part of a run did.
-struct Fetching {
-    requests: usize,
-    budget_exhausted: bool,
-    failures: Vec<Failure>,
+pub(crate) struct Fetching {
+    pub(crate) requests: usize,
+    pub(crate) budget_exhausted: bool,
+    pub(crate) failures: Vec<Failure>,
 }
 
 /// Fetches and archives what an adapter asks for, wave by wave.
@@ -114,7 +114,7 @@ struct Fetching {
 /// Limits enforced here, for every kind of source: the per-run request
 /// budget derived from the provider's hourly limit, and a concurrency cap
 /// at its per-second limit.
-async fn fetch_all(
+pub(crate) async fn fetch_all(
     manifest: &Manifest,
     first: Vec<Request>,
     fetch: &impl Fetch,

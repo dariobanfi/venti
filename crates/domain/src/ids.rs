@@ -18,6 +18,9 @@ pub enum IdError {
     /// An airspace identifier was not of the form `source:local`.
     #[error("airspace identifier {0:?} is not of the form source:local")]
     InvalidAirspaceId(String),
+    /// A site identifier was not of the form `source:local`.
+    #[error("site identifier {0:?} is not of the form source:local")]
+    InvalidSiteId(String),
 }
 
 /// Identifies one data source, for example `dwd-10min`.
@@ -194,6 +197,110 @@ impl From<AirspaceId> for String {
     }
 }
 
+/// Identifies one flying site as one source knows it.
+///
+/// The same take-off described by two sources has two `SiteId`s; data from
+/// different sources is never merged into one record. Written as
+/// `source:local`, for example `osm-free-flying:node/5437380452`. The local
+/// part is the source's own key for the record, so it stays the same from
+/// one run to the next.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct SiteId {
+    source: SourceId,
+    local: String,
+}
+
+impl SiteId {
+    /// Creates a site identifier from a source and that source's own key.
+    pub fn new(source: SourceId, local: impl Into<String>) -> Result<Self, IdError> {
+        let local = local.into();
+        if local.is_empty() {
+            return Err(IdError::Empty);
+        }
+        Ok(Self { source, local })
+    }
+
+    /// The source that describes this site.
+    pub fn source(&self) -> &SourceId {
+        &self.source
+    }
+
+    /// The site's key within its source.
+    pub fn local(&self) -> &str {
+        &self.local
+    }
+}
+
+impl fmt::Display for SiteId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.source, self.local)
+    }
+}
+
+impl FromStr for SiteId {
+    type Err = IdError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (source, local) = s
+            .split_once(':')
+            .ok_or_else(|| IdError::InvalidSiteId(s.to_owned()))?;
+        Self::new(SourceId::new(source)?, local)
+    }
+}
+
+impl TryFrom<String> for SiteId {
+    type Error = IdError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl From<SiteId> for String {
+    fn from(value: SiteId) -> Self {
+        value.to_string()
+    }
+}
+
+/// Names one weather model, for example `icon-d2`.
+///
+/// The name is the project's own and the same whichever source delivers the
+/// model's values. Lower-case letters, digits and hyphens only, like a
+/// [`SourceId`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct ModelId(String);
+
+impl ModelId {
+    /// Creates a model name, checking its characters.
+    pub fn new(id: impl Into<String>) -> Result<Self, IdError> {
+        SourceId::new(id).map(|checked| Self(checked.0))
+    }
+
+    /// The name as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for ModelId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for ModelId {
+    type Error = IdError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<ModelId> for String {
+    fn from(value: ModelId) -> Self {
+        value.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,6 +318,31 @@ mod tests {
         assert_eq!(odd.local(), "ctr:muenchen");
         assert!("nothing".parse::<AirspaceId>().is_err());
         assert!("openaip:".parse::<AirspaceId>().is_err());
+    }
+
+    #[test]
+    fn site_id_round_trips_through_text_with_a_slash_in_its_key() {
+        let id: SiteId = "osm-free-flying:node/5437380452".parse().unwrap();
+        assert_eq!(id.source().as_str(), "osm-free-flying");
+        assert_eq!(id.local(), "node/5437380452");
+        let json = serde_json::to_string(&id).unwrap();
+        assert_eq!(json, "\"osm-free-flying:node/5437380452\"");
+        assert_eq!(serde_json::from_str::<SiteId>(&json).unwrap(), id);
+        assert_eq!(
+            "nothing".parse::<SiteId>(),
+            Err(IdError::InvalidSiteId("nothing".to_owned()))
+        );
+        assert!("osm-free-flying:".parse::<SiteId>().is_err());
+    }
+
+    #[test]
+    fn a_model_is_named_like_a_source() {
+        let model = ModelId::new("icon-d2").unwrap();
+        assert_eq!(model.to_string(), "icon-d2");
+        assert_eq!(serde_json::to_string(&model).unwrap(), "\"icon-d2\"");
+        assert!(ModelId::new("ICON D2").is_err());
+        assert!(ModelId::new("").is_err());
+        assert!(serde_json::from_str::<ModelId>("\"dwd_icon_d2\"").is_err());
     }
 
     #[test]

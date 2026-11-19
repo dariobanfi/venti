@@ -35,7 +35,8 @@ Each kind has one trait in the `sources` crate. An adapter implements the traits
 | Kind | Trait | Canonical type |
 |---|---|---|
 | Station observations | `ObservationSource` | `Station`, `Observation` |
-| Point and grid forecasts | `ForecastSource` | `ForecastSeries`, `ForecastField` |
+| Point forecasts | `ForecastSource` | `ForecastSeries` |
+| Forecast fields for map layers | `FieldSource` | `ForecastField` |
 | Radar and nowcast | `RadarSource` | `RadarFrame` |
 | Airspace | `AirspaceSource` | `Airspace` |
 | Airspace activations | `ActivationSource` | `Activation` |
@@ -72,6 +73,22 @@ pub trait ObservationSource: Send + Sync {
 | A record the adapter cannot read | Is skipped and reported | The same, with one difference: a limit that cannot be read is replaced by the ground or by "unlimited" and the airspace is kept, larger than published |
 
 The canonical record, what is checked and how the cockpit uses it are in [airspace.md](airspace.md).
+
+`SiteSource` is run like airspace: a run delivers every flying site the source has in the area, and that set replaces the one before, but only if every request worked. A set with a hole in it would show on a map as "no sites here". What differs is validation: a site is a point with a few facts, and a fact that cannot be right (a height of 30 km, a wind direction of 400°) is removed while the site stays. The set is dated by what the source says about its data: an Overpass instance names the moment its copy of OpenStreetMap was taken.
+
+`ForecastSource` is the one kind that is not collected for an area. A point forecast is asked for when a pilot wants to know about a place, so the trait's `plan` takes the place:
+
+```rust
+pub trait ForecastSource: Send + Sync {
+    fn manifest(&self) -> &Manifest;
+    /// The requests that start the forecast for `point`.
+    fn plan(&self, point: GeoPoint, ctx: &PlanCtx) -> Vec<Request>;
+    fn parse(&self, request: &Request, body: &[u8], point: GeoPoint, ctx: &PlanCtx)
+        -> Result<ParsedForecast, SourceError>;
+}
+```
+
+Everything else is the framework as it is: the adapter is pure, and `run_forecast` fetches through the same fetcher, archives every payload, keeps to the request budget and validates. A run delivers one `ForecastSeries` per weather model. Each series names its model, the run of the model, the grid cell its values are for and the height of the model's ground there, and holds one record per hour with the values at the ground and the wind at levels above it. A series whose run the source does not tell is not delivered: nobody could say how old it is. Validation removes single values that cannot be weather, levels that do not say where they are, and pressure surfaces that the model puts under its own ground. How often a forecast may be asked for, and for how long an answer is reused, is the server's business: see [architecture.md](architecture.md#forecasts).
 
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
 
@@ -210,7 +227,11 @@ As of 2026-11-19:
 | Adapter: `openaip` | Built, with fixtures recorded 2026-11-19 and golden files |
 | Airspace in the server: collecting once a day, storing as one set per source, serving at `GET /v1/airspace`, health, the development mode, the canary | Built; installed on no machine yet |
 | Region bundles | Not built. Until they are, the airspace endpoint is how an app gets a region's airspace |
-| Every kind other than observations and airspace | Designed, not built |
+| Canonical types for flying sites and point forecasts (`venti-domain`): `Site`, `ForecastSeries` | Built |
+| `SiteSource` and `ForecastSource`, their registries and their runs (`venti-sources`) | Built |
+| Adapter: `osm-free-flying` | Built, with an answer recorded 2026-11-19 for the whole first region and golden files |
+| Sites and forecasts in the server | Not built |
+| Every kind other than observations, airspace, sites and point forecasts | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
 
@@ -306,10 +327,55 @@ No open real-time lightning source was found.
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| OpenStreetMap free-flying tags | Takeoffs and landings | ODbL | Open; coverage to be measured |
-| ParaglidingEarth | Worldwide sites, variable quality | CC BY-SA 3.0, newer contributions also ODbL | Open, share-alike, separate layer |
-| **DHV site database** | The authoritative list of approved sites for Germany, also covering Austria; bulk files exist | No terms published | **Ask** |
+| OpenStreetMap free-flying tags | Takeoffs and landings, asked for through an Overpass instance: one request a day for a region's box | ODbL 1.0, verified 2026-11-19; share-alike, kept as a separate layer | **Built**. Coverage measured: thin, see below |
+| ParaglidingEarth | Worldwide sites, variable quality | CC BY-SA 3.0, newer contributions also ODbL | Open, share-alike, separate layer. Not used |
+| **DHV site database** | The authoritative list of approved sites for Germany, also covering Austria; bulk files exist | No terms published | **Ask**. Not used |
 | Our own community edits | Site pages improved by pilots | Ours | Grows over time |
+
+**OpenStreetMap, as read on its own pages on 2026-11-19:**
+
+- *Licence.* [openstreetmap.org/copyright](https://www.openstreetmap.org/copyright): "OpenStreetMap is open data, licensed under the Open Data Commons Open Database License (ODbL) by the OpenStreetMap Foundation (OSMF). In summary: You are free to copy, distribute, transmit and adapt our data, as long as you credit OpenStreetMap and its contributors. If you alter or build upon our data, you may distribute the result only under the same license." The last sentence makes it share-alike: sites from OpenStreetMap are a layer of their own and are merged with no other source's records.
+- *Credit.* The Foundation's [attribution guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines): "Attribution must be to 'OpenStreetMap'. Attribution must also make it clear that the data is available under the Open Database License. This may be done by making the text 'OpenStreetMap' a link to openstreetmap.org/copyright"; "The historical forms of attribution '© OpenStreetMap contributors' or '© OpenStreetMap' are acceptable"; the credit must be visible without interaction. For data passed on as data, which is what the API does: "You must include attribution to OpenStreetMap and either the text of the ODbL or a link to it as part of the database". The manifest's credit line is "© OpenStreetMap contributors", linked to the copyright page, and its `notice` names the licence with its address, so both travel with every answer.
+- *The tags.* [Tag:sport=free_flying](https://wiki.openstreetmap.org/wiki/Tag:sport%3Dfree_flying), an approved scheme: `free_flying:takeoff`, `:landing`, `:towing`, `:training` with `yes`, `no`, `discouraged` or `permissive`; `direction` for "in which wind directions this site is usable"; `ele` for the height; `free_flying:official`, `:unsafe`, `:paragliding`, `:hanggliding`. The page lists `free_flying:site=takeoff|landing|towing|training` and `free_flying:site_orientation` as deprecated. In the first region nearly every element still carries the deprecated keys: 382 against 25.
+- *Directions.* [Key:direction](https://wiki.openstreetmap.org/wiki/Key:direction): degrees from 0, clockwise from north, or one of the sixteen compass points "using up to three uppercase characters [NWSE]"; a range's "sector is calculated clockwise from the given range border values". [Key:ele](https://wiki.openstreetmap.org/wiki/Key:ele): "Elevation of a point above sea level, in metres."
+
+**How the data is fetched.** The adapter sends one query in Overpass QL to an Overpass API instance, as a GET, for the box of the run; the answer for the first region is 165 kB. Which instance is a setting of the server (`overpass_url`), as the operator of the main one recommends: "Die URLs unserer Services sollten nicht in der App fest einprogrammiert werden". The default is that main instance, `overpass-api.de`, run by FOSSGIS e.V. What its operator asks, read on the [OpenStreetMap wiki's list of instances](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances), in the [Overpass manual](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html) and in [FOSSGIS's terms](https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/):
+
+- "If you set something up that uses the Overpass API regularly, then [...] less than 100 queries fetching less 10 MB of data per day [is] fine." The server sends one query a day per source, and the manifest's budget allows a run two requests.
+- "No parallel running of multiple scripts", and scripts "sind auf eine Verbindung zu beschränken". The manifest allows one request at a time.
+- A User-Agent that identifies the application. The server sends `venti-server/<version>`. FOSSGIS also asks that an operator's e-mail address be easy to find on the application's website: **for the owner**, with the contact line that is already open in [plan.md](plan.md#needed-from-the-owner).
+- "Commercial use should use self-hosted or paid Overpass servers." The project is not commercial.
+- A link to `https://www.openstreetmap.org/fixthemap`, "um Ihren Nutzern zu erlauben, Fehler in unseren Daten zu melden". It is in the manifest's `notice`, and every site record carries the address of its own element.
+- "Nowadays this server is overloaded [...] do not expect high reliability." A run that fails changes nothing and is tried again a day later.
+
+Regional extracts (Geofabrik) were the alternative. Bavaria and Austria are some 1.5 GB of download a day and need a reader for the PBF format, to keep a few hundred points: not chosen.
+
+**Recorded from another instance.** Neither `overpass-api.de` nor `overpass.private.coffee` accepted a connection from the machine the fixtures were recorded on (2026-11-19: the first reset it, the second timed out). The answer in the repository is from "Overpass Europe", `ovp.dresel.systems`, which the wiki lists as "Free to use, no API key" with Geofabrik's extract of Europe, updated nightly. It took 53 seconds for the first region, and the server's fetcher gives a request 120. *To verify* on the first installation: that the server's own run against `overpass-api.de` works from where the server stands, and how long it takes.
+
+**Coverage, measured for the first region** (46.3 to 48.5° N, 9.4 to 17.2° E; OpenStreetMap as of 2026-11-18 21:21 UTC; the test `the_first_region_holds_what_was_measured` keeps these numbers):
+
+| | |
+|---|---|
+| Elements that carry the tags | 517: 307 points, 209 areas, 1 relation. 48 of them lack `sport=free_flying` and are found by the scheme's own keys |
+| Schools, clubs and shops that name no use, left out | 15 |
+| Sites | 502 |
+| Take-offs | 252, of them 207 with a name, 51 with a height |
+| Landings | 142, of them 115 with a name, 21 with a height |
+| Both at once | 2 |
+| Training slopes | 9 |
+| Winch sites | 0 |
+| Places that carry the tags and say no use | 101: kept without a use. Many are called "Landeplatz ..."; nothing guesses a use from a name |
+| Take-offs with wind directions the adapter reads | 93 (37 %) |
+| Wind directions tagged and left out | 34 elements: 19 written with an `O`, which is east in German and west in Italian and French; 7 ranges under the deprecated key, which defines none; 6 ranges that span more than half the compass when read clockwise, as the key defines them, and are far more likely written the wrong way round (`S-SE`); 2 that are no compass point |
+| Marked official / not official | 96 / 15 |
+| Marked as not for paragliders / not for hang gliders | 4 / 8 |
+| Marked unsafe or discouraged | 3 |
+
+That is thin. The first region holds the busiest flying sites of two countries, and well-known ones are missing or bare. Looked for by name on 2026-11-19 and not found as a take-off: Wallberg (two unnamed ramps "vermutlich für Drachenflieger", no paraglider take-off, no landing), Brauneck (three take-offs without a name, found by their position), Tegelberg, Hochries by name (its take-offs are "Startplatz West" and "Startplatz Nord"), Rauschberg, Osterfelder, Hochgrat, Buchenberg, Hörnle, Laber, Herzogstand, Jochberg, Hohe Salve, Zettersfeld, Emberger Alm, Schöckl, Gaisberg, Stoderzinken, Krippenstein, Hochkar, the Nordkette above Innsbruck, Rofan, Penken, Wildkogel. Found: Kampenwand, Unternberg, Nebelhorn, Wank, Breitenberg, Unterberghorn, Bischling, Elfer and Kreuzjoch in the Stubai valley, Choralpe, Gerlitzen, Niedere, Planai. A search by name misses sites that are in the data under another name, so the list of the missing is an upper bound. How many sites there are in truth was not counted; the DHV's database is the reference and may not be used.
+
+What follows: the layer is useful where it has data and must never be shown as complete. A pilot who knows a missing site can add it to OpenStreetMap, and it is in the app a day later. Whether to seed OpenStreetMap ourselves, and what from, is **for the owner**; the DHV's data may not be copied into it either.
+
+*Not read from OpenStreetMap, and why:* `website`, `operator`, `description`, `fee`, `opening_hours`, `wind_speed`, `direction:ideal`, `free_flying:guest-guidelines` are there for some sites and would make a site page; the record has no place for them yet. `free_flying:orientation`, an undocumented spelling on two elements, is not read.
 
 ### Thermal maps
 

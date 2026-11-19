@@ -1,0 +1,71 @@
+{
+  "as_of": "2026-11-18T21:21:02Z",
+  "report": {
+    "budget_exhausted": false,
+    "duplicates": 0,
+    "failures": [],
+    "rejected": [],
+    "requests": 1,
+    "sites": 3,
+    "skipped": [
+      {
+        "reason": "the element has no position",
+        "what": "node 9911173431 (Vogelsang Ost)"
+      },
+      {
+        "reason": "the element has no position",
+        "what": "way 1080986173 (Fluggelände Jägerkamp/Nagelspitz)"
+      },
+      {
+        "reason": "invalid type: string \"abc\", expected u64",
+        "what": "node without a number (Startplatz (GS))"
+      },
+      {
+        "reason": "unknown variant `area`, expected one of `node`, `way`, `relation`",
+        "what": "area 3632129875"
+      },
+      {
+        "reason": "invalid type: sequence, expected a map",
+        "what": "node 3632129877"
+      },
+      {
+        "reason": "latitude 147.7472 is outside -90..=90",
+        "what": "way 1563512595 (Startplatz West)"
+      },
+      {
+        "reason": "ele=4987 ft cannot be read as metres",
+        "what": "way 353926562 (Startplatz Nord)"
+      },
+      {
+        "reason": "free_flying:site_orientation=N,NO is left out: \"NO\" is written with an O, which is east in German and west in Italian and French",
+        "what": "way 353926562 (Startplatz Nord)"
+      },
+      {
+        "reason": "free_flying:takeoff=maybe is not a value of the scheme",
+        "what": "way 295964050 (Nordoststart)"
+      },
+      {
+        "reason": "free_flying:site=picnic is not a value of the scheme",
+        "what": "way 295964050 (Nordoststart)"
+      },
+      {
+        "reason": "direction=NE-N is left out: \"NE-N\" spans 315 degrees when read clockwise; its ends may be written the other way round",
+        "what": "way 295964050 (Nordoststart)"
+      },
+      {
+        "reason": "every use the element names is refused",
+        "what": "node 5964676196"
+      },
+      {
+        "reason": "not a take-off or a landing: it names no use and is tagged shop",
+        "what": "node 4749626837 (Flugschule Hochries)"
+      }
+    ],
+    "source": "osm-free-flying"
+  },
+  "sites": {
+    "osm-free-flying:node/5914647717": "takeoff; 47.6652,12.0355; name \"Vogelsang West\"; wind 270; paragliding yes; official yes",
+    "osm-free-flying:way/295964050": "takeoff; 47.7483,12.2507; name \"Nordoststart\"",
+    "osm-free-flying:way/353926562": "takeoff; 47.7485,12.2503; name \"Startplatz Nord\""
+  }
+}

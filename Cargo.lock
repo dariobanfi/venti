@@ -2927,6 +2927,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-sources-osm"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
 name = "venti-store"
 version = "0.1.0"
 dependencies = [

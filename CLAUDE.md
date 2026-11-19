@@ -57,3 +57,4 @@ Cloud sessions for this repository use the `venti` environment, which has unrest
 - Decisions go in the decision log in `docs/architecture.md`.
 - Mark anything not checked against a primary source as "to verify". Do not present it as fact.
 - Prefer deleting code to adding a second way of doing something.
+- Show the owner what changed. After a change to a screen on any platform, send them the new screenshots from the workflow's artifact without waiting to be asked, so that they can direct the work.

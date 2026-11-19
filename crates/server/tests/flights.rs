@@ -67,7 +67,35 @@ fn ids(flights: &[Flight]) -> Vec<&FlightId> {
     flights.iter().map(|flight| &flight.id).collect()
 }
 
-/// A flight file that is quick to read and slow to analyse: a few thousand
+/// A program that stands in for the server's own when it analyses a file:
+/// it hands every file on to the real program, except a file made by
+/// [`hostile_file`], over which it never finishes.
+///
+/// A file that was truly slow to analyse existed until the flight engine
+/// bounded its track simplification. The server's patience is its second
+/// line of defence, and is tested with a stand-in so that it does not
+/// depend on the engine having a slow path.
+#[cfg(unix)]
+fn stalling_analyser(folder: &std::path::Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real = env!("CARGO_BIN_EXE_venti-server");
+    let script = folder.join("analyser.sh");
+    std::fs::create_dir_all(folder).unwrap();
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\nfile=\"$0.$$\"\ncat > \"$file\"\n\
+             if grep -q EA0100001000 \"$file\"; then rm -f \"$file\"; exec sleep 60; fi\n\
+             \"{real}\" \"$@\" < \"$file\"\nstatus=$?\nrm -f \"$file\"\nexit $status\n"
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+/// A flight file with a mark the stalling analyser knows: a few thousand
 /// fixes that jump from one side of the globe to the other.
 fn hostile_file(fixes: usize) -> Vec<u8> {
     let mut text = String::from("AXVE000\r\nHFDTEDATE:040726,01\r\n");
@@ -297,14 +325,15 @@ async fn a_file_larger_than_any_flight_is_not_read() {
     answer.error(StatusCode::PAYLOAD_TOO_LARGE, ErrorCode::PayloadTooLarge);
 }
 
+#[cfg(unix)]
 #[tokio::test]
-async fn a_file_built_to_keep_the_server_busy_is_given_up_on() {
-    // As on a real server, each file is analysed by a copy of the server's
-    // own program, which is killed when it takes too long: two seconds
-    // here, ten there.
+async fn a_file_that_keeps_the_analysis_busy_is_given_up_on() {
+    // As on a real server, each file is analysed by a program of its own,
+    // which is killed when it takes too long: two seconds here, ten there.
     let clock = TestClock::new();
     let patient = StdDuration::from_secs(2);
-    let program = PathBuf::from(env!("CARGO_BIN_EXE_venti-server"));
+    let folder = std::env::temp_dir().join(format!("venti-stalling-{}", std::process::id()));
+    let program = stalling_analyser(&folder);
     let settings = Settings {
         analyser: Analyser::with_time_allowed(Where::Child(program), patient),
         limits: Limits {
@@ -328,7 +357,7 @@ async fn a_file_built_to_keep_the_server_busy_is_given_up_on() {
         }
     };
 
-    // 6000 fixes, 220 kB: analysing them takes a minute or more.
+    // A file over which the analysis never finishes.
     let began = Instant::now();
     let answer = send(&dario.token, hostile_file(6000)).await;
     let took = began.elapsed();
@@ -356,6 +385,7 @@ async fn a_file_built_to_keep_the_server_busy_is_given_up_on() {
 
     clock.advance(Duration::days(1));
     assert!(upload(&router, &dario.token, &sample_file()).await.created);
+    let _ = std::fs::remove_dir_all(&folder);
 }
 
 #[tokio::test]

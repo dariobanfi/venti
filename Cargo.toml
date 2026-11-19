@@ -16,6 +16,7 @@ venti-sources-dwd = { path = "crates/sources-dwd" }
 venti-sources-geosphere = { path = "crates/sources-geosphere" }
 venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
+venti-sensors = { path = "crates/sensors" }
 venti-core = { path = "crates/core" }
 
 chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }

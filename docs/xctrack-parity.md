@@ -17,6 +17,10 @@ XCTrack is closed source. This inventory was assembled from:
 
 Items without a tag are **config**. The stable line is 0.9.12.x; 1.0 has been in beta since June 2026 (1.0.7-beta on 2026-10-05).
 
+## What is built
+
+As of 2026-11-19, in the Rust core and tested by replaying a flight, but not yet flown: the vario pipeline with source fallback, averaged climb, ground speed and course, glide ratio, wind from circling, automatic take-off, landing and circling detection, thermal gain and average, distance and bearing to take-off, the trail behind the glider, crash-safe IGC recording, in-app replay, the vario tone description, and parsers for `LK8EX1`, `POV`, `XCTRC`, `LXWP0` and BlueFly `PRS` with the three serial-style Bluetooth services. Everything else in the tables below is still to do.
+
 ## The gap this project fills
 
 - **There is no XCTrack for iOS.** The official FAQ says: "No and we don't plan it (the app would have to be almost rewritten again for iOS)." *(official)*

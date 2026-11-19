@@ -173,6 +173,18 @@ pub fn parse(text: &str) -> Result<IgcFile, IgcError> {
 /// line endings the specification requires. It carries no `G` signature yet,
 /// so leagues will treat it as unsigned.
 pub fn write(file: &IgcFile) -> String {
+    let mut out = write_header(file);
+    for fix in &file.fixes {
+        out.push_str(&write_fix(fix));
+    }
+    out
+}
+
+/// Writes the lines that open a flight file: recorder, date, pilot, glider
+/// and datum. A recorder writes these once and then appends one
+/// [`write_fix`] line per fix, so a recording is a valid file at every
+/// moment.
+pub fn write_header(file: &IgcFile) -> String {
     let mut out = String::new();
     let mut line = |text: String| {
         out.push_str(&text);
@@ -191,18 +203,20 @@ pub fn write(file: &IgcFile) -> String {
         line(format!("HFGIDGLIDERID:{glider_id}"));
     }
     line("HFDTMGPSDATUM:WGS84".to_owned());
-
-    for fix in &file.fixes {
-        let mut text = String::with_capacity(35);
-        let _ = write!(text, "B{}", fix.time.format("%H%M%S"));
-        push_angle(&mut text, fix.position.lat(), 2, 'N', 'S');
-        push_angle(&mut text, fix.position.lon(), 3, 'E', 'W');
-        text.push(if fix.valid { 'A' } else { 'V' });
-        push_altitude(&mut text, fix.pressure_altitude_m);
-        push_altitude(&mut text, fix.gps_altitude_m);
-        line(text);
-    }
     out
+}
+
+/// Writes one fix as a `B` line, with its line ending.
+pub fn write_fix(fix: &Fix) -> String {
+    let mut text = String::with_capacity(37);
+    let _ = write!(text, "B{}", fix.time.format("%H%M%S"));
+    push_angle(&mut text, fix.position.lat(), 2, 'N', 'S');
+    push_angle(&mut text, fix.position.lon(), 3, 'E', 'W');
+    text.push(if fix.valid { 'A' } else { 'V' });
+    push_altitude(&mut text, fix.pressure_altitude_m);
+    push_altitude(&mut text, fix.gps_altitude_m);
+    text.push_str("\r\n");
+    text
 }
 
 struct RawFix {

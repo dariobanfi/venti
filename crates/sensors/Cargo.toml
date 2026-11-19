@@ -1,0 +1,16 @@
+[package]
+name = "venti-sensors"
+description = "Parsers for what external flight instruments send. No I/O and no clock."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

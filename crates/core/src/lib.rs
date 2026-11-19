@@ -23,9 +23,12 @@ use std::sync::Arc;
 use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
+mod cockpit;
 mod logbook;
 #[cfg(test)]
 mod testing;
+
+pub use cockpit::*;
 
 use logbook::{Logbook, LogbookError};
 

@@ -2064,6 +2064,7 @@ dependencies = [
  "uniffi",
  "venti-domain",
  "venti-flight",
+ "venti-sensors",
 ]
 
 [[package]]
@@ -2109,6 +2110,15 @@ dependencies = [
  "toml",
  "venti-domain",
  "venti-sources",
+]
+
+[[package]]
+name = "venti-sensors"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "thiserror",
+ "venti-domain",
 ]
 
 [[package]]

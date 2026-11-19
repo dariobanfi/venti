@@ -2,8 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Only what cannot be said as a build setting in project.yml: the app opens
-  IGC flight files handed to it by Files, Mail and other apps. Xcode adds
-  the rest of the Info.plist when it builds.
+  IGC flight files handed to it by Files, Mail and other apps, and it keeps
+  working in the background during a flight. Xcode adds the rest of the
+  Info.plist when it builds.
 -->
 <plist version="1.0">
 <dict>
@@ -44,5 +45,13 @@
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
+	<!-- A flight is recorded, the vario sounds and the Bluetooth vario is
+	     heard with the screen off. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+	</array>
 </dict>
 </plist>

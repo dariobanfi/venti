@@ -22,7 +22,7 @@ A change to a screen that contradicts this document updates it in the same commi
 |---|---|---|
 | **Map** | Terrain map with every logbook flight drawn on it; the pilot's position on request | Live wind, sites, forecasts, airspace: the Today and Plan modes |
 | **Logbook** | Flights by year with totals; import; one flight on the map with its profile | Analysis, comparison, 3D replay: the Review mode |
-| Fly | Not built | The cockpit and recorder |
+| **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view. Not yet flown. | Airspace, navigation, live tracking, and the rest of the XCTrack checklist |
 | Community | Not built | Feed, groups, events |
 
 A tab appears when there is something real behind it. An empty section explains itself rather than being hidden or disabled.
@@ -97,16 +97,29 @@ System text styles only, so the pilot's text-size setting applies everywhere. Ti
 
 Nobody on the project can open Xcode in a cloud session, so the interface is checked by tests that use it. `apps/ios/VentiUITests` starts the app with an empty logbook, taps through every screen as a pilot would, asserts what should be there, and keeps a screenshot of each screen in light and dark appearance. The iOS workflow publishes them as the `ios-screenshots` artifact. Look at them after every change to a screen.
 
-## The cockpit, when it is built
+## The cockpit
 
-Not designed yet. What the apps pilots already fly with teach, to be confirmed in the air:
+The first version is built and has been checked on a simulator with a replayed flight. It has not flown.
+
+- **A full-screen cover, not a tab.** Starting a flight covers the whole app; nothing can be navigated to by accident. One button ends it, and asks first.
+- **Fixed places, fixed sizes.** Altitude and climb sit side by side, always, in the largest type in the app. Unlike everywhere else, these sizes do not follow the text-size setting: an instrument must be where the eye expects it.
+- **It changes by itself.** While the glider circles in lift the lower row shows height gained, the thermal's average climb and the wind, and the map zooms in; on the glide it shows ground speed, glide ratio and distance to the take-off, and the map zooms out. The pilot touches nothing.
+- **The map follows.** North up, the glider in the middle, the last three minutes of track behind it in the climb colours. It cannot be dragged away; it can be zoomed.
+- **The climb bar** beside the climb number grows up or down from the middle, in the climb colours. The number itself stays in the text colour.
+- **What is missing is said in red at the top:** no position, or a vario that has stopped talking.
+- **Sound.** Beeps that rise in pitch and speed with the climb, a continuous low tone in heavy sink, silence on the ground. One button mutes it.
+- **Trying it on the ground.** The Fly tab can replay the sample flight through the cockpit, in real time or twenty times faster.
+
+To verify in the air, all of it: readability in sun, whether the numbers are the right ones, the sound, glove-sized targets.
+
+What the apps pilots already fly with teach, and what the next versions should take from them:
 
 - XCTrack switches to its thermal page by itself when it detects circling and back afterwards, and offers black themes and a white high-contrast one. Automatic actions exist "to minimize in-flight user interaction".
 - SeeYou Navigator lays values over the map and lets any box be moved and resized by pressing and holding. Its reviewer chose the light map "which lets you see the screen better", and missed an automatic re-centre.
 - burnair shortens the pilot's own track to the last minute and a half while circling, to clear the map.
 - ForeFlight fixes its hazard colours (red within 100 ft, yellow within 1,000 ft) and repeats every alert in sound.
 
-So: very large numbers, few of them, pages that change by themselves with the phase of flight, a high-contrast light theme for sun, sound for anything urgent, and targets a gloved thumb can hit.
+Still to design: a high-contrast theme for sun, layouts the pilot can change, and the pages for navigation and airspace.
 
 ## Open
 

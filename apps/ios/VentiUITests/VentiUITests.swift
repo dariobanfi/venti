@@ -107,6 +107,39 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("dark-4-logbook")
     }
 
+    /// The cockpit, fed by a replay of the sample flight at twenty times
+    /// its speed: about ninety seconds in the glider starts to circle in
+    /// lift, and four minutes later it glides on.
+    func testTheCockpitShowsAReplayedFlight() {
+        let app = launch(bundledMap: true)
+        app.tabBars.buttons["Fly"].tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
+        keepScreenshot("fly-1-ready")
+
+        app.buttons["Replay the sample flight"].tap()
+        app.buttons["20 times faster"].tap()
+        XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
+
+        // Circling in lift, the cockpit changes to its thermal numbers by
+        // itself.
+        XCTAssertTrue(element("Gained", in: app).waitForExistence(timeout: 40))
+        sleep(3)
+        keepScreenshot("fly-2-thermal")
+
+        // On the glide after the thermal it changes back, now with the wind
+        // it worked out while circling.
+        XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 40))
+        XCTAssertTrue(element("Wind", in: app).exists)
+        sleep(3)
+        keepScreenshot("fly-3-glide")
+
+        app.buttons["End replay"].tap()
+        let close = app.buttons["Close the cockpit"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+    }
+
     /// The same screens with tiles fetched from the public servers, as a
     /// pilot's phone draws them. Only the screenshots matter here: the test
     /// does not fail when the network is slow.

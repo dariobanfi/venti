@@ -7,9 +7,10 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook):
+            case .ready(let logbook, let fly):
                 RootScreen()
                     .environment(logbook)
+                    .environment(fly)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -26,12 +27,13 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel)
+    case ready(LogbookModel, FlySession)
     case failed(String)
 
     static func start() -> Session {
         do {
-            return .ready(try LogbookModel.open(folder: try LaunchOptions.dataFolder()))
+            let folder = try LaunchOptions.dataFolder()
+            return .ready(try LogbookModel.open(folder: folder), FlySession(dataFolder: folder))
         } catch {
             return .failed(error.localizedDescription)
         }
@@ -45,6 +47,11 @@ enum LaunchOptions {
 
     /// Start with an empty logbook in a throwaway folder.
     static let isUITesting = arguments.contains("--ui-testing")
+
+    /// Whether the app is running under any test. Tests have no sound
+    /// device to rely on and nobody listening.
+    static let isUnderTest =
+        isUITesting || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     /// Draw the map from the region bundled with the app instead of fetching
     /// tiles, so a screenshot does not depend on the network.

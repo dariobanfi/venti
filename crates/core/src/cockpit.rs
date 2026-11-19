@@ -507,6 +507,31 @@ pub fn clear_recording(data_folder: String, name: String) -> Result<(), CoreErro
     }
 }
 
+/// A Bluetooth service that carries an instrument's text stream.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SerialServiceView {
+    /// What the service is, for diagnostics.
+    pub name: String,
+    /// The service's identifier, a 128-bit UUID.
+    pub service: String,
+    /// The characteristic on which the instrument sends its stream.
+    pub notify: String,
+}
+
+/// The Bluetooth services to look for when searching for a vario, so every
+/// app looks for the same devices.
+#[uniffi::export]
+pub fn vario_serial_services() -> Vec<SerialServiceView> {
+    venti_sensors::ble::SERIAL_SERVICES
+        .iter()
+        .map(|service| SerialServiceView {
+            name: service.name.to_owned(),
+            service: service.service.to_owned(),
+            notify: service.notify.to_owned(),
+        })
+        .collect()
+}
+
 fn recordings_folder(data_folder: &Path) -> PathBuf {
     data_folder.join("recordings")
 }
@@ -712,6 +737,17 @@ mod tests {
         let replay = Replay::new(sample()).unwrap();
         replay.advance(session.clone(), seconds);
         (session, replay)
+    }
+
+    #[test]
+    fn the_serial_services_are_handed_to_the_shells() {
+        let services = vario_serial_services();
+        assert_eq!(services.len(), 3);
+        assert!(
+            services
+                .iter()
+                .any(|service| service.service.starts_with("6E400001"))
+        );
     }
 
     #[test]

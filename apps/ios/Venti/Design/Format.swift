@@ -44,11 +44,40 @@ enum Format {
         metres.formatted(.number.precision(.fractionLength(0)))
     }
 
+    /// Whole metres with a sign, for a gain or a loss.
+    static func signedMetres(_ metres: Double) -> String {
+        metres.formatted(
+            .number.precision(.fractionLength(0)).sign(strategy: .always(includingZero: false))
+        )
+    }
+
     /// Metres per second with one decimal and always a sign, except for zero.
     static func climb(metresPerSecond: Double) -> String {
         metresPerSecond.formatted(
             .number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false))
         )
+    }
+
+    /// Kilometres per hour, whole, from metres per second.
+    static func kilometresPerHour(metresPerSecond: Double) -> String {
+        (metresPerSecond * 3.6).formatted(.number.precision(.fractionLength(0)))
+    }
+
+    /// A glide ratio with one decimal.
+    static func glideRatio(_ ratio: Double) -> String {
+        ratio.formatted(.number.precision(.fractionLength(1)))
+    }
+
+    /// Hours, minutes and seconds of a running flight: "0:12:34".
+    static func stopwatch(seconds: Int64) -> String {
+        Duration.seconds(seconds).formatted(.time(pattern: .hourMinuteSecond))
+    }
+
+    /// A compass direction in one or two letters: "N", "SW".
+    static func compassPoint(degrees: Double) -> String {
+        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        let index = Int((degrees.truncatingRemainder(dividingBy: 360) + 360 + 22.5) / 45) % 8
+        return points[index]
     }
 
     static func flights(_ count: UInt32) -> String {

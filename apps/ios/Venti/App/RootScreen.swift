@@ -4,6 +4,7 @@ import SwiftUI
 /// community.
 enum AppTab: Hashable {
     case map
+    case fly
     case logbook
 }
 
@@ -37,11 +38,18 @@ struct RootScreen: View {
             Tab("Map", systemImage: "map", value: AppTab.map) {
                 MapScreen()
             }
+            Tab("Fly", systemImage: "paperplane", value: AppTab.fly) {
+                FlyScreen()
+            }
             Tab("Logbook", systemImage: "book.closed", value: AppTab.logbook) {
                 LogbookScreen()
             }
         }
         .environment(navigation)
+        // A flight that was being recorded when the app last stopped.
+        .task {
+            await logbook.adoptInterruptedRecordings()
+        }
         // A flight file opened from Files, Mail or another app.
         .onOpenURL { url in
             Task {

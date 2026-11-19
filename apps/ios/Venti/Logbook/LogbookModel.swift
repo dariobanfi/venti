@@ -11,16 +11,41 @@ import VentiCore
 @Observable
 final class LogbookModel {
     private(set) var view: LogbookView
+    /// The folder the core keeps its data in. The cockpit records into it.
+    let folder: URL
     private let core: Core
 
-    init(core: Core) {
+    init(core: Core, folder: URL) {
         self.core = core
+        self.folder = folder
         view = core.logbook()
     }
 
     /// Opens the logbook kept in `folder`, creating it on first use.
     static func open(folder: URL) throws -> LogbookModel {
-        LogbookModel(core: try Core(dataFolder: folder.path))
+        LogbookModel(core: try Core(dataFolder: folder.path), folder: folder)
+    }
+
+    /// Moves a finished recording into the logbook and returns the flight's
+    /// identifier. The recording is cleared only once the logbook has it,
+    /// so a failure here loses nothing: it is found again at the next launch.
+    func adopt(_ recording: PendingRecording) async throws -> String {
+        let (core, folder) = (self.core, self.folder.path)
+        let id = try await Task.detached(priority: .userInitiated) { () throws -> String in
+            let imported = try core.importFlight(igcText: recording.igcText)
+            try clearRecording(dataFolder: folder, name: recording.name)
+            return imported.id
+        }.value
+        view = core.logbook()
+        return id
+    }
+
+    /// Brings in recordings that were cut short: flights being recorded
+    /// when the app was closed, or when it crashed. Called at launch.
+    func adoptInterruptedRecordings() async {
+        for recording in pendingRecordings(dataFolder: folder.path) {
+            _ = try? await adopt(recording)
+        }
     }
 
     /// Imports flight files. Reading and parsing run off the main thread.

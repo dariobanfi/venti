@@ -80,6 +80,13 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertTrue(Format.climb(metresPerSecond: 2.4).hasPrefix("+"))
         XCTAssertFalse(Format.climb(metresPerSecond: -1.5).hasPrefix("+"))
         XCTAssertEqual(Format.flights(1), "1 flight")
+        XCTAssertEqual(Format.stopwatch(seconds: 754), "0:12:34")
+        XCTAssertEqual(Format.kilometresPerHour(metresPerSecond: 10), "36")
+        XCTAssertTrue(Format.signedMetres(244).hasPrefix("+"))
+        XCTAssertEqual(
+            [0, 44, 90, 200, 270, 359].map(Format.compassPoint(degrees:)),
+            ["N", "NE", "E", "S", "W", "N"]
+        )
         XCTAssertEqual(Format.flights(3), "3 flights")
     }
 }

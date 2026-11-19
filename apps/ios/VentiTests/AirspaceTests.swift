@@ -3,6 +3,40 @@ import XCTest
 
 @testable import Venti
 
+/// What a Venti server answers when asked for airspace: one made-up zone
+/// over the valley of the sample flight, complete for the Alps.
+private enum ServerAirspace {
+    static let answer = """
+    {"layers": [{
+        "source": "openaip", "fetched_at": "2026-11-18T19:05:00Z", "file_date": "2026-11-18T01:12:00Z",
+        "covers": [{"south": 46.3, "west": 9.4, "north": 48.5, "east": 17.2}], "countries": ["DE", "AT"],
+        "airspaces": [{
+            "id": "openaip:sample", "name": "SERVER ZONE (NOT REAL)", "class": "D", "airspace_type": "ctr",
+            "country": "DE",
+            "lower": {"reference": "ground", "metres": 0.0},
+            "upper": {"reference": "mean-sea-level", "value": 9000.0, "unit": "feet", "metres": 2743.2},
+            "geometry": {"exterior": [[11.70, 47.68], [11.76, 47.68], [11.76, 47.72], [11.70, 47.72], [11.70, 47.68]]},
+            "activity": {"by_notam": false, "on_request": false, "on_demand": false, "special_agreement": false},
+            "validity": {"file_date": "2026-11-18T01:12:00Z"}
+        }]
+    }],
+    "attributions": [{
+        "source": "openaip", "provider": "openAIP", "licence": "CC BY-NC 4.0",
+        "text": "Data used comes from openAIP.", "url": "https://www.openaip.net",
+        "notice": "OpenAIP data is not certified."
+    }]}
+    """
+}
+
+/// The addresses a model asked for.
+private actor Requests {
+    private(set) var addresses: [URL] = []
+
+    func note(_ url: URL) {
+        addresses.append(url)
+    }
+}
+
 /// Airspace files and the cockpit's warnings against the real core.
 @MainActor
 final class AirspaceTests: XCTestCase {
@@ -82,6 +116,115 @@ final class AirspaceTests: XCTestCase {
 
         _ = fly.finish()
         XCTAssertTrue(fly.airspaceWarnings.isEmpty)
+    }
+
+    func testAirspaceIsFetchedFromTheServerOnceKeptAndUsed() async throws {
+        let folder = try makeFolder()
+        let asked = Requests()
+        let airspace = AirspaceModel(
+            core: try Core(dataFolder: folder.path),
+            transport: { url in
+                await asked.note(url)
+                return (200, Data(ServerAirspace.answer.utf8))
+            },
+            remembersChoice: false
+        )
+        let tegernsee = Coordinate(lat: 47.7, lon: 11.75)
+
+        // Without a server nothing is asked.
+        await airspace.refresh(around: tegernsee)
+        let none = await asked.addresses
+        XCTAssertTrue(none.isEmpty)
+        XCTAssertEqual(airspace.inALine, "None")
+
+        airspace.server = { URL(string: "http://127.0.0.1:8080") }
+        await airspace.refresh(around: tegernsee)
+        let first = await asked.addresses
+        XCTAssertEqual(first.map(\.absoluteString), ["http://127.0.0.1:8080/v1/airspace?bbox=8.75,45.7,14.75,49.7"])
+        XCTAssertNil(airspace.serverProblem)
+        XCTAssertEqual(airspace.inALine, "openAIP, 1 airspace")
+        let layer = try XCTUnwrap(airspace.kept.first)
+        XCTAssertTrue(layer.saysWhatItCovers)
+        XCTAssertEqual(layer.countries, ["DE", "AT"])
+        XCTAssertEqual(AirspaceScreen.names(of: ["DE"]), "Germany")
+        XCTAssertEqual(layer.credit?.notice, "OpenAIP data is not certified.")
+        XCTAssertEqual(airspace.credits.map(\.provider), ["openAIP"])
+        XCTAssertEqual(
+            airspace.shapes(in: Bounds(south: 47.6, west: 11.6, north: 47.8, east: 11.9)).map(\.name),
+            ["SERVER ZONE (NOT REAL)"]
+        )
+
+        // What is kept is fresh: a second look around sends nothing.
+        await airspace.refresh(around: Coordinate(lat: 47.5, lon: 11.9))
+        let second = await asked.addresses
+        XCTAssertEqual(second.count, 1)
+
+        // The cockpit warns from it, and says where it is from.
+        let fly = FlySession(dataFolder: folder)
+        fly.airspace = { airspace.set }
+        let sample = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        fly.startReplay(igcText: try String(contentsOf: sample, encoding: .utf8), speed: 2000)
+        try await Task.sleep(for: .milliseconds(2500))
+        let warning = try XCTUnwrap(fly.airspaceWarnings.first)
+        XCTAssertEqual(warning.origin, .server)
+        XCTAssertTrue(
+            AirspaceWarningsSheet.origin(of: warning).hasPrefix("From openAIP, by way of your server, as of "),
+            AirspaceWarningsSheet.origin(of: warning)
+        )
+        _ = fly.finish()
+
+        // Switched off, what was kept is gone and nothing is asked.
+        airspace.stopUsingServer()
+        XCTAssertTrue(airspace.isEmpty)
+        await airspace.refresh(around: tegernsee)
+        let third = await asked.addresses
+        XCTAssertEqual(third.count, 1)
+    }
+
+    func testAServerThatCannotAnswerIsSaidAndLeftAloneForAWhile() async throws {
+        let folder = try makeFolder()
+        let asked = Requests()
+        let airspace = AirspaceModel(
+            core: try Core(dataFolder: folder.path),
+            transport: { url in
+                await asked.note(url)
+                return (503, Data())
+            },
+            remembersChoice: false
+        )
+        airspace.server = { URL(string: "http://127.0.0.1:8080") }
+        let tegernsee = Coordinate(lat: 47.7, lon: 11.75)
+
+        await airspace.refresh(around: tegernsee)
+        XCTAssertEqual(airspace.serverProblem, "The server is busy or being restarted. Try again in a moment.")
+        XCTAssertTrue(airspace.isEmpty)
+
+        await airspace.refresh(around: tegernsee)
+        let addresses = await asked.addresses
+        XCTAssertEqual(addresses.count, 1)
+    }
+
+    func testTheCockpitsMapZoomsOutAsFarAsItTakesToShowTheAirspace() {
+        let size = CGSize(width: 400, height: 360)
+        let zoom = { (circling: Bool, metres: Double?) in
+            CockpitMap.Coordinator.zoom(circling: circling, showing: metres, latitude: 47.7, in: size)
+        }
+        // Without a warning the kind of flying decides.
+        XCTAssertEqual(zoom(false, nil), 13)
+        XCTAssertEqual(zoom(true, nil), 15.5)
+        // Two kilometres do not fit at the cruising zoom; one does.
+        XCTAssertEqual(zoom(false, 2000), 11.5)
+        XCTAssertEqual(zoom(false, 900), 13)
+        // In a thermal the map is close in, and steps back for a zone
+        // 500 m away.
+        XCTAssertEqual(zoom(true, 500), 13.5)
+        XCTAssertEqual(zoom(true, 100), 15.5)
+        // Never out to where the valley is a dot.
+        XCTAssertEqual(zoom(false, 80_000), 10)
+        // Before the map has a size nothing is worked out from it.
+        XCTAssertEqual(
+            CockpitMap.Coordinator.zoom(circling: false, showing: 2000, latitude: 47.7, in: .zero), 13
+        )
     }
 
     func testAnImportIsSummedUpForThePilot() {

@@ -5,14 +5,18 @@ import VentiCore
 
 /// The cockpit's map: the glider, the track behind it coloured by climb,
 /// the take-off, and a line to the place the cockpit is navigating to. It
-/// keeps the glider in the middle by itself, north up, and zooms in while
-/// the glider circles.
+/// keeps the glider in the middle by itself, north up, zooms in while the
+/// glider circles, and out again as far as it takes to show the airspace
+/// a warning is about.
 struct CockpitMap: UIViewRepresentable {
     let view: CockpitView
     /// The way to the place being navigated to, if any.
     var way: WayToTarget?
     /// The pilot's airspace, to draw what lies around the glider.
     var airspace: AirspaceSet?
+    /// How far the airspace of the most urgent warning is, in metres, so
+    /// that the map shows it. `nil` without a warning.
+    var airspaceDistance: Double?
     /// The route the flight scores along so far.
     var route: [Coordinate] = []
 
@@ -35,6 +39,7 @@ struct CockpitMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.airspace = airspace
+        context.coordinator.airspaceDistance = airspaceDistance
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -43,6 +48,8 @@ struct CockpitMap: UIViewRepresentable {
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
         static let cruiseZoom = 13.0
         static let thermalZoom = 15.5
+        /// The map never zooms further out than this by itself.
+        static let widestZoom = 10.0
 
         private var isStyleLoaded = false
         private var shown: CockpitView?
@@ -50,10 +57,12 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnRoute: [Coordinate]?
         /// The pilot's airspace, and where it was last drawn around.
         var airspace: AirspaceSet?
+        var airspaceDistance: Double?
         private var airspaceDrawnAt: Coordinate?
         private var shownTarget: Coordinate?
         private var target: Coordinate?
-        private var wasCircling: Bool?
+        /// The zoom the map was last set to by itself.
+        private var chosenZoom: Double?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all.
@@ -160,15 +169,34 @@ struct CockpitMap: UIViewRepresentable {
                 source.shape = MLNShapeCollectionFeature(shapes: Self.trailFeatures(view.trail))
             }
 
-            // Zoom only when the kind of flying changes, so a zoom level the
-            // pilot pinched to is kept until then.
-            if wasCircling != view.circling {
-                wasCircling = view.circling
-                let zoom = view.circling ? Self.thermalZoom : Self.cruiseZoom
+            // Zoom only when the kind of flying changes or the airspace a
+            // warning is about comes into or goes out of reach, so a zoom
+            // level the pilot pinched to is kept until then.
+            let zoom = Self.zoom(
+                circling: view.circling, showing: airspaceDistance, latitude: position.lat, in: map.bounds.size
+            )
+            if zoom != chosenZoom {
+                chosenZoom = zoom
                 map.setCenter(position.location, zoomLevel: zoom, animated: !LaunchOptions.isUITesting)
             } else {
                 map.setCenter(position.location, animated: !LaunchOptions.isUITesting)
             }
+        }
+
+        /// The zoom for the kind of flying, or less if it takes less to
+        /// show something this many metres from the glider: the airspace a
+        /// warning is about. In half steps, so that the map does not
+        /// breathe with every metre flown.
+        static func zoom(circling: Bool, showing metres: Double?, latitude: Double, in size: CGSize) -> Double {
+            let usual = circling ? thermalZoom : cruiseZoom
+            // The glider is in the middle; four fifths of the way to the
+            // nearer edge is as far out as something is still seen well.
+            let reach = Double(min(size.width, size.height)) / 2 * 0.8
+            guard let metres, metres > 0, reach > 0 else { return usual }
+            // The map's zoom 0 shows the world 512 points wide.
+            let metresPerPoint = 40_075_016.686 * cos(latitude * .pi / 180) / 512
+            let fitting = log2(metresPerPoint * reach / metres)
+            return min(usual, max(widestZoom, (fitting * 2).rounded(.down) / 2))
         }
 
         /// Draws the airspace within about 40 km of the glider, again once

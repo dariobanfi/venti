@@ -30,7 +30,7 @@ struct AirspaceBanner: View {
         case .checking, .noAirspace: nil
         case .waitingForHeight: "Airspace is not being checked yet: no position with a height."
         case .stale: "Airspace is not being checked: no position. What is shown is from the last one."
-        case .outsideFiles: "Your airspace files do not cover this place. Nothing is checked here."
+        case .outsideFiles: "Your airspace does not cover this place. Nothing is checked here."
         }
     }
 
@@ -119,6 +119,7 @@ struct AirspaceBanner: View {
 /// each: say it has been seen, or that the airspace does not apply today.
 struct AirspaceWarningsSheet: View {
     @Environment(FlySession.self) private var fly
+    @Environment(AirspaceModel.self) private var airspace
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -164,7 +165,7 @@ struct AirspaceWarningsSheet: View {
                 }
                 Section {
                 } footer: {
-                    Text("A warning you have seen speaks again if it becomes more urgent. “Does not apply today” is for an area you know to be inactive or have permission for: Venti cannot check that. Warnings are advice from the files you brought in; you remain responsible for where you fly.")
+                    Text(Self.advice + airspace.credits.compactMap(\.notice).map { "\n\n\($0)" }.joined())
                 }
             }
             .navigationTitle("Airspace")
@@ -179,10 +180,16 @@ struct AirspaceWarningsSheet: View {
         }
     }
 
+    private static let advice = "A warning you have seen speaks again if it becomes more urgent. “Does not apply today” is for an area you know to be inactive or have permission for: Venti cannot check that. Warnings are advice from the airspace the app has; you remain responsible for where you fly."
+
     /// Where the airspace comes from and how old that is.
-    private static func origin(of warning: AirspaceWarning) -> String {
-        guard let date = warning.dataUnixS else { return "From your file “\(warning.source)”." }
-        return "From your file “\(warning.source)”, brought in \(Format.day(unixSeconds: date))."
+    static func origin(of warning: AirspaceWarning) -> String {
+        switch (warning.origin, warning.dataUnixS) {
+        case (.file, nil): "From your file “\(warning.source)”."
+        case (.file, let date?): "From your file “\(warning.source)”, brought in \(Format.day(unixSeconds: date))."
+        case (.server, nil): "From \(warning.source), by way of your server."
+        case (.server, let date?): "From \(warning.source), by way of your server, as of \(Format.day(unixSeconds: date))."
+        }
     }
 }
 

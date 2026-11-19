@@ -49,6 +49,18 @@ cd apps/android
 
 The UI tests need an emulator, which a cloud session without hardware virtualisation cannot run. The `Android` workflow runs them on every push that touches the app or the core, and uploads their screenshots as the `android-screenshots` artifact and the app as `venti-debug-apk`: download the screenshots with `gh run download` and look at them after every change to a screen. For the wind map the workflow starts `venti-server dev` and names it to the tests. A UI test must not wait with `Thread.sleep`: Compose draws a test's frames only when the test asks, so the screenshot would show the moment the test fell asleep; use `TestDevice.letTheAppRun`. A new kind of error in the core needs a line in `apps/android/uniffi.toml`, or the Kotlin interface does not compile.
 
+The web app (`apps/web`) builds and tests in a cloud session; `apps/web/README.md` has the details:
+
+```bash
+cd apps/web
+npm ci
+scripts/build-core.sh                                 # the Rust core as WebAssembly; again after every change to the core
+npm run check && npm run format:check && npm run licences && npm test
+npm run build && npm run test:e2e                     # the built site in a real browser, against `venti-server dev`
+```
+
+The browser tests keep a screenshot of every screen in `apps/web/screenshots/`, at a phone's and a desktop's width, light and dark; the `Web` workflow uploads them as the `web-screenshots` artifact. A field added to a record of the core is a type error in the web app's hand-built test records until they have it, so run `npm run check` after changing a record.
+
 Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
 
 ## Working practice

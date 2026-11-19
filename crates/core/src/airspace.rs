@@ -26,6 +26,7 @@ use venti_domain::{
     VerticalLimit, VerticalReference,
 };
 
+use crate::kept_airspace::is_file_source;
 use crate::{Bounds, Coordinate, Core, CoreError};
 
 /// The folder the airspace files are stored in.
@@ -65,18 +66,29 @@ pub enum AirspaceLevel {
 /// Anything but `Checking` means: silence is not "no airspace near".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum AirspaceCheck {
-    /// The session was given no airspace: the pilot has no files.
+    /// The session was given no airspace: the pilot has no files and
+    /// nothing is kept from a server.
     NoAirspace,
     /// No position with a height has arrived yet, so nothing was checked.
     WaitingForHeight,
     /// Positions have stopped arriving: the last check is old, and the
     /// warnings shown are from then.
     Stale,
-    /// The pilot's files hold no airspace within a hundred kilometres of
-    /// the glider: they do not cover this place.
+    /// The pilot's airspace does not cover this place: the server did not
+    /// say that what is kept from it is complete here, and the pilot's
+    /// files hold no airspace within a hundred kilometres of the glider.
     OutsideFiles,
     /// Every position is being checked.
     Checking,
+}
+
+/// Where an airspace the app knows comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AirspaceOrigin {
+    /// A file the pilot brought in.
+    File,
+    /// The pilot's Venti server, which collects it from a provider.
+    Server,
 }
 
 /// One airspace as a map draws it.
@@ -136,10 +148,15 @@ pub struct AirspaceWarning {
     pub uncertain: Option<String>,
     /// Whether the pilot has silenced this warning.
     pub silenced: bool,
-    /// Where the airspace comes from: the name of the pilot's file.
+    /// Whether the airspace is from a file of the pilot's or from the
+    /// pilot's server.
+    pub origin: AirspaceOrigin,
+    /// Where the airspace comes from: the name of the pilot's file, or
+    /// the provider the server has it from.
     pub source: String,
-    /// When that file was brought in, seconds since 1970-01-01 UTC. It is
-    /// not the age of the data in it, which an OpenAir file does not say.
+    /// For a file: when it was brought in, seconds since 1970-01-01 UTC,
+    /// which is not the age of the data in it; an OpenAir file does not
+    /// say that. For airspace from the server: when the provider wrote it.
     pub data_unix_s: Option<i64>,
 }
 
@@ -179,8 +196,22 @@ pub struct AirspaceFile {
 pub struct AirspaceSet {
     pub(crate) index: AirspaceIndex,
     policy: PolicyTable,
-    /// The file each source identifier stands for, and its date.
-    sources: Vec<(SourceId, String, Option<DateTime<Utc>>)>,
+    /// What each source identifier stands for.
+    sources: Vec<Source>,
+    /// The areas for which the airspace kept from the server is complete,
+    /// by the server's own word.
+    complete_within: Vec<BoundingBox>,
+}
+
+/// What the airspaces filed under one source identifier come from.
+#[derive(Debug)]
+struct Source {
+    id: SourceId,
+    origin: AirspaceOrigin,
+    /// The name of the pilot's file, or of the provider.
+    name: String,
+    /// When the file was brought in, or the provider's oldest date.
+    date: Option<DateTime<Utc>>,
 }
 
 #[uniffi::export]
@@ -224,23 +255,54 @@ impl AirspaceSet {
 }
 
 impl AirspaceSet {
-    /// The file an airspace came from, and the date of its data.
-    fn origin(&self, airspace: &Airspace) -> (String, Option<i64>) {
+    /// Where an airspace came from, under which name, and the date of its
+    /// data.
+    fn origin(&self, airspace: &Airspace) -> (AirspaceOrigin, String, Option<i64>) {
         let known = self
             .sources
             .iter()
-            .find(|(source, _, _)| source == airspace.id.source());
+            .find(|source| &source.id == airspace.id.source());
         (
+            known.map_or(AirspaceOrigin::File, |source| source.origin),
             known.map_or_else(
                 || airspace.id.source().to_string(),
-                |(_, name, _)| name.clone(),
+                |source| source.name.clone(),
             ),
             airspace
                 .validity
                 .file_date
-                .or(known.and_then(|(_, _, date)| *date))
+                .or(known.and_then(|source| source.date))
                 .map(|date| date.timestamp()),
         )
+    }
+
+    /// Whether the set can speak for a place: whether "no airspace near"
+    /// there means that, and not "no data here".
+    ///
+    /// Airspace from the server says for which area it is complete. A file
+    /// of the pilot's does not; it counts as covering a place when it
+    /// holds any airspace within about a hundred kilometres of it, which
+    /// tells a file for one country from the next country.
+    pub(crate) fn covers(&self, position: GeoPoint) -> bool {
+        if self
+            .complete_within
+            .iter()
+            .any(|area| area.contains(position))
+        {
+            return true;
+        }
+        let around = BoundingBox::new(
+            (position.lat() - COVER_BOX_DEG).max(-90.0),
+            (position.lon() - COVER_BOX_DEG * 1.5).max(-180.0),
+            (position.lat() + COVER_BOX_DEG).min(90.0),
+            (position.lon() + COVER_BOX_DEG * 1.5).min(180.0),
+        );
+        around.is_ok_and(|around| {
+            self.index
+                .in_box(&around, None)
+                .iter()
+                .any(|airspace| is_file_source(airspace.id.source()))
+        })
     }
 }
 
@@ -363,8 +425,9 @@ impl Core {
         Ok(())
     }
 
-    /// Every airspace of the pilot's files as one set, for the maps and
-    /// for the cockpit. Built once and kept until the files change.
+    /// Every airspace of the pilot's files and of what is kept from the
+    /// server as one set, for the maps and for the cockpit. Built once and
+    /// kept until either changes.
     pub fn airspace(&self) -> Result<Arc<AirspaceSet>, CoreError> {
         let mut kept = self
             .airspace
@@ -398,12 +461,36 @@ impl Core {
                     airspaces.push(airspace);
                 }
             }
-            sources.push((source, name, day));
+            sources.push(Source {
+                id: source,
+                origin: AirspaceOrigin::File,
+                name,
+                date: day,
+            });
+        }
+        // Then what is kept from the server, each source's layer by
+        // itself. An airspace the pilot's own file already gave is not
+        // taken twice.
+        let mut complete_within = Vec::new();
+        for layer in self.kept().map(|kept| kept.layers).unwrap_or_default() {
+            for airspace in self.kept_airspaces(&layer) {
+                if taken.insert(likeness(&airspace)) {
+                    airspaces.push(airspace);
+                }
+            }
+            complete_within.extend(layer.complete_within.iter().copied());
+            sources.push(Source {
+                id: layer.source.clone(),
+                origin: AirspaceOrigin::Server,
+                name: layer.provider(),
+                date: layer.file_date,
+            });
         }
         let set = Arc::new(AirspaceSet {
             index: AirspaceIndex::new(airspaces),
             policy: PolicyTable::paraglider(),
             sources,
+            complete_within,
         });
         *kept = Some(Arc::clone(&set));
         Ok(set)
@@ -423,7 +510,7 @@ impl Core {
             .collect())
     }
 
-    fn forget_airspace(&self) {
+    pub(crate) fn forget_airspace(&self) {
         *self
             .airspace
             .lock()
@@ -733,20 +820,13 @@ impl AirspaceWatch {
             return;
         };
         self.checked_s = Some(time_s);
-        // Files for one country say nothing about the next: once in a
-        // while, look whether any airspace of the files lies around here.
+        // Airspace for one country says nothing about the next: once in
+        // a while, look whether the set can speak for this place.
         if self
             .covered
             .is_none_or(|(_, looked)| !(0.0..LOOK_FOR_COVER_EVERY_S).contains(&(time_s - looked)))
         {
-            let around = BoundingBox::new(
-                (position.lat() - COVER_BOX_DEG).max(-90.0),
-                (position.lon() - COVER_BOX_DEG * 1.5).max(-180.0),
-                (position.lat() + COVER_BOX_DEG).min(90.0),
-                (position.lon() + COVER_BOX_DEG * 1.5).min(180.0),
-            );
-            let any = around.is_ok_and(|around| !self.set.index.in_box(&around, None).is_empty());
-            self.covered = Some((any, time_s));
+            self.covered = Some((self.set.covers(position), time_s));
         }
         for warning in &found {
             if warning.is_new && warning.silenced.is_none() {
@@ -867,7 +947,7 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
         }
         .to_owned()
     });
-    let (source, data_unix_s) = set.origin(airspace);
+    let (origin, source, data_unix_s) = set.origin(airspace);
     AirspaceWarning {
         id: airspace.id.to_string(),
         level: level_view(warning.level),
@@ -883,6 +963,7 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
         entry_seconds: warning.entry.map(|entry| entry.seconds),
         uncertain,
         silenced: warning.silenced.is_some(),
+        origin,
         source,
         data_unix_s,
     }

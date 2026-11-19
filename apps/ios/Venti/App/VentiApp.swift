@@ -52,7 +52,6 @@ enum Session {
                     nowUnixS: Int64(Date().timeIntervalSince1970)
                 )
             }
-            let airspace = AirspaceModel(core: core)
             // Under test the server is the one named on the command line,
             // or none: a test must not depend on what a pilot has saved.
             let wind =
@@ -61,6 +60,8 @@ enum Session {
                 } else {
                     WindModel()
                 }
+            let airspace = AirspaceModel(core: core, remembersChoice: !LaunchOptions.isUnderTest)
+            airspace.server = { wind.server }
             // The assistant looks up live wind on the same server as the
             // map, and measures ages against the same clock.
             let scripted = LaunchOptions.usesScriptedAssistant

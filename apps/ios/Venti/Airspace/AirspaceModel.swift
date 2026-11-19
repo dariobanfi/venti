@@ -4,30 +4,79 @@ import VentiCore
 
 /// The pilot's airspace as the screens see it.
 ///
-/// The core keeps the files, reads them and answers every question about
-/// them. This class asks for the results and reads files from where the
-/// pilot picked them.
+/// It comes from two places: files the pilot brings in, and the pilot's
+/// Venti server, which the app asks for the airspace around where the
+/// pilot is and whose answer it keeps on the iPhone. The core keeps both,
+/// reads them and answers every question about them. This class asks for
+/// the results, reads files from where the pilot picked them and sends the
+/// request to the server.
 @MainActor
 @Observable
 final class AirspaceModel {
+    /// Fetches an address and returns the HTTP status and the body.
+    typealias Transport = @Sendable (URL) async throws -> (Int, Data)
+
+    /// After a request that failed, the server is left alone for this long.
+    static let retryAfter: TimeInterval = 5 * 60
+
     /// The files the pilot has brought in.
     private(set) var files: [AirspaceFile] = []
-    /// Every airspace of those files as one set, for the maps and the
-    /// cockpit. Changes whenever the files do.
+    /// The airspace kept from the server, one entry for each source.
+    private(set) var kept: [KeptAirspace] = []
+    /// Every airspace of the files and of what is kept as one set, for the
+    /// maps and the cockpit. Changes whenever either does.
     private(set) var set: AirspaceSet?
-    /// Set when there are files but their airspace could not be put
-    /// together: the cockpit would be silent, and the pilot must know.
+    /// Set when there is airspace but it could not be put together: the
+    /// cockpit would be silent, and the pilot must know.
     private(set) var problem: String?
+    /// Why the server's airspace could not be fetched, in words.
+    private(set) var serverProblem: String?
+    /// Whether the server is asked for airspace at all. The pilot's
+    /// choice, remembered.
+    var usesServer = true {
+        didSet {
+            if remembersChoice {
+                UserDefaults.standard.set(!usesServer, forKey: Preferences.airspaceWithoutServer)
+            }
+        }
+    }
+
+    /// The server to ask. The app sets this to the one in the settings.
+    @ObservationIgnored var server: () -> URL? = { nil }
 
     @ObservationIgnored private let core: Core
+    @ObservationIgnored private let transport: Transport
+    @ObservationIgnored private let remembersChoice: Bool
+    @ObservationIgnored private var isFetching = false
+    @ObservationIgnored private var failedAt: Date?
 
-    init(core: Core) {
+    /// - Parameter remembersChoice: whether the choice to use the server
+    ///   is read from and saved to the settings. Tests do neither.
+    init(core: Core, transport: @escaping Transport = WindModel.fetch, remembersChoice: Bool = true) {
         self.core = core
+        self.transport = transport
+        self.remembersChoice = remembersChoice
+        if remembersChoice, UserDefaults.standard.bool(forKey: Preferences.airspaceWithoutServer) {
+            usesServer = false
+        }
         reload()
     }
 
     /// Whether there is any airspace to draw or to warn about.
-    var isEmpty: Bool { files.isEmpty }
+    var isEmpty: Bool { files.isEmpty && kept.isEmpty }
+
+    /// Whose airspace the server's is, with what their licences ask to be
+    /// shown wherever it is.
+    var credits: [Credit] { kept.compactMap(\.credit) }
+
+    /// What the cockpit will warn from, in a line for before take-off.
+    var inALine: String {
+        var parts = kept.map { "\($0.provider), \(Self.count($0.airspaces))" }
+        if !files.isEmpty {
+            parts.append(files.count == 1 ? "1 file" : "\(files.count) files")
+        }
+        return parts.isEmpty ? "None" : parts.joined(separator: " · ")
+    }
 
     /// The airspaces that touch a part of the map.
     func shapes(in area: Bounds) -> [AirspaceShape] {
@@ -68,10 +117,57 @@ final class AirspaceModel {
         reload()
     }
 
+    /// Asks the server for the airspace around a place and keeps it, when
+    /// the core says it is time: nothing is kept, what is kept is a day
+    /// old, or the place is at the edge of it or beyond. Otherwise nothing
+    /// is sent. Called whenever the app learns where the pilot is looking
+    /// or flying.
+    func refresh(around place: Coordinate) async {
+        guard usesServer, !isFetching, let address = server()?.absoluteString else { return }
+        if let failedAt, Date().timeIntervalSince(failedAt) < Self.retryAfter {
+            return
+        }
+        let now = Int64(Date().timeIntervalSince1970)
+        guard core.keptAirspaceIsDue(server: address, lat: place.lat, lon: place.lon, nowUnixS: now) else { return }
+        isFetching = true
+        defer { isFetching = false }
+        let (lat, lon) = (place.lat, place.lon)
+        do {
+            let path = try serverAirspacePath(lat: lat, lon: lon)
+            guard let url = URL(string: address + path) else { return }
+            let (status, body) = try await transport(url)
+            let core = self.core
+            // A country's airspace is a megabyte to read and to write.
+            _ = try await Task.detached(priority: .utility) {
+                try core.keepServerAirspace(
+                    server: address, lat: lat, lon: lon,
+                    status: UInt16(clamping: status), body: body, nowUnixS: now
+                )
+            }.value
+            failedAt = nil
+            serverProblem = nil
+            reload()
+        } catch {
+            failedAt = Date()
+            serverProblem = error is CoreError
+                ? error.words
+                : "The server could not be reached for airspace. \(error.localizedDescription)"
+        }
+    }
+
+    /// Removes what is kept from the server and stops asking for it.
+    func stopUsingServer() {
+        usesServer = false
+        try? core.deleteKeptAirspace()
+        serverProblem = nil
+        reload()
+    }
+
     private func reload() {
         files = (try? core.airspaceFiles()) ?? []
+        kept = (try? core.keptAirspace()) ?? []
         problem = nil
-        guard !files.isEmpty else {
+        guard !isEmpty else {
             set = nil
             return
         }
@@ -79,7 +175,7 @@ final class AirspaceModel {
             set = try core.airspace()
         } catch {
             set = nil
-            problem = "Your airspace files could not be loaded, so nothing is drawn or warned about. \(error.words)"
+            problem = "Your airspace could not be loaded, so nothing is drawn or warned about. \(error.words)"
         }
     }
 
@@ -98,7 +194,7 @@ final class AirspaceModel {
         return text
     }
 
-    private nonisolated static func count(_ airspaces: UInt32) -> String {
+    nonisolated static func count(_ airspaces: UInt32) -> String {
         airspaces == 1 ? "1 airspace" : "\(airspaces.formatted()) airspaces"
     }
 }

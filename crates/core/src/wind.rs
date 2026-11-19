@@ -186,6 +186,10 @@ pub struct Credit {
     pub source: String,
     /// Who publishes the data.
     pub provider: String,
+    /// What the provider asks to be said wherever its data is shown, beside
+    /// the credit: for example that the data is not certified.
+    #[cfg_attr(feature = "wasm", serde(skip_serializing_if = "Option::is_none"))]
+    pub notice: Option<String>,
     /// The credit line, worded as the provider asks.
     pub text: String,
     /// The licence's name.
@@ -386,10 +390,11 @@ fn readable_name(name: &str) -> String {
     readable
 }
 
-fn credit(attribution: &Attribution) -> Credit {
+pub(crate) fn credit(attribution: &Attribution) -> Credit {
     Credit {
         source: attribution.source.to_string(),
         provider: attribution.provider.clone(),
+        notice: attribution.notice.clone(),
         text: attribution.text.clone(),
         licence: attribution.licence.clone(),
         url: attribution.url.clone(),

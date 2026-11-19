@@ -12,6 +12,7 @@ struct CockpitScreen: View {
     let onFinish: () -> Void
 
     @Environment(FlySession.self) private var fly
+    @Environment(AirspaceModel.self) private var airspace
     @State private var isConfirmingFinish = false
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
@@ -21,7 +22,11 @@ struct CockpitScreen: View {
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
-                CockpitMap(view: view, way: fly.way, airspace: fly.airspace(), route: fly.score?.route ?? [])
+                CockpitMap(
+                    view: view, way: fly.way, airspace: fly.airspace(),
+                    airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
+                    route: fly.score?.route ?? []
+                )
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
                     // labels made reading the screen by code or by VoiceOver
@@ -79,6 +84,14 @@ struct CockpitScreen: View {
                 .padding(.vertical, 10)
             }
             .background(Color(.systemBackground))
+            // With the first position, and a network, the airspace around
+            // it is fetched if what the iPhone keeps is old or from
+            // elsewhere. A change reaches the running session by itself.
+            .task(id: view.position != nil) {
+                if let position = view.position {
+                    await airspace.refresh(around: position)
+                }
+            }
             .sheet(isPresented: $isShowingAirspace) {
                 AirspaceWarningsSheet()
                     .presentationDetents([.medium, .large])

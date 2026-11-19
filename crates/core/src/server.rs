@@ -53,6 +53,9 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
             "The server does not accept this password. It needs at least 15 characters.".to_owned()
         }
         (_, Some("flight_not_found")) => "The server no longer has this flight.".to_owned(),
+        (_, Some("box_too_large")) => {
+            "The server holds more airspace around this place than one answer carries.".to_owned()
+        }
         (503, _) => "The server is busy or being restarted. Try again in a moment.".to_owned(),
         (_, Some(code)) => format!("The server could not answer ({code})."),
         _ => format!("The server could not answer (status {status})."),

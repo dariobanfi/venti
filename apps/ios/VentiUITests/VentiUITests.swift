@@ -48,6 +48,13 @@ final class VentiUITests: XCTestCase {
             .firstMatch
     }
 
+    /// Anything on screen that says this, as its name or as its value.
+    private func saying(_ text: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text))
+            .firstMatch
+    }
+
     private func labelled(containing text: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", text))
@@ -357,6 +364,30 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "the wind stations around a place", in: app).exists)
         sleep(1)
         keepScreenshot("wind-4-assistant")
+    }
+
+    /// Airspace from the pilot's server: with a server set, the app has
+    /// fetched the airspace around the map by itself. It says before
+    /// take-off what the cockpit will warn from, and lists it with its
+    /// provider's credit and notice. Skipped without a server.
+    func testAirspaceComesFromTheServerByItself() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+
+        // The Fly tab says what the cockpit will warn from.
+        openTab("Fly", in: app)
+        let line = element("airspace-before-takeoff", in: app)
+        XCTAssertTrue(line.waitForExistence(timeout: 30))
+        XCTAssertTrue(saying("openAIP", in: app).waitForExistence(timeout: 60))
+        keepScreenshot("airspace-1-before-takeoff")
+
+        line.tap()
+        XCTAssertTrue(element("airspace-from-server", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(saying("not certified", in: app).exists)
+        keepScreenshot("airspace-2-from-server")
     }
 
     /// An account on a Venti server: signing in as the development

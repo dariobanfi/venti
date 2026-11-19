@@ -14,6 +14,8 @@ enum Preferences {
     static let trimSpeed = "VentiGliderTrimSpeed"
     /// The glider's glide ratio at that speed.
     static let glideRatio = "VentiGliderGlideRatio"
+    /// Whether the pilot has switched off airspace from the server.
+    static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 
     /// What the core assumes of a glider until the pilot says otherwise.
     static let defaultTrimSpeed = 38.0

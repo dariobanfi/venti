@@ -7,6 +7,7 @@ struct FlyScreen: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(FlySession.self) private var fly
     @Environment(WaypointsModel.self) private var waypoints
+    @Environment(AirspaceModel.self) private var airspace
 
     @State private var isChoosingVario = false
 
@@ -24,8 +25,24 @@ struct FlyScreen: View {
                         }
                     }
                     .foregroundStyle(.primary)
+                    // What the cockpit will warn from, to be seen before
+                    // take-off and not found out in the air.
+                    NavigationLink {
+                        AirspaceScreen()
+                    } label: {
+                        LabeledContent {
+                            Text(airspace.inALine)
+                        } label: {
+                            Label("Airspace", systemImage: "square.dashed")
+                        }
+                    }
+                    .accessibilityIdentifier("airspace-before-takeoff")
                 } footer: {
-                    Text("Without an external vario the phone's own pressure sensor is used. It is slower.")
+                    Text(
+                        airspace.isEmpty
+                            ? "Without an external vario the phone's own pressure sensor is used. It is slower. Without airspace the cockpit warns of none."
+                            : "Without an external vario the phone's own pressure sensor is used. It is slower."
+                    )
                 }
 
                 Section {
@@ -70,6 +87,7 @@ struct FlyScreen: View {
             }
             .environment(fly)
             .environment(waypoints)
+            .environment(airspace)
         }
         .alert(
             "Flying",

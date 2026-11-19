@@ -26,6 +26,16 @@ struct MapScreen: View {
                 onRegion: { region in
                     self.region = region
                     wind.show(region)
+                    // The airspace around what the pilot is looking at,
+                    // unless it is the whole continent.
+                    if region.north - region.south < 4 {
+                        let centre = Coordinate(
+                            lat: (region.south + region.north) / 2, lon: (region.west + region.east) / 2
+                        )
+                        Task {
+                            await airspace.refresh(around: centre)
+                        }
+                    }
                 },
                 onStation: { id in
                     if let station = wind.stations.first(where: { $0.id == id }) {
@@ -125,11 +135,26 @@ struct MapScreen: View {
         }
     }
 
-    /// Whose wind data is on the map. Their licences ask for the credit
-    /// next to the data; the full wording is on each station's page.
-    @ViewBuilder private var credits: some View {
+    /// Whose wind and airspace are on the map. Their licences ask for the
+    /// credit next to the data; the full wording is on each station's page
+    /// and on the airspace screen.
+    private var creditLine: String {
+        var parts: [String] = []
         if !wind.credits.isEmpty {
-            Text("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
+            parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
+        }
+        if !airspace.credits.isEmpty, let region, region.east - region.west < 6 {
+            // What the providers of airspace ask to be said is said here
+            // in two words and in full on the airspace screen.
+            let certified = airspace.credits.contains { $0.notice != nil } ? ", not certified" : ""
+            parts.append("Airspace: \(airspace.credits.map(\.provider).formatted(.list(type: .and)))\(certified)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder private var credits: some View {
+        if !creditLine.isEmpty {
+            Text(creditLine)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

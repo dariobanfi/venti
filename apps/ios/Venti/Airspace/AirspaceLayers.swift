@@ -45,7 +45,17 @@ enum AirspaceLayers {
             if policy != .free {
                 let wash = MLNFillStyleLayer(identifier: "airspace-wash-\(rank(policy))", source: airspace)
                 wash.fillColor = NSExpression(forConstantValue: color(for: policy))
-                wash.fillOpacity = NSExpression(forConstantValue: policy == .avoid ? 0.1 : 0.06)
+                // On a map of a whole region the washes of airspace lying
+                // over airspace would paint the wind and the valleys
+                // over: there only the edges are drawn, and the wash
+                // comes in as the pilot zooms to a valley.
+                let full = policy == .avoid ? 0.1 : 0.06
+                wash.fillOpacity = NSExpression(
+                    forMLNInterpolating: .zoomLevelVariable,
+                    curveType: .linear,
+                    parameters: nil,
+                    stops: NSExpression(forConstantValue: [8: 0.0, 10: full])
+                )
                 wash.predicate = only
                 wash.minimumZoomLevel = minimumZoom
                 style.addLayer(wash)

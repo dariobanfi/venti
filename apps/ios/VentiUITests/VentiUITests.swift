@@ -435,6 +435,14 @@ final class VentiUITests: XCTestCase {
 
         // Signed in, and the sync that follows has fetched the flights.
         XCTAssertTrue(labelled(containing: "@demo", in: app).waitForExistence(timeout: 30))
+        // The iPhone offers to keep the password. Not in a test.
+        for asking in [app, XCUIApplication(bundleIdentifier: "com.apple.springboard")] {
+            let notNow = asking.buttons["Not Now"]
+            if notNow.waitForExistence(timeout: 3) {
+                notNow.tap()
+                break
+            }
+        }
         XCTAssertTrue(app.buttons["Sync now"].waitForExistence(timeout: 60))
         sleep(2)
         keepScreenshot("account-2-signed-in")
@@ -445,15 +453,19 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("account-3-logbook")
 
-        // Share the newest flight with everyone, and get its link.
+        // Share the newest flight with those who have its link. Whatever
+        // the demo pilot had chosen for it before, that is the choice now.
         row.tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         app.buttons["More"].tap()
         app.buttons["Share with a link"].tap()
-        let everyone = app.buttons["Everyone"]
-        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
-        everyone.tap()
-        XCTAssertTrue(labelled(containing: "Share the link", in: app).waitForExistence(timeout: 20))
+        let withTheLink = element("share-unlisted", in: app)
+        XCTAssertTrue(withTheLink.waitForExistence(timeout: 15))
+        withTheLink.tap()
+        let chosen = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'share-unlisted' AND value CONTAINS 'Chosen'"))
+            .firstMatch
+        XCTAssertTrue(chosen.waitForExistence(timeout: 20))
         XCTAssertTrue(labelled(containing: "/f/", in: app).exists)
         sleep(1)
         keepScreenshot("account-4-share")

@@ -290,6 +290,15 @@ extension FlightVisibility {
         }
     }
 
+    /// A name for the setting that tests find its button by.
+    var key: String {
+        switch self {
+        case .private: "private"
+        case .unlisted: "unlisted"
+        case .public: "public"
+        }
+    }
+
     /// What the setting means.
     var explanation: String {
         switch self {

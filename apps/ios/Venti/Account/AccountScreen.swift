@@ -246,6 +246,7 @@ struct ShareFlightSheet: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityValue(sharing.visibility == visibility ? "Chosen" : "")
+                            .accessibilityIdentifier("share-\(visibility.key)")
                         }
                     } header: {
                         Text("Who can see this flight")

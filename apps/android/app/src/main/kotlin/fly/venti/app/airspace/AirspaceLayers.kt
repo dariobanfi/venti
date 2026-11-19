@@ -1,7 +1,6 @@
 package fly.venti.app.airspace
 
 import fly.venti.app.map.MapSetup
-import fly.venti.app.map.MapText
 import fly.venti.core.AirspacePolicy
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Coordinate
@@ -25,9 +24,12 @@ object AirspaceLayers {
     const val SOURCE = "airspace"
 
     /**
-     * The names have a source of their own. Should one of them ever hold a
-     * character the map cannot draw, that costs the names and not the
-     * outlines, which are what keeps a pilot out.
+     * The names have a source of their own. The map engine draws nothing of
+     * a source's tile while a label in it waits for a font file that does
+     * not exist. The app ships a file for every range of Unicode's first
+     * 65,536 characters; a name from a pilot's file can still hold one
+     * from beyond them. That then costs the names, and not the outlines,
+     * which are what keeps a pilot out.
      */
     private const val NAMES = "airspace-names"
 
@@ -112,14 +114,10 @@ object AirspaceLayers {
             addStringProperty(LABEL, label(shape))
         }
 
-    /**
-     * The name over the limits, or the limits alone for an airspace without
-     * a name, in characters the map's fonts hold: a name comes from the
-     * pilot's file and can hold anything.
-     */
+    /** The name over the limits, or the limits alone for an airspace without a name. */
     fun label(shape: AirspaceShape): String {
-        val limits = "${shape.lower} - ${shape.upper}"
-        return MapText.shipped(if (shape.name.isEmpty()) limits else "${shape.name}\n$limits")
+        val limits = "${shape.lower} \u2013 ${shape.upper}"
+        return if (shape.name.isEmpty()) limits else "${shape.name}\n$limits"
     }
 
     /** A ring as GeoJSON wants it: closed, its last point the same as its first. */

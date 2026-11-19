@@ -22,18 +22,20 @@ import java.io.File
  */
 class MapStyleTest {
     @Test
-    fun whatTheAppWritesOnAMapStaysWithinTheShippedFonts() {
-        // The fonts in the app hold the first 512 characters of Unicode.
-        val shipped = TestSupport.files.list(AppFiles.MAP_REGION).filter { it.endsWith(".pbf") }.map { it.substringAfterLast('/') }
-        assertEquals(setOf("0-255.pbf", "256-511.pbf"), shipped.toSet())
-
-        assertEquals("GND - 9000 ft AMSL", MapText.shipped("GND \u2013 9000 ft AMSL"))
-        assertEquals("Hohenpei\u00DFenberg", MapText.shipped("Hohenpei\u00DFenberg"))
-        assertEquals("\u0141\u00F3d\u017A", MapText.shipped("\u0141\u00F3d\u017A"))
-        assertEquals("St. Peter's \"Zone\"...", MapText.shipped("St. Peter\u2019s \u201CZone\u201D\u2026"))
-        assertEquals("a b\nc", MapText.shipped("a\u2003b\nc\u0007"))
-        assertEquals("???", MapText.shipped("\u041C\u0438\u0440"))
-        assertEquals("?", MapText.shipped("\uD83D\uDE80"))
+    fun everyCharacterRangeALabelCanAskForHasAFontFile() {
+        // The map engine never gets an answer for a range that has no file,
+        // and the tile the label belongs to then stays unfinished: an
+        // airspace named with a dash was not drawn at all.
+        val fonts = TestSupport.assets.resolve(AppFiles.MAP_REGION).resolve("fonts/noto-sans-regular")
+        for (start in 0 until 65536 step 256) {
+            val file = fonts.resolve("$start-${start + 255}.pbf")
+            assertTrue(file.path, file.isFile)
+        }
+        // Latin, the dashes and quotation marks, Greek and Cyrillic are real
+        // glyphs, not placeholders.
+        for (range in listOf("0-255", "256-511", "768-1023", "1024-1279", "8192-8447")) {
+            assertTrue(range, fonts.resolve("$range.pbf").length() > 10_000)
+        }
     }
 
     private val template = TestSupport.files.text(AppFiles.MAP_STYLE)

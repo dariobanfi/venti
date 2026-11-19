@@ -1,0 +1,100 @@
+{
+  "flights": [
+    {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "identity": "0f0d88442e01f52f291d25b2660b8bed",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-08-15T10:30:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-08-15T10:30:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-08-15T10:59:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    },
+    {
+      "id": "7cf5ytrw45b0aeb5tcr8wet2km",
+      "identity": "6c55247b80a34b03fa0bb3bd38173c59",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "unlisted",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-07-04T10:30:00Z",
+      "airtime_s": 1744,
+      "takeoff": {
+        "time": "2026-07-04T10:30:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 64678,
+      "analysis_version": 1
+    }
+  ],
+  "deleted": [],
+  "cursor": "1795028700000003",
+  "more": true,
+  "reset": false
+}

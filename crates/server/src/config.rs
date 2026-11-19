@@ -15,6 +15,10 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use tracing::Level;
 
+use crate::accounts::Registration;
+use crate::accounts::client::TrustedProxies;
+use crate::flights::share::PublicUrl;
+
 /// Everything the server needs to be told.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -34,6 +38,13 @@ pub struct Config {
     pub log_level: Level,
     /// How long data is kept.
     pub retention: Retention,
+    /// Who may create an account.
+    pub registration: Registration,
+    /// The address the server is reached at from outside, which links in
+    /// share pages start with. `None` if it was not configured.
+    pub public_url: Option<PublicUrl>,
+    /// The reverse proxies whose `X-Forwarded-For` is believed.
+    pub trusted_proxies: TrustedProxies,
 }
 
 /// How long data is kept.
@@ -106,6 +117,9 @@ struct File {
     user_agent: Option<String>,
     cors_origins: Option<Vec<String>>,
     log_level: Option<String>,
+    registration: Option<String>,
+    public_url: Option<String>,
+    trusted_proxies: Option<Vec<String>>,
     #[serde(default)]
     retention: FileRetention,
 }
@@ -160,6 +174,18 @@ const CORS_ORIGINS: Setting = Setting {
 const LOG_LEVEL: Setting = Setting {
     key: "log_level",
     variable: "VENTI_LOG_LEVEL",
+};
+const REGISTRATION: Setting = Setting {
+    key: "registration",
+    variable: "VENTI_REGISTRATION",
+};
+const PUBLIC_URL: Setting = Setting {
+    key: "public_url",
+    variable: "VENTI_PUBLIC_URL",
+};
+const TRUSTED_PROXIES: Setting = Setting {
+    key: "trusted_proxies",
+    variable: "VENTI_TRUSTED_PROXIES",
 };
 const OBSERVATION_MONTHS: Setting = Setting {
     key: "retention.observation_months",
@@ -249,6 +275,27 @@ impl Config {
             ))
         })?;
 
+        // By invite unless told otherwise: a server that was just set up
+        // should not take accounts from whoever finds it.
+        let registration = env(&REGISTRATION)
+            .or(file.registration)
+            .unwrap_or_else(|| "invite".to_owned());
+        let registration = registration
+            .parse()
+            .map_err(|problem: String| REGISTRATION.invalid(problem))?;
+
+        let public_url = env(&PUBLIC_URL)
+            .or(file.public_url)
+            .map(|url| PublicUrl::new(&url).map_err(|problem| PUBLIC_URL.invalid(problem)))
+            .transpose()?;
+
+        let trusted_proxies = env(&TRUSTED_PROXIES)
+            .map(list)
+            .or(file.trusted_proxies)
+            .unwrap_or_default();
+        let trusted_proxies = TrustedProxies::parse(&trusted_proxies)
+            .map_err(|problem| TRUSTED_PROXIES.invalid(problem))?;
+
         let number = |setting: &Setting, from_file: Option<u32>, default: u32| {
             let value = match env(setting) {
                 Some(text) => text
@@ -275,6 +322,9 @@ impl Config {
             cors_origins,
             log_level,
             retention,
+            registration,
+            public_url,
+            trusted_proxies,
         })
     }
 }
@@ -348,6 +398,12 @@ mod tests {
                 archive_days: 14
             }
         );
+        assert_eq!(config.registration, Registration::Invite);
+        assert_eq!(
+            config.public_url,
+            Some(PublicUrl::new("http://127.0.0.1:8080").unwrap())
+        );
+        assert_eq!(config.trusted_proxies, TrustedProxies::default());
     }
 
     #[test]
@@ -372,6 +428,11 @@ mod tests {
         assert_eq!(config.archive_dir, None);
         assert_eq!(config.user_agent, default_user_agent());
         assert!(config.cors_origins.is_empty());
+        // Nobody registers on a server that was not told who may.
+        assert_eq!(config.registration, Registration::Invite);
+        assert_eq!(config.public_url, None);
+        // And no header is believed about where a request came from.
+        assert_eq!(config.trusted_proxies, TrustedProxies::default());
     }
 
     #[test]
@@ -387,9 +448,21 @@ mod tests {
                 ),
                 ("VENTI_LOG_LEVEL", "debug"),
                 ("VENTI_OBSERVATION_MONTHS", "24"),
+                ("VENTI_REGISTRATION", "open"),
+                ("VENTI_PUBLIC_URL", "https://venti.example"),
+                ("VENTI_TRUSTED_PROXIES", "172.18.0.0/16, ::1"),
             ],
         )
         .unwrap();
+        assert_eq!(config.registration, Registration::Open);
+        assert_eq!(
+            config.public_url,
+            Some(PublicUrl::new("https://venti.example").unwrap())
+        );
+        assert_eq!(
+            config.trusted_proxies,
+            TrustedProxies::parse(&["172.18.0.0/16", "::1"]).unwrap()
+        );
         assert_eq!(config.listen, "0.0.0.0:9000".parse().unwrap());
         assert_eq!(config.archive_dir, Some(PathBuf::from("var/archive")));
         assert_eq!(
@@ -434,6 +507,10 @@ mod tests {
         assert!(with("VENTI_CORS_ORIGINS", "venti.example").contains("http"));
         assert!(with("VENTI_CORS_ORIGINS", "https://venti.example/").contains("without a path"));
         assert!(with("VENTI_LOG_LEVEL", "chatty").contains("log_level"));
+        assert!(with("VENTI_REGISTRATION", "everyone").contains("open, invite, closed"));
+        assert!(with("VENTI_PUBLIC_URL", "venti.example").contains("public_url"));
+        assert!(with("VENTI_PUBLIC_URL", "https://venti.example/app").contains("without a path"));
+        assert!(with("VENTI_TRUSTED_PROXIES", "caddy").contains("trusted_proxies"));
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));
     }

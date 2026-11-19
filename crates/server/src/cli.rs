@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use venti_domain::SourceId;
 
+use crate::accounts::invite;
 use crate::ingest::oneshot;
 
 /// What `venti-server --help` prints.
@@ -17,13 +18,25 @@ usage: venti-server <command>
       and from VENTI_* environment variables; see config.example.toml.
 
   dev [--listen ADDRESS]
-      Serve the same API over recorded data. No network, no database.
-      Listens on 127.0.0.1:8080 unless told otherwise.
+      Serve the same API over recorded data and a demo account. No
+      network, no database. Listens on 127.0.0.1:8080 unless told
+      otherwise.
+
+  invite [--config FILE] [--count N] [--expires-in-days N]
+      Make invite codes and print them, one per line. Each creates one
+      account on a server whose registration is by invite. Uses the
+      database from FILE or the environment, as serve does.
 
   ingest <region.toml> [--source ID] [--archive DIR] [--json]
       Run a region's sources once against the live providers and print a
       health line for each. Stores nothing. Fails when a source delivers
       nothing or reports problems.
+
+  derive
+      Read a flight file from standard input and print what the server
+      works out from it. The server runs this itself for every upload, so
+      that a file it cannot cope with costs a child process and not the
+      server.
 
   --help, --version";
 
@@ -42,6 +55,10 @@ pub enum Command {
     },
     /// Run a region's sources once.
     Ingest(oneshot::Args),
+    /// Make invite codes.
+    Invite(invite::Args),
+    /// Analyse the flight file on standard input.
+    Derive,
     /// Print the usage.
     Help,
     /// Print the version.
@@ -56,6 +73,11 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "serve" => parse_serve(args),
         "dev" => parse_dev(args),
         "ingest" => parse_ingest(args),
+        "invite" => parse_invite(args),
+        "derive" => match args.next() {
+            None => Ok(Command::Derive),
+            Some(other) => Err(format!("derive does not take {other:?}")),
+        },
         "--help" | "-h" | "help" => Ok(Command::Help),
         "--version" | "-V" => Ok(Command::Version),
         other => Err(format!("unknown command {other:?}")),
@@ -120,6 +142,34 @@ fn parse_ingest(mut args: impl Iterator<Item = String>) -> Result<Command, Strin
     }))
 }
 
+fn parse_invite(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
+    let mut parsed = invite::Args {
+        config: None,
+        count: 1,
+        expires_in_days: None,
+    };
+    let number = |option: &str, text: String, most: u32| {
+        text.parse::<u32>()
+            .ok()
+            .filter(|n| (1..=most).contains(n))
+            .ok_or_else(|| format!("{option} takes a number from 1 to {most}, not {text:?}"))
+    };
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--config" => parsed.config = Some(PathBuf::from(value("--config", &mut args)?)),
+            "--count" => {
+                parsed.count = number("--count", value("--count", &mut args)?, invite::MAX_COUNT)?;
+            }
+            "--expires-in-days" => {
+                let days = value("--expires-in-days", &mut args)?;
+                parsed.expires_in_days = Some(number("--expires-in-days", days, 3650)?);
+            }
+            other => return Err(format!("invite does not take {other:?}")),
+        }
+    }
+    Ok(Command::Invite(parsed))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +226,38 @@ mod tests {
         assert!(parse_line("ingest a.toml b.toml").is_err());
         assert!(parse_line("ingest a.toml --verbose").is_err());
         assert!(parse_line("ingest a.toml --source Not/An/Id").is_err());
+    }
+
+    #[test]
+    fn invite_makes_one_code_that_does_not_expire_unless_told_otherwise() {
+        assert_eq!(
+            parse_line("invite"),
+            Ok(Command::Invite(invite::Args {
+                config: None,
+                count: 1,
+                expires_in_days: None,
+            }))
+        );
+        assert_eq!(
+            parse_line("invite --count 5 --expires-in-days 14 --config var/venti-server.toml"),
+            Ok(Command::Invite(invite::Args {
+                config: Some(PathBuf::from("var/venti-server.toml")),
+                count: 5,
+                expires_in_days: Some(14),
+            }))
+        );
+        assert!(parse_line("invite --count 0").is_err());
+        assert!(parse_line("invite --count 101").is_err());
+        assert!(parse_line("invite --count many").is_err());
+        assert!(parse_line("invite --expires-in-days 0").is_err());
+        assert!(parse_line("invite --expires-in-days").is_err());
+        assert!(parse_line("invite dario").is_err());
+    }
+
+    #[test]
+    fn derive_takes_nothing_but_its_input() {
+        assert_eq!(parse_line("derive"), Ok(Command::Derive));
+        assert!(parse_line("derive flight.igc").is_err());
     }
 
     #[test]

@@ -6,107 +6,31 @@
 //! are also the examples in `docs/api.md`. Rewrite them with
 //! `VENTI_UPDATE_GOLDEN=1` and review the diff.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{HeaderMap, Method, Request, StatusCode, header};
+use axum::http::{Method, Request, StatusCode, header};
 use chrono::Duration;
-use serde::de::DeserializeOwned;
-use tower::ServiceExt;
 use venti_api_types::v1::{
     ErrorCode, ErrorResponse, HealthResponse, HealthStatus, MAX_STATIONS, ObservationsRequest,
     ObservationsResponse, StationsRequest, StationsResponse,
 };
 use venti_domain::{BoundingBox, GeoPoint, SourceId, Station, StationId};
+use venti_server::adapters;
 use venti_server::api::{Api, Cors};
 use venti_server::clock::FixedClock;
-use venti_server::{adapters, dev};
 use venti_sources::testing::assert_golden;
 use venti_store::testing::TroubledStore;
 use venti_store::{MemoryStore, RunRecord, Store};
 
+mod common;
+
+use common::{get, get_with, golden, recorded, send, settings};
+
 // --- Helpers ----------------------------------------------------------------
 
-const WEB_APP: &str = "https://venti.example";
-
-/// The router of the development mode, with one web origin allowed.
-async fn recorded() -> Router {
-    let api = dev::recorded_api().await.unwrap();
-    api.router(&Cors::Origins(vec![WEB_APP.to_owned()]))
-}
-
-struct Answer {
-    status: StatusCode,
-    headers: HeaderMap,
-    body: Vec<u8>,
-}
-
-impl Answer {
-    fn json<T: DeserializeOwned>(&self) -> T {
-        serde_json::from_slice(&self.body).unwrap_or_else(|error| {
-            panic!(
-                "{error}: {}",
-                String::from_utf8_lossy(&self.body[..self.body.len().min(300)])
-            )
-        })
-    }
-
-    fn header(&self, name: header::HeaderName) -> &str {
-        self.headers
-            .get(&name)
-            .unwrap_or_else(|| panic!("no {name} header"))
-            .to_str()
-            .unwrap()
-    }
-
-    /// Checks that the answer is an error of the API's one shape.
-    fn error(&self, status: StatusCode, code: ErrorCode) -> String {
-        assert_eq!(self.status, status);
-        assert!(
-            self.header(header::CONTENT_TYPE)
-                .starts_with("application/json")
-        );
-        assert_eq!(self.header(header::CACHE_CONTROL), "no-store");
-        let error: ErrorResponse = self.json();
-        assert_eq!(error.error.code, code, "{}", error.error.message);
-        error.error.message
-    }
-}
-
-async fn send(router: &Router, request: Request<Body>) -> Answer {
-    let response = router.clone().oneshot(request).await.unwrap();
-    let status = response.status();
-    let headers = response.headers().clone();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap()
-        .to_vec();
-    Answer {
-        status,
-        headers,
-        body,
-    }
-}
-
-async fn get(router: &Router, path: &str) -> Answer {
-    get_with(router, path, &[]).await
-}
-
-async fn get_with(router: &Router, path: &str, headers: &[(header::HeaderName, &str)]) -> Answer {
-    let mut request = Request::builder().method(Method::GET).uri(path);
-    for (name, value) in headers {
-        request = request.header(name, *value);
-    }
-    send(router, request.body(Body::empty()).unwrap()).await
-}
-
-fn golden(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/golden")
-        .join(name)
-}
+const WEB_APP: &str = common::WEB_APP;
 
 fn first_region() -> String {
     StationsRequest {
@@ -246,6 +170,42 @@ async fn a_station_identifier_may_be_percent_encoded() {
     assert_eq!(plain, encoded);
     assert_eq!(plain.station.name, "PATSCHERKOFEL");
     assert_eq!(plain.observations.len(), 1);
+}
+
+// --- The documentation ---------------------------------------------------------
+
+/// `docs/api.md` says that its examples are the development mode's answers.
+/// This is what holds it to that.
+#[test]
+fn the_documentation_shows_the_answers_as_they_are() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/api.md");
+    let docs = std::fs::read_to_string(path).unwrap();
+    for name in [
+        "health.json",
+        "observations.json",
+        "error_missing_bbox.json",
+        "sign_in.json",
+        "sessions.json",
+        "account.json",
+        "upload.json",
+        "flight_changes.json",
+        "flight.json",
+    ] {
+        let answer = std::fs::read_to_string(golden(name)).unwrap();
+        assert!(
+            docs.contains(answer.trim_end()),
+            "docs/api.md does not show {name} as the tests keep it; \
+             copy the file from crates/server/tests/golden into the document"
+        );
+    }
+    // And the demo account it describes is the one the server starts with.
+    for written_down in [
+        venti_server::dev::DEMO_HANDLE,
+        venti_server::dev::DEMO_PASSWORD,
+        venti_server::dev::DEMO_TOKEN,
+    ] {
+        assert!(docs.contains(written_down), "{written_down}");
+    }
 }
 
 // --- Caching, compression, CORS ---------------------------------------------
@@ -498,7 +458,7 @@ fn dwd_only<S: Store>(store: S) -> Router {
     let dwd = SourceId::new("dwd-10min").unwrap();
     let manifests = registry.manifests().filter(|manifest| manifest.id == dwd);
     let clock = Arc::new(FixedClock(adapters::recorded_at()));
-    Api::new(Arc::new(store), clock, manifests).router(&Cors::Any)
+    Api::new(Arc::new(store), clock, manifests, settings()).router(&Cors::Any)
 }
 
 #[tokio::test]

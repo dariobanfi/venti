@@ -41,6 +41,27 @@ cors_origins = ["http://localhost:5173"]
 # One of error, warn, info, debug, trace.                 VENTI_LOG_LEVEL
 log_level = "info"
 
+# Who may create an account.                              VENTI_REGISTRATION
+#   "invite"  whoever has an invite code (the default). Make codes with
+#             venti-server invite --config <this file>
+#   "open"    anyone
+#   "closed"  nobody; existing accounts keep working
+registration = "invite"
+
+# The address people reach the server at, without a      VENTI_PUBLIC_URL
+# slash at the end. Share pages need it: the links a chat app follows to
+# build a preview must be complete. Left out, links point at the listen
+# address, which only works on this machine.
+public_url = "http://127.0.0.1:8080"
+
+# Reverse proxies in front of the server, as addresses   VENTI_TRUSTED_PROXIES
+# or networks ("172.18.0.2", "10.0.0.0/8"). Sign-in attempts are counted
+# per client address. Behind a proxy every connection comes from the proxy,
+# and the client's address is in the X-Forwarded-For header, which anyone
+# can write. It is believed only from the proxies listed here. Empty when
+# clients connect directly. As a variable: a comma-separated list.
+trusted_proxies = []
+
 [retention]
 # Observations are kept for this many whole calendar     VENTI_OBSERVATION_MONTHS
 # months before the current one. Older months are dropped.

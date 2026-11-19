@@ -1,21 +1,22 @@
 //! Two guarantees that hold for every request, whatever handler or layer
 //! answers it.
 
+use std::time::Duration;
+
 use axum::extract::Request;
 use axum::http::{StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use venti_api_types::v1::ErrorCode;
 
-use super::DEADLINE;
 use super::error::ApiError;
 
-/// Gives up on a request that takes longer than the deadline.
+/// Gives up on a request that takes longer than `limit`.
 ///
 /// The work behind it is dropped; a client that waits longer has usually
 /// gone anyway.
-pub(crate) async fn deadline(request: Request, next: Next) -> Response {
-    match tokio::time::timeout(DEADLINE, next.run(request)).await {
+pub(crate) async fn deadline(limit: Duration, request: Request, next: Next) -> Response {
+    match tokio::time::timeout(limit, next.run(request)).await {
         Ok(response) => response,
         Err(_) => ApiError::new(
             StatusCode::SERVICE_UNAVAILABLE,

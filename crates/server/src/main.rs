@@ -4,8 +4,10 @@
 use std::process::ExitCode;
 
 use tracing::Level;
+use venti_server::accounts::invite;
 use venti_server::cli::{self, Command, USAGE};
 use venti_server::config::{Config, default_user_agent};
+use venti_server::flights::analyser;
 use venti_server::ingest::oneshot;
 use venti_server::{dev, serve};
 
@@ -39,6 +41,16 @@ async fn main() -> ExitCode {
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(default_user_agent);
             return oneshot::run(args, &user_agent).await;
+        }
+        Command::Invite(args) => return invite::run(args).await,
+        Command::Derive => {
+            return match analyser::run_child() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(message) => {
+                    eprintln!("{message}");
+                    ExitCode::FAILURE
+                }
+            };
         }
         Command::Serve { config } => {
             let config = match Config::load(config.as_deref()) {

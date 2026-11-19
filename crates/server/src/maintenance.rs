@@ -16,16 +16,24 @@ use crate::ingest::DirArchive;
 const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 
 /// Cleans up when the server starts and once a day after that, until
-/// `shutdown` is cancelled.
+/// `shutdown` is cancelled. A session that was not used for `session_idle`
+/// has stopped working already; this removes it.
 pub async fn run<S: Store>(
     store: Arc<S>,
     archive: Option<DirArchive>,
     retention: Retention,
+    session_idle: chrono::Duration,
     clock: Arc<dyn Clock>,
     shutdown: CancellationToken,
 ) {
     loop {
-        clean(&*store, archive.as_ref(), retention, clock.now()).await;
+        let now = clock.now();
+        clean(&*store, archive.as_ref(), retention, now).await;
+        match store.prune_sessions(now - session_idle).await {
+            Ok(0) => {}
+            Ok(sessions) => tracing::info!("removed {sessions} sessions that had expired"),
+            Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
+        }
         tokio::select! {
             () = shutdown.cancelled() => return,
             () = tokio::time::sleep(INTERVAL) => {}

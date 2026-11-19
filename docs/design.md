@@ -54,11 +54,24 @@ Wherever a map reaches the top of the screen, a soft band of the background colo
 
 **Wind.** When a Venti server is set, every wind station in view is an arrow pointing where the wind blows, darker and a little larger the stronger the wind, with mean wind and gusts in km/h below it ("12/25"). Where stations crowd, the windiest keep their place and the others give way until the pilot zooms in. A station whose reading is more than an hour old is a grey dot without numbers: an old number on a map reads as the wind now. Calm is a pale dot. A tap on an arrow opens the station: the reading with its age, the last 24 hours of wind and gusts as a chart with the direction in a small chart of its own below it, and whose data it is. A second round button above the position button lists the same stations by name, for comparing numbers and for pilots who use VoiceOver, which cannot reach symbols drawn on a map. The providers are credited in a small line at the bottom of the map, and in full on each station's page.
 
+### The page of a shared flight
+
+A flight that its pilot shares has a page on the web, made by the server, which works without the web app and without scripts. It is the first thing someone outside the app sees of Venti, usually as a preview in a chat.
+
+- The page follows the flight screen in what it puts first: a headline that says what the flight was ("42.3 km closed FAI triangle"), who flew it and when; then the track's shape; then four numbers set large (airtime, distance, points, highest point); then the altitude profile; then everything else as a plain list; then one button, to download the flight file.
+- The track is a line in the accent colour on a faintly tinted panel, north up, with a hollow dot at the start and a solid dot at the end, as in the app. There is no map under it, because there is no tile server yet.
+- It follows light and dark from the visitor's system, uses the system's own typeface, and sets numbers in the rounded face with fixed-width digits where the system has one.
+- The drawings say in words what they show, for those who do not see them, and the altitude profile's lowest and highest values stand in its caption rather than as tiny labels inside it.
+- The preview picture (1200 by 630) shows the same track on the same panel and three numbers beside it: distance with what it was scored as, airtime, points. It is always light, because a picture cannot follow the reader's appearance. Its numbers are set in Nunito, the open typeface closest to the rounded system face. A pilot's name is not on it: the link's title carries it.
+- Points are called "scored by Venti" on the picture and explained in the page's footer: they follow the World XContest's rules as we read them and are not the league's result.
+
+To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only.
+
 ## Colour
 
 | Role | Light | Dark | Notes |
 |---|---|---|---|
-| Accent | `#6250D6` | `#9085E9` | The main button, selected controls, a flight's line in lists, charts and the overview map. Violet, because it is none of the colours that carry meaning on a track or will carry meaning for flyability. |
+| Accent | `#6250D6` | `#9085E9` | The main button, selected controls, a flight's line in lists, charts, the overview map and the page of a shared flight. Violet, because it is none of the colours that carry meaning on a track or will carry meaning for flyability. |
 | Everything else | system | system | Backgrounds, text, separators and fills are the platform's semantic colours. |
 
 The map style is light in both appearances for now, so colours drawn on the map have one value.

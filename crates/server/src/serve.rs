@@ -9,9 +9,14 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use venti_store::PgStore;
 
-use crate::api::{Api, Cors};
+use crate::accounts::Limits;
+use crate::accounts::password::Cost;
+use crate::api::{Api, Cors, Settings};
 use crate::clock::{Clock, SystemClock};
 use crate::config::Config;
+use crate::flights::analyser::Analyser;
+use crate::flights::refresh;
+use crate::flights::share::PublicUrl;
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::{adapters, maintenance, plan};
 
@@ -32,12 +37,35 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let archive = config.archive_dir.clone().map(DirArchive::new);
     let fetch = HttpFetch::new(&config.user_agent)?;
 
+    let public_url = match config.public_url.clone() {
+        Some(url) => url,
+        None => {
+            let url = local_url(config.listen)?;
+            tracing::warn!(
+                "public_url is not set: links in share pages will point at {}, \
+                 which previews in chat apps cannot follow",
+                url.as_str()
+            );
+            url
+        }
+    };
+    let limits = Limits::default();
+    let analyser = Analyser::child_of_this_program()?;
+    let settings = Settings {
+        registration: config.registration,
+        public_url,
+        trusted_proxies: config.trusted_proxies.clone(),
+        limits,
+        password_cost: Cost::OWASP,
+        analyser: analyser.clone(),
+    };
     let manifests = jobs
         .iter()
         .filter_map(|job| registry.observations(&job.source))
         .map(|adapter| adapter.manifest());
-    let api = Api::new(store.clone(), clock.clone(), manifests);
+    let api = Api::new(store.clone(), clock.clone(), manifests, settings);
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
+    tracing::info!("accounts: registration is {:?}", config.registration);
 
     let shutdown = CancellationToken::new();
     tokio::spawn(cancel_on_signal(shutdown.clone()));
@@ -59,12 +87,16 @@ pub async fn serve(config: Config) -> Result<(), String> {
         shutdown.clone(),
     ));
     let housekeeping = tokio::spawn(maintenance::run(
-        store,
+        store.clone(),
         archive,
         config.retention,
-        clock,
+        limits.session_idle,
+        clock.clone(),
         shutdown.clone(),
     ));
+    // Flights analysed by an older version of the server are worked out
+    // again, once, beside everything else.
+    let refreshing = tokio::spawn(refresh::run(store, analyser, clock, shutdown.clone()));
 
     let served = listen(config.listen, router, shutdown.clone()).await;
 
@@ -72,7 +104,14 @@ pub async fn serve(config: Config) -> Result<(), String> {
     shutdown.cancel();
     let _ = schedule.await;
     let _ = housekeeping.await;
+    let _ = refreshing.await;
     served
+}
+
+/// The address a server that listens on `address` is reached at from the
+/// same machine.
+pub(crate) fn local_url(address: SocketAddr) -> Result<PublicUrl, String> {
+    PublicUrl::new(&format!("http://{address}"))
 }
 
 /// Answers HTTP requests on `address` until `shutdown` is cancelled, then
@@ -87,7 +126,10 @@ pub(crate) async fn listen(
         .map_err(|e| format!("cannot listen on {address}: {e}"))?;
     let address = listener.local_addr().unwrap_or(address);
     tracing::info!("listening on http://{address}");
-    axum::serve(listener, router)
+    // The address each connection comes from is handed to the handlers:
+    // attempts to sign in are counted by it.
+    let service = router.into_make_service_with_connect_info::<SocketAddr>();
+    axum::serve(listener, service)
         .with_graceful_shutdown(shutdown.cancelled_owned())
         .await
         .map_err(|e| format!("the HTTP server failed: {e}"))

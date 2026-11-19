@@ -5,6 +5,9 @@
 //! - A provider crate (`venti-sources-*`) depends only on those two.
 //! - Only the server, which assembles the registry, depends on provider
 //!   crates, so no other code can name a provider-specific type.
+//! - The server may depend on `venti-flight`: it works out from a flight
+//!   file what the apps work out, with the same code. It never depends on
+//!   the apps' own crates.
 //! - `venti-flight`, `venti-sensors` and `venti-airspace` depend only on
 //!   `venti-domain`.
 //! - `venti-api-types`, the wire format shared by server and clients, and
@@ -23,6 +26,18 @@ use std::process::Command;
 
 /// Crates that assemble the registry and may therefore depend on provider crates.
 const ASSEMBLERS: [&str; 1] = ["venti-server"];
+
+/// Crates made for the apps alone: the client core, its browser binding,
+/// and what the in-app assistant and the cockpit are built from. What the
+/// server shares with the apps is `venti-domain`, `venti-api-types` and
+/// `venti-flight`.
+const CLIENT_ONLY: [&str; 5] = [
+    "venti-core",
+    "venti-core-wasm",
+    "venti-llm",
+    "venti-sensors",
+    "venti-tools",
+];
 
 fn workspace_dependencies() -> BTreeMap<String, Vec<String>> {
     let output = Command::new(env!("CARGO"))
@@ -98,6 +113,17 @@ fn crate_dependencies_point_inward() {
                 if !allowed.contains(&dependency.as_str()) {
                     problems.push(format!("{name} must not depend on {dependency}"));
                 }
+            }
+        }
+        if is_server_side(name) {
+            for dependency in dependencies
+                .iter()
+                .filter(|d| CLIENT_ONLY.contains(&d.as_str()))
+            {
+                problems.push(format!(
+                    "{name} runs on the server and must not depend on {dependency}, \
+                     which is made for the apps"
+                ));
             }
         }
         if !ASSEMBLERS.contains(&name.as_str()) {

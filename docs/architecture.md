@@ -55,7 +55,8 @@ crates/
   sources-*      One crate per provider (sources-dwd, sources-geosphere, ...).
   regions        Loads and validates region packs.
   store          Server persistence behind one interface: PostgreSQL with PostGIS,
-                 and an in-memory twin for tests and the development mode.
+                 and an in-memory twin for tests and the development mode. Holds
+                 what the data sources deliver, and pilots' accounts and flights.
   client-store   Client offline store (SQLite) and sync.
   api-types      The wire format of the HTTP API, shared by server and clients. No I/O.
   tools          Assistant tool definitions: one definition, served in-app and over MCP.
@@ -66,8 +67,9 @@ crates/
   core-wasm      The core as a WebAssembly module with TypeScript declarations
                  (wasm-bindgen). The web app's only way into Rust.
   terrain3d      Terrain and flight-replay renderer on wgpu.
-  server         The server binary: ingestion scheduler, HTTP API, development mode,
-                 and the one-shot live run that CI uses as its canary.
+  server         The server binary: ingestion scheduler, accounts, pilots' flights,
+                 HTTP API, share pages, development mode, and the one-shot live
+                 run that CI uses as its canary.
 apps/
   ios/           SwiftUI shell
   android/       Compose shell
@@ -82,11 +84,12 @@ docs/
 - Dependencies point inward. `domain` depends on nothing in the workspace. `flight`, `airspace`, `sensors` and `sources` depend on `domain`. Everything else may depend on those.
 - A `sources-*` crate depends only on `domain` and `sources`. No other crate may name a provider-specific type; only `server`, which assembles the registry, depends on the provider crates.
 - `api-types` and `store` depend only on `domain`. The wire format must stay usable in a browser and on a phone, and the store must not know how data was fetched.
+- `server` may depend on `flight`: what it says about an uploaded flight is worked out by the code the apps run on the device. It never depends on a crate made for the apps alone (`core`, `core-wasm`, `llm`, `tools`, `sensors`).
 - Nothing a client is built from reaches a server-side crate: `core`, and every crate that depends on it, never depends on `store`, `server`, `sources`, `regions` or a provider crate, not even through another crate.
 - `flight`, `airspace` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
 - UI shells contain no business rules. If a shell needs an `if` about flying, the logic belongs in `core`.
 
-The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than `server` depends on a provider crate, if `api-types` or `store` grows a workspace dependency besides `domain`, or if a client crate can reach a server-side one, and it holds `core-wasm` to depending on `core` alone. `flight`, `sensors` and `airspace` are held to `domain` alone.
+The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than `server` depends on a provider crate, if `api-types` or `store` grows a workspace dependency besides `domain`, if a client crate can reach a server-side one or a server-side crate depends on one made for the apps alone, and it holds `core-wasm` to depending on `core` alone. `flight`, `sensors` and `airspace` are held to `domain` alone.
 
 ## Clients
 
@@ -175,7 +178,7 @@ To verify on a real phone, none of it can be exercised on an emulator: that reco
 
 - SvelteKit built to static files and served by Caddy. No Node process on the server.
 - MapLibre GL JS 6 for maps. The Rust core runs as WebAssembly for flight analysis and the offline store.
-- Pages that must unfurl in chats and be indexed (flights, sites, profiles, events) get their HTML head and a text summary rendered by the Rust server; the web app then takes over. Revisit with a server-rendered SvelteKit build if search indexing proves too thin.
+- Pages that must unfurl in chats and be indexed (flights, sites, profiles, events) get their HTML head and a text summary rendered by the Rust server; the web app then takes over. Revisit with a server-rendered SvelteKit build if search indexing proves too thin. Built for flights: see [Share pages](#share-pages). The web app is not linked from them yet.
 
 What exists (2026-11-19, SvelteKit 3.4, Svelte 5, Vite 8, MapLibre GL JS 6.19): `apps/web` has the map tab, the logbook with its statistics, and the flight screen of the iPhone app, over the same core. It has no cockpit, no settings and no assistant. Nothing is deployed. `apps/web/README.md` says how to build, run and test it.
 
@@ -298,31 +301,55 @@ Deliberate omissions: no Redis (live fan-out is in-process, the job queue is a P
 
 ### What the server does today
 
-The first version of the server collects station observations and serves them. Accounts, flights, the live channel, the MCP endpoint, MOTIS and Open-Meteo are not built.
+The server collects station observations and serves them, and it keeps pilots' accounts and flights. The live channel, the MCP endpoint, MOTIS and Open-Meteo are not built.
 
-`venti-server` is one program with three subcommands:
+`venti-server` is one program with these subcommands:
 
 | Subcommand | What it does |
 |---|---|
-| `serve` | Runs the server: collects the sources of the configured regions on their schedule, stores them in PostgreSQL, serves the API, removes old data |
-| `dev` | Serves the same API over payloads recorded from the providers, from an in-memory store. No network, no database. Its clock stands still at the moment of the recording, so every start gives the same answers. For client work and UI tests |
+| `serve` | Runs the server: collects the sources of the configured regions on their schedule, keeps accounts and flights, stores everything in PostgreSQL, serves the API and the share pages, removes old data |
+| `dev` | Serves the same API over payloads recorded from the providers and a demo account with three flights, from an in-memory store. No network, no database. Its clock stands still at the moment of the recording, so every start gives the same answers. For client work and UI tests |
 | `ingest <region.toml>` | Runs a region's sources once against the live providers and prints a health line for each. Stores nothing. CI runs it daily as the canary, from the image a server runs |
+| `invite` | Makes invite codes for a server that takes accounts by invite, and prints them |
+| `derive` | Reads one flight file and prints what the server works out from it. The server runs this itself, as a child process, for every upload; see [Flights](#flights) |
 
 **Collecting.** Each source has one task that runs it, waits and runs it again; that loop is what guarantees a source never runs twice at once and that a slow source delays no other. A run goes through the pipeline of the `sources` crate (fetch, archive, parse, merge, validate); the validated records and the outcome of the run are then written to the store in one transaction. The wait is measured from the start of one run to the start of the next and is never shorter than the source's cadence, which is what keeps the server inside a provider's hourly request limit. A random delay of up to a tenth of the cadence is added. After a second failed run in a row the wait doubles each time, up to an hour. A restarted server reads the run history and waits out what is left of the cadence. A run takes the last three hours from each payload, so values that a provider publishes late still arrive and a short database outage heals itself.
 
-**Storing.** Stations carry a PostGIS geography position; a box query runs on a spatial index over its planar view. Observations are one row per station and time, in monthly partitions that are created when their first observation arrives. Writing an observation again merges it: a new measurement replaces the stored one, a missing measurement leaves it alone, and a row that would not change is not rewritten. Old data leaves by dropping whole months. The schema is a numbered list of SQL files compiled into the program and applied at start.
+**Storing.** Stations carry a PostGIS geography position; a box query runs on a spatial index over its planar view. Observations are one row per station and time, in monthly partitions that are created when their first observation arrives. Writing an observation again merges it: a new measurement replaces the stored one, a missing measurement leaves it alone, and a row that would not change is not rewritten. Old data leaves by dropping whole months. Accounts, sessions and flights are described below. The schema is a numbered list of SQL files compiled into the program and applied at start.
 
-**Serving.** The API is described in [api.md](api.md). Every answer with data names the source of each record and carries that source's credit line; a station belongs to exactly one source, so data under different licences never shares a record. A station whose source is not in the server's configuration is not served, even if the store still holds it.
+**Serving.** The API is described in [api.md](api.md). Every answer with station data names the source of each record and carries that source's credit line; a station belongs to exactly one source, so data under different licences never shares a record. A station whose source is not in the server's configuration is not served, even if the store still holds it.
 
 **Configuration** is a TOML file, environment variables, or both; a variable wins. `crates/server/config.example.toml` documents every setting. The database URL holds the only secret and is never printed.
 
 How the server is run on a machine is in [deploy/README.md](../deploy/README.md).
 
+### Flights
+
+A pilot's flights live on the phone first. The server is where they are kept safe, reach the pilot's other devices, and can be shared.
+
+**The file is the truth.** An uploaded IGC file is kept byte for byte: a recorder's signature covers every byte, and a league accepts only the file it signed. Everything else the server says about a flight (start, take-off and landing, airtime, distances, the score, an outline for thumbnails, an altitude profile) is worked out from the file by `venti-flight`, the code the apps run, and stored beside it with the version of the analysis that produced it. When that version goes up, the server works every stored flight out again after its next start, in the background, and each flight that changes shows up as changed to its pilot's devices.
+
+**Identity and address.** A flight's identity is the hash of its fixes that the apps' logbooks use; the server computes it itself and never takes a client's word for it. One account holds an identity once, which is what makes an upload repeatable. The flight's address on the server, used in paths and share links, is a second identifier: it is derived from the account and the identity, so the same flight uploaded again gets the same address, and nobody who merely has the file can work out a link to it. Two accounts that upload the same recording hold two flights.
+
+**Analysing a file from a stranger.** The analysis is quick on real flights (a made-up twelve-hour flight takes about half a second) and can be made to take minutes by a file built for it: 20 000 fixes that zigzag across the globe kept one core busy for two and a half minutes (measured 2026-11-19; the simplification of a track is quadratic in the worst case). A thread cannot be stopped from outside. So for every upload the server starts a copy of its own program (`venti-server derive`), hands it the file, and kills it if it is not done within ten seconds. Two run at a time; the rest wait. The server takes in eight files at once, two from any one account, and refuses further ones before reading them, so uploads cannot fill its memory. A file that had to be killed counts fifty times against its account's daily uploads. The same weakness exists on the phone, where a crafted file can hang an import; that is for the flight engine to fix.
+
+**Who sees a flight.** Private (the default), unlisted (anyone with the link) or public (listed on the pilot's page). To everyone but its pilot a private flight does not exist: the answer is the one for an address that belongs to no flight, in status, headers and body. Followers-only joins the list when follows exist; the wire format already tells clients to expect values they do not know.
+
+**Syncing devices.** Every upload, deletion or change to a flight takes the next *change number* of its account, in the same transaction, under a lock on the account's row. A device remembers the largest number it has seen and asks for what came after; because numbers are handed out in the order the changes become visible, it never misses one. A deleted flight leaves only its address and identity behind, so that other devices can be told. Change numbers follow the clock (microseconds, or one more than the last if the clock has not moved), so after a restore from a backup new changes still sort after everything a device saw before. A device whose number lies beyond the account's latest is told to start again and to compare its whole logbook.
+
+**Where the files are.** In PostgreSQL, compressed with gzip, in the row of the flight. Compression saves about two thirds: the half-hour sample flight is 65 kB as a file and 20 kB stored, so a long flight is a few hundred kilobytes. In the database a flight and its file appear and disappear in one transaction, deleting an account is one statement that takes everything with it, and the nightly dump that already exists is the whole backup. On disk they would need a second backup, a way to find files whose row is gone, and care on every delete. The database stays manageable for a long time at these sizes; when the dump becomes too slow or the files too many, they move behind the blob trait the plan names for media.
+
+### Share pages
+
+A public or unlisted flight has a page at `/f/{id}` and a picture at `/f/{id}/preview.png`. The page is for people and for the preview fetchers of chat apps: its head carries Open Graph and Twitter-card lines, its body the flight's numbers, its track and altitude profile as inline drawings, and a link to the flight file. It is one HTML document with its style inside, light and dark, with no script and no request to anywhere else. The picture is drawn by the server in Rust (`tiny-skia`), with the Nunito typeface compiled in for the numbers; no map is under the track, because there is no tile server yet.
+
+Everything on the page that a pilot or a file supplied is escaped, and the page forbids itself all scripts with a content security policy, so a mistake in the escaping could deface a page but not run code. The addresses in the page come from the configured `public_url`, never from the request.
+
 ### Storage
 
-- **PostgreSQL:** users, flights, sites, airspace, stations, community data. Observations are partitioned by month and kept for thirteen whole months unless configured otherwise.
-- **Disk:** IGC files and media under content-hash paths, PMTiles, and a rolling archive of raw provider payloads for replaying adapter bugs (one folder per source and day, fourteen days unless configured otherwise).
-- **Backups:** nightly encrypted, incremental backups of the database and blobs to storage in a different location. This is the one recurring cost besides the server and it is not optional. Built so far: `deploy/backup.sh` writes a nightly dump of the database to the same machine and rotates old dumps. The copy at a different site is not set up; where it goes is the owner's decision.
+- **PostgreSQL:** users, flights with their files, sites, airspace, stations, community data. Observations are partitioned by month and kept for thirteen whole months unless configured otherwise.
+- **Disk:** media under content-hash paths, PMTiles, and a rolling archive of raw provider payloads for replaying adapter bugs (one folder per source and day, fourteen days unless configured otherwise). Flight files are not on disk; see [Flights](#flights).
+- **Backups:** nightly encrypted, incremental backups of the database and blobs to storage in a different location. This is the one recurring cost besides the server and it is not optional. Built so far: `deploy/backup.sh` writes a nightly dump of the database to the same machine and rotates old dumps. Since accounts and flights exist, that dump is what stands between a pilot's flights and a broken disk, and it holds personal data and password hashes. The copy at a different site is not set up; where it goes is the owner's decision.
 
 ### External dependencies that cannot be self-hosted
 
@@ -336,11 +363,26 @@ How the server is run on a machine is in [deploy/README.md](../deploy/README.md)
 
 - Static reference data (sites, airspace, obstacles, station metadata) ships as versioned, immutable **region bundles** that clients download and query locally. The map overlays render from the local bundle, so they work without a connection and need no tile server.
 - Live data (observations, positions, forecasts) comes from the API with cache validators. Observations are built: see [api.md](api.md). Until region bundles exist, the station list of the API carries the station metadata too.
-- Flights are recorded locally and uploaded later. Upload is idempotent by content hash.
+- Flights are recorded locally and uploaded later. Upload is repeatable: one account holds a flight, known by the hash of its fixes, once. A device learns what its other devices did from the account's list of changes; see [Flights](#flights). The server side of this is built; the apps do not sync yet.
 
 ### Authentication and accounts
 
-Passkeys, email link and Sign in with Apple. The server is also an OAuth 2.1 authorization server, because MCP clients require it (PKCE, client ID metadata documents or dynamic registration).
+The aim is unchanged: passkeys, email link and Sign in with Apple, and an OAuth 2.1 authorization server for MCP clients (PKCE, client ID metadata documents or dynamic registration). None of the three sign-in methods can ship today. Passkeys in an iPhone app need an associated domain, which needs a paid Apple developer membership and a domain; Sign in with Apple needs the same membership; email needs a mail relay. The owner has postponed all three.
+
+What is built instead (2026-11-19) is the plainest thing that is still sound:
+
+- **An account is a handle, a display name and a password.** The handle is unique whatever its case, from a narrow alphabet, with names such as `admin` kept back. No email address is stored, and nothing else about the person.
+- **A forgotten password cannot be recovered.** There is nothing to recover it with. The apps must say so where a password is chosen. Sessions last 400 days without use, so that a pilot who does not fly all winter is still signed in when spring comes.
+- **Passwords** are hashed with Argon2id at the cost OWASP's Password Storage Cheat Sheet gives as a minimum (19 MiB, two passes, one lane; read 2026-11-19). A password is 15 to 128 characters with no other rule, which is what NIST SP 800-63B-4 asks of a password that is the only thing protecting an account, and is brought to one Unicode spelling (NFC) before hashing. Not done: comparing new passwords with a list of leaked ones, which the same document also asks for.
+- **Credentials have a table of their own**, with a kind. Today the only kind is the password. A passkey or an Apple identity becomes a further kind, with the columns it needs, beside it.
+- **A session is a random token** of 256 bits, sent as `Authorization: Bearer`. The server keeps its SHA-256 hash, one row per signed-in device with the name the device gave itself and when it was last used. Devices can be signed out one by one. Changing the password signs out every other device. There are no cookies and no signed tokens that would stay valid after being revoked.
+- **Who may register** is a setting: `invite` (the default), `open` or `closed`. An invite code creates one account and may expire; `venti-server invite` makes them.
+- **Guessing is slow.** Wrong passwords are counted per handle (10 an hour) and per client address (30 an hour), attempts to register per address (10 an hour), uploads per account (1000 a day). The counters are in the server's memory. A handle that has used up its attempts cannot be signed in to until the hour is over, not even with the right password; devices that are signed in are not affected. Signing in takes the same time and gives the same answer for a wrong password and for a handle nobody has.
+- **The client's address** is the address of the connection, or, when the connection comes from a reverse proxy the configuration names, the address that proxy reports. In the Compose deployment that proxy is Caddy, at a fixed address.
+- **Deleting an account** needs the password, not just a token, and removes the account, its sessions, its flights and their files in one statement. What remains is in the nightly dumps until they rotate out.
+- **An account that shares nothing cannot be found.** A pilot's public page exists once the pilot has made a flight public; before that, asking for it gives the answer for a handle nobody has. A handle and a display name stand on every flight the pilot shares, public or unlisted.
+
+Not built: passkeys, Sign in with Apple, email, password recovery, changing a handle or a display name, the OAuth server for MCP clients, moderation tools, and any limit on how much one account may store in total.
 
 ### Sizing
 
@@ -423,7 +465,8 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 - **Replay tests.** The flight engine is tested by feeding it recorded flights and sensor logs and comparing against stored results. The cockpit can be run on the ground from a recorded flight.
 - **Adapter contract tests.** See [data-sources.md](data-sources.md#testing).
 - **One store suite, two stores.** The behaviour of the store is written once (`crates/store/tests/suite`) and run against the in-memory store everywhere and against a real PostgreSQL with PostGIS in CI. Locally the PostgreSQL run needs `VENTI_TEST_DATABASE_URL` and is skipped without it; CI refuses to skip it.
-- **API tests through the real router.** They run against what the development mode serves and compare the answers with golden files, which are also the examples in [api.md](api.md).
+- **API tests through the real router.** They run against what the development mode serves and compare the answers with golden files, which are also the examples in [api.md](api.md); a test fails when the document and the files differ.
+- **Tests that play the attacker.** Accounts and flights are tested for what must not happen: telling a wrong password from an unknown handle by the answer or by the time it takes, telling a private flight from no flight, guessing without limit, finding a password or a token in the log, markup from a display name or a flight file reaching a share page, and a flight file that takes minutes to analyse. They live beside the other API tests in `crates/server/tests`.
 - **Scheduler tests on virtual time.** The schedule is tested with a clock that the test moves; nothing sleeps.
 - **CI gates:** formatting, lints with warnings as errors, tests, the dependency-graph test, a licence check on dependencies (`deny.toml`, which also bans OpenSSL and native-tls: TLS is rustls), and a build and start of the server image. All of them run on every push.
 - **Decisions are written down.** A change to anything in the decision log below updates the log in the same commit.
@@ -524,6 +567,23 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-19 | The station list is capped at 5000 stations with a `truncated` flag; an observation window is at most seven days | No request can ask for everything at once | The map needs clustering or tiles for station data |
 | 2026-11-19 | The development mode runs the real adapters over the fixtures compiled into the provider crates, with the clock stopped at the recording | Client work needs neither network nor database and gets the same answers every time; the tests' recorded payloads have one definition | A client needs data that moves; then a replay mode |
 | 2026-11-19 | Configuration is a TOML file plus `VENTI_*` variables, and the command line is parsed by hand | Compose sets variables, a developer keeps a file; three subcommands with a handful of options do not need a library | The command line grows |
+| 2026-11-19 | Sign-in is a handle and a password for now; no email address is stored; a forgotten password cannot be recovered | Owner decision. Passkeys and Sign in with Apple need a paid Apple membership and a domain, email needs a mail relay; the owner has postponed all three | The domain and the Apple membership exist: add passkeys as a second kind of credential, then a way back into an account |
+| 2026-11-19 | Passwords: Argon2id at OWASP's minimum cost (m=19456, t=2, p=1), 15 to 128 characters and no other rule, NFC before hashing; no list of leaked passwords | OWASP Password Storage and Authentication Cheat Sheets and NIST SP 800-63B-4, read 2026-11-19. A blocklist needs a list with a licence or an outside service | Hashing shows up in the server's load (raise the cost when it does not); a blocklist the project may ship is found |
+| 2026-11-19 | A session is an opaque random token kept as a hash, one row per device, revocable one by one; no JWT, no cookies | Owner decision. A stolen database cannot be used to sign in, a lost phone can be signed out, and nothing the browser sends by itself acts for an account | Not expected |
+| 2026-11-19 | A session that is not used for 400 days expires | With no way to recover a password, a pilot who does not fly all winter must not find themselves signed out in spring. Without any limit, tokens of long-forgotten devices would work for ever | Password recovery exists: shorten it |
+| 2026-11-19 | Registration is by invite unless configured `open` or `closed`; invite codes are single-use, may expire, are kept as hashes and made by `venti-server invite` | Owner decision: a closed beta first. A server that was just set up should not take accounts from whoever finds it | The beta opens |
+| 2026-11-19 | A flight's identity is the hash of its fixes, computed by the server; its address in paths and links is a second identifier, derived from the account and the identity | The identity is the owner's decision and what makes an upload repeatable. As the only identifier it would let whoever holds a flight's file work out the link to it, and would force a choice when two accounts upload the same recording: refuse the second (anyone could claim a flight before its pilot does) or reveal the first. With an address per account neither arises | Not expected |
+| 2026-11-19 | The uploaded file is kept byte for byte, compressed, in PostgreSQL; everything else is derived from it and carries the version of the analysis | Owner decision for the file. In the database a flight and its file live and die in one transaction and the existing dump is the whole backup; see [Flights](#flights) | The nightly dump takes too long, or flight files exceed some tens of gigabytes: move them behind the blob trait |
+| 2026-11-19 | Flights are private by default; unlisted and public are the other two settings; a private flight answers exactly like no flight | Owner decision. Any difference, even in a header, would tell a stranger that a flight exists | Follows arrive: add followers-only |
+| 2026-11-19 | An account is deleted by its owner at once, with the password and not just a token, and takes its sessions and flights with it; a deleted flight leaves its address and identity so that other devices can be told | Owner decision. The copies in the nightly dumps go when the dumps rotate out, after fourteen days by default; that is said in the API document and the runbook | A legal reason to answer faster than the dumps rotate |
+| 2026-11-19 | Attempts are counted in the server's memory: wrong passwords per handle and per address, registrations per address, uploads per account; a handle over its limit is closed to everyone until the hour is over | Owner decision: no paid service. Counting per handle is what stops guessing from many addresses; that it lets a stranger keep a pilot from signing in on a new device for an hour is the price, and devices that are signed in do not notice | The API runs as more than one process: move the counters into the database |
+| 2026-11-19 | A client's address is taken from `X-Forwarded-For` only when the connection comes from a proxy named in the configuration; in the Compose deployment Caddy has a fixed address for that | Anyone can send that header. Caddy ignores one that arrives from outside and writes its own (its documentation, read 2026-11-19) | Another proxy or a CDN is put in front |
+| 2026-11-19 | An uploaded flight file is analysed in a child process of the server's own program, which is killed after ten seconds; a file is at most 4 MB and 100 000 fixes, an account uploads at most 1000 files a day and two at a time | A file built for it keeps the analysis busy for minutes, and a thread cannot be stopped. Measured: 20 000 zigzagging fixes, 144 seconds. 4 MB is twice the longest real flight at one fix a second | The flight engine's simplification gets a bound of its own; then a thread is enough |
+| 2026-11-19 | Changes to an account's flights are numbered under a lock on the account's row, and the numbers follow the clock | A device that asks for "everything after n" must never miss a change, which needs numbers in the order changes become visible; following the clock keeps that true across a restore from a backup | Not expected |
+| 2026-11-19 | The page of a shared flight is one HTML document rendered by the server, with no script and a content security policy that allows none; its preview picture is drawn in Rust with `tiny-skia` and the Nunito typeface (SIL OFL 1.1), without a map | It has to work in a chat app's preview fetcher and without the web app. No map because there is no tile server | The tile server exists: draw the track on a map. The web app exists at the same address: link it from the page |
+| 2026-11-19 | An answer to a request with a session token is `no-store` and has no `ETag`; an answer about a shared flight to anyone else may be kept and must be checked before every reuse (`no-cache`) | A fingerprint of private data does not belong in a cache or a log. A flight made private must be gone at once, not when a cache gets round to it | Measurements show the checks cost too much; then a short `max-age` for public flights |
+| 2026-11-19 | The request log names a request's method and path, and nothing else of it | Headers carry tokens and bodies carry passwords; a query string should carry neither, but a client that puts one there by mistake must not find it in the log | Not expected |
+| 2026-11-19 | The development mode starts with one demo account, three flights and a session token that is written down in the API document; it takes any registration and has no limits on attempts | The apps' tests need an account without creating one, and its clock stands still, so a limit's window would never close | Not expected |
 | 2026-11-19 | Caddy in front for TLS and static files; database dumps with rotation on the same machine | Automatic certificates and range requests with a dozen lines of configuration. Off-site backup needs storage the owner has not chosen. | The owner chooses backup storage |
 | 2026-11-19 | The core talks to the server through pairs of plain functions, one that names the path and one that reads the answer; the shells send the request | The core does no I/O, and three shells get the same reading of the wire format, of ages and of errors | A call needs more than one round trip, as sign-in will; then a small step machine like the assistant's |
 | 2026-11-19 | A reading older than 60 minutes is shown as old: a grey dot without numbers | An old number on a map reads as the wind now. The German stations are regularly 45 minutes behind, so the line cannot be tighter | Providers get faster or slower |

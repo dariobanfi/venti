@@ -12,11 +12,21 @@ exception: the fields "createdBy" and "updatedBy", which hold the user
 identifiers of openAIP's contributors, are removed. The adapter does not
 read them, and this repository holds no personal data.
 
-To record them again: fetch de_asp.geojson and at_asp.geojson from the
-address above and keep the features whose bounding box touches
-47.2..48.5 N, 10.9..13.2 E (Germany) or 47.0..47.95 N, 10.9..13.2 E
-(Austria), within the corner limits, in the order of the file. Then run the
-tests with VENTI_UPDATE_GOLDEN=1 and review what changed.
+ch_asp.geojson, it_asp.geojson, si_asp.geojson, hr_asp.geojson,
+hu_asp.geojson and sk_asp.geojson are the airspace exports for Switzerland,
+Italy, Slovenia, Croatia, Hungary and Slovakia of the same day, cut down to
+the features that reach into the first region's box and have no more than
+60 corners, with the same two fields removed.
+
+All of them are samples. They are not the airspace of any area.
+
+To record them again: fetch the files from the address above. Of
+de_asp.geojson and at_asp.geojson keep the features whose bounding box
+touches 47.2..48.5 N, 10.9..13.2 E (Germany) or 47.0..47.95 N,
+10.9..13.2 E (Austria), within the corner limits; of the six others those
+whose bounding box touches 46.3..48.5 N, 9.4..17.2 E and that have no more
+than 60 corners; all in the order of the file. Then run the tests with
+VENTI_UPDATE_GOLDEN=1 and review what changed.
 
 at_asp_damaged.geojson is not openAIP's data as published: it is eight
 features of at_asp.geojson, seven of them deliberately broken, to test how

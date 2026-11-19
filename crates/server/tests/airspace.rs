@@ -1,10 +1,10 @@
 //! Tests of airspace: the endpoint through the real router, and the path
 //! from a provider's files into the store.
 //!
-//! The endpoint is tested against what the development mode serves: the
-//! airspace of the northern Alps recorded from openAIP, run through the
-//! real adapter. One answer is kept as a golden file, which is also the
-//! example in `docs/api.md`.
+//! The endpoint is tested against what the development mode serves: a
+//! sample of the first region's airspace recorded from openAIP, eight
+//! countries of it, run through the real adapter. Two answers are kept as
+//! golden files, which are also the examples in `docs/api.md`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -42,6 +42,13 @@ fn source(name: &str) -> SourceId {
 fn first_region() -> BoundingBox {
     BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap()
 }
+
+/// The countries the first region's box takes in and openAIP has a file
+/// for, in the order the adapter fetches them.
+const COUNTRIES: [&str; 8] = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"];
+
+/// How many airspaces the recorded files hold in all.
+const RECORDED: usize = 192;
 
 fn path(bbox: BoundingBox) -> String {
     AirspaceRequest { bbox }.path_and_query()
@@ -163,8 +170,13 @@ async fn airspace_comes_in_a_layer_with_its_source_its_dates_and_its_credit() {
     assert_eq!(airspace.layers.len(), 1);
     let layer = &airspace.layers[0];
     assert_eq!(layer.source.as_str(), OPENAIP);
-    // 41 airspaces of Germany and 47 of Austria.
-    assert_eq!(layer.airspaces.len(), 88);
+    // 41 airspaces of Germany, 47 of Austria and 104 of the six other
+    // countries the box takes in.
+    assert_eq!(layer.airspaces.len(), RECORDED);
+    for country in COUNTRIES {
+        let of_country = |a: &Airspace| a.country.as_deref() == Some(country);
+        assert!(layer.airspaces.iter().any(of_country), "{country}");
+    }
     assert!(
         layer
             .airspaces
@@ -190,17 +202,18 @@ async fn airspace_comes_in_a_layer_with_its_source_its_dates_and_its_credit() {
         assert_eq!(record.validity.file_date, layer.file_date);
     }
 
-    // Where the server's set is whole: the region it collects for, and
-    // of that the two countries it fetches. The valley of the apps' sample
-    // flight is inside; the north of Germany is not, and neither is
-    // Switzerland.
+    // Where the server's set is whole: the region it collects for, of
+    // every country the region takes in that the source has a file for.
+    // The valley of the apps' sample flight is inside, and so is South
+    // Tyrol; the north of Germany is not, and neither is Zurich.
     assert_eq!(layer.covers, [first_region()]);
-    assert_eq!(layer.countries, ["DE", "AT"]);
+    assert_eq!(layer.countries, COUNTRIES);
     let covered = |lat, lon| {
         let place = GeoPoint::new(lat, lon).unwrap();
         layer.covers.iter().any(|area| area.contains(place))
     };
     assert!(covered(47.7, 11.8));
+    assert!(covered(46.5, 11.35));
     assert!(!covered(53.6, 9.9));
     assert!(!covered(47.4, 8.5));
 
@@ -432,9 +445,9 @@ fn collector(
     )
 }
 
-/// The recorded files of both countries, with the date openAIP's file
+/// The recorded files of every country, with the date openAIP's file
 /// store put on them the night they were recorded.
-fn both_countries(clock: &TestClock) -> (FixtureFetch, venti_domain::Timestamp) {
+fn every_country(clock: &TestClock) -> (FixtureFetch, venti_domain::Timestamp) {
     use venti_server::clock::Clock;
     let written = clock.now() - Duration::hours(17);
     let fetch = recorded_files()
@@ -473,9 +486,9 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
     let clock = TestClock::new();
     let store = Arc::new(MemoryStore::new());
     let router = serving(store.clone(), &clock, [&openaip_manifest()]);
-    let (whole, written) = both_countries(&clock);
+    let (whole, written) = every_country(&clock);
 
-    // Monday: both files arrive.
+    // Monday: every file arrives.
     let fetched_on_monday = adapters::recorded_at();
     assert!(
         collector(store.clone(), whole, &clock)
@@ -483,17 +496,26 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
             .await
     );
     let monday: AirspaceResponse = get(&router, &path(first_region())).await.json();
-    assert_eq!(monday.layers[0].airspaces.len(), 88);
+    assert_eq!(monday.layers[0].airspaces.len(), RECORDED);
+    assert_eq!(monday.layers[0].countries, COUNTRIES);
     // The files are as old as their store says, not as their fetch.
     assert_eq!(monday.layers[0].file_date, Some(written));
     assert_eq!(monday.layers[0].fetched_at, fetched_on_monday);
 
-    // Tuesday: Austria's file cannot be fetched. Half an airspace set is
-    // worse than yesterday's whole one.
+    // Tuesday: Slovakia's file cannot be fetched. A set with a country
+    // missing is worse than yesterday's whole one: the answer would go on
+    // naming Slovakia among its countries.
     clock.advance(Duration::days(1));
-    let files = recorded_files();
-    let germany_only = FixtureFetch::new().with(files[0].0.clone(), files[0].1.clone());
-    let healthy = collector(store.clone(), germany_only, &clock)
+    let all_but_the_last = || {
+        let mut files = recorded_files();
+        files.pop();
+        files
+            .into_iter()
+            .fold(FixtureFetch::new(), |fetch, (url, body)| {
+                fetch.with(url, body)
+            })
+    };
+    let healthy = collector(store.clone(), all_but_the_last(), &clock)
         .collect(&airspace_job())
         .await;
     assert!(!healthy);
@@ -507,7 +529,7 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
         openaip.last_failure,
         Some(fetched_on_monday + Duration::days(1))
     );
-    assert_eq!(openaip.airspaces, Some(88));
+    assert_eq!(openaip.airspaces, Some(192));
     assert_eq!(openaip.file_date, Some(written));
     // One missed day is not yet stale.
     assert!(!openaip.stale);
@@ -517,8 +539,7 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
     // server says so while it keeps serving Monday's airspace with
     // Monday's date.
     clock.advance(Duration::days(1));
-    let germany_only = FixtureFetch::new().with(files[0].0.clone(), files[0].1.clone());
-    let healthy = collector(store.clone(), germany_only, &clock)
+    let healthy = collector(store.clone(), all_but_the_last(), &clock)
         .collect(&airspace_job())
         .await;
     assert!(!healthy);
@@ -529,8 +550,8 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
     let wednesday: AirspaceResponse = get(&router, &path(first_region())).await.json();
     assert_eq!(wednesday.layers[0].fetched_at, fetched_on_monday);
 
-    // Thursday: both files arrive again, and the set is Thursday's.
-    let (whole, _) = both_countries(&clock);
+    // Thursday: every file arrives again, and the set is Thursday's.
+    let (whole, _) = every_country(&clock);
     assert!(
         collector(store, whole, &clock)
             .collect(&airspace_job())
@@ -547,9 +568,9 @@ async fn a_run_that_misses_a_country_keeps_yesterdays_airspace() {
 /// Measures the answer for the airspace of whole countries, when a folder
 /// that holds openAIP's export files is named.
 ///
-/// The recorded fixtures are a small part of two countries. To measure
-/// what a phone downloads for a whole region, fetch `de_asp.geojson` and
-/// `at_asp.geojson` into a folder and run
+/// The recorded fixtures are a small part of each country. To measure
+/// what a phone downloads for a whole region, fetch `<country>_asp.geojson`
+/// for every country of the adapter's manifest into a folder and run
 ///
 /// ```text
 /// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-server --test airspace whole -- --nocapture
@@ -573,8 +594,8 @@ async fn whole_countries_are_measured_when_given() {
     let clock = TestClock::new();
     let store = Arc::new(MemoryStore::new());
     let router = serving(store.clone(), &clock, [&openaip_manifest()]);
-    // Both countries whole, not only the first region's box.
-    let everywhere = BoundingBox::new(45.0, 5.0, 56.0, 18.0).unwrap();
+    // Every country whole, not only the first region's box.
+    let everywhere = BoundingBox::new(35.0, 5.0, 56.0, 23.0).unwrap();
     let job = Job {
         area: everywhere,
         ..airspace_job()
@@ -582,13 +603,15 @@ async fn whole_countries_are_measured_when_given() {
     assert!(collector(store, fetch, &clock).collect(&job).await);
 
     for (name, bbox) in [
-        ("Germany and Austria", everywhere),
+        ("the eight countries whole", everywhere),
         ("the first region's box", first_region()),
     ] {
         let began = std::time::Instant::now();
         let plain = get(&router, &path(bbox)).await;
         let took = began.elapsed();
         let packed = get_with(&router, &path(bbox), &[(header::ACCEPT_ENCODING, "gzip")]).await;
+        // More than one answer carries is a refusal, and worth knowing.
+        assert_eq!(plain.status, StatusCode::OK, "{name}: {}", plain.text());
         let airspace: AirspaceResponse = plain.json();
         let records = &airspace.layers[0].airspaces;
         let corners: usize = records.iter().map(|a| a.geometry.exterior().len()).sum();

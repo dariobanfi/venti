@@ -1,9 +1,11 @@
 id = "openaip"
 provider = "openAIP"
 kinds = ["airspace"]
-# The countries whose export files are fetched. openAIP covers the world;
-# adding a country is adding its code here and recording a fixture for it.
-countries = ["DE", "AT"]
+# The countries whose export files are fetched: every country the first
+# region's box takes in. openAIP covers the world; adding a country is adding
+# its code here and recording a fixture for it. Liechtenstein has no file at
+# openAIP (asked for on 2026-11-19: not found).
+countries = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]
 # The export files are rebuilt every day.
 cadence_seconds = 86400
 # The export files are public. Only openAIP's API needs a key, and it is not used.

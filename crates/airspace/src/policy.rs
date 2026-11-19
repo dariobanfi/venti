@@ -11,6 +11,10 @@
 //! and Austria with no aviation radio and no transponder, and it assumes
 //! nothing is known about which areas are active today. Where a rule was in
 //! doubt it warns. An airspace that fits no rule is warned about.
+//!
+//! In any other country a pilot gets the rows that name no country. Nothing
+//! of those countries' air law was read for them: `docs/airspace.md` says
+//! what that comes to and what is left to verify.
 
 use venti_domain::{Airspace, AirspaceClass, AirspaceType};
 
@@ -84,6 +88,8 @@ const fn by_class(class: AirspaceClass, policy: Policy, reason: &'static str) ->
 const SECTOR: &str = "Opens to gliders when activated and closes nothing. \
     The airspace it lies in keeps warning, because the app does not know whether it is open.";
 const INFORMATION: &str = "A boundary of an information or control service, not a restriction.";
+const SERVICE: &str = "A boundary of an information or control service, \
+    and the source gives the air inside no class that needs a clearance.";
 const CONTROL_ZONE: &str = "Control zone: entry needs a clearance by radio.";
 const ACTIVE_UNKNOWN: &str =
     "Entry is restricted while active, and the app does not know when it is.";
@@ -112,10 +118,6 @@ pub static PARAGLIDER_RULES: &[Rule] = &[
         reason: "In Austria a temporary reserved airspace is class C or D airspace that becomes \
             class G while activated. It closes nothing; the airspace it lies in keeps warning.",
     },
-    by_type(AirspaceType::Fir, Policy::Free, INFORMATION),
-    by_type(AirspaceType::Uir, Policy::Free, INFORMATION),
-    by_type(AirspaceType::FisSector, Policy::Free, INFORMATION),
-    by_type(AirspaceType::AccSector, Policy::Free, INFORMATION),
     by_type(AirspaceType::VfrSector, Policy::Free, INFORMATION),
     by_type(AirspaceType::VfrRoute, Policy::Free, INFORMATION),
     by_type(AirspaceType::TransponderSetting, Policy::Free, INFORMATION),
@@ -179,6 +181,16 @@ pub static PARAGLIDER_RULES: &[Rule] = &[
     by_class(AirspaceClass::B, Policy::Avoid, CLEARANCE),
     by_class(AirspaceClass::C, Policy::Avoid, CLEARANCE),
     by_class(AirspaceClass::D, Policy::Avoid, CLEARANCE),
+    // The regions and sectors of a service close nothing by themselves, so
+    // they are free whatever else is unknown about them. They stand below
+    // the four rows above because a source may publish controlled airspace
+    // as a record of the region it belongs to: Slovakia's class C above
+    // 8000 ft is "FIR BRATISLAVA" in openAIP's data. Such a record is the
+    // airspace of its class.
+    by_type(AirspaceType::Fir, Policy::Free, SERVICE),
+    by_type(AirspaceType::Uir, Policy::Free, SERVICE),
+    by_type(AirspaceType::FisSector, Policy::Free, SERVICE),
+    by_type(AirspaceType::AccSector, Policy::Free, SERVICE),
     by_class(AirspaceClass::E, Policy::Free, OPEN),
     by_class(AirspaceClass::G, Policy::Free, OPEN),
     by_class(
@@ -344,6 +356,47 @@ mod tests {
                 Unclassified
             ),
             Policy::Caution
+        );
+    }
+
+    #[test]
+    fn a_service_region_that_carries_a_controlled_class_is_that_airspace() {
+        use AirspaceClass::{A, B, C, D, E, F, G, Unclassified};
+        let regions = [
+            AirspaceType::Fir,
+            AirspaceType::Uir,
+            AirspaceType::FisSector,
+            AirspaceType::AccSector,
+        ];
+        for region in regions {
+            // Slovakia's class C above 8000 ft, published as "FIR
+            // BRATISLAVA": to be avoided like any class C.
+            for class in [A, B, C, D] {
+                assert_eq!(
+                    policy(Some("SK"), region.clone(), class),
+                    Policy::Avoid,
+                    "{region:?} in class {class:?}"
+                );
+            }
+            // A region with an open class or none closes nothing: Italy's
+            // regions carry class G, Germany's and Switzerland's none. Not
+            // even class F or a missing class makes one a warning.
+            for class in [E, F, G, Unclassified] {
+                assert_eq!(
+                    policy(Some("IT"), region.clone(), class),
+                    Policy::Free,
+                    "{region:?} in class {class:?}"
+                );
+            }
+        }
+        let table = PolicyTable::paraglider();
+        let slovakia = airspace(Some("SK"), AirspaceType::Fir, C);
+        assert!(
+            table
+                .rule_for(&slovakia)
+                .unwrap()
+                .reason
+                .contains("clearance")
         );
     }
 

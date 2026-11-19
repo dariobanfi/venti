@@ -3,6 +3,8 @@ name: Source canary
 # Runs every data source against its live provider once a day: the sources of
 # observations and the sources of airspace of every region pack. Providers
 # change formats without notice; a failure here is how the project finds out.
+# For openAIP that is one file for each country of its manifest, and a run
+# fails if any of them does not arrive.
 
 on:
   schedule:

@@ -69,7 +69,7 @@ jobs:
           curl --silent --fail 'http://127.0.0.1:8080/v1/stations?bbox=9.4,46.3,17.2,48.5' | jq --exit-status '.stations | length == 6'
           curl --silent --fail http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations | jq --exit-status '.observations | length > 100'
           curl --silent --fail 'http://127.0.0.1:8080/v1/airspace?bbox=9.4,46.3,17.2,48.5' \
-            | jq --exit-status '.layers | length == 1 and .[0].source == "openaip" and (.[0].airspaces | length) == 88'
+            | jq --exit-status '.layers | length == 1 and .[0].source == "openaip" and (.[0].airspaces | length) == 192 and (.[0].countries | length) == 8 and (.[0].covers | length) == 1'
       - name: Ask for the demo account's flights, upload one and fetch its share page
         run: |
           token=venti_0000000000000000000000000000000000000000000000000000

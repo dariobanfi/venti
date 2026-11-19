@@ -66,7 +66,7 @@ async fn health_reports_every_source_fresh() {
     // The airspace source says how much airspace the server holds, and
     // the sources of observations say nothing about airspace.
     let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
-    assert_eq!(airspaces, [None, None, Some(88)]);
+    assert_eq!(airspaces, [None, None, Some(192)]);
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }

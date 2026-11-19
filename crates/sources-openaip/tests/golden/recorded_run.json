@@ -7,6 +7,1099 @@
         "on_request": false,
         "special_agreement": false
       },
+      "class": "C",
+      "country": "SK",
+      "id": "openaip:626150755e9ded571044ee61",
+      "lower": "2500 Feet above MeanSeaLevel = 762.0 m",
+      "name": "BRATISLAVA TMA 2",
+      "shape": "24 corners, 0 holes, 48.1403..48.3258 N, 16.8947..17.0592 E, a479738bff1c6bb3",
+      "type": "unspecified",
+      "updated": "2023-03-10T10:28:51.234Z",
+      "upper": "5000 Feet above MeanSeaLevel = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "id": "openaip:62615076cb27f42509462a76",
+      "lower": "ground",
+      "name": "LZD2 SLOVNAFT",
+      "shape": "19 corners, 0 holes, 48.1053..48.1108 N, 17.1900..17.1981 E, bde2eea3d555a6e3",
+      "type": "danger",
+      "updated": "2023-03-10T10:28:53.508Z",
+      "upper": "1500 Feet above MeanSeaLevel = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "id": "openaip:626150785e9ded571044eeef",
+      "lower": "ground",
+      "name": "LZR131A",
+      "shape": "7 corners, 0 holes, 48.3486..48.5547 N, 16.9967..17.2422 E, 4dfcee09241dea55",
+      "type": "restricted",
+      "updated": "2023-03-10T10:28:55.566Z",
+      "upper": "520 FlightLevel above Standard = 15849.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "id": "openaip:626150785e9ded571044eefc",
+      "lower": "ground",
+      "name": "LZR131B",
+      "shape": "5 corners, 0 holes, 48.4742..48.6767 N, 17.0800..17.4219 E, a5a3214a6b933329",
+      "type": "restricted",
+      "updated": "2023-03-10T10:28:55.649Z",
+      "upper": "520 FlightLevel above Standard = 15849.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "id": "openaip:626150785e9ded571044ef06",
+      "lower": "ground",
+      "name": "LZR222 TURECKY VRCH PETER",
+      "shape": "5 corners, 0 holes, 48.3281..48.3717 N, 17.1481..17.1994 E, e85e200409e1dbd7",
+      "type": "restricted",
+      "updated": "2023-03-10T10:28:55.720Z",
+      "upper": "165 FlightLevel above Standard = 5029.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "id": "openaip:62615079cb27f42509462ad6",
+      "lower": "ground",
+      "name": "LZR223 TURECKY VRCH VIKTOR",
+      "shape": "5 corners, 0 holes, 48.2894..48.3342 N, 17.0789..17.1853 E, dc7808d814084e3f",
+      "type": "restricted",
+      "updated": "2023-03-10T10:28:55.793Z",
+      "upper": "215 FlightLevel above Standard = 6553.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SK",
+      "frequencies": [
+        {
+          "mhz": 118.3,
+          "primary": true
+        }
+      ],
+      "id": "openaip:6261507e4b027aab592b15ea",
+      "lower": "ground",
+      "name": "STEFANIK CTR",
+      "shape": "60 corners, 0 holes, 47.9969..48.3181 N, 17.0128..17.4303 E, b6bf5c6304c9d2c4",
+      "type": "ctr",
+      "updated": "2023-03-10T10:29:01.153Z",
+      "upper": "5000 Feet above MeanSeaLevel = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "IT",
+      "id": "openaip:644662d7222af08d060ee2cb",
+      "lower": "155 FlightLevel above Standard = 4724.4 m",
+      "name": "CTA PADOVA Z2 ADAMELLO",
+      "shape": "16 corners, 0 holes, 45.7569..46.5917 N, 10.0481..11.4500 E, 0558333452bd000b",
+      "type": "cta",
+      "updated": "2023-04-24T11:13:05.269Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "IT",
+      "id": "openaip:644662d7222af08d060ee2d1",
+      "lower": "125 FlightLevel above Standard = 3810.0 m",
+      "name": "CTA PADOVA Z4 PIAVE",
+      "shape": "9 corners, 0 holes, 45.9608..46.4219 N, 11.4058..12.2125 E, a18b02bd674015bf",
+      "type": "cta",
+      "updated": "2023-04-24T11:13:05.551Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "IT",
+      "id": "openaip:644662d7222af08d060ee2f2",
+      "lower": "135 FlightLevel above Standard = 4114.8 m",
+      "name": "CTA PADOVA Z15 ADIGE",
+      "shape": "5 corners, 0 holes, 46.1250..46.4836 N, 11.1083..11.4261 E, 595ad80e48771ba3",
+      "type": "cta",
+      "updated": "2023-04-24T11:13:07.646Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "IT",
+      "id": "openaip:644662d7222af08d060ee2fb",
+      "lower": "175 FlightLevel above Standard = 5334.0 m",
+      "name": "CTA PADOVA Z18 MERANO",
+      "shape": "5 corners, 0 holes, 46.5917..46.7169 N, 11.0983..11.5481 E, ee1b9bfb11359944",
+      "type": "cta",
+      "updated": "2023-04-24T11:13:08.237Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662dd222af08d060ee649",
+      "lower": "ground",
+      "name": "LI-P79-BOLZANO",
+      "shape": "5 corners, 0 holes, 46.4900..46.5017 N, 11.3406..11.3575 E, 6b42d1d08a98932a",
+      "type": "prohibited",
+      "updated": "2024-08-09T10:16:05.503Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662e1222af08d060ee7c0",
+      "lower": "ground",
+      "name": "LI-P226-TOLMEZZO",
+      "shape": "34 corners, 0 holes, 46.4103..46.4269 N, 13.0057..13.0298 E, 366ccae409bc0dc7",
+      "type": "prohibited",
+      "updated": "2023-04-24T11:14:13.822Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662e4222af08d060ee928",
+      "lower": "50 FlightLevel above Standard = 1524.0 m",
+      "lower_at_least": "2000 Feet above AboveGround = 609.6 m",
+      "name": "LI-R49/A-ZITA",
+      "shape": "5 corners, 0 holes, 46.0167..46.5597 N, 11.8161..12.4500 E, 91ff7051760b4f59",
+      "type": "restricted",
+      "updated": "2026-11-07T19:18:05.898Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662e4222af08d060ee92b",
+      "lower": "50 FlightLevel above Standard = 1524.0 m",
+      "lower_at_least": "2000 Feet above AboveGround = 609.6 m",
+      "name": "LI-R49/B-ZITA",
+      "shape": "7 corners, 0 holes, 46.1114..46.5817 N, 12.4486..13.2500 E, 2b8f059da47a6848",
+      "type": "restricted",
+      "updated": "2026-11-07T19:18:05.925Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662e4222af08d060ee92e",
+      "lower": "130 FlightLevel above Standard = 3962.4 m",
+      "name": "LI-R49/C-ZITA",
+      "shape": "8 corners, 0 holes, 45.5750..46.3144 N, 12.4469..13.2481 E, bd8ff5a19b924caf",
+      "type": "restricted",
+      "updated": "2023-04-24T11:14:31.610Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "IT",
+      "id": "openaip:644662e5222af08d060eea33",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "VALLE DELL'ADIGE - RMZ",
+      "shape": "18 corners, 0 holes, 45.7117..46.6131 N, 10.8117..11.5547 E, 4fffb88923a2ba37",
+      "type": "rmz",
+      "updated": "2026-07-18T19:54:43.708Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "IT",
+      "id": "openaip:644662e5222af08d060eea36",
+      "lower": "2000 Feet above MeanSeaLevel = 609.6 m",
+      "name": "CLES LIKC RMZ",
+      "shape": "6 corners, 0 holes, 46.2981..46.4311 N, 10.9122..11.1711 E, 8705b422cc7e5b90",
+      "type": "rmz",
+      "updated": "2026-07-18T19:54:43.937Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662e9222af08d060eec43",
+      "lower": "ground",
+      "name": "NAZ SCIAVES (AIRWRK)",
+      "shape": "15 corners, 0 holes, 46.7583..46.8028 N, 11.6700..11.7108 E, f180995965bb06e6",
+      "type": "aerial-sporting",
+      "updated": "2024-03-04T13:49:11.514Z",
+      "upper": "400 Feet above AboveGround = 121.9 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f0222af08d060ef0fb",
+      "lower": "ground",
+      "name": "PALU LONGA(PARK)",
+      "shape": "5 corners, 0 holes, 46.2906..46.3019 N, 11.3600..11.3769 E, 400225ba1777f51f",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:03.844Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef0fe",
+      "lower": "ground",
+      "name": "PALU TREMOLE(PARK)",
+      "shape": "6 corners, 0 holes, 46.4669..46.4853 N, 11.0678..11.0944 E, e28c4a453c9243db",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:03.956Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef104",
+      "lower": "ground",
+      "name": "PALU DI TENNO(PARK)",
+      "shape": "5 corners, 0 holes, 46.3369..46.3472 N, 11.0219..11.0378 E, e036a5bb0717ad87",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:04.402Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef11f",
+      "lower": "ground",
+      "name": "PARCO NATURALE ADAMELLO BRENTA(PARK)",
+      "shape": "52 corners, 0 holes, 46.0297..46.3375 N, 10.5039..11.0411 E, 87f4ed6c6b405c22",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:05.938Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef122",
+      "lower": "ground",
+      "name": "PARCO NATURALE PANEVEGGIO PALE S.MARTINO E BIOTI(AIRWRK)",
+      "shape": "39 corners, 0 holes, 46.1900..46.3628 N, 11.6728..11.9361 E, 9e2e39f593d3ab80",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:06.294Z",
+      "upper": "1640 Feet above AboveGround = 499.9 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef125",
+      "lower": "ground",
+      "name": "PARCO NAZIONALE DELLO STELVIO(PARK)",
+      "shape": "27 corners, 0 holes, 46.3278..46.4906 N, 10.5133..10.8353 E, ec17490dede05604",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:06.481Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef143",
+      "lower": "ground",
+      "name": "PARCO DOLOMITI BELLUNESI(PARK)",
+      "shape": "7 corners, 0 holes, 46.0447..46.3247 N, 11.7553..12.2686 E, f82410c3ad19dee6",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:07.759Z",
+      "upper": "3300 Feet above AboveGround = 1005.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef149",
+      "lower": "ground",
+      "name": "PARCO DOLOMITI D'AMPEZZO(PARK)",
+      "shape": "8 corners, 0 holes, 46.5153..46.6778 N, 11.9722..12.2619 E, 647860af7bb7cb83",
+      "type": "overflight-restriction",
+      "updated": "2023-04-24T11:16:08.009Z",
+      "upper": "3300 Feet above AboveGround = 1005.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f1222af08d060ef155",
+      "lower": "13000 Feet above MeanSeaLevel = 3962.4 m",
+      "name": "BBQ MILITARE EXCLUSION",
+      "shape": "5 corners, 0 holes, 46.0000..46.5000 N, 11.0000..12.0000 E, 9f84d594dd172c8a",
+      "type": "danger",
+      "updated": "2023-04-24T11:16:08.474Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f2222af08d060ef1a3",
+      "lower": "ground",
+      "name": "ALTA VAL DURNA (FIRINGAREA)",
+      "shape": "5 corners, 0 holes, 46.7167..46.7833 N, 11.4333..11.5167 E, 0210a4bdf041cb4b",
+      "type": "danger",
+      "updated": "2023-04-24T11:16:11.806Z",
+      "upper": "10200 Feet above MeanSeaLevel = 3109.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f2222af08d060ef1b5",
+      "lower": "ground",
+      "name": "MALGA VACCARO (FIRINGAREA)",
+      "shape": "5 corners, 0 holes, 46.8333..46.8667 N, 11.3667..11.4167 E, c88b909c867521dc",
+      "type": "danger",
+      "updated": "2023-04-24T11:16:12.524Z",
+      "upper": "8600 Feet above MeanSeaLevel = 2621.3 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "IT",
+      "id": "openaip:644662f2222af08d060ef1d6",
+      "lower": "ground",
+      "name": "VAL RIDANNA (FIRINGAREA)",
+      "shape": "51 corners, 0 holes, 46.8667..46.9000 N, 11.3923..11.4410 E, 84f76fa0aa8f1151",
+      "type": "danger",
+      "updated": "2023-04-24T11:16:14.123Z",
+      "upper": "3800 Feet above MeanSeaLevel = 1158.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df63",
+      "lower": "ground",
+      "name": "LD-D101",
+      "shape": "15 corners, 0 holes, 46.3503..46.5539 N, 16.2414..16.5567 E, 3b404f509fb430e5",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:13.643Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df66",
+      "lower": "ground",
+      "name": "LD-D102",
+      "shape": "5 corners, 0 holes, 46.3503..46.4336 N, 16.4400..16.5606 E, 28f28e0e6b0c980a",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:13.787Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df69",
+      "lower": "ground",
+      "name": "LD-D103",
+      "shape": "29 corners, 0 holes, 46.3592..46.4761 N, 16.4400..16.8506 E, a77d2dd0befc4c07",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:13.926Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df6c",
+      "lower": "ground",
+      "name": "LD-D104",
+      "shape": "20 corners, 0 holes, 46.2642..46.3758 N, 16.5139..16.8919 E, 56c13125313fff4c",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.053Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df6f",
+      "lower": "ground",
+      "name": "LD-D105",
+      "shape": "8 corners, 0 holes, 46.2100..46.3506 N, 16.3739..16.5444 E, 021bce14a0aff8a7",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.177Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df72",
+      "lower": "ground",
+      "name": "LD-D106",
+      "shape": "5 corners, 0 holes, 46.2525..46.3358 N, 16.3233..16.4436 E, f088ffeff0817284",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.298Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df75",
+      "lower": "ground",
+      "name": "LD-D107",
+      "shape": "11 corners, 0 holes, 46.2825..46.3983 N, 16.1869..16.4436 E, e92dcb316e79efb9",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.414Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df85",
+      "lower": "ground",
+      "name": "LD-D108",
+      "shape": "15 corners, 0 holes, 46.2825..46.4017 N, 15.8986..16.1994 E, 999dc2e6ac4f4f0d",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.558Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b651321af929f5df88",
+      "lower": "ground",
+      "name": "LD-D109",
+      "shape": "11 corners, 0 holes, 46.1753..46.3008 N, 16.6081..16.9403 E, 8e061f4c3424a24e",
+      "type": "danger",
+      "updated": "2024-02-08T11:05:14.690Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e15a",
+      "lower": "ground",
+      "name": "LDTR101",
+      "shape": "15 corners, 0 holes, 46.3503..46.5539 N, 16.2414..16.5567 E, 3b404f509fb430e5",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:47.879Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e15d",
+      "lower": "ground",
+      "name": "LDTR102",
+      "shape": "5 corners, 0 holes, 46.3503..46.4336 N, 16.4400..16.5606 E, 28f28e0e6b0c980a",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:47.888Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e160",
+      "lower": "ground",
+      "name": "LDTR103",
+      "shape": "29 corners, 0 holes, 46.3592..46.4761 N, 16.4400..16.8506 E, a77d2dd0befc4c07",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:58.658Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e163",
+      "lower": "ground",
+      "name": "LDTR104",
+      "shape": "20 corners, 0 holes, 46.2642..46.3758 N, 16.5139..16.8919 E, 56c13125313fff4c",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:58.650Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e166",
+      "lower": "ground",
+      "name": "LDTR105",
+      "shape": "8 corners, 0 holes, 46.2100..46.3506 N, 16.3739..16.5444 E, 021bce14a0aff8a7",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:59.574Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e169",
+      "lower": "ground",
+      "name": "LDTR106",
+      "shape": "5 corners, 0 holes, 46.2525..46.3358 N, 16.3233..16.4436 E, f088ffeff0817284",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:58.639Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e16c",
+      "lower": "ground",
+      "name": "LDTR107",
+      "shape": "11 corners, 0 holes, 46.2825..46.3983 N, 16.1869..16.4436 E, e92dcb316e79efb9",
+      "type": "tra",
+      "updated": "2025-05-12T16:51:00.665Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e16f",
+      "lower": "ground",
+      "name": "LDTR108",
+      "shape": "15 corners, 0 holes, 46.2825..46.4017 N, 15.8986..16.1994 E, 999dc2e6ac4f4f0d",
+      "type": "tra",
+      "updated": "2025-05-12T16:50:50.439Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b851321af929f5e172",
+      "lower": "ground",
+      "name": "LDTR109",
+      "shape": "11 corners, 0 holes, 46.1753..46.3008 N, 16.6081..16.9403 E, 8e061f4c3424a24e",
+      "type": "tra",
+      "updated": "2025-05-12T16:51:00.647Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b951321af929f5e294",
+      "lower": "ground",
+      "name": "LDTS101",
+      "shape": "15 corners, 0 holes, 46.3503..46.5539 N, 16.2414..16.5567 E, 3b404f509fb430e5",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.675Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4b951321af929f5e297",
+      "lower": "ground",
+      "name": "LDTS102",
+      "shape": "5 corners, 0 holes, 46.3503..46.4336 N, 16.4400..16.5606 E, 28f28e0e6b0c980a",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.593Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e29d",
+      "lower": "ground",
+      "name": "LDTS104",
+      "shape": "48 corners, 0 holes, 46.2642..46.3758 N, 16.5139..16.8851 E, c7bc5a7178edaa30",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:06.574Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e2a0",
+      "lower": "ground",
+      "name": "LDTS105",
+      "shape": "8 corners, 0 holes, 46.2100..46.3506 N, 16.3739..16.5444 E, 021bce14a0aff8a7",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.782Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e2a3",
+      "lower": "ground",
+      "name": "LDTS106",
+      "shape": "5 corners, 0 holes, 46.2525..46.3358 N, 16.3233..16.4436 E, f088ffeff0817284",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.608Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e2a6",
+      "lower": "ground",
+      "name": "LDTS107",
+      "shape": "11 corners, 0 holes, 46.2825..46.3983 N, 16.1869..16.4436 E, e92dcb316e79efb9",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.431Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e2a9",
+      "lower": "ground",
+      "name": "LDTS108",
+      "shape": "39 corners, 0 holes, 46.2825..46.4055 N, 15.8986..16.1964 E, 4e2ca73ff8f26117",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.124Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:65c4b4ba51321af929f5e2ac",
+      "lower": "ground",
+      "name": "LDTS109",
+      "shape": "19 corners, 0 holes, 46.1753..46.3008 N, 16.6081..16.9436 E, db0c6a604f2f399a",
+      "type": "tsa",
+      "updated": "2025-05-10T10:51:07.699Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "IT",
+      "id": "openaip:65e5cce7edd6012eb76a4599",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "FIEMME LIKB RMZ",
+      "shape": "8 corners, 0 holes, 46.1561..46.5661 N, 11.2992..11.7981 E, dcf6f691a1c8105a",
+      "type": "rmz",
+      "updated": "2026-07-18T19:54:44.424Z",
+      "upper": "115 FlightLevel above Standard = 3505.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "SI",
+      "id": "openaip:673de9f68fae2ed87e538e95",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LJUBLJANA 1",
+      "shape": "9 corners, 0 holes, 45.9167..46.3486 N, 14.0847..14.9828 E, 769f744563a0a7b0",
+      "type": "tma",
+      "updated": "2024-11-20T13:55:04.607Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "SI",
+      "id": "openaip:673de9f78fae2ed87e538e9b",
+      "lower": "5500 Feet above MeanSeaLevel = 1676.4 m",
+      "name": "TMA LJUBLJANA 3",
+      "shape": "8 corners, 0 holes, 46.1533..46.3833 N, 14.7053..15.1028 E, 0691a351e90f4209",
+      "type": "tma",
+      "updated": "2024-11-20T13:55:06.177Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:673de9f78fae2ed87e538ea1",
+      "lower": "2500 Feet above MeanSeaLevel = 762.0 m",
+      "name": "TMA MARIBOR 1",
+      "shape": "15 corners, 0 holes, 46.2081..46.4314 N, 15.6544..16.0744 E, abb568e41c8d1d3a",
+      "type": "tma",
+      "updated": "2024-11-20T13:55:07.676Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "frequencies": [
+        {
+          "mhz": 118.005,
+          "name": "LJUBLJANA TWR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:673de9f78fae2ed87e538eef",
+      "lower": "ground",
+      "name": "CTR LJLJ",
+      "shape": "5 corners, 0 holes, 46.0000..46.3203 N, 14.2597..14.8053 E, 5a47ee77d06886aa",
+      "type": "ctr",
+      "updated": "2024-11-20T13:55:11.602Z",
+      "upper": "4000 Feet above MeanSeaLevel = 1219.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "frequencies": [
+        {
+          "mhz": 119.205,
+          "name": "MARIBOR TWR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:673de9f78fae2ed87e538ef3",
+      "lower": "ground",
+      "name": "CTR LJMB",
+      "shape": "8 corners, 0 holes, 46.3056..46.6300 N, 15.5383..15.9194 E, 31893a40bbbaec7a",
+      "type": "ctr",
+      "updated": "2024-11-20T13:55:11.747Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
       "class": "D",
       "country": "AT",
       "id": "openaip:677d59bd13e31af480aca6c2",
@@ -270,6 +1363,305 @@
       "type": "tra",
       "updated": "2025-04-07T06:29:17.216Z",
       "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 135.43,
+          "name": "ST. GALLEN TOWER",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da61d8b0645e948e88a",
+      "lower": "ground",
+      "name": "CTR ST. GALLEN (HX)",
+      "shape": "38 corners, 0 holes, 47.4626..47.5581 N, 9.3858..9.6660 E, 6af9f8b4ebc0151b",
+      "type": "ctr",
+      "updated": "2025-03-19T20:50:11.108Z",
+      "upper": "5500 Feet above MeanSeaLevel = 1676.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 135.325,
+          "name": "SAMEDAN INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da61d8b0645e948e892",
+      "lower": "ground",
+      "name": "FIZ SAMEDAN",
+      "shape": "33 corners, 0 holes, 46.4897..46.5794 N, 9.8217..9.9408 E, 2463bf2a41eeb064",
+      "type": "rmz",
+      "updated": "2025-03-19T20:50:11.379Z",
+      "upper": "10000 Feet above MeanSeaLevel = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 135.48,
+          "name": "MIL RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da61d8b0645e948e8ac",
+      "lower": "ground",
+      "name": "LSR11 ZUOZ/S-CHANF",
+      "shape": "42 corners, 0 holes, 46.6022..46.7345 N, 9.8417..10.0425 E, 9687a8f5cd82fcd5",
+      "type": "restricted",
+      "updated": "2026-03-16T07:32:17.439Z",
+      "upper": "31500 Feet above MeanSeaLevel = 9601.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 135.48,
+          "name": "MIL RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da61d8b0645e948e8b0",
+      "lower": "7000 Feet above MeanSeaLevel = 2133.6 m",
+      "name": "LSR11A ZUOZ/S-CHANF",
+      "shape": "31 corners, 0 holes, 46.5296..46.6697 N, 9.9331..10.0850 E, a3a06f76120c3e4e",
+      "type": "restricted",
+      "updated": "2026-03-16T07:32:16.359Z",
+      "upper": "31500 Feet above MeanSeaLevel = 9601.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 124.7,
+          "name": "ZURICH INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da61d8b0645e948e8f2",
+      "lower": "100 FlightLevel above Standard = 3048.0 m",
+      "name": "LSR3 SPEER",
+      "shape": "18 corners, 0 holes, 47.0481..47.3125 N, 9.0503..9.5831 E, 62cba177109fb38c",
+      "type": "restricted",
+      "updated": "2025-03-19T20:50:16.225Z",
+      "upper": "130 FlightLevel above Standard = 3962.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 124.7,
+          "name": "ZURICH INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da71d8b0645e948e960",
+      "lower": "ground",
+      "name": "LSR52 VAL CURTEGNS",
+      "shape": "19 corners, 0 holes, 46.5067..46.5569 N, 9.4928..9.5781 E, 88fa7bd42c40fbeb",
+      "type": "restricted",
+      "updated": "2025-03-19T20:50:20.462Z",
+      "upper": "15500 Feet above MeanSeaLevel = 4724.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 124.7,
+          "name": "ZURICH INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da71d8b0645e948e964",
+      "lower": "ground",
+      "name": "LSR53 ALBULA ALPEN E",
+      "shape": "20 corners, 0 holes, 46.5800..46.6036 N, 9.8239..9.8758 E, 6452ae83b6c3ade3",
+      "type": "restricted",
+      "updated": "2025-03-19T20:50:20.670Z",
+      "upper": "15500 Feet above MeanSeaLevel = 4724.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "id": "openaip:67db2da71d8b0645e948e968",
+      "lower": "2000 Feet above AboveGround = 609.6 m",
+      "name": "LSR54 CALANDA",
+      "shape": "44 corners, 0 holes, 46.4669..47.0656 N, 9.0075..10.1611 E, 98f93df50a6eb01e",
+      "type": "glider-sector",
+      "updated": "2026-11-08T09:24:56.663Z",
+      "upper": "150 FlightLevel above Standard = 4572.0 m",
+      "upper_at_most": "15000 Feet above MeanSeaLevel = 4572.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "id": "openaip:67db2da71d8b0645e948e96e",
+      "lower": "2000 Feet above AboveGround = 609.6 m",
+      "name": "LSR56 MUTTLER",
+      "shape": "17 corners, 0 holes, 46.7983..47.0017 N, 10.3283..10.4914 E, 79e7858fdba0cd4a",
+      "type": "glider-sector",
+      "updated": "2025-03-19T20:50:21.051Z",
+      "upper": "150 FlightLevel above Standard = 4572.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 124.7,
+          "name": "ZURICH INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da71d8b0645e948e971",
+      "lower": "ground",
+      "name": "LSR57 ROSSBODEN-RHEINSAND",
+      "shape": "17 corners, 0 holes, 46.8464..46.8669 N, 9.4786..9.5047 E, a808d838c2335041",
+      "type": "restricted",
+      "updated": "2025-03-19T20:50:21.153Z",
+      "upper": "6500 Feet above MeanSeaLevel = 1981.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 135.43,
+          "name": "ST. GALLEN TOWER",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da81d8b0645e948eab1",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "TMA ST. GALLEN (HX)",
+      "shape": "6 corners, 0 holes, 47.4778..47.5350 N, 9.3206..9.4033 E, 1fb777f01eba6284",
+      "type": "tma",
+      "updated": "2025-03-19T20:50:32.369Z",
+      "upper": "5500 Feet above MeanSeaLevel = 1676.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 127.755,
+          "name": "ZUERICH TERMINAL",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da81d8b0645e948eaed",
+      "lower": "8500 Feet above MeanSeaLevel = 2590.8 m",
+      "name": "TMA ZUERICH 7",
+      "shape": "7 corners, 0 holes, 47.4400..47.7383 N, 9.2322..9.4536 E, 8334f6175e4d50ab",
+      "type": "tma",
+      "updated": "2026-03-16T06:51:24.944Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "CH",
+      "frequencies": [
+        {
+          "mhz": 119.925,
+          "name": "ALPS RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67db2da81d8b0645e948eb05",
+      "lower": "2000 Feet above AboveGround = 609.6 m",
+      "name": "TMZ NORTHEAST",
+      "shape": "33 corners, 0 holes, 47.4208..47.6592 N, 9.1247..9.5942 E, 8eb092b9ec09f2ea",
+      "type": "tmz",
+      "updated": "2025-03-19T20:50:34.971Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
     },
     {
       "activity": {
@@ -1081,6 +2473,23 @@
         "special_agreement": false
       },
       "class": "unclassified",
+      "country": "HR",
+      "id": "openaip:681b9bf312af9b68bf4ab055",
+      "lower": "ground",
+      "name": "LDTR201 CAKOVEC",
+      "shape": "60 corners, 0 holes, 46.3672..46.4172 N, 16.4641..16.5365 E, 3e0db40294f3693b",
+      "type": "tra",
+      "updated": "2025-05-13T08:42:57.294Z",
+      "upper": "140 FlightLevel above Standard = 4267.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
       "country": "AT",
       "id": "openaip:68428e9cabdf33f4484a6d1c",
       "lower": "ground",
@@ -1550,6 +2959,344 @@
         "by_notam": false,
         "on_demand": false,
         "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 131.25,
+          "name": "PAPA APP",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8d92a624140943f68fb",
+      "lower": "2000 Feet above MeanSeaLevel = 609.6 m",
+      "name": "PAPA MTMA",
+      "shape": "9 corners, 0 holes, 46.9997..47.5997 N, 17.0511..17.9833 E, 4a8f911c235ab17c",
+      "type": "tma",
+      "updated": "2026-02-17T20:05:28.765Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8d92a624140943f6933",
+      "lower": "ground",
+      "name": "SARMELLEK TMZ1",
+      "shape": "9 corners, 0 holes, 46.4497..46.8758 N, 16.9853..17.3175 E, bccd2e9267d8d195",
+      "type": "tmz",
+      "updated": "2026-02-17T20:05:30.117Z",
+      "upper": "2000 Feet above MeanSeaLevel = 609.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8d92a624140943f6937",
+      "lower": "ground",
+      "name": "SARMELLEK RMZ1",
+      "shape": "9 corners, 0 holes, 46.4497..46.8758 N, 16.9853..17.3175 E, bccd2e9267d8d195",
+      "type": "rmz",
+      "updated": "2026-02-17T20:05:30.208Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8d92a624140943f693b",
+      "lower": "2000 Feet above MeanSeaLevel = 609.6 m",
+      "name": "SARMELLEK TMZ2",
+      "shape": "6 corners, 0 holes, 46.4275..46.8758 N, 16.8200..17.3289 E, 8b04d770f64e1c86",
+      "type": "tmz",
+      "updated": "2026-02-17T20:05:30.287Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8d92a624140943f693f",
+      "lower": "2000 Feet above MeanSeaLevel = 609.6 m",
+      "name": "SARMELLEK RMZ2",
+      "shape": "6 corners, 0 holes, 46.4275..46.8758 N, 16.8200..17.3289 E, 8b04d770f64e1c86",
+      "type": "rmz",
+      "updated": "2026-02-17T20:05:30.389Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8d92a624140943f6956",
+      "lower": "ground",
+      "name": "LHR4 ZALAEGERSZEG",
+      "shape": "29 corners, 0 holes, 46.8105..46.8284 N, 16.8424..16.8686 E, ec0172deeecc58f8",
+      "type": "restricted",
+      "updated": "2026-02-17T20:05:31.119Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8d92a624140943f69bc",
+      "lower": "ground",
+      "name": "LHD50 HARKA",
+      "shape": "51 corners, 0 holes, 47.6328..47.6688 N, 16.5386..16.5919 E, 41cce5db35f5eece",
+      "type": "danger",
+      "updated": "2026-02-17T20:05:34.592Z",
+      "upper": "2300 Feet above MeanSeaLevel = 701.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8d92a624140943f69bf",
+      "lower": "ground",
+      "name": "LHD52 KOSZEG",
+      "shape": "51 corners, 0 holes, 47.3745..47.4105 N, 16.5554..16.6085 E, de4b0dc477eac6e5",
+      "type": "danger",
+      "updated": "2026-02-17T20:05:34.686Z",
+      "upper": "2300 Feet above MeanSeaLevel = 701.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8d92a624140943f69c2",
+      "lower": "ground",
+      "name": "LHD53 NADASD",
+      "shape": "51 corners, 0 holes, 46.9662..47.0022 N, 16.5556..16.6083 E, 0718d484867fa727",
+      "type": "danger",
+      "updated": "2026-02-17T20:05:34.798Z",
+      "upper": "2300 Feet above MeanSeaLevel = 701.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8d92a624140943f69dd",
+      "lower": "4000 Feet above MeanSeaLevel = 1219.2 m",
+      "name": "LHTRA21D WEST DELTA",
+      "shape": "6 corners, 0 holes, 45.9247..46.4494 N, 17.0206..17.9781 E, 91b9d8c5f4c721dc",
+      "type": "tra",
+      "updated": "2026-02-17T20:05:35.759Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8da2a624140943f69e0",
+      "lower": "ground",
+      "name": "LHTRA21E WEST ECHO",
+      "shape": "6 corners, 0 holes, 45.9247..46.4494 N, 17.0206..17.9781 E, 91b9d8c5f4c721dc",
+      "type": "tra",
+      "updated": "2026-02-17T20:05:35.863Z",
+      "upper": "4000 Feet above MeanSeaLevel = 1219.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8da2a624140943f69ec",
+      "lower": "ground",
+      "name": "LHTRA51A KENYERI ALPHA",
+      "shape": "6 corners, 0 holes, 47.1092..47.5228 N, 16.9306..17.4036 E, 703515bc36b60b61",
+      "type": "tra",
+      "updated": "2026-02-17T20:05:36.276Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8da2a624140943f6a8b",
+      "lower": "ground",
+      "name": "LHSDZLHFM FERTOSZENTMIKLOS",
+      "shape": "7 corners, 0 holes, 47.5561..47.5992 N, 16.7589..16.8714 E, 32d21953845b975f",
+      "type": "aerial-sporting",
+      "updated": "2026-02-17T20:05:41.475Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8da2a624140943f6ada",
+      "lower": "ground",
+      "name": "SARMELLEK TIZ1",
+      "shape": "9 corners, 0 holes, 46.4497..46.8758 N, 16.9853..17.3175 E, bccd2e9267d8d195",
+      "type": "tiz",
+      "updated": "2026-02-17T20:05:43.967Z",
+      "upper": "2000 Feet above MeanSeaLevel = 609.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "HU",
+      "frequencies": [
+        {
+          "mhz": 134.585,
+          "name": "BALATON INFO",
+          "primary": false
+        }
+      ],
+      "id": "openaip:6994c8da2a624140943f6ade",
+      "lower": "2000 Feet above MeanSeaLevel = 609.6 m",
+      "name": "SARMELLEK TIZ2",
+      "shape": "6 corners, 0 holes, 46.4275..46.8758 N, 16.8200..17.3289 E, 8b04d770f64e1c86",
+      "type": "tiz",
+      "updated": "2026-02-17T20:05:44.062Z",
+      "upper": "9500 Feet above MeanSeaLevel = 2895.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "HU",
+      "id": "openaip:6994c8db2a624140943f6b31",
+      "lower": "ground",
+      "name": "LHB20 DÉL-HANSÁG",
+      "shape": "11 corners, 0 holes, 47.6464..47.7186 N, 17.0200..17.2286 E, c21e7d9b166fb00f",
+      "type": "overflight-restriction",
+      "updated": "2026-02-17T20:05:46.828Z",
+      "upper": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "SI",
+      "id": "openaip:6a0236a9d5190c10e716a9d8",
+      "lower": "ground",
+      "name": "PTUJ ATZ/RMZ",
+      "shape": "6 corners, 0 holes, 46.4000..46.4550 N, 15.9347..16.0369 E, feb158bd8459f151",
+      "type": "atz",
+      "updated": "2026-05-11T20:07:27.015Z",
+      "upper": "2700 Feet above MeanSeaLevel = 823.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
         "special_agreement": true
       },
       "class": "unclassified",
@@ -1562,6 +3309,183 @@
       "type": "tra",
       "updated": "2026-08-28T05:31:34.144Z",
       "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc615",
+      "lower": "ground",
+      "name": "GC11 KRVAVEC",
+      "shape": "7 corners, 0 holes, 46.2514..46.3486 N, 14.3308..14.7053 E, e34dbf0d4add402c",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.849Z",
+      "upper": "4500 Feet above MeanSeaLevel = 1371.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc618",
+      "lower": "5500 Feet above MeanSeaLevel = 1676.4 m",
+      "name": "GC14 MENINA",
+      "shape": "9 corners, 0 holes, 46.1528..46.3819 N, 14.7053..15.1039 E, 48d7283e1d23da66",
+      "type": "glider-sector",
+      "updated": "2026-10-14T18:11:48.689Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc619",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "GC15 AREH",
+      "shape": "9 corners, 0 holes, 46.3933..46.6336 N, 15.4194..15.5794 E, a26b42843f690631",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.872Z",
+      "upper": "7500 Feet above MeanSeaLevel = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc61a",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "GC16 OPLOTNICA",
+      "shape": "5 corners, 0 holes, 46.2658..46.4233 N, 15.4125..15.5792 E, e1b5df1a5374abb0",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.879Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc61b",
+      "lower": "ground",
+      "name": "GC17 PRAGERSKO",
+      "shape": "6 corners, 0 holes, 46.3056..46.4847 N, 15.5383..15.9194 E, d89d4f2c7f72f06f",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.885Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc61d",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "GC19 BOČ",
+      "shape": "22 corners, 0 holes, 46.2192..46.4233 N, 15.5383..15.7072 E, ac79a56faed2352a",
+      "type": "glider-sector",
+      "updated": "2026-10-14T18:11:48.643Z",
+      "upper": "6000 Feet above MeanSeaLevel = 1828.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc61f",
+      "lower": "ground",
+      "name": "GC21 MARIBOR",
+      "shape": "7 corners, 0 holes, 46.4578..46.6300 N, 15.5533..15.8200 E, 69d184ae0533cbca",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.907Z",
+      "upper": "7500 Feet above MeanSeaLevel = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc620",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "GC22 PTUJ",
+      "shape": "8 corners, 0 holes, 46.3683..46.7075 N, 15.7853..16.2683 E, 32805fa9c74cd9c3",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.912Z",
+      "upper": "7500 Feet above MeanSeaLevel = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "SI",
+      "id": "openaip:6acfbe70c1511651879cc621",
+      "lower": "ground",
+      "name": "GC23 HOČE",
+      "shape": "7 corners, 0 holes, 46.4089..46.5533 N, 15.5383..15.8761 E, 28041e162c9813f7",
+      "type": "glider-sector",
+      "updated": "2026-10-14T17:40:10.919Z",
+      "upper": "7500 Feet above MeanSeaLevel = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": true,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "SK",
+      "frequencies": [
+        {
+          "mhz": 134.475,
+          "name": "BRATISLAVA RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:6adf238ed3faa855f6027d88",
+      "lower": "ground",
+      "name": "ZUZANA",
+      "shape": "5 corners, 0 holes, 48.4222..48.7583 N, 17.0083..17.5917 E, 548ebe57031b9076",
+      "type": "military-training-area",
+      "updated": "2026-10-26T09:55:49.200Z",
+      "upper": "660 FlightLevel above Standard = 20116.8 m"
     },
     {
       "activity": {
@@ -1637,13 +3561,13 @@
     }
   ],
   "report": {
-    "airspaces": 88,
+    "airspaces": 192,
     "budget_exhausted": false,
     "duplicates": 0,
     "failures": [],
     "newest_change": "2026-11-18T10:29:12.552Z",
     "rejected": [],
-    "requests": 2,
+    "requests": 8,
     "skipped": [],
     "source": "openaip"
   }

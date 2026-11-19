@@ -2,6 +2,7 @@
 //! and compares the result with golden files, then flies through the
 //! result with the warning engine.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
@@ -21,6 +22,7 @@ use venti_sources_openaip::{OpenAip, fixtures};
 
 const GERMANY: &str = "https://storage.openaip.net/openaip-system-exports/de_asp.geojson";
 const AUSTRIA: &str = "https://storage.openaip.net/openaip-system-exports/at_asp.geojson";
+const SLOVAKIA: &str = "https://storage.openaip.net/openaip-system-exports/sk_asp.geojson";
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -152,9 +154,9 @@ fn a_recorded_run_matches_the_golden_file() {
 
     let output = run(&fetch, &archive);
 
-    // One request per country, both archived.
-    assert_eq!(output.report.requests, 2);
-    assert_eq!(archive.stored().len(), 2);
+    // One request per country, each archived.
+    assert_eq!(output.report.requests, 8);
+    assert_eq!(archive.stored().len(), 8);
     assert!(output.report.failures.is_empty());
     assert!(
         output.report.skipped.is_empty(),
@@ -168,8 +170,18 @@ fn a_recorded_run_matches_the_golden_file() {
     );
     assert_eq!(output.report.duplicates, 0);
     assert!(output.report.is_healthy());
-    // Every feature of both files became an airspace.
-    assert_eq!(output.airspaces.len(), 41 + 47);
+    // Every feature of every file became an airspace.
+    let from = |country: &str| {
+        let of_country = |a: &&Airspace| a.country.as_deref() == Some(country);
+        output.airspaces.iter().filter(of_country).count()
+    };
+    let per_country = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"].map(from);
+    assert_eq!(per_country, [41, 47, 13, 25, 15, 27, 16, 8]);
+    assert_eq!(output.airspaces.len(), 192);
+    // The countries of the records are the countries the manifest names,
+    // which is what an answer says its airspace is of.
+    let manifest = OpenAip::new().manifest().countries.clone();
+    assert_eq!(manifest, ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]);
 
     for airspace in &output.airspaces {
         assert_eq!(airspace.validate(), Ok(()), "{}", airspace.name);
@@ -177,7 +189,13 @@ fn a_recorded_run_matches_the_golden_file() {
         // The files carry no date; the time of the fetch stands in.
         assert_eq!(airspace.validity.file_date, Some(fixtures::recorded_at()));
         assert!(airspace.validity.updated.is_some());
-        assert!(matches!(airspace.country.as_deref(), Some("DE" | "AT")));
+        let country = airspace.country.as_ref().unwrap();
+        assert!(manifest.contains(country), "{}: {country}", airspace.name);
+        // Every one reaches into the first region's box, or the run would
+        // not have kept it.
+        let bounds = airspace.bounds();
+        assert!(bounds.north() >= 46.3 && bounds.south() <= 48.5);
+        assert!(bounds.east() >= 9.4 && bounds.west() <= 17.2);
     }
 
     assert_golden(&golden("recorded_run.json"), &summary(&output));
@@ -250,15 +268,92 @@ fn what_openaip_publishes_arrives_in_the_record() {
     assert_eq!(munich_e.lower, feet(VerticalReference::AboveGround, 1000.0));
 }
 
+/// The recorded files with one country's replaced, or left out.
+fn recorded_but(url: &str, body: Option<Vec<u8>>) -> FixtureFetch {
+    let others = fixtures::recorded()
+        .into_iter()
+        .filter(|(recorded, _)| recorded != url)
+        .fold(FixtureFetch::new(), |fetch, (recorded, body)| {
+            fetch.with(recorded, body)
+        });
+    match body {
+        Some(body) => others.with(url, body),
+        None => others,
+    }
+}
+
+#[test]
+fn every_country_is_read_like_the_first_two() {
+    let output = recorded_run();
+
+    // Switzerland: the control zone of St. Gallen-Altenrhein, and a
+    // ceiling that may be raised.
+    let altenrhein = named(&output, "CTR ST. GALLEN (HX)");
+    assert_eq!(altenrhein.country.as_deref(), Some("CH"));
+    assert_eq!(altenrhein.airspace_type, AirspaceType::Ctr);
+    assert_eq!(altenrhein.class, AirspaceClass::D);
+    assert_eq!(altenrhein.lower, VerticalLimit::ground());
+    assert!(
+        output
+            .airspaces
+            .iter()
+            .any(|a| a.country.as_deref() == Some("CH") && a.upper_at_most.is_some())
+    );
+
+    // What the warning table makes of each country's sample. It has rules
+    // of its own for Germany and Austria only; the others go by type and
+    // class. None of the recorded airspaces is of a type the adapter does
+    // not know.
+    let table = PolicyTable::paraglider();
+    let mut counted: BTreeMap<&str, [usize; 3]> = BTreeMap::new();
+    for airspace in &output.airspaces {
+        assert!(
+            !matches!(airspace.airspace_type, AirspaceType::Other(_)),
+            "{}",
+            airspace.name
+        );
+        let counts = counted
+            .entry(airspace.country.as_deref().unwrap())
+            .or_default();
+        match table.policy_for(airspace) {
+            Policy::Avoid => counts[0] += 1,
+            Policy::Caution => counts[1] += 1,
+            Policy::Free => counts[2] += 1,
+        }
+    }
+    // Avoid, caution, free.
+    let expected = [
+        ("AT", [28, 9, 10]),
+        ("CH", [11, 0, 2]),
+        ("DE", [29, 2, 10]),
+        ("HR", [27, 0, 0]),
+        ("HU", [12, 4, 0]),
+        ("IT", [16, 9, 0]),
+        ("SI", [6, 0, 9]),
+        ("SK", [8, 0, 0]),
+    ];
+    assert_eq!(counted, BTreeMap::from(expected));
+
+    // A temporary reserved airspace opens the air in Austria and closes it
+    // everywhere else, for all the table knows.
+    let reserved = |country: &str| {
+        output
+            .airspaces
+            .iter()
+            .find(|a| a.airspace_type == AirspaceType::Tra && a.country.as_deref() == Some(country))
+    };
+    assert_eq!(table.policy_for(reserved("AT").unwrap()), Policy::Free);
+    assert_eq!(table.policy_for(reserved("HR").unwrap()), Policy::Avoid);
+    assert_eq!(table.policy_for(reserved("HU").unwrap()), Policy::Avoid);
+}
+
 #[test]
 fn damaged_airspaces_are_reported_and_the_rest_is_kept() {
     // Eight airspaces of the recorded Austrian file, seven of them damaged:
     // a ring of two corners, a ceiling in an unknown unit, an unknown type,
     // a missing identifier, a shape that is not a polygon, a corner off the
     // globe and a floor above its ceiling.
-    let fetch = FixtureFetch::new()
-        .with(GERMANY, fixture("de_asp.geojson"))
-        .with(AUSTRIA, fixture("at_asp_damaged.geojson"));
+    let fetch = recorded_but(AUSTRIA, Some(fixture("at_asp_damaged.geojson")));
 
     let output = run(&fetch, &MemoryArchive::default());
     let report = &output.report;
@@ -294,8 +389,8 @@ fn damaged_airspaces_are_reported_and_the_rest_is_kept() {
     // The floor above the ceiling was caught by the pipeline's validation.
     assert_eq!(report.rejected.len(), 1);
     assert_eq!(report.rejected[0].name, "TMA LOWI 1");
-    // Germany's 41 and three of Austria's eight.
-    assert_eq!(output.airspaces.len(), 41 + 3);
+    // Three of Austria's eight, and the other countries whole.
+    assert_eq!(output.airspaces.len(), 192 - 47 + 3);
     // Every request worked, so the run may replace the set before it; the
     // report says what is missing.
     assert!(report.is_healthy());
@@ -305,24 +400,26 @@ fn damaged_airspaces_are_reported_and_the_rest_is_kept() {
 
 #[test]
 fn a_file_that_is_not_geojson_fails_its_country_and_the_run() {
-    let fetch = FixtureFetch::new()
-        .with(GERMANY, fixture("de_asp.geojson"))
-        .with(AUSTRIA, b"<html>503 Service Unavailable</html>".to_vec());
+    let broken = b"<html>503 Service Unavailable</html>".to_vec();
+    let fetch = recorded_but(AUSTRIA, Some(broken));
 
     let output = run(&fetch, &MemoryArchive::default());
 
     assert_eq!(output.report.failures.len(), 1);
     assert_eq!(output.report.failures[0].tag, "AT");
-    // Germany's airspace is delivered, but a set with a country missing
-    // must not replace a complete one.
-    assert_eq!(output.airspaces.len(), 41);
+    // The other countries' airspace is delivered, but a set with a country
+    // missing must not replace a complete one.
+    assert_eq!(output.airspaces.len(), 192 - 47);
     assert!(!output.report.is_healthy());
 
-    // A country that cannot be fetched at all is the same.
-    let fetch = FixtureFetch::new().with(GERMANY, fixture("de_asp.geojson"));
-    let output = run(&fetch, &MemoryArchive::default());
-    assert_eq!(output.report.failures[0].error, "HTTP status 404");
-    assert!(!output.report.is_healthy());
+    // A country that cannot be fetched at all is the same, whichever it is:
+    // the answer would go on naming it among its countries.
+    for missing in [GERMANY, SLOVAKIA] {
+        let output = run(&recorded_but(missing, None), &MemoryArchive::default());
+        assert_eq!(output.report.failures.len(), 1);
+        assert_eq!(output.report.failures[0].error, "HTTP status 404");
+        assert!(!output.report.is_healthy());
+    }
 }
 
 #[test]
@@ -442,46 +539,13 @@ fn the_warning_engine_flies_through_the_recorded_airspace() {
     );
 }
 
-/// Reads whole country files, when a folder that holds them is named.
-///
-/// The recorded fixtures are a small part of two countries. To check the
-/// adapter against everything openAIP publishes for them, fetch
-/// `de_asp.geojson` and `at_asp.geojson` into a folder and run
-///
-/// ```text
-/// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture
-/// ```
-///
-/// The files are not part of the repository.
-#[test]
-fn whole_country_files_are_read_when_given() {
-    let Some(folder) = std::env::var_os("VENTI_OPENAIP_DIR") else {
-        return;
-    };
-    let folder = PathBuf::from(folder);
-    let read = |name: &str| {
-        let path = folder.join(name);
-        std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-    };
-    let fetch = FixtureFetch::new()
-        .with(GERMANY, read("de_asp.geojson"))
-        .with(AUSTRIA, read("at_asp.geojson"));
-    // Both countries whole, not only the first region's box.
-    let everywhere = PlanCtx {
-        now: fixtures::recorded_at(),
-        area: BoundingBox::new(45.0, 5.0, 56.0, 18.0).unwrap(),
-    };
-    let output = block_on(run_airspace(
-        &OpenAip::new(),
-        &fetch,
-        &MemoryArchive::default(),
-        &everywhere,
-        &RunOptions::default(),
-    ));
-
+/// Prints what a run delivered, country by country: how many airspaces,
+/// what the paraglider's warning table makes of them, and which kinds
+/// there are.
+fn survey(output: &AirspaceRunOutput) {
     let report = &output.report;
     println!(
-        "{} airspaces, {} skipped, {} rejected, {} duplicates, newest change {:?}",
+        "  {} airspaces, {} skipped, {} rejected, {} duplicates, newest change {:?}",
         report.airspaces,
         report.skipped.len(),
         report.rejected.len(),
@@ -495,20 +559,97 @@ fn whole_country_files_are_read_when_given() {
         println!("  rejected {}: {}", rejected.name, rejected.reason);
     }
     let table = PolicyTable::paraglider();
-    for policy in [Policy::Avoid, Policy::Caution, Policy::Free] {
-        let count = output
-            .airspaces
-            .iter()
-            .filter(|airspace| table.policy_for(airspace) == policy)
-            .count();
-        println!("  {policy:?}: {count}");
+    let mut countries: BTreeMap<&str, Vec<&Airspace>> = BTreeMap::new();
+    for airspace in &output.airspaces {
+        let country = airspace.country.as_deref().unwrap_or("none");
+        countries.entry(country).or_default().push(airspace);
     }
-    let unknown = output
-        .airspaces
-        .iter()
-        .filter(|airspace| matches!(airspace.airspace_type, AirspaceType::Other(_)))
-        .count();
-    println!("  of a type the adapter does not know: {unknown}");
+    for (country, airspaces) in &countries {
+        let count = |policy: Policy| {
+            let with_policy = |a: &&&Airspace| table.policy_for(a) == policy;
+            airspaces.iter().filter(with_policy).count()
+        };
+        let unknown = |a: &&&Airspace| matches!(a.airspace_type, AirspaceType::Other(_));
+        let corners: usize = airspaces.iter().map(|a| a.geometry.exterior().len()).sum();
+        println!(
+            "  {country}: {} airspaces, {corners} corners; {} avoid, {} caution, {} free; \
+             {} of a type the adapter does not know",
+            airspaces.len(),
+            count(Policy::Avoid),
+            count(Policy::Caution),
+            count(Policy::Free),
+            airspaces.iter().filter(unknown).count()
+        );
+        let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+        for airspace in airspaces {
+            let kind = format!(
+                "{:?} in class {:?}: {:?}",
+                airspace.airspace_type,
+                airspace.class,
+                table.policy_for(airspace)
+            );
+            *kinds.entry(kind).or_default() += 1;
+        }
+        for (kind, count) in kinds {
+            println!("      {count:4} {kind}");
+        }
+    }
+}
+
+/// Reads whole country files, when a folder that holds them is named.
+///
+/// The recorded fixtures are a small part of each country. To check the
+/// adapter against everything openAIP publishes for the countries of its
+/// manifest, fetch `<country>_asp.geojson` for each of them into a folder
+/// and run
+///
+/// ```text
+/// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture
+/// ```
+///
+/// It prints, for every country whole and for what of it reaches into the
+/// first region's box, what the warning table makes of the airspace. The
+/// numbers of 2026-11-19 are in `docs/airspace.md`. The files are not part
+/// of the repository.
+#[test]
+fn whole_country_files_are_read_when_given() {
+    let Some(folder) = std::env::var_os("VENTI_OPENAIP_DIR") else {
+        return;
+    };
+    let folder = PathBuf::from(folder);
+    let source = OpenAip::new();
+    let fetch = source
+        .plan(&ctx())
+        .into_iter()
+        .fold(FixtureFetch::new(), |fetch, request| {
+            let name = request.url.rsplit('/').next().unwrap().to_owned();
+            let path = folder.join(&name);
+            let body = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            fetch.with(request.url, body)
+        });
+    // Every country whole, not only the first region's box.
+    let everywhere = PlanCtx {
+        now: fixtures::recorded_at(),
+        area: BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap(),
+    };
+    let run_over = |ctx: &PlanCtx| {
+        let archive = MemoryArchive::default();
+        block_on(run_airspace(
+            &source,
+            &fetch,
+            &archive,
+            ctx,
+            &RunOptions::default(),
+        ))
+    };
+    println!("The first region's box:");
+    let in_the_box = run_over(&ctx());
+    survey(&in_the_box);
+    assert!(in_the_box.report.is_healthy());
+    println!("Every country whole:");
+    let output = run_over(&everywhere);
+    survey(&output);
+    let report = &output.report;
 
     // openAIP publishes the same airspace as OpenAir files. Where the
     // folder holds them too (`de_asp_v2.txt`, `at_asp_v2.txt`), the two
@@ -524,10 +665,16 @@ fn whole_country_files_are_read_when_given() {
             limit_text(&airspace.upper)
         )
     };
-    let mut from_geojson: Vec<String> = output.airspaces.iter().map(describe).collect();
+    let mut from_geojson: Vec<String> = output
+        .airspaces
+        .iter()
+        .filter(|a| matches!(a.country.as_deref(), Some("DE" | "AT")))
+        .map(describe)
+        .collect();
     let mut from_openair = Vec::new();
     for name in ["de_asp_v2.txt", "at_asp_v2.txt"] {
         let Ok(bytes) = std::fs::read(folder.join(name)) else {
+            assert!(report.is_healthy());
             return;
         };
         let options = venti_airspace::openair::Options::new(OpenAip::new().manifest().id.clone());

@@ -1,9 +1,9 @@
 //! The `dev` subcommand: the same API over recorded data and a demo account.
 //!
 //! No network and no database. The real adapters run once over the payloads
-//! recorded in their crates (wind stations, and the airspace of the northern
-//! Alps), the result goes into an in-memory store, and the real router
-//! serves it. One account is already there, with three
+//! recorded in their crates (wind stations, and a sample of the first
+//! region's airspace), the result goes into an in-memory store, and the
+//! real router serves it. One account is already there, with three
 //! flights made from the sample flight; its handle, password and a session
 //! token are fixed and written down in `docs/api.md`. Client work and UI
 //! tests run against this.

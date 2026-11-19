@@ -18,9 +18,10 @@ east = 17.2
 sources = ["dwd-10min", "geosphere-tawes"]
 priority = ["dwd-10min", "geosphere-tawes"]
 
-# Airspace of Germany and Austria from openAIP, which may not be used
-# commercially and stays a layer of its own. The box above also takes in
-# parts of Switzerland, Liechtenstein, Italy, Slovenia, Hungary, Slovakia and
-# Czechia: their airspace is not fetched yet.
+# Airspace from openAIP, which may not be used commercially and stays a
+# layer of its own. Its adapter fetches every country the box above takes in:
+# Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and
+# Slovakia. Liechtenstein lies in the box too and has no file of its own at
+# openAIP.
 [airspace]
 sources = ["openaip"]

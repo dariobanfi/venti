@@ -281,7 +281,7 @@ docker compose exec server venti-server ingest /app/regions/alps-de-at/region.to
 docker compose exec server venti-server ingest /app/regions/alps-de-at/region.toml --source openaip
 ```
 
-Airspace is fetched once a day, and a run that fails is tried again a day later, not sooner. While it fails the server keeps serving the last complete set, and `/v1/airspace` says when that was fetched. After two failed days `/v1/health` reports the source as stale. Restarting the server does not bring the next run forward: it waits out what is left of the day. An airspace the provider's file holds and the server could not read is named in the log (`left out`, `rejected`); the run stays healthy, and that airspace is missing from what pilots get.
+Airspace is fetched once a day, one file per country, and a run in which any file did not arrive fails as a whole; the hand run above names the country. A run that fails is tried again a day later, not sooner. While it fails the server keeps serving the last complete set, and `/v1/airspace` says when that was fetched. After two failed days `/v1/health` reports the source as stale. Restarting the server does not bring the next run forward: it waits out what is left of the day. An airspace the provider's file holds and the server could not read is named in the log (`left out`, `rejected`); the run stays healthy, and that airspace is missing from what pilots get.
 
 ## Settings
 

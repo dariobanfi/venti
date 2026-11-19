@@ -15,16 +15,16 @@ Everything is advisory. A record names its source and carries the age of its dat
 | `venti-domain` | The canonical record, `Airspace`, with its checks |
 | `venti-airspace` | The OpenAir reader, the index with its questions, the warning table and the warning engine. Depends on `venti-domain` only |
 | `venti-sources` | `AirspaceSource`, the adapter trait for providers, and `run_airspace`, the pipeline that runs one |
-| `venti-sources-openaip` | The first provider: openAIP's airspace of Germany and Austria. See [data-sources.md](data-sources.md#airspace) |
+| `venti-sources-openaip` | The first provider: openAIP's airspace of the eight countries the first region's box takes in. See [data-sources.md](data-sources.md#airspace) |
 | `venti-store`, `venti-server` | Keep each source's airspace as one whole set and serve it at `GET /v1/airspace`. See [api.md](api.md#get-v1airspacebboxwestsoutheastnorth) |
 
 A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider. The other rows are server-side: they produce the records and hand them out.
 
-**On the server (since 2026-11-19).** The server fetches openAIP's files for Germany and Austria once a day, keeps what reaches into its regions as one set, and serves it in the canonical record, the one described below and the one the apps already read from OpenAir files. Three rules of this document continue there:
+**On the server (since 2026-11-19).** The server fetches openAIP's files once a day for the eight countries its first region reaches into (Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and Slovakia), keeps what reaches into its regions as one set, and serves it in the canonical record, the one described below and the one the apps already read from OpenAir files. Three rules of this document continue there:
 
 - *No half set.* The stored set is replaced only by a run in which every file arrived. A run that got Germany and not Austria changes nothing, and the answer keeps saying when the set it serves was fetched.
 - *Source and age travel with the data.* An answer is in layers by source. Each layer says when the server fetched it and how old the source's files are, each record says the date of its own file, and the answer carries the source's credit and openAIP's notice that the data is not certified.
-- *No data is not "no airspace".* The server holds Germany and Austria, and of those only what reaches into its regions' box. Every layer of an answer says so itself: the box inside which the set is whole and the countries it holds ([api.md](api.md#where-a-layer-is-whole)). Outside that box an empty answer says nothing about the air, and inside it nothing about a country that is not named.
+- *No data is not "no airspace".* The server holds eight countries' airspace, and of those only what reaches into its regions' box. Every layer of an answer says so itself: the box inside which the set is whole and the countries it holds ([api.md](api.md#where-a-layer-is-whole)). Outside that box an empty answer says nothing about the air, and inside it nothing about a country that is not named.
 
 No app reads the endpoint yet; the pilot's own OpenAir files remain the app's only airspace until the core does.
 
@@ -177,7 +177,7 @@ The table is data: `PARAGLIDER_RULES` in `crates/airspace/src/policy.rs`, read f
 |---|---|---|---|
 | Glider sector | Free | It opens airspace to gliders when activated and closes nothing. A paraglider may use an active sector only with an aviation radio. Whether it is active is unknown, so the airspace it lies in keeps warning | DHV, Segelflugsektoren: "Luftsportgeräte dürfen Segelflugsektoren mitbenutzen, wenn sie mit einem Sprechfunkgerät mit dem erforderlichen Kanalraster ausgerüstet sind" [1] |
 | Temporary reserved airspace (TRA) in Austria | Free | Class C or D airspace that becomes class G while activated, for gliders, hang gliders and paragliders among others. It closes nothing; the control zone or terminal area it lies in keeps warning | AIP Austria ENR 5.5: "Temporary reserved airspaces are Class C or D airspaces of defined vertical and horizontal extent which are temporarily classified as Class G airspace during the period of the respective activation" [4] |
-| Flight information region, FIS and ACC sector, VFR sector and route, transponder code and recommendation areas | Free | Boundaries of a service, not restrictions | *To verify* for each; none restricts entry by its definition |
+| VFR sector and route, transponder code and recommendation areas | Free | Boundaries of a service, not restrictions | *To verify* for each; none restricts entry by its definition |
 | Control zone (CTR), also military | Avoid | Entry only with a clearance by radio | DHV: "D: (CTR) Kontrollzone. Einflug nur mit Freigabe über Funk > nix für uns" [3]; AIP Austria ENR 1.4: class D, VFR "Subject to an ATC clearance: YES" [5] |
 | Restricted area (ED-R, LO-R), prohibited area, closed to gliders | Avoid | Restricted while active, and the app does not know when | DHV: "ED-R ... Aktivierung erfragen (Tel/Funk) ... Falls nicht möglich: Grundsätzlich weg bleiben" [2] |
 | Danger area (ED-D, LO-D) | Avoid | Not closed in law, but the DHV's advice for Austria is to stay out unless known inactive. XCTrack draws these and does not warn; Venti warns | DHV, Austria: "LO-R / LO-D ... Aktivierung per Funk erfragen, falls nicht möglich: Grundsätzlich weg bleiben" [6] |
@@ -191,6 +191,7 @@ The table is data: `PARAGLIDER_RULES` in `crates/airspace/src/policy.rs`, read f
 | Alert and warning areas, military routes, feeding routes | Caution | A hazard, not a closure | *To verify* |
 | Overflight restriction, protected area | Caution | Nature protection with rules that differ per area: some forbid only take-off and landing, some all flying below a height. The record's remarks say which | openAIP's remarks on the Austrian national parks; the laws behind them *to verify* |
 | Anything else in class A, B, C or D: terminal areas, control areas, plain airspace | Avoid | A clearance, a radio and a transponder are needed | DHV: "Wo wir nicht fliegen dürfen: C/D/TMZ/ED-R ... Luftraum C/D: IFR, VFR, Freigabe erforderlich; Flugfunk und Transponderverpflichtung; Daher: Grundsätzlich weg bleiben" [2]; AIP Austria ENR 1.4 [5] |
+| Flight information region, also upper; FIS and ACC sector, where the record carries no class or one from E to G | Free | Boundaries of a service, not restrictions. This row stands below the one for class A to D on purpose: a source may publish controlled airspace as a record of the region it belongs to, and then the class decides. Slovakia's class C above 8000 ft is "FIR BRATISLAVA" in openAIP's data (class C, 8000 ft above sea level to FL 660, read in the file of 2026-11-19). Until 2026-11-19 the table called every such record free and would have let a pilot climb into it unwarned | None restricts entry by its definition. That Slovakia's airspace is class C from 8000 ft is openAIP's word; *to verify* in the AIP of the Slovak Republic |
 | Anything else in class E or G | Free | Open to flights by visual rules without a clearance | DHV: "Wo wir fliegen dürfen: G und E" [2]; AIP Austria ENR 1.4: class E and G, VFR "Subject to an ATC clearance: NO" [5] |
 | Anything else in class F | Caution | Advisory airspace. Germany and Austria publish none; one Austrian terminal area carries it in openAIP's data | *To verify* |
 | No class and no known type | Avoid | When in doubt, warn | |
@@ -206,6 +207,35 @@ Sources, all read on 2026-11-19:
 7. Austro Control, AIP Austria, [ENR 2.2](https://eaip.austrocontrol.at/lo/261030/PART_2/LO_ENR_2_2_en.pdf), same edition.
 
 The DHV's seminars are teaching material, not law, and the German rules were not read in the AIP itself, which DFS sells. *To verify* against the AIP VFR Germany. Only rule texts of the Austrian AIP were read; none of Austro Control's airspace data was fetched or used.
+
+### Outside Germany and Austria
+
+The server's airspace reaches into six more countries: Switzerland, Italy, Slovenia, Croatia, Hungary and Slovakia. **The table has no rule written for any of them, and nothing of their air law was read.** A pilot there gets the rows that name no country: an airspace is judged by its type, and by its class where the type decides nothing. The one row that is Austria's alone does not apply, so a temporary reserved airspace in Croatia or Hungary is one to avoid, as in Germany.
+
+What that comes to for the airspace that reaches into the first region's box, on openAIP's files of 2026-11-19:
+
+| Country | Airspaces | Avoid | Caution | Free | What they are |
+|---|---|---|---|---|---|
+| Austria | 257 | 133 | 47 | 77 | By the table above |
+| Germany | 87 | 50 | 9 | 28 | By the table above |
+| Italy | 45 | 31 | 12 | 2 | Avoid: control areas in class D, restricted, prohibited and danger areas, radio and transponder zones, an aerodrome traffic zone. Caution: nature parks, an aerial sporting area. Free: the flight information region, which carries class G, and its sector |
+| Croatia | 33 | 33 | 0 | 0 | Temporary reserved and segregated areas, danger areas, terminal areas in class C and D, one more airspace in class C, an aerodrome traffic zone |
+| Slovenia | 26 | 12 | 0 | 14 | Avoid: control zones, terminal areas in class C and D, an aerodrome traffic zone. Free: eleven glider sectors, two terminal areas and a control area in class E |
+| Hungary | 21 | 14 | 7 | 0 | Avoid: restricted, danger and temporary reserved areas, radio and transponder zones, a control area in class C, a military terminal area. Caution: nature areas, traffic information zones, an aerial sporting area |
+| Switzerland | 20 | 14 | 0 | 6 | Avoid: restricted areas, the control zone and terminal area of St. Gallen-Altenrhein, a terminal area of Zurich, the control areas above the Alps, Samedan's radio zone and a transponder zone. Free: four glider areas, the flight information region and its sector |
+| Slovakia | 17 | 15 | 0 | 2 | Avoid: restricted areas, a danger area, Bratislava's control zone and three terminal areas in class C, the class C airspace above 8000 ft, a military training area, a temporary reserved area. Free: the flight information region and its sector |
+
+None of these airspaces is of a type the adapter does not know. `VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture` prints the same count, kind by kind, from freshly fetched files, for the box and for the eight countries whole.
+
+What was checked, and what was not:
+
+- *Checked in the data, and the table changed for it.* Slovakia's airspace above 8000 ft is class C, and openAIP publishes it as a record of the flight information region. The table called every such region free. It now goes by the class where a region carries one from A to D; see the table above. No record of the other seven countries is affected: their regions and sectors carry class G or none.
+- *Checked in the data.* The Slovenian glider sectors carry class C, D or E, which is the class of the airspace they open. Each of the eleven in the box lies inside a terminal area that is a record of its own (TMA Ljubljana or TMA Maribor; three also in Maribor's control zone). Calling the sectors free therefore silences nothing: the airspace around them keeps warning, as in Germany.
+- *Checked in the data.* Hungary's military terminal areas come without a class (one in the box, eleven in the country). They fall to the table's last row and are avoided, which is the safe reading. The reason the pilot is shown for that row, that the source gives neither a class nor a known type, is not exact for them: the type is known.
+- *Not checked against any primary source:* the air law of the six countries. For Germany and Austria every row above names what it rests on. For the others no AIP was read and no federation's guidance. The rows by class follow what the classes mean everywhere (a clearance in C and D, none in E and G), and where a row is in doubt it warns. *To verify* for each country: that class E and G are open to a paraglider without a radio; what a paraglider may do in an aerodrome traffic zone (the table says avoid) and in a traffic information zone (caution); whether a temporary reserved or segregated area is ever one a paraglider may use, as it is in Austria (the table says avoid, which costs warnings and no safety); and what the areas openAIP files as glider sectors in Switzerland are (LS-R 43, 54, 55 and 56 in the box; the table says free).
+- *Not in the data at all:* rules of a country that are not airspace, such as distances to keep from aerodromes, height limits for aircraft without an engine, or what a visiting pilot needs. Whether and where such rules apply to a paraglider was not checked. The app knows none and is silent about them. *To verify*, country by country.
+
+So outside Germany and Austria a warning is the general reading of an airspace's class and type, which errs toward warning. Silence there is not a statement that a paraglider may fly.
 
 Not in the table, because the app cannot know them: airspace marked HX, which is open at times and must be left within ten minutes of activation; and the relief an active glider sector or Austrian TRA gives to the airspace it lies in. A pilot who knows that a sector is open uses `ignore` on the airspace around it.
 
@@ -309,4 +339,5 @@ The warning update is cheap on the real data because most of what surrounds a pi
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
 - **Settings for the pilot.** Margins, look-ahead and the table are `Config`; nothing stores a pilot's choices.
 - **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it; no app uses it yet.
-- **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. An OpenAir file says nothing of the kind at all.
+- **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. For the first region every country in the box is fetched except Liechtenstein, which has no file. An OpenAir file says nothing of the kind at all.
+- **Rules for countries other than Germany and Austria.** See [above](#outside-germany-and-austria).

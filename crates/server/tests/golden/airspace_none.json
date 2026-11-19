@@ -15,7 +15,13 @@
       ],
       "countries": [
         "DE",
-        "AT"
+        "AT",
+        "CH",
+        "IT",
+        "SI",
+        "HR",
+        "HU",
+        "SK"
       ],
       "airspaces": []
     }

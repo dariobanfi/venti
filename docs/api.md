@@ -16,7 +16,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 88 airspaces of the northern Alps around Munich, Innsbruck and Salzburg, recorded from openAIP the day after and served as if fetched at that same moment. Those 88 are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -57,7 +57,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 
 **Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace changes once a day at most and carries `max-age=3600`. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 800 kB and 190 kB.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB.
 
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
@@ -139,7 +139,7 @@ How the server and each of its data sources are doing.
       "last_success": "2026-11-18T19:05:00Z",
       "stale": false,
       "stations": 0,
-      "airspaces": 88,
+      "airspaces": 192,
       "file_date": "2026-11-18T19:05:00Z"
     }
   ]
@@ -333,7 +333,13 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
       ],
       "countries": [
         "DE",
-        "AT"
+        "AT",
+        "CH",
+        "IT",
+        "SI",
+        "HR",
+        "HU",
+        "SK"
       ],
       "airspaces": [
         {
@@ -491,11 +497,15 @@ A record is the canonical airspace record of the project, the same that the apps
 **No airspace in the answer is not "no airspace".** The server does not hold the world's airspace. It holds what reaches into the area it collects for, of the countries it fetches, and a layer says both:
 
 - `covers` is the area the server collected the set for: one box around its regions. Inside it the layer holds every airspace the server could read from what the source publishes for the countries in `countries`. Outside it the layer holds nothing, or only what happens to reach out of it.
-- `countries` are the countries that were fetched. Today that is Germany and Austria.
+- `countries` are the countries that were fetched. Today those are Germany, Austria, Switzerland, Italy, Slovenia, Croatia, Hungary and Slovakia: every country the first region's box takes in that openAIP has a file for.
 
 Both describe the server's set, not the request: they are the same whatever box was asked for. A client that wants to know whether a place is covered asks whether the place lies in one of the boxes of `covers`. It shows a pilot "no airspace near" only for a place inside; anywhere else it says that its airspace does not reach there. A glider at 49° N is outside the first region's box, which ends at 48.5° N, and must not be told its air is free because the answer had no airspace in it.
 
-**The boxes take in more than the countries, and the answer cannot say where the border runs.** The first region's box also holds parts of Switzerland, Liechtenstein, Italy, Slovenia, Hungary, Slovakia and Czechia. Of their airspace the layer has nothing, although the places are inside `covers`. A client shows the pilot the countries with the airspace ("airspace of Germany and Austria"), so that a pilot over South Tyrol knows the silence there means nothing. This gap closes when those countries are fetched; it is written down in [data-sources.md](data-sources.md#airspace).
+**A box can take in more than the countries, and the answer cannot say where a border runs.** For the first region this is settled as far as the source allows: all eight countries its box reaches into are fetched. (Czechia begins 6 km north of the box.) One country is left, Liechtenstein, for which openAIP publishes no file. The records that lie over it are in the Swiss file: the Swiss flight information region, the control area above the Alps and a glider area. Whether openAIP lacks anything over Liechtenstein is *to verify*. On a server whose regions reach into a country that is not in `countries`, the layer holds nothing of that country's airspace although the place is inside `covers`; a client therefore shows the pilot the countries with the airspace.
+
+**Whole means every record the server could read.** A record the source publishes in a form the server cannot read, or one that fails the server's checks (a ceiling below its floor), is left out and named in the server's log. The run still counts, and the answer does not say that something is missing. On 2026-11-19 none of the 506 airspaces in the first region's box was left out. One Hungarian record far east of the box was: its ceiling is at the ground.
+
+**What a warning means differs by country, and the app's table was written for two of them.** See [airspace.md](airspace.md#outside-germany-and-austria).
 
 A layer without airspaces, for a quiet box inside the area:
 
@@ -521,7 +531,13 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=14.90,48.20,14.91,48.21'
       ],
       "countries": [
         "DE",
-        "AT"
+        "AT",
+        "CH",
+        "IT",
+        "SI",
+        "HR",
+        "HU",
+        "SK"
       ],
       "airspaces": []
     }
@@ -547,10 +563,11 @@ The credit and the notice come with it: that the source has nothing there is a s
 
 | Box | Airspaces | Corners | Plain | With gzip |
 |---|---|---|---|---|
-| Germany and Austria whole | 1,018 | 59,043 | 1,675 kB | 369 kB |
-| The first region (46.3 to 48.5° N, 9.4 to 17.2° E) | 344 | 31,438 | 798 kB | 187 kB |
+| The eight countries whole | 3,575 | 154,407 | 4,800 kB | 1,020 kB |
+| The first region (46.3 to 48.5° N, 9.4 to 17.2° E) | 506 | 49,888 | 1,237 kB | 291 kB |
+| The first region when only Germany and Austria were fetched | 344 | 31,438 | 798 kB | 187 kB |
 
-A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
+A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. The first region is a tenth of that; the eight countries whole would be 3,575, of which Italy alone has 1,557. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
 
 **When a source fails.** A run that could not fetch every file of a source changes nothing: the server keeps serving the set of its last complete run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 

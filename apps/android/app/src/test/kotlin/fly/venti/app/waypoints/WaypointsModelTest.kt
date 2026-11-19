@@ -9,6 +9,7 @@ import fly.venti.core.WaypointKind
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -59,6 +60,24 @@ class WaypointsModelTest {
         assertEquals("735 m · SLF", field.detail)
         assertEquals("Sample landing field", field.place.name)
         assertEquals(735.0, checkNotNull(field.place.elevationM), 0.5)
+    }
+
+    @Test
+    fun aPlaceFromTheMapIsKeptOnceAndAPlaceWithoutANameIsNot() {
+        val waypoints = makeModel()
+        val place = Coordinate(lat = 47.6791, lon = 11.9051)
+
+        // A flying site, kept from its page on the map.
+        assertTrue(waypoints.add("Sample take-off (not real)", place, 1560.0))
+        assertEquals(listOf("Sample take-off (not real)"), waypoints.all.map { it.name })
+        assertEquals("1,560 m", waypoints.all.single().detail)
+
+        // Kept again, it is there once.
+        assertTrue(waypoints.add("Sample take-off (not real)", place, 1560.0))
+        assertEquals(1, waypoints.all.size)
+
+        assertFalse(waypoints.add("  ", place, null))
+        assertEquals(1, waypoints.all.size)
     }
 
     @Test

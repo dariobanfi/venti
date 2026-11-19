@@ -1,6 +1,5 @@
 package fly.venti.app.settings
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,6 +45,7 @@ import fly.venti.app.SettingsRoute
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -232,21 +232,5 @@ private fun StepperRow(title: String, value: String, onLess: () -> Unit, onMore:
         ) {
             Icon(painterResource(R.drawable.ic_add), contentDescription = "More: $title")
         }
-    }
-}
-
-/** A row that leads somewhere: another screen, or the browser. */
-@Composable
-private fun LinkRow(title: String, @DrawableRes icon: Int, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

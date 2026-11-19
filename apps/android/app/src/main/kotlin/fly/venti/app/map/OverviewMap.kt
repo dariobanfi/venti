@@ -4,11 +4,14 @@ import android.annotation.SuppressLint
 import android.graphics.PointF
 import android.graphics.RectF
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.sites.SiteFeature
+import fly.venti.app.sites.SiteSymbols
 import fly.venti.app.wind.WindFeature
 import fly.venti.app.wind.WindSymbols
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
+import fly.venti.core.SiteView
 import fly.venti.core.WindStation
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -31,8 +34,8 @@ import org.maplibre.geojson.Point
 import kotlin.math.hypot
 
 /**
- * The map of the map tab: terrain, live wind, every flight in the logbook
- * as a line, and the pilot's own position when asked for.
+ * The map of the map tab: terrain, live wind, flying sites, every flight in
+ * the logbook as a line, and the pilot's own position when asked for.
  */
 class OverviewMap : MapContent {
     /** Told when the map stops following the pilot by itself, because it was dragged. */
@@ -44,12 +47,17 @@ class OverviewMap : MapContent {
     /** Told a station's identifier when the pilot taps its arrow. */
     var onStation: (String) -> Unit = {}
 
+    /** Told a site's identifier when the pilot taps its sign. */
+    var onSite: (String) -> Unit = {}
+
     private var outlines: List<List<Coordinate>> = emptyList()
     private var drawn: List<List<Coordinate>>? = null
     private var stations: List<WindStation> = emptyList()
     private var drawnStations: List<WindStation>? = null
     private var airspace: List<AirspaceShape> = emptyList()
     private var drawnAirspace: List<AirspaceShape>? = null
+    private var sites: List<SiteView> = emptyList()
+    private var drawnSites: List<SiteView>? = null
     private var covered = Covered()
     private var isFollowing = false
 
@@ -69,12 +77,14 @@ class OverviewMap : MapContent {
         this.style = style
         this.view = view
         // What this map draws on top of the base map: airspace lowest,
-        // the flights over it, the wind above them.
+        // the flights over it, then the flying sites, the wind above them.
         AirspaceLayers.add(style)
         addTracks(style)
+        addSites(style, view)
         addWind(style, view)
         draw()
         drawStations()
+        drawSites()
         drawAirspace()
         if (isFollowing) {
             startFollowing()
@@ -84,19 +94,25 @@ class OverviewMap : MapContent {
         view.post { if (!view.isDestroyed) tellRegion(map, view) }
     }
 
-    /** The flights, the wind stations and the airspace to draw, and how much of the map the bars cover. */
+    /**
+     * The flights, the wind stations, the airspace and the flying sites to
+     * draw, and how much of the map the bars cover.
+     */
     fun show(
         outlines: List<List<Coordinate>>,
         stations: List<WindStation>,
         airspace: List<AirspaceShape>,
+        sites: List<SiteView>,
         covered: Covered,
     ) {
         this.outlines = outlines
         this.stations = stations
         this.airspace = airspace
+        this.sites = sites
         this.covered = covered
         draw()
         drawStations()
+        drawSites()
         drawAirspace()
     }
 
@@ -247,21 +263,66 @@ class OverviewMap : MapContent {
     }
 
     /**
-     * A tap on a station's arrow opens the station. A finger is wider than
-     * an arrow, so the nearest station within its width counts.
+     * The layer that draws the flying sites, empty at first, between the
+     * flights and the wind: a sign each, from the zoom at which they can be
+     * told apart, and a name where there is room for one.
+     */
+    private fun addSites(style: Style, view: MapView) {
+        for ((name, picture) in SiteSymbols.all(view.context)) {
+            style.addImage(name, picture)
+        }
+        style.addSource(GeoJsonSource(SITES))
+        style.addLayer(
+            SymbolLayer(SITES, SITES).withProperties(
+                PropertyFactory.iconImage(Expression.get(SiteFeature.PICTURE)),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.textField(Expression.get(SiteFeature.LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(11f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 1.1f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloWidth(1.4f),
+                PropertyFactory.textOptional(true),
+            ).apply { minZoom = SITES_FROM_ZOOM },
+        )
+    }
+
+    /** Draws the flying sites, once the style is there and only when they have changed. */
+    private fun drawSites() {
+        val source = style?.getSourceAs<GeoJsonSource>(SITES) ?: return
+        if (sites == drawnSites) return
+        drawnSites = sites
+        source.setGeoJson(FeatureCollection.fromFeatures(sites.map(SiteFeature::of)))
+    }
+
+    /**
+     * A tap on a station's arrow opens the station, one on a site's sign
+     * the site. A finger is wider than either, so the nearest within its
+     * width counts. Wind lies over the sites, and wins where both are under
+     * the finger.
      */
     private fun tapped(place: LatLng, map: MapLibreMap, view: MapView): Boolean {
-        if (style?.getLayer(WIND) == null) return false
+        val style = style ?: return false
         val point = map.projection.toScreenLocation(place)
         val reach = REACH_DP * view.resources.displayMetrics.density
-        val hits = map.queryRenderedFeatures(
-            RectF(point.x - reach, point.y - reach, point.x + reach, point.y + reach),
-            WIND,
-        )
-        val nearest = hits.minByOrNull { distance(point, it, map) } ?: return false
-        val id = nearest.getStringProperty(WindFeature.ID) ?: return false
-        onStation(id)
-        return true
+        val finger = RectF(point.x - reach, point.y - reach, point.x + reach, point.y + reach)
+        fun nearest(layer: String, key: String): String? {
+            if (style.getLayer(layer) == null) return null
+            return map.queryRenderedFeatures(finger, layer)
+                .minByOrNull { distance(point, it, map) }
+                ?.getStringProperty(key)
+        }
+        nearest(WIND, WindFeature.ID)?.let { id ->
+            onStation(id)
+            return true
+        }
+        nearest(SITES, SiteFeature.ID)?.let { id ->
+            onSite(id)
+            return true
+        }
+        return false
     }
 
     private fun distance(from: PointF, feature: Feature, map: MapLibreMap): Float {
@@ -273,6 +334,10 @@ class OverviewMap : MapContent {
     companion object {
         private const val TRACKS = "logbook-tracks"
         private const val WIND = "wind-stations"
+        private const val SITES = "flying-sites"
+
+        /** The zoom from which the sites' signs are drawn, as on the iPhone and the web. */
+        private const val SITES_FROM_ZOOM = 9f
         private const val FOLLOWING_ZOOM = 13.0
 
         /** Half the width of a finger, in the screen's own units. */

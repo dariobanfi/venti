@@ -159,7 +159,7 @@ private fun Sections(
         val hasServer = session.wind.server is WindServer.Usable
         when (navigation.tab) {
             AppTab.Map -> kept.SaveableStateProvider("map") {
-                MapScreen(logbook, session.wind, session.airspace, bars)
+                MapScreen(logbook, session.wind, session.airspace, session.sites, session.waypoints, bars)
             }
             AppTab.Fly -> when (navigation.flyRoute) {
                 FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })

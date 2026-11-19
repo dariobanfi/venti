@@ -53,30 +53,45 @@ import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.logbook.LogbookModel
+import fly.venti.app.sites.SiteSheet
+import fly.venti.app.sites.SitesModel
+import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.wind.WindSheet
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
+import fly.venti.core.SiteView
 import fly.venti.core.WindStation
 
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
- * server, and the pilot's own flights. Sites and forecasts arrive later.
+ * server, the flying sites it knows, the pilot's airspace and the pilot's
+ * own flights.
  */
 @Composable
-fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, bars: PaddingValues) {
+fun MapScreen(
+    logbook: LogbookModel,
+    wind: WindModel,
+    airspace: AirspaceModel,
+    sites: SitesModel,
+    waypoints: WaypointsModel,
+    bars: PaddingValues,
+) {
     val context = LocalContext.current
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var showsStations by remember { mutableStateOf(false) }
     var chosen by remember { mutableStateOf<WindStation?>(null) }
+    var showsSites by remember { mutableStateOf(false) }
+    var chosenSite by remember { mutableStateOf<SiteView?>(null) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
     map.onRegion = { shown ->
         region = shown
         wind.show(shown)
+        sites.show(shown)
         // The airspace around what the pilot is looking at, unless it is
         // the whole continent. The model asks only when it is due.
         if (shown.north - shown.south < 4) {
@@ -86,6 +101,7 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
         }
     }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
+    map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
 
     val askForPosition = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -116,17 +132,22 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
     val airspaceInView = remember(region, all) {
         region?.takeIf { showsAirspace }?.let(airspace::shapes).orEmpty()
     }
-    // Whose wind and airspace are on the map. Their licences ask for the
-    // credit next to the data; the full wording is on each station's page
-    // and on the airspace screen.
-    val credits = listOfNotNull(wind.creditLine, airspace.mapCredit.takeIf { showsAirspace })
+    val flyingSites = sites.sites
+    // Whose wind, airspace and sites are on the map. Their licences ask for
+    // the credit next to the data; the full wording is on each station's
+    // and each site's page and on the airspace screen.
+    val credits = listOfNotNull(
+        wind.creditLine,
+        airspace.mapCredit.takeIf { showsAirspace },
+        sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true },
+    )
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
-                map.show(outlines, stations, airspaceInView, Covered(top = statusBar))
+                map.show(outlines, stations, airspaceInView, flyingSites, Covered(top = statusBar))
                 map.follow(isFollowing)
             },
         )
@@ -149,6 +170,10 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
                 // Everything the arrows say, as a list: for reading the
                 // numbers side by side, and for pilots who use TalkBack.
                 MapButton(R.drawable.ic_air, "Wind stations") { showsStations = true }
+            }
+            if (flyingSites.isNotEmpty()) {
+                // The signs on the map, as a list.
+                MapButton(R.drawable.ic_pin_drop, "Flying sites") { showsSites = true }
             }
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
@@ -177,6 +202,20 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
             onDismiss = {
                 chosen = null
                 showsStations = false
+            },
+        )
+    }
+
+    if (showsSites || chosenSite != null) {
+        SiteSheet(
+            sites = sites,
+            waypoints = waypoints,
+            showsList = showsSites,
+            chosen = chosenSite,
+            onChoose = { chosenSite = it },
+            onDismiss = {
+                chosenSite = null
+                showsSites = false
             },
         )
     }
@@ -232,8 +271,8 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Whose wind and airspace are on the map, in small type at its lower edge:
- * a line for each, so that neither is cut short by the other.
+ * Whose wind, airspace and sites are on the map, in small type at its lower
+ * edge: a line for each, so that none is cut short by another.
  */
 @Composable
 private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {

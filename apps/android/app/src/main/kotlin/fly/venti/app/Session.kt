@@ -22,6 +22,7 @@ import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
+import fly.venti.app.sites.SitesModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
@@ -33,8 +34,8 @@ import java.util.UUID
 
 /**
  * What the app holds for as long as it runs: the logbook, the flying
- * session, the vario link, the conversation with the assistant and the wind
- * on the map.
+ * session, the vario link, the conversation with the assistant, and the
+ * wind and the flying sites on the map.
  *
  * It belongs to the app's process, not to a screen. Android rebuilds the
  * screen whenever it likes, and a flight being recorded has to carry on
@@ -49,6 +50,7 @@ sealed interface Session {
         val wind: WindModel,
         val waypoints: WaypointsModel,
         val airspace: AirspaceModel,
+        val sites: SitesModel,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -143,7 +145,10 @@ sealed interface Session {
             // The cockpit warns of the pilot's files and of what is kept
             // from the server, also when either changes during a flight.
             fly.airspace = { airspace.set }
-            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, preferences, files, scope)
+            // Flying sites come from that server too.
+            val sites = SitesModel(scope)
+            sites.server = { (wind.server as? WindServer.Usable)?.url }
+            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, sites, preferences, files, scope)
         }
     }
 }

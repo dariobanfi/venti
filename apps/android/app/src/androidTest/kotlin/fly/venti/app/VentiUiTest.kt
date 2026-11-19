@@ -583,6 +583,95 @@ class VentiUiTest {
         assertTrue(exists(hasText("Without airspace the cockpit warns of none.", substring = true)))
     }
 
+    /**
+     * Flying sites: the same server knows the take-offs and landings its
+     * source has. They are drawn once the map shows a valley and not a
+     * country, here the one east of the Tegernsee, which the map shipped
+     * with the app still covers. A sign opens its site; the round button
+     * lists them; a site is kept as a waypoint. Skipped without a server,
+     * like the wind.
+     */
+    private fun lookAtTheFlyingSites(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        // A map of the whole northern Alps has no signs and no button for them.
+        assertFalse(exists(described("Flying sites")))
+
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.845, zoom = 11.0))
+        waitFor(described("Flying sites"))
+        waitFor(hasText("Sites: OpenStreetMap contributors"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-sites-1-map")
+
+        // A tap on a take-off's sign opens the site, with the map still in view.
+        val takeoff = "Fluggelände Jägerkamp/Nagelspitz"
+        val sign = checkNotNull(TestDevice.onScreen(scenario, lat = 47.6791413, lon = 11.9051032))
+        TestDevice.tap(sign)
+        waitFor(hasText(takeoff))
+        waitFor(hasText("What it is"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-sites-2-site-from-the-map")
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("What it is")) }
+
+        // The same signs as a list: those with a name first.
+        tap(described("Flying sites"))
+        waitFor(described(takeoff))
+        assertTrue(exists(described("Landeplatz Jägerkamp/Nagelspitz")))
+        assertTrue(exists(hasText("A site on the map is not permission to fly there.", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-3-list")
+
+        // One site: what its source says, and what that is worth. Kept as
+        // a waypoint, the cockpit can navigate to it.
+        tap(described(takeoff))
+        waitFor(hasText("Add to my waypoints"))
+        assertTrue(exists(hasText("Marked as an official site")))
+        tap(hasText("Add to my waypoints"))
+        waitFor(hasText("In your waypoints"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("See or correct it at the source"))
+        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-4-site")
+        tap(described("Back"))
+        waitFor(described(takeoff))
+        tap(hasText("Done"))
+        waitFor(described("Flying sites"))
+
+        // A take-off whose source says which wind it works in, on the Wank
+        // above Garmisch. The map shipped with the app ends before it; the
+        // sites are the server's all the same.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.5067, lon = 11.1478, zoom = 12.0))
+        tap(described("Flying sites"))
+        val south = "Startplatz Wank Süd"
+        waitFor(described(south))
+        tap(described(south))
+        waitFor(hasText("Wind it works in"))
+        assertTrue(exists(hasText("E to WSW")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-5-site-with-wind")
+        tap(hasText("Done"))
+        waitFor(described("Flying sites"))
+
+        // The site that was kept is among the pilot's waypoints.
+        tap(tab("Settings"))
+        waitFor(hasText("Vario sound"))
+        tap(hasText("Waypoints"))
+        waitFor(described(takeoff))
+    }
+
+    @Test
+    fun theMapShowsFlyingSitesFromAServer() = lookAtTheFlyingSites("light", dark = false)
+
+    @Test
+    fun theFlyingSitesInDarkAppearance() = lookAtTheFlyingSites("dark", dark = true)
+
     @Test
     fun airspaceComesFromTheServerByItself() = takeAirspaceFromTheServer("light", dark = false)
 

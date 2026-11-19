@@ -76,6 +76,16 @@ class WaypointsModel(
         reload()
     }
 
+    /**
+     * Adds one waypoint: a flying site from the map, for example. Says
+     * whether it is among the waypoints now.
+     */
+    fun add(name: String, position: Coordinate, elevationM: Double?): Boolean {
+        val added = runCatching { core.addWaypoint(name, position, elevationM) }.isSuccess
+        reload()
+        return added
+    }
+
     fun delete(id: String) {
         runCatching { core.deleteWaypoint(id) }
         reload()

@@ -3,8 +3,8 @@ import MapLibre
 import SwiftUI
 import VentiCore
 
-/// The map of the map tab: terrain, live wind, every flight in the logbook
-/// as a line, and the pilot's own position when asked for.
+/// The map of the map tab: terrain, live wind, flying sites, every flight
+/// in the logbook as a line, and the pilot's own position when asked for.
 struct OverviewMap: UIViewRepresentable {
     /// The shapes of the logbook's flights.
     let outlines: [[Coordinate]]
@@ -12,6 +12,8 @@ struct OverviewMap: UIViewRepresentable {
     let stations: [WindStation]
     /// The airspaces to draw.
     let airspace: [AirspaceShape]
+    /// The flying sites to draw.
+    var sites: [SiteView] = []
     /// Whether the map keeps the pilot's position in its centre.
     @Binding var isFollowing: Bool
     /// Set when the position cannot be shown, with words for the pilot.
@@ -20,6 +22,8 @@ struct OverviewMap: UIViewRepresentable {
     let onRegion: (Bounds) -> Void
     /// Called with a station's identifier when the pilot taps its arrow.
     let onStation: (String) -> Void
+    /// Called with a site's identifier when the pilot taps its sign.
+    var onSite: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -53,6 +57,8 @@ struct OverviewMap: UIViewRepresentable {
         }
         coordinator.onRegion = onRegion
         coordinator.onStation = onStation
+        coordinator.onSite = onSite
+        coordinator.show(sites, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
@@ -66,6 +72,7 @@ struct OverviewMap: UIViewRepresentable {
         var report: (Bool, String?) -> Void = { _, _ in }
         var onRegion: (Bounds) -> Void = { _ in }
         var onStation: (String) -> Void = { _ in }
+        var onSite: (String) -> Void = { _ in }
 
         private var outlines: [[Coordinate]] = []
         private var drawnOutlines: [[Coordinate]]?
@@ -73,11 +80,19 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnStations: [WindStation]?
         private var airspace: [AirspaceShape] = []
         private var drawnAirspace: [AirspaceShape]?
+        private var sites: [SiteView] = []
+        private var drawnSites: [SiteView]?
         private var isStyleLoaded = false
         private var requested = false
 
         private static let tracks = "logbook-tracks"
         private static let wind = "wind-stations"
+        private static let sites = "flying-sites"
+
+        func show(_ sites: [SiteView], on map: MLNMapView) {
+            self.sites = sites
+            drawSites(on: map)
+        }
 
         func show(_ outlines: [[Coordinate]], on map: MLNMapView) {
             self.outlines = outlines
@@ -111,6 +126,7 @@ struct OverviewMap: UIViewRepresentable {
             isStyleLoaded = true
             drawOutlines(on: mapView)
             drawStations(on: mapView)
+            drawSites(on: mapView)
             drawAirspace(on: mapView)
             tellRegion(of: mapView)
         }
@@ -142,12 +158,17 @@ struct OverviewMap: UIViewRepresentable {
             guard recognizer.state == .ended, let map = recognizer.view as? MLNMapView else { return }
             let point = recognizer.location(in: map)
             let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-            let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [Self.wind])
-            let nearest = hits.min { first, second in
-                Self.distance(from: point, to: first, on: map) < Self.distance(from: point, to: second, on: map)
-            }
-            if let id = nearest?.attribute(forKey: "id") as? String {
-                onStation(id)
+            // Wind lies over the sites, and wins where both are under the
+            // finger.
+            for (layer, open) in [(Self.wind, onStation), (Self.sites, onSite)] {
+                let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [layer])
+                let nearest = hits.min { first, second in
+                    Self.distance(from: point, to: first, on: map) < Self.distance(from: point, to: second, on: map)
+                }
+                if let id = nearest?.attribute(forKey: "id") as? String {
+                    open(id)
+                    return
+                }
             }
         }
 
@@ -187,6 +208,28 @@ struct OverviewMap: UIViewRepresentable {
             style.addLayer(
                 MapSetup.line("logbook-tracks-line", from: tracks, color: Palette.accentOnMap, width: 2.5)
             )
+
+            // Flying sites, from the zoom at which they can be told apart;
+            // a name where there is room for one.
+            for picture in SiteSymbols.all {
+                style.setImage(picture.image, forName: picture.name)
+            }
+            let sites = MLNShapeSource(identifier: Self.sites, shape: empty, options: nil)
+            style.addSource(sites)
+            let signs = MLNSymbolStyleLayer(identifier: Self.sites, source: sites)
+            signs.iconImageName = NSExpression(forKeyPath: "picture")
+            signs.iconAllowsOverlap = NSExpression(forConstantValue: true)
+            signs.text = NSExpression(forKeyPath: "label")
+            signs.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
+            signs.textFontSize = NSExpression(forConstantValue: 11)
+            signs.textAnchor = NSExpression(forConstantValue: "top")
+            signs.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 1.1)))
+            signs.textColor = NSExpression(forConstantValue: UIColor(hex: 0x1F1F1D))
+            signs.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            signs.textHaloWidth = NSExpression(forConstantValue: 1.4)
+            signs.textOptional = NSExpression(forConstantValue: true)
+            signs.minimumZoomLevel = 9
+            style.addLayer(signs)
 
             for picture in WindSymbols.all {
                 style.setImage(picture.image, forName: picture.name)
@@ -241,6 +284,30 @@ struct OverviewMap: UIViewRepresentable {
             guard isStyleLoaded, airspace != drawnAirspace, let style = map.style else { return }
             drawnAirspace = airspace
             AirspaceLayers.show(airspace, in: style)
+        }
+
+        /// Draws the flying sites, once the style is there and only when
+        /// they have changed.
+        private func drawSites(on map: MLNMapView) {
+            guard isStyleLoaded, sites != drawnSites,
+                  let source = map.style?.source(withIdentifier: Self.sites) as? MLNShapeSource
+            else { return }
+            drawnSites = sites
+            source.shape = MLNShapeCollectionFeature(shapes: sites.map(Self.siteFeature))
+        }
+
+        /// One site as the map's symbol layer reads it. Only a name the
+        /// source gives is written on the map: "Take-off" under every
+        /// take-off sign would say nothing.
+        static func siteFeature(for site: SiteView) -> MLNPointFeature {
+            let feature = MLNPointFeature()
+            feature.coordinate = site.position.location
+            feature.attributes = [
+                "id": site.id,
+                "picture": site.kind.pictureName,
+                "label": site.isNamed ? site.name : "",
+            ]
+            return feature
         }
 
         /// Draws the stations, once the style is there and only when they

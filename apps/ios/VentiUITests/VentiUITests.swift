@@ -419,6 +419,35 @@ final class VentiUITests: XCTestCase {
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
+        // The same server knows the flying sites. They are drawn once the
+        // map shows a valley and not a country: with the sample flight in
+        // the logbook the map shows the valley it was flown in.
+        openTab("Logbook", in: app)
+        app.buttons["Add a sample flight"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
+        openTab("Map", in: app)
+        let sites = app.buttons["Flying sites"]
+        XCTAssertTrue(sites.waitForExistence(timeout: 60))
+        sleep(4)
+        keepScreenshot("sites-1-map")
+
+        // The signs on the map, as a list, and one of them.
+        sites.tap()
+        XCTAssertTrue(app.navigationBars["Flying sites"].waitForExistence(timeout: 15))
+        let row = element("site-row", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("sites-2-list")
+        row.tap()
+        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
+        XCTAssertTrue(saying("OpenStreetMap", in: app).exists)
+        sleep(1)
+        keepScreenshot("sites-3-site")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].tap()
+
         // The Fly tab says what the cockpit will warn from.
         openTab("Fly", in: app)
         let line = element("airspace-before-takeoff", in: app)

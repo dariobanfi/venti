@@ -62,6 +62,12 @@ final class WaypointsModel {
         return Self.notice(added: added, known: known, problems: problems)
     }
 
+    /// Adds one waypoint: a flying site from the map, for example.
+    func add(name: String, position: Coordinate, elevationM: Double?) throws {
+        defer { reload() }
+        _ = try core.addWaypoint(name: name, position: position, elevationM: elevationM)
+    }
+
     func delete(id: String) {
         try? core.deleteWaypoint(id: id)
         reload()

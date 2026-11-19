@@ -33,6 +33,7 @@ mod flight_airspace;
 mod kept_airspace;
 mod logbook;
 mod server;
+mod sites;
 mod statistics;
 mod storage;
 #[cfg(test)]
@@ -48,6 +49,7 @@ pub use cockpit::*;
 pub use export::*;
 pub use flight_airspace::*;
 pub use kept_airspace::*;
+pub use sites::*;
 pub use statistics::*;
 pub use waypoints::*;
 pub use wind::*;

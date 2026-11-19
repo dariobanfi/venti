@@ -2,16 +2,20 @@ import SwiftUI
 import VentiCore
 
 /// The map tab: terrain, live wind from the stations of the pilot's Venti
-/// server, and the pilot's own flights. Sites and forecasts arrive later.
+/// server, the flying sites it knows, the pilot's airspace and the pilot's
+/// own flights. Forecasts arrive later.
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
     @Environment(AirspaceModel.self) private var airspace
+    @Environment(SitesModel.self) private var sites
 
     @State private var isFollowing = false
     @State private var problem: String?
     @State private var chosen: ChosenStation?
     @State private var showsStations = false
+    @State private var chosenSite: ChosenSite?
+    @State private var showsSites = false
     /// The part of the map in view, as the map last reported it.
     @State private var region: Bounds?
 
@@ -21,11 +25,13 @@ struct MapScreen: View {
                 outlines: outlines,
                 stations: wind.stations,
                 airspace: airspaceInView,
+                sites: sites.sites,
                 isFollowing: $isFollowing,
                 problem: $problem,
                 onRegion: { region in
                     self.region = region
                     wind.show(region)
+                    sites.show(region)
                     // The airspace around what the pilot is looking at,
                     // unless it is the whole continent.
                     if region.north - region.south < 4 {
@@ -41,6 +47,11 @@ struct MapScreen: View {
                     if let station = wind.stations.first(where: { $0.id == id }) {
                         chosen = ChosenStation(station: station)
                     }
+                },
+                onSite: { id in
+                    if let site = sites.sites.first(where: { $0.id == id }) {
+                        chosenSite = ChosenSite(site: site)
+                    }
                 }
             )
             .ignoresSafeArea()
@@ -54,6 +65,12 @@ struct MapScreen: View {
                     // numbers side by side, and for pilots who use VoiceOver.
                     mapButton("Wind stations", systemImage: "wind") {
                         showsStations = true
+                    }
+                }
+                if !sites.sites.isEmpty {
+                    // The signs on the map, as a list.
+                    mapButton("Flying sites", systemImage: "mappin.and.ellipse") {
+                        showsSites = true
                     }
                 }
                 mapButton("Show my position", systemImage: isFollowing ? "location.fill" : "location") {
@@ -77,6 +94,15 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showsStations) {
             StationList()
+        }
+        .sheet(item: $chosenSite) { chosen in
+            NavigationStack {
+                SiteScreen(site: chosen.site)
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showsSites) {
+            SiteList()
         }
         .alert(
             "Position unavailable",
@@ -149,6 +175,9 @@ struct MapScreen: View {
             let certified = airspace.credits.contains { $0.notice != nil } ? ", not certified" : ""
             parts.append("Airspace: \(airspace.credits.map(\.provider).formatted(.list(type: .and)))\(certified)")
         }
+        if !sites.credits.isEmpty, !sites.sites.isEmpty, let region, region.east - region.west <= SitesModel.widestMap {
+            parts.append("Sites: \(sites.credits.map(\.provider).formatted(.list(type: .and)))")
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -157,7 +186,7 @@ struct MapScreen: View {
             Text(creditLine)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(3)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(.thinMaterial, in: .rect(cornerRadius: 10))
@@ -186,6 +215,12 @@ struct MapScreen: View {
 }
 
 /// A station chosen on the map, to present its page.
+/// A flying site chosen on the map, for a sheet.
+struct ChosenSite: Identifiable {
+    let site: SiteView
+    var id: String { site.id }
+}
+
 struct ChosenStation: Identifiable {
     let station: WindStation
     var id: String { station.id }

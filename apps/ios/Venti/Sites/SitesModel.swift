@@ -1,0 +1,138 @@
+import Foundation
+import Observation
+import VentiCore
+
+/// The flying sites for the map, from the Venti server the pilot has set:
+/// take-offs, landings, winch sites and training slopes.
+///
+/// What to ask the server and how to read its answer is the core's. This
+/// class sends the request and keeps the answer for the part of the map in
+/// view. Sites change by the day, not by the minute, so an answer is kept
+/// for an hour.
+@MainActor
+@Observable
+final class SitesModel {
+    /// Fetches an address and returns the HTTP status and the body.
+    typealias Transport = @Sendable (URL) async throws -> (Int, Data)
+
+    /// How long an answer is used before the server is asked again.
+    static let keepFor: TimeInterval = 60 * 60
+
+    /// A map that shows more than this many degrees of longitude draws no
+    /// sites: at that scale they are a carpet of dots. It is about the
+    /// width of a phone's map at zoom 9.
+    static let widestMap = 0.8
+
+    /// The sites around the part of the map in view.
+    private(set) var sites: [SiteView] = []
+    /// Whose data they are. The licences ask for this next to the data.
+    private(set) var credits: [Credit] = []
+    /// Whether the server holds everything its sources have for the area.
+    /// If not, a map without sites says nothing.
+    private(set) var isWhole = false
+    /// Why the sites are missing, in words for the pilot.
+    private(set) var problem: String?
+
+    /// The server to ask. The app sets this to the one in the settings.
+    @ObservationIgnored var server: () -> URL? = { nil }
+
+    @ObservationIgnored private let transport: Transport
+    /// The area the sites were asked for, from which server, and when.
+    @ObservationIgnored private var answered: (area: Bounds, server: URL, at: Date)?
+    @ObservationIgnored private var waiting: Task<Void, Never>?
+
+    init(transport: @escaping Transport = WindModel.fetch) {
+        self.transport = transport
+    }
+
+    /// The map says which part of it is in view. The server is asked
+    /// unless that part is covered by an answer still in use, or the map
+    /// shows too much for sites to be drawn.
+    func show(_ region: Bounds) {
+        guard let server = server() else {
+            forget()
+            return
+        }
+        guard region.east - region.west <= Self.widestMap else { return }
+        if let answered, answered.server == server, answered.area.contains(region),
+           Date().timeIntervalSince(answered.at) < Self.keepFor
+        {
+            return
+        }
+        waiting?.cancel()
+        waiting = Task { [weak self] in
+            // The map reports every pause of a drag; wait until it rests.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            // More than is in view, so that a drag needs no new request.
+            await self?.load(region.grown(by: 0.5), from: server)
+        }
+    }
+
+    /// Asks the server for the sites of an area.
+    func load(_ area: Bounds, from server: URL) async {
+        do {
+            let path = try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
+            guard let url = URL(string: server.absoluteString + path) else { return }
+            let (status, body) = try await transport(url)
+            let map = try sitesMap(
+                south: area.south, west: area.west, north: area.north, east: area.east,
+                status: UInt16(clamping: status), body: body
+            )
+            // The pilot may have changed the server while this was under way.
+            guard server == self.server() else { return }
+            sites = map.sites
+            credits = map.credits
+            isWhole = map.isWhole
+            answered = (area, server, Date())
+            problem = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            if (error as? URLError)?.code == .cancelled {
+                return
+            }
+            problem = error is CoreError
+                ? error.words
+                : "The server could not be reached for flying sites. \(error.localizedDescription)"
+        }
+    }
+
+    private func forget() {
+        waiting?.cancel()
+        if !sites.isEmpty || answered != nil {
+            sites = []
+            credits = []
+            isWhole = false
+            answered = nil
+        }
+        problem = nil
+    }
+}
+
+extension SiteKind {
+    /// The symbol a site of this kind is drawn with, in lists and sheets.
+    var systemImage: String {
+        switch self {
+        case .takeoff: "arrow.up.right"
+        case .landing: "arrow.down.right"
+        case .towing: "arrow.up.to.line"
+        case .training: "graduationcap"
+        case .other: "mappin"
+        }
+    }
+
+    /// The kind in the name of its picture on the map.
+    var pictureName: String {
+        switch self {
+        case .takeoff: "site-takeoff"
+        case .landing: "site-landing"
+        case .towing: "site-towing"
+        case .training: "site-training"
+        case .other: "site-other"
+        }
+    }
+
+    /// Every kind, for making the map's pictures.
+    static var all: [SiteKind] { [.takeoff, .landing, .towing, .training, .other] }
+}

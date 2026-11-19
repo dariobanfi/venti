@@ -8,7 +8,7 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account):
+            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
@@ -17,6 +17,7 @@ struct VentiApp: App {
                     .environment(waypoints)
                     .environment(airspace)
                     .environment(account)
+                    .environment(sites)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -33,7 +34,9 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel)
+    case ready(
+        LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel
+    )
     case failed(String)
 
     static func start() -> Session {
@@ -62,6 +65,9 @@ enum Session {
                 }
             let airspace = AirspaceModel(core: core, remembersChoice: !LaunchOptions.isUnderTest)
             airspace.server = { wind.server }
+            // Flying sites come from the same server as the wind.
+            let sites = SitesModel()
+            sites.server = { wind.server }
             // The assistant looks up live wind on the same server as the
             // map, and measures ages against the same clock.
             let scripted = LaunchOptions.usesScriptedAssistant
@@ -83,7 +89,7 @@ enum Session {
             }
             let account = AccountModel(core: core)
             account.onLogbookChanged = { logbook.refresh() }
-            return .ready(logbook, fly, chat, wind, waypoints, airspace, account)
+            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites)
         } catch {
             return .failed(error.words)
         }

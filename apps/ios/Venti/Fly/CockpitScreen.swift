@@ -34,7 +34,7 @@ struct CockpitScreen: View {
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        AirspaceBanner(warnings: fly.airspaceWarnings) {
+                        AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
                             isShowingAirspace = true
                         }
                         .padding(10)
@@ -164,6 +164,9 @@ private struct StatusLine: View {
         }
         .font(.subheadline.weight(.medium))
         .lineLimit(1)
+        // With everything on it the line is full; it shrinks a little
+        // before anything is cut off.
+        .minimumScaleFactor(0.75)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }

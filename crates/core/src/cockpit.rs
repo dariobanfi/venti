@@ -32,7 +32,9 @@ use venti_flight::scoring;
 use venti_sensors::{Battery, SentenceReader};
 
 use crate::airspace::AirspaceWatch;
-use crate::{AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind};
+use crate::{
+    AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
+};
 
 /// How long an external instrument may be silent, in seconds, before it
 /// counts as disconnected and the phone's own pressure sensor takes over.
@@ -394,7 +396,23 @@ impl FlightSession {
     /// [`crate::Core::airspace`]. From then on every position is checked
     /// against it. `None` switches the warnings off.
     pub fn use_airspace(&self, airspace: Option<Arc<AirspaceSet>>) {
-        self.lock().watch = airspace.map(AirspaceWatch::new);
+        let mut inner = self.lock();
+        match (inner.watch.as_mut(), airspace) {
+            // Other files in the middle of a session: the airspace is
+            // exchanged, and what the pilot silenced stays silenced.
+            (Some(watch), Some(set)) => watch.replace(set),
+            (_, set) => inner.watch = set.map(AirspaceWatch::new),
+        }
+    }
+
+    /// Whether the glider is being checked against airspace right now.
+    /// Anything but `Checking` means that silence is not "no airspace
+    /// near", and the screen must say which it is.
+    pub fn airspace_check(&self, now_unix_s: f64) -> AirspaceCheck {
+        self.lock()
+            .watch
+            .as_ref()
+            .map_or(AirspaceCheck::NoAirspace, |watch| watch.check(now_unix_s))
     }
 
     /// The airspace warnings as of the latest position, the most urgent

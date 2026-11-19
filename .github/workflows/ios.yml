@@ -16,6 +16,7 @@ on:
       - "crates/flight/**"
       - "crates/domain/**"
       - "crates/sensors/**"
+      - "crates/airspace/**"
       - "crates/api-types/**"
       - "crates/llm/**"
       - "crates/tools/**"

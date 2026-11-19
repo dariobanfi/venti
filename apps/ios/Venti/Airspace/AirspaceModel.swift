@@ -15,6 +15,9 @@ final class AirspaceModel {
     /// Every airspace of those files as one set, for the maps and the
     /// cockpit. Changes whenever the files do.
     private(set) var set: AirspaceSet?
+    /// Set when there are files but their airspace could not be put
+    /// together: the cockpit would be silent, and the pilot must know.
+    private(set) var problem: String?
 
     @ObservationIgnored private let core: Core
 
@@ -67,7 +70,17 @@ final class AirspaceModel {
 
     private func reload() {
         files = (try? core.airspaceFiles()) ?? []
-        set = files.isEmpty ? nil : try? core.airspace()
+        problem = nil
+        guard !files.isEmpty else {
+            set = nil
+            return
+        }
+        do {
+            set = try core.airspace()
+        } catch {
+            set = nil
+            problem = "Your airspace files could not be loaded, so nothing is drawn or warned about. \(error.words)"
+        }
     }
 
     /// What one file gave, and above all what it did not.

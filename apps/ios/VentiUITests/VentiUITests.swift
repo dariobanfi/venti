@@ -61,7 +61,7 @@ final class VentiUITests: XCTestCase {
         sleep(4)
         keepScreenshot("\(prefix)-1-map")
 
-        app.tabBars.buttons["Logbook"].tap()
+        openTab("Logbook", in: app)
         XCTAssertTrue(app.staticTexts["No flights yet"].waitForExistence(timeout: 15))
         keepScreenshot("\(prefix)-2-logbook-empty")
 
@@ -123,10 +123,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15))
 
         // The map tab now shows the flight too.
-        app.tabBars.buttons["Map"].tap()
+        openTab("Map", in: app)
         sleep(4)
         keepScreenshot("light-7-map-with-flight")
-        app.tabBars.buttons["Logbook"].tap()
+        openTab("Logbook", in: app)
 
         row.swipeLeft()
         app.buttons["Delete"].tap()
@@ -152,7 +152,7 @@ final class VentiUITests: XCTestCase {
     /// lift, and four minutes later it glides on.
     func testTheCockpitShowsAReplayedFlight() {
         let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
-        app.tabBars.buttons["Fly"].tap()
+        openTab("Fly", in: app)
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
         keepScreenshot("fly-1-ready")
 
@@ -193,7 +193,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
 
         // Settings, and the credits the map data's licences ask for.
-        app.tabBars.buttons["Settings"].tap()
+        openTab("Settings", in: app)
         XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
         keepScreenshot("settings-1")
 
@@ -220,7 +220,7 @@ final class VentiUITests: XCTestCase {
         // The zone is on the map tab.
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
-        app.tabBars.buttons["Fly"].tap()
+        openTab("Fly", in: app)
         app.buttons["Replay the sample flight"].tap()
         app.buttons["20 times faster"].tap()
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
@@ -246,13 +246,25 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         close.tap()
 
-        // The files behind the warnings, and the zone on the map.
-        app.tabBars.buttons["Settings"].tap()
-        app.buttons["Airspace"].tap()
+        // The files behind the warnings.
+        openTab("Settings", in: app)
+        let files = app.buttons["Airspace"]
+        XCTAssertTrue(files.waitForExistence(timeout: 15))
+        files.tap()
         XCTAssertTrue(labelled(containing: "sample-zones-not-real", in: app).waitForExistence(timeout: 15))
         keepScreenshot("settings-4-airspace")
-        app.tabBars.buttons["Map"].tap()
+
+        // And the zone on the map: with the sample flight in the logbook
+        // the map shows the valley the flight ends in, beside the zone.
+        openTab("Logbook", in: app)
+        app.buttons["Add a sample flight"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         sleep(4)
+        keepScreenshot("map-airspace-flight")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
+        openTab("Map", in: app)
+        sleep(5)
         keepScreenshot("map-airspace")
     }
 
@@ -264,7 +276,7 @@ final class VentiUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "--bundled-map", "--scripted-assistant"]
         app.launch()
 
-        app.tabBars.buttons["Logbook"].tap()
+        openTab("Logbook", in: app)
         app.buttons["Add a sample flight"].tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         // A flight covers the tab bar; back to the logbook first.
@@ -327,7 +339,7 @@ final class VentiUITests: XCTestCase {
         // The assistant looks up the same wind on the same server.
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].tap()
-        app.tabBars.buttons["Assistant"].tap()
+        openTab("Assistant", in: app)
         let question = app.buttons["How is the wind on the Zugspitze right now?"]
         XCTAssertTrue(question.waitForExistence(timeout: 15))
         question.tap()
@@ -399,7 +411,7 @@ final class VentiUITests: XCTestCase {
         sleep(12)
         keepScreenshot("online-1-map")
 
-        app.tabBars.buttons["Logbook"].tap()
+        openTab("Logbook", in: app)
         app.buttons["Add a sample flight"].tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         sleep(12)

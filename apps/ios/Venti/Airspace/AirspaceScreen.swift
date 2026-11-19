@@ -10,6 +10,12 @@ struct AirspaceScreen: View {
 
     var body: some View {
         List {
+            if let problem = airspace.problem {
+                Section {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
             Section {
                 ForEach(airspace.files, id: \.storedName) { file in
                     VStack(alignment: .leading, spacing: 3) {
@@ -42,7 +48,7 @@ struct AirspaceScreen: View {
                 Text("""
                     Venti reads airspace files in OpenAir format, the kind other flight instruments use. It draws their airspace on the maps and warns in the cockpit when you come near, are about to enter or are inside.
 
-                    It knows the airspace in these files and no other. Where you have no file, or an old one, it knows nothing and stays silent. It does not know which areas are active today. Every warning is advice: you remain responsible for where you fly.
+                    It knows the airspace in these files and no other. Where no file of yours reaches, the cockpit says that nothing is checked there; an old file it cannot tell from a new one. It does not know which areas are active today. Every warning is advice: you remain responsible for where you fly.
                     """)
             }
         }

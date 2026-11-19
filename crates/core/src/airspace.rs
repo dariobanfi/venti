@@ -61,6 +61,24 @@ pub enum AirspaceLevel {
     Inside,
 }
 
+/// Whether the cockpit is checking the glider against airspace right now.
+/// Anything but `Checking` means: silence is not "no airspace near".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AirspaceCheck {
+    /// The session was given no airspace: the pilot has no files.
+    NoAirspace,
+    /// No position with a height has arrived yet, so nothing was checked.
+    WaitingForHeight,
+    /// Positions have stopped arriving: the last check is old, and the
+    /// warnings shown are from then.
+    Stale,
+    /// The pilot's files hold no airspace within a hundred kilometres of
+    /// the glider: they do not cover this place.
+    OutsideFiles,
+    /// Every position is being checked.
+    Checking,
+}
+
 /// One airspace as a map draws it.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct AirspaceShape {
@@ -120,7 +138,8 @@ pub struct AirspaceWarning {
     pub silenced: bool,
     /// Where the airspace comes from: the name of the pilot's file.
     pub source: String,
-    /// The date of that data, seconds since 1970-01-01 UTC, if known.
+    /// When that file was brought in, seconds since 1970-01-01 UTC. It is
+    /// not the age of the data in it, which an OpenAir file does not say.
     pub data_unix_s: Option<i64>,
 }
 
@@ -282,7 +301,8 @@ impl Core {
         };
         Ok(AirspaceImport {
             airspaces: u32::try_from(read.airspaces.len()).unwrap_or(u32::MAX),
-            left_out: count(ProblemKind::AirspaceSkipped),
+            // The reader's own count: its list of problems is capped.
+            left_out: u32::try_from(read.skipped()).unwrap_or(u32::MAX),
             assumed: count(ProblemKind::Assumed),
             problems: read
                 .problems
@@ -353,23 +373,31 @@ impl Core {
         if let Some(set) = kept.as_ref() {
             return Ok(Arc::clone(set));
         }
-        let mut airspaces = Vec::new();
+        let mut airspaces: Vec<Airspace> = Vec::new();
         let mut sources = Vec::new();
-        for stored in self.stored_airspace_files()? {
+        // The same airspace in two files, as when a country's file is
+        // brought in again under another name, is taken once: it would
+        // warn twice otherwise.
+        let mut taken = std::collections::BTreeSet::new();
+        let mut stored_files = self.stored_airspace_files()?;
+        stored_files.sort();
+        for stored in stored_files {
             let Some((day, slug, name)) = stored_parts(&stored) else {
                 continue;
             };
-            let Some(bytes) = self
-                .storage
-                .read(&format!("{FOLDER}/{stored}"))
-                .map_err(storage_error)?
-            else {
+            // One file that cannot be read must not cost the pilot the
+            // airspace of the others. The list of files shows it as empty.
+            let Ok(Some(bytes)) = self.storage.read(&format!("{FOLDER}/{stored}")) else {
                 continue;
             };
             let source = source_for(&slug);
             let mut options = Options::new(source.clone());
             options.file_date = day;
-            airspaces.extend(openair::parse_bytes(&bytes, &options).airspaces);
+            for airspace in openair::parse_bytes(&bytes, &options).airspaces {
+                if taken.insert(likeness(&airspace)) {
+                    airspaces.push(airspace);
+                }
+            }
             sources.push((source, name, day));
         }
         let set = Arc::new(AirspaceSet {
@@ -407,6 +435,25 @@ fn storage_error(error: io::Error) -> CoreError {
     CoreError::Storage {
         message: format!("The airspace files could not be read or written: {error}."),
     }
+}
+
+/// What makes two records the same airspace whatever file they came from:
+/// name, class, type, both limits and where it lies, to about ten metres.
+fn likeness(airspace: &Airspace) -> String {
+    let bounds = airspace.bounds();
+    format!(
+        "{}|{:?}|{:?}|{}|{}|{:.4}|{:.4}|{:.4}|{:.4}|{}",
+        airspace.name.trim().to_lowercase(),
+        airspace.class,
+        airspace.airspace_type,
+        limit_in_words(&airspace.lower),
+        limit_in_words(&airspace.upper),
+        bounds.south(),
+        bounds.west(),
+        bounds.north(),
+        bounds.east(),
+        airspace.geometry.exterior().len(),
+    )
 }
 
 /// A file name reduced to what is safe in a stored name and in a source
@@ -491,7 +538,11 @@ fn limit_in_words(limit: &VerticalLimit) -> String {
     match (limit.reference(), limit.unit()) {
         (VerticalReference::Ground, _) => "GND".to_owned(),
         (VerticalReference::Unlimited, _) => "UNL".to_owned(),
-        (VerticalReference::Standard, _) | (_, HeightUnit::FlightLevel) => format!("FL {number}"),
+        (_, HeightUnit::FlightLevel) => format!("FL {number}"),
+        // A height on the standard pressure setting that is not written
+        // as a flight level: "5000 ft STD".
+        (VerticalReference::Standard, HeightUnit::Feet) => format!("{number} ft STD"),
+        (VerticalReference::Standard, HeightUnit::Metres) => format!("{number} m STD"),
         (VerticalReference::MeanSeaLevel, HeightUnit::Feet) => format!("{number} ft AMSL"),
         (VerticalReference::MeanSeaLevel, HeightUnit::Metres) => format!("{number} m AMSL"),
         (VerticalReference::AboveGround, HeightUnit::Feet) => format!("{number} ft AGL"),
@@ -593,9 +644,26 @@ pub(crate) struct AirspaceWatch {
     warnings: Vec<AirspaceWarning>,
     /// The most urgent warning that became new and has not been sounded.
     alert: Option<AirspaceLevel>,
-    /// When the engine was last fed, in sample time.
-    fed_s: Option<f64>,
+    /// When the engine last checked a position, in sample time.
+    checked_s: Option<f64>,
+    /// Whether the pilot's files hold any airspace around the glider, and
+    /// when that was last looked at.
+    covered: Option<(bool, f64)>,
 }
+
+/// Positions closer together than this are not checked twice.
+const CHECK_EVERY_S: f64 = 0.5;
+
+/// A check older than this is stale: positions have stopped arriving.
+const STALE_AFTER_S: f64 = 10.0;
+
+/// How often the watch looks whether the files cover where the glider is.
+const LOOK_FOR_COVER_EVERY_S: f64 = 30.0;
+
+/// Half the height of the box in which airspace must be found for the
+/// files to count as covering a place, in degrees: about a hundred
+/// kilometres.
+const COVER_BOX_DEG: f64 = 1.0;
 
 impl AirspaceWatch {
     pub(crate) fn new(set: Arc<AirspaceSet>) -> Self {
@@ -604,7 +672,25 @@ impl AirspaceWatch {
             engine: WarningEngine::new(Config::default()),
             warnings: Vec::new(),
             alert: None,
-            fed_s: None,
+            checked_s: None,
+            covered: None,
+        }
+    }
+
+    /// Gives the watch other airspace, when the pilot's files changed in
+    /// the middle of a session. What the pilot silenced stays silenced.
+    pub(crate) fn replace(&mut self, set: Arc<AirspaceSet>) {
+        self.set = set;
+        self.covered = None;
+    }
+
+    /// Whether anything is being checked, as of `now_s`.
+    pub(crate) fn check(&self, now_s: f64) -> AirspaceCheck {
+        match (self.checked_s, self.covered) {
+            (None, _) => AirspaceCheck::WaitingForHeight,
+            (Some(checked), _) if now_s - checked > STALE_AFTER_S => AirspaceCheck::Stale,
+            (_, Some((false, _))) => AirspaceCheck::OutsideFiles,
+            _ => AirspaceCheck::Checking,
         }
     }
 
@@ -620,17 +706,17 @@ impl AirspaceWatch {
         course_deg: Option<f64>,
         climb_ms: Option<f64>,
     ) {
-        // Without a height nothing can be said; the last warnings stand.
+        // Without a height nothing can be checked. The last warnings stand
+        // and `check` says that they are getting old.
         let Some(altitude_m) = altitude_m else {
             return;
         };
         if self
-            .fed_s
-            .is_some_and(|fed| (0.0..1.0).contains(&(time_s - fed)))
+            .checked_s
+            .is_some_and(|checked| (0.0..CHECK_EVERY_S).contains(&(time_s - checked)))
         {
             return;
         }
-        self.fed_s = Some(time_s);
         let sample = Sample {
             time_s,
             position,
@@ -646,6 +732,22 @@ impl AirspaceWatch {
         let Ok(found) = self.engine.update(&self.set.index, &sample) else {
             return;
         };
+        self.checked_s = Some(time_s);
+        // Files for one country say nothing about the next: once in a
+        // while, look whether any airspace of the files lies around here.
+        if self
+            .covered
+            .is_none_or(|(_, looked)| !(0.0..LOOK_FOR_COVER_EVERY_S).contains(&(time_s - looked)))
+        {
+            let around = BoundingBox::new(
+                (position.lat() - COVER_BOX_DEG).max(-90.0),
+                (position.lon() - COVER_BOX_DEG * 1.5).max(-180.0),
+                (position.lat() + COVER_BOX_DEG).min(90.0),
+                (position.lon() + COVER_BOX_DEG * 1.5).min(180.0),
+            );
+            let any = around.is_ok_and(|around| !self.set.index.in_box(&around, None).is_empty());
+            self.covered = Some((any, time_s));
+        }
         for warning in &found {
             if warning.is_new && warning.silenced.is_none() {
                 let level = level_view(warning.level);
@@ -752,13 +854,9 @@ fn view(set: &AirspaceSet, warning: &Warning<'_>) -> AirspaceWarning {
             compass(warning.horizontal.bearing_deg)
         ),
     };
-    let missing = warning
-        .vertical
-        .floor
-        .unknown
-        .or(warning.vertical.ceiling.unknown);
     let uncertain = warning.uncertain().then(|| {
-        match missing {
+        // The limit the doubt really comes from, as the engine works it out.
+        match warning.vertical.missing() {
             Some(Unknown::GroundElevation) => {
                 "Possibly clear: the app does not know the height of the ground here."
             }
@@ -873,12 +971,15 @@ AH FL 100
         core.import_airspace("other.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
             .unwrap();
         assert_eq!(core.airspace_files().unwrap().len(), 2);
-        assert_eq!(core.airspace().unwrap().count(), 4);
+        // The same airspace in two files is one airspace: it must not
+        // warn twice.
+        assert_eq!(core.airspace().unwrap().count(), 2);
 
         // After a restart the files are still there.
         drop(core);
         let core = self::core(&folder);
-        assert_eq!(core.airspace().unwrap().count(), 4);
+        assert_eq!(core.airspace_files().unwrap().len(), 2);
+        assert_eq!(core.airspace().unwrap().count(), 2);
 
         core.delete_airspace_file("20261118-other.txt".to_owned())
             .unwrap();
@@ -1044,6 +1145,85 @@ AH FL 100
     }
 
     #[test]
+    fn the_cockpit_can_tell_silence_from_not_checking() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+        // No files: nothing is checked, and the session says so.
+        assert_eq!(session.airspace_check(0.0), AirspaceCheck::NoAirspace);
+
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        session.use_airspace(Some(core.airspace().unwrap()));
+        // Files, but no position yet.
+        assert_eq!(session.airspace_check(0.0), AirspaceCheck::WaitingForHeight);
+
+        replay.advance(session.clone(), 60.0);
+        assert_eq!(
+            session.airspace_check(replay.now()),
+            AirspaceCheck::Checking
+        );
+        // Positions stop, as when the satellites are lost: after ten
+        // seconds the check counts as old.
+        assert_eq!(
+            session.airspace_check(replay.now() + 5.0),
+            AirspaceCheck::Checking
+        );
+        assert_eq!(
+            session.airspace_check(replay.now() + 60.0),
+            AirspaceCheck::Stale
+        );
+
+        // Files that hold no airspace anywhere near: a zone in Lapland
+        // says nothing about the Tegernsee.
+        let far = "AC D\nAN FAR AWAY\nAL GND\nAH FL 100\nV X=68:00:00 N 025:00:00 E\nDC 5\n";
+        let other_folder = TempFolder::new();
+        let other = self::core(&other_folder);
+        other
+            .import_airspace("lapland.txt".to_owned(), far.as_bytes().to_vec(), NOW)
+            .unwrap();
+        session.use_airspace(Some(other.airspace().unwrap()));
+        replay.advance(session.clone(), 5.0);
+        assert_eq!(
+            session.airspace_check(replay.now()),
+            AirspaceCheck::OutsideFiles
+        );
+        assert!(session.airspace_warnings().is_empty());
+    }
+
+    #[test]
+    fn other_files_in_the_middle_of_a_flight_keep_what_the_pilot_silenced() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        session.use_airspace(Some(core.airspace().unwrap()));
+        let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+        let mut first = None;
+        while first.is_none() && replay.advance(session.clone(), 5.0) {
+            first = session.airspace_warnings().into_iter().next();
+        }
+        let first = first.unwrap();
+        session.ignore_airspace_today(first.id.clone(), 3600);
+        session.take_airspace_alert();
+
+        // The pilot brings in another file while flying: the set is built
+        // anew and handed over.
+        let more = "AC R\nAN ED-R ELSEWHERE\nAL GND\nAH FL 100\nV X=49:00:00 N 009:00:00 E\nDC 2\n";
+        core.import_airspace("more.txt".to_owned(), more.as_bytes().to_vec(), NOW)
+            .unwrap();
+        session.use_airspace(Some(core.airspace().unwrap()));
+        replay.advance(session.clone(), 5.0);
+
+        let after = session.airspace_warnings();
+        assert_eq!(after[0].id, first.id);
+        assert!(after[0].silenced, "{after:?}");
+        assert_eq!(session.take_airspace_alert(), None);
+    }
+
+    #[test]
     fn limits_and_kinds_are_worded_as_pilots_read_them() {
         let limit = |reference, value, unit| {
             limit_in_words(&VerticalLimit::new(reference, value, unit).unwrap())
@@ -1059,6 +1239,12 @@ AH FL 100
         assert_eq!(
             limit_in_words(&VerticalLimit::flight_level(95).unwrap()),
             "FL 95"
+        );
+        // A height on the standard setting that is not a flight level is
+        // not turned into one a hundred times higher.
+        assert_eq!(
+            limit(VerticalReference::Standard, 5000.0, HeightUnit::Feet),
+            "5000 ft STD"
         );
         assert_eq!(distance_in_words(304.0), "300 m");
         assert_eq!(distance_in_words(1849.0), "1.8 km");

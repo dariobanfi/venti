@@ -31,6 +31,10 @@ final class FlySession {
     private(set) var score: LiveScore?
     /// The airspace warnings of the moment, the most urgent first.
     private(set) var airspaceWarnings: [AirspaceWarning] = []
+    /// Whether the glider is being checked against airspace right now.
+    /// Anything but `checking` means that silence is not "no airspace
+    /// near", and the cockpit says which it is.
+    private(set) var airspaceCheck = AirspaceCheck.noAirspace
     /// The airspace to warn about, asked for when a session starts. The
     /// app sets this to the pilot's airspace files.
     @ObservationIgnored var airspace: () -> AirspaceSet? = { nil }
@@ -54,6 +58,8 @@ final class FlySession {
     @ObservationIgnored private let barometer = BarometerProvider()
     @ObservationIgnored private let sound = VarioSound()
     @ObservationIgnored private let voice = AirspaceVoice()
+    /// The airspace last handed to the core's session.
+    @ObservationIgnored private var handedAirspace: AirspaceSet?
     /// Refreshes of the screen since the score was last asked for.
     @ObservationIgnored private var ticksSinceScore = 0
 
@@ -157,13 +163,16 @@ final class FlySession {
         way = nil
         score = nil
         airspaceWarnings = []
+        airspaceCheck = .noAirspace
+        handedAirspace = nil
         return recording
     }
 
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
-        session.useAirspace(airspace: airspace())
+        handedAirspace = airspace()
+        session.useAirspace(airspace: handedAirspace)
         // How the pilot's glider glides, for predicting arrival heights.
         // Unset values are zero, which the core ignores.
         let defaults = UserDefaults.standard
@@ -215,6 +224,18 @@ final class FlySession {
             if latest != score {
                 score = latest
             }
+        }
+
+        // Files brought in or removed in the middle of a session reach the
+        // core at once; what the pilot silenced stays silenced.
+        let latest = airspace()
+        if latest !== handedAirspace {
+            handedAirspace = latest
+            session.useAirspace(airspace: latest)
+        }
+        let check = session.airspaceCheck(nowUnixS: now)
+        if check != airspaceCheck {
+            airspaceCheck = check
         }
 
         let warnings = session.airspaceWarnings()

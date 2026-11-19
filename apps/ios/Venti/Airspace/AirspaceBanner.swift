@@ -19,9 +19,37 @@ extension AirspaceLevel {
 /// opens all of them, with the ways to quiet one.
 struct AirspaceBanner: View {
     let warnings: [AirspaceWarning]
+    /// Whether anything is being checked at all.
+    let check: AirspaceCheck
     let open: () -> Void
 
+    /// What to say when the app is not checking, so that its silence is
+    /// not taken for "no airspace near".
+    private var notice: String? {
+        switch check {
+        case .checking, .noAirspace: nil
+        case .waitingForHeight: "Airspace is not being checked yet: no position with a height."
+        case .stale: "Airspace is not being checked: no position. What is shown is from the last one."
+        case .outsideFiles: "Your airspace files do not cover this place. Nothing is checked here."
+        }
+    }
+
     var body: some View {
+        VStack(spacing: 6) {
+            if let notice {
+                Label(notice, systemImage: "eye.slash")
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 14))
+                    .accessibilityIdentifier("airspace-notice")
+            }
+            band
+        }
+    }
+
+    @ViewBuilder private var band: some View {
         if let warning = warnings.first(where: { !$0.silenced }) ?? warnings.first {
             Button(action: open) {
                 HStack(alignment: .top, spacing: 10) {

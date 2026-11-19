@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -24,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,28 +37,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
+import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.numbers
 import fly.venti.app.logbook.FlightFiles
 import fly.venti.app.logbook.ImportNotice
 import fly.venti.app.logbook.ImportNoticeDialog
 import fly.venti.core.AirspaceFile
+import fly.venti.core.KeptAirspace
 import kotlinx.coroutines.launch
 
 /**
- * The pilot's airspace files: what is in each, what could not be read,
- * and a way to bring in more or remove one.
+ * The pilot's airspace: what the app keeps from the pilot's server, and the
+ * files the pilot brings in. Where each comes from, how old it is, and what
+ * it left out.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AirspaceScreen(airspace: AirspaceModel, onBack: () -> Unit) {
+fun AirspaceScreen(
+    airspace: AirspaceModel,
+    /** Whether a Venti server is set in the settings. */
+    hasServer: Boolean,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var notice by remember { mutableStateOf<ImportNotice?>(null) }
@@ -100,6 +113,42 @@ fun AirspaceScreen(airspace: AirspaceModel, onBack: () -> Unit) {
                     Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
             }
+            SectionHeader("From your server")
+            Group {
+                for (layer in airspace.kept) {
+                    row { KeptRow(layer) }
+                }
+                airspace.serverProblem?.let { problem ->
+                    row { Note(problem, R.drawable.ic_cloud_off, MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+                row {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = airspace.usesServer,
+                                role = Role.Switch,
+                                onValueChange = { isOn ->
+                                    if (isOn) airspace.useServer() else airspace.stopUsingServer()
+                                },
+                            )
+                            .heightIn(min = 56.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Airspace from your server",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        // The row is the switch: it takes the press and says the state.
+                        Switch(checked = airspace.usesServer, onCheckedChange = null)
+                    }
+                }
+            }
+            SectionFooter(AirspaceModel.serverNote(airspace.usesServer, hasServer, airspace.kept.isNotEmpty()))
+
+            SectionHeader("Your files")
             Group {
                 for (file in airspace.files) {
                     row { FileRow(file, onDelete = { airspace.delete(file) }) }
@@ -133,15 +182,68 @@ fun AirspaceScreen(airspace: AirspaceModel, onBack: () -> Unit) {
                     "about to enter or are inside.",
             )
             SectionFooter(
-                "It knows the airspace in these files and no other. Where no file of yours reaches, the " +
-                    "cockpit says that nothing is checked there; an old file it cannot tell from a new " +
-                    "one. It does not know which areas are active today. Every warning is advice: you " +
-                    "remain responsible for where you fly.",
+                "It knows the airspace listed here and no other. Where none of it reaches, the cockpit " +
+                    "says that nothing is checked there; an old file it cannot tell from a new one. It " +
+                    "does not know which areas are active today. For Germany and Austria it knows the " +
+                    "rules a paraglider flies under; anywhere else it goes by an airspace's class and " +
+                    "type alone. Every warning is advice: you remain responsible for where you fly.",
             )
         }
     }
 
     ImportNoticeDialog(notice) { notice = null }
+}
+
+/**
+ * The airspace of one provider as kept from the server: how much, how old,
+ * whose countries, and the credit and the notice its provider asks for.
+ */
+@Composable
+private fun KeptRow(layer: KeptAirspace) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .testTag("airspace-from-server")
+            .semantics(mergeDescendants = true) {}
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(layer.provider, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            AirspaceModel.detail(layer),
+            style = MaterialTheme.typography.bodyMedium.numbers,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AirspaceModel.countriesNote(layer)?.let { note ->
+            Text(note, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (!layer.saysWhatItCovers) {
+            Note(AirspaceModel.COVERS_UNKNOWN, R.drawable.ic_warning, MaterialTheme.colorScheme.error, inRow = true)
+        }
+        layer.credit?.let { credit ->
+            credit.notice?.let { notice ->
+                Note(notice, R.drawable.ic_warning, MaterialTheme.colorScheme.onSurface, inRow = true)
+            }
+            Text(
+                "${credit.text} Licence: ${credit.licence}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** A line with a small sign before it. On a row of its own it brings the row's padding along. */
+@Composable
+private fun Note(text: String, icon: Int, colour: Color, inRow: Boolean = false) {
+    Row(
+        modifier = if (inRow) Modifier else Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp), tint = colour)
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = colour)
+    }
 }
 
 /** One file: its name, what it holds, and in red what of it could not be read. Press and hold to delete it. */

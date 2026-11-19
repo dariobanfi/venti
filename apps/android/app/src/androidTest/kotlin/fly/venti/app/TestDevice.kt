@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
 import java.io.File
@@ -122,6 +123,29 @@ object TestDevice {
         }
         asked.await(10, TimeUnit.SECONDS)
         return place
+    }
+
+    /**
+     * Turns the map on screen to a place and a zoom, where a pilot would
+     * drag and pinch it. Returns false if no map is on screen.
+     */
+    fun <A : Activity> lookAt(app: ActivityScenario<A>, lat: Double, lon: Double, zoom: Double): Boolean {
+        var moved = false
+        val asked = CountDownLatch(1)
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                asked.countDown()
+            } else {
+                view.getMapAsync { map ->
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom))
+                    moved = true
+                    asked.countDown()
+                }
+            }
+        }
+        asked.await(10, TimeUnit.SECONDS)
+        return moved
     }
 
     /** A tap with a finger, as the phone itself takes one. */

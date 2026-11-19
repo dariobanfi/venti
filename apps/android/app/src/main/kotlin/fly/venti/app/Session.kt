@@ -125,11 +125,14 @@ sealed interface Session {
             if (sampleWaypoints) {
                 waypoints.importText(LaunchOptions.SAMPLE_WAYPOINT_FILE)
             }
-            val airspace = logbook.makeAirspace()
+            val airspace = logbook.makeAirspace(remembered = preferences, scope = scope)
+            // Airspace comes from the same server as the wind.
+            airspace.server = { (wind.server as? WindServer.Usable)?.url }
             if (sampleAirspace) {
                 airspace.importText("sample-zones-not-real.txt", LaunchOptions.SAMPLE_AIRSPACE_FILE)
             }
-            // The cockpit warns of what is in the pilot's files when a flight starts.
+            // The cockpit warns of the pilot's files and of what is kept
+            // from the server, also when either changes during a flight.
             fly.airspace = { airspace.set }
             return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, preferences, files)
         }

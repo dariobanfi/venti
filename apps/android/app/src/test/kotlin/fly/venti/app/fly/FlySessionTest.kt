@@ -205,7 +205,7 @@ class FlySessionTest {
         // Silence that is not "no airspace near" is said in words.
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.WAITING_FOR_HEIGHT)).startsWith("Airspace is not being checked yet"))
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE)).startsWith("Airspace is not being checked: no position."))
-        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace files do not cover this place."))
+        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace does not cover this place."))
         assertNull(AirspaceWords.notChecking(AirspaceCheck.CHECKING))
     }
 

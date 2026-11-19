@@ -26,6 +26,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -419,8 +420,10 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }
         waitFor(described("Show my position"))
 
+        // Before take-off the Fly tab says what the cockpit will warn from.
         tap(tab("Fly"))
         waitFor(hasText("Start flight"))
+        assertTrue(exists(hasTestTag("airspace-before-takeoff") and hasText("1 file")))
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
         tap(hasText("20 times faster"))
@@ -431,8 +434,8 @@ class VentiUiTest {
         waitFor(banner, seconds = 120)
         assertTrue(exists(banner and saying("SAMPLE ZONE (NOT REAL)")))
         // The zone itself is on the cockpit's map: the map is asked, since
-        // a screenshot does not fail a test. The glider flies on towards
-        // the zone, so its edge comes into view if it is drawn at all.
+        // a screenshot does not fail a test. The map has stepped back as
+        // far as it takes to show the zone the warning is about.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-8-airspace")
@@ -440,6 +443,8 @@ class VentiUiTest {
         tap(banner)
         waitFor(hasText("Seen: quiet for 10 minutes"))
         assertTrue(exists(hasText("Class D control zone", substring = true)))
+        // The warning says which of the pilot's files it is from.
+        assertTrue(exists(hasText("From your file “sample-zones-not-real”", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-9-airspace-warnings")
         // "Seen" would speak again as the glider comes closer; "does not
@@ -474,12 +479,74 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(5)
         keepScreenshot("$prefix-map-airspace")
+
+        // With the whole zone in view the map names it, with its floor and
+        // its ceiling under the name. The name stands in the middle of the
+        // zone, which the map of the flight beside it does not reach.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.686, lon = 11.728, zoom = 11.5))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "airspace-names") ?: 0) > 0
+        }
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-map-airspace-named")
     }
 
     /** How many closed airspaces the map on screen has drawn: their washes and their edges. */
     private fun airspaceOnTheMap(scenario: ActivityScenario<MainActivity>): Int =
         (TestDevice.drawnOnTheMap(scenario, "airspace-wash-2") ?: 0) +
             (TestDevice.drawnOnTheMap(scenario, "airspace-edge-2") ?: 0)
+
+    /** How many airspaces of any kind the map on screen has drawn the edge of. */
+    private fun airspaceEdgesOnTheMap(scenario: ActivityScenario<MainActivity>): Int =
+        (0..2).sumOf { rank -> TestDevice.drawnOnTheMap(scenario, "airspace-edge-$rank") ?: 0 }
+
+    /**
+     * Airspace from the pilot's server: with a server set, the app fetches
+     * the airspace around the map by itself and keeps it. The map draws it
+     * and names whose it is; the Fly tab says before take-off what the
+     * cockpit will warn from; and the list shows it with its provider's
+     * credit and notice, and the switch that turns it off. Skipped without
+     * a server, like the wind.
+     */
+    private fun takeAirspaceFromTheServer(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+
+        // The map asked for the airspace around what it shows.
+        waitFor(hasText("Airspace: openAIP, not certified"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceEdgesOnTheMap(scenario) > 0 }
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-airspace-1-map")
+
+        tap(tab("Fly"))
+        val line = hasTestTag("airspace-before-takeoff")
+        waitFor(line and hasText("openAIP", substring = true))
+        keepScreenshot("$prefix-airspace-2-before-takeoff")
+
+        tap(line)
+        waitFor(hasTestTag("airspace-from-server"))
+        assertTrue(exists(hasText("OpenAIP data is not certified", substring = true)))
+        assertTrue(exists(hasText("Licence: CC BY-NC 4.0.", substring = true)))
+        keepScreenshot("$prefix-airspace-3-from-server")
+
+        // Switched off, what was kept is gone, and the Fly tab says so.
+        screen.onNode(hasText("Airspace from your server")).performScrollTo()
+        tap(hasText("Airspace from your server"))
+        waitFor(hasText("Switched off: only your own files are used."))
+        assertFalse(exists(hasTestTag("airspace-from-server")))
+        tap(described("Back"))
+        waitFor(line and hasText("None"))
+        assertTrue(exists(hasText("Without airspace the cockpit warns of none.", substring = true)))
+    }
+
+    @Test
+    fun airspaceComesFromTheServerByItself() = takeAirspaceFromTheServer("light", dark = false)
+
+    @Test
+    fun theServersAirspaceInDarkAppearance() = takeAirspaceFromTheServer("dark", dark = true)
 
     @Test
     fun theCockpitWarnsOfAirspace() = flyNearAirspace("light", dark = false)

@@ -45,6 +45,7 @@ import fly.venti.app.design.numbers
 import fly.venti.app.fly.Announcer
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceLevel
+import fly.venti.core.AirspaceOrigin
 import fly.venti.core.AirspaceWarning
 import java.util.Locale
 
@@ -71,23 +72,40 @@ object AirspaceWords {
         AirspaceCheck.CHECKING, AirspaceCheck.NO_AIRSPACE -> null
         AirspaceCheck.WAITING_FOR_HEIGHT -> "Airspace is not being checked yet: no position with a height."
         AirspaceCheck.STALE -> "Airspace is not being checked: no position. What is shown is from the last one."
-        AirspaceCheck.OUTSIDE_FILES -> "Your airspace files do not cover this place. Nothing is checked here."
+        AirspaceCheck.OUTSIDE_FILES -> "Your airspace does not cover this place. Nothing is checked here."
     }
 
     /** A warning as a screen reader says it. */
     fun spoken(warning: AirspaceWarning): String =
         listOfNotNull("${warning.headline}.", "${warning.detail}.", warning.uncertain).joinToString(" ")
 
-    /** Which of the pilot's files a warning comes from, and how old that file is. */
+    /**
+     * Where a warning's airspace comes from and how old that is: a file of
+     * the pilot's and the day it was brought in, or a provider by way of
+     * the pilot's server and the day the provider wrote it.
+     */
     fun origin(warning: AirspaceWarning): String {
-        val date = warning.dataUnixS ?: return "From your file “${warning.source}”."
-        return "From your file “${warning.source}”, brought in ${Format.day(date)}."
+        val date = warning.dataUnixS
+        return when (warning.origin) {
+            AirspaceOrigin.FILE ->
+                if (date == null) {
+                    "From your file “${warning.source}”."
+                } else {
+                    "From your file “${warning.source}”, brought in ${Format.day(date)}."
+                }
+            AirspaceOrigin.SERVER ->
+                if (date == null) {
+                    "From ${warning.source}, by way of your server."
+                } else {
+                    "From ${warning.source}, by way of your server, as of ${Format.day(date)}."
+                }
+        }
     }
 
     const val EXPLANATION =
         "A warning you have seen speaks again if it becomes more urgent. “Does not apply today” is for an " +
             "area you know to be inactive or have permission for: Venti cannot check that. Warnings are " +
-            "advice from the files you brought in; you remain responsible for where you fly."
+            "advice from the airspace the app has; you remain responsible for where you fly."
 }
 
 /**
@@ -184,6 +202,8 @@ private fun colours(warning: AirspaceWarning): Pair<Color, Color> {
 @Composable
 fun AirspaceWarningsSheet(
     warnings: List<AirspaceWarning>,
+    /** What the providers of the airspace ask to be said wherever it is shown. */
+    notices: List<String>,
     onAcknowledge: (String) -> Unit,
     onIgnoreToday: (String) -> Unit,
     onUnsilence: (String) -> Unit,
@@ -245,6 +265,7 @@ fun AirspaceWarningsSheet(
                 }
             }
             item { SectionFooter(AirspaceWords.EXPLANATION, Modifier.padding(top = 16.dp)) }
+            items(notices) { notice -> SectionFooter(notice, Modifier.testTag("airspace-provider-notice")) }
         }
     }
 }

@@ -77,6 +77,7 @@ fun RootScreen(
         CockpitScreen(
             fly = fly,
             waypoints = session.waypoints,
+            airspace = session.airspace,
             varioName = session.vario.connectedName,
             onFinish = {
                 // Ends the session, and for a real flight saves it and shows it.
@@ -135,12 +136,24 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
         },
     ) { bars ->
         val logbook = session.logbook
+        // One Venti server gives the wind, the airspace and the assistant's look-ups.
+        val hasServer = session.wind.server is WindServer.Usable
         when (navigation.tab) {
             AppTab.Map -> kept.SaveableStateProvider("map") {
                 MapScreen(logbook, session.wind, session.airspace, bars)
             }
-            AppTab.Fly -> kept.SaveableStateProvider("fly") {
-                FlyScreen(session.fly, session.vario, session.files, bars)
+            AppTab.Fly -> when (navigation.flyRoute) {
+                FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                null -> kept.SaveableStateProvider("fly") {
+                    FlyScreen(
+                        session.fly,
+                        session.vario,
+                        session.airspace,
+                        session.files,
+                        onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
+                        bars = bars,
+                    )
+                }
             }
             AppTab.Logbook -> when (val route = navigation.logbookPath.lastOrNull()) {
                 null -> kept.SaveableStateProvider("logbook") { LogbookScreen(logbook, navigation, bars) }
@@ -156,14 +169,14 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
                 }
             }
             AppTab.Assistant -> kept.SaveableStateProvider("assistant") {
-                AssistantScreen(session.chat, hasWind = session.wind.server is WindServer.Usable, bars = bars)
+                AssistantScreen(session.chat, hasWind = hasServer, bars = bars)
             }
             AppTab.Settings -> when (navigation.settingsRoute) {
                 SettingsRoute.Credits -> CreditsScreen(session.wind, onBack = { navigation.back() })
                 SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
                     WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                 }
-                SettingsRoute.Airspace -> AirspaceScreen(session.airspace, onBack = { navigation.back() })
+                SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                 null -> kept.SaveableStateProvider("settings") {
                     SettingsScreen(
                         session.preferences,

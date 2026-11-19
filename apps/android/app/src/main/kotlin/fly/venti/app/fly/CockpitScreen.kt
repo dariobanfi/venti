@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.airspace.AirspaceBanner
+import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceWarningsSheet
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
@@ -84,6 +86,8 @@ fun CockpitScreen(
     fly: FlySession,
     /** The pilot's waypoints, to choose a place to fly to. */
     waypoints: WaypointsModel,
+    /** The pilot's airspace: fetched around the first position, and credited under the warnings. */
+    airspace: AirspaceModel,
     /** The connected vario's name, if one is connected. */
     varioName: String?,
     /** Called when the pilot has confirmed the end of the session. */
@@ -97,8 +101,18 @@ fun CockpitScreen(
     val map = remember { CockpitMap() }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
+    // The airspace the loudest warning is about: the map steps back as far
+    // as it takes to show it.
+    val airspaceDistance = fly.airspaceWarnings.firstOrNull { !it.silenced }?.distanceM
 
     KeepScreenOn()
+    // With the first position, and a network, the airspace around it is
+    // fetched if what the phone keeps is old or from elsewhere. A change
+    // reaches the running session by itself.
+    val hasPosition = view.position != null
+    LaunchedEffect(hasPosition) {
+        view.position?.let(airspace::refreshSoon)
+    }
     // The cockpit covers the whole app; the back button ends it like the
     // button on screen does, and asks first.
     BackHandler { isConfirmingFinish = true }
@@ -113,7 +127,7 @@ fun CockpitScreen(
                     modifier = Modifier.fillMaxSize(),
                     onUpdate = {
                         map.airspace = fly.airspace()
-                        map.show(view, way, route)
+                        map.show(view, way, route, airspaceDistance)
                     },
                 )
                 view.wind?.let { wind ->
@@ -166,6 +180,7 @@ fun CockpitScreen(
     if (isShowingAirspace) {
         AirspaceWarningsSheet(
             warnings = fly.airspaceWarnings,
+            notices = airspace.credits.mapNotNull { it.notice },
             onAcknowledge = fly::acknowledgeAirspace,
             onIgnoreToday = fly::ignoreAirspaceToday,
             onUnsilence = fly::unsilenceAirspace,

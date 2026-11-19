@@ -35,19 +35,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.AppFiles
 import fly.venti.app.R
+import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 
 /** The Fly tab: what to check before take-off, and the way into the cockpit. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FlyScreen(fly: FlySession, vario: VarioLink, files: AppFiles, bars: PaddingValues) {
+fun FlyScreen(
+    fly: FlySession,
+    vario: VarioLink,
+    airspace: AirspaceModel,
+    files: AppFiles,
+    /** Called to show the list of the pilot's airspace. */
+    onOpenAirspace: () -> Unit,
+    bars: PaddingValues,
+) {
     var isChoosingVario by remember { mutableStateOf(false) }
     var isChoosingReplay by remember { mutableStateOf(false) }
 
@@ -91,8 +102,26 @@ fun FlyScreen(fly: FlySession, vario: VarioLink, files: AppFiles, bars: PaddingV
                         onClick = { isChoosingVario = true },
                     )
                 }
+                // What the cockpit will warn from, to be seen before
+                // take-off and not found out in the air.
+                row {
+                    ChoiceRow(
+                        icon = R.drawable.ic_activity_zone,
+                        title = "Airspace",
+                        value = airspace.inALine,
+                        onClick = onOpenAirspace,
+                        modifier = Modifier.testTag("airspace-before-takeoff"),
+                    )
+                }
             }
-            SectionFooter("Without an external vario the phone's own pressure sensor is used. It is slower.")
+            SectionFooter(
+                if (airspace.isEmpty) {
+                    "Without an external vario the phone's own pressure sensor is used. It is slower. " +
+                        "Without airspace the cockpit warns of none."
+                } else {
+                    "Without an external vario the phone's own pressure sensor is used. It is slower."
+                },
+            )
 
             Spacer(Modifier.height(28.dp))
             Button(
@@ -159,9 +188,9 @@ private fun permissionsToFly(vario: VarioLink): Array<String> = buildList {
 
 /** A row that opens a choice: an icon, what it is, and what is chosen now. */
 @Composable
-private fun ChoiceRow(icon: Int, title: String, value: String, onClick: () -> Unit) {
+private fun ChoiceRow(icon: Int, title: String, value: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 56.dp)
@@ -170,11 +199,16 @@ private fun ChoiceRow(icon: Int, title: String, value: String, onClick: () -> Un
     ) {
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.width(12.dp))
+        // The value takes the room the title leaves, and is cut short
+        // before it pushes the title off the row.
         Text(
             value,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

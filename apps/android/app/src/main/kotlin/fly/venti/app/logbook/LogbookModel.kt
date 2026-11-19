@@ -4,8 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.AppFiles
+import fly.venti.app.Http
+import fly.venti.app.HttpAnswer
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.pilotMessage
+import fly.venti.app.settings.Preferences
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
@@ -17,6 +20,7 @@ import fly.venti.core.PendingRecording
 import fly.venti.core.clearRecording
 import fly.venti.core.pendingRecordings
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -127,11 +131,18 @@ class LogbookModel(
     fun makeWaypoints(): WaypointsModel = WaypointsModel(core, background)
 
     /**
-     * The pilot's airspace files, which the core keeps there too. `now` is
-     * the clock a file's day of arrival is read from.
+     * The pilot's airspace, which the core keeps there too: the pilot's
+     * files, and what was fetched from the pilot's server. `now` is the
+     * clock a file's day of arrival and the age of what is kept are read
+     * from; `remembered` keeps the choice to use the server; requests to
+     * the server run in `scope` and go out through `transport`.
      */
-    fun makeAirspace(now: () -> Long = { System.currentTimeMillis() / 1000 }): AirspaceModel =
-        AirspaceModel(core, background, now)
+    fun makeAirspace(
+        now: () -> Long = { System.currentTimeMillis() / 1000 },
+        remembered: Preferences? = null,
+        scope: CoroutineScope? = null,
+        transport: suspend (String) -> HttpAnswer = { url -> Http.get(url) },
+    ): AirspaceModel = AirspaceModel(core, background, now, remembered, scope, transport)
 
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()

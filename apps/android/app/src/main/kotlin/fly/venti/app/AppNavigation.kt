@@ -36,7 +36,13 @@ enum class SettingsRoute {
     /** The pilot's waypoints. */
     Waypoints,
 
-    /** The pilot's airspace files. */
+    /** The pilot's airspace. */
+    Airspace,
+}
+
+/** A screen reached from the Fly tab. */
+enum class FlyRoute {
+    /** The pilot's airspace: what the cockpit will warn from. */
     Airspace,
 }
 
@@ -53,11 +59,15 @@ class AppNavigation {
     /** The screen opened on top of the settings, if any. */
     var settingsRoute: SettingsRoute? by mutableStateOf(null)
 
-    /** Whether the pilot is on one of the four sections' first screens, where the tab bar shows. */
+    /** The screen opened on top of the Fly tab, if any. */
+    var flyRoute: FlyRoute? by mutableStateOf(null)
+
+    /** Whether the pilot is on one of the sections' first screens, where the tab bar shows. */
     val isAtTopLevel: Boolean
         get() = when (tab) {
             AppTab.Logbook -> logbookPath.isEmpty()
             AppTab.Settings -> settingsRoute == null
+            AppTab.Fly -> flyRoute == null
             else -> true
         }
 
@@ -81,6 +91,10 @@ class AppNavigation {
             settingsRoute = null
             true
         }
+        tab == AppTab.Fly && flyRoute != null -> {
+            flyRoute = null
+            true
+        }
         else -> false
     }
 
@@ -91,7 +105,11 @@ class AppNavigation {
         /** Keeps the pilot's place when Android rebuilds the screen. */
         val Saver = listSaver<AppNavigation, String>(
             save = { navigation ->
-                listOf(navigation.tab.name, navigation.settingsRoute?.name.orEmpty()) +
+                listOf(
+                    navigation.tab.name,
+                    navigation.settingsRoute?.name.orEmpty(),
+                    navigation.flyRoute?.name.orEmpty(),
+                ) +
                     navigation.logbookPath.map { route ->
                         when (route) {
                             is LogbookRoute.Flight -> FLIGHT + route.id
@@ -103,7 +121,8 @@ class AppNavigation {
                 AppNavigation().apply {
                     tab = AppTab.valueOf(saved[0])
                     settingsRoute = SettingsRoute.entries.firstOrNull { it.name == saved[1] }
-                    saved.drop(2).forEach { route ->
+                    flyRoute = FlyRoute.entries.firstOrNull { it.name == saved[2] }
+                    saved.drop(3).forEach { route ->
                         logbookPath += if (route == STATISTICS) {
                             LogbookRoute.Statistics
                         } else {

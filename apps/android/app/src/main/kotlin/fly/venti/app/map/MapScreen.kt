@@ -57,6 +57,7 @@ import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.wind.WindSheet
 import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
 import fly.venti.core.WindStation
 
 /**
@@ -76,6 +77,13 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
     map.onRegion = { shown ->
         region = shown
         wind.show(shown)
+        // The airspace around what the pilot is looking at, unless it is
+        // the whole continent. The model asks only when it is due.
+        if (shown.north - shown.south < 4) {
+            airspace.refreshSoon(
+                Coordinate(lat = (shown.south + shown.north) / 2, lon = (shown.west + shown.east) / 2),
+            )
+        }
     }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
 
@@ -103,10 +111,15 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
     // The airspace in the part of the map in view. Zoomed far out, a
     // country's airspace is a tangle and is not drawn, so it is not asked
     // for either.
-    val files = airspace.files
-    val airspaceInView = remember(region, files) {
-        region?.takeIf { it.east - it.west < 6 }?.let(airspace::shapes).orEmpty()
+    val all = airspace.set
+    val showsAirspace = region?.let { it.east - it.west < 6 } == true
+    val airspaceInView = remember(region, all) {
+        region?.takeIf { showsAirspace }?.let(airspace::shapes).orEmpty()
     }
+    // Whose wind and airspace are on the map. Their licences ask for the
+    // credit next to the data; the full wording is on each station's page
+    // and on the airspace screen.
+    val credits = listOfNotNull(wind.creditLine, airspace.mapCredit.takeIf { showsAirspace })
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
@@ -122,10 +135,10 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, b
         wind.notice?.let { text ->
             Notice(text, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(16.dp, 8.dp))
         }
-        wind.creditLine?.let { text ->
+        if (credits.isNotEmpty()) {
             // Clear of the map's own credits button on the left and of
             // the round buttons on the right.
-            Credits(text, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
+            Credits(credits, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
         }
 
         Column(
@@ -218,23 +231,29 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Whose wind data is on the map, in small type at its lower edge. */
+/**
+ * Whose wind and airspace are on the map, in small type at its lower edge:
+ * a line for each, so that neither is cut short by the other.
+ */
 @Composable
-private fun Credits(text: String, modifier: Modifier = Modifier) {
+private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("wind-credits"),
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
     ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            // Two providers' names do not fit one line of a phone.
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            for (line in lines) {
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Two providers' names do not fit one line of a phone.
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

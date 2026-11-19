@@ -25,12 +25,18 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * The cockpit's map: the glider, the track behind it coloured by climb, the
  * take-off, and a line to the place the cockpit is navigating to. It keeps
- * the glider in the middle by itself, north up, and zooms in while the
- * glider circles.
+ * the glider in the middle by itself, north up, zooms in while the glider
+ * circles, and steps back as far as it takes to show the airspace a warning
+ * is about.
  *
  * The glider and its track are handed to the map as one piece, so the map
  * can never draw one without the other: a glider ahead of its track, or a
@@ -46,8 +52,12 @@ class CockpitMap : MapContent {
     private var shown: CockpitView? = null
     private var shownAt = 0L
 
-    private var wasCircling: Boolean? = null
+    /** The zoom the map was last set to by itself. */
+    private var chosenZoom: Double? = null
     private var drawnTakeoff: Coordinate? = null
+
+    /** How far the airspace of the loudest warning is from the glider, in metres. */
+    private var airspaceDistance: Double? = null
 
     /**
      * The pilot's airspace, and where it was last drawn around. Files
@@ -126,12 +136,14 @@ class CockpitMap : MapContent {
 
     /**
      * Called with every refresh of the cockpit, with the way to the place
-     * being navigated to, if any, and the route the flight scores along so
-     * far.
+     * being navigated to, if any, the route the flight scores along so
+     * far, and how far the airspace of the loudest warning is, if one
+     * warns.
      */
-    fun show(view: CockpitView, way: WayToTarget?, route: List<Coordinate>) {
+    fun show(view: CockpitView, way: WayToTarget?, route: List<Coordinate>, airspaceDistance: Double? = null) {
         wanted = view
         this.route = route
+        this.airspaceDistance = airspaceDistance
         if (way != null) {
             target = way.position
         }
@@ -160,11 +172,14 @@ class CockpitMap : MapContent {
         drawAirspace(position, style)
         if (previous != null && position == previous.position && view.circling == previous.circling) return
 
-        // Zoom only when the kind of flying changes, so a zoom level the
-        // pilot pinched to is kept until then.
-        val move = if (wasCircling != view.circling) {
-            wasCircling = view.circling
-            CameraUpdateFactory.newLatLngZoom(position.latLng, if (view.circling) THERMAL_ZOOM else CRUISE_ZOOM)
+        // Zoom only when the kind of flying changes or the airspace a
+        // warning is about comes into or goes out of reach, so a zoom level
+        // the pilot pinched to is kept until then.
+        val density = mapView.resources.displayMetrics.density
+        val zoom = zoom(view.circling, airspaceDistance, position.lat, mapView.width / density, mapView.height / density)
+        val move = if (zoom != chosenZoom) {
+            chosenZoom = zoom
+            CameraUpdateFactory.newLatLngZoom(position.latLng, zoom)
         } else {
             CameraUpdateFactory.newLatLng(position.latLng)
         }
@@ -239,19 +254,41 @@ class CockpitMap : MapContent {
         }
     }
 
-    private companion object {
-        const val FLIGHT = "cockpit-flight"
-        const val TAKEOFF = "cockpit-takeoff"
-        const val COURSE = "cockpit-course"
-        const val ROUTE = "cockpit-route"
-        const val TARGET = "cockpit-target"
-        const val CRUISE_ZOOM = 13.0
-        const val THERMAL_ZOOM = 15.5
+    companion object {
+        private const val FLIGHT = "cockpit-flight"
+        private const val TAKEOFF = "cockpit-takeoff"
+        private const val COURSE = "cockpit-course"
+        private const val ROUTE = "cockpit-route"
+        private const val TARGET = "cockpit-target"
+        private const val CRUISE_ZOOM = 13.0
+        private const val THERMAL_ZOOM = 15.5
+
+        /** The map never zooms further out than this by itself. */
+        private const val WIDEST_ZOOM = 10.0
 
         /** The shortest the map takes to slide to the glider's new position: the cockpit's own refresh. */
-        const val SHORTEST_GLIDE_MILLISECONDS = 200L
+        private const val SHORTEST_GLIDE_MILLISECONDS = 200L
 
         /** The longest the map takes to slide to the glider's new position. */
-        const val LONGEST_GLIDE_MILLISECONDS = 1000L
+        private const val LONGEST_GLIDE_MILLISECONDS = 1000L
+
+        /**
+         * The zoom for the kind of flying, or less if it takes less to
+         * show something `showing` metres from the glider: the airspace a
+         * warning is about. In half steps, so that the map does not breathe
+         * with every metre flown. `width` and `height` are the map's size
+         * in density-independent pixels.
+         */
+        fun zoom(circling: Boolean, showing: Double?, latitude: Double, width: Float, height: Float): Double {
+            val usual = if (circling) THERMAL_ZOOM else CRUISE_ZOOM
+            // The glider is in the middle; four fifths of the way to the
+            // nearer edge is as far out as something is still seen well.
+            val reach = min(width, height) / 2.0 * 0.8
+            if (showing == null || showing <= 0 || reach <= 0) return usual
+            // The map's zoom 0 shows the world 512 of those pixels wide.
+            val metresPerPixel = 40_075_016.686 * cos(Math.toRadians(latitude)) / 512
+            val fitting = log2(metresPerPixel * reach / showing)
+            return min(usual, max(WIDEST_ZOOM, floor(fitting * 2) / 2))
+        }
     }
 }

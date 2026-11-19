@@ -35,6 +35,9 @@ interface Preferences {
     /** The glider's glide ratio at that speed. */
     var glideRatio: Double
 
+    /** Whether the pilot has switched off airspace from the server. */
+    var airspaceWithoutServer: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -78,6 +81,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getFloat(GLIDE_RATIO, Preferences.DEFAULT_GLIDE_RATIO.toFloat()).toDouble()
         set(value) = store.edit { putFloat(GLIDE_RATIO, value.toFloat()) }
 
+    override var airspaceWithoutServer: Boolean
+        get() = store.getBoolean(AIRSPACE_WITHOUT_SERVER, false)
+        set(value) = store.edit { putBoolean(AIRSPACE_WITHOUT_SERVER, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -88,6 +95,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val SERVER = "VentiServerAddress"
         const val TRIM_SPEED = "VentiGliderTrimSpeed"
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
+        const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
     }
 }
 
@@ -101,4 +109,5 @@ class MemoryPreferences : Preferences {
     override var server = ""
     override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
+    override var airspaceWithoutServer = false
 }

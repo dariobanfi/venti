@@ -476,9 +476,12 @@ final class VentiUITests: XCTestCase {
         // when the task and the flight have come apart.
         strip.tap()
         XCTAssertTrue(app.navigationBars["Task"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Skip to the next turnpoint"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("task-turnpoint", in: app).waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("task-5-progress")
+        // The buttons are below the turnpoints, further down the sheet.
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["Skip to the next turnpoint"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
 
         app.buttons["End replay"].tap()

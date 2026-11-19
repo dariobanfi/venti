@@ -88,7 +88,7 @@ final class TaskTests: XCTestCase {
         let route = try XCTUnwrap(tasks.task)
         XCTAssertTrue(route.isRoute)
         XCTAssertEqual(route.turnpoints.map(\.name), ["Sample landing field", "Sample turnpoint", "Sample landing field"])
-        XCTAssertEqual(route.turnpoints.map(\.detail), ["Launch", "Waypoint", "Last waypoint"])
+        XCTAssertEqual(route.turnpoints.map(\.detail), ["First waypoint", "Waypoint", "Last waypoint"])
         XCTAssertEqual(route.inALine.prefix(13), "3 waypoints ·")
         XCTAssertTrue(TaskScreen.summary(of: route).contains("through its waypoints"))
         XCTAssertTrue(TaskScreen.times(of: route).isEmpty)
@@ -155,7 +155,9 @@ final class TaskTests: XCTestCase {
         XCTAssertEqual(status.next?.name, "Sample goal")
         XCTAssertNil(status.gate)
         XCTAssertTrue(TaskStrip.headline(status).hasPrefix("On task "), TaskStrip.headline(status))
-        XCTAssertTrue(TaskStrip.detail(status).hasPrefix("4 of 4"), TaskStrip.detail(status))
+        // The goal is the end of the speed section here, so only the
+        // turnpoint is named; the distance to goal stands beside it.
+        XCTAssertEqual(TaskStrip.detail(status), "4 of 4")
         XCTAssertTrue(TaskStrip.goalDetail(status).hasPrefix("to goal"))
         // The cockpit leads to the task's next turnpoint.
         XCTAssertEqual(fly.way?.name, "Sample goal")

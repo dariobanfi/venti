@@ -95,8 +95,10 @@ struct TaskStrip: View {
             if let next = status.next {
                 parts.append("\(next.number.formatted()) of \(status.reached.count)")
             }
-            if let left = status.toEndOfSpeedM {
-                parts.append("\(Format.kilometres(metres: left)) km of speed section left")
+            // The end of the speed section, where it is not the goal:
+            // the distance to goal is on the right already.
+            if let left = status.toEndOfSpeedM, abs(left - status.toGoalM) > 50 {
+                parts.append("ESS in \(Format.kilometres(metres: left)) km")
             }
             return parts.isEmpty ? "On the way to goal" : parts.joined(separator: " · ")
         case .inGoal:

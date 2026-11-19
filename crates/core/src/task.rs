@@ -317,6 +317,7 @@ fn role(task: &Task, index: usize) -> TaskRole {
 
 fn role_in_words(task: &Task, index: usize) -> String {
     match role(task, index) {
+        TaskRole::Launch if task.kind == TaskKind::Route => "First waypoint",
         TaskRole::Launch => "Launch",
         TaskRole::Start => "Start",
         TaskRole::Turnpoint if task.kind == TaskKind::Route => "Waypoint",
@@ -637,15 +638,25 @@ impl TaskFlown {
     /// The point to fly to, as a place for the cockpit's navigation.
     pub(crate) fn aim(&self) -> Option<Target> {
         let next = self.status.as_ref()?.1.next.as_ref()?;
+        let task = self.flight.task();
+        // A height to arrive over is given for a place to arrive at: the
+        // goal, and the waypoints of a route. The edge of a cylinder on
+        // the way lies somewhere else than the turnpoint whose height the
+        // task gives, and an arrival height there would be a number about
+        // nothing.
+        //
         // A route made of the pilot's waypoints writes zero for a height
         // that is not known. Taking a waypoint at sea level for unknown
         // costs an arrival height there; taking an unknown height for
         // sea level would promise one that is wrong.
-        let unknown = self.flight.task().kind == TaskKind::Route && next.altitude_m == 0.0;
+        let elevation_m = match task.kind {
+            TaskKind::Route => (next.altitude_m != 0.0).then_some(next.altitude_m),
+            TaskKind::Competition => (next.index == task.goal_index()).then_some(next.altitude_m),
+        };
         Some(Target {
             name: next.name.clone(),
             position: next.aim,
-            elevation_m: (!unknown).then_some(next.altitude_m),
+            elevation_m,
         })
     }
 
@@ -910,7 +921,7 @@ mod tests {
                 .iter()
                 .map(|t| t.role_in_words.as_str())
                 .collect();
-            assert_eq!(roles, ["Launch", "Waypoint", "Last waypoint"]);
+            assert_eq!(roles, ["First waypoint", "Waypoint", "Last waypoint"]);
             // From waypoint to waypoint: 5 km south-east, 8.5 km back
             // north-west.
             assert!(
@@ -975,9 +986,10 @@ mod tests {
         assert_eq!(waiting.deadline_in_s, Some(at(16, 0) - at(10, 50) - 30));
         assert_eq!(waiting.reached, [false; 5]);
         // The cockpit navigates to the edge of the start, on the way west.
+        // The edge of a cylinder is no place to arrive over at a height.
         let aim = flown.aim().unwrap();
         assert_eq!(aim.name, "LAUNCH");
-        assert_eq!(aim.elevation_m, Some(1_900.0));
+        assert_eq!(aim.elevation_m, None);
         assert!((earth.distance_m(launch, aim.position) - 5_000.0).abs() < 0.01);
 
         // Out of the start after the second gate: the clock runs from it.
@@ -1006,6 +1018,14 @@ mod tests {
         // The pilot steps on by hand, and back.
         flown.step(true);
         assert_eq!(flown.aim().unwrap().name, "FIELD");
+        // Stepped on once more, to the goal: a place to arrive over.
+        flown.step(true);
+        let goal = flown.aim().unwrap();
+        assert_eq!(
+            (goal.name.as_str(), goal.elevation_m),
+            ("FIELD", Some(600.0))
+        );
+        flown.step(false);
         flown.step(false);
         assert_eq!(flown.aim().unwrap().name, "WEST");
 

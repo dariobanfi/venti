@@ -6,12 +6,15 @@
 
 use std::time::Duration;
 
-use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{
+    Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
+};
 
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility,
+    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Visibility,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -102,6 +105,40 @@ impl Store for TroubledStore {
     }
 
     async fn airspace_sets(&self, _: &[SourceId]) -> Result<Vec<AirspaceSet>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_site_run(
+        &self,
+        _: &RunRecord,
+        _: &SiteDelivery,
+        _: &[Site],
+    ) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn sites_in(
+        &self,
+        _: &[SourceId],
+        _: &BoundingBox,
+        _: usize,
+    ) -> Result<Vec<SiteLayer>, StoreError> {
+        self.fail().await
+    }
+
+    async fn site_sets(&self, _: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_forecast_check(
+        &self,
+        _: &RunRecord,
+        _: &[ForecastModel],
+    ) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn forecast_models(&self, _: &[SourceId]) -> Result<Vec<ForecastModel>, StoreError> {
         self.fail().await
     }
 

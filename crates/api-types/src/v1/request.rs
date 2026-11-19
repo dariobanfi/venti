@@ -4,7 +4,7 @@
 //! server to read it, so there is one definition of the format.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use venti_domain::{BoundingBox, GeoError, StationId, Timestamp};
+use venti_domain::{BoundingBox, GeoError, GeoPoint, StationId, Timestamp};
 
 use super::{FlightId, Handle};
 
@@ -76,6 +76,70 @@ impl AirspaceRequest {
     pub fn path_and_query(&self) -> String {
         format!("{AIRSPACE_PATH}?bbox={}", format_bbox(&self.bbox))
     }
+}
+
+/// Path of the flying sites inside a box.
+pub const SITES_PATH: &str = "/v1/sites";
+
+/// A request for the flying sites inside a box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SitesRequest {
+    /// The box to list.
+    pub bbox: BoundingBox,
+}
+
+impl SitesRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        format!("{SITES_PATH}?bbox={}", format_bbox(&self.bbox))
+    }
+}
+
+/// Path of the forecast for a place.
+pub const FORECAST_PATH: &str = "/v1/forecast";
+
+/// A request for what the weather models say about one place.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForecastRequest {
+    /// The place. The server answers for the nearest point of a grid of
+    /// [`FORECAST_GRID_DEG`](super::FORECAST_GRID_DEG) degrees, which the
+    /// answer names.
+    pub point: GeoPoint,
+}
+
+impl ForecastRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        format!(
+            "{FORECAST_PATH}?lat={}&lon={}",
+            self.point.lat(),
+            self.point.lon()
+        )
+    }
+}
+
+/// Why the `lat` and `lon` parameters were rejected.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum PositionError {
+    /// One of the two is missing.
+    #[error("the {0} parameter is missing")]
+    Missing(&'static str),
+    /// One of the two is not a number.
+    #[error("{0:?} is not a number of degrees")]
+    NotANumber(String),
+    /// The numbers are not a place on the globe.
+    #[error("not a position: {0}")]
+    Geo(#[from] GeoError),
+}
+
+/// Reads a place written as two parameters in degrees, `lat` and `lon`.
+pub fn parse_position(lat: Option<&str>, lon: Option<&str>) -> Result<GeoPoint, PositionError> {
+    let number = |name: &'static str, text: Option<&str>| {
+        let text = text.ok_or(PositionError::Missing(name))?.trim();
+        text.parse::<f64>()
+            .map_err(|_| PositionError::NotANumber(text.to_owned()))
+    };
+    Ok(GeoPoint::new(number("lat", lat)?, number("lon", lon)?)?)
 }
 
 /// Path that creates an account.
@@ -389,6 +453,58 @@ mod tests {
             airspace.path_and_query(),
             "/v1/airspace?bbox=9.4,46.3,17.2,48.5"
         );
+
+        let sites = SitesRequest {
+            bbox: BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap(),
+        };
+        assert_eq!(sites.path_and_query(), "/v1/sites?bbox=11.6,47.55,12,47.85");
+
+        let forecast = ForecastRequest {
+            point: GeoPoint::new(47.6652, 11.7954).unwrap(),
+        };
+        assert_eq!(
+            forecast.path_and_query(),
+            "/v1/forecast?lat=47.6652&lon=11.7954"
+        );
+    }
+
+    #[test]
+    fn a_position_is_two_numbers_that_lie_on_the_globe() {
+        let wallberg = GeoPoint::new(47.6652, 11.7954).unwrap();
+        assert_eq!(
+            parse_position(Some("47.6652"), Some("11.7954")),
+            Ok(wallberg)
+        );
+        assert_eq!(
+            parse_position(Some(" 47.6652 "), Some("11.7954")),
+            Ok(wallberg)
+        );
+        assert_eq!(
+            parse_position(None, Some("11.7954")),
+            Err(PositionError::Missing("lat"))
+        );
+        assert_eq!(
+            parse_position(Some("47.6652"), None),
+            Err(PositionError::Missing("lon"))
+        );
+        assert_eq!(
+            parse_position(Some("north"), Some("11.7954")),
+            Err(PositionError::NotANumber("north".to_owned()))
+        );
+        // Latitude and longitude the wrong way round, for a place far east.
+        assert_eq!(
+            parse_position(Some("138.2"), Some("36.2")),
+            Err(PositionError::Geo(GeoError::Latitude(138.2)))
+        );
+        // Rust reads "NaN" and "inf" as numbers; a position refuses them.
+        assert!(matches!(
+            parse_position(Some("NaN"), Some("11.8")),
+            Err(PositionError::Geo(_))
+        ));
+        assert!(matches!(
+            parse_position(Some("47.7"), Some("inf")),
+            Err(PositionError::Geo(_))
+        ));
     }
 
     #[test]

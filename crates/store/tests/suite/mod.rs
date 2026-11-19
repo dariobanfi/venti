@@ -3,16 +3,20 @@
 //! `tests/memory.rs` and `tests/postgres.rs` both run every function here,
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
-//! Stations and observations are below; airspace, accounts and flights have
-//! files of their own.
+//! Stations and observations are below; airspace, flying sites, forecasts,
+//! accounts and flights have files of their own.
 
 mod accounts;
 mod airspace;
 mod flights;
+mod forecasts;
+mod sites;
 
 pub(crate) use accounts::*;
 pub(crate) use airspace::*;
 pub(crate) use flights::*;
+pub(crate) use forecasts::*;
+pub(crate) use sites::*;
 
 use chrono::{Duration, TimeZone, Utc};
 use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
@@ -47,6 +51,19 @@ macro_rules! store_suite {
             airspace_layers_are_kept_apart_and_sorted,
             a_set_says_where_it_is_whole_as_its_run_said,
             pruning_leaves_airspace_alone,
+            a_site_set_is_stored_and_read_back_exactly,
+            sites_are_found_by_box_edges_included,
+            a_healthy_site_run_replaces_the_whole_set,
+            an_unhealthy_site_run_leaves_the_set_alone,
+            an_older_site_run_does_not_replace_a_newer_set,
+            a_bad_site_set_is_refused_and_nothing_is_stored,
+            site_layers_are_kept_apart_and_sorted,
+            pruning_leaves_sites_alone,
+            what_a_look_at_the_forecast_models_found_is_read_back,
+            a_healthy_look_replaces_what_is_known_about_the_models,
+            a_failed_or_older_look_changes_nothing_about_the_models,
+            a_bad_look_at_the_forecast_models_is_refused,
+            pruning_leaves_the_forecast_models_alone,
             an_account_is_created_and_found_by_its_handle,
             a_handle_belongs_to_one_account,
             an_invite_creates_exactly_one_account,

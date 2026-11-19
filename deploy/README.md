@@ -308,11 +308,14 @@ docker compose exec server venti-server ingest /app/regions/alps-de-at/region.to
 
 Airspace is fetched once a day, one file per country, and a run in which any file did not arrive fails as a whole; the hand run above names the country. A run that fails is tried again a day later, not sooner. While it fails the server keeps serving the last complete set, and `/v1/airspace` says when that was fetched. After two failed days `/v1/health` reports the source as stale. Restarting the server does not bring the next run forward: it waits out what is left of the day. An airspace the provider's file holds and the server could not read is named in the log (`left out`, `rejected`); the run stays healthy, and that airspace is missing from what pilots get.
 
+Flying sites follow the same rules, with one request a day to an Overpass API instance (`--source osm-free-flying`). The public instances are shared and sometimes refuse a server or run out of time; the hand run says which. If the main one keeps refusing, name another in `VENTI_OVERPASS_URL`: the OpenStreetMap wiki lists them with what each asks of its users (<https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances>).
+
 ## Settings
 
 All settings are described in `env.example`. The ones that deserve a second thought:
 
 - **`VENTI_USER_AGENT`** is sent to the data providers with every request. Some providers ask operators to name a contact there. What to put in it is the owner's decision; the default names only the program and its version.
+- **`VENTI_OVERPASS_URL`** is the Overpass API instance asked for OpenStreetMap's flying sites. The default is the main public one, whose operator asks for few requests (the server sends one a day), a User-Agent that names the application, and an e-mail address of the operator that is easy to find on the application's website.
 - **`VENTI_OBSERVATION_MONTHS`** is how many whole calendar months of observations are kept. Older months are dropped once a day. Lowering it deletes data at the next cleanup.
 - **`VENTI_CORS_ORIGINS`** is only needed when a web app on a *different* origin calls the API from a browser. The same origins may call the connector from a browser.
 - **`VENTI_PUBLIC_URL`** is the address people reach the site at. The page of a shared flight names itself and its preview picture with it, and a chat app can only fetch a preview from a complete, correct address. Without it the server falls back to the address it listens on and says so in its log at start. It is also the one address whose pages may call the connector from a browser without being named in `VENTI_CORS_ORIGINS`.

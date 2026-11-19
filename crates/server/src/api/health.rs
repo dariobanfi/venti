@@ -5,10 +5,12 @@ use axum::extract::State;
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use chrono::Duration;
-use venti_api_types::v1::{HealthResponse, HealthStatus, SourceHealth};
+use venti_api_types::v1::{
+    ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, SourceHealth,
+};
 use venti_domain::{SourceId, Timestamp};
 use venti_sources::Kind;
-use venti_store::{AirspaceSet, SourceStatus, Store};
+use venti_store::{AirspaceSet, ForecastModel, SiteSet, SourceStatus, Store};
 
 use super::error::ApiError;
 use super::{Api, ServedSource};
@@ -51,13 +53,17 @@ fn patience(cadence_seconds: u32) -> Duration {
 pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<Response, ApiError> {
     let ids: Vec<SourceId> = api.sources.keys().cloned().collect();
     let statuses = api.store.source_status(&ids).await?;
-    let of_airspace: Vec<SourceId> = api
-        .sources
-        .iter()
-        .filter(|(_, served)| served.kinds.contains(&Kind::Airspace))
-        .map(|(source, _)| source.clone())
-        .collect();
-    let sets = api.store.airspace_sets(&of_airspace).await?;
+    let of = |kind: Kind| -> Vec<SourceId> {
+        api.sources
+            .iter()
+            .filter(|(_, served)| served.kinds.contains(&kind))
+            .map(|(source, _)| source.clone())
+            .collect()
+    };
+    let airspace = api.store.airspace_sets(&of(Kind::Airspace)).await?;
+    let sites = api.store.site_sets(&of(Kind::Sites)).await?;
+    let of_forecasts = of(Kind::Forecasts);
+    let models = api.store.forecast_models(&of_forecasts).await?;
     let now = api.clock.now();
 
     let sources: Vec<SourceHealth> = api
@@ -65,8 +71,15 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
         .values()
         .zip(&statuses)
         .map(|(served, status)| {
-            let set = sets.iter().find(|set| set.source == status.source);
-            source_health(served, status, set, now)
+            let held = Held {
+                airspace: airspace.iter().find(|set| set.source == status.source),
+                sites: sites.iter().find(|set| set.source == status.source),
+                models: models
+                    .iter()
+                    .filter(|model| model.source == status.source)
+                    .collect(),
+            };
+            source_health(served, status, &held, now)
         })
         .collect();
     let status = if sources.iter().any(|source| source.stale) {
@@ -74,10 +87,18 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
     } else {
         HealthStatus::Ok
     };
+    // A forecast source is among the served ones only when the server was
+    // told where its service is.
+    let forecasts = if of_forecasts.is_empty() {
+        ForecastsHealth::NotConfigured
+    } else {
+        ForecastsHealth::Available
+    };
     let body = HealthResponse {
         status,
         version: env!("CARGO_PKG_VERSION").to_owned(),
         time: now,
+        forecasts: Some(forecasts),
         sources,
     };
 
@@ -88,14 +109,27 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
     Ok(response)
 }
 
+/// What the server holds of one source, beside its run history.
+#[derive(Debug, Default)]
+struct Held<'a> {
+    /// Its set of airspace.
+    airspace: Option<&'a AirspaceSet>,
+    /// Its set of flying sites.
+    sites: Option<&'a SiteSet>,
+    /// What the last healthy look at its forecast service found.
+    models: Vec<&'a ForecastModel>,
+}
+
 fn source_health(
     served: &ServedSource,
     status: &SourceStatus,
-    set: Option<&AirspaceSet>,
+    held: &Held<'_>,
     now: Timestamp,
 ) -> SourceHealth {
     let patience = patience(served.cadence_seconds);
     let of_airspace = served.kinds.contains(&Kind::Airspace);
+    let of_sites = served.kinds.contains(&Kind::Sites);
+    let set = held.airspace;
     SourceHealth {
         source: status.source.clone(),
         provider: served.provider.clone(),
@@ -111,6 +145,18 @@ fn source_health(
         // last healthy run, however long ago that was.
         airspaces: of_airspace.then(|| set.map_or(0, |set| set.airspaces)),
         file_date: set.and_then(|set| set.file_date),
+        sites: of_sites.then(|| held.sites.map_or(0, |set| set.sites)),
+        sites_as_of: held.sites.map(|set| set.as_of),
+        models: held
+            .models
+            .iter()
+            .map(|model| ModelHealth {
+                model: model.model.clone(),
+                run: model.run,
+                available_at: model.available_at,
+                checked_at: model.checked_at,
+            })
+            .collect(),
     }
 }
 
@@ -151,7 +197,7 @@ mod tests {
         source_health(
             &served(&source, Kind::Observations, 600),
             &status,
-            None,
+            &Held::default(),
             now,
         )
         .stale
@@ -175,7 +221,8 @@ mod tests {
                 last_success: Some(success),
                 ..SourceStatus::never_ran(source.clone())
             };
-            source_health(&daily, &status, None, success + Duration::hours(hours)).stale
+            let later = success + Duration::hours(hours);
+            source_health(&daily, &status, &Held::default(), later).stale
         };
 
         // The next run is due a day later, up to 2.4 hours late.
@@ -201,7 +248,7 @@ mod tests {
         let status = SourceStatus::never_ran(source.clone());
 
         // Before the first healthy run: an airspace source with nothing.
-        let nothing = source_health(&daily, &status, None, at(0));
+        let nothing = source_health(&daily, &status, &Held::default(), at(0));
         assert_eq!(nothing.airspaces, Some(0));
         assert_eq!(nothing.file_date, None);
         assert!(nothing.stale);
@@ -214,15 +261,83 @@ mod tests {
             newest_change: None,
             coverage: Coverage::default(),
         };
-        let holding = source_health(&daily, &status, Some(&set), at(5));
+        let held = Held {
+            airspace: Some(&set),
+            ..Held::default()
+        };
+        let holding = source_health(&daily, &status, &held, at(5));
         assert_eq!(holding.airspaces, Some(1018));
         assert_eq!(holding.file_date, set.file_date);
         assert_eq!(holding.stations, 0);
+        assert_eq!(holding.sites, None);
 
         // A source of observations says nothing about airspace.
         let dwd = SourceId::new("dwd-10min").unwrap();
         let wind = served(&dwd, Kind::Observations, 600);
-        let health = source_health(&wind, &SourceStatus::never_ran(dwd.clone()), None, at(0));
+        let never = SourceStatus::never_ran(dwd.clone());
+        let health = source_health(&wind, &never, &Held::default(), at(0));
         assert_eq!(health.airspaces, None);
+        assert_eq!(health.sites, None);
+        assert!(health.models.is_empty());
+    }
+
+    #[test]
+    fn a_source_of_sites_reports_the_set_the_server_holds() {
+        let source = SourceId::new("osm-free-flying").unwrap();
+        let daily = served(&source, Kind::Sites, 86_400);
+        let status = SourceStatus::never_ran(source.clone());
+
+        // Before the first healthy run: a source of sites with none.
+        let nothing = source_health(&daily, &status, &Held::default(), at(0));
+        assert_eq!(nothing.sites, Some(0));
+        assert_eq!(nothing.sites_as_of, None);
+        assert_eq!(nothing.airspaces, None);
+
+        let set = SiteSet {
+            source: source.clone(),
+            fetched_at: at(0),
+            sites: 502,
+            as_of: at(0) - Duration::hours(21),
+            covers: Vec::new(),
+        };
+        let held = Held {
+            sites: Some(&set),
+            ..Held::default()
+        };
+        let holding = source_health(&daily, &status, &held, at(5));
+        assert_eq!(holding.sites, Some(502));
+        assert_eq!(holding.sites_as_of, Some(set.as_of));
+    }
+
+    #[test]
+    fn a_source_of_forecasts_reports_the_run_each_model_is_at() {
+        let source = SourceId::new("open-meteo").unwrap();
+        let looked = served(&source, Kind::Forecasts, 600);
+        let status = SourceStatus {
+            last_success: Some(at(0)),
+            ..SourceStatus::never_ran(source.clone())
+        };
+        let model = ForecastModel {
+            source: source.clone(),
+            model: venti_domain::ModelId::new("icon-d2").unwrap(),
+            run: at(0) - Duration::hours(3),
+            available_at: Some(at(0) - Duration::minutes(96)),
+            checked_at: at(0),
+        };
+        let held = Held {
+            models: vec![&model],
+            ..Held::default()
+        };
+
+        let health = source_health(&looked, &status, &held, at(5));
+
+        assert_eq!(health.models.len(), 1);
+        assert_eq!(health.models[0].model.as_str(), "icon-d2");
+        assert_eq!(health.models[0].run, model.run);
+        assert_eq!(health.models[0].checked_at, at(0));
+        assert!(!health.stale);
+        // A look every ten minutes that has not worked for half an hour.
+        assert!(source_health(&looked, &status, &held, at(31)).stale);
+        assert_eq!(health.sites, None);
     }
 }

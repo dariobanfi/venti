@@ -9,14 +9,67 @@ use venti_sources::testing::FixtureFetch;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_openaip::OpenAip;
+use venti_sources_osm::OsmFreeFlying;
 
-/// The registry of every adapter.
+/// What whoever runs the server tells it about the services behind some of
+/// its sources.
+///
+/// Most providers are at an address the adapter knows. Two are not: an
+/// Overpass API instance is one of several, and its operators ask that the
+/// choice be left to whoever runs an application.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Providers {
+    /// The interpreter of the Overpass API instance that is asked for the
+    /// flying sites of OpenStreetMap.
+    pub overpass_url: String,
+}
+
+impl Default for Providers {
+    /// The main public Overpass instance.
+    fn default() -> Self {
+        Self {
+            overpass_url: venti_sources_osm::DEFAULT_INTERPRETER.to_owned(),
+        }
+    }
+}
+
+impl Providers {
+    /// The addresses the recorded payloads answer for. The development
+    /// mode and the tests run on these.
+    pub fn recorded() -> Self {
+        Self {
+            overpass_url: venti_sources_osm::fixtures::INTERPRETER.to_owned(),
+        }
+    }
+}
+
+/// What is wrong with an address given for the Overpass instance, if
+/// anything is.
+pub fn check_overpass_url(url: &str) -> Result<(), String> {
+    OsmFreeFlying::new(url).map(|_| ())
+}
+
+/// The registry of every adapter, for a server that was told nothing about
+/// its providers: see [`registry_for`].
 ///
 /// # Panics
 ///
 /// Panics if two adapters claim one identifier or an adapter's manifest does
 /// not list its kind; the tests of this module rule both out.
 pub fn registry() -> Registry {
+    registry_for(&Providers::default()).expect("the default addresses are addresses")
+}
+
+/// The registry of every adapter, with the adapters that need to be told
+/// where their provider is made for the addresses in `providers`.
+///
+/// Returns what is wrong with an address if one cannot be used.
+///
+/// # Panics
+///
+/// Panics if two adapters claim one identifier or an adapter's manifest does
+/// not list its kind; the tests of this module rule both out.
+pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     let mut registry = Registry::new();
     registry
         .register_observations(Box::new(Dwd10Min::new()))
@@ -27,24 +80,32 @@ pub fn registry() -> Registry {
     registry
         .register_airspace(Box::new(OpenAip::new()))
         .expect("openaip registers once");
+    let sites = OsmFreeFlying::new(&providers.overpass_url)
+        .map_err(|problem| format!("the address of the Overpass instance: {problem}"))?;
     registry
+        .register_sites(Box::new(sites))
+        .expect("osm-free-flying registers once");
+    Ok(registry)
 }
 
 /// The payloads recorded from every provider, as a fetcher that answers
-/// from them instead of the network. The development mode runs on these.
+/// from them instead of the network. The development mode runs on these,
+/// with the adapters made for [`Providers::recorded`].
 pub fn recorded_payloads() -> FixtureFetch {
     FixtureFetch::new()
         .with_all(venti_sources_dwd::fixtures::recorded())
         .with_all(venti_sources_geosphere::fixtures::recorded())
         .with_all(venti_sources_openaip::fixtures::recorded())
+        .with_all(venti_sources_osm::fixtures::recorded())
 }
 
 /// The moment the development mode's clock stands at: the latest recording
 /// time of the observations.
 ///
 /// Wind is what ages by the minute, so the clock stays with the wind. The
-/// airspace files were recorded the day after; airspace changes with the
-/// month, and the development mode serves them as fetched at this moment.
+/// airspace files and the flying sites were recorded the day after; both
+/// change slowly, and the development mode serves them as fetched at this
+/// moment.
 pub fn recorded_at() -> Timestamp {
     venti_sources_dwd::fixtures::recorded_at().max(venti_sources_geosphere::fixtures::recorded_at())
 }
@@ -87,6 +148,19 @@ mod tests {
                 assert!(registered, "{} is not registered for {kind:?}", manifest.id);
             }
         }
-        assert_eq!(registry.manifests().count(), 3);
+        assert_eq!(registry.manifests().count(), 4);
+    }
+
+    #[test]
+    fn an_address_that_cannot_be_one_is_refused_by_name() {
+        let providers = Providers {
+            overpass_url: "overpass-api.de".to_owned(),
+        };
+        let Err(problem) = registry_for(&providers) else {
+            panic!("an address without a scheme was accepted");
+        };
+        assert!(problem.contains("Overpass"), "{problem}");
+        // The recorded payloads answer for the addresses they were made for.
+        assert!(registry_for(&Providers::recorded()).is_ok());
     }
 }

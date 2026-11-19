@@ -2,6 +2,7 @@
   "status": "ok",
   "version": "0.1.0",
   "time": "2026-11-18T19:05:00Z",
+  "forecasts": "not_configured",
   "sources": [
     {
       "source": "dwd-10min",
@@ -30,6 +31,16 @@
       "stations": 0,
       "airspaces": 192,
       "file_date": "2026-11-18T19:05:00Z"
+    },
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "cadence_seconds": 86400,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0,
+      "sites": 502,
+      "sites_as_of": "2026-11-18T19:05:00Z"
     }
   ]
 }

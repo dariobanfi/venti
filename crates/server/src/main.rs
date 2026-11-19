@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use tracing::Level;
 use venti_server::accounts::invite;
 use venti_server::cli::{self, Command, USAGE};
-use venti_server::config::{Config, default_user_agent};
+use venti_server::config::{Config, default_user_agent, providers_from_env};
 use venti_server::flights::analyser;
 use venti_server::ingest::oneshot;
 use venti_server::{dev, serve};
@@ -34,13 +34,20 @@ async fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Command::Ingest(args) => {
-            // The one-shot run has no configuration file; the variable is
-            // the same one the server reads.
+            // The one-shot run has no configuration file; the variables are
+            // the ones the server reads.
             let user_agent = std::env::var("VENTI_USER_AGENT")
                 .ok()
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(default_user_agent);
-            return oneshot::run(args, &user_agent).await;
+            let providers = match providers_from_env(|name| std::env::var(name).ok()) {
+                Ok(providers) => providers,
+                Err(error) => {
+                    eprintln!("{error}");
+                    return ExitCode::from(USAGE_ERROR);
+                }
+            };
+            return oneshot::run(args, &user_agent, &providers).await;
         }
         Command::Invite(args) => return invite::run(args).await,
         Command::Derive => {

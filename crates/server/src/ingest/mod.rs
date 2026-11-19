@@ -16,11 +16,26 @@ mod schedule;
 pub mod scheduler;
 
 use venti_domain::Timestamp;
-use venti_sources::{AirspaceRunReport, RunReport};
+use venti_sources::{AirspaceRunReport, RunReport, SiteRunReport};
 
 pub use archive::DirArchive;
 pub use collect::Collector;
 pub use http::HttpFetch;
+
+/// What a site run delivered, in one line for a person. `as_of` is the
+/// date the source's data is of.
+fn sites_summary(report: &SiteRunReport, as_of: Timestamp) -> String {
+    format!(
+        "{} sites (data of {}), {} requests, {} failed, {} left out, {} rejected, {} duplicates",
+        report.sites,
+        as_of.format("%Y-%m-%d %H:%M UTC"),
+        report.requests,
+        report.failures.len(),
+        report.skipped.len(),
+        report.rejected.len(),
+        report.duplicates,
+    )
+}
 
 /// What a run delivered, in one line for a person.
 fn summary(report: &RunReport, now: Timestamp) -> String {

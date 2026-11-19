@@ -33,6 +33,14 @@ archive_dir = "var/archive"
 # it is the operator's decision; the default names only the program.
 user_agent = "venti-server/0.1"
 
+# The Overpass API instance that is asked for the         VENTI_OVERPASS_URL
+# flying sites of OpenStreetMap, once a day: the address of its
+# interpreter. This is the main public instance, which is also the default.
+# Its operator asks for a User-Agent that names the application (above) and
+# for few requests; docs/data-sources.md has the terms. Name another
+# instance, or your own, if this one refuses the server.
+overpass_url = "https://overpass-api.de/api/interpreter"
+
 # Web origins that may call the API from a browser.      VENTI_CORS_ORIGINS
 # List the origin of the web app. An empty list allows none; apps that are
 # not browsers are never restricted. As a variable: a comma-separated list.

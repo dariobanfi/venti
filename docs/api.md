@@ -2,11 +2,11 @@
 
 Last revised: 2026-11-19
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has two parts:
 
-- **Weather stations and airspace**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth).
+- **Weather stations, airspace and flying sites**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), and [the page a shared flight has](#the-page-a-shared-flight-has).
 
 ## Try it
@@ -16,7 +16,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -42,7 +42,7 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 **Missing values.** A value that is not known is left out of the answer. It is never `null` and never a placeholder number. A station without a temperature sensor has readings without `temperature_c`.
 
-**Sources and credit.** Every station and every airspace comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
+**Sources and credit.** Every station, every airspace and every flying site comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
 
 | Field | Meaning |
 |---|---|
@@ -55,9 +55,9 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace changes once a day at most and carries `max-age=3600`. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB.
 
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
@@ -77,7 +77,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_bbox` | `bbox` is missing, is not four numbers, or the numbers do not form a box |
-| 400 | `box_too_large` | The box holds more airspaces than one answer carries. Ask for smaller boxes |
+| 400 | `box_too_large` | The box holds more airspaces, or more flying sites, than one answer carries. Ask for smaller boxes |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window is longer than seven days |
@@ -113,6 +113,7 @@ How the server and each of its data sources are doing.
   "status": "ok",
   "version": "0.1.0",
   "time": "2026-11-18T19:05:00Z",
+  "forecasts": "not_configured",
   "sources": [
     {
       "source": "dwd-10min",
@@ -141,6 +142,16 @@ How the server and each of its data sources are doing.
       "stations": 0,
       "airspaces": 192,
       "file_date": "2026-11-18T19:05:00Z"
+    },
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "cadence_seconds": 86400,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0,
+      "sites": 502,
+      "sites_as_of": "2026-11-18T19:05:00Z"
     }
   ]
 }
@@ -151,14 +162,17 @@ How the server and each of its data sources are doing.
 | `status` | `ok` when no source is stale, otherwise `degraded` |
 | `version` | The server's version |
 | `time` | The server's clock. Compute the age of an observation against this, not against the device's clock, which may be wrong |
+| `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server without a forecast service. Left out by a server older than forecasts, which has none. No server answers forecasts yet |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
 | `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
-| `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace: any request failed, because a set with a file missing must not replace a whole one. Left out if none ever did |
-| `sources[].newest_observation` | The time of the newest observation the source has delivered. Left out for a source of airspace |
-| `sources[].stale` | `true` when no run has succeeded for too long. For a source the server asks every few minutes: three cadence intervals. For a source it asks once a day or less often, which is airspace: two and a quarter intervals, 54 hours for a daily one. A failed daily run is tried again a day later, so one missed day is tolerated and the second is not |
-| `sources[].stations` | How many stations the last successful run delivered. `0` for a source of airspace |
+| `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. Left out if none ever did |
+| `sources[].newest_observation` | The time of the newest observation the source has delivered. Left out for a source of anything else |
+| `sources[].stale` | `true` when no run has succeeded for too long. For a source the server asks every few minutes: three cadence intervals. For a source it asks once a day or less often, which is airspace and flying sites: two and a quarter intervals, 54 hours for a daily one. A failed daily run is tried again a day later, so one missed day is tolerated and the second is not |
+| `sources[].stations` | How many stations the last successful run delivered. `0` for a source of anything else |
 | `sources[].airspaces` | How many airspaces the server holds from the source: the set of its last successful run, which is what it serves. Left out for a source that delivers no airspace |
 | `sources[].file_date` | The date of the oldest file that set was read from. Left out for a source that delivers no airspace |
+| `sources[].sites` | How many flying sites the server holds from the source: the set of its last successful run. Left out for a source that delivers no sites |
+| `sources[].sites_as_of` | The date the source's own data is of. Left out for a source that delivers no sites, and before its first set |
 
 The status code is `200` whenever the server can read its database, also when sources are stale: a monitor that only looks at the code learns whether the server works, and the body says whether its data is fresh. When the database cannot be reached the answer is `503` with the error body.
 
@@ -570,6 +584,144 @@ The credit and the notice come with it: that the source has nothing there is a s
 A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. The first region is a tenth of that; the eight countries whole would be 3,575, of which Italy alone has 1,557. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
 
 **When a source fails.** A run that could not fetch every file of a source changes nothing: the server keeps serving the set of its last complete run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
+
+## `GET /v1/sites?bbox=west,south,east,north`
+
+The flying sites inside a box: take-offs, landings, training slopes and winch sites, as the server last fetched them from its sources. Today there is one source, OpenStreetMap.
+
+`bbox` is required and written as for stations. Sites on the edge are included.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "osm-free-flying",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "sites": [
+        {
+          "id": "osm-free-flying:node/5964676196",
+          "position": {
+            "lat": 47.6652212,
+            "lon": 11.7954245
+          },
+          "uses": [
+            "takeoff"
+          ],
+          "url": "https://www.openstreetmap.org/node/5964676196"
+        },
+        {
+          "id": "osm-free-flying:node/5964676197",
+          "position": {
+            "lat": 47.6654085,
+            "lon": 11.7953273
+          },
+          "uses": [
+            "takeoff"
+          ],
+          "url": "https://www.openstreetmap.org/node/5964676197"
+        },
+        {
+          "id": "osm-free-flying:node/9908030941",
+          "position": {
+            "lat": 47.6919322,
+            "lon": 11.8880464
+          },
+          "uses": [
+            "landing"
+          ],
+          "url": "https://www.openstreetmap.org/node/9908030941"
+        },
+        {
+          "id": "osm-free-flying:way/1080986173",
+          "name": "Fluggelände Jägerkamp/Nagelspitz",
+          "position": {
+            "lat": 47.6791413,
+            "lon": 11.9051032
+          },
+          "elevation_m": 1560.0,
+          "uses": [
+            "takeoff"
+          ],
+          "paragliding": true,
+          "hang_gliding": true,
+          "official": true,
+          "url": "https://www.openstreetmap.org/way/1080986173"
+        },
+        {
+          "id": "osm-free-flying:way/1080988126",
+          "name": "Landeplatz Jägerkamp/Nagelspitz",
+          "position": {
+            "lat": 47.6924086,
+            "lon": 11.8865478
+          },
+          "uses": [
+            "landing"
+          ],
+          "url": "https://www.openstreetmap.org/way/1080988126"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    }
+  ]
+}
+```
+
+The box is the valley of the apps' sample flight, the Tegernsee, with the Spitzingsee east of it. The first two records are the ramps on the Wallberg.
+
+**Layers.** Sites come in layers like airspace: one for each source the server holds sites of, sorted by source, each in every answer, also when it has nothing in the box. Layers are never merged, and a client that stores or draws sites keeps them apart and shows with each the credit and the notice of its source. OpenStreetMap's licence is share-alike: what is made from its layer and other data may be passed on only under the same licence.
+
+| Field | Meaning |
+|---|---|
+| `layers[].source` | The source of the layer. Its credit, licence and notice are the entry of `attributions` with the same `source` |
+| `layers[].fetched_at` | When the server fetched the set this layer is a part of |
+| `layers[].as_of` | The date the source's data is of, by the source's own word: for OpenStreetMap, the moment the copy that answered the server was taken. **Show the pilot how old this is**, measured against the server's clock |
+| `layers[].covers` | The boxes inside which the server's set of this source is whole, written as for airspace. Empty, or missing, means the server does not say, and a client takes that as covering nothing |
+| `layers[].sites` | The records of the layer inside the box, sorted by `id`. May be empty |
+
+A record is the canonical site of the project, `venti_domain::Site`:
+
+| Field | Meaning |
+|---|---|
+| `id` | `source:local`. For OpenStreetMap the local part names the element: `node/5964676196` |
+| `name` | As the source gives it. Left out for the many sites that have none |
+| `position` | Latitude and longitude. For a site that the source draws as an area, a point in or near it |
+| `elevation_m` | Height above mean sea level. Left out if the source gives none |
+| `uses` | What the site is used for: any of `takeoff`, `landing`, `towing`, `training`, each once. **May be empty**: the place is tagged for free flying and the source does not say what it is. A client expects values it does not know |
+| `wind_directions` | The wind directions the site works in, as spans that run clockwise: `[{"from_deg": 135.0, "to_deg": 225.0}]` is south-east to south-west, and a single direction has both ends equal, `{"from_deg": 270.0, "to_deg": 270.0}`. A direction is where the wind comes from. Left out if the source gives none, **which says nothing about the site**: most sites have none |
+| `paragliding`, `hang_gliding` | Whether the source says the site suits that kind of glider. Left out if it does not say |
+| `official` | Whether the source calls the site official: legal and looked after. Left out if it does not say |
+| `discouraged` | `true` if the source marks the site as unsafe or one of its uses as discouraged. Left out otherwise, which says only that the source marks nothing of the kind |
+| `url` | Where the source's record can be looked at, and corrected. Offer it to the pilot: a site that is wrong or missing is fixed there |
+
+**A site in the answer is no permission to fly there, and no site in the answer is not "no site".** OpenStreetMap holds what somebody entered. In the first region that is 252 take-offs and 142 landings, a fraction of the sites there are; well-known ones are missing, a fifth of the places do not say what they are used for, and fewer than half of the take-offs carry wind directions that can be read for certain. [data-sources.md](data-sources.md#flying-sites) has the count. `covers` says where the server's set is whole, which means "everything the source has", not "everything there is". Whether a pilot may fly at a site, and by which rules, is the business of whoever runs it.
+
+**Caching.** As for airspace: `Cache-Control: public, max-age=3600` and an `ETag`. The server asks its source once a day.
+
+**Size.** One answer carries the whole box; there are no pages. The first region whole is 502 sites, 110 kB plain and 17 kB with gzip (measured 2026-11-19). A box that holds more than 5000 sites is refused with `400` and `box_too_large`, as for airspace.
+
+**When a source fails.** A run that could not fetch everything changes nothing: the server keeps serving the set of its last whole run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 
 ## Accounts and sessions
 
@@ -1163,4 +1315,4 @@ The links inside the page start with the address the server was configured with 
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, pages about a site with its rules and webcams, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

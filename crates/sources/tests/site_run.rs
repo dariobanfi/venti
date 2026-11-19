@@ -168,6 +168,10 @@ fn an_answer_without_a_date_is_dated_by_its_server_or_by_the_run() {
     // Nobody says: the time of the run stands in.
     let undated = both(FixtureFetch::new().with(WEST, answer(None, &sites)));
     assert_eq!(run(&undated).as_of, ctx().now);
+
+    // A provider whose clock runs ahead: data is never newer than the run.
+    let ahead = both(FixtureFetch::new().with(WEST, answer(Some(at(20)), &sites)));
+    assert_eq!(run(&ahead).as_of, ctx().now);
 }
 
 #[test]

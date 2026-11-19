@@ -42,6 +42,16 @@ const MIGRATIONS: &[Migration] = &[
         name: "where an airspace set is whole",
         sql: include_str!("../../migrations/0004_airspace_coverage.sql"),
     },
+    Migration {
+        version: 5,
+        name: "flying sites",
+        sql: include_str!("../../migrations/0005_sites.sql"),
+    },
+    Migration {
+        version: 6,
+        name: "the runs of the forecast models",
+        sql: include_str!("../../migrations/0006_forecast_models.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

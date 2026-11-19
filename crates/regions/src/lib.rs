@@ -6,7 +6,8 @@
 //! pack; nothing else changes.
 //!
 //! A pack has one section per kind of data: `[observations]`, which every
-//! region has, and `[airspace]`, which a region may leave out.
+//! region has, and `[airspace]`, `[sites]` and `[forecasts]`, which a region
+//! may leave out.
 //!
 //! The area is a bounding box for now. A boundary polygon replaces it when a
 //! region needs a shape a box cannot express.
@@ -38,6 +39,20 @@ pub struct RegionPack {
     /// layer a client prefers where two cover the same airspace.
     #[serde(default, skip_serializing_if = "SourceList::is_empty")]
     pub airspace: SourceList,
+    /// The sources of flying sites. A region may have none.
+    ///
+    /// Like airspace, sites from different sources are never merged: each
+    /// source stays a layer of its own under its own licence.
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub sites: SourceList,
+    /// The sources of point forecasts. A region may have none.
+    ///
+    /// A forecast source is a service that whoever runs the server has to
+    /// run too. A server that was not told where it is has no adapter for
+    /// it, and then has no forecasts: see
+    /// [`forecasts_without_adapter`](Self::forecasts_without_adapter).
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub forecasts: SourceList,
 }
 
 /// The sources of one kind of data in a region.
@@ -95,7 +110,13 @@ impl RegionPack {
     /// Parses a region pack written in TOML and checks it against itself.
     pub fn from_toml(text: &str) -> Result<Self, RegionError> {
         let pack: RegionPack = toml::from_str(text)?;
-        for list in [&pack.observations, &pack.airspace] {
+        let lists = [
+            &pack.observations,
+            &pack.airspace,
+            &pack.sites,
+            &pack.forecasts,
+        ];
+        for list in lists {
             let mut seen = BTreeSet::new();
             for source in &list.sources {
                 if !seen.insert(source) {
@@ -118,9 +139,12 @@ impl RegionPack {
     }
 
     /// Checks that the build contains an adapter for every source the region
-    /// names, of observations and of airspace alike. A region whose airspace
-    /// the server could not collect must stop it at start, not leave pilots
-    /// with a map that silently has none.
+    /// names, of observations, of airspace and of flying sites alike. A
+    /// region whose airspace the server could not collect must stop it at
+    /// start, not leave pilots with a map that silently has none.
+    ///
+    /// Forecast sources are not checked here: see
+    /// [`forecasts_without_adapter`](Self::forecasts_without_adapter).
     pub fn check_against(&self, registry: &Registry) -> Result<(), RegionError> {
         let unknown = |source: &SourceId| RegionError::UnknownSource {
             region: self.id.clone(),
@@ -136,15 +160,37 @@ impl RegionPack {
                 return Err(unknown(source));
             }
         }
+        for source in &self.sites.sources {
+            if registry.sites(source).is_none() {
+                return Err(unknown(source));
+            }
+        }
         Ok(())
+    }
+
+    /// The region's forecast sources that the registry has no adapter of.
+    ///
+    /// This is not an error. A forecast comes from a service that whoever
+    /// runs the server runs beside it, and the adapter is registered only
+    /// when the server was told where that service is. A server without it
+    /// starts, serves everything else and says that it has no forecasts.
+    /// The caller says so in its log, naming these sources: a name written
+    /// wrongly in a region pack shows up there too.
+    pub fn forecasts_without_adapter(&self, registry: &Registry) -> Vec<&SourceId> {
+        self.forecasts
+            .sources
+            .iter()
+            .filter(|source| registry.forecasts(source).is_none())
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use venti_domain::GeoPoint;
     use venti_sources::{
-        AirspaceSource, Manifest, ObservationSource, Parsed, ParsedAirspace, PlanCtx, Request,
-        SourceError,
+        AirspaceSource, ForecastSource, Manifest, ObservationSource, Parsed, ParsedAirspace,
+        ParsedForecast, ParsedSites, PlanCtx, Request, SiteSource, SourceError,
     };
 
     use super::*;
@@ -200,7 +246,7 @@ mod tests {
         ));
     }
 
-    /// An adapter that offers both kinds and never fetches anything.
+    /// An adapter that offers every kind and never fetches anything.
     struct Fake(Manifest);
 
     impl Fake {
@@ -209,7 +255,7 @@ mod tests {
                 r#"
                 id = "{id}"
                 provider = "Example"
-                kinds = ["observations", "airspace"]
+                kinds = ["observations", "airspace", "sites", "forecasts"]
                 countries = ["AT"]
                 cadence_seconds = 86400
                 auth = "none"
@@ -251,6 +297,87 @@ mod tests {
         fn parse(&self, _: &Request, _: &[u8], _: &PlanCtx) -> Result<ParsedAirspace, SourceError> {
             Ok(ParsedAirspace::default())
         }
+    }
+
+    impl SiteSource for Fake {
+        fn manifest(&self) -> &Manifest {
+            &self.0
+        }
+        fn plan(&self, _: &PlanCtx) -> Vec<Request> {
+            Vec::new()
+        }
+        fn parse(&self, _: &Request, _: &[u8], _: &PlanCtx) -> Result<ParsedSites, SourceError> {
+            Ok(ParsedSites::default())
+        }
+    }
+
+    impl ForecastSource for Fake {
+        fn manifest(&self) -> &Manifest {
+            &self.0
+        }
+        fn plan(&self, _: GeoPoint, _: &PlanCtx) -> Vec<Request> {
+            Vec::new()
+        }
+        fn parse(
+            &self,
+            _: &Request,
+            _: &[u8],
+            _: GeoPoint,
+            _: &PlanCtx,
+        ) -> Result<ParsedForecast, SourceError> {
+            Ok(ParsedForecast::default())
+        }
+    }
+
+    #[test]
+    fn site_sources_need_an_adapter_and_forecast_sources_may_lack_one() {
+        let text = format!(
+            "{PACK}\n[sites]\nsources = [\"map\"]\n\n[forecasts]\nsources = [\"weather\"]\n"
+        );
+        let pack = RegionPack::from_toml(&text).unwrap();
+        assert_eq!(pack.sites.sources[0].as_str(), "map");
+        assert_eq!(pack.forecasts.sources[0].as_str(), "weather");
+        // A region may leave both out.
+        let without = RegionPack::from_toml(PACK).unwrap();
+        assert!(without.sites.is_empty() && without.forecasts.is_empty());
+
+        let mut registry = Registry::new();
+        for id in ["one", "two"] {
+            registry
+                .register_observations(Box::new(Fake::new(id)))
+                .unwrap();
+        }
+        // The sites cannot be collected: the region is refused.
+        match pack.check_against(&registry) {
+            Err(RegionError::UnknownSource { source_id, .. }) => {
+                assert_eq!(source_id.as_str(), "map");
+            }
+            other => panic!("{other:?}"),
+        }
+        registry.register_sites(Box::new(Fake::new("map"))).unwrap();
+
+        // Nobody said where the forecast service is: the region is fine
+        // all the same, and says which forecasts it will go without.
+        assert!(pack.check_against(&registry).is_ok());
+        let missing: Vec<&str> = pack
+            .forecasts_without_adapter(&registry)
+            .into_iter()
+            .map(SourceId::as_str)
+            .collect();
+        assert_eq!(missing, ["weather"]);
+
+        registry
+            .register_forecasts(Box::new(Fake::new("weather")))
+            .unwrap();
+        assert!(pack.forecasts_without_adapter(&registry).is_empty());
+        assert!(without.forecasts_without_adapter(&registry).is_empty());
+
+        // The lists follow the rules of every list.
+        let twice = text.replace(r#"["map"]"#, r#"["map", "map"]"#);
+        assert!(matches!(
+            RegionPack::from_toml(&twice),
+            Err(RegionError::Duplicate { .. })
+        ));
     }
 
     const WITH_AIRSPACE: &str = r#"

@@ -3,8 +3,10 @@
 mod accounts;
 mod airspace;
 mod flights;
+mod forecasts;
 mod migrate;
 mod partitions;
+mod sites;
 
 use std::time::Duration;
 
@@ -13,13 +15,14 @@ use deadpool_postgres::{
 };
 use tokio_postgres::{NoTls, Row};
 use venti_domain::{
-    Airspace, BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, GeoPoint, Observation, Site, SourceId, Station, StationId, Timestamp,
 };
 
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, batch,
+    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Visibility, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -504,6 +507,43 @@ impl Store for PgStore {
 
     async fn airspace_sets(&self, sources: &[SourceId]) -> Result<Vec<AirspaceSet>, StoreError> {
         airspace::sets(&self.client().await?, sources).await
+    }
+
+    async fn save_site_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        sites: &[Site],
+    ) -> Result<(), StoreError> {
+        sites::save_run(&mut self.client().await?, run, delivery, sites).await
+    }
+
+    async fn sites_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<SiteLayer>, StoreError> {
+        sites::in_box(&self.client().await?, sources, area, limit).await
+    }
+
+    async fn site_sets(&self, sources: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
+        sites::sets(&self.client().await?, sources).await
+    }
+
+    async fn save_forecast_check(
+        &self,
+        run: &RunRecord,
+        models: &[ForecastModel],
+    ) -> Result<(), StoreError> {
+        forecasts::save_check(&mut self.client().await?, run, models).await
+    }
+
+    async fn forecast_models(
+        &self,
+        sources: &[SourceId],
+    ) -> Result<Vec<ForecastModel>, StoreError> {
+        forecasts::models(&self.client().await?, sources).await
     }
 
     async fn create_account(&self, new: &NewAccount) -> Result<AccountCreation, StoreError> {

@@ -12,9 +12,12 @@
 //!
 //! The store holds two kinds of things:
 //!
-//! - what the data sources deliver: canonical [`Station`], [`Observation`]
-//!   and [`Airspace`] records from `venti-domain`, each belonging to exactly
-//!   one source, and the history of the sources' runs;
+//! - what the data sources deliver: canonical [`Station`], [`Observation`],
+//!   [`Airspace`] and [`Site`] records from `venti-domain`, each belonging
+//!   to exactly one source, and the history of the sources' runs. Of
+//!   forecasts it keeps only which run each weather model was at
+//!   ([`ForecastModel`]): the forecasts stay with the service that
+//!   computes them;
 //! - what pilots entrust to the server: their [`Account`], the [`Session`]s
 //!   of their devices, and their [`Flight`]s with the files they came from.
 //!
@@ -25,14 +28,18 @@ mod account;
 mod airspace;
 mod batch;
 mod flight;
+mod forecast;
 mod memory;
 mod month;
 mod postgres;
+mod site;
 pub mod testing;
 
 use std::future::Future;
 
-use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{
+    Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
+};
 
 pub use account::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
@@ -42,9 +49,11 @@ pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     Place, Score, ScoreKind, Visibility,
 };
+pub use forecast::ForecastModel;
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use postgres::PgStore;
+pub use site::{SiteDelivery, SiteLayer, SiteSet};
 
 /// Why the store could not do what was asked.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -195,8 +204,9 @@ pub trait Store: Send + Sync + 'static {
 
     /// Removes everything older than the start of `first_kept`: observations
     /// measured before it, stations no run has delivered since, and the
-    /// records of runs that started before it. Airspace is not touched: a
-    /// source's set stays until a newer one replaces it.
+    /// records of runs that started before it. Airspace and flying sites
+    /// are not touched: a source's set stays until a newer one replaces
+    /// it. Neither is what is known about the forecast models.
     ///
     /// Retention works in whole calendar months because that is the unit the
     /// database can drop cheaply.
@@ -263,6 +273,79 @@ pub trait Store: Send + Sync + 'static {
         &self,
         sources: &[SourceId],
     ) -> impl Future<Output = Result<Vec<AirspaceSet>, StoreError>> + Send;
+
+    // --- Flying sites -----------------------------------------------------
+
+    /// Stores the outcome of one run of a source of flying sites and, if
+    /// the run was healthy, replaces the sites stored for the source by
+    /// what the run delivered, all or nothing.
+    ///
+    /// The rules are those of [`Store::save_airspace_run`]: after a healthy
+    /// run the store holds exactly `sites` for the source, with what
+    /// `delivery` says about the set; a run that was not healthy, or that
+    /// started before the run whose set is stored, replaces nothing; and
+    /// saving the same run again changes nothing.
+    ///
+    /// A healthy run must deliver at least one site, every site must
+    /// belong to the run's source, and no two may share an identifier.
+    /// Anything else is refused with [`StoreError::Invalid`] and nothing is
+    /// stored.
+    fn save_site_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        sites: &[Site],
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The stored sites of `sources` inside `area`, edges included: one
+    /// layer per source the store holds a set of, sorted by source, with
+    /// the sites of each sorted by identifier. At most `limit` sites are
+    /// returned in all: the first in that order.
+    ///
+    /// A source whose set has nothing in `area` is a layer without sites,
+    /// which still says how old the set is and where it is whole. A source
+    /// the store holds no set of is not listed. The answer is taken at one
+    /// moment: each source's sites are in it as one run delivered them.
+    fn sites_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<SiteLayer>, StoreError>> + Send;
+
+    /// What the store holds of each of `sources`, sorted by source. A
+    /// source of which it holds no sites is left out.
+    fn site_sets(
+        &self,
+        sources: &[SourceId],
+    ) -> impl Future<Output = Result<Vec<SiteSet>, StoreError>> + Send;
+
+    // --- Forecasts --------------------------------------------------------
+
+    /// Stores the outcome of one look at a forecast source and, if the look
+    /// was healthy, replaces what is stored about the source's models by
+    /// what it found, all or nothing.
+    ///
+    /// A look that was not healthy, or that started before the look whose
+    /// findings are stored, replaces nothing. Saving the same look again
+    /// changes nothing.
+    ///
+    /// A healthy look must have found at least one model, every model must
+    /// belong to the run's source and carry the run's start as the time it
+    /// was looked at, and no model may be listed twice. Anything else is
+    /// refused with [`StoreError::Invalid`] and nothing is stored.
+    fn save_forecast_check(
+        &self,
+        run: &RunRecord,
+        models: &[ForecastModel],
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The models of `sources` as the last healthy look found them, sorted
+    /// by source and then by model.
+    fn forecast_models(
+        &self,
+        sources: &[SourceId],
+    ) -> impl Future<Output = Result<Vec<ForecastModel>, StoreError>> + Send;
 
     // --- Accounts ---------------------------------------------------------
 

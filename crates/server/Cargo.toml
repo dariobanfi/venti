@@ -17,6 +17,7 @@ venti-sources.workspace = true
 venti-sources-dwd.workspace = true
 venti-sources-geosphere.workspace = true
 venti-sources-openaip.workspace = true
+venti-sources-osm.workspace = true
 venti-store.workspace = true
 venti-tools.workspace = true
 argon2.workspace = true

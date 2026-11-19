@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use chrono::Duration;
 use futures::FutureExt;
-use venti_domain::{Airspace, Observation, SourceId, Station, Timestamp};
+use venti_domain::{Airspace, Observation, Site, SourceId, Station, Timestamp};
 use venti_sources::{
     AirspaceRunReport, Archive, Fetch, Kind, PlanCtx, Registry, RunOptions, RunReport,
-    run_airspace, run_observations,
+    SiteRunReport, run_airspace, run_observations, run_sites,
 };
-use venti_store::{Coverage, RunRecord, Store};
+use venti_store::{Coverage, RunRecord, SiteDelivery, Store};
 
-use super::{airspace_summary, summary};
+use super::{airspace_summary, sites_summary, summary};
 use crate::clock::Clock;
 use crate::plan::Job;
 
@@ -92,10 +92,11 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         match job.kind {
             Kind::Observations => self.collect_observations(job).await,
             Kind::Airspace => self.collect_airspace(job).await,
-            Kind::Forecasts | Kind::Sites => {
-                // The framework knows these kinds; the server does not
-                // collect them yet, and no plan names such a job.
-                tracing::error!(source = %job.source, "{:?} are not collected yet", job.kind);
+            Kind::Sites => self.collect_sites(job).await,
+            Kind::Forecasts => {
+                // The framework knows forecasts; the server does not look
+                // at a forecast service yet, and no plan names such a job.
+                tracing::error!(source = %job.source, "forecasts are not collected yet");
                 false
             }
         }
@@ -198,6 +199,65 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             && healthy
     }
 
+    /// Runs a source of flying sites once. As for airspace, the set it
+    /// delivers replaces the stored one only if every request worked, and
+    /// the store holds to that itself.
+    async fn collect_sites(&self, job: &Job) -> bool {
+        let source = self
+            .registry
+            .sites(&job.source)
+            .unwrap_or_else(|| panic!("the plan names {}, which has no adapter", job.source));
+        let started_at = self.clock.now();
+        let ctx = PlanCtx {
+            now: started_at,
+            area: job.area,
+        };
+        let options = RunOptions::default();
+
+        let run = run_sites(source, &self.fetch, &self.archive, &ctx, &options);
+        let Some(output) = unless_it_panics(&job.source, run).await else {
+            let failed = self.record(&job.source, started_at, &Outcome::default());
+            let nothing = SiteDelivery {
+                as_of: started_at,
+                covers: Vec::new(),
+            };
+            self.save_sites(&failed, &nothing, &[]).await;
+            return false;
+        };
+
+        let report = &output.report;
+        let healthy = report.is_healthy();
+        if healthy {
+            tracing::info!(source = %job.source, "{}", sites_summary(report, output.as_of));
+        } else {
+            tracing::warn!(
+                source = %job.source,
+                "unhealthy run, the stored sites stay as they are: {}",
+                sites_summary(report, output.as_of)
+            );
+        }
+        for failure in report.failures.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(source = %job.source, "failed {}: {}", failure.tag, failure.error);
+        }
+        for rejected in report.rejected.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(
+                source = %job.source,
+                "rejected {} of {}: {}",
+                rejected.field,
+                rejected.site,
+                rejected.reason
+            );
+        }
+
+        // Where the set of this run is whole: the area it was collected for.
+        let delivery = SiteDelivery {
+            as_of: output.as_of,
+            covers: vec![job.area],
+        };
+        let record = self.record(&job.source, started_at, &Outcome::of_sites(report));
+        self.save_sites(&record, &delivery, &output.sites).await && healthy
+    }
+
     fn record(&self, source: &SourceId, started_at: Timestamp, outcome: &Outcome) -> RunRecord {
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
         RunRecord {
@@ -236,6 +296,16 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             .store
             .save_airspace_run(record, coverage, airspaces)
             .await;
+        stored(record, saved)
+    }
+
+    async fn save_sites(
+        &self,
+        record: &RunRecord,
+        delivery: &SiteDelivery,
+        sites: &[Site],
+    ) -> bool {
+        let saved = self.store.save_site_run(record, delivery, sites).await;
         stored(record, saved)
     }
 }
@@ -289,6 +359,19 @@ impl Outcome {
             observations: report.observations,
             newest_observation: report.newest_observation,
             airspaces: 0,
+        }
+    }
+
+    /// How many sites a run delivered is not in the run history: the set
+    /// the store holds says how many there are.
+    fn of_sites(report: &SiteRunReport) -> Self {
+        Self {
+            healthy: report.is_healthy(),
+            requests: report.requests,
+            failed_requests: report.failures.len(),
+            skipped: report.skipped.len(),
+            rejected: report.rejected.len(),
+            ..Self::default()
         }
     }
 

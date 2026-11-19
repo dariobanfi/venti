@@ -27,7 +27,7 @@ const LOOKBACK: Duration = Duration::hours(3);
 /// Runs the server until it is told to stop: collects every configured
 /// source at its cadence, cleans up old data, and answers the API.
 pub async fn serve(config: Config) -> Result<(), String> {
-    let registry = adapters::registry();
+    let registry = adapters::registry_for(&config.providers)?;
     let jobs = plan::load(&config.regions, &registry).map_err(|e| e.to_string())?;
     let store = PgStore::connect(config.database_url.expose())
         .await

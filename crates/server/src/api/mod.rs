@@ -11,8 +11,8 @@
 //! the sources it came from and carries their credit lines. A station or an
 //! airspace whose source this server is not configured to serve is never
 //! returned, even when the store still holds it: without a manifest there
-//! is no licence to serve it under. Airspace goes out in layers, one per
-//! source, and is never merged across sources.
+//! is no licence to serve it under. Airspace and flying sites go out in
+//! layers, one per source, and are never merged across sources.
 //!
 //! **What pilots keep here.** An account is acted for with a session token
 //! in the `Authorization` header ([`auth`]). A flight is shown to its pilot
@@ -36,6 +36,7 @@ mod observations;
 mod pilots;
 mod shape;
 mod share;
+mod sites;
 mod stations;
 mod wire;
 
@@ -54,7 +55,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, HEALTH_PATH, SESSIONS_PATH, STATIONS_PATH,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, HEALTH_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -277,6 +278,7 @@ impl<S: Store> Api<S> {
                 get(observations::observations::<S>),
             )
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
+            .route(SITES_PATH, get(sites::sites::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

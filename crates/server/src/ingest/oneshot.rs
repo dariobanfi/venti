@@ -1,5 +1,6 @@
 //! The `ingest` subcommand: runs the sources of a region once against the
-//! live providers, the sources of observations and of airspace alike.
+//! live providers, the sources of observations, of airspace and of flying
+//! sites alike.
 //!
 //! ```text
 //! venti-server ingest <region.toml> [--source ID] [--archive DIR] [--json]
@@ -20,12 +21,12 @@ use serde::Serialize;
 use venti_domain::SourceId;
 use venti_regions::RegionPack;
 use venti_sources::{
-    AirspaceRunOutput, Failure, PlanCtx, RunOptions, RunOutput, Skipped, run_airspace,
-    run_observations,
+    AirspaceRunOutput, Failure, PlanCtx, RunOptions, RunOutput, SiteRunOutput, Skipped,
+    run_airspace, run_observations, run_sites,
 };
 
-use super::{DirArchive, HttpFetch, airspace_summary, summary};
-use crate::adapters;
+use super::{DirArchive, HttpFetch, airspace_summary, sites_summary, summary};
+use crate::adapters::{self, Providers};
 use crate::clock::{Clock, SystemClock};
 
 /// What the subcommand was asked to do.
@@ -46,6 +47,7 @@ pub struct Args {
 struct Outputs {
     observations: Vec<RunOutput>,
     airspace: Vec<AirspaceRunOutput>,
+    sites: Vec<SiteRunOutput>,
 }
 
 /// Prints the health line of one source, and its first problems below it.
@@ -60,9 +62,16 @@ fn report(id: &SourceId, ok: bool, summary: &str, failures: &[Failure], skipped:
 }
 
 /// Runs the sources and reports on standard error. `user_agent` is sent to
-/// the providers.
-pub async fn run(args: Args, user_agent: &str) -> ExitCode {
-    let registry = adapters::registry();
+/// the providers; `providers` says where those are that have no address of
+/// their own.
+pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCode {
+    let registry = match adapters::registry_for(providers) {
+        Ok(registry) => registry,
+        Err(message) => {
+            eprintln!("{message}");
+            return ExitCode::from(2);
+        }
+    };
     let pack = match std::fs::read_to_string(&args.region)
         .map_err(|e| format!("cannot read {}: {e}", args.region.display()))
         .and_then(|text| RegionPack::from_toml(&text).map_err(|e| e.to_string()))
@@ -129,6 +138,28 @@ pub async fn run(args: Args, user_agent: &str) -> ExitCode {
         }
         outputs.airspace.push(output);
     }
+    for id in pack.sites.sources.iter().filter(|id| wanted(id)) {
+        let source = registry
+            .sites(id)
+            .expect("region was checked against the registry");
+        let output = run_sites(source, &fetch, &archive, &ctx, &options).await;
+
+        // Healthy as for airspace: this set would have replaced the stored one.
+        let run = &output.report;
+        let ok = run.is_healthy();
+        all_healthy &= ok;
+        let line = sites_summary(run, output.as_of);
+        // Schools and unreadable directions are left out of every run; the
+        // line has their count and `--json` lists them.
+        report(id, ok, &line, &run.failures, &[]);
+        for rejected in run.rejected.iter().take(5) {
+            eprintln!(
+                "     rejected {} of {}: {}",
+                rejected.field, rejected.site, rejected.reason
+            );
+        }
+        outputs.sites.push(output);
+    }
 
     if args.json {
         match serde_json::to_string_pretty(&outputs) {
@@ -140,7 +171,8 @@ pub async fn run(args: Args, user_agent: &str) -> ExitCode {
         }
     }
 
-    if outputs.observations.is_empty() && outputs.airspace.is_empty() {
+    let ran = outputs.observations.len() + outputs.airspace.len() + outputs.sites.len();
+    if ran == 0 {
         eprintln!("no source ran");
         return ExitCode::from(2);
     }

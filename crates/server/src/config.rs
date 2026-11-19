@@ -17,6 +17,7 @@ use tracing::Level;
 
 use crate::accounts::Registration;
 use crate::accounts::client::TrustedProxies;
+use crate::adapters::{self, Providers};
 use crate::flights::share::PublicUrl;
 
 /// Everything the server needs to be told.
@@ -45,6 +46,8 @@ pub struct Config {
     pub public_url: Option<PublicUrl>,
     /// The reverse proxies whose `X-Forwarded-For` is believed.
     pub trusted_proxies: TrustedProxies,
+    /// Where the providers are that have no address of their own.
+    pub providers: Providers,
 }
 
 /// How long data is kept.
@@ -120,6 +123,7 @@ struct File {
     registration: Option<String>,
     public_url: Option<String>,
     trusted_proxies: Option<Vec<String>>,
+    overpass_url: Option<String>,
     #[serde(default)]
     retention: FileRetention,
 }
@@ -187,6 +191,10 @@ const TRUSTED_PROXIES: Setting = Setting {
     key: "trusted_proxies",
     variable: "VENTI_TRUSTED_PROXIES",
 };
+const OVERPASS_URL: Setting = Setting {
+    key: "overpass_url",
+    variable: "VENTI_OVERPASS_URL",
+};
 const OBSERVATION_MONTHS: Setting = Setting {
     key: "retention.observation_months",
     variable: "VENTI_OBSERVATION_MONTHS",
@@ -200,6 +208,24 @@ const ARCHIVE_DAYS: Setting = Setting {
 /// version, and nothing about who runs it.
 pub fn default_user_agent() -> String {
     concat!("venti-server/", env!("CARGO_PKG_VERSION")).to_owned()
+}
+
+/// Where the providers are that have no address of their own, from the
+/// given environment alone. The `ingest` subcommand, which has no
+/// configuration file, reads them with this.
+pub fn providers_from_env(env: impl Fn(&str) -> Option<String>) -> Result<Providers, ConfigError> {
+    let env = |setting: &Setting| env(setting.variable).filter(|value| !value.is_empty());
+    providers(env(&OVERPASS_URL))
+}
+
+/// Checks the addresses that were configured and fills in the others.
+fn providers(overpass_url: Option<String>) -> Result<Providers, ConfigError> {
+    let mut providers = Providers::default();
+    if let Some(url) = overpass_url {
+        adapters::check_overpass_url(&url).map_err(|problem| OVERPASS_URL.invalid(problem))?;
+        providers.overpass_url = url;
+    }
+    Ok(providers)
 }
 
 impl Config {
@@ -296,6 +322,8 @@ impl Config {
         let trusted_proxies = TrustedProxies::parse(&trusted_proxies)
             .map_err(|problem| TRUSTED_PROXIES.invalid(problem))?;
 
+        let providers = providers(env(&OVERPASS_URL).or(file.overpass_url))?;
+
         let number = |setting: &Setting, from_file: Option<u32>, default: u32| {
             let value = match env(setting) {
                 Some(text) => text
@@ -325,6 +353,7 @@ impl Config {
             registration,
             public_url,
             trusted_proxies,
+            providers,
         })
     }
 }
@@ -433,6 +462,31 @@ mod tests {
         assert_eq!(config.public_url, None);
         // And no header is believed about where a request came from.
         assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        // The flying sites are asked of the main public Overpass instance.
+        assert_eq!(config.providers, Providers::default());
+        assert_eq!(
+            config.providers.overpass_url,
+            "https://overpass-api.de/api/interpreter"
+        );
+    }
+
+    #[test]
+    fn the_providers_without_an_address_of_their_own_can_be_named() {
+        let own = "http://overpass:12345/api/interpreter";
+        let config = load(Some(&example()), &[("VENTI_OVERPASS_URL", own)]).unwrap();
+        assert_eq!(config.providers.overpass_url, own);
+
+        // The one-shot run reads the same variables and no file.
+        let env = |name: &str| (name == "VENTI_OVERPASS_URL").then(|| own.to_owned());
+        assert_eq!(providers_from_env(env).unwrap().overpass_url, own);
+        assert_eq!(providers_from_env(|_| None).unwrap(), Providers::default());
+        let bad = |_: &str| Some("ftp://overpass".to_owned());
+        assert!(
+            providers_from_env(bad)
+                .unwrap_err()
+                .to_string()
+                .contains("VENTI_OVERPASS_URL")
+        );
     }
 
     #[test]
@@ -511,6 +565,7 @@ mod tests {
         assert!(with("VENTI_PUBLIC_URL", "venti.example").contains("public_url"));
         assert!(with("VENTI_PUBLIC_URL", "https://venti.example/app").contains("without a path"));
         assert!(with("VENTI_TRUSTED_PROXIES", "caddy").contains("trusted_proxies"));
+        assert!(with("VENTI_OVERPASS_URL", "overpass-api.de").contains("overpass_url"));
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));
     }

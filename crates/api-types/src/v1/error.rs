@@ -36,6 +36,13 @@ pub enum ErrorCode {
     InvalidRange,
     /// No station has this identifier.
     StationNotFound,
+    /// `lat` or `lon` is missing, or the two are not a place on the globe.
+    InvalidPosition,
+    /// The place lies outside the area the server answers forecasts for.
+    OutsideRegion,
+    /// The server has no forecast service. Asking again does not help;
+    /// `forecasts` in the health answer says the same.
+    NoForecasts,
     /// A handle that is not written as handles are.
     InvalidHandle,
     /// A display name that is empty, too long or holds characters that do

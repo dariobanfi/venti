@@ -1,9 +1,9 @@
 //! The `dev` subcommand: the same API over recorded data and a demo account.
 //!
 //! No network and no database. The real adapters run once over the payloads
-//! recorded in their crates (wind stations, and a sample of the first
-//! region's airspace), the result goes into an in-memory store, and the
-//! real router serves it. One account is already there, with three
+//! recorded in their crates (wind stations, a sample of the first region's
+//! airspace, and the flying sites OpenStreetMap has for the first region),
+//! the result goes into an in-memory store, and the real router serves it. One account is already there, with three
 //! flights made from the sample flight; its handle, password and a session
 //! token are fixed and written down in `docs/api.md`. Client work and UI
 //! tests run against this.
@@ -32,6 +32,7 @@ use crate::accounts::client::TrustedProxies;
 use crate::accounts::password::{Cost, Hasher};
 use crate::accounts::secret::Token;
 use crate::accounts::{Limits, Registration};
+use crate::adapters::{self, Providers};
 use crate::api::{Api, Cors, Settings};
 use crate::clock::{Clock, FixedClock};
 use crate::flights::analyser::Analyser;
@@ -39,7 +40,7 @@ use crate::flights::derive::derive;
 use crate::flights::new_flight;
 use crate::flights::share::PublicUrl;
 use crate::ingest::{Collector, DirArchive};
-use crate::{adapters, plan, serve};
+use crate::{plan, serve};
 
 /// The region the payloads were recorded for, compiled in so that the
 /// development mode needs no files.
@@ -191,7 +192,7 @@ fn demo_token_hash() -> Result<SecretHash, String> {
 /// The API tests use this too, so what they check is what the development
 /// mode serves.
 pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String> {
-    let registry = adapters::registry();
+    let registry = adapters::registry_for(&Providers::recorded())?;
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
     let jobs = plan::plan(&[pack], &registry).map_err(|e| e.to_string())?;

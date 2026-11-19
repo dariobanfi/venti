@@ -1,0 +1,90 @@
+{
+  "layers": [
+    {
+      "source": "osm-free-flying",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "sites": [
+        {
+          "id": "osm-free-flying:node/5964676196",
+          "position": {
+            "lat": 47.6652212,
+            "lon": 11.7954245
+          },
+          "uses": [
+            "takeoff"
+          ],
+          "url": "https://www.openstreetmap.org/node/5964676196"
+        },
+        {
+          "id": "osm-free-flying:node/5964676197",
+          "position": {
+            "lat": 47.6654085,
+            "lon": 11.7953273
+          },
+          "uses": [
+            "takeoff"
+          ],
+          "url": "https://www.openstreetmap.org/node/5964676197"
+        },
+        {
+          "id": "osm-free-flying:node/9908030941",
+          "position": {
+            "lat": 47.6919322,
+            "lon": 11.8880464
+          },
+          "uses": [
+            "landing"
+          ],
+          "url": "https://www.openstreetmap.org/node/9908030941"
+        },
+        {
+          "id": "osm-free-flying:way/1080986173",
+          "name": "Fluggelände Jägerkamp/Nagelspitz",
+          "position": {
+            "lat": 47.6791413,
+            "lon": 11.9051032
+          },
+          "elevation_m": 1560.0,
+          "uses": [
+            "takeoff"
+          ],
+          "paragliding": true,
+          "hang_gliding": true,
+          "official": true,
+          "url": "https://www.openstreetmap.org/way/1080986173"
+        },
+        {
+          "id": "osm-free-flying:way/1080988126",
+          "name": "Landeplatz Jägerkamp/Nagelspitz",
+          "position": {
+            "lat": 47.6924086,
+            "lon": 11.8865478
+          },
+          "uses": [
+            "landing"
+          ],
+          "url": "https://www.openstreetmap.org/way/1080988126"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    }
+  ]
+}

@@ -73,19 +73,20 @@ fn set_from(row: &Row) -> Result<AirspaceSet, StoreError> {
     })
 }
 
-/// The boxes of a coverage as the `covers` column keeps them: the west,
-/// south, east and north edge of each box in turn.
-fn edges_of(boxes: &[BoundingBox]) -> Vec<f64> {
+/// The boxes of a coverage as a `covers` column keeps them: the west,
+/// south, east and north edge of each box in turn. The sets of flying
+/// sites keep theirs the same way.
+pub(super) fn edges_of(boxes: &[BoundingBox]) -> Vec<f64> {
     boxes
         .iter()
         .flat_map(|area| [area.west(), area.south(), area.east(), area.north()])
         .collect()
 }
 
-fn boxes_from(edges: &[f64]) -> Result<Vec<BoundingBox>, StoreError> {
+pub(super) fn boxes_from(edges: &[f64]) -> Result<Vec<BoundingBox>, StoreError> {
     if !edges.len().is_multiple_of(4) {
         return Err(corrupt(
-            "coverage of an airspace set",
+            "coverage of a set",
             format!("{} numbers do not make whole boxes", edges.len()),
         ));
     }
@@ -93,7 +94,7 @@ fn boxes_from(edges: &[f64]) -> Result<Vec<BoundingBox>, StoreError> {
         .chunks_exact(4)
         .map(|edge| {
             BoundingBox::new(edge[1], edge[0], edge[3], edge[2])
-                .map_err(|e| corrupt("coverage of an airspace set", e))
+                .map_err(|e| corrupt("coverage of a set", e))
         })
         .collect()
 }

@@ -3,7 +3,7 @@ provider = "OpenStreetMap contributors"
 kinds = ["sites"]
 # OpenStreetMap covers the world and the adapter asks for a box, not for
 # countries. These are the countries the first region's box takes in.
-countries = ["AT", "CH", "CZ", "DE", "HU", "IT", "LI", "SI", "SK"]
+countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
 # Sites change rarely, and the public Overpass instances are a shared
 # resource: one request a day.
 cadence_seconds = 86400

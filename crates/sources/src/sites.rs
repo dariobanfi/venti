@@ -74,7 +74,8 @@ pub struct SiteRunOutput {
     /// The date the set is of: the oldest date among the responses it was
     /// read from. A response is dated by what the adapter found in it,
     /// else by the date the provider's server put on it, else by the time
-    /// of the run.
+    /// of the run. It is never later than the run: data cannot be newer
+    /// than the moment it was fetched, whatever a provider's clock says.
     pub as_of: Timestamp,
     /// What happened.
     pub report: SiteRunReport,
@@ -106,7 +107,11 @@ pub async fn run_sites(
 
     let take = |request: &Request, response: &Fetched| {
         let parsed = source.parse(request, &response.body, ctx)?;
-        let date = parsed.as_of.or(response.last_modified).unwrap_or(ctx.now);
+        let date = parsed
+            .as_of
+            .or(response.last_modified)
+            .unwrap_or(ctx.now)
+            .min(ctx.now);
         as_of = Some(as_of.map_or(date, |oldest| oldest.min(date)));
         found.extend(parsed.sites);
         skipped.extend(parsed.skipped);

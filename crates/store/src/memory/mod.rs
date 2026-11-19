@@ -5,14 +5,15 @@ use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
 use venti_domain::{
-    Airspace, AirspaceId, BoundingBox, Observation, SourceId, Station, StationId, Timestamp,
+    Airspace, AirspaceId, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId,
+    Timestamp,
 };
 
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, airspace,
-    batch,
+    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Visibility, airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -33,6 +34,11 @@ struct Inner {
     runs: BTreeMap<(SourceId, Timestamp), RunRecord>,
     /// The airspace of each source, as its latest healthy run delivered it.
     airspace: BTreeMap<SourceId, StoredSet>,
+    /// The flying sites of each source, in the same way.
+    sites: BTreeMap<SourceId, StoredSites>,
+    /// The models of each forecast source, as the latest healthy look
+    /// found them, sorted by model.
+    forecast_models: BTreeMap<SourceId, Vec<ForecastModel>>,
     accounts: accounts::Accounts,
     flights: flights::Flights,
 }
@@ -50,6 +56,13 @@ struct StoredSet {
     set: AirspaceSet,
     /// Sorted by identifier: the order [`Store::airspaces_in`] promises.
     airspaces: BTreeMap<AirspaceId, Airspace>,
+}
+
+#[derive(Debug)]
+struct StoredSites {
+    set: SiteSet,
+    /// Sorted by identifier: the order [`Store::sites_in`] promises.
+    sites: BTreeMap<SiteId, Site>,
 }
 
 /// Whether two boxes share at least a point, edges included.
@@ -276,6 +289,109 @@ impl Store for MemoryStore {
             .iter()
             .filter(|(source, _)| sources.contains(source))
             .map(|(_, stored)| stored.set.clone())
+            .collect())
+    }
+
+    async fn save_site_run(
+        &self,
+        run: &RunRecord,
+        delivery: &SiteDelivery,
+        sites: &[Site],
+    ) -> Result<(), StoreError> {
+        site::check(run, sites)?;
+        let mut inner = self.lock();
+        inner
+            .runs
+            .insert((run.source.clone(), run.started_at), run.clone());
+        let newer_is_stored = inner
+            .sites
+            .get(&run.source)
+            .is_some_and(|stored| stored.set.fetched_at > run.started_at);
+        if run.healthy && !newer_is_stored {
+            let stored = StoredSites {
+                set: SiteSet::of(run, delivery, sites),
+                sites: sites
+                    .iter()
+                    .map(|site| (site.id.clone(), site.clone()))
+                    .collect(),
+            };
+            inner.sites.insert(run.source.clone(), stored);
+        }
+        Ok(())
+    }
+
+    async fn sites_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<SiteLayer>, StoreError> {
+        let inner = self.lock();
+        let mut left = limit;
+        let mut layers = Vec::new();
+        for (source, stored) in &inner.sites {
+            if !sources.contains(source) {
+                continue;
+            }
+            let found: Vec<Site> = stored
+                .sites
+                .values()
+                .filter(|site| area.contains(site.position))
+                .take(left)
+                .cloned()
+                .collect();
+            left -= found.len();
+            layers.push(SiteLayer {
+                set: stored.set.clone(),
+                sites: found,
+            });
+        }
+        Ok(layers)
+    }
+
+    async fn site_sets(&self, sources: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .sites
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .map(|(_, stored)| stored.set.clone())
+            .collect())
+    }
+
+    async fn save_forecast_check(
+        &self,
+        run: &RunRecord,
+        models: &[ForecastModel],
+    ) -> Result<(), StoreError> {
+        forecast::check(run, models)?;
+        let mut inner = self.lock();
+        inner
+            .runs
+            .insert((run.source.clone(), run.started_at), run.clone());
+        let newer_is_stored = inner
+            .forecast_models
+            .get(&run.source)
+            .and_then(|models| models.first())
+            .is_some_and(|stored| stored.checked_at > run.started_at);
+        if run.healthy && !newer_is_stored {
+            let mut models = models.to_vec();
+            models.sort_by(|a, b| a.model.cmp(&b.model));
+            inner.forecast_models.insert(run.source.clone(), models);
+        }
+        Ok(())
+    }
+
+    async fn forecast_models(
+        &self,
+        sources: &[SourceId],
+    ) -> Result<Vec<ForecastModel>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .forecast_models
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .flat_map(|(_, models)| models.iter().cloned())
             .collect())
     }
 

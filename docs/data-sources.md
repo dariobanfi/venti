@@ -150,11 +150,16 @@ priority = ["dwd-10min", "geosphere-tawes"]   # wins when two sources report the
 
 [airspace]
 sources = ["openaip"]
+
+[sites]
+sources = ["osm-free-flying"]
 ```
 
 Region packs live in `regions/<id>/region.toml`. The area is a bounding box for now; a boundary polygon replaces it when a region needs a shape a box cannot express. Sections for the other kinds (map layers and so on) are added as those kinds are built.
 
 A region may leave `[airspace]` out. Airspace from two sources is never merged, so `priority` there says which layer a client prefers where two cover the same air, not which fields win. A region's airspace sources are checked against the build's adapters like its observation sources: a server that cannot collect a region's airspace does not start.
+
+`[sites]` follows the rules of `[airspace]`: a region may leave it out, sources are never merged, and a server that cannot collect a region's sites does not start. `[forecasts]` is the one section whose sources a server may lack: a forecast comes from a service that whoever runs the server runs beside it, and a server that was not told where that service is starts all the same, says in its log which forecasts it goes without, and reports that it has none.
 
 A manifest needed nothing new for airspace beyond the kind. `cadence_seconds` is how often the provider publishes, a day for openAIP, and the request budget and the staleness rule follow from it as for any source.
 
@@ -230,7 +235,9 @@ As of 2026-11-19:
 | Canonical types for flying sites and point forecasts (`venti-domain`): `Site`, `ForecastSeries` | Built |
 | `SiteSource` and `ForecastSource`, their registries and their runs (`venti-sources`) | Built |
 | Adapter: `osm-free-flying` | Built, with an answer recorded 2026-11-19 for the whole first region and golden files |
-| Sites and forecasts in the server | Not built |
+| Flying sites in the server: collecting once a day, storing as one set per source, serving at `GET /v1/sites`, health, the development mode over the whole first region, `ingest` and with it the canary | Built; installed on no machine yet |
+| The `[sites]` and `[forecasts]` sections of a region pack (`venti-regions`); what the store keeps about forecast models | Built |
+| Forecasts in the server | Not built |
 | Every kind other than observations, airspace, sites and point forecasts | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.

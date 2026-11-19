@@ -25,3 +25,9 @@ priority = ["dwd-10min", "geosphere-tawes"]
 # openAIP.
 [airspace]
 sources = ["openaip"]
+
+# Take-offs and landings from OpenStreetMap, under the ODbL: a layer of its
+# own. OpenStreetMap has what somebody entered, which in this region is a
+# fraction of the sites there are; docs/data-sources.md has the count.
+[sites]
+sources = ["osm-free-flying"]

@@ -12,7 +12,9 @@ use venti_sources::{Kind, Manifest, Registry};
 pub struct Job {
     /// The source.
     pub source: SourceId,
-    /// What it is collected for: observations or airspace.
+    /// What it is collected for: observations, airspace or flying sites.
+    /// For a source of forecasts the job is the regular look at the
+    /// forecast service, and the area is where forecasts are answered.
     pub kind: Kind,
     /// The smallest box that covers every configured region listing the
     /// source.
@@ -63,11 +65,11 @@ pub enum PlanError {
         "source {0} may not be redistributed under its licence; the API cannot keep it back yet"
     )]
     NotRedistributable(SourceId),
-    /// The regions list one source for observations and for airspace. The
-    /// run history and the health report are kept per source.
+    /// The regions list one source for two kinds of data. The run history
+    /// and the health report are kept per source.
     #[error(
-        "source {0} is listed for observations and for airspace; \
-         the server collects a source for one kind of data"
+        "source {0} is listed for two kinds of data; \
+         the server collects a source for one kind"
     )]
     TwoKinds(SourceId),
 }
@@ -92,6 +94,13 @@ fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> 
     };
     let pack = RegionPack::from_toml(&text).map_err(region)?;
     pack.check_against(registry).map_err(region)?;
+    for source in pack.forecasts_without_adapter(registry) {
+        tracing::warn!(
+            "region {} names forecasts from {source}, and the server was not told where \
+             that service is: no forecasts from it",
+            pack.id
+        );
+    }
     Ok(pack)
 }
 
@@ -101,12 +110,25 @@ fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> 
 /// A source is collected once however many regions list it, because a
 /// provider's request limits apply to the source, not to a region. Its area
 /// is one box around all those regions.
+///
+/// A region's forecast source is planned only if the registry has its
+/// adapter, which it has when the server was told where the forecast
+/// service is. Without it the server runs and has no forecasts.
 pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanError> {
     let mut jobs: BTreeMap<SourceId, Job> = BTreeMap::new();
     for pack in packs {
+        let forecasts: Vec<SourceId> = pack
+            .forecasts
+            .sources
+            .iter()
+            .filter(|source| registry.forecasts(source).is_some())
+            .cloned()
+            .collect();
         let listed = [
             (Kind::Observations, &pack.observations.sources),
             (Kind::Airspace, &pack.airspace.sources),
+            (Kind::Sites, &pack.sites.sources),
+            (Kind::Forecasts, &forecasts),
         ];
         for (kind, sources) in listed {
             for source in sources {
@@ -167,6 +189,37 @@ mod tests {
             list(airspace)
         );
         RegionPack::from_toml(&text).unwrap()
+    }
+
+    #[test]
+    fn sites_are_planned_and_forecasts_only_where_their_service_is_known() {
+        let text = "id = \"alps\"\nname = \"alps\"\nlanguages = [\"de\"]\n\
+             [bounds]\nsouth = 46.3\nwest = 9.4\nnorth = 48.5\neast = 17.2\n\
+             [observations]\nsources = [\"dwd-10min\"]\n\
+             [sites]\nsources = [\"osm-free-flying\"]\n\
+             [forecasts]\nsources = [\"open-meteo\"]\n";
+        let packs = [RegionPack::from_toml(text).unwrap()];
+
+        // This registry was not told where a forecast service is: the
+        // region is planned without its forecasts.
+        let jobs = plan(&packs, &adapters::registry()).unwrap();
+
+        let planned: Vec<(&str, Kind)> = jobs
+            .iter()
+            .map(|job| (job.source.as_str(), job.kind))
+            .collect();
+        assert_eq!(
+            planned,
+            [
+                ("dwd-10min", Kind::Observations),
+                ("osm-free-flying", Kind::Sites)
+            ]
+        );
+        assert_eq!(jobs[1].area, packs[0].bounds);
+        assert_eq!(
+            jobs[1].manifest(&adapters::registry()).licence.name,
+            "ODbL 1.0"
+        );
     }
 
     #[test]
@@ -312,7 +365,10 @@ mod tests {
         ));
         let jobs = load(&[path], &adapters::registry()).unwrap();
         let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
-        assert_eq!(sources, ["dwd-10min", "geosphere-tawes", "openaip"]);
+        assert_eq!(
+            sources,
+            ["dwd-10min", "geosphere-tawes", "openaip", "osm-free-flying"]
+        );
 
         let missing = PathBuf::from("regions/nowhere/region.toml");
         assert!(matches!(

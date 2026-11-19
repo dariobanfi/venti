@@ -641,9 +641,14 @@ class VentiUiTest {
         // for when the task and the flight have come apart.
         tap(strip)
         waitFor(hasTestTag("task-progress"))
-        assertTrue(exists(hasText("Skip to the next turnpoint")))
+        assertTrue(exists(hasContentDescription("Sample turnpoint west", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-task-3-progress")
+        // The buttons stand below the turnpoints, where a list that is
+        // longer than the screen has not drawn them yet.
+        screen.onNode(hasTestTag("task-progress")).performScrollToNode(hasTestTag("task-skip"))
+        assertTrue(exists(hasText("Skip to the next turnpoint")))
+        assertTrue(exists(hasText("Back to the one before")))
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("task-progress")) }
 

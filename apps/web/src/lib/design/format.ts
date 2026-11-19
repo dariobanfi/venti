@@ -11,7 +11,7 @@ export interface Format {
 	day(unixSeconds: number): string;
 	/** "Sat, 4 Jul", for lists already grouped by year. */
 	dayInYear(unixSeconds: number): string;
-	/** "10:30" */
+	/** The time of day as the reader's region writes it: "10:30", "00:05", "9:30 AM". */
 	time(unixSeconds: number): string;
 	/** Hours and minutes the way pilots log airtime: "0:29", "5:42". */
 	hoursMinutes(seconds: number): string;
@@ -86,7 +86,12 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		});
 
 	const day = date({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-	const time = date({ hour: 'numeric', minute: '2-digit' });
+	// The region's own short time of day, which is what the iPhone asks its
+	// system for: "00:05" and "09:30" on a 24-hour clock, "12:05 AM" and
+	// "9:30 AM" on a 12-hour one. Asking for the hour as a number and the
+	// minute in two digits instead writes "0:05" just after midnight on a
+	// 24-hour clock, which no region does and which reads like an airtime.
+	const time = date({ timeStyle: 'short' });
 	const weekdayAndDay = date({ weekday: 'short', day: 'numeric' });
 	const clock = date({ hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
 	const whole = number(0);

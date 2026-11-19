@@ -278,7 +278,7 @@ What stands in for the system:
 
 Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.
 
-Times are shown in the time zone of the browser, as the iPhone shows them in the phone's. The words are English; dates and numbers follow the reader's region, so a pilot in Germany gets a 24-hour clock.
+Times are shown in the time zone of the browser, as the iPhone shows them in the phone's. The words are English; dates and numbers follow the reader's region, so a pilot in Germany gets a 24-hour clock. A time of day is written as the region writes one, which is what the iPhone asks its system for: on a 24-hour clock the hour has two digits, "00:05" and "09:30", and never "0:05", which is how an airtime is written.
 
 To verify, none of it has been seen outside Chromium on a test machine: Safari and Firefox, a real phone (touch on the profile and on a station's chart, tapping an arrow with a finger, the bar's distance from the home indicator, glass over a moving map), a screen reader, and the rounded number face on Apple devices.
 

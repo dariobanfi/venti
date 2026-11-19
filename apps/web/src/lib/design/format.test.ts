@@ -21,6 +21,28 @@ describe('dates and times', () => {
 		expect(american.time(TAKE_OFF).replace(/\s/u, ' ')).toBe('4:30 AM');
 	});
 
+	it('writes the hours before ten in two digits on a 24-hour clock, and midnight as 00', () => {
+		// Five past midnight in Berlin on 20 November 2026, and half past nine
+		// that morning. The browser tests once read "0:05" here, and passed or
+		// failed by the hour they ran at.
+		const afterMidnight = Date.UTC(2026, 10, 19, 23, 5) / 1000;
+		const morning = Date.UTC(2026, 10, 20, 8, 30) / 1000;
+
+		for (const region of ['en-GB', 'en-DE', 'en-AT', 'en-CH', 'en-IT', 'en-FR']) {
+			const text = createFormat(region, 'Europe/Berlin');
+			expect(text.time(afterMidnight), region).toBe('00:05');
+			expect(text.time(morning), region).toBe('09:30');
+			expect(`${text.dayInYear(afterMidnight)}, ${text.time(afterMidnight)}`, region).toBe(
+				'Fri, 20 Nov, 00:05'
+			);
+		}
+
+		// A 12-hour clock has no hour to fill up: the region writes "9:30 AM".
+		const denver = (unixSeconds: number) => american.time(unixSeconds).replace(/\s/u, ' ');
+		expect(denver(Date.UTC(2026, 10, 20, 7, 5) / 1000)).toBe('12:05 AM');
+		expect(denver(Date.UTC(2026, 10, 20, 16, 30) / 1000)).toBe('9:30 AM');
+	});
+
 	it('names a month in a letter and in words', () => {
 		expect(british.monthLetter(2026, 7)).toBe('J');
 		expect(british.monthLetter(2025, 12)).toBe('D');

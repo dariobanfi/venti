@@ -101,6 +101,8 @@ kinds = ["observations"]
 countries = ["AT"]
 cadence_seconds = 600
 auth = "none"
+# The larger of the two answers of a run was 177 kB on 2026-11-19.
+max_response_kb = 4096
 
 [rate_limit]
 per_second = 5
@@ -127,6 +129,7 @@ The manifest is data, not comments. The server reads it to:
 
 - send the credit of every source with the data it serves: the credit line, the licence's name and the link (`attribution`, `name`, `link`), and the `notice` if the provider asks for one to be shown with its data, as openAIP does;
 - enforce rate limits and schedules;
+- bound what one request may bring: `max_response_kb` is the largest answer taken from the provider, and the fetcher stops reading there. A manifest that says nothing gets 32 MB;
 - refuse to start with a source whose licence does not allow serving its data onward;
 - apply licence constraints automatically (see below);
 - exclude non-commercial sources from a build with one switch, should the project ever take money.
@@ -167,7 +170,7 @@ A manifest needed nothing new for airspace beyond the kind. `cadence_seconds` is
 
 Every payload goes through the same stages, in the `sources` crate:
 
-1. **Fetch.** The server's scheduler runs each source at its cadence and within its rate limit; see [architecture.md](architecture.md#what-the-server-does-today).
+1. **Fetch.** The server's scheduler runs each source at its cadence and within its rate limit; see [architecture.md](architecture.md#what-the-server-does-today). The fetcher keeps to bounds of its own, whatever an adapter or a provider's answer asks of it; see [What the fetcher will not do](#what-the-fetcher-will-not-do).
 2. **Archive.** The raw payload is written to disk and kept for a rolling window. A bug report can be replayed exactly.
 3. **Normalise.** The adapter converts to canonical types: SI units, UTC, WGS84, heights above mean sea level.
 4. **Merge and validate.** Partial observations for the same station and time are merged (some providers publish wind, gusts and temperature in separate files). Implausible values are removed and counted, so one faulty humidity sensor does not cost a good wind reading. An observation with nothing left is dropped. Nothing unvalidated reaches the store.
@@ -175,6 +178,18 @@ Every payload goes through the same stages, in the `sources` crate:
 6. **Store and publish.** Canonical records go to the database; changes are published to the live channel and to the region-bundle builder. Storing is built; publishing changes is not.
 
 For airspace, stage 4 has nothing to merge, and the store replaces instead of adding: see the table under [Kinds and traits](#kinds-and-traits). The pipeline also dates every airspace by its file: by what the adapter found in the file, else by the `Last-Modified` the provider's server sent with it, else by the time of the run.
+
+### What the fetcher will not do
+
+An adapter names addresses, and some of them it reads out of what a provider sent. A provider's answer can come from someone else. So the one fetcher every source goes through (`crates/server/src/ingest/http.rs`) holds every request to this, since 2026-11-19:
+
+- **HTTPS only.** An address that begins with anything else is not asked. The one exception is an address whoever runs the server wrote into its configuration with `http://`: a forecast service or an Overpass instance of their own, on a private network beside the server. The server hands the fetcher those addresses at start (`Providers::addresses`), and plain HTTP is accepted for exactly their scheme, host and port.
+- **No redirect to another host.** A redirect is followed, three times at most, if it keeps the scheme, the host and the port. Any other is a failed request whose error names where it led (without the query). A provider that moves its files to another host therefore fails loudly, in the canary and in `/v1/health`, and the adapter's address is corrected by hand.
+- **No answer larger than the manifest allows.** The body is read in pieces up to `max_response_kb` and no further; an answer that states a larger size is refused before any of it is read. Largest answers on 2026-11-19: DWD 467 kB (a station list), GeoSphere 177 kB, openAIP 3.6 MB (Italy).
+- **Ten seconds to connect, two minutes for a request**, the body included.
+- **No unpacking without bound.** That is the adapter's part, because only it knows what is inside: DWD's adapter takes at most 1 MB out of an archive, a hundred days of a table that holds one, and does not believe what the archive says about its own size.
+
+The live run of 2026-11-19 through this fetcher: DWD 104 requests, GeoSphere 2, openAIP 8, none failed and none redirected. OpenStreetMap's Overpass instance refused the connection from that machine, as it had before the change (see [Flying sites](#flying-sites)).
 
 ### Licence rules built into the pipeline
 
@@ -203,6 +218,13 @@ Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, an
 3. Record fixtures and golden files.
 4. Add the adapter and its recorded payloads to the registry in `crates/server/src/adapters.rs`, and the source to the region packs that should use it.
 5. Add the canary.
+
+What the source has to declare for the fetcher:
+
+- **`max_response_kb` in the manifest**: the provider's largest answer with room to grow, measured and dated in a comment beside it. Left out, the bound is 32 MB, which is far more than most sources should be allowed.
+- **Its address, if whoever runs the server chooses it.** Add it to `Providers` in `crates/server/src/adapters.rs` and to `Providers::addresses`. Only then may it be `http://`. An address the adapter knows by itself must be `https://`.
+- **Addresses that answer themselves.** The fetcher follows no redirect to another host, so the adapter names the host that serves the data, not one that forwards to it.
+- **A bound on whatever the adapter unpacks**, with a fixture that tries to get past it.
 
 ### Adding a region
 

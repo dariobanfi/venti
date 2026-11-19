@@ -89,7 +89,9 @@ pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCod
         }
     };
 
-    let fetch = match HttpFetch::new(user_agent) {
+    let fetch =
+        HttpFetch::new(user_agent).and_then(|fetch| fetch.plain_http_to(providers.addresses()));
+    let fetch = match fetch {
         Ok(fetch) => fetch,
         Err(message) => {
             eprintln!("{message}");

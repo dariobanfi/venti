@@ -4,6 +4,8 @@ kinds = ["observations"]
 countries = ["AT"]
 cadence_seconds = 600
 auth = "none"
+# The larger of the two answers of a run was 177 kB on 2026-11-19.
+max_response_kb = 4096
 
 [rate_limit]
 per_second = 5

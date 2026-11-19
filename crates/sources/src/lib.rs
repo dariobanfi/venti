@@ -37,7 +37,9 @@ mod validate;
 pub use archive::{Archive, ArchiveEntry, ArchiveError};
 pub use fetch::{Fetch, FetchError, Fetched};
 pub use forecast::{ForecastRejection, ForecastRunOutput, ForecastRunReport, run_forecast};
-pub use manifest::{Auth, Kind, Licence, LicenceFamily, Manifest, ManifestError, RateLimit};
+pub use manifest::{
+    Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError, RateLimit,
+};
 pub use registry::{Registry, RegistryError};
 pub use run::{
     AirspaceRejection, AirspaceRunOutput, AirspaceRunReport, Failure, RunOptions, RunOutput,

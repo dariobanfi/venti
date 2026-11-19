@@ -269,14 +269,30 @@ struct Counted<'a, F> {
     limit: Option<usize>,
 }
 
+impl<F> Counted<'_, F> {
+    /// Counts one request, or says that the hour's requests are used up.
+    fn count(&self) -> Result<(), FetchError> {
+        if self.budget.take(self.limit) {
+            return Ok(());
+        }
+        Err(FetchError::Transport(
+            "not asked: the source has been asked as often as it may be in an hour".to_owned(),
+        ))
+    }
+}
+
 impl<F: Fetch> Fetch for Counted<'_, F> {
     async fn get(&self, request: &Request) -> Result<Fetched, FetchError> {
-        if !self.budget.take(self.limit) {
-            return Err(FetchError::Transport(
-                "not asked: the source has been asked as often as it may be in an hour".to_owned(),
-            ));
-        }
+        self.count()?;
         self.fetch.get(request).await
+    }
+
+    // Passed on with its bound, so that the fetcher behind this one stops
+    // reading where the source's manifest says, and not where a fetcher
+    // stops that was told nothing.
+    async fn get_within(&self, request: &Request, max_bytes: usize) -> Result<Fetched, FetchError> {
+        self.count()?;
+        self.fetch.get_within(request, max_bytes).await
     }
 }
 

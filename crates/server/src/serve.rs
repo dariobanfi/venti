@@ -36,7 +36,12 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let store = Arc::new(store);
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let archive = config.archive_dir.clone().map(DirArchive::new);
-    let fetch = HttpFetch::new(&config.user_agent)?;
+    // The fetcher asks HTTPS addresses, and without encryption only those
+    // the configuration names with http://, such as a forecast service on
+    // the server's own network.
+    let fetcher =
+        || HttpFetch::new(&config.user_agent)?.plain_http_to(config.providers.addresses());
+    let fetch = fetcher()?;
 
     let public_url = match config.public_url.clone() {
         Some(url) => url,
@@ -67,7 +72,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let forecasts = forecast::service_for(
         &jobs,
         adapters::forecast_sources(&config.providers)?,
-        HttpFetch::new(&config.user_agent)?,
+        fetcher()?,
         archive.clone(),
         clock.clone(),
         Asking::Live,

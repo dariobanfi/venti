@@ -96,6 +96,80 @@ fn a_recorded_run_matches_the_golden_file() {
     assert_golden(&golden("recorded_run.json"), &output);
 }
 
+/// An archive as `unpacks_to_16_mb.zip` is, except that both of its headers
+/// say the table inside is a hundred bytes long.
+fn saying_it_is_small(mut archive: Vec<u8>) -> Vec<u8> {
+    let central = archive
+        .windows(4)
+        .position(|bytes| bytes == b"PK\x01\x02")
+        .expect("the archive has a directory");
+    assert_eq!(&archive[..4], b"PK\x03\x04");
+    let hundred = 100u32.to_le_bytes();
+    // The size after unpacking: at byte 22 of the file's own header, and
+    // at byte 24 of its entry in the directory.
+    archive[22..26].copy_from_slice(&hundred);
+    archive[central + 24..central + 28].copy_from_slice(&hundred);
+    archive
+}
+
+#[test]
+fn an_archive_is_not_unpacked_beyond_what_a_days_table_can_be() {
+    // 49 kB that unpack to 16 MB of well-formed rows: made for this test
+    // (the zip format packs a repeated row about 340 to 1). A station's
+    // real file is under two kilobytes and unpacks to about ten.
+    let bomb = fixture("unpacks_to_16_mb.zip");
+    assert!(bomb.len() < 64 * 1024);
+    let summit = PlanCtx {
+        area: BoundingBox::new(47.40, 10.95, 47.45, 11.00).unwrap(),
+        ..ctx()
+    };
+    let wind = format!("{BASE}/wind/now/10minutenwerte_wind_05792_now.zip");
+
+    // The second says of itself that it is small. The archive reader
+    // stops at the size an archive states, so that one fails in the
+    // reader's words and not in the adapter's; it fails all the same.
+    let cases = [
+        (bomb.clone(), "unpacks to more than 1024 kB"),
+        (saying_it_is_small(bomb), "malformed"),
+    ];
+    for (archive, reason) in cases {
+        let fetch = with_station_lists(FixtureFetch::new());
+        let fetch = with_data(
+            fetch,
+            "air_temperature",
+            "10minutenwerte_TU_05792_now.zip",
+            "10minutenwerte_TU_05792_now.zip",
+        );
+        let fetch = fetch.with(wind.clone(), archive);
+
+        let output = run(&fetch, &MemoryArchive::default(), &summit);
+
+        // The wind file is a failed request, and says why; nothing of its
+        // 300,000 rows was read.
+        let failed: Vec<_> = output
+            .report
+            .failures
+            .iter()
+            .filter(|failure| failure.tag == "data/wind/05792")
+            .collect();
+        assert_eq!(failed.len(), 1, "{:?}", output.report.failures);
+        assert!(failed[0].error.contains(reason), "{}", failed[0].error);
+        assert!(
+            output
+                .observations
+                .iter()
+                .all(|o| o.wind_speed_ms.is_none())
+        );
+        // The rest of the run is not affected.
+        assert!(
+            output
+                .observations
+                .iter()
+                .any(|o| o.temperature_c.is_some())
+        );
+    }
+}
+
 #[test]
 fn damaged_payloads_are_reported_and_do_not_stop_the_run() {
     let fetch = with_station_lists(FixtureFetch::new());

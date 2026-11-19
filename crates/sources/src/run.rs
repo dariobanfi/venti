@@ -112,8 +112,9 @@ pub(crate) struct Fetching {
 /// not stop the run.
 ///
 /// Limits enforced here, for every kind of source: the per-run request
-/// budget derived from the provider's hourly limit, and a concurrency cap
-/// at its per-second limit.
+/// budget derived from the provider's hourly limit, a concurrency cap at
+/// its per-second limit, and the size of one answer that its manifest
+/// allows.
 pub(crate) async fn fetch_all(
     manifest: &Manifest,
     first: Vec<Request>,
@@ -129,6 +130,7 @@ pub(crate) async fn fetch_all(
         .per_second
         .map_or(usize::MAX, |n| n as usize);
     let concurrency = options.concurrency.min(per_second).max(1);
+    let max_bytes = manifest.max_response_bytes();
 
     let mut requests = 0;
     let mut budget_exhausted = false;
@@ -145,7 +147,7 @@ pub(crate) async fn fetch_all(
 
         let mut responses: Vec<(Request, _)> = stream::iter(wave)
             .map(|request| async move {
-                let result = fetch.get(&request).await;
+                let result = fetch.get_within(&request, max_bytes).await;
                 (request, result)
             })
             .buffer_unordered(concurrency)

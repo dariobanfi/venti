@@ -41,6 +41,19 @@ impl Default for Providers {
 }
 
 impl Providers {
+    /// Every address whoever runs the server gave it for a provider.
+    ///
+    /// The fetcher asks no address without encryption unless it is one of
+    /// these and was written with `http://`: a service kept beside the
+    /// server, on a network of its own. An address added to this struct
+    /// belongs in this list, or its `http://` form is refused at the first
+    /// run.
+    pub fn addresses(&self) -> Vec<&str> {
+        std::iter::once(self.overpass_url.as_str())
+            .chain(self.open_meteo_url.as_deref())
+            .collect()
+    }
+
     /// The addresses the recorded payloads answer for. The development
     /// mode and the tests run on these.
     pub fn recorded() -> Self {
@@ -236,6 +249,20 @@ mod tests {
         };
         assert!(problem.contains("Open-Meteo"), "{problem}");
         assert!(check_open_meteo_url("http://open-meteo:8080").is_ok());
+        // Every address the server was given is one the fetcher is told of:
+        // an instance of the operator's own may be asked without encryption.
+        let providers = Providers {
+            open_meteo_url: Some("http://open-meteo:8080".to_owned()),
+            ..Providers::default()
+        };
+        assert_eq!(
+            providers.addresses(),
+            [
+                "https://overpass-api.de/api/interpreter",
+                "http://open-meteo:8080"
+            ]
+        );
+        assert_eq!(Providers::default().addresses().len(), 1);
 
         // The recorded payloads answer for the addresses they were made for.
         assert!(registry_for(&Providers::recorded()).is_ok());

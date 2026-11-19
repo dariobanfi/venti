@@ -10,6 +10,10 @@ countries = ["DE", "AT", "CH", "IT", "SI", "HR", "HU", "SK"]
 cadence_seconds = 86400
 # The export files are public. Only openAIP's API needs a key, and it is not used.
 auth = "none"
+# The largest country file of the first region, Italy's, was 3.6 MB on
+# 2026-11-19. A run in which one file is refused leaves the airspace a
+# day older, so the room is wide.
+max_response_kb = 32768
 
 [licence]
 name = "CC BY-NC 4.0"

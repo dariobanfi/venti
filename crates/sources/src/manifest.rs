@@ -23,11 +23,24 @@ pub struct Manifest {
     /// Request limits the provider imposes.
     #[serde(default)]
     pub rate_limit: RateLimit,
+    /// The largest answer to one request that is taken from the provider,
+    /// in kilobytes. A larger one is a failed request: the fetcher stops
+    /// reading there, so a provider that sends without end, by mistake or
+    /// because someone else answers in its place, cannot take the server's
+    /// memory. Say what the provider's largest file is, with room to grow;
+    /// [`DEFAULT_MAX_RESPONSE_KB`] applies when a manifest says nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_response_kb: Option<u32>,
     /// What credential the provider requires.
     pub auth: Auth,
     /// Licence terms, as verified on the provider's own pages.
     pub licence: Licence,
 }
+
+/// The largest answer taken from a provider whose manifest names no size
+/// of its own: 32 MB. The largest file any source fetched when this was
+/// set (2026-11-19) was openAIP's airspace of Italy, 3.6 MB.
+pub const DEFAULT_MAX_RESPONSE_KB: u32 = 32 * 1024;
 
 /// A category of data with one canonical shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,6 +181,9 @@ impl Manifest {
         if self.cadence_seconds == 0 {
             return Err(invalid("cadence_seconds is zero"));
         }
+        if self.max_response_kb == Some(0) {
+            return Err(invalid("max_response_kb is zero; leave it out instead"));
+        }
         if self.licence.name.trim().is_empty() || self.licence.attribution.trim().is_empty() {
             return Err(invalid("licence name and attribution are required"));
         }
@@ -190,6 +206,13 @@ impl Manifest {
             ));
         }
         Ok(())
+    }
+
+    /// The largest answer to one request that is taken from the provider,
+    /// in bytes.
+    pub fn max_response_bytes(&self) -> usize {
+        let kilobytes = self.max_response_kb.unwrap_or(DEFAULT_MAX_RESPONSE_KB);
+        usize::try_from(u64::from(kilobytes) * 1024).unwrap_or(usize::MAX)
     }
 
     /// The most requests one pipeline run may make without breaking the
@@ -235,6 +258,25 @@ mod tests {
         assert_eq!(manifest.id.as_str(), "example-source");
         assert_eq!(manifest.licence.family(), LicenceFamily::Open);
         assert_eq!(manifest.requests_per_run(), Some(40));
+    }
+
+    #[test]
+    fn a_manifest_bounds_what_one_request_may_bring() {
+        // Unless it says otherwise, 32 MB.
+        let manifest = Manifest::from_toml(GOOD).unwrap();
+        assert_eq!(manifest.max_response_bytes(), 32 * 1024 * 1024);
+        let written = toml::to_string(&manifest).unwrap();
+        assert!(!written.contains("max_response_kb"), "{written}");
+
+        let text = GOOD.replace("auth = \"none\"", "auth = \"none\"\nmax_response_kb = 512");
+        let manifest = Manifest::from_toml(&text).unwrap();
+        assert_eq!(manifest.max_response_bytes(), 512 * 1024);
+
+        let text = GOOD.replace("auth = \"none\"", "auth = \"none\"\nmax_response_kb = 0");
+        assert!(matches!(
+            Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
     }
 
     #[test]

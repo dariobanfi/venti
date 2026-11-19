@@ -4,6 +4,9 @@ kinds = ["observations"]
 countries = ["DE"]
 cadence_seconds = 600
 auth = "none"
+# The largest file fetched on 2026-11-19 was a station list of 467 kB; a
+# station's own archive is about a kilobyte.
+max_response_kb = 4096
 
 [licence]
 name = "CC BY 4.0"

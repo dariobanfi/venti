@@ -21,6 +21,12 @@ struct Charts(Manifest);
 
 impl Charts {
     fn new(kinds: &str) -> Self {
+        Self::taking(kinds, "")
+    }
+
+    /// The same source with a further line in its manifest, such as the
+    /// largest answer it takes.
+    fn taking(kinds: &str, further: &str) -> Self {
         let text = format!(
             r#"
             id = "charts"
@@ -29,6 +35,7 @@ impl Charts {
             countries = ["DE", "AT"]
             cadence_seconds = 86400
             auth = "none"
+            {further}
 
             [licence]
             name = "CC BY 4.0"
@@ -196,6 +203,62 @@ fn a_missing_country_makes_the_run_unfit_to_replace_the_last_one() {
     let output = run(&fetch);
     assert!(output.report.failures.is_empty());
     assert!(!output.report.is_healthy());
+}
+
+#[test]
+fn an_answer_larger_than_the_manifest_allows_is_a_failed_request() {
+    // Germany's file is a few hundred bytes, Austria's four kilobytes of
+    // records, and the manifest allows two.
+    let small = bytes(&[record("muenchen", 48.3, 11.7, 0.0, 3500.0)]);
+    let many: Vec<_> = (0..10)
+        .map(|n| {
+            record(
+                &format!("tra{n}"),
+                47.0 + f64::from(n) * 0.1,
+                11.0,
+                0.0,
+                5000.0,
+            )
+        })
+        .collect();
+    let large = bytes(&many);
+    assert!(small.len() < 2048 && large.len() > 2048, "{}", large.len());
+    let fetch = FixtureFetch::new()
+        .with(GERMANY, small)
+        .with(AUSTRIA, large);
+    let source = Charts::taking(r#"["airspace"]"#, "max_response_kb = 2");
+    let archive = MemoryArchive::default();
+
+    let output = block_on(run_airspace(
+        &source,
+        &fetch,
+        &archive,
+        &ctx(),
+        &RunOptions::default(),
+    ));
+
+    // Nothing of the large answer was parsed or archived, the failure
+    // says why, and for airspace that makes the whole run unfit.
+    assert_eq!(output.airspaces.len(), 1);
+    assert_eq!(output.report.failures.len(), 1);
+    let failure = &output.report.failures[0];
+    assert_eq!(failure.tag, "at");
+    assert!(
+        failure
+            .error
+            .contains("larger than the 2 kB the source's manifest allows"),
+        "{}",
+        failure.error
+    );
+    let archived: Vec<String> = archive.stored().into_iter().map(|(tag, _)| tag).collect();
+    assert_eq!(archived, ["de"]);
+    assert!(!output.report.is_healthy());
+
+    // Without a word in the manifest the same answer is taken: the bound
+    // is then 32 MB.
+    let output = run(&fetch);
+    assert!(output.report.failures.is_empty());
+    assert_eq!(output.airspaces.len(), 11);
 }
 
 #[test]

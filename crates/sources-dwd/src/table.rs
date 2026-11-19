@@ -137,8 +137,21 @@ fn parse_row(
     Ok(observation)
 }
 
+/// The largest table taken out of an archive: a megabyte. A station's file
+/// holds the current day, at most 144 lines of some 60 characters, so this
+/// is a hundred days' worth. A few kilobytes of archive can unpack to
+/// gigabytes; what the archive says about its own content is not believed
+/// either, and reading stops here.
+const MAX_TABLE_BYTES: u64 = 1024 * 1024;
+
 fn unzip_single_text_file(body: &[u8]) -> Result<String, SourceError> {
     let malformed = |what: String| SourceError::Malformed(what);
+    let too_large = || {
+        malformed(format!(
+            "the file in the archive unpacks to more than {} kB",
+            MAX_TABLE_BYTES / 1024
+        ))
+    };
     let mut archive = zip::ZipArchive::new(Cursor::new(body))
         .map_err(|e| malformed(format!("not a zip archive: {e}")))?;
     if archive.len() != 1 {
@@ -147,11 +160,18 @@ fn unzip_single_text_file(body: &[u8]) -> Result<String, SourceError> {
             archive.len()
         )));
     }
-    let mut file = archive
+    let file = archive
         .by_index(0)
         .map_err(|e| malformed(format!("cannot open the file in the archive: {e}")))?;
+    if file.size() > MAX_TABLE_BYTES {
+        return Err(too_large());
+    }
     let mut text = String::new();
-    file.read_to_string(&mut text)
+    file.take(MAX_TABLE_BYTES + 1)
+        .read_to_string(&mut text)
         .map_err(|e| malformed(format!("file in the archive is not text: {e}")))?;
+    if text.len() as u64 > MAX_TABLE_BYTES {
+        return Err(too_large());
+    }
     Ok(text)
 }

@@ -235,9 +235,13 @@ class VentiUiTest {
         waitFor(described("Altitude"))
 
         // Circling in lift, the cockpit changes to its thermal numbers by
-        // itself.
+        // itself, and its map pictures the thermal: the last circles as
+        // dots around the circle to fly, and a badge that says where the
+        // lift is stronger. The sample's thermal lifts evenly all around.
         waitFor(described("Gained"))
         assertTrue(exists(described("Thermal")))
+        waitFor(hasTestTag("lift-badge"))
+        waitFor(described("Lift") and saying("Centred"))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-2-thermal")
 

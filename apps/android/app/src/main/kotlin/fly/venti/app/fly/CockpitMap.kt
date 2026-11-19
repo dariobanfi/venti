@@ -16,6 +16,7 @@ import fly.venti.core.CockpitView
 import fly.venti.app.wind.contains
 import fly.venti.core.Coordinate
 import fly.venti.core.FaiAreas
+import fly.venti.core.LiftView
 import fly.venti.core.TaskStatusView
 import fly.venti.core.TaskTurnpointView
 import fly.venti.core.TaskView
@@ -27,6 +28,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
@@ -86,6 +88,10 @@ class CockpitMap : MapContent {
 
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
+
+    /** The picture of the thermal being circled in that was last drawn, and whether any was. */
+    private var drawnLift: LiftView? = null
+    private var hasDrawnLift = false
 
     /** Where to fly for an FAI triangle, and the side the areas last drawn stand on. */
     private var fai: FaiAreas? = null
@@ -202,6 +208,40 @@ class CockpitMap : MapContent {
             ),
         )
         drawnThermals = null
+
+        // The thermal being circled in. Around where the lift is, the
+        // circle to fly as a dashed ring; over it the last circles as dots,
+        // each where the air it was flown through is now, in the colour of
+        // its climb and larger where the climb is stronger. The dots lie
+        // over the ring: a circle that is centred covers it, and the dots
+        // are what there is to read.
+        style.addSource(GeoJsonSource(LIFT_RING))
+        style.addLayer(MapSetup.line("cockpit-lift-ring-edge", LIFT_RING, MapSetup.WHITE, 4.5f))
+        val circle = MapSetup.line("cockpit-lift-ring-line", LIFT_RING, MapSetup.ink, 2f)
+        circle.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
+        style.addLayer(circle)
+        style.addSource(GeoJsonSource(LIFT))
+        for (band in ClimbBand.entries) {
+            val dots = CircleLayer("cockpit-lift-${band.ordinal}", LIFT).withProperties(
+                PropertyFactory.circleRadius(Expression.get(RADIUS)),
+                PropertyFactory.circleColor(MapSetup.colour(band)),
+                PropertyFactory.circleStrokeColor(MapSetup.WHITE),
+                PropertyFactory.circleStrokeWidth(1f),
+            )
+            dots.setFilter(Expression.eq(Expression.get(BAND), Expression.literal(band.ordinal)))
+            style.addLayer(dots)
+        }
+        style.addSource(GeoJsonSource(LIFT_CENTRE))
+        style.addLayer(
+            CircleLayer("cockpit-lift-centre-dot", LIFT_CENTRE).withProperties(
+                PropertyFactory.circleRadius(4f),
+                PropertyFactory.circleColor(MapSetup.ink),
+                PropertyFactory.circleStrokeColor(MapSetup.WHITE),
+                PropertyFactory.circleStrokeWidth(2f),
+            ),
+        )
+        drawnLift = null
+        hasDrawnLift = false
 
         style.addSource(GeoJsonSource(TAKEOFF))
         style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
@@ -391,6 +431,20 @@ class CockpitMap : MapContent {
             )
         }
 
+        // The thermal's picture, and nothing of it once the thermal is left.
+        val lift = view.lift
+        if (!hasDrawnLift || lift != drawnLift) {
+            hasDrawnLift = true
+            drawnLift = lift
+            style.getSourceAs<GeoJsonSource>(LIFT)?.setGeoJson(FeatureCollection.fromFeatures(liftFeatures(lift)))
+            val centre = lift?.centre
+            val outline = centre?.outline.orEmpty()
+            val ring = if (outline.size >= 2) listOf(Feature.fromGeometry(outline.lineString())) else emptyList()
+            style.getSourceAs<GeoJsonSource>(LIFT_RING)?.setGeoJson(FeatureCollection.fromFeatures(ring))
+            val middle = listOfNotNull(centre?.position?.let { Feature.fromGeometry(it.point) })
+            style.getSourceAs<GeoJsonSource>(LIFT_CENTRE)?.setGeoJson(FeatureCollection.fromFeatures(middle))
+        }
+
         if (route != drawnRoute) {
             drawnRoute = route
             style.getSourceAs<GeoJsonSource>(ROUTE)?.setGeoJson(
@@ -421,8 +475,32 @@ class CockpitMap : MapContent {
         private const val FAI = "cockpit-fai"
         private const val TASK = "cockpit-task"
         private const val TASK_WAY = "cockpit-task-way"
+        private const val LIFT = "cockpit-lift"
+        private const val LIFT_RING = "cockpit-lift-ring"
+        private const val LIFT_CENTRE = "cockpit-lift-centre"
         const val LABEL = "label"
         const val NEXT = "next"
+        const val BAND = "band"
+        const val RADIUS = "radius"
+
+        /**
+         * The places of a thermal's picture, a dot each: its climb band for
+         * the colour and its size in the screen's own units.
+         */
+        fun liftFeatures(lift: LiftView?): List<Feature> =
+            lift?.points.orEmpty().map { point ->
+                Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat)).apply {
+                    addNumberProperty(BAND, ClimbBand.of(point.climbMs).ordinal)
+                    addNumberProperty(RADIUS, liftDotRadius(point.strength))
+                }
+            }
+
+        /**
+         * From 2 where the thermal lifts least to 5 where it lifts most;
+         * 3.5 all around an even one, which at a point a second makes a
+         * string of beads.
+         */
+        fun liftDotRadius(strength: Double): Double = 2 + 3 * strength.coerceIn(0.0, 1.0)
 
         /**
          * The outlines of a task's turnpoints, each marked with whether it

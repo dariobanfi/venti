@@ -2,6 +2,7 @@ package fly.venti.app.fly
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,6 +71,7 @@ import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightPhase
+import fly.venti.core.LiftCentreView
 import fly.venti.core.LiveScore
 import fly.venti.core.RouteKind
 import fly.venti.core.WayToTarget
@@ -163,15 +165,20 @@ fun CockpitScreen(
                         contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
                     )
                 }
-                view.wind?.let { wind ->
-                    WindBadge(
-                        wind,
-                        onOpen = { isShowingWinds = true },
-                        // Less room above than the other badges: a badge
-                        // that can be pressed is given a taller touch
-                        // target than it is drawn, and stands in its middle.
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
-                    )
+                Column(
+                    // Less room above than the other badges: a badge that
+                    // can be pressed is given a taller touch target than it
+                    // is drawn, and stands in its middle.
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    view.wind?.let { wind ->
+                        WindBadge(wind, onOpen = { isShowingWinds = true })
+                    }
+                    // While circling: which way the lift is stronger, in
+                    // words beside the picture on the map.
+                    view.lift?.centre?.let { centre -> LiftBadge(centre) }
                 }
                 AirspaceBanner(
                     fly.airspaceWarnings,
@@ -581,6 +588,32 @@ private fun Badge(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, 
             shadowElevation = 3.dp,
             content = row,
         )
+    }
+}
+
+/**
+ * Where the lift is in the thermal being circled in: an arrow toward the
+ * side where the climb is stronger and how far to move the circle, or that
+ * the circle is centred.
+ */
+@Composable
+private fun LiftBadge(centre: LiftCentreView, modifier: Modifier = Modifier) {
+    Badge(
+        modifier
+            .testTag("lift-badge")
+            .clearAndSetSemantics {
+                contentDescription = "Lift"
+                stateDescription = centre.words
+            },
+    ) {
+        Icon(
+            painterResource(if (centre.isCentred) R.drawable.ic_target else R.drawable.ic_arrow_upward),
+            contentDescription = null,
+            // The map is north-up, so the arrow points the way to move.
+            modifier = Modifier.size(18.dp).rotate(if (centre.isCentred) 0f else centre.towardDeg.toFloat()),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(centre.words, style = MaterialTheme.typography.titleSmall.numbers, color = Color.Unspecified)
     }
 }
 

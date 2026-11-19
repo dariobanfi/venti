@@ -154,13 +154,13 @@ Two things a policy in a page cannot do.
 
    A page then has two policies, this one and its own, and the browser holds it to both. `deploy/Caddyfile` sends this header for the app's files, with `base-uri 'none'` beside it and `X-Frame-Options` for browsers that predate it.
 
-2. **Reach the workers.** A worker is held to the policy that arrives with its own script, not to its page's ([the specification](https://www.w3.org/TR/CSP3/) lets only workers made from `blob:` and `data:` addresses inherit, and MDN says the same under "CSP in workers"). Seen in Chromium: the map engine's worker fetched tiles from an address the page's policy did not allow, and the core compiled WebAssembly under a page policy without `'wasm-unsafe-eval'`. The core's worker is the one that reads the session token and talks to the server. A stranger's script cannot become a worker (`worker-src 'self'`), so this is no way in; but the workers themselves are held to no list unless the web server sends one with the files under `/_app/immutable/workers/`:
+2. **Reach the workers.** A worker is held to the policy that arrives with its own script, not to its page's ([the specification](https://www.w3.org/TR/CSP3/) lets only workers made from `blob:` and `data:` addresses inherit, and MDN says the same under "CSP in workers"). Seen in Chromium: the map engine's worker fetched tiles from an address the page's policy did not allow, and the core compiled WebAssembly under a page policy without `'wasm-unsafe-eval'`. The core's worker is the one that reads the session token and talks to the server. A stranger's script cannot become a worker (`worker-src 'self'`), so this is no way in; but the workers themselves are held to no list unless the web server sends one with their scripts. The build puts the core's worker under `/_app/immutable/workers/` and the map engine's under `/_app/immutable/assets/`, so the header goes with every script file of the app; a browser reads it only where a script is started as a worker:
 
    ```
    Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://tiles.openfreemap.org https://tiles.mapterhorn.com
    ```
 
-   Tried in Chromium with a proxy that added this header to the two worker scripts: every screen worked, and without `'wasm-unsafe-eval'` the core did not start, so the core's worker is held to it. _To verify on the real web server:_ that the map engine's worker is held to it too. In the same trial it went on fetching tiles under a header that allowed none, which may be the trial's proxy and not the browser.
+   `deploy/Caddyfile` sends it, and CI compares its tile hosts with those in `src/lib/map/online.ts`. Tried in Chromium twice: here, with a proxy in the browser tests that added the header to the core's worker, where every screen worked and without `'wasm-unsafe-eval'` the core did not start; and through the real Caddy by the session that set the header, where without the tile hosts the map engine's worker fetched no tile. Both workers are held to it.
 
 ## Where the wind and the sites come from
 

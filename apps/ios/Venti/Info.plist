@@ -2,9 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Only what cannot be said as a build setting in project.yml: the app opens
-  IGC flight files handed to it by Files, Mail and other apps, and it keeps
-  working in the background during a flight. Xcode adds the rest of the
-  Info.plist when it builds.
+  IGC flight files handed to it by Files, Mail and other apps, it keeps
+  working in the background during a flight, and it may reach a server on
+  the pilot's own network. Xcode adds the rest of the Info.plist when it
+  builds.
 -->
 <plist version="1.0">
 <dict>
@@ -43,6 +44,16 @@
 			</dict>
 		</dict>
 	</array>
+	<!-- A pilot who runs a Venti server at home may reach it without
+	     encryption inside their own network. Servers on the internet are
+	     reached over HTTPS only. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Venti reaches the Venti server on your own network, if you have set one in the settings.</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<!-- A flight is recorded, the vario sounds and the Bluetooth vario is

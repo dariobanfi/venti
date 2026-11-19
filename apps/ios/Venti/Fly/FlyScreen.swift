@@ -113,7 +113,7 @@ struct FlyScreen: View {
             do {
                 navigation.show(flight: try await logbook.adopt(recording))
             } catch {
-                fly.problem = "The flight was recorded but could not be added to the logbook: \(error.localizedDescription) It will be tried again the next time Venti starts."
+                fly.problem = "The flight was recorded but could not be added to the logbook: \(error.words) It will be tried again the next time Venti starts."
             }
         }
     }

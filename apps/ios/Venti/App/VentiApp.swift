@@ -1,4 +1,5 @@
 import SwiftUI
+import VentiCore
 
 @main
 struct VentiApp: App {
@@ -7,11 +8,12 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat):
+            case .ready(let logbook, let fly, let chat, let wind):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
                     .environment(chat)
+                    .environment(wind)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -28,7 +30,7 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession, AssistantChat)
+    case ready(LogbookModel, FlySession, AssistantChat, WindModel)
     case failed(String)
 
     static func start() -> Session {
@@ -45,9 +47,17 @@ enum Session {
                 } else {
                     AssistantChat { model in logbook.makeAssistant(model: model) }
                 }
-            return .ready(logbook, FlySession(dataFolder: folder), chat)
+            // Under test the server is the one named on the command line,
+            // or none: a test must not depend on what a pilot has saved.
+            let wind =
+                if LaunchOptions.isUnderTest {
+                    WindModel(address: LaunchOptions.server ?? "")
+                } else {
+                    WindModel()
+                }
+            return .ready(logbook, FlySession(dataFolder: folder), chat, wind)
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(error.words)
         }
     }
 }
@@ -72,6 +82,15 @@ enum LaunchOptions {
     /// Answer the assistant's requests from a script instead of a provider,
     /// so its screen can be tested without a key or a network.
     static let usesScriptedAssistant = arguments.contains("--scripted-assistant")
+
+    /// The Venti server to use, given as `--server <address>`: the UI tests
+    /// run one on the same machine.
+    static var server: String? {
+        guard let flag = arguments.firstIndex(of: "--server"), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
+        return arguments[flag + 1]
+    }
 
     /// Dark appearance whatever the device is set to, for screenshots.
     /// Normally the app follows the device.

@@ -33,7 +33,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check licenses bans sources
 VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then review the diff
-cargo run -p venti-ingest -- regions/alps-de-at/region.toml   # live run against the providers
+cargo run -p venti-server -- ingest regions/alps-de-at/region.toml   # live run against the providers
+cargo run -p venti-server -- dev   # the API on 127.0.0.1:8080 over recorded data; no network, no database
 ```
 
 The iOS app cannot be built in a Linux cloud session. The `iOS` workflow builds it on GitHub's Mac runners on every push that touches the app or the core, and runs the unit tests and the UI tests. The UI tests tap through every screen and their screenshots are uploaded as the `ios-screenshots` artifact: download them with `gh run download` and look at them after every change to a screen. Read the logs with `gh run view`. Swift cannot be compiled here, so check every Apple API name against its documentation before pushing. On a Mac: `apps/ios/scripts/open-in-xcode.sh`. After changing the sample flight generator, regenerate `apps/ios/Venti/Resources/sample.igc` with `cargo run -p venti-flight --example sample_flight`.

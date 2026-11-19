@@ -8,4 +8,6 @@ enum Preferences {
     static let varioMuted = "VentiVarioMuted"
     /// The model the assistant uses.
     static let assistantModel = "VentiAssistantModel"
+    /// The address of the Venti server that live wind comes from.
+    static let server = "VentiServerAddress"
 }

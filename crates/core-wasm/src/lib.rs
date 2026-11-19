@@ -186,6 +186,8 @@ pub enum CoreErrorKind {
     /// The store could not be read or written, or a file has to be fetched
     /// first: see `StoredFiles.takeWanted`.
     Storage,
+    /// The Venti server gave no usable answer.
+    Server,
 }
 
 impl CoreErrorKind {
@@ -194,6 +196,7 @@ impl CoreErrorKind {
             CoreError::InvalidFlight { .. } => Self::InvalidFlight,
             CoreError::UnknownFlight { .. } => Self::UnknownFlight,
             CoreError::Storage { .. } => Self::Storage,
+            CoreError::Server { .. } => Self::Server,
         }
     }
 
@@ -202,6 +205,7 @@ impl CoreErrorKind {
             Self::InvalidFlight => "InvalidFlight",
             Self::UnknownFlight => "UnknownFlight",
             Self::Storage => "Storage",
+            Self::Server => "Server",
         }
     }
 }

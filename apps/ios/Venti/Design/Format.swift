@@ -85,6 +85,30 @@ enum Format {
         return points[index]
     }
 
+    /// Whole degrees Celsius.
+    static func temperature(celsius: Double) -> String {
+        // Minus zero would read "-0".
+        let rounded = celsius.rounded()
+        return (rounded == 0 ? 0 : rounded).formatted(.number.precision(.fractionLength(0)))
+    }
+
+    /// Whole minutes between two moments, never negative.
+    static func minutes(from earlier: Int64, to later: Int64) -> Int64 {
+        max(0, (later - earlier) / 60)
+    }
+
+    /// How long ago something was measured: "just now", "25 minutes ago",
+    /// "3 hours ago", "2 days ago".
+    static func age(minutes: Int64) -> String {
+        switch minutes {
+        case ..<1: "just now"
+        case 1: "1 minute ago"
+        case ..<90: "\(minutes) minutes ago"
+        case ..<(36 * 60): "\((minutes + 30) / 60) hours ago"
+        default: "\((minutes + 720) / 1440) days ago"
+        }
+    }
+
     static func flights(_ count: UInt32) -> String {
         count == 1 ? "1 flight" : "\(count.formatted()) flights"
     }

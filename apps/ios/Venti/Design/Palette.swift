@@ -20,6 +20,20 @@ enum Palette {
 
     /// The accent as drawn on the map, which is light in both appearances.
     static var accentOnMap: UIColor { UIColor(hex: 0x6250D6) }
+
+    /// Mean wind in a chart: one blue, a step lighter on a dark ground.
+    static var wind: Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(hex: 0x6DA7EC) : UIColor(hex: 0x256ABF)
+        })
+    }
+
+    /// The span from mean wind up to the gusts, in the same blue held back.
+    static var gusts: Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(hex: 0x1C5CAB) : UIColor(hex: 0xB7D3F6)
+        })
+    }
 }
 
 /// How fast the glider was climbing or sinking, in five bands.

@@ -137,7 +137,7 @@ struct LogbookScreen: View {
                 try logbook.delete(id: entry.id)
             }
         } catch {
-            notice = ImportNotice(title: "The flight could not be deleted", text: error.localizedDescription)
+            notice = ImportNotice(title: "The flight could not be deleted", text: error.words)
         }
     }
 }

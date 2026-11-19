@@ -85,10 +85,12 @@ final class CoreBridgeTests: XCTestCase {
         let core = try makeCore()
         XCTAssertThrowsError(try core.importFlight(igcText: "hello")) { error in
             XCTAssertTrue(error is CoreError)
-            XCTAssertTrue(error.localizedDescription.contains("not a flight file"))
+            XCTAssertTrue(error.words.contains("not a flight file"))
+            // The words alone, not the name of the error's case around them.
+            XCTAssertFalse(error.words.contains("InvalidFlight"))
         }
         XCTAssertThrowsError(try core.flight(id: "nothing")) { error in
-            XCTAssertTrue(error.localizedDescription.contains("no longer in the logbook"))
+            XCTAssertTrue(error.words.contains("no longer in the logbook"))
         }
     }
 

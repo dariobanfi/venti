@@ -2617,6 +2617,7 @@ dependencies = [
  "thiserror",
  "tsify",
  "uniffi",
+ "venti-api-types",
  "venti-domain",
  "venti-flight",
  "venti-llm",

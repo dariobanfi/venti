@@ -16,3 +16,4 @@ android = true
 "CoreError.InvalidFlight.message" = "reason"
 "CoreError.UnknownFlight.message" = "reason"
 "CoreError.Storage.message" = "reason"
+"CoreError.Server.message" = "reason"

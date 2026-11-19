@@ -52,6 +52,8 @@ The map fills the screen under the tab bar. One round glass button, bottom right
 
 Wherever a map reaches the top of the screen, a soft band of the background colour sits behind the clock and status icons to keep them readable.
 
+**Wind.** When a Venti server is set, every wind station in view is an arrow pointing where the wind blows, darker and a little larger the stronger the wind, with mean wind and gusts in km/h below it ("12/25"). Where stations crowd, the windiest keep their place and the others give way until the pilot zooms in. A station whose reading is more than an hour old is a grey dot without numbers: an old number on a map reads as the wind now. Calm is a pale dot. A tap on an arrow opens the station: the reading with its age, the last 24 hours of wind and gusts as a chart with the direction in a small chart of its own below it, and whose data it is. A second round button above the position button lists the same stations by name, for comparing numbers and for pilots who use VoiceOver, which cannot reach symbols drawn on a map. The providers are credited in a small line at the bottom of the map, and in full on each station's page.
+
 ## Colour
 
 | Role | Light | Dark | Notes |
@@ -78,6 +80,23 @@ A glider's own sink rate in still air is a little over 1 m/s, so an ordinary gli
 The five colours were checked together on 2026-11-18 with a palette validator: every pair stays apart for red-green colour blindness (worst pair 9.7 on the OKLab scale, target 8), for normal vision (16.8, floor 15), and each has at least 3:1 contrast against a light surface. Blue against orange is the pairing that survives colour blindness; red against green does not, and green is reserved for "flyable".
 
 To verify: no flying app we read documents which colours it uses for climb and sink, so "warm means up" is our choice, taken from weather maps and gliding instruments. Check it with pilots.
+
+### Wind
+
+Wind strength is one blue in four steps of the mean wind, light to dark.
+
+| Band | Mean wind (km/h) | Colour |
+|---|---|---|
+| Light | below 10 | `#86B6EF` |
+| Moderate | 10 to 20 | `#3987E5` |
+| Fresh | 20 to 30 | `#1C5CAB` |
+| Strong | 30 and above | `#0D366B` |
+
+The scale shows a magnitude, not a verdict. Most wind maps run from green to red, which says "fine" and "too much"; but whether 25 km/h is too much depends on the pilot, the wing, the place and the gusts, and the app does not decide that from one number. Green stays reserved for "flyable", which will be worked out from a site's allowed directions and limits, not from a station alone. The band edges are round numbers, not limits. The four steps were checked on 2026-11-19 with the palette validator as an ordered ramp: one hue, evenly darker, the lightest still 2:1 against a light surface. Every arrow has a white edge, so it also stands on dark forest and on water.
+
+In charts the mean wind is a line in `#256ABF` (light) or `#6DA7EC` (dark), and the span up to the gusts is the same blue held back (`#B7D3F6` light, `#1C5CAB` dark).
+
+To verify with pilots: whether the single hue is read as quickly as the green-to-red they know from other apps.
 
 ## Icon
 

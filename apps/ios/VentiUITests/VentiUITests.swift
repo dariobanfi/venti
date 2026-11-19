@@ -162,7 +162,7 @@ final class VentiUITests: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
         keepScreenshot("settings-1")
-        app.buttons["Map data and licences"].tap()
+        app.buttons["Data and licences"].tap()
         XCTAssertTrue(app.staticTexts["Base map"].waitForExistence(timeout: 15))
         keepScreenshot("settings-2-credits")
     }
@@ -178,6 +178,9 @@ final class VentiUITests: XCTestCase {
         app.tabBars.buttons["Logbook"].tap()
         app.buttons["Add a sample flight"].tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
+        // A flight covers the tab bar; back to the logbook first.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
 
         app.tabBars.buttons["Assistant"].tap()
         let question = app.buttons["How was my flying this year?"]
@@ -189,6 +192,43 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Looked up your list of flights", in: app).exists)
         sleep(1)
         keepScreenshot("assistant-2-answer")
+    }
+
+    /// Live wind, from a Venti server running on the same machine in its
+    /// development mode: six stations as they were on one evening. The CI
+    /// workflow starts the server and names it; without one the test is
+    /// skipped. On a Mac: `cargo run -p venti-server -- dev`, then run the
+    /// tests with `TEST_RUNNER_VENTI_SERVER=http://127.0.0.1:8080`.
+    func testTheMapShowsLiveWindFromAServer() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--server", server]
+        app.launch()
+
+        let stations = app.buttons["Wind stations"]
+        XCTAssertTrue(stations.waitForExistence(timeout: 90))
+        // The credit appears with the first answer from the server.
+        XCTAssertTrue(element("wind-credits", in: app).waitForExistence(timeout: 60))
+        sleep(12)
+        keepScreenshot("wind-1-map")
+
+        stations.tap()
+        XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
+        let summit = labelled(containing: "Zugspitze", in: app)
+        XCTAssertTrue(summit.waitForExistence(timeout: 15))
+        // A name the provider writes in capitals is shown in ordinary case.
+        XCTAssertTrue(labelled(containing: "Patscherkofel", in: app).exists)
+        sleep(1)
+        keepScreenshot("wind-2-stations")
+
+        summit.tap()
+        XCTAssertTrue(element("wind-chart", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Deutscher Wetterdienst", in: app).exists)
+        sleep(2)
+        keepScreenshot("wind-3-station")
     }
 
     /// The same screens with tiles fetched from the public servers, as a

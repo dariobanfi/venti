@@ -3,6 +3,7 @@ import SwiftUI
 /// The pilot's settings, and what the app is made of.
 struct SettingsScreen: View {
     @Environment(FlySession.self) private var fly
+    @Environment(WindModel.self) private var wind
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
@@ -32,9 +33,27 @@ struct SettingsScreen: View {
                     )
                 }
 
+                Section {
+                    TextField(
+                        "Server address",
+                        text: Binding(
+                            get: { wind.address },
+                            set: { address in wind.use(address: address) }
+                        )
+                    )
+                    .keyboardType(.URL)
+                    .textContentType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                } header: {
+                    Text("Live wind")
+                } footer: {
+                    Text(serverNote)
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: Self.version)
-                    NavigationLink("Map data and licences") {
+                    NavigationLink("Data and licences") {
                         CreditsScreen()
                     }
                     if let source = URL(string: "https://github.com/dariobanfi/venti") {
@@ -46,6 +65,20 @@ struct SettingsScreen: View {
         }
     }
 
+    /// What the address field means, and whether what is in it is usable.
+    private var serverNote: String {
+        if wind.address.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "The address of a Venti server. The map shows the wind stations it collects. Without one the map works, without wind."
+        }
+        if wind.server == nil {
+            return "This is not an address the app can use. It should look like wind.example.org."
+        }
+        if let problem = wind.problem {
+            return problem
+        }
+        return "The map shows the wind stations this server collects."
+    }
+
     private static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
     }
@@ -54,6 +87,8 @@ struct SettingsScreen: View {
 /// Whose data and software the app uses, with the notices their licences
 /// ask for.
 struct CreditsScreen: View {
+    @Environment(WindModel.self) private var wind
+
     var body: some View {
         List {
             Section("Map") {
@@ -78,6 +113,19 @@ struct CreditsScreen: View {
                     link: "https://maplibre.org"
                 )
             }
+            Section("Wind") {
+                // Whose stations the server delivers is the server's to
+                // say: the credits come with its answers.
+                if wind.credits.isEmpty {
+                    Text("Wind stations come from the Venti server set in the settings. Each station's page names whose data it is and under which licence.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(wind.credits, id: \.source) { source in
+                        credit(source.provider, "\(source.text). Under \(source.licence).", link: source.url)
+                    }
+                }
+            }
             Section("Venti") {
                 credit(
                     "This app",
@@ -86,7 +134,7 @@ struct CreditsScreen: View {
                 )
             }
         }
-        .navigationTitle("Map data and licences")
+        .navigationTitle("Data and licences")
         .navigationBarTitleDisplayMode(.inline)
     }
 

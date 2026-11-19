@@ -70,7 +70,7 @@ final class LogbookModel {
                     }
                 } catch {
                     report.failures.append(
-                        ImportReport.Failure(file: url.lastPathComponent, reason: error.localizedDescription)
+                        ImportReport.Failure(file: url.lastPathComponent, reason: error.words)
                     )
                 }
             }

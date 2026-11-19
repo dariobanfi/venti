@@ -62,7 +62,7 @@ final class FlySession {
                 glider: defaults.string(forKey: Preferences.glider)
             )
         } catch {
-            problem = error.localizedDescription
+            problem = error.words
             return
         }
 
@@ -85,7 +85,7 @@ final class FlySession {
         do {
             replay = try Replay(igcText: igcText)
         } catch {
-            problem = error.localizedDescription
+            problem = error.words
             return
         }
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
@@ -109,7 +109,7 @@ final class FlySession {
         } catch {
             // The file is still in the data folder and is picked up at the
             // next launch.
-            problem = error.localizedDescription
+            problem = error.words
         }
         self.session = nil
         replay = nil

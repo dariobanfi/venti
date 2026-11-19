@@ -32,12 +32,14 @@ mod statistics;
 mod storage;
 #[cfg(test)]
 mod testing;
+mod wind;
 
 pub use analysis::*;
 pub use assistant::*;
 pub use cockpit::*;
 pub use export::*;
 pub use statistics::*;
+pub use wind::*;
 
 use logbook::{Logbook, LogbookError};
 pub use storage::{DiskStorage, StagedFile, StagedStorage, Storage};
@@ -71,6 +73,12 @@ pub enum CoreError {
     /// The data folder could not be read or written.
     #[error("{message}")]
     Storage {
+        /// What happened.
+        message: String,
+    },
+    /// The Venti server gave no usable answer.
+    #[error("{message}")]
+    Server {
         /// What happened.
         message: String,
     },

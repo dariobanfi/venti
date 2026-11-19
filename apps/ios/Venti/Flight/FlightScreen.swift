@@ -58,7 +58,7 @@ struct FlightScreen: View {
                     try logbook.delete(id: id)
                     dismiss()
                 } catch {
-                    phase = .failed(error.localizedDescription)
+                    phase = .failed(error.words)
                 }
             }
         } message: {
@@ -68,7 +68,7 @@ struct FlightScreen: View {
             do {
                 phase = .loaded(try await logbook.flight(id: id))
             } catch {
-                phase = .failed(error.localizedDescription)
+                phase = .failed(error.words)
                 return
             }
             // Without the analysis the flight is still shown in full.

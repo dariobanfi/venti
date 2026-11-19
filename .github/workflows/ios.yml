@@ -3,7 +3,9 @@ name: iOS
 # Builds the Rust core for Apple platforms, runs the bridge tests on the Mac,
 # then builds the app and runs its unit tests and UI tests on an iPhone
 # simulator. The UI tests take a screenshot of every screen; they are
-# published as the `ios-screenshots` artifact.
+# published as the `ios-screenshots` artifact. For the wind map the tests
+# talk to a Venti server started here in its development mode, which
+# answers from recorded data.
 
 on:
   push:
@@ -13,6 +15,10 @@ on:
       - "crates/core/**"
       - "crates/flight/**"
       - "crates/domain/**"
+      - "crates/sensors/**"
+      - "crates/api-types/**"
+      - "crates/llm/**"
+      - "crates/tools/**"
       - "tools/uniffi-bindgen-swift/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -80,7 +86,21 @@ jobs:
           ')
           echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
 
+      - name: Start a Venti server on recorded data
+        run: |
+          cargo build -p venti-server
+          nohup target/debug/venti-server dev > target/venti-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/v1/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/v1/health
+
       - name: Build and test the app on the simulator
+        env:
+          # Reaches the UI tests as VENTI_SERVER. The simulator shares the
+          # Mac's network, so the app finds the server at this address.
+          TEST_RUNNER_VENTI_SERVER: http://127.0.0.1:8080
         run: |
           set -o pipefail
           # The build cache restores `target`, and with it what an earlier

@@ -468,6 +468,33 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
     }
 
+    /// A route of the pilot's own waypoints: tapped in the order to fly
+    /// them and kept as the task.
+    func testARouteIsPlannedFromWaypoints() {
+        let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
+        openTab("Fly", in: app)
+        let row = element("task-before-takeoff", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.tap()
+        let plan = app.buttons["Plan a route from your waypoints"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 15))
+        plan.tap()
+        XCTAssertTrue(app.navigationBars["Plan a route"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Keep"].isEnabled)
+
+        labelled(containing: "Sample landing field", in: app).tap()
+        labelled(containing: "Sample turnpoint", in: app).tap()
+        XCTAssertTrue(app.buttons["Keep"].isEnabled)
+        sleep(1)
+        keepScreenshot("route-1-plan")
+
+        app.buttons["Keep"].tap()
+        XCTAssertTrue(labelled(containing: "its waypoints", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("task-sketch", in: app).exists)
+        sleep(1)
+        keepScreenshot("route-2-kept")
+    }
+
     /// Airspace from the pilot's server: with a server set, the app has
     /// fetched the airspace around the map by itself. It says before
     /// take-off what the cockpit will warn from, and lists it with its

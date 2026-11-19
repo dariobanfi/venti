@@ -207,6 +207,25 @@ impl Core {
 }
 
 impl Core {
+    /// The waypoints with these identifiers, in the order asked for. One
+    /// that is no longer there is an error: a route with a gap in it is
+    /// not the route the pilot made.
+    pub(crate) fn waypoints_by_id(&self, ids: &[String]) -> Result<Vec<Waypoint>, CoreError> {
+        let stored = self.stored_waypoints()?;
+        ids.iter()
+            .map(|id| {
+                stored
+                    .iter()
+                    .find(|waypoint| identifier(waypoint) == *id)
+                    .cloned()
+                    .ok_or_else(|| CoreError::InvalidFile {
+                        message: "One of these waypoints is no longer among your waypoints."
+                            .to_owned(),
+                    })
+            })
+            .collect()
+    }
+
     /// The pilot's waypoints. Read from the stored file once and kept:
     /// every list of flights asks for them, to name where a flight began.
     fn stored_waypoints(&self) -> Result<Arc<Vec<Waypoint>>, CoreError> {

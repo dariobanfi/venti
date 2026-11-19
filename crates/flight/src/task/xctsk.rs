@@ -401,9 +401,14 @@ fn start_is_exit(task: &Task) -> bool {
         })
 }
 
-/// Writes a task as a file, version 1. A plain route is written as a
-/// task without a start.
+/// Writes a task as a file: version 1, with everything spelled out. A
+/// plain route has no such form, since its waypoints have no cylinders;
+/// it is written in its own short form, which [`read`] takes as well.
+/// Whatever is written reads back as the same task.
 pub fn write_file(task: &Task) -> String {
+    if task.kind == TaskKind::Route {
+        return compact(task);
+    }
     let turnpoints: Vec<Value> = task
         .turnpoints
         .iter()
@@ -484,23 +489,21 @@ pub fn write_file(task: &Task) -> String {
         }
         file.insert("sss".to_owned(), Value::Object(sss));
     }
-    if task.kind == TaskKind::Competition {
-        let mut goal = Map::new();
-        goal.insert(
-            "type".to_owned(),
-            json!(match task.goal.kind {
-                GoalKind::Cylinder => "CYLINDER",
-                GoalKind::Line => "LINE",
-            }),
-        );
-        if let Some(deadline) = task.goal.deadline {
-            goal.insert("deadline".to_owned(), json!(deadline.to_string()));
-        }
-        if let Some(altitude) = task.goal.finish_altitude_m {
-            goal.insert("finishAltitude".to_owned(), json!(altitude.round() as i64));
-        }
-        file.insert("goal".to_owned(), Value::Object(goal));
+    let mut goal = Map::new();
+    goal.insert(
+        "type".to_owned(),
+        json!(match task.goal.kind {
+            GoalKind::Cylinder => "CYLINDER",
+            GoalKind::Line => "LINE",
+        }),
+    );
+    if let Some(deadline) = task.goal.deadline {
+        goal.insert("deadline".to_owned(), json!(deadline.to_string()));
     }
+    if let Some(altitude) = task.goal.finish_altitude_m {
+        goal.insert("finishAltitude".to_owned(), json!(altitude.round() as i64));
+    }
+    file.insert("goal".to_owned(), Value::Object(goal));
     Value::Object(file).to_string()
 }
 
@@ -775,6 +778,8 @@ mod tests {
                 .unwrap();
         assert_eq!(written, json!({"T": "W", "V": 2, "t": entries}));
         assert_eq!(read(&write_code(&route, true)).unwrap(), route);
+        // A route kept as a file is the same route when it is read again.
+        assert_eq!(read(&write_file(&route)).unwrap(), route);
     }
 
     #[test]

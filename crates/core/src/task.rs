@@ -16,7 +16,9 @@ use venti_flight::geodesy::Earth;
 use venti_flight::live::navigation::Target;
 use venti_flight::task::progress::{Fix, Phase, TaskEvent, TaskFlight, TaskStatus};
 use venti_flight::task::route::Zone;
-use venti_flight::task::{GoalKind, Role, StartKind, Task, TaskError, TaskKind, xctsk};
+use venti_flight::task::{
+    Goal, GoalKind, Role, StartKind, Task, TaskError, TaskKind, Turnpoint, xctsk,
+};
 
 use crate::{Coordinate, Core, CoreError};
 
@@ -466,6 +468,46 @@ impl Core {
             .map_err(storage_error)
     }
 
+    /// Makes a route of the pilot's own waypoints, in the order given, and
+    /// keeps it as the task: a plain route from waypoint to waypoint,
+    /// without cylinders, start or goal. It replaces the task kept
+    /// before.
+    pub fn keep_route(&self, waypoint_ids: Vec<String>) -> Result<(), CoreError> {
+        if waypoint_ids.len() < 2 {
+            return Err(CoreError::InvalidFile {
+                message: "A route needs at least two waypoints.".to_owned(),
+            });
+        }
+        let turnpoints = self
+            .waypoints_by_id(&waypoint_ids)?
+            .into_iter()
+            .map(|waypoint| Turnpoint {
+                name: waypoint.name,
+                description: None,
+                position: waypoint.position,
+                // The route's form has no way to say that a height is
+                // not known; zero stands for it, see `TaskFlown::aim`.
+                altitude_m: waypoint.elevation_m.unwrap_or(0.0),
+                radius_m: 0.0,
+                role: None,
+            })
+            .collect();
+        let route = Task {
+            kind: TaskKind::Route,
+            earth: Earth::Wgs84,
+            turnpoints,
+            takeoff_open: None,
+            takeoff_close: None,
+            start: None,
+            goal: Goal::default(),
+        }
+        .checked()
+        .map_err(|error| invalid(&error))?;
+        self.storage
+            .write(FILE, xctsk::write_file(&route).as_bytes())
+            .map_err(storage_error)
+    }
+
     /// The task that is kept, if there is one.
     pub fn kept_task(&self, now_unix_s: i64) -> Result<Option<TaskView>, CoreError> {
         Ok(self.stored_task()?.map(|task| view(&task, now_unix_s)))
@@ -595,10 +637,15 @@ impl TaskFlown {
     /// The point to fly to, as a place for the cockpit's navigation.
     pub(crate) fn aim(&self) -> Option<Target> {
         let next = self.status.as_ref()?.1.next.as_ref()?;
+        // A route made of the pilot's waypoints writes zero for a height
+        // that is not known. Taking a waypoint at sea level for unknown
+        // costs an arrival height there; taking an unknown height for
+        // sea level would promise one that is wrong.
+        let unknown = self.flight.task().kind == TaskKind::Route && next.altitude_m == 0.0;
         Some(Target {
             name: next.name.clone(),
             position: next.aim,
-            elevation_m: Some(next.altitude_m),
+            elevation_m: (!unknown).then_some(next.altitude_m),
         })
     }
 
@@ -817,6 +864,78 @@ mod tests {
             core.forget_task().unwrap();
             assert_eq!(core.kept_task(at(10, 0)).unwrap(), None);
             core.forget_task().unwrap();
+        });
+    }
+
+    #[test]
+    fn a_route_is_made_of_the_pilots_waypoints_and_kept() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            core.import_waypoints(
+                "name,code,country,lat,lon,elev,style\n\
+                 \"Wallberg\",WAL,DE,4740.000N,01148.000E,1620m,4\n\
+                 \"Risserkogel\",RIS,DE,4737.500N,01149.500E,1826m,7\n\
+                 \"A field\",FLD,DE,4741.000N,01145.300E,,3\n"
+                    .to_owned(),
+            )
+            .unwrap();
+            let all = core.waypoints(None).unwrap();
+            let id = |name: &str| {
+                all.iter()
+                    .find(|waypoint| waypoint.name == name)
+                    .unwrap()
+                    .id
+                    .clone()
+            };
+
+            // One waypoint is no route, and neither is one that is gone.
+            let one = core.keep_route(vec![id("Wallberg")]).unwrap_err();
+            assert_eq!(one.to_string(), "A route needs at least two waypoints.");
+            assert!(
+                core.keep_route(vec![id("Wallberg"), "gone".to_owned()])
+                    .is_err()
+            );
+            assert_eq!(core.kept_task(at(10, 0)).unwrap(), None);
+
+            core.keep_route(vec![id("Wallberg"), id("Risserkogel"), id("A field")])
+                .unwrap();
+            // It is still a route when the app is started again.
+            let again = Core::with_storage(backing.open()).unwrap();
+            let route = again.kept_task(at(10, 0)).unwrap().unwrap();
+            assert!(route.is_route);
+            let names: Vec<&str> = route.turnpoints.iter().map(|t| t.name.as_str()).collect();
+            assert_eq!(names, ["Wallberg", "Risserkogel", "A field"]);
+            let roles: Vec<&str> = route
+                .turnpoints
+                .iter()
+                .map(|t| t.role_in_words.as_str())
+                .collect();
+            assert_eq!(roles, ["Launch", "Waypoint", "Last waypoint"]);
+            // From waypoint to waypoint: 5 km south-east, 8.5 km back
+            // north-west.
+            assert!(
+                route.length_m > 12_000.0 && route.length_m < 15_000.0,
+                "{}",
+                route.length_m
+            );
+            assert_eq!(route.speed_section_m, None);
+            assert!(route.turnpoints.iter().all(|t| t.outline.is_empty()));
+            assert_eq!(route.turnpoints[1].altitude_m, 1826.0);
+
+            // Flown, the cockpit leads to the waypoint itself; a height
+            // that is not known is not taken for sea level.
+            let file = again.kept_task_file().unwrap().unwrap();
+            let mut flown = TaskFlown::begin(&file.text, at(10, 0)).unwrap();
+            let wallberg = GeoPoint::new(47.0 + 40.0 / 60.0, 11.8).unwrap();
+            flown.feed(at(10, 0) as f64, wallberg);
+            let aim = flown.aim().unwrap();
+            assert_eq!(
+                (aim.name.as_str(), aim.elevation_m),
+                ("Risserkogel", Some(1826.0))
+            );
+            flown.step(true);
+            let aim = flown.aim().unwrap();
+            assert_eq!((aim.name.as_str(), aim.elevation_m), ("A field", None));
         });
     }
 

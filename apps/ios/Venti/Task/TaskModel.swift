@@ -70,6 +70,21 @@ final class TaskModel {
         return keep(String(decoding: data, as: UTF8.self))
     }
 
+    /// Makes a route of these waypoints, in this order, and keeps it as
+    /// the task. Returns whether that worked.
+    @discardableResult
+    func keepRoute(_ waypoints: [WaypointView]) -> Bool {
+        do {
+            try core.keepRoute(waypointIds: waypoints.map(\.id))
+            problem = nil
+            reload()
+            return true
+        } catch {
+            problem = error.words
+            return false
+        }
+    }
+
     /// Forgets the kept task.
     func forget() {
         do {

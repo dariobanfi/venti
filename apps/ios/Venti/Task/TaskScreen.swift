@@ -15,6 +15,7 @@ struct TaskScreen: View {
     @State private var isChoosingFile = false
     @State private var isShowingCode = false
     @State private var isConfirmingRemoval = false
+    @State private var isPlanningRoute = false
     @State private var exported: URL?
 
     var body: some View {
@@ -59,6 +60,12 @@ struct TaskScreen: View {
                 Button("Open a task file", systemImage: "folder") {
                     isChoosingFile = true
                 }
+                Button(
+                    "Plan a route from your waypoints",
+                    systemImage: "point.topleft.down.curvedto.point.bottomright.up"
+                ) {
+                    isPlanningRoute = true
+                }
             } header: {
                 Text(tasks.task == nil ? "Bring a task in" : "Replace it with another")
             } footer: {
@@ -68,7 +75,7 @@ struct TaskScreen: View {
                             .foregroundStyle(.red)
                             .accessibilityIdentifier("task-problem")
                     }
-                    Text("Copy a task from a message, or open a file ending in .xctsk: the format XCTrack, Flyskyhy and other instruments exchange. The cockpit then leads from turnpoint to turnpoint, counts down to the start and measures the way to goal. Scanning a QR code is not built yet.")
+                    Text("Copy a task from a message, or open a file ending in .xctsk: the format XCTrack, Flyskyhy and other instruments exchange. The cockpit then leads from turnpoint to turnpoint, counts down to the start and measures the way to goal. A route of your own waypoints is flown from one to the next. Scanning a QR code is not built yet.")
                 }
             }
         }
@@ -110,6 +117,9 @@ struct TaskScreen: View {
         .sheet(isPresented: $isShowingCode) {
             TaskCodeSheet()
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $isPlanningRoute) {
+            RoutePlanner()
         }
         .confirmationDialog(
             "Remove this task?",

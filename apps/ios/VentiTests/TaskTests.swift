@@ -70,6 +70,32 @@ final class TaskTests: XCTestCase {
         XCTAssertNil(tasks.code(compressed: true))
     }
 
+    func testARouteIsMadeOfThePilotsWaypoints() throws {
+        let core = try Core(dataFolder: makeFolder().path)
+        _ = try core.importWaypoints(text: LaunchOptions.sampleWaypoints)
+        let waypoints = WaypointsModel(core: core)
+        let tasks = TaskModel(core: core)
+        let field = try XCTUnwrap(waypoints.all.first { $0.name == "Sample landing field" })
+        let turnpoint = try XCTUnwrap(waypoints.all.first { $0.name == "Sample turnpoint" })
+
+        // One waypoint is no route.
+        XCTAssertFalse(tasks.keepRoute([field]))
+        XCTAssertEqual(tasks.problem, "A route needs at least two waypoints.")
+        XCTAssertNil(tasks.task)
+
+        // Out and back is one: the same waypoint twice.
+        XCTAssertTrue(tasks.keepRoute([field, turnpoint, field]))
+        let route = try XCTUnwrap(tasks.task)
+        XCTAssertTrue(route.isRoute)
+        XCTAssertEqual(route.turnpoints.map(\.name), ["Sample landing field", "Sample turnpoint", "Sample landing field"])
+        XCTAssertEqual(route.turnpoints.map(\.detail), ["Launch", "Waypoint", "Last waypoint"])
+        XCTAssertEqual(route.inALine.prefix(13), "3 waypoints ·")
+        XCTAssertTrue(TaskScreen.summary(of: route).contains("through its waypoints"))
+        XCTAssertTrue(TaskScreen.times(of: route).isEmpty)
+        // It can be handed on like any task.
+        XCTAssertTrue(try XCTUnwrap(tasks.code(compressed: false)).hasPrefix("XCTSK:"))
+    }
+
     func testLengthsAreWrittenTheWayTaskBoardsWriteThem() {
         XCTAssertEqual(TaskTurnpointView.length(400), "400 m")
         XCTAssertEqual(TaskTurnpointView.length(1000), "1 km")

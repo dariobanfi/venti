@@ -17,6 +17,8 @@
  * - `wind-source.ts` asks the Venti server for the wind, from the worker.
  * - `account-source.ts` talks to the Venti server about the pilot's account
  *   and keeps the logbook in step with it, also from the worker.
+ * - `airspace-source.ts` fetches the airspace around a place from the Venti
+ *   server when the core says it is time, for the core to keep.
  */
 
 export type {
@@ -41,6 +43,7 @@ export type {
 	GliderStatistics,
 	GlideSummary,
 	ImportedFlight,
+	KeptAirspace,
 	LogbookEntry,
 	LogbookStatistics,
 	LogbookView,

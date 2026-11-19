@@ -9,6 +9,7 @@
  */
 
 import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
+import type { AirspaceSource } from './airspace-source';
 import { flightFileText } from './flight-text';
 import type {
 	AccountView,
@@ -16,12 +17,14 @@ import type {
 	AirspaceImport,
 	AirspaceShape,
 	Bounds,
+	Coordinate,
 	FlightAnalysis,
 	FlightFile,
 	FlightSharing,
 	FlightView,
 	FlightVisibility,
 	ImportedFlight,
+	KeptAirspace,
 	LogbookStatistics,
 	LogbookView,
 	StationHistory
@@ -72,8 +75,17 @@ export interface Calls {
 	airspaceFiles: { given: undefined; answer: AirspaceFile[] };
 	/** Given the name a file is stored under. */
 	deleteAirspaceFile: { given: string; answer: undefined };
-	/** The airspaces that touch a box of the map. */
+	/** The airspaces that touch a box of the map, from the server's and from the pilot's files. */
 	airspaceIn: { given: Bounds; answer: AirspaceShape[] };
+	/**
+	 * Given a place: asks the server for the airspace around it and keeps it,
+	 * if the core says it is time. What is kept afterwards, or nothing when
+	 * the server was not asked.
+	 */
+	refreshAirspace: { given: Coordinate; answer: KeptAirspace[] | undefined };
+	/** The airspace kept from the server, one entry for each source. */
+	keptAirspace: { given: undefined; answer: KeptAirspace[] };
+	forgetKeptAirspace: { given: undefined; answer: undefined };
 }
 
 export type CallName = keyof Calls;
@@ -98,11 +110,12 @@ export interface Answering {
 	session: CoreSession;
 	wind: WindSource;
 	account: AccountSource;
+	airspace: AirspaceSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account }: Answering,
+	{ session, wind, account, airspace }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -130,7 +143,10 @@ export async function answer<Name extends CallName>(
 			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
 		airspaceFiles: () => session.airspaceFiles(),
 		deleteAirspaceFile: (storedName) => session.deleteAirspaceFile(storedName),
-		airspaceIn: (box) => session.airspaceIn(box)
+		airspaceIn: (box) => session.airspaceIn(box),
+		refreshAirspace: (place) => airspace.refresh(place),
+		keptAirspace: () => airspace.kept(),
+		forgetKeptAirspace: () => airspace.forget()
 	};
 	return (await answers[call](given)) as Calls[Name]['answer'];
 }
@@ -140,6 +156,13 @@ export async function answer<Name extends CallName>(
  * core's own errors, its message is written for the pilot.
  */
 export const UNREACHABLE = 'Unreachable';
+
+/** The error for a server that gave no answer at all, with words for the pilot. */
+export function unreachable(message: string): Error {
+	const error = new Error(message);
+	error.name = UNREACHABLE;
+	return error;
+}
 
 /** An error as it is sent to the page. */
 export function describeFailure(error: unknown): { name: string; message: string } {

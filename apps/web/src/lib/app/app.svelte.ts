@@ -1,7 +1,7 @@
 /**
  * What the app holds for as long as the page is open: the logbook, the
- * wind and the pilot's account, once the core has started, and whatever the
- * pilot has to be told.
+ * wind, the pilot's account and airspace, once the core has started, and
+ * whatever the pilot has to be told.
  *
  * It is created once, in the root layout, and reached from every screen
  * through {@link getApp}.
@@ -10,7 +10,9 @@
 import { createContext } from 'svelte';
 import { goto } from '$app/navigation';
 import { AccountModel } from '#lib/account/model.svelte.ts';
+import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
 import { askToKeepStorage, CoreClient } from '#lib/core/index.ts';
+import { format } from '#lib/design/format.ts';
 import {
 	flightToShow,
 	importNotice,
@@ -31,6 +33,9 @@ export class App {
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
 
+	/** The pilot's airspace, for the maps. Nothing until the core has started. */
+	airspace = $state.raw<AirspaceModel>();
+
 	/** Why the core could not start, if it could not. */
 	failure = $state.raw<string>();
 
@@ -48,14 +53,17 @@ export class App {
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());
+				const airspace = await AirspaceModel.open(core);
 				// Another tab imported, deleted, synced or signed out: show
 				// what is stored now.
 				core.onChangedElsewhere = () => {
 					void logbook.refresh();
 					void account.refresh();
+					void airspace.reload();
 				};
 				this.logbook = logbook;
 				this.account = account;
+				this.airspace = airspace;
 			})
 			.catch((error) => {
 				this.failure = error instanceof Error ? error.message : String(error);
@@ -71,6 +79,16 @@ export class App {
 		await this.#started;
 		if (!this.logbook || files.length === 0) return;
 		await this.#finish(await this.logbook.importFiles(files));
+	}
+
+	/**
+	 * Brings in the airspace files the pilot picked or dropped, and says
+	 * what each gave and what it left out.
+	 */
+	async importAirspace(files: readonly File[]): Promise<void> {
+		await this.#started;
+		if (!this.airspace || files.length === 0) return;
+		this.notice = await this.airspace.importFiles(files, format());
 	}
 
 	async addSample(): Promise<void> {

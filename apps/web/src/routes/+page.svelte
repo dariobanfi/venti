@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
+	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Bounds, WindStation } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
@@ -32,6 +33,22 @@
 	$effect(() => {
 		if (region) wind?.show(region);
 	});
+	// The airspace around what the pilot is looking at is fetched from the
+	// server when the core says it is time, and kept.
+	$effect(() => {
+		if (!region) return;
+		void app.airspace?.refresh({
+			lat: (region.south + region.north) / 2,
+			lon: (region.west + region.east) / 2
+		});
+	});
+
+	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
+	let airspaceDrawn = $state<number>();
+	/** Whose airspace is on the map. Their licences ask for this wherever it is shown. */
+	const airspaceCredit = $derived(
+		airspaceDrawn === undefined ? '' : creditLine(app.airspace?.credits ?? [], text)
+	);
 	// Asks again every minute while the map is on screen.
 	$effect(() => wind?.keepCurrent());
 
@@ -56,12 +73,20 @@
 		bind:following
 		outlines={app.logbook?.outlines ?? []}
 		stations={current.stations}
+		airspace={app.airspace}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
 			(app.notice = { title: 'Position unavailable', lines: [problemText(problem)] })}
 		onregion={(shown) => (region = shown)}
 		onstation={(id) => (chosen = wind?.station(id))}
+		onairspace={(count) => (airspaceDrawn = count)}
 	/>
+	<!-- A map says nothing to a screen reader: this much it can be told. -->
+	{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
+		<p class="visually-hidden">
+			Airspace on this part of the map: {text.count(airspaceDrawn)}.
+		</p>
+	{/if}
 	<div class="navigation-height" bind:clientHeight={navigationHeight}></div>
 
 	<div class="over">
@@ -76,10 +101,14 @@
 		{/if}
 	</div>
 
-	<!-- Whose wind data is on the map. Their licences ask for the credit next
-	     to the data; the full wording is on each station's page. -->
-	{#if credits}
-		<p class="credits">Wind: {credits}</p>
+	<!-- Whose wind and airspace are on the map. Their licences ask for the
+	     credit next to the data; the full wording is on each station's page
+	     and on the airspace screen. -->
+	{#if credits || airspaceCredit}
+		<p class="credits">
+			{#if credits}<span>Wind: {credits}</span>{/if}
+			{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
+		</p>
 	{/if}
 
 	<div class="controls">
@@ -179,6 +208,11 @@
 		/* Every provider is named, on a second line if one is too short: the
 		   credit is owed to each of them. */
 		text-wrap: pretty;
+	}
+
+	/* Wind and airspace each have a line of their own. */
+	.credits span {
+		display: block;
 	}
 
 	.controls {

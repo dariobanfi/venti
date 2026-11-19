@@ -5,7 +5,7 @@
  */
 
 import type { NewAccount } from './account-source';
-import type { Bounds, FlightVisibility } from './pkg/venti_core_wasm.js';
+import type { Bounds, Coordinate, FlightVisibility } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
 	type Calls,
@@ -158,6 +158,24 @@ export class CoreClient {
 	/** The airspaces that touch a box of the map. */
 	airspaceIn(box: Bounds) {
 		return this.#call('airspaceIn', box);
+	}
+
+	/**
+	 * Asks the server for the airspace around a place and keeps it, if the
+	 * core says it is time. What is kept afterwards, or nothing when the
+	 * server was not asked.
+	 */
+	refreshAirspace(place: Coordinate) {
+		return this.#call('refreshAirspace', place);
+	}
+
+	/** The airspace kept from the server, one entry for each source. */
+	keptAirspace() {
+		return this.#call('keptAirspace', undefined);
+	}
+
+	forgetKeptAirspace() {
+		return this.#call('forgetKeptAirspace', undefined);
 	}
 
 	#call<Name extends CallName>(

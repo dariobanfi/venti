@@ -1,9 +1,10 @@
 <!--
-	The map of the map tab: terrain, live wind, every flight in the logbook as
-	a line, and the pilot's own position when asked for.
+	The map of the map tab: terrain, airspace, live wind, every flight in the
+	logbook as a line, and the pilot's own position when asked for.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type { Bounds, Coordinate, WindStation } from '#lib/core/index.ts';
 	import { ACCENT_ON_MAP, LABEL_ON_MAP } from '#lib/design/palette.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
@@ -17,6 +18,8 @@
 		outlines: Coordinate[][];
 		/** The wind stations to draw. */
 		stations: WindStation[];
+		/** Where the airspace to draw comes from, once the app has it. */
+		airspace: AirspaceForMaps | undefined;
 		/** Whether the map keeps the pilot's position in its middle. */
 		following: boolean;
 		/** How far the navigation reaches in from the bottom edge, in pixels. */
@@ -27,16 +30,23 @@
 		onregion: (region: Bounds) => void;
 		/** Called with a station's identifier when the pilot chooses its arrow. */
 		onstation: (id: string) => void;
+		/**
+		 * Called with how many airspaces are drawn around what the map shows,
+		 * or with nothing while the map is zoomed too far out to draw any.
+		 */
+		onairspace: (count: number | undefined) => void;
 	}
 
 	let {
 		outlines,
 		stations,
+		airspace,
 		following = $bindable(),
 		coveredBottom,
 		onproblem,
 		onregion,
-		onstation
+		onstation,
+		onairspace
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -57,6 +67,7 @@
 	let map = $state.raw<Map>();
 	let lastFix: Fix | undefined;
 	let stopWatching: (() => void) | undefined;
+	let airspaceOnMap: AirspaceOnMap | undefined;
 
 	onMount(() => {
 		let gone = false;
@@ -82,8 +93,18 @@
 		};
 	});
 
-	/** What this map draws on top of the base map: the flights below, the wind above them. */
+	/**
+	 * What this map draws on top of the base map: airspace lowest, the
+	 * flights over it, the wind above them.
+	 */
 	function addLayers(module: typeof import('./setup'), map: Map) {
+		airspaceOnMap = drawAirspace(
+			module,
+			map,
+			() => airspace,
+			(count) => onairspace(count)
+		);
+
 		map.addSource('logbook-tracks', { type: 'geojson', data: NOTHING });
 		// A white edge keeps the lines readable over any ground colour.
 		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', '#ffffff', 5));
@@ -161,6 +182,13 @@
 		const nearest = hits.toSorted((first, second) => distance(first) - distance(second))[0];
 		if (typeof nearest?.properties.id === 'string') onstation(nearest.properties.id);
 	}
+
+	// Draws the airspace again when the app gets it, and when it changes:
+	// a file was brought in, or the server's airspace was fetched.
+	$effect(() => {
+		if (!map || airspace?.revision === undefined) return;
+		airspaceOnMap?.look();
+	});
 
 	// Draws the stations when they change.
 	$effect(() => {

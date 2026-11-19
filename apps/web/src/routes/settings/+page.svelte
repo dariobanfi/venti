@@ -4,12 +4,16 @@
 	settings, which a browser has no use for.
 -->
 <script lang="ts">
+	import { inALine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { accountHref } from '#lib/app/routes.ts';
+	import { accountHref, airspaceHref } from '#lib/app/routes.ts';
+	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 
 	const app = getApp();
+	const text = format();
 	const account = $derived(app.account);
+	const airspace = $derived(app.airspace);
 
 	/** The account in a word or two, for the row that leads to it. */
 	const accountSaid = $derived.by(() => {
@@ -49,6 +53,25 @@
 					The server this site comes from gives the map its live wind. With an account it also keeps
 					your flights, for your other devices and for sharing.
 				{/if}
+			</p>
+		</section>
+
+		<section class="group" aria-labelledby="settings-maps">
+			<h2 class="group-title" id="settings-maps">Maps</h2>
+			<div class="group-card">
+				<a class="group-row" href={airspaceHref()}>
+					<span>Airspace</span>
+					<span class="trailing">
+						<span class="group-value numeric">
+							{airspace ? inALine(airspace.kept, airspace.files, text) : ''}
+						</span>
+						<span class="chevron"><Icon name="forward" /></span>
+					</span>
+				</a>
+			</div>
+			<p class="group-note">
+				The maps draw the airspace the server has for where you look, and that of files you bring
+				in.
 			</p>
 		</section>
 

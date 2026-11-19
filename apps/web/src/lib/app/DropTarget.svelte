@@ -1,14 +1,18 @@
 <!--
-	Makes the whole page a place to drop flight files, whichever screen is
-	showing. While files are dragged over it, the page says what dropping them
-	will do.
+	Makes the whole page a place to drop files, whichever screen is showing:
+	flight files everywhere, and airspace files on the screen that lists them.
+	While files are dragged over it, the page says what dropping them will do.
 -->
 <script lang="ts">
+	import { page } from '$app/state';
 	import Icon from '#lib/design/Icon.svelte';
 	import { carriesFiles, droppedFiles } from '#lib/logbook/flight-file.ts';
 	import { getApp } from './app.svelte';
 
 	const app = getApp();
+
+	/** On the airspace screen a dropped file is an airspace file. */
+	const forAirspace = $derived(page.route.id === '/settings/airspace');
 
 	/**
 	 * How many elements the drag is currently inside of. The browser reports
@@ -38,7 +42,8 @@
 		if (!carriesFiles(event.dataTransfer)) return;
 		event.preventDefault();
 		inside = 0;
-		void app.importFiles(droppedFiles(event.dataTransfer));
+		const files = droppedFiles(event.dataTransfer);
+		void (forAirspace ? app.importAirspace(files) : app.importFiles(files));
 	}
 </script>
 
@@ -48,7 +53,7 @@
 	<div class="veil">
 		<p class="glass">
 			<Icon name="plus" />
-			Drop flight files to import them
+			{forAirspace ? 'Drop airspace files to bring them in' : 'Drop flight files to import them'}
 		</p>
 	</div>
 {/if}

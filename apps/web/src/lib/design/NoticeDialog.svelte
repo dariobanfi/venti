@@ -32,7 +32,7 @@
 	<div class="words">
 		<h2 id="notice-title">{shown?.title}</h2>
 		<div id="notice-text">
-			{#each shown?.lines ?? [] as line (line)}
+			{#each shown?.lines ?? [] as line, index (index)}
 				<p>{line}</p>
 			{/each}
 		</div>
@@ -60,6 +60,8 @@
 		font-size: var(--footnote);
 		/* File names have no spaces to break at. */
 		overflow-wrap: anywhere;
+		/* An entry may say several things, one to a line. */
+		white-space: pre-line;
 	}
 
 	.choice {

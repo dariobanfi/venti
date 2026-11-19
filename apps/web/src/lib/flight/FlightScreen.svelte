@@ -11,8 +11,11 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
+	import { creditLine } from '#lib/airspace/words.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import { logbookHref } from '#lib/app/routes.ts';
 	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
+	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
@@ -34,6 +37,25 @@
 	}
 
 	let { flight, analysis, wide, ondownload, ondelete }: Props = $props();
+
+	const app = getApp();
+	const text = format();
+
+	// The airspace around the flight is fetched from the server when the
+	// core says it is time, and kept.
+	$effect(() => {
+		void app.airspace?.refresh({
+			lat: (flight.bounds.south + flight.bounds.north) / 2,
+			lon: (flight.bounds.west + flight.bounds.east) / 2
+		});
+	});
+
+	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
+	let airspaceDrawn = $state<number>();
+	/** Whose airspace is on the map. Their licences ask for this wherever it is shown. */
+	const airspaceCredit = $derived(
+		airspaceDrawn === undefined ? '' : creditLine(app.airspace?.credits ?? [], text)
+	);
 
 	/** What can be done with the flight besides looking at it. */
 	const actions: MenuItem[] = $derived([
@@ -108,7 +130,18 @@
 			coveredTop={wide ? 0 : barHeight}
 			coveredBottom={wide ? 0 : dockHeight}
 			{terrain3d}
+			airspace={app.airspace}
+			onairspace={(count) => (airspaceDrawn = count)}
 		/>
+		<!-- A map says nothing to a screen reader: this much it can be told. -->
+		{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
+			<p class="visually-hidden">
+				Airspace on this part of the map, as it is today: {text.count(airspaceDrawn)}.
+			</p>
+		{/if}
+		{#if airspaceCredit}
+			<p class="credits">{airspaceCredit}</p>
+		{/if}
 
 		<div class="bar" bind:clientHeight={barHeight}>
 			<MapButton label="Logbook" icon="back" href={logbookHref()} />
@@ -172,6 +205,28 @@
 	.map-area {
 		position: absolute;
 		inset: 0;
+	}
+
+	/* Whose airspace is drawn, in the manner of the map's own credits and
+	   directly above them. */
+	.credits {
+		position: absolute;
+		left: calc(0.75rem + var(--safe-left));
+		bottom: calc(var(--map-covered-bottom, 0px) + 2.875rem);
+		max-width: calc(100% - 6rem);
+		padding: 0.125rem 0.5rem;
+		border-radius: 0.75rem;
+		background: rgb(255 255 255 / 0.78);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+		/* The map is light in both appearances, and so is what is written on it. */
+		color: #3a3a3c;
+		font-size: var(--caption);
+		line-height: 1.3;
+	}
+
+	.wide .credits {
+		bottom: 2.375rem;
 	}
 
 	.bar {

@@ -23,7 +23,7 @@ import {
 	type SyncSummary,
 	syncSummaryInWords
 } from './pkg/venti_core_wasm.js';
-import { UNREACHABLE } from './protocol';
+import { unreachable } from './protocol';
 import type { CoreSession } from './session';
 import { StaleStoreError } from './store';
 
@@ -98,9 +98,7 @@ export const sendToThisOrigin: Send = async (request, token) => {
 		};
 	} catch {
 		// The browser says "Failed to fetch" for every cause; say what it means.
-		const error = new Error('The server could not be reached.');
-		error.name = UNREACHABLE;
-		throw error;
+		throw unreachable('The server could not be reached.');
 	}
 };
 

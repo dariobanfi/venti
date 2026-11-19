@@ -102,6 +102,8 @@ impl KeptLayer {
 
 /// The airspace of one source as kept from the server, for a list.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct KeptAirspace {
     /// The source's identifier.
     pub source: String,
@@ -133,6 +135,8 @@ pub struct KeptAirspace {
 
 /// What asking the server for airspace did.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AirspaceFetch {
     /// Whether the answer was kept. `false` when the server has nothing to
     /// say about the place, neither airspace nor that there is none: what
@@ -247,7 +251,8 @@ impl Core {
 
     /// The airspace kept from the server, one entry for each source.
     pub fn kept_airspace(&self) -> Result<Vec<KeptAirspace>, CoreError> {
-        Ok(self.kept().as_ref().map(views).unwrap_or_default())
+        let kept = self.kept_when_fetched().map_err(storage_error)?;
+        Ok(kept.as_ref().map(views).unwrap_or_default())
     }
 
     /// Removes the airspace kept from the server. It no longer warns.
@@ -294,23 +299,40 @@ impl Core {
     /// What is kept, as the index says. `None` when nothing is, or when
     /// the index cannot be read: then nothing kept is used.
     pub(crate) fn kept(&self) -> Option<Kept> {
-        let bytes = self.storage.read(INDEX).ok()??;
-        serde_json::from_slice(&bytes).ok()
+        self.kept_when_fetched().ok().flatten()
+    }
+
+    /// [`kept`](Self::kept) for a caller that must not take "not fetched
+    /// yet" for "nothing kept". Storage that hands a file over only after
+    /// it was asked for it fails here with
+    /// [`std::io::ErrorKind::WouldBlock`]; the host fetches the file and
+    /// makes its call again.
+    pub(crate) fn kept_when_fetched(&self) -> std::io::Result<Option<Kept>> {
+        match self.storage.read(INDEX) {
+            Ok(bytes) => Ok(bytes.and_then(|bytes| serde_json::from_slice(&bytes).ok())),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => Err(error),
+            Err(_) => Ok(None),
+        }
     }
 
     /// The airspaces of one kept layer. A file that cannot be read gives
-    /// none, and must not cost the pilot the airspace of the others.
-    pub(crate) fn kept_airspaces(&self, layer: &KeptLayer) -> Vec<Airspace> {
-        let Ok(Some(bytes)) = self.storage.read(&format!("{FOLDER}/{}", layer.file)) else {
-            return Vec::new();
+    /// none, and must not cost the pilot the airspace of the others. A
+    /// file that storage has yet to fetch is another matter: a set built
+    /// without it would draw and warn as if its airspace did not exist, so
+    /// that is an error, with the kind that says "fetch and call again".
+    pub(crate) fn kept_airspaces(&self, layer: &KeptLayer) -> std::io::Result<Vec<Airspace>> {
+        let bytes = match self.storage.read(&format!("{FOLDER}/{}", layer.file)) {
+            Ok(Some(bytes)) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Err(error),
+            _ => return Ok(Vec::new()),
         };
         let airspaces: Vec<Airspace> = serde_json::from_slice(&bytes).unwrap_or_default();
         // Only what the layer's source filed: the source is what the
         // credit and the warning's origin are found by.
-        airspaces
+        Ok(airspaces
             .into_iter()
             .filter(|airspace| airspace.id.source() == &layer.source)
-            .collect()
+            .collect())
     }
 
     /// Removes the files of earlier answers. What cannot be removed now
@@ -670,6 +692,55 @@ mod tests {
             .is_err()
         );
         assert_eq!(core.airspace().unwrap().count(), 2);
+    }
+
+    #[test]
+    fn storage_that_fetches_is_asked_for_what_is_kept_before_anything_is_said_about_it() {
+        // A browser's storage hands a file over only after it was asked for
+        // it. Kept there and stored, nothing of the answer is in memory.
+        let staged = Arc::new(crate::StagedStorage::new([]));
+        let core = Core::with_storage(Arc::clone(&staged) as Arc<dyn crate::Storage>).unwrap();
+        keep(&core, recorded(), NOW);
+        let store: std::collections::BTreeMap<String, Vec<u8>> = staged
+            .take_staged()
+            .into_iter()
+            .filter_map(|file| Some((file.name, file.contents?)))
+            .collect();
+        staged.release();
+        // Makes a call the way a page does: again, after fetching what it
+        // wanted, until it no longer fails for want of a file.
+        let fetching = |call: &dyn Fn() -> Result<usize, CoreError>| {
+            let mut fetched = Vec::new();
+            loop {
+                match call() {
+                    Ok(count) => return (count, fetched),
+                    Err(error) => {
+                        assert!(matches!(error, CoreError::Storage { .. }), "{error:?}");
+                        let wanted = staged.take_wanted();
+                        assert_eq!(wanted.len(), 1, "{error}");
+                        staged.provide(&wanted[0], store.get(&wanted[0]).cloned());
+                        fetched.extend(wanted);
+                    }
+                }
+            }
+        };
+
+        // "Nothing is kept" is not said of an index that was not looked at.
+        let (layers, fetched) = fetching(&|| Ok(core.kept_airspace()?.len()));
+        assert_eq!(layers, 1);
+        assert_eq!(fetched, [INDEX]);
+        staged.release();
+
+        // Nor is a set built without the airspace of a layer not fetched
+        // yet: a map would show none there and say nothing.
+        let (airspaces, fetched) = fetching(&|| Ok(core.airspace()?.count() as usize));
+        assert_eq!(airspaces, 2);
+        assert_eq!(fetched.len(), 2, "{fetched:?}");
+        assert_eq!(fetched[0], INDEX);
+        assert!(fetched[1].starts_with("airspace-server/"), "{fetched:?}");
+
+        // With the index at hand, whether to ask again is answered from it.
+        assert!(!core.kept_airspace_is_due(SERVER.to_owned(), PLACE.0, PLACE.1, NOW + 60));
     }
 
     #[test]

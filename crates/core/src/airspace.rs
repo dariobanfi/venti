@@ -489,8 +489,15 @@ impl Core {
         // itself. An airspace the pilot's own file already gave is not
         // taken twice.
         let mut complete_within = Vec::new();
-        for layer in self.kept().map(|kept| kept.layers).unwrap_or_default() {
-            for airspace in self.kept_airspaces(&layer) {
+        // As with the files above: what storage has yet to fetch is waited
+        // for, not left out.
+        let kept_layers = self
+            .kept_when_fetched()
+            .map_err(storage_error)?
+            .map(|kept| kept.layers)
+            .unwrap_or_default();
+        for layer in kept_layers {
+            for airspace in self.kept_airspaces(&layer).map_err(storage_error)? {
                 if taken.insert(likeness(&airspace)) {
                     airspaces.push(airspace);
                 }

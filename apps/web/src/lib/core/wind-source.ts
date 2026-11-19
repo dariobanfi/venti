@@ -13,7 +13,7 @@
  * server is set.
  */
 
-import { UNREACHABLE } from './protocol';
+import { unreachable } from './protocol';
 import {
 	type Bounds,
 	serverStatus,
@@ -61,9 +61,7 @@ export const getFromThisOrigin: Get = async (path) => {
 		return { status: response.status, body: new Uint8Array(await response.arrayBuffer()) };
 	} catch {
 		// The browser says "Failed to fetch" for every cause; say what it means.
-		const error = new Error('The wind server could not be reached.');
-		error.name = UNREACHABLE;
-		throw error;
+		throw unreachable('The wind server could not be reached.');
 	}
 };
 

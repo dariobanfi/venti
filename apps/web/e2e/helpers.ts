@@ -152,10 +152,14 @@ export async function addSampleFlight(page: Page): Promise<void> {
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 }
 
-/** Drags files onto the page and drops them, as from a file manager. */
+/**
+ * Drags files onto the page and drops them, as from a file manager.
+ * `says` is what the page says a drop will do while the files hover.
+ */
 export async function dropFiles(
 	page: Page,
-	files: { name: string; text: string }[]
+	files: { name: string; text: string }[],
+	says = 'Drop flight files to import them'
 ): Promise<void> {
 	const transfer = await page.evaluateHandle((files) => {
 		const transfer = new DataTransfer();
@@ -164,7 +168,7 @@ export async function dropFiles(
 	}, files);
 	await page.dispatchEvent('body', 'dragenter', { dataTransfer: transfer });
 	await page.dispatchEvent('body', 'dragover', { dataTransfer: transfer });
-	await expect(page.getByText('Drop flight files to import them')).toBeVisible();
+	await expect(page.getByText(says)).toBeVisible();
 	await page.dispatchEvent('body', 'drop', { dataTransfer: transfer });
-	await expect(page.getByText('Drop flight files to import them')).toBeHidden();
+	await expect(page.getByText(says)).toBeHidden();
 }

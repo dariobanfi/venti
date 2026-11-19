@@ -30,6 +30,10 @@ export function accountHref(): string {
 	return resolve('/settings/account');
 }
 
+export function airspaceHref(): string {
+	return resolve('/settings/airspace');
+}
+
 export function flightHref(id: string): string {
 	return `${resolve('/logbook/flight')}?id=${encodeURIComponent(id)}`;
 }

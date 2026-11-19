@@ -5,6 +5,7 @@
  */
 
 import { AccountSource } from './account-source';
+import { AirspaceSource } from './airspace-source';
 import { IdbStore } from './idb-store';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
@@ -32,7 +33,13 @@ const starting: Promise<Answering> = (async () => {
 	await init({ module_or_path: wasmUrl });
 	const session = await CoreSession.open(await openStore());
 	session.onChangedElsewhere = () => send({ changedElsewhere: true });
-	return { session, wind: new WindSource(), account: new AccountSource(session) };
+	const wind = new WindSource();
+	return {
+		session,
+		wind,
+		account: new AccountSource(session),
+		airspace: new AirspaceSource(session, () => wind.present())
+	};
 })();
 
 addEventListener('message', async (event: MessageEvent<Request>) => {

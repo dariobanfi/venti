@@ -160,7 +160,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map, the Logbook and, under Settings, the pilot's account; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -176,6 +176,13 @@ What the web adds:
 - **Dropping files.** Flight files dragged onto any screen are imported; while they hover, the page says so.
 - **Terrain in 3D.** A button on the flight map tilts it into the terrain and lets it be turned; the same button lays it flat and north up again.
 - **Downloading** a flight's file, from the flight screen's menu, where the iPhone has "Share flight file".
+
+Airspace on the web's maps has the colours and the weights it has on the iPhone's: a magenta edge and a faint wash for airspace to stay out of, amber for airspace that deserves attention, a thin grey line without a name for the rest, names with floor and ceiling from zoom 9, the wash fading in between zoom 8 and 10, and nothing below zoom 7. It lies under the flights and the wind. There is no cockpit in a browser, so nothing warns. Where it differs:
+
+- **A flight's map** draws airspace too, as it is today. The iPhone's does not.
+- **The credit** of whoever the server's airspace comes from is a line above the map's own credits, beside the wind's: "Airspace: openAIP, not certified". The provider's own notice stands in full on the airspace screen, with its licence and a link.
+- **The airspace screen** is under Settings, as on the iPhone, with the same two parts: what is kept from the server, with the switch that turns it off and deletes it, and the pilot's files. A file is removed with a button on its row, after asking. Files dropped on this screen are airspace files; dropped anywhere else they are flights.
+- **For a screen reader** each map says how many airspaces it has drawn on the part in view. A map itself says nothing.
 
 Where the web's wind differs from the iPhone's:
 
@@ -206,6 +213,7 @@ What stands in for the system:
 | Swipe to delete | The flight screen's menu, and on a wide screen a button on the row. |
 | The grouped list of a settings screen | Rows on a rounded surface, with what they are about above it and a line of explanation below. A text field is a row with its name in front. |
 | The segmented control | A row of radio buttons drawn as segments, the chosen one raised. |
+| The switch | The browser's checkbox, drawn as a switch and announced as one. |
 | Accessibility settings | "Reduce motion" stops the animations; "reduce transparency" and "increase contrast" turn glass into a solid surface. |
 
 Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.

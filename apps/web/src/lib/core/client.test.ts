@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
+import { AirspaceSource } from './airspace-source';
 import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
@@ -32,7 +33,16 @@ class SameProcess implements Channel {
 		this.transferred.push(...transfer);
 		void this.#session
 			.then((session) =>
-				answer({ session, wind: this.#wind, account: account(session) }, call, given)
+				answer(
+					{
+						session,
+						wind: this.#wind,
+						account: account(session),
+						airspace: airspace(session)
+					},
+					call,
+					given
+				)
 			)
 			.then(
 				(result): Reply => ({ id, answer: result }),
@@ -53,6 +63,14 @@ function account(session: CoreSession): AccountSource {
 		throw new Error('No server in this test.');
 	};
 	return new AccountSource(session, unreachable, 'https://venti.example', 'Test browser');
+}
+
+/** Airspace from a site that has no server: nothing is ever asked for. */
+function airspace(session: CoreSession): AirspaceSource {
+	const unreachable = async () => {
+		throw new Error('No server in this test.');
+	};
+	return new AirspaceSource(session, async () => false, unreachable, 'https://venti.example');
 }
 
 async function open() {
@@ -112,6 +130,40 @@ describe('the core as the page calls it', () => {
 		expect(refusal).toBeInstanceOf(Error);
 		expect((refusal as Error).name).toBe('InvalidFlight');
 		expect((refusal as Error).message).toContain('not a flight file');
+	});
+
+	it('brings in an airspace file from its bytes and answers for what a map shows', async () => {
+		const { channel, core } = await open();
+		const file = bytes(
+			'AC D\nAY CTR\nAN CTR TEST\nAL GND\nAH 9000ft AMSL\nV X=47:42:00 N 011:44:00 E\nDC 1\n'
+		);
+
+		const imported = await core.importAirspace('zones.txt', file);
+
+		expect(imported).toMatchObject({ airspaces: 1, leftOut: 0 });
+		expect(channel.transferred).toContain(file);
+		expect(await core.airspaceFiles()).toMatchObject([{ name: 'zones', airspaces: 1 }]);
+		const shapes = await core.airspaceIn({ south: 47.6, west: 11.6, north: 47.8, east: 11.9 });
+		expect(shapes.map((shape) => [shape.name, shape.policy])).toEqual([['CTR TEST', 'avoid']]);
+		// Nothing is kept from a server, and a site without one is not asked.
+		expect(await core.keptAirspace()).toEqual([]);
+		expect(await core.refreshAirspace({ lat: 47.7, lon: 11.7 })).toBeUndefined();
+	});
+
+	it('has no account until the pilot signs in, and says in words why nothing can be done', async () => {
+		const { core } = await open();
+
+		expect(await core.account()).toBeUndefined();
+		expect(await core.flightSharing('0'.repeat(32))).toBeUndefined();
+		expect(await core.sync()).toMatchObject({ kind: 'failed', needsSignIn: true });
+		// The core's refusal crosses to the page with its kind and its words.
+		await expect(core.signIn('', '')).rejects.toMatchObject({
+			name: 'Server',
+			message: 'Enter your handle and your password.'
+		});
+		await expect(core.signIn('demo', 'demo-pilot-password')).rejects.toThrow(
+			'No server in this test.'
+		);
 	});
 
 	it('passes on that another tab changed the logbook', async () => {

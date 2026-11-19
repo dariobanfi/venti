@@ -1,9 +1,11 @@
 <!--
 	The map of one flight: its track coloured by climb, where it started and
-	ended, and a marker at the moment the pilot is inspecting.
+	ended, a marker at the moment the pilot is inspecting, and under it all
+	the airspace the app knows there, as it is today.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type { FlightScore, FlightView, TrackPoint } from '#lib/core/index.ts';
 	import { ACCENT_ON_MAP, CLIMB_BANDS, INK_ON_MAP, ROUTE_ON_MAP } from '#lib/design/palette.ts';
 	import type { Map } from '#lib/map/setup.ts';
@@ -20,15 +22,21 @@
 		coveredBottom: number;
 		/** Whether the map is tilted to show the terrain in 3D. */
 		terrain3d: boolean;
+		/** Where the airspace to draw comes from, once the app has it. */
+		airspace: AirspaceForMaps | undefined;
+		/** Called with how many airspaces are drawn, or nothing while none can be. */
+		onairspace: (count: number | undefined) => void;
 	}
 
-	let { flight, cursor, score, coveredTop, coveredBottom, terrain3d }: Props = $props();
+	let { flight, cursor, score, coveredTop, coveredBottom, terrain3d, airspace, onairspace }: Props =
+		$props();
 
 	let container: HTMLDivElement;
 	let setup: typeof import('#lib/map/setup.ts') | undefined;
 	/** The map, once its style is there to draw on. */
 	let map = $state.raw<Map>();
 	let tilted = false;
+	let airspaceOnMap: AirspaceOnMap | undefined;
 
 	onMount(() => {
 		let gone = false;
@@ -43,6 +51,13 @@
 			});
 			const styled = created;
 			module.whenStyled(styled, () => {
+				// Airspace lies under everything of the flight.
+				airspaceOnMap = drawAirspace(
+					module,
+					styled,
+					() => airspace,
+					(count) => onairspace(count)
+				);
 				addRoute(module, styled);
 				addTrack(module, styled);
 				addEnds(module, styled);
@@ -105,6 +120,12 @@
 	$effect(() => {
 		if (!map || !setup) return;
 		setup.shapes(map, 'flight-route')?.setData(score ? routeLines(score) : NOTHING);
+	});
+
+	// Draws the airspace again when the app gets it, and when it changes.
+	$effect(() => {
+		if (!map || airspace?.revision === undefined) return;
+		airspaceOnMap?.look();
 	});
 
 	$effect(() => {

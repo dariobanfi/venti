@@ -39,10 +39,10 @@ use std::sync::Arc;
 use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
-    AccountView, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError, FlightAnalysis,
-    FlightFile, FlightSharing, FlightView, FlightVisibility, ImportedFlight, LogbookStatistics,
-    LogbookView, ServerRequest, ServerStatus, SignedIn, StagedStorage, StationHistory, Storage,
-    SyncStep, SyncSummary, WindMap,
+    AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
+    FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility, ImportedFlight,
+    KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus, SignedIn,
+    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -331,7 +331,9 @@ impl Core {
         }
     }
 
-    // Airspace, from the OpenAir files the pilot brings in.
+    // Airspace: what the app keeps from the Venti server, and the OpenAir
+    // files the pilot brings in. The core keeps both and gives a map one
+    // set of them.
 
     /// Takes in an airspace file in OpenAir format. `file_name` is the
     /// name of the file the pilot chose; `now_unix_s` the current time. A
@@ -368,8 +370,73 @@ impl Core {
             .map_err(thrown)
     }
 
-    /// The airspaces of the pilot's files that touch a box of the map. Ask
-    /// when the map has moved, not for every frame.
+    /// Reads the server's answer to `serverAirspacePath` for the same
+    /// place and keeps it in place of what was kept before. `server` is
+    /// the address the request was sent to; `now_unix_s` the current time.
+    /// An answer that says nothing about the place changes nothing.
+    #[wasm_bindgen(js_name = keepServerAirspace)]
+    pub fn keep_server_airspace(
+        &self,
+        server: String,
+        lat: f64,
+        lon: f64,
+        status: u16,
+        body: Vec<u8>,
+        now_unix_s: f64,
+    ) -> Result<Ts<AirspaceFetch>, JsValue> {
+        let fetch = self
+            .session
+            .call(|core| {
+                core.keep_server_airspace(server, lat, lon, status, body, whole_seconds(now_unix_s))
+            })
+            .map_err(thrown)?;
+        to_js(&fetch)
+    }
+
+    /// The airspace kept from the server, one entry for each source, with
+    /// the credit and the notice to show wherever the airspace is shown.
+    #[wasm_bindgen(js_name = keptAirspace)]
+    pub fn kept_airspace(&self) -> Result<Vec<Ts<KeptAirspace>>, JsValue> {
+        let kept = self
+            .session
+            .call(|core| core.kept_airspace())
+            .map_err(thrown)?;
+        kept.iter().map(to_js).collect()
+    }
+
+    /// Whether to ask the server for airspace now: nothing is kept from
+    /// this server, what is kept is more than a day old, or the place is
+    /// outside the kept area or near its edge.
+    #[wasm_bindgen(js_name = keptAirspaceIsDue)]
+    pub fn kept_airspace_is_due(
+        &self,
+        server: String,
+        lat: f64,
+        lon: f64,
+        now_unix_s: f64,
+    ) -> Result<bool, JsValue> {
+        self.session
+            .call(|core| {
+                // What is kept has to be looked at first. The core's own
+                // question takes "not fetched from the store yet" for
+                // "nothing kept" and would have the server asked every time.
+                core.kept_airspace()?;
+                Ok(core.kept_airspace_is_due(server, lat, lon, whole_seconds(now_unix_s)))
+            })
+            .map_err(thrown)
+    }
+
+    /// Removes the airspace kept from the server. It is no longer drawn.
+    #[wasm_bindgen(js_name = deleteKeptAirspace)]
+    pub fn delete_kept_airspace(&self) -> Result<(), JsValue> {
+        self.session
+            .call(|core| core.delete_kept_airspace())
+            .map_err(thrown)
+    }
+
+    /// The airspaces that touch a box of the map, from what is kept from
+    /// the server and from the pilot's files. Ask when the map has moved,
+    /// not for every frame.
     #[wasm_bindgen(js_name = airspaceIn)]
     pub fn airspace_in(
         &self,
@@ -481,6 +548,13 @@ pub fn station_history(
     now_unix_s: f64,
 ) -> Result<Ts<StationHistory>, JsValue> {
     to_js(&venti_core::station_history(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The path and query to `GET` from the server for the airspace around a
+/// place, to keep in the browser.
+#[wasm_bindgen(js_name = serverAirspacePath)]
+pub fn server_airspace_path(lat: f64, lon: f64) -> Result<String, JsValue> {
+    venti_core::server_airspace_path(lat, lon).map_err(thrown)
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

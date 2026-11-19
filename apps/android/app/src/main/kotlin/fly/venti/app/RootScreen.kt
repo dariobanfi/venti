@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.fly.CockpitScreen
 import fly.venti.app.fly.FlyScreen
@@ -148,6 +149,7 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
                     )
                 }
             }
+            AppTab.Assistant -> kept.SaveableStateProvider("assistant") { AssistantScreen(session.chat, bars) }
             AppTab.Settings -> if (navigation.isShowingCredits) {
                 CreditsScreen(onBack = { navigation.back() })
             } else {

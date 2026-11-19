@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.AppFiles
 import fly.venti.app.pilotMessage
+import fly.venti.core.Assistant
 import fly.venti.core.Core
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
@@ -116,6 +117,9 @@ class LogbookModel(
         into.mkdirs()
         into.resolve(file.name).also { it.writeText(file.igcText) }
     }
+
+    /** A new conversation with the assistant, which answers from this logbook. */
+    fun makeAssistant(model: String): Assistant = core.assistant(model)
 
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()

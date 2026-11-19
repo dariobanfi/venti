@@ -59,6 +59,7 @@ The Gradle wrapper pins Gradle 9.9.1 and checks the download against its publish
 | `.../flight/` | One flight: map, panel, altitude chart, details sheet. |
 | `.../fly/` | The cockpit: the Fly tab, the cockpit screen and its map, and the sensors (position, pressure, Bluetooth vario, vario sound, the recording service). |
 | `.../map/` | The map tab, the shared map setup and the style preparation. |
+| `.../assistant/` | The assistant: the chat screen, sending requests, the key in Android's keystore. |
 | `.../settings/` | The settings tab and the credits. |
 | `app/src/main/res/` | The app icon and the interface's icons as vector drawables, the window theme, backup rules. |
 | `app/src/test/` | Unit tests. They run on the build machine and call the real core through the generated interface. |
@@ -72,6 +73,7 @@ The Gradle wrapper pins Gradle 9.9.1 and checks the download against its publish
 - **Flight.** The track on a terrain map, coloured by climb and sink, with the altitude profile below. Drag along the profile to move a marker along the track and read time, altitude and climb at that moment; the play button runs the marker along the flight. The details list every thermal and glide, and how the flight scores as a cross-country flight; choose a thermal or glide to mark it on the map. The menu shares the flight's file.
 - **Map.** A terrain map with every logbook flight on it and, on request, your position.
 - **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.
+- **Assistant.** Ask about your own flying ("how was my season?", "where were my strongest thermals?"). It runs on your own Anthropic API key, which you paste in once and which is kept on the phone, encrypted under a key in Android's keystore; your questions and what it looks up in your logbook go from the phone to Anthropic and are billed to your account. It cannot see weather, sites or airspace yet.
 - **Settings.** Your name and glider, which go into the flights you record; the vario sound; and the credits for the map data and the libraries.
 
 To connect a vario, open Fly, tap "Vario" and choose it from the list while it is switched on. Once connected, the same sheet shows the last lines it sent and has "Share a report": if the cockpit shows no climb from your vario, that report says why.
@@ -90,6 +92,7 @@ The app has run on an emulator in CI, driven by the UI tests. Nobody has yet run
 - **The pressure sensor**, and whether twenty readings a second make a good vario.
 - **Bluetooth.** No vario has been connected: scanning, connecting, reconnecting after a loss, and listening to a device with no known serial service are untried.
 - **The vario tone** through a real loudspeaker, and whether it keeps sounding with the screen off on Android 15 and later.
+- **The assistant with the real service.** It has only ever talked to a scripted stand-in in tests: the first conversation with Anthropic is yours.
 - **"Open with Venti"** from real file managers and mail apps. Flight files have no type Android knows, so each app describes them differently.
 - **Moving the logbook to a new phone**, which the backup rules allow from Android 12.
 

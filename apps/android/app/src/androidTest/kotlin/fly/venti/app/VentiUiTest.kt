@@ -2,28 +2,29 @@ package fly.venti.app
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +47,11 @@ class VentiUiTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var app: ActivityScenario<MainActivity>? = null
 
+    @Before
+    fun prepareTheDevice() {
+        TestDevice.keepSystemDialogsAway()
+    }
+
     @After
     fun close() {
         app?.close()
@@ -60,16 +66,9 @@ class VentiUiTest {
         app = ActivityScenario.launch(intent)
     }
 
-    /** Keeps a picture of the whole screen, the map and the system's bars included. */
     private fun keepScreenshot(name: String) {
         screen.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val picture = checkNotNull(instrumentation.uiAutomation.takeScreenshot()) { "no screenshot for $name" }
-        // The build collects whatever the tests leave in this folder.
-        val folder = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
-            ?: checkNotNull(context.getExternalFilesDir("screenshots"))
-        folder.mkdirs()
-        File(folder, "$name.png").outputStream().use { picture.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        TestDevice.keepScreenshot(name)
     }
 
     private fun waitFor(what: SemanticsMatcher, seconds: Int = 15) {
@@ -232,8 +231,55 @@ class VentiUiTest {
         waitFor(hasText("Vario sound"))
     }
 
+    /**
+     * The assistant. First the pilot's key is asked for; then, with the
+     * provider played by a script, a question is answered: the real tool
+     * loop runs against the logbook, but no key and no network are used.
+     */
+    private fun askTheAssistant(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SCRIPTED_ASSISTANT, true) }
+        waitFor(described("Show my position"), seconds = 90)
+        tap(tab("Logbook"))
+        waitFor(hasText("No flights yet"))
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"), seconds = 30)
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
+
+        tap(tab("Assistant"))
+        val question = hasText("How was my flying this year?")
+        waitFor(question)
+        keepScreenshot("$prefix-assistant-1-start")
+        tap(question)
+
+        waitFor(hasText("Your logbook has one flight", substring = true), seconds = 20)
+        assertTrue(exists(hasText("Looked up your list of flights")))
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-assistant-2-answer")
+
+        // The menu holds the models, a new conversation and the key.
+        tap(described("Assistant options"))
+        waitFor(hasText("Remove my key"))
+        keepScreenshot("$prefix-assistant-3-options")
+        tap(hasText("Remove my key"))
+
+        // Without a key the screen asks for one and says what that means.
+        waitFor(hasText("Save key"))
+        assertTrue(exists(hasText("Get a key from Anthropic")))
+        keepScreenshot("$prefix-assistant-4-key")
+        screen.onNode(hasSetTextAction()).performTextInput("a-key-for-the-test")
+        tap(hasText("Save key"))
+        waitFor(question)
+    }
+
     @Test
     fun aPilotImportsAFlightInspectsItAndDeletesIt() = importInspectAndDelete("light", dark = false)
+
+    @Test
+    fun theAssistantAnswersFromTheLogbook() = askTheAssistant("light", dark = false)
+
+    @Test
+    fun theAssistantInDarkAppearance() = askTheAssistant("dark", dark = true)
 
     @Test
     fun theSameInDarkAppearance() = importInspectAndDelete("dark", dark = true)

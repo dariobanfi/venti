@@ -4,6 +4,10 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.text.format.DateFormat
+import fly.venti.app.assistant.AssistantChat
+import fly.venti.app.assistant.EncryptedKeyStore
+import fly.venti.app.assistant.FixedKey
+import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.PhoneSensors
@@ -21,7 +25,7 @@ import java.util.UUID
 
 /**
  * What the app holds for as long as it runs: the logbook, the flying
- * session and the vario link.
+ * session, the vario link and the conversation with the assistant.
  *
  * It belongs to the app's process, not to a screen. Android rebuilds the
  * screen whenever it likes, and a flight being recorded has to carry on
@@ -32,6 +36,7 @@ sealed interface Session {
         val logbook: LogbookModel,
         val fly: FlySession,
         val vario: VarioLink,
+        val chat: AssistantChat,
         val preferences: Preferences,
         val files: AppFiles,
     ) : Session
@@ -40,8 +45,18 @@ sealed interface Session {
     class Failed(val message: String) : Session
 
     companion object {
-        /** Opens the logbook in `folder` and gets the cockpit ready. */
-        fun start(context: Context, folder: File, isUnderTest: Boolean): Session {
+        /**
+         * Opens the logbook in `folder` and gets the cockpit and the
+         * assistant ready. For a test the pilot's settings are left alone
+         * and no sound is made; `scriptedAssistant` answers the assistant's
+         * requests from a script, without a key or a network.
+         */
+        fun start(
+            context: Context,
+            folder: File,
+            isUnderTest: Boolean = false,
+            scriptedAssistant: Boolean = false,
+        ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
             val logbook = try {
@@ -49,8 +64,6 @@ sealed interface Session {
             } catch (error: Exception) {
                 return Failed(error.pilotMessage)
             }
-            // A test starts from nothing and must leave the pilot's own
-            // settings alone; it also has nobody listening.
             val preferences = if (isUnderTest) MemoryPreferences() else StoredPreferences(app)
             val vario = VarioLink(app, preferences)
             val scope = MainScope()
@@ -69,7 +82,14 @@ sealed interface Session {
             if (interrupted.isNotEmpty()) {
                 scope.launch { logbook.adopt(interrupted) }
             }
-            return Ready(logbook, fly, vario, preferences, files)
+            val chat = when {
+                scriptedAssistant ->
+                    AssistantChat(logbook::makeAssistant, FixedKey("scripted"), preferences, scope, ScriptedProvider::answer)
+                // A test never reads or replaces the pilot's own key.
+                isUnderTest -> AssistantChat(logbook::makeAssistant, FixedKey(null), preferences, scope)
+                else -> AssistantChat(logbook::makeAssistant, EncryptedKeyStore(app), preferences, scope)
+            }
+            return Ready(logbook, fly, vario, chat, preferences, files)
         }
     }
 }
@@ -77,7 +97,7 @@ sealed interface Session {
 class VentiApplication : Application() {
     /** The session of this run of the app. Made when the first screen asks for it. */
     val session: Session by lazy {
-        Session.start(this, folder = filesDir.resolve("venti"), isUnderTest = false)
+        Session.start(this, folder = filesDir.resolve("venti"))
     }
 
     /** The session of a UI test, if one is running: an empty logbook in a throwaway folder. */
@@ -90,9 +110,10 @@ class VentiApplication : Application() {
     }
 
     /** Starts over with an empty logbook, for a UI test. */
-    fun startTestSession(): Session {
+    fun startTestSession(options: LaunchOptions): Session {
         val folder = cacheDir.resolve("venti-ui-test-${UUID.randomUUID()}")
-        return Session.start(this, folder, isUnderTest = true).also { testSession = it }
+        return Session.start(this, folder, isUnderTest = true, scriptedAssistant = options.usesScriptedAssistant)
+            .also { testSession = it }
     }
 }
 
@@ -109,12 +130,18 @@ data class LaunchOptions(
      * tiles, so a screenshot does not depend on the network.
      */
     val usesBundledMap: Boolean = false,
+    /**
+     * Answer the assistant's requests from a script instead of a provider,
+     * so its screen can be tested without a key or a network.
+     */
+    val usesScriptedAssistant: Boolean = false,
     /** Dark or light appearance whatever the phone is set to, for screenshots. `null` follows the phone. */
     val forcedDark: Boolean? = null,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
         const val BUNDLED_MAP = "bundled-map"
+        const val SCRIPTED_ASSISTANT = "scripted-assistant"
         const val DARK = "dark"
 
         fun from(intent: Intent?): LaunchOptions {
@@ -122,6 +149,7 @@ data class LaunchOptions(
             return LaunchOptions(
                 isUiTesting = intent.getBooleanExtra(UI_TESTING, false),
                 usesBundledMap = intent.getBooleanExtra(BUNDLED_MAP, false),
+                usesScriptedAssistant = intent.getBooleanExtra(SCRIPTED_ASSISTANT, false),
                 forcedDark = if (intent.hasExtra(DARK)) intent.getBooleanExtra(DARK, false) else null,
             )
         }

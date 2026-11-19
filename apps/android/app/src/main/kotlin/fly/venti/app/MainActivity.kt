@@ -55,8 +55,8 @@ class MainActivity : ComponentActivity() {
         val session = when {
             !options.isUiTesting -> app.session
             // A screen Android rebuilt keeps the test's logbook.
-            savedInstanceState != null -> app.testSession ?: app.startTestSession()
-            else -> app.startTestSession()
+            savedInstanceState != null -> app.testSession ?: app.startTestSession(options)
+            else -> app.startTestSession(options)
         }
         MapSetup.source = if (options.usesBundledMap) MapStyle.Source.Bundled else MapStyle.Source.Online
         MapSetup.movesAtOnce = options.isUiTesting

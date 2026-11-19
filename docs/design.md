@@ -97,16 +97,17 @@ System text styles only, so the pilot's text-size setting applies everywhere. Ti
 
 ## Android
 
-The Android app is the same product with Android's own components: Material 3, unstyled where Material has what is needed. It has the Map, the Logbook, Fly and the Settings; the assistant is not on Android yet. The words are the iPhone's, with "phone" for "iPhone".
+The Android app is the same product with Android's own components: Material 3, unstyled where Material has what is needed. It has the iPhone app's five sections. The words are the iPhone's, with "phone" for "iPhone".
 
 - **Colour.** Material 3 with a fixed scheme: the accent as its primary colour, and neutral surfaces. Not "dynamic colour" from the pilot's wallpaper: a wallpaper's orange or blue would sit beside the climb colours as if it meant something. No third hue either.
 - **No glass.** Android has no system material like Liquid Glass. The three surfaces that float over a map (the flight panel, the round buttons, the cockpit's badges) are opaque Material surfaces with a shadow. The rule behind the glass holds: they are controls above the content, and nothing else floats.
-- **Navigation.** A Material navigation bar with the four sections; it steps aside on a flight, the statistics and the credits, which have the whole screen and a back arrow. The system's back button goes one step back, and in the cockpit asks whether to finish.
+- **Navigation.** A Material navigation bar with the five sections, which is as many as one takes; it steps aside on a flight, the statistics and the credits, which have the whole screen and a back arrow. The system's back button goes one step back, and in the cockpit asks whether to finish.
 - **Lists.** Rows stand on rounded surfaces in groups, a heading in the accent colour above and a line of explanation below, in the logbook, the details, the statistics, the settings and the credits alike.
 - **Deleting a flight.** Press and hold its row, or use the flight screen's menu. Both ask first.
 - **The flight's details** are a bottom sheet over the map, as on the iPhone. The vario list is one too.
 - **Type.** The system's typeface at Material's sizes, which follow the pilot's text-size setting. Numbers use digits of equal width. Android has no rounded system face, so numbers are not rounded here. A loss is set with a true minus sign, as wide as the plus of a gain.
 - **Charts.** Android has no chart of its own. The altitude profile and the months' bars are drawn by the app: the same axes as on the iPhone, round values on the trailing edge and times of day along the bottom.
+- **The assistant's answers** show the bold, italics, code and links a model writes in Markdown, read by a small reader of the app's own; Android has none. Under an answer, what was looked up is listed the way the phone's language lists things.
 - **Maps** stay north up and flat: they cannot be turned or tilted. To verify with pilots whether turning is missed.
 - **The cockpit's sizes are fixed** in the screen's own units, and do not follow the text-size setting.
 - **Icons** are Google's Material Symbols, outlined; the Fly tab's is a paraglider. The app icon is the same drawing as on the iPhone, as an adaptive icon with a one-colour version for themed icons.

@@ -1,0 +1,12 @@
+# Keeps the image build's context small. The server image needs the Rust
+# workspace and the region packs; see deploy/Dockerfile.
+.git
+.github
+.claude
+target
+var
+apps
+docs
+map
+deploy
+**/.DS_Store

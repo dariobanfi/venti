@@ -10,7 +10,7 @@ cargo run -p venti-server -- dev
 cargo run -p venti-server -- ingest regions/alps-de-at/region.toml
 ```
 
-The second command serves the server's API over recorded data on `http://127.0.0.1:8080`, with no network and no database; try `curl 'http://127.0.0.1:8080/v1/stations?bbox=9.4,46.3,17.2,48.5'`. The third fetches live station observations for the first region and prints a health line per source.
+The second command serves the server's API over recorded data on `http://127.0.0.1:8080`, with no network and no database; try `curl 'http://127.0.0.1:8080/v1/stations?bbox=9.4,46.3,17.2,48.5'`. The third fetches live station observations for the first region and prints a health line per source. Running the real server is described in [deploy/README.md](deploy/README.md).
 
 | Document | What it covers |
 |---|---|
@@ -18,6 +18,7 @@ The second command serves the server's API over recorded data on `http://127.0.0
 | [docs/architecture.md](docs/architecture.md) | Rust core, native apps, server, hosting, bring-your-own AI, decision log |
 | [docs/data-sources.md](docs/data-sources.md) | The adapter framework for external data and the Germany/Austria source catalogue |
 | [docs/api.md](docs/api.md) | The server's HTTP API, endpoint by endpoint |
+| [deploy/README.md](deploy/README.md) | Running the server on a machine: install, update, backup, restore |
 | [docs/design.md](docs/design.md) | How the apps look and behave, and why |
 | [docs/xctrack-parity.md](docs/xctrack-parity.md) | Cockpit feature checklist measured against XCTrack |
 

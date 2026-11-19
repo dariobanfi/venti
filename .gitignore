@@ -4,3 +4,8 @@
 
 # Working copies of parallel AI sessions.
 .claude/worktrees/
+
+# Deployment settings (they hold a password), static files and backups.
+/deploy/.env
+/deploy/data
+/deploy/backups

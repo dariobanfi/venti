@@ -114,7 +114,7 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 | Licence | **AGPL-3.0-or-later**, decided 2026-11-18. |
 | Vario | MipFly MipBip, with XC Tracer as the other first-class target. All popular Bluetooth varios should follow. |
 | GitHub repository | **Done**, 2026-11-18: `dariobanfi/venti`. One stale branch, `phase-0/foundations`, is left for the owner to delete; AI sessions cannot delete branches. |
-| Server | **Open.** None yet. The recommended specification is in [architecture.md](architecture.md#sizing). |
+| Server | **Open.** None yet. The recommended specification is in [architecture.md](architecture.md#sizing). The software is ready to be installed: the runbook is [deploy/README.md](../deploy/README.md). With the server come three small decisions: the domain name it answers on, where the off-site copy of the backups goes, and whether CI may publish container images to GitHub's registry. |
 | Contact line for data providers | **Open.** The server names itself to the providers as `venti-server/<version>` and nothing else. Some providers ask operators to name a contact in that line; whether to, and which, is the owner's decision (`VENTI_USER_AGENT`). |
 | Apple Developer Program membership | **Not for now**, owner decision 2026-11-18. The owner tests on their own Mac and iPhone with their own signing settings, which stay out of the repository (`apps/ios/Config/Local.xcconfig`). Builds and tests run on GitHub's macOS runners, which are free for public repositories. Membership is needed later for TestFlight and the App Store. |
 | Permission emails | **Open.** AI sessions draft them, the owner sends them. The list is in [data-sources.md](data-sources.md#outreach). |

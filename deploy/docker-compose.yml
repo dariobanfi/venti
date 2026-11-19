@@ -1,0 +1,81 @@
+# Venti on one Linux server.
+#
+#   caddy   TLS, the web app's static files, map tiles, and the way in to the API
+#   server  venti-server: collects the data sources, serves /v1
+#   db      PostgreSQL with PostGIS, the only database
+#
+# Only caddy is reachable from outside. Settings and the database password
+# come from the file `.env` beside this one; copy `env.example` to make it.
+# The runbook is README.md in this folder.
+
+name: venti
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      VENTI_SITE_ADDRESS: ${VENTI_SITE_ADDRESS:?set VENTI_SITE_ADDRESS in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and keys. Losing this volume means asking for new
+      # certificates, which the issuers rate-limit.
+      - caddy-data:/data
+      - caddy-config:/config
+      # Static files, kept on the host so that a build job or rsync can
+      # replace them: the web app, and map tiles as PMTiles archives.
+      - ${VENTI_WEB_DIR:-./data/web}:/srv/web:ro
+      - ${VENTI_TILES_DIR:-./data/tiles}:/srv/tiles:ro
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: venti-server:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      VENTI_DATABASE_URL: postgres://venti:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/venti
+      VENTI_USER_AGENT: ${VENTI_USER_AGENT:-}
+      VENTI_CORS_ORIGINS: ${VENTI_CORS_ORIGINS:-}
+      VENTI_LOG_LEVEL: ${VENTI_LOG_LEVEL:-}
+      VENTI_OBSERVATION_MONTHS: ${VENTI_OBSERVATION_MONTHS:-}
+      VENTI_ARCHIVE_DAYS: ${VENTI_ARCHIVE_DAYS:-}
+    volumes:
+      - archive:/var/lib/venti/archive
+    # A run in flight is dropped on shutdown and repeated after the restart,
+    # so the default ten seconds are enough.
+    stop_grace_period: 10s
+
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: venti
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: venti
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # PostgreSQL uses shared memory for parallel queries; Docker's default
+    # of 64 MB is too little for anything but small tables.
+    shm_size: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username venti --dbname venti"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    stop_grace_period: 60s
+
+volumes:
+  db-data:
+  archive:
+  caddy-data:
+  caddy-config:

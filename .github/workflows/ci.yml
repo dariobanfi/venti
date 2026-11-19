@@ -42,6 +42,44 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
 
+  # Builds the server image the way a server would and starts it in its
+  # development mode. Nothing is published: where images go is the owner's
+  # decision.
+  image:
+    name: Server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The image is built with the pinned compiler
+        run: |
+          toolchain=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          grep --quiet "^FROM rust:${toolchain}-" deploy/Dockerfile \
+            || { echo "deploy/Dockerfile does not build with Rust ${toolchain}"; exit 1; }
+      - name: Build the image
+        run: docker build --file deploy/Dockerfile --tag venti-server:ci .
+      - name: Start it on recorded data and ask every endpoint
+        run: |
+          docker run --detach --name venti --publish 127.0.0.1:8080:8080 \
+            venti-server:ci dev --listen 0.0.0.0:8080
+          for attempt in $(seq 1 30); do
+            curl --silent --fail --output /dev/null http://127.0.0.1:8080/v1/health && break
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8080/v1/health
+          curl --silent --fail 'http://127.0.0.1:8080/v1/stations?bbox=9.4,46.3,17.2,48.5' | jq --exit-status '.stations | length == 6'
+          curl --silent --fail http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations | jq --exit-status '.observations | length > 100'
+      - name: Show the server's log
+        if: always()
+        run: docker logs venti
+      - name: Check the Compose file and the Caddyfile
+        run: |
+          cp deploy/env.example deploy/.env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci/' deploy/.env
+          docker compose --file deploy/docker-compose.yml config --quiet
+          docker run --rm --env VENTI_SITE_ADDRESS=:80 \
+            --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile
+
   dependencies:
     name: Dependency licences
     runs-on: ubuntu-latest

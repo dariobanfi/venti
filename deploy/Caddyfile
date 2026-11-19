@@ -1,0 +1,42 @@
+# Caddy in front of Venti: TLS, static files, and the way in to the API.
+#
+# With a domain name as the site address Caddy obtains and renews its
+# certificate by itself; ports 80 and 443 must be reachable from the
+# internet and the name must point at this server. With `:80` it serves
+# plain HTTP, which is for trying the stack out and nothing else.
+
+{$VENTI_SITE_ADDRESS} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# The API. The server compresses its own answers and sets their cache
+	# headers, so nothing is added here.
+	handle /v1/* {
+		reverse_proxy server:8080
+	}
+
+	# Map tiles: PMTiles archives of several gigabytes that map clients read
+	# piece by piece with HTTP range requests, which the file server answers
+	# by itself. The archives are compressed inside, so they are not encoded
+	# again. An archive is replaced under a new name, never changed in
+	# place, so it may be cached for a long time.
+	handle_path /tiles/* {
+		root * /srv/tiles
+		header Cache-Control "public, max-age=604800"
+		header Access-Control-Allow-Origin "*"
+		file_server
+	}
+
+	# The web app: a static build. A path that is not a file belongs to the
+	# app's own router, so it gets the app's entry page.
+	handle {
+		root * /srv/web
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}

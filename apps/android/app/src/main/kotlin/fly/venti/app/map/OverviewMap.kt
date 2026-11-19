@@ -70,8 +70,9 @@ class OverviewMap : MapContent {
         if (isFollowing) {
             startFollowing()
         }
-        // The map may not have its size yet when the style arrives.
-        view.post { tellRegion(map, view) }
+        // The map may not have its size yet when the style arrives, and
+        // may be gone by the time it has.
+        view.post { if (!view.isDestroyed) tellRegion(map, view) }
     }
 
     /** The flights and the wind stations to draw, and how much of the map the bars cover. */
@@ -160,7 +161,7 @@ class OverviewMap : MapContent {
 
         box(outlines)?.let { box ->
             // The map may not have its size yet when the style arrives.
-            view.post { MapSetup.show(box, map, view, covered) }
+            view.post { if (!view.isDestroyed) MapSetup.show(box, map, view, covered) }
         }
     }
 

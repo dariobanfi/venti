@@ -88,6 +88,10 @@ class CockpitMap : MapContent {
         val map = map ?: return
         val style = style ?: return
         val mapView = mapView ?: return
+        // A step that was waiting may come due after the cockpit has been
+        // closed and its map taken down. A style that is gone must not be
+        // touched: the map engine throws.
+        if (mapView.isDestroyed || !style.isFullyLoaded) return
         val view = wanted ?: return
         val position = view.position ?: return
         if (view === shown) return

@@ -69,7 +69,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
         addEnds(style)
         addCursor(style)
         // The map may not have its size yet when the style arrives.
-        view.post { frame() }
+        view.post { if (!view.isDestroyed) frame() }
         drawRoute()
         markCursor()
     }

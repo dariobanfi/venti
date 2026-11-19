@@ -149,6 +149,7 @@ jobs:
       # second tries it with the emulator's Vulkan switched off, to see
       # whether the status bar is whole then.
       - name: Every UI test with the emulator's other software renderer
+        if: always()
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -180,6 +181,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: One UI test with that renderer and without Vulkan
+        if: always()
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:

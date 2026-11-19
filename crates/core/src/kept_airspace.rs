@@ -481,7 +481,9 @@ mod tests {
             ("openaip", "openAIP", 2)
         );
         assert!(layer.says_what_it_covers);
-        assert_eq!(layer.countries, ["DE", "AT"]);
+        // The countries the development server says it holds, whichever
+        // they are today: Germany and Austria first.
+        assert_eq!(layer.countries[..2], ["DE", "AT"]);
         assert_eq!(layer.fetched_unix_s, NOW);
         assert_eq!(layer.written_unix_s, Some(NOW));
         assert_eq!(layer.kept_unix_s, NOW);

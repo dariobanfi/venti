@@ -38,6 +38,8 @@ import fly.venti.app.logbook.StatisticsScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
 import fly.venti.app.settings.SettingsScreen
+import fly.venti.app.task.TaskModel
+import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
 import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.CancellationException
@@ -66,6 +68,23 @@ fun RootScreen(
     // Flight files opened from a file manager, mail or another app.
     LaunchedEffect(incoming) {
         if (incoming.isEmpty()) return@LaunchedEffect
+        // A task file, by its name: it is kept, and found on the Fly tab.
+        val opened = incoming.map { FlightFiles.source(context, it, what = "a task") }
+        if (opened.size == 1 && opened[0].name.endsWith(TaskModel.FILE_ENDING, ignoreCase = true)) {
+            val isKept = session.tasks.keep(opened[0])
+            onImported()
+            if (isKept) {
+                navigation.tab = AppTab.Fly
+                navigation.flyRoute = null
+                notice = ImportNotice(
+                    "Task kept",
+                    "It replaces the task you had. The cockpit flies it; look at it on the Fly tab, under Task.",
+                )
+            } else {
+                notice = ImportNotice("The task could not be read", session.tasks.problem.orEmpty())
+            }
+            return@LaunchedEffect
+        }
         val several = incoming.size > 1
         if (several) {
             // The logbook counts them as they come in.
@@ -114,6 +133,7 @@ fun RootScreen(
             fly = fly,
             waypoints = session.waypoints,
             airspace = session.airspace,
+            tasks = session.tasks,
             varioName = session.vario.connectedName,
             showsFaiAreas = !session.preferences.hidesFaiAreas,
             onFinish = {
@@ -186,13 +206,16 @@ private fun Sections(
             }
             AppTab.Fly -> when (navigation.flyRoute) {
                 FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                FlyRoute.Task -> TaskScreen(session.tasks, session.waypoints, onBack = { navigation.back() })
                 null -> kept.SaveableStateProvider("fly") {
                     FlyScreen(
                         session.fly,
                         session.vario,
                         session.airspace,
+                        session.tasks,
                         session.files,
                         onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
+                        onOpenTask = { navigation.flyRoute = FlyRoute.Task },
                         bars = bars,
                     )
                 }

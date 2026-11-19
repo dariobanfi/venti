@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -595,6 +596,90 @@ class VentiUiTest {
         waitFor(line and hasText("None"))
         assertTrue(exists(hasText("Without airspace the cockpit warns of none.", substring = true)))
     }
+
+    /**
+     * A task: the made-up one along the sample flight is kept, the Fly tab
+     * says so before take-off and shows it. Replayed at twenty times its
+     * speed, the flight takes the start a few seconds in, passes the
+     * turnpoint and reaches the goal after a minute and a half; the
+     * cockpit's line counts along. Then a route of the pilot's own
+     * waypoints replaces the task.
+     */
+    private fun flyATask(prefix: String, dark: Boolean) {
+        launch(dark = dark) {
+            putExtra(LaunchOptions.SAMPLE_TASK, true)
+            putExtra(LaunchOptions.SAMPLE_WAYPOINTS, true)
+        }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasText("Start flight"))
+        val line = hasTestTag("task-before-takeoff")
+        assertTrue(exists(line and hasText("4 turnpoints", substring = true)))
+        tap(line)
+        waitFor(hasTestTag("task-sketch"))
+        assertTrue(exists(hasContentDescription("Sample turnpoint west", substring = true)))
+        assertTrue(exists(hasText("along the shortest way through the edges of its cylinders", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-task-1-task")
+        tap(described("Back"))
+        waitFor(hasText("Start flight"))
+
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"))
+
+        // The start is taken two minutes into the flight; from then on the
+        // line runs the clock and says which turnpoint is next.
+        val strip = hasTestTag("task-strip")
+        waitFor(strip)
+        waitFor(strip and saying("On task"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-task-2-cockpit")
+
+        // Every turnpoint, with whether it is reached, and the two buttons
+        // for when the task and the flight have come apart.
+        tap(strip)
+        waitFor(hasTestTag("task-progress"))
+        assertTrue(exists(hasText("Skip to the next turnpoint")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-task-3-progress")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("task-progress")) }
+
+        // The flight reaches the goal, and the line says so.
+        waitFor(strip and saying("In goal"), seconds = 240)
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-task-4-in-goal")
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        waitFor(hasText("Start flight"))
+
+        // A route of the pilot's own waypoints, tapped in order, replaces it.
+        tap(line)
+        waitFor(hasTestTag("task-sketch"))
+        screen.onNode(hasTestTag("task-plan-route")).performScrollTo()
+        tap(hasTestTag("task-plan-route"))
+        waitFor(described("Sample landing field"))
+        tap(described("Sample landing field"))
+        tap(described("Sample turnpoint"))
+        waitFor(hasTestTag("route-keep") and isEnabled())
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-task-5-route-planner")
+        tap(hasTestTag("route-keep"))
+        waitFor(hasText("through its waypoints", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-task-6-route")
+        tap(described("Back"))
+        waitFor(line and hasText("2 waypoints", substring = true))
+    }
+
+    @Test
+    fun theCockpitFliesATask() = flyATask("light", dark = false)
+
+    @Test
+    fun theTaskInDarkAppearance() = flyATask("dark", dark = true)
 
     /** From the map to the account screen, by way of the settings. */
     private fun openTheAccount() {

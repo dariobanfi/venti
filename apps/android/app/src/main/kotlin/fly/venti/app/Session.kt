@@ -27,6 +27,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.SitesModel
+import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
@@ -56,6 +57,7 @@ sealed interface Session {
         val airspace: AirspaceModel,
         val sites: SitesModel,
         val account: AccountModel,
+        val tasks: TaskModel,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -91,6 +93,7 @@ sealed interface Session {
             server: String? = null,
             sampleWaypoints: Boolean = false,
             sampleAirspace: Boolean = false,
+            sampleTask: Boolean = false,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -169,8 +172,14 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // The task the pilot keeps, which the cockpit flies.
+            val tasks = logbook.makeTasks()
+            if (sampleTask) {
+                tasks.keep(LaunchOptions.SAMPLE_TASK_FILE)
+            }
+            fly.taskFile = { tasks.file }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, account, preferences, files, scope,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, account, tasks, preferences, files, scope,
             )
         }
     }
@@ -202,6 +211,7 @@ class VentiApplication : Application() {
             server = options.server,
             sampleWaypoints = options.usesSampleWaypoints,
             sampleAirspace = options.usesSampleAirspace,
+            sampleTask = options.usesSampleTask,
         ).also { testSession = it }
     }
 }
@@ -238,6 +248,11 @@ data class LaunchOptions(
      * crosses, so the cockpit's airspace warnings can be tested.
      */
     val usesSampleAirspace: Boolean = false,
+    /**
+     * Start with a made-up task along the sample flight, so the cockpit's
+     * task can be tested without picking a file.
+     */
+    val usesSampleTask: Boolean = false,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -247,6 +262,24 @@ data class LaunchOptions(
         const val SERVER = "server"
         const val SAMPLE_WAYPOINTS = "sample-waypoints"
         const val SAMPLE_AIRSPACE = "sample-airspace"
+        const val SAMPLE_TASK = "sample-task"
+
+        /**
+         * The made-up task, as a file in the XCTSK format: out of a start
+         * cylinder around the sample flight's take-off two minutes into it,
+         * to a turnpoint the flight passes, and to a goal it reaches. Its
+         * names say that it is not real.
+         */
+        val SAMPLE_TASK_FILE = """
+            {"taskType":"CLASSIC","version":1,"earthModel":"WGS84","turnpoints":[
+            {"type":"TAKEOFF","radius":400,"waypoint":{"name":"Sample launch","lat":47.6642,"lon":11.7967,"altSmoothed":1620}},
+            {"type":"SSS","radius":1000,"waypoint":{"name":"Sample start","lat":47.6642,"lon":11.7967,"altSmoothed":1620}},
+            {"radius":400,"waypoint":{"name":"Sample turnpoint west","lat":47.6894,"lon":11.7506,"altSmoothed":800}},
+            {"radius":400,"waypoint":{"name":"Sample goal","lat":47.6638,"lon":11.7432,"altSmoothed":760}}],
+            "takeoff":{"timeOpen":"09:00:00Z","timeClose":"11:00:00Z"},
+            "sss":{"type":"RACE","direction":"EXIT","timeGates":["10:32:00Z"]},
+            "goal":{"type":"CYLINDER","deadline":"12:00:00Z"}}
+        """.trimIndent()
 
         /**
          * The made-up airspace, in OpenAir format. Its names say that it is
@@ -283,6 +316,7 @@ data class LaunchOptions(
                 server = intent.getStringExtra(SERVER),
                 usesSampleWaypoints = intent.getBooleanExtra(SAMPLE_WAYPOINTS, false),
                 usesSampleAirspace = intent.getBooleanExtra(SAMPLE_AIRSPACE, false),
+                usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
             )
         }
     }

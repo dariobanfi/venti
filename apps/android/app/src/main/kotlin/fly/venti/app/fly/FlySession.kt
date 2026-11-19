@@ -15,6 +15,8 @@ import fly.venti.core.PendingRecording
 import fly.venti.core.FaiAreas
 import fly.venti.core.Replay
 import fly.venti.core.TargetPlace
+import fly.venti.core.TaskFile
+import fly.venti.core.TaskStatusView
 import fly.venti.core.ToneView
 import fly.venti.core.WayToTarget
 import kotlinx.coroutines.CoroutineScope
@@ -143,6 +145,23 @@ class FlySession(
     /** The airspace last handed to the core's session. */
     private var handedAirspace: AirspaceSet? = null
 
+    /**
+     * The task to fly, asked for when a session starts. The app sets this
+     * to the task the pilot keeps.
+     */
+    var taskFile: () -> TaskFile? = { null }
+
+    /** Where the flight stands in its task. Absent without a task. */
+    var task: TaskStatusView? by mutableStateOf(null)
+        private set
+
+    /**
+     * The place the pilot chose to fly to, by its name. Absent while the
+     * cockpit leads along the task, or back to the take-off.
+     */
+    var chosenPlace: String? by mutableStateOf(null)
+        private set
+
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
 
@@ -186,11 +205,23 @@ class FlySession(
         airspaceWarnings = session?.airspaceWarnings().orEmpty()
     }
 
-    /** Chooses the place to navigate to; `null` goes back to the take-off. */
+    /**
+     * Chooses the place to navigate to; `null` goes back to the task, or
+     * without one to the take-off.
+     */
     @Synchronized
     fun goTo(place: TargetPlace?) {
         val session = session ?: return
         session.goTo(place)
+        chosenPlace = place?.name
+        refresh(elapsed = 0.0)
+    }
+
+    /** Moves the task on to its next turnpoint, or back to the one before. */
+    @Synchronized
+    fun stepTask(forward: Boolean) {
+        val session = session ?: return
+        session.stepTask(forward)
         refresh(elapsed = 0.0)
     }
 
@@ -258,6 +289,8 @@ class FlySession(
         airspaceWarnings = emptyList()
         airspaceCheck = AirspaceCheck.NO_AIRSPACE
         handedAirspace = null
+        task = null
+        chosenPlace = null
         return recording
     }
 
@@ -268,6 +301,13 @@ class FlySession(
         session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
         handedAirspace = airspace()
         session.useAirspace(handedAirspace)
+        // The task of the day, on the day of the flight: a replay's day is
+        // the day it was flown.
+        try {
+            session.flyTask(taskFile()?.text, replay?.now() ?: (System.currentTimeMillis() / 1000.0))
+        } catch (error: Exception) {
+            problem = error.pilotMessage
+        }
         refreshesSinceScore = 0
         sound.isMuted = isMuted
         sound.start()
@@ -298,6 +338,16 @@ class FlySession(
         val view = session.view(now)
         this.view = view
         way = session.navigation(now)
+        val status = session.taskStatus(now)
+        if (status != task) {
+            task = status
+        }
+        // What happens in the task is said once: the start taken, a
+        // turnpoint reached, the goal.
+        while (true) {
+            val event = session.takeTaskEvent() ?: break
+            voice.say(event.words)
+        }
         // The core works the score out anew every half minute of flight;
         // asking once a second is often enough to show it promptly.
         refreshesSinceScore += 1

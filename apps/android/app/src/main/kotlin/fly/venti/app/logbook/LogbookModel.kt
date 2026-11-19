@@ -12,6 +12,7 @@ import fly.venti.app.account.SessionStore
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
+import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
@@ -187,6 +188,9 @@ class LogbookModel(
 
     /** A new conversation with the assistant, which answers from this logbook. */
     fun makeAssistant(model: String): Assistant = core.assistant(model)
+
+    /** The pilot's task, which the core keeps beside the logbook: one at a time. */
+    fun makeTasks(now: () -> Long = { System.currentTimeMillis() / 1000 }): TaskModel = TaskModel(core, now, background)
 
     /** The pilot's waypoints, which the core keeps beside the logbook. */
     fun makeWaypoints(): WaypointsModel = WaypointsModel(core, background)

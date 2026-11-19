@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.AppFiles
 import fly.venti.app.R
 import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.task.TaskModel
+import fly.venti.app.task.inALine
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 
@@ -54,9 +56,12 @@ fun FlyScreen(
     fly: FlySession,
     vario: VarioLink,
     airspace: AirspaceModel,
+    tasks: TaskModel,
     files: AppFiles,
     /** Called to show the list of the pilot's airspace. */
     onOpenAirspace: () -> Unit,
+    /** Called to show the pilot's task. */
+    onOpenTask: () -> Unit,
     bars: PaddingValues,
 ) {
     var isChoosingVario by remember { mutableStateOf(false) }
@@ -111,6 +116,17 @@ fun FlyScreen(
                         value = airspace.inALine,
                         onClick = onOpenAirspace,
                         modifier = Modifier.testTag("airspace-before-takeoff"),
+                    )
+                }
+                // The task of the day, or a route planned for the flight:
+                // the cockpit leads along it.
+                row {
+                    ChoiceRow(
+                        icon = R.drawable.ic_sports_score,
+                        title = "Task",
+                        value = tasks.task?.inALine ?: "None",
+                        onClick = onOpenTask,
+                        modifier = Modifier.testTag("task-before-takeoff"),
                     )
                 }
             }

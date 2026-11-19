@@ -65,6 +65,7 @@ import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
+import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
 import fly.venti.core.CockpitView
@@ -93,6 +94,8 @@ fun CockpitScreen(
     waypoints: WaypointsModel,
     /** The pilot's airspace: fetched around the first position, and credited under the warnings. */
     airspace: AirspaceModel,
+    /** The task the pilot keeps: its cylinders for the map, its turnpoints for the list. */
+    tasks: TaskModel,
     /** The connected vario's name, if one is connected. */
     varioName: String?,
     /** Whether the map draws where to fly for an FAI triangle: the pilot's setting. */
@@ -106,6 +109,10 @@ fun CockpitScreen(
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
+    var isShowingTask by remember { mutableStateOf(false) }
+    // The task is drawn only while the session flies one.
+    val taskStatus = fly.task
+    val task = tasks.task.takeIf { taskStatus != null }
     // Whether the map shows the whole flight instead of following closely.
     var showsWholeFlight by remember { mutableStateOf(false) }
     val fai = fly.faiAreas.takeIf { showsFaiAreas }
@@ -138,7 +145,7 @@ fun CockpitScreen(
                     modifier = Modifier.fillMaxSize(),
                     onUpdate = {
                         map.airspace = fly.airspace()
-                        map.show(view, way, route, airspaceDistance, fai, showsWholeFlight)
+                        map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                     },
                 )
                 // The whole flight at a glance, with the scored route and
@@ -183,6 +190,13 @@ fun CockpitScreen(
                 }
             }
             HorizontalDivider()
+            // With a task: where the flight stands in it, above the line
+            // that says where to fly, which is then its next turnpoint
+            // unless the pilot chose another place.
+            if (taskStatus != null) {
+                TaskStrip(taskStatus, onOpen = { isShowingTask = true })
+                HorizontalDivider()
+            }
             TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
             Instruments(view, way)
             Row(
@@ -230,10 +244,14 @@ fun CockpitScreen(
         TargetPicker(
             waypoints = waypoints,
             position = view.position,
-            chosen = way?.takeUnless { it.isTakeoff }?.name,
+            chosen = fly.chosenPlace,
             onChoose = { waypoint -> fly.goTo(waypoint?.place) },
             onDismiss = { isChoosingTarget = false },
         )
+    }
+
+    if (isShowingTask) {
+        TaskProgressSheet(task, taskStatus, onStep = fly::stepTask, onDismiss = { isShowingTask = false })
     }
 
     if (isConfirmingFinish) {

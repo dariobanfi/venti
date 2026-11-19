@@ -47,6 +47,9 @@ enum class SettingsRoute {
 enum class FlyRoute {
     /** The pilot's airspace: what the cockpit will warn from. */
     Airspace,
+
+    /** The pilot's task: what the cockpit will lead along. */
+    Task,
 }
 
 /**

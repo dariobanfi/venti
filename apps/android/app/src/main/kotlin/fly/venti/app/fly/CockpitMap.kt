@@ -16,6 +16,9 @@ import fly.venti.core.CockpitView
 import fly.venti.app.wind.contains
 import fly.venti.core.Coordinate
 import fly.venti.core.FaiAreas
+import fly.venti.core.TaskStatusView
+import fly.venti.core.TaskTurnpointView
+import fly.venti.core.TaskView
 import fly.venti.core.ThermalMarkView
 import fly.venti.core.WayToTarget
 import org.maplibre.android.camera.CameraPosition
@@ -100,6 +103,17 @@ class CockpitMap : MapContent {
     private var target: Coordinate? = null
     private var drawnCourse: Pair<Coordinate, Coordinate>? = null
 
+    /**
+     * The task being flown, the number of the turnpoint to fly to next and
+     * the shortest way still to fly; and what of them was last drawn.
+     */
+    private var task: TaskView? = null
+    private var taskNext: UInt? = null
+    private var taskWay: List<Coordinate> = emptyList()
+    private var drawnTask: TaskView? = null
+    private var drawnTaskNext: UInt? = null
+    private var drawnTaskWay: List<Coordinate>? = null
+
     override fun prepare(map: MapLibreMap, view: MapView) {
         // The map follows the glider; dragging it away would only have to
         // be undone with a gloved hand. Zooming stays, and zooms about the
@@ -130,6 +144,24 @@ class CockpitMap : MapContent {
         areas.setProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f)), PropertyFactory.lineOpacity(0.85f))
         style.addLayer(areas)
         drawnFaiSide = null
+
+        // The task: its cylinders and goal in the map's ink, the one to fly
+        // to next with a heavier line, and the shortest way still to fly
+        // as a thin line through them.
+        style.addSource(GeoJsonSource(TASK))
+        val rings = MapSetup.line("cockpit-task-line", TASK, MapSetup.ink, 1.5f)
+        rings.setFilter(Expression.eq(Expression.get(NEXT), Expression.literal(0)))
+        style.addLayer(rings)
+        val nextRing = MapSetup.line("cockpit-task-next", TASK, MapSetup.ink, 3.5f)
+        nextRing.setFilter(Expression.eq(Expression.get(NEXT), Expression.literal(1)))
+        style.addLayer(nextRing)
+        style.addSource(GeoJsonSource(TASK_WAY))
+        val ahead = MapSetup.line("cockpit-task-way-line", TASK_WAY, MapSetup.ink, 1.5f)
+        ahead.setProperties(PropertyFactory.lineOpacity(0.6f))
+        style.addLayer(ahead)
+        drawnTask = null
+        drawnTaskNext = null
+        drawnTaskWay = null
 
         // The route the flight scores along: thin and dashed, as on a
         // finished flight's map.
@@ -197,14 +229,24 @@ class CockpitMap : MapContent {
         fai: FaiAreas? = null,
         /** Whether to show the whole flight instead of following the glider closely. */
         showsWholeFlight: Boolean = false,
+        /** The task being flown, for its cylinders, and where the flight stands in it. */
+        task: TaskView? = null,
+        taskStatus: TaskStatusView? = null,
     ) {
         wanted = view
         this.route = route
         this.airspaceDistance = airspaceDistance
-        if (fai?.side != this.fai?.side || showsWholeFlight != this.showsWholeFlight) {
+        val nextTurnpoint = taskStatus?.next?.number
+        val wayAhead = taskStatus?.way.orEmpty()
+        if (fai?.side != this.fai?.side || showsWholeFlight != this.showsWholeFlight ||
+            task != this.task || nextTurnpoint != this.taskNext || wayAhead != this.taskWay
+        ) {
             // Something to draw or to frame anew, also while the glider stands still.
             shown = null
         }
+        this.task = task
+        this.taskNext = nextTurnpoint
+        this.taskWay = wayAhead
         this.fai = fai
         this.showsWholeFlight = showsWholeFlight
         if (way != null) {
@@ -233,11 +275,13 @@ class CockpitMap : MapContent {
 
         draw(view, position, style)
         drawAirspace(position, style)
+        drawTask(style)
 
         // The whole flight: everything it has to show in one view, fitted
         // again only when something has grown out of it.
         if (showsWholeFlight) {
             val places = listOf(position) + route + fai?.outlines.orEmpty().flatten() +
+                task?.turnpoints.orEmpty().flatMap { it.outline } +
                 listOfNotNull(view.takeoff, target)
             val box = box(places)
             if (wholeFlight?.contains(box) != true) {
@@ -271,6 +315,21 @@ class CockpitMap : MapContent {
             // At an even pace, arriving as the next position is due.
             val glide = sinceLastStep.coerceIn(SHORTEST_GLIDE_MILLISECONDS, LONGEST_GLIDE_MILLISECONDS).toInt()
             map.easeCamera(move, glide, false)
+        }
+    }
+
+    /** Draws the task's cylinders and the way still to fly, when either has changed. */
+    private fun drawTask(style: Style) {
+        if (task != drawnTask || taskNext != drawnTaskNext) {
+            drawnTask = task
+            drawnTaskNext = taskNext
+            style.getSourceAs<GeoJsonSource>(TASK)
+                ?.setGeoJson(FeatureCollection.fromFeatures(taskFeatures(task?.turnpoints.orEmpty(), taskNext)))
+        }
+        if (taskWay != drawnTaskWay) {
+            drawnTaskWay = taskWay
+            val line = if (taskWay.size >= 2) listOf(Feature.fromGeometry(taskWay.lineString())) else emptyList()
+            style.getSourceAs<GeoJsonSource>(TASK_WAY)?.setGeoJson(FeatureCollection.fromFeatures(line))
         }
     }
 
@@ -360,7 +419,21 @@ class CockpitMap : MapContent {
         private const val TARGET = "cockpit-target"
         private const val THERMALS = "cockpit-thermals"
         private const val FAI = "cockpit-fai"
+        private const val TASK = "cockpit-task"
+        private const val TASK_WAY = "cockpit-task-way"
         const val LABEL = "label"
+        const val NEXT = "next"
+
+        /**
+         * The outlines of a task's turnpoints, each marked with whether it
+         * is the one to fly to next.
+         */
+        fun taskFeatures(turnpoints: List<TaskTurnpointView>, next: UInt?): List<Feature> =
+            turnpoints.filter { it.outline.size >= 2 }.map { turnpoint ->
+                Feature.fromGeometry(turnpoint.outline.lineString()).apply {
+                    addNumberProperty(NEXT, if (turnpoint.number == next) 1 else 0)
+                }
+            }
         private const val CRUISE_ZOOM = 13.0
         private const val THERMAL_ZOOM = 15.5
 

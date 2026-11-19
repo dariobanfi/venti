@@ -128,7 +128,7 @@ The Android app is the same product with Android's own components: Material 3, u
 - **Charts.** Android has no chart of its own. The altitude profile and the months' bars are drawn by the app: the same axes as on the iPhone, round values on the trailing edge and times of day along the bottom.
 - **The assistant's answers** show the bold, italics, code and links a model writes in Markdown, read by a small reader of the app's own; Android has none. Under an answer, what was looked up is listed the way the phone's language lists things.
 - **Maps** stay north up and flat: they cannot be turned or tilted. To verify with pilots whether turning is missed.
-- **The cockpit's sizes are fixed** in the screen's own units, and do not follow the text-size setting.
+- **The cockpit's sizes are fixed** in the screen's own units, and do not follow the text-size setting. The glider's mark is drawn over the middle of the map rather than in it, and pinching zooms about that middle wherever the fingers are, so the glider cannot leave it.
 - **Icons** are Google's Material Symbols, outlined; the Fly tab's is a paraglider. The app icon is the same drawing as on the iPhone, as an adaptive icon with a one-colour version for themed icons.
 - Phone, portrait. Touch targets are at least 48 by 48 dp. Every custom element has a description for TalkBack; the chart and the legend describe themselves in words.
 

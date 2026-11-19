@@ -107,7 +107,7 @@ jobs:
         if: always()
         run: |
           mkdir -p apps/android/build/screenshots
-          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
+          find apps/android/app/build/outputs \( -name '*.png' -o -name '*.txt' \) -path '*additional_output*' \
             -exec cp {} apps/android/build/screenshots/ \;
           ls -l apps/android/build/screenshots
 
@@ -118,12 +118,48 @@ jobs:
           path: apps/android/build/screenshots
           if-no-files-found: warn
 
-      - name: Keep the test reports and the device log when a test fails
-        if: failure()
+      # The device's log of every test is in here, which is where the map
+      # engine says what it could not load.
+      - name: Keep the test reports and the device log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-test-reports
           path: |
             apps/android/app/build/reports
             apps/android/app/build/outputs/androidTest-results
+          if-no-files-found: ignore
+
+      # An experiment, which cannot fail the run: one test on the same
+      # emulator with its other software renderer, to see whether that one
+      # draws the map's place names and dashed lines.
+      - name: One UI test with the emulator's other software renderer
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          disable-animations: true
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -no-snapshot-save
+          working-directory: apps/android
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=fly.venti.app.VentiUiTest#aPilotImportsAFlightInspectsItAndDeletesIt
+
+      - name: Collect the experiment's screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p apps/android/build/screenshots-experiment
+          find apps/android/app/build/outputs -name '*.png' -path '*additional_output*' \
+            -exec cp {} apps/android/build/screenshots-experiment/ \;
+          ls -l apps/android/build/screenshots-experiment
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: android-screenshots-experiment
+          path: apps/android/build/screenshots-experiment
           if-no-files-found: ignore

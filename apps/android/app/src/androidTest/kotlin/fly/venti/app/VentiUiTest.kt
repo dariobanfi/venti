@@ -275,6 +275,26 @@ class VentiUiTest {
     @Test
     fun aPilotImportsAFlightInspectsItAndDeletesIt() = importInspectAndDelete("light", dark = false)
 
+    /**
+     * Towns and villages are named on the map, in the font shipped inside
+     * the app. The map itself is asked which names it has placed, and the
+     * number is kept with the screenshots.
+     */
+    @Test
+    fun theMapNamesPlaces() {
+        launch()
+        waitFor(described("Show my position"), seconds = 90)
+        val scenario = checkNotNull(app)
+        var names = 0
+        var seconds = 0
+        while (names == 0 && seconds < 30) {
+            Thread.sleep(1000)
+            seconds += 1
+            names = TestDevice.drawnOnTheMap(scenario, "place") ?: 0
+        }
+        TestDevice.keepNote("map-place-names", "$names place names after $seconds s")
+    }
+
     @Test
     fun theAssistantAnswersFromTheLogbook() = askTheAssistant("light", dark = false)
 

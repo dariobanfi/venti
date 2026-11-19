@@ -2,7 +2,6 @@ package fly.venti.app.fly
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
+import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
 import fly.venti.core.CockpitView
@@ -91,43 +91,49 @@ fun CockpitScreen(
     // button on screen does, and asks first.
     BackHandler { isConfirmingFinish = true }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).systemBarsPadding()) {
-        StatusLine(view, fly.mode, varioName)
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view) })
-            view.wind?.let { wind ->
-                WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
-            }
-            if (view.phase != FlightPhase.FLYING) {
-                Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
-                    Text(
-                        if (view.phase == FlightPhase.GROUND) "Waiting for take-off" else "Landed",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+    // A surface, so that text without a colour of its own takes the theme's.
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.systemBarsPadding()) {
+            StatusLine(view, fly.mode, varioName)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view) })
+                if (view.position != null) {
+                    GliderMark(Modifier.align(Alignment.Center))
+                }
+                view.wind?.let { wind ->
+                    WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
+                }
+                if (view.phase != FlightPhase.FLYING) {
+                    Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
+                        Text(
+                            if (view.phase == FlightPhase.GROUND) "Waiting for take-off" else "Landed",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
             }
-        }
-        Instruments(view)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(
-                onClick = { isConfirmingFinish = true },
-                modifier = Modifier.weight(1f).height(56.dp),
+            Instruments(view)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
-            }
-            Spacer(Modifier.width(12.dp))
-            FilledTonalIconToggleButton(
-                checked = fly.isMuted,
-                onCheckedChange = { fly.isMuted = it },
-                modifier = Modifier.size(56.dp),
-            ) {
-                Icon(
-                    painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
-                    contentDescription = "Mute the vario",
-                )
+                OutlinedButton(
+                    onClick = { isConfirmingFinish = true },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                ) {
+                    Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(Modifier.width(12.dp))
+                FilledTonalIconToggleButton(
+                    checked = fly.isMuted,
+                    onCheckedChange = { fly.isMuted = it },
+                    modifier = Modifier.size(56.dp),
+                ) {
+                    Icon(
+                        painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
+                        contentDescription = "Mute the vario",
+                    )
+                }
             }
         }
     }
@@ -391,6 +397,19 @@ private fun VarioBar(climb: Double?) {
             size = Size(size.width, length),
             cornerRadius = CornerRadius(3.dp.toPx()),
         )
+    }
+}
+
+/**
+ * The glider: a dot in the accent colour with a white ring, in the middle
+ * of the map, which the map keeps under it. The same mark as the one a
+ * finished flight's map puts at the moment being inspected.
+ */
+@Composable
+private fun GliderMark(modifier: Modifier = Modifier) {
+    Canvas(modifier.size(23.dp).clearAndSetSemantics {}) {
+        drawCircle(Color.White)
+        drawCircle(Palette.accentOnMap, radius = 9.dp.toPx())
     }
 }
 

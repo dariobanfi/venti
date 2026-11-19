@@ -117,4 +117,44 @@ final class SitesModelTests: XCTestCase {
         XCTAssertEqual(sites.problem, "The server is busy or being restarted. Try again in a moment.")
         XCTAssertTrue(sites.sites.isEmpty)
     }
+
+    func testAStationNearASiteIsDescribedFromTheSite() {
+        let reading = WindReading(timeUnixS: 1_000, speedMs: 4, gustMs: nil, directionDeg: 280, temperatureC: nil)
+        let summit = WindStation(
+            id: "s", name: "Summit", source: "test", position: Coordinate(lat: 47.67, lon: 11.80),
+            elevationM: 1_700, latest: reading, ageMin: 10, isOld: false,
+            mark: WindMark(symbol: .calm, headingDeg: 0, label: "14")
+        )
+        let far = WindStation(
+            id: "f", name: "Far", source: "test", position: Coordinate(lat: 47.42, lon: 10.98),
+            elevationM: 2_956, latest: reading, ageMin: 10, isOld: false,
+            mark: WindMark(symbol: .calm, headingDeg: 0, label: "14")
+        )
+        let site = Coordinate(lat: 47.66, lon: 11.80)
+        let westToNorthWest = [WindSpan(fromDeg: 270, toDeg: 315)]
+
+        // Only the station within reach, with whether its west wind fits.
+        let near = stationsNear(
+            stations: [far, summit], place: site, elevationM: 1_600, wind: westToNorthWest,
+            withinM: SiteScreen.stationsWithinM, atMost: 3
+        )
+        XCTAssertEqual(near.map(\.station.name), ["Summit"])
+        XCTAssertEqual(StationNearbyRow.whereabouts(near[0]), "1.1 km N · 100 m higher")
+        XCTAssertEqual(StationNearbyRow.fitWords(near[0]), "From W: a direction the site works in")
+
+        // A site that works in the east: the same wind does not fit. A
+        // site without directions is not judged.
+        let east = stationsNear(
+            stations: [summit], place: site, elevationM: nil, wind: [WindSpan(fromDeg: 90, toDeg: 90)],
+            withinM: SiteScreen.stationsWithinM, atMost: 3
+        )
+        XCTAssertEqual(StationNearbyRow.fitWords(east[0]), "From W: not a direction the site works in")
+        XCTAssertEqual(StationNearbyRow.whereabouts(east[0]), "1.1 km N")
+        let unjudged = stationsNear(
+            stations: [summit], place: site, elevationM: nil, wind: [],
+            withinM: SiteScreen.stationsWithinM, atMost: 3
+        )
+        XCTAssertNil(StationNearbyRow.fitWords(unjudged[0]))
+        XCTAssertEqual(StationNearbyRow.ageWords(summit, now: 1_000 + 25 * 60), "25 minutes ago")
+    }
 }

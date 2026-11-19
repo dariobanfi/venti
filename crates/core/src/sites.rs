@@ -12,11 +12,12 @@
 //! says and nothing more.
 
 use venti_api_types::v1::{SitesRequest, SitesResponse};
-use venti_domain::{BoundingBox, Site, SiteUse, WindSector};
+use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse, WindSector};
+use venti_flight::live::navigation::bearing_deg;
 
 use crate::server::answer;
 use crate::wind::credit;
-use crate::{Coordinate, CoreError, Credit};
+use crate::{Coordinate, CoreError, Credit, WindStation};
 
 /// What a site is used for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
@@ -47,6 +48,101 @@ pub struct WindSpan {
     /// Where it ends, going clockwise. Equal to `from_deg` for a single
     /// direction.
     pub to_deg: f64,
+}
+
+/// How far to either side of a direction a site names the wind may come
+/// from and still count as from that direction, degrees: half of one of
+/// the sixteen points of the compass that sites are described with. A
+/// site said to work in "W" works in what a pilot calls west wind.
+const DIRECTION_TOLERANCE_DEG: f64 = 11.25;
+
+/// Whether a wind comes from a direction a site works in, by the spans
+/// the site's source gives. It says nothing about the wind's strength, the
+/// gusts or the day: a direction that fits is no word that the site can be
+/// flown. `None` when the site gives no directions.
+#[uniffi::export]
+pub fn wind_fits(spans: Vec<WindSpan>, from_deg: f64) -> Option<bool> {
+    if spans.is_empty() || !from_deg.is_finite() {
+        return None;
+    }
+    Some(spans.iter().any(|span| {
+        // How far the span reaches clockwise from its start, and how far
+        // clockwise from that start the wind is; both widened by the
+        // tolerance at either end.
+        let width = (span.to_deg - span.from_deg).rem_euclid(360.0) + 2.0 * DIRECTION_TOLERANCE_DEG;
+        let into = (from_deg - span.from_deg + DIRECTION_TOLERANCE_DEG).rem_euclid(360.0);
+        width >= 360.0 || into <= width
+    }))
+}
+
+/// A wind station near a place.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct StationNearby {
+    /// The station.
+    pub station: WindStation,
+    /// How far it is from the place, metres.
+    pub distance_m: f64,
+    /// The direction from the place to the station, degrees clockwise
+    /// from north.
+    pub bearing_deg: f64,
+    /// How much higher than the place the station stands, metres;
+    /// negative when lower. Absent when either height is not known.
+    pub higher_by_m: Option<f64>,
+    /// Whether its newest wind comes from a direction the place works
+    /// in. Absent when the place gives no directions, or the station has
+    /// no direction that is fresh enough to stand for the wind now.
+    pub fits: Option<bool>,
+}
+
+/// The wind stations nearest to a place, the nearest first: for a flying
+/// site, the wind measured around it. `wind` is the directions the place
+/// works in, if it is a site that gives them.
+///
+/// A station near a site is not the site: it may stand on a summit, in
+/// the valley or behind a ridge, and its wind is its own.
+#[uniffi::export]
+pub fn stations_near(
+    stations: Vec<WindStation>,
+    place: Coordinate,
+    elevation_m: Option<f64>,
+    wind: Vec<WindSpan>,
+    within_m: f64,
+    at_most: u32,
+) -> Vec<StationNearby> {
+    let Ok(here) = GeoPoint::new(place.lat, place.lon) else {
+        return Vec::new();
+    };
+    let mut near: Vec<StationNearby> = stations
+        .into_iter()
+        .filter_map(|station| {
+            let there = GeoPoint::new(station.position.lat, station.position.lon).ok()?;
+            let distance_m = here.distance_m(there);
+            if distance_m > within_m {
+                return None;
+            }
+            let fits = station
+                .latest
+                .as_ref()
+                .filter(|_| !station.is_old)
+                .and_then(|reading| reading.direction_deg)
+                .and_then(|from_deg| wind_fits(wind.clone(), from_deg));
+            Some(StationNearby {
+                distance_m,
+                bearing_deg: bearing_deg(here, there),
+                higher_by_m: station
+                    .elevation_m
+                    .zip(elevation_m)
+                    .map(|(station, place)| station - place),
+                fits,
+                station,
+            })
+        })
+        .collect();
+    near.sort_by(|a, b| a.distance_m.total_cmp(&b.distance_m));
+    near.truncate(at_most as usize);
+    near
 }
 
 /// One flying site as a map and a sheet show it.
@@ -352,6 +448,139 @@ mod tests {
         // not the whole truth about the box.
         let wider = sites_map(45.0, 9.0, 49.0, 18.0, 200, recorded()).unwrap();
         assert!(!wider.is_whole);
+    }
+
+    #[test]
+    fn a_wind_fits_a_site_within_its_spans_and_a_little_to_either_side() {
+        let span = |from_deg: f64, to_deg: f64| WindSpan { from_deg, to_deg };
+        // West to north-west.
+        let site = vec![span(270.0, 315.0)];
+        for (from, fits) in [
+            (290.0, true),
+            (270.0, true),
+            // Eight degrees south of west is still west wind.
+            (262.0, true),
+            (255.0, false),
+            (326.0, true),
+            (330.0, false),
+            (90.0, false),
+        ] {
+            assert_eq!(wind_fits(site.clone(), from), Some(fits), "{from}");
+        }
+        // A span across north.
+        let north = vec![span(337.5, 22.5)];
+        for (from, fits) in [
+            (0.0, true),
+            (350.0, true),
+            (30.0, true),
+            (40.0, false),
+            (180.0, false),
+            (320.0, false),
+        ] {
+            assert_eq!(wind_fits(north.clone(), from), Some(fits), "{from}");
+        }
+        // A single direction is that point of the compass.
+        let south = vec![span(180.0, 180.0)];
+        assert_eq!(wind_fits(south.clone(), 172.0), Some(true));
+        assert_eq!(wind_fits(south.clone(), 195.0), Some(false));
+        // Any of several spans will do.
+        let two = vec![span(180.0, 180.0), span(270.0, 315.0)];
+        assert_eq!(wind_fits(two.clone(), 300.0), Some(true));
+        assert_eq!(wind_fits(two, 225.0), Some(false));
+        // All the way round.
+        assert_eq!(wind_fits(vec![span(0.0, 359.0)], 359.5), Some(true));
+        // A site that names no direction is not said to fit or not.
+        assert_eq!(wind_fits(Vec::new(), 270.0), None);
+        assert_eq!(wind_fits(south, f64::NAN), None);
+    }
+
+    #[test]
+    fn the_stations_near_a_place_come_nearest_first_with_whether_their_wind_fits() {
+        use crate::{WindMark, WindReading, WindSymbol};
+        let station = |name: &str,
+                       lat: f64,
+                       lon: f64,
+                       elevation_m: Option<f64>,
+                       from: Option<f64>,
+                       is_old: bool| {
+            WindStation {
+                id: name.to_owned(),
+                name: name.to_owned(),
+                source: "test".to_owned(),
+                position: Coordinate { lat, lon },
+                elevation_m,
+                latest: Some(WindReading {
+                    time_unix_s: 0,
+                    speed_ms: Some(4.0),
+                    gust_ms: None,
+                    direction_deg: from,
+                    temperature_c: None,
+                }),
+                age_min: Some(10),
+                is_old,
+                mark: WindMark {
+                    symbol: WindSymbol::Calm,
+                    heading_deg: 0.0,
+                    label: String::new(),
+                },
+            }
+        };
+        let site = Coordinate {
+            lat: 47.66,
+            lon: 11.80,
+        };
+        let stations = vec![
+            station("far", 47.42, 10.98, Some(2956.0), Some(280.0), false),
+            station("summit", 47.67, 11.80, Some(1700.0), Some(280.0), false),
+            station("valley", 47.70, 11.76, None, Some(90.0), false),
+            station("stale", 47.66, 11.82, Some(800.0), Some(280.0), true),
+            station("still", 47.68, 11.83, Some(750.0), None, false),
+        ];
+        let works_in = vec![WindSpan {
+            from_deg: 270.0,
+            to_deg: 315.0,
+        }];
+        let near = stations_near(stations.clone(), site, Some(1600.0), works_in, 15_000.0, 3);
+        let names: Vec<&str> = near.iter().map(|near| near.station.name.as_str()).collect();
+        // The summit a kilometre north, the stale one a kilometre and a
+        // half east, then the one without a direction; the valley is
+        // fourth and the far one beyond reach.
+        assert_eq!(names, ["summit", "stale", "still"]);
+        assert!(
+            (near[0].distance_m - 1_112.0).abs() < 5.0,
+            "{}",
+            near[0].distance_m
+        );
+        assert!(near[0].bearing_deg.abs() < 0.5);
+        assert_eq!(near[0].higher_by_m, Some(100.0));
+        assert_eq!(near[0].fits, Some(true));
+        // An old reading and a reading without a direction say nothing.
+        assert_eq!(near[1].fits, None);
+        assert_eq!(near[2].fits, None);
+        assert_eq!(near[1].higher_by_m, Some(-800.0));
+
+        // East wind in the valley does not fit; a place without
+        // directions is not judged at all.
+        let all = stations_near(
+            stations.clone(),
+            site,
+            None,
+            vec![WindSpan {
+                from_deg: 270.0,
+                to_deg: 315.0,
+            }],
+            15_000.0,
+            10,
+        );
+        assert_eq!(all.len(), 4);
+        let valley = all
+            .iter()
+            .find(|near| near.station.name == "valley")
+            .unwrap();
+        assert_eq!(valley.fits, Some(false));
+        assert_eq!(valley.higher_by_m, None);
+        let unjudged = stations_near(stations, site, None, Vec::new(), 15_000.0, 10);
+        assert!(unjudged.iter().all(|near| near.fits.is_none()));
     }
 
     #[test]

@@ -408,6 +408,26 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("wind-4-assistant")
     }
 
+    /// A long press on the map shows the server's forecast for the place
+    /// under the finger. Skipped without a server.
+    func testALongPressOnTheMapShowsTheForecastThere() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        sleep(3)
+        // The map opens on the northern Alps; the left of its upper half
+        // lies inside the server's first region.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.4)).press(forDuration: 1.3)
+        XCTAssertTrue(element("forecast-table", in: app).waitForExistence(timeout: 40))
+        XCTAssertTrue(labelled(containing: "hPa", in: app).exists)
+        sleep(1)
+        keepScreenshot("map-forecast")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 10))
+    }
+
     /// A task: the Fly tab says which one the cockpit will fly, its page
     /// shows it and hands it on as a QR code, and in a replay of the
     /// sample flight the cockpit counts down to the start, takes it and

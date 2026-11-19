@@ -24,6 +24,9 @@ struct OverviewMap: UIViewRepresentable {
     let onStation: (String) -> Void
     /// Called with a site's identifier when the pilot taps its sign.
     var onSite: (String) -> Void = { _ in }
+    /// Called with the place under the finger after a long press on the
+    /// map.
+    var onPlace: (Coordinate) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -42,6 +45,11 @@ struct OverviewMap: UIViewRepresentable {
             tap.require(toFail: recognizer)
         }
         map.addGestureRecognizer(tap)
+        // A long press asks about the place under the finger.
+        let press = UILongPressGestureRecognizer(
+            target: context.coordinator, action: #selector(Coordinator.pressed(_:))
+        )
+        map.addGestureRecognizer(press)
         return map
     }
 
@@ -58,6 +66,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onRegion = onRegion
         coordinator.onStation = onStation
         coordinator.onSite = onSite
+        coordinator.onPlace = onPlace
         coordinator.show(sites, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
@@ -73,6 +82,7 @@ struct OverviewMap: UIViewRepresentable {
         var onRegion: (Bounds) -> Void = { _ in }
         var onStation: (String) -> Void = { _ in }
         var onSite: (String) -> Void = { _ in }
+        var onPlace: (Coordinate) -> Void = { _ in }
 
         private var outlines: [[Coordinate]] = []
         private var drawnOutlines: [[Coordinate]]?
@@ -150,6 +160,15 @@ struct OverviewMap: UIViewRepresentable {
                     ? "Venti is not allowed to use your position. You can allow it in Settings, under Privacy & Security, Location Services."
                     : "Your position could not be found. Try again under open sky."
             )
+        }
+
+        /// A long press hands over the place under the finger, once, as
+        /// soon as the press is long enough.
+        @objc func pressed(_ recognizer: UILongPressGestureRecognizer) {
+            guard recognizer.state == .began, let map = recognizer.view as? MLNMapView else { return }
+            let place = map.convert(recognizer.location(in: map), toCoordinateFrom: map)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onPlace(Coordinate(lat: place.latitude, lon: place.longitude))
         }
 
         /// A tap on a station's arrow opens the station. A finger is wider

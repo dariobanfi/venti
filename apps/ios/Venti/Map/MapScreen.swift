@@ -3,7 +3,7 @@ import VentiCore
 
 /// The map tab: terrain, live wind from the stations of the pilot's Venti
 /// server, the flying sites it knows, the pilot's airspace and the pilot's
-/// own flights. Forecasts arrive later.
+/// own flights. A long press shows the forecast for the place pressed.
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
@@ -16,6 +16,8 @@ struct MapScreen: View {
     @State private var showsStations = false
     @State private var chosenSite: ChosenSite?
     @State private var showsSites = false
+    /// A place the pilot pressed on, to show its forecast.
+    @State private var pressed: ChosenPlace?
     /// The part of the map in view, as the map last reported it.
     @State private var region: Bounds?
 
@@ -51,6 +53,13 @@ struct MapScreen: View {
                 onSite: { id in
                     if let site = sites.sites.first(where: { $0.id == id }) {
                         chosenSite = ChosenSite(site: site)
+                    }
+                },
+                // A long press: the forecast for the place under the
+                // finger, where there is a server to ask.
+                onPlace: { place in
+                    if wind.server != nil {
+                        pressed = ChosenPlace(place: place)
                     }
                 }
             )
@@ -103,6 +112,18 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showsSites) {
             SiteList()
+        }
+        .sheet(item: $pressed) { chosen in
+            NavigationStack {
+                ForecastScreen(place: chosen.place, title: Format.place(lat: chosen.place.lat, lon: chosen.place.lon))
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                pressed = nil
+                            }
+                        }
+                    }
+            }
         }
         .alert(
             "Position unavailable",
@@ -219,6 +240,12 @@ struct MapScreen: View {
 struct ChosenSite: Identifiable {
     let site: SiteView
     var id: String { site.id }
+}
+
+/// A place pressed on the map, for a sheet.
+struct ChosenPlace: Identifiable {
+    let place: Coordinate
+    var id: String { "\(place.lat),\(place.lon)" }
 }
 
 struct ChosenStation: Identifiable {

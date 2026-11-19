@@ -180,6 +180,10 @@ struct SiteScreen: View {
 
     @State private var kept: String?
 
+    /// How far from a site a wind station still says something about it,
+    /// metres.
+    static let stationsWithinM = 15_000.0
+
     /// What a site on the map is worth, said wherever sites are listed.
     static let caution = "A site on the map is not permission to fly there. Ask the club or the owner, and look at the place."
 
@@ -214,6 +218,29 @@ struct SiteScreen: View {
                     if site.paragliding == false {
                         Label("Marked as not for paragliders", systemImage: "nosign")
                     }
+                }
+            }
+            // The wind measured around the site now, from the stations the
+            // map already has, and for each whether it comes from a
+            // direction the site works in.
+            let near = stationsNear(
+                stations: wind.stations, place: site.position, elevationM: site.elevationM, wind: site.wind,
+                withinM: Self.stationsWithinM, atMost: 3
+            )
+            if !near.isEmpty {
+                Section {
+                    ForEach(near, id: \.station.id) { station in
+                        NavigationLink {
+                            StationScreen(station: station.station)
+                        } label: {
+                            StationNearbyRow(near: station, now: wind.now)
+                        }
+                        .accessibilityIdentifier("site-station")
+                    }
+                } header: {
+                    Text("Wind measured nearby")
+                } footer: {
+                    Text("A station near a site is not the site: it may stand on a summit, in the valley or behind a ridge. A direction that fits says nothing about the wind's strength or its gusts.")
                 }
             }
             if wind.server != nil {
@@ -257,6 +284,71 @@ struct SiteScreen: View {
         let credit = sites.credits.first { $0.source == site.source }
         let parts = [Self.caution, credit?.notice, credit?.text]
         return parts.compactMap { $0 }.joined(separator: "\n\n")
+    }
+}
+
+/// A wind station near a site: its wind as the map draws it, how far and
+/// which way it stands from the site and how much higher or lower, and
+/// whether its wind comes from a direction the site works in.
+struct StationNearbyRow: View {
+    let near: StationNearby
+    /// The current time by the server's clock.
+    let now: Int64
+
+    var body: some View {
+        let mark = near.station.mark
+        HStack(spacing: 12) {
+            WindGlyph(mark: mark)
+                .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(near.station.name)
+                    .lineLimit(1)
+                Text(Self.whereabouts(near))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let words = Self.fitWords(near) {
+                    Text(words)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if !mark.label.isEmpty {
+                Text("\(Text(mark.label).font(.system(.body, design: .rounded, weight: .semibold)))\(Text(" km/h").font(.footnote).foregroundStyle(.secondary))")
+                    .monospacedDigit()
+            } else {
+                Text(Self.ageWords(near.station, now: now))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "2.1 km NE · 300 m higher"
+    static func whereabouts(_ near: StationNearby) -> String {
+        var text = "\(Format.kilometres(metres: near.distanceM)) km \(Format.compassPoint(degrees: near.bearingDeg))"
+        if let higher = near.higherByM, abs(higher) >= 50 {
+            let rounded = (abs(higher) / 10).rounded() * 10
+            text += " · \(Format.metres(rounded)) m \(higher > 0 ? "higher" : "lower")"
+        }
+        return text
+    }
+
+    /// Whether the station's wind comes from a direction the site works
+    /// in, with the direction; `nil` when that cannot be said.
+    static func fitWords(_ near: StationNearby) -> String? {
+        guard let fits = near.fits, let from = near.station.latest?.directionDeg else { return nil }
+        let point = Format.compassPoint(degrees: from)
+        return fits
+            ? "From \(point): a direction the site works in"
+            : "From \(point): not a direction the site works in"
+    }
+
+    /// What stands in place of a wind that is not current.
+    static func ageWords(_ station: WindStation, now: Int64) -> String {
+        guard let reading = station.latest else { return "no reading" }
+        return Format.age(minutes: Format.minutes(from: reading.timeUnixS, to: now))
     }
 }
 

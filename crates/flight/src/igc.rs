@@ -134,20 +134,34 @@ pub fn parse(text: &str) -> Result<IgcFile, IgcError> {
 
     // B lines carry only a time of day. A flight that passes midnight UTC shows
     // as the time jumping back by most of a day, and continues on the next date.
-    let mut fixes = Vec::with_capacity(raw_fixes.len());
+    //
+    // Everything that works with a track counts on its times going forward.
+    // A fix that is not later than the one before it is left out and
+    // counted: recorders write the same second twice, and a faulty one
+    // writes a time from nowhere. One such fix must not be taken for
+    // midnight, so a jump back only counts as midnight if the fix after it
+    // stays on the far side.
+    let mut fixes: Vec<Fix> = Vec::with_capacity(raw_fixes.len());
     let mut day = date;
-    let mut previous: Option<NaiveTime> = None;
-    for raw in raw_fixes {
-        if let Some(previous) = previous {
-            let back_by = previous.num_seconds_from_midnight() as i64
-                - raw.time.num_seconds_from_midnight() as i64;
-            if back_by > 12 * 3600 {
+    for (index, raw) in raw_fixes.iter().enumerate() {
+        let seconds = |time: NaiveTime| i64::from(time.num_seconds_from_midnight());
+        if let Some(previous) = fixes.last() {
+            let before = seconds(previous.time.time());
+            let passed_midnight = before - seconds(raw.time) > 12 * 3600
+                && raw_fixes
+                    .get(index + 1)
+                    .is_some_and(|next| seconds(next.time) < before);
+            if passed_midnight {
                 day += Duration::days(1);
             }
         }
-        previous = Some(raw.time);
+        let time = day.and_time(raw.time).and_utc();
+        if fixes.last().is_some_and(|previous| time <= previous.time) {
+            skipped_lines += 1;
+            continue;
+        }
         fixes.push(Fix {
-            time: day.and_time(raw.time).and_utc(),
+            time,
             position: raw.position,
             gps_altitude_m: raw.gps_altitude_m,
             pressure_altitude_m: raw.pressure_altitude_m,
@@ -379,11 +393,39 @@ mod tests {
         let file = parse(&file_with(&[
             "B2359504740000N01145000EA0150001520",
             "B0000104740000N01145000EA0150001520",
+            "B0000204740000N01145000EA0150001520",
         ]))
         .unwrap();
         assert_eq!(file.fixes[0].time.day(), 18);
         assert_eq!(file.fixes[1].time.day(), 19);
         assert_eq!((file.fixes[1].time - file.fixes[0].time).num_seconds(), 20);
+        assert_eq!(file.fixes.len(), 3);
+    }
+
+    #[test]
+    fn times_only_go_forward() {
+        let file = parse(&file_with(&[
+            "B1400004740000N01145000EA0150001520",
+            // The same second again, as recorders faster than one fix a
+            // second write it, and a time that goes back.
+            "B1400004740001N01145000EA0150001520",
+            "B1359504740002N01145000EA0150001520",
+            "B1400104740003N01145000EA0150001520",
+            // A time from nowhere is not midnight: the flight goes on the
+            // same afternoon.
+            "B0000004740004N01145000EA0150001520",
+            "B1400204740005N01145000EA0150001520",
+        ]))
+        .unwrap();
+
+        let seconds: Vec<i64> = file
+            .fixes
+            .iter()
+            .map(|fix| (fix.time - file.fixes[0].time).num_seconds())
+            .collect();
+        assert_eq!(seconds, [0, 10, 20]);
+        assert_eq!(file.skipped_lines, 3);
+        assert!(file.fixes.iter().all(|fix| fix.time.day() == 18));
     }
 
     #[test]

@@ -245,14 +245,52 @@ pub fn corners(fixes: &[Fix], max_points: usize) -> Vec<usize> {
     }
 }
 
+/// How many times the simplification may look at a point, on average,
+/// before it gives up on a track as it is. An ordinary track needs about
+/// one look per point for each halving, so a day's flight at one fix a
+/// second stays under twenty.
+const LOOKS_PER_POINT: usize = 64;
+
+/// How many points are left of a track that had to be thinned first.
+const THINNED_POINTS: usize = 2000;
+
 /// The indices of the points Ramer-Douglas-Peucker keeps, in order.
+///
+/// The method is quick on a track that a glider flew and slow on one that
+/// zigzags at every fix, where each split takes off a single point and the
+/// work grows with the square of the length: a file made that way must not
+/// stall an import, on a phone or on the server. Such a track is thinned
+/// to every n-th fix first, which bounds the work. Tracks that were flown
+/// never get there, and their result is exactly the method's.
 fn simplify(points: &[(f64, f64)], tolerance: f64) -> Vec<usize> {
+    let mut looks = points.len().saturating_mul(LOOKS_PER_POINT);
+    if let Some(kept) = simplify_within(points, tolerance, &mut looks) {
+        return kept;
+    }
+    let step = points.len().div_ceil(THINNED_POINTS).max(1);
+    let mut picked: Vec<usize> = (0..points.len()).step_by(step).collect();
+    if picked.last() != Some(&(points.len() - 1)) {
+        picked.push(points.len() - 1);
+    }
+    let thinned: Vec<(f64, f64)> = picked.iter().map(|&index| points[index]).collect();
+    let mut looks = usize::MAX;
+    simplify_within(&thinned, tolerance, &mut looks)
+        .unwrap_or_else(|| (0..thinned.len()).collect())
+        .into_iter()
+        .map(|index| picked[index])
+        .collect()
+}
+
+/// Ramer-Douglas-Peucker with a limit on its work: `None` once it has
+/// looked at more points than `looks` allows.
+fn simplify_within(points: &[(f64, f64)], tolerance: f64, looks: &mut usize) -> Option<Vec<usize>> {
     let mut keep = vec![false; points.len()];
     keep[0] = true;
     keep[points.len() - 1] = true;
 
     let mut pending = vec![(0, points.len() - 1)];
     while let Some((start, end)) = pending.pop() {
+        *looks = looks.checked_sub(end - start)?;
         let mut farthest = (0.0, start);
         for index in start + 1..end {
             let distance = distance_to_segment(points[index], points[start], points[end]);
@@ -267,7 +305,7 @@ fn simplify(points: &[(f64, f64)], tolerance: f64) -> Vec<usize> {
         }
     }
 
-    (0..points.len()).filter(|&index| keep[index]).collect()
+    Some((0..points.len()).filter(|&index| keep[index]).collect())
 }
 
 fn distance_to_segment(point: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
@@ -287,6 +325,65 @@ mod tests {
 
     use super::*;
     use crate::testing::synthetic_flight;
+
+    /// A track made to be slow to simplify: it jumps a kilometre east and
+    /// back at every fix while creeping north, so every fix is a corner.
+    fn zigzag(fixes: usize) -> Vec<Fix> {
+        let start = Utc.with_ymd_and_hms(2026, 7, 1, 10, 0, 0).unwrap();
+        (0..fixes)
+            .map(|index| Fix {
+                time: start + Duration::seconds(index as i64),
+                position: GeoPoint::new(
+                    47.0 + index as f64 * 0.000_01,
+                    11.0 + if index % 2 == 0 { 0.0 } else { 0.013 },
+                )
+                .unwrap(),
+                gps_altitude_m: 1500,
+                pressure_altitude_m: 1500,
+                valid: true,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_track_made_to_be_slow_is_still_simplified_quickly() {
+        // Twenty thousand such fixes took minutes before the work was
+        // bounded. The limit here is loose enough for a busy machine and
+        // far below that.
+        let fixes = zigzag(20_000);
+        let began = std::time::Instant::now();
+
+        let corners = corners(&fixes, 400);
+        let outline = outline(&fixes, 200);
+
+        assert!(began.elapsed().as_secs() < 20, "{:?}", began.elapsed());
+        assert!(corners.len() <= 400 && corners.len() >= 2);
+        assert_eq!((corners[0], *corners.last().unwrap()), (0, fixes.len() - 1));
+        assert!(corners.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(outline.len() <= 200 && outline.len() >= 2);
+        assert_eq!(outline[0], fixes[0].position);
+        assert_eq!(*outline.last().unwrap(), fixes.last().unwrap().position);
+    }
+
+    #[test]
+    fn a_flown_track_is_simplified_exactly_as_before_the_work_was_bounded() {
+        // The bound is far from what a flown track needs: the method runs
+        // to its end, with looks to spare.
+        let fixes = synthetic_flight().fixes;
+        let flat: Vec<(f64, f64)> = fixes
+            .iter()
+            .map(|fix| {
+                (
+                    fix.position.lon() * 75_000.0,
+                    fix.position.lat() * 111_000.0,
+                )
+            })
+            .collect();
+        let mut looks = flat.len() * LOOKS_PER_POINT;
+        let kept = simplify_within(&flat, 20.0, &mut looks).expect("well within the bound");
+        assert_eq!(kept, simplify(&flat, 20.0));
+        assert!(looks > flat.len() * LOOKS_PER_POINT / 2, "{looks}");
+    }
 
     /// One fix a second, moving north at about 10 m/s, with the given altitudes.
     fn track(altitudes: impl IntoIterator<Item = i32>) -> Vec<Fix> {

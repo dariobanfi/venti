@@ -291,11 +291,20 @@ mod tests {
 
     #[test]
     fn a_file_with_too_many_fixes_is_refused_before_it_is_analysed() {
+        // One fix a second from midnight on, for a day and some hours: the
+        // reader keeps only fixes whose time moves forward, so the lines
+        // must differ.
         let mut text = String::from("AXVE000\r\nHFDTE040726\r\n");
-        let line = "B1030004739852N01147802EA0075000786\r\n";
-        text.reserve(line.len() * (MAX_FIXES + 1));
-        for _ in 0..=MAX_FIXES {
-            text.push_str(line);
+        let line_length = "B0000004739852N01147802EA0075000786\r\n".len();
+        text.reserve(line_length * (MAX_FIXES + 1));
+        for second in 0..=MAX_FIXES {
+            let of_day = second % 86_400;
+            text.push_str(&format!(
+                "B{:02}{:02}{:02}4739852N01147802EA0075000786\r\n",
+                of_day / 3600,
+                of_day / 60 % 60,
+                of_day % 60
+            ));
         }
         let began = std::time::Instant::now();
 
@@ -303,7 +312,7 @@ mod tests {
 
         assert!(began.elapsed() < std::time::Duration::from_secs(5));
         // One fewer is a file like any other.
-        let within = &text[..text.len() - line.len()];
+        let within = &text[..text.len() - line_length];
         assert!(derive(within.as_bytes()).is_ok());
     }
 
@@ -343,18 +352,19 @@ mod tests {
         }
         assert_ne!(jumped, text);
 
-        // The flight engine takes the file as it is: the recording now ends
-        // ten hours before it began. Whatever it makes of that, an answer
-        // or a panic, must be over quickly; the server analyses uploads in
-        // a child process, so a panic would cost that child and nothing
-        // else. Today it answers, and the server keeps the nonsense within
-        // bounds a client can rely on.
+        // The flight engine keeps only fixes whose time moves forward, so
+        // the half stamped earlier is left out and what remains is the
+        // first half of the flight. Whatever it makes of such a file, an
+        // answer or a panic, must be over quickly; the server analyses
+        // uploads in a child process, so a panic would cost that child and
+        // nothing else.
         let began = std::time::Instant::now();
         let outcome = std::panic::catch_unwind(|| derive(jumped.as_bytes()));
         assert!(began.elapsed() < std::time::Duration::from_secs(20));
         if let Ok(Ok(derivation)) = outcome {
             assert_ne!(derivation.identity, "6c55247b80a34b03fa0bb3bd38173c59");
-            assert_eq!(derivation.derived.airtime_s, 0, "never negative");
+            assert!(derivation.derived.airtime_s >= 0, "never negative");
+            assert!(derivation.derived.airtime_s < 1744, "half a flight at most");
         }
     }
 

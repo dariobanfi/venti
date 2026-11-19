@@ -39,7 +39,7 @@ Gradle builds the Rust core itself. Three tasks in `app/build.gradle.kts` do it,
 | Task | What it does |
 |---|---|
 | `coreForAndroid` | `cargo ndk` builds `libventi_core.so` for each ABI in `venti.abis` (`gradle.properties`): `arm64-v8a` and `x86_64`. |
-| `coreBindings` | Builds the core for the build machine and runs `tools/uniffi-bindgen` on that library to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
+| `coreBindings` | Builds the core for the build machine and runs UniFFI's generator (the `uniffi-bindgen` program in `tools/uniffi-bindgen-swift`) on that library to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
 | `sharedAssets` | Gathers the sample flight, the map style and the bundled map region from where the repository keeps them. |
 
 Nothing these produce is committed: no generated Kotlin, no compiled core, no second copy of a shared file.

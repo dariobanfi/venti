@@ -115,7 +115,7 @@ val coreSources: FileCollection = files(
     repositoryRoot.file("Cargo.lock"),
     repositoryRoot.file("rust-toolchain.toml"),
     fileTree(repositoryRoot.dir("crates")) { include("core/**", "flight/**", "sensors/**", "domain/**") },
-    fileTree(repositoryRoot.dir("tools/uniffi-bindgen")),
+    fileTree(repositoryRoot.dir("tools/uniffi-bindgen-swift")),
 )
 
 /** Builds `libventi_core.so` for each Android ABI with cargo-ndk. */
@@ -188,7 +188,8 @@ abstract class CoreBindings : DefaultTask() {
         exec.exec {
             workingDir = root
             commandLine(
-                "cargo", "run", "--locked", "-p", "uniffi-bindgen", "--target-dir", target.path, "--",
+                "cargo", "run", "--locked", "-p", "uniffi-bindgen-swift", "--bin", "uniffi-bindgen",
+                "--target-dir", target.path, "--",
                 "generate", "--language", "kotlin", "--no-format",
                 "--config", config.get().asFile.path,
                 "--out-dir", kotlin.get().asFile.path,

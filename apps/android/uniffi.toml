@@ -1,5 +1,6 @@
 # How the Kotlin interface of the Rust core is generated. The Gradle task
-# `coreBindings` passes this file to tools/uniffi-bindgen.
+# `coreBindings` passes this file to the `uniffi-bindgen` program in
+# tools/uniffi-bindgen-swift.
 
 [defaults.bindings.kotlin]
 package_name = "fly.venti.core"

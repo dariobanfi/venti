@@ -1,6 +1,9 @@
 [package]
 name = "uniffi-bindgen-swift"
-description = "Generates the Swift bindings for venti-core. Build tool, not part of the app."
+description = "Generates the Swift and Kotlin bindings for venti-core. Build tool, not part of the apps."
+# The package holds two programs. `cargo run -p uniffi-bindgen-swift` without
+# a name is the Swift one, as it was when it was the only one.
+default-run = "uniffi-bindgen-swift"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

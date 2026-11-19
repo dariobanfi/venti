@@ -2,26 +2,16 @@ import SwiftUI
 import UIKit
 import VentiCore
 
-/// How strong the wind is, in four bands of its mean speed.
+/// How the core's four bands of wind strength are drawn.
 ///
 /// One hue from light to dark: strength is shown as a magnitude, not as a
 /// verdict. Whether 25 km/h is too much depends on the pilot, the wing and
 /// the place, and the app does not decide that from one number. The steps
-/// were checked to be told apart by colour-blind pilots.
-enum WindBand: Int, CaseIterable, Sendable {
-    case light
-    case moderate
-    case fresh
-    case strong
-
-    init(metresPerSecond speed: Double) {
-        switch speed * 3.6 {
-        case ..<10: self = .light
-        case ..<20: self = .moderate
-        case ..<30: self = .fresh
-        default: self = .strong
-        }
-    }
+/// were checked to be told apart by colour-blind pilots. Which speed falls
+/// in which band, and how a station is marked, is the core's decision.
+extension WindBand {
+    /// Every band, the weakest first.
+    static var all: [WindBand] { [.light, .moderate, .fresh, .strong] }
 
     var uiColor: UIColor {
         switch self {
@@ -34,16 +24,6 @@ enum WindBand: Int, CaseIterable, Sendable {
 
     var color: Color { Color(uiColor: uiColor) }
 
-    /// The band in words, for the legend.
-    var label: String {
-        switch self {
-        case .light: "Below 10 km/h"
-        case .moderate: "10 to 20 km/h"
-        case .fresh: "20 to 30 km/h"
-        case .strong: "30 km/h and more"
-        }
-    }
-
     /// How large the band's arrow is drawn, relative to the smallest.
     var arrowScale: Double {
         switch self {
@@ -53,54 +33,15 @@ enum WindBand: Int, CaseIterable, Sendable {
         case .strong: 1.3
         }
     }
-}
 
-/// How one station is drawn on the map and read in a list.
-struct WindMark: Equatable {
-    enum Symbol: Equatable {
-        /// An arrow in the band's colour, pointing where the wind blows.
-        case arrow(WindBand)
-        /// Wind too weak to have a direction worth drawing.
-        case calm
-        /// A reading too old to stand for the wind now, or none at all.
-        case old
-    }
-
-    let symbol: Symbol
-    /// Where the arrow points, in degrees clockwise from north: the
-    /// direction the wind blows towards.
-    let heading: Double
-    /// Mean wind and gusts in km/h, "12/25", or just "12" without gusts.
-    /// Empty for a station with nothing current to say.
-    let label: String
-
-    /// Below this the wind has no direction worth an arrow.
-    static let calmBelowMs = 0.5
-
-    init(_ station: WindStation) {
-        guard let reading = station.latest, !station.isOld, let speed = reading.speedMs else {
-            symbol = .old
-            heading = 0
-            label = ""
-            return
+    /// The band in the name of its picture.
+    fileprivate var name: String {
+        switch self {
+        case .light: "light"
+        case .moderate: "moderate"
+        case .fresh: "fresh"
+        case .strong: "strong"
         }
-        label = Self.speeds(mean: speed, gust: reading.gustMs)
-        if let from = reading.directionDeg, speed >= Self.calmBelowMs {
-            symbol = .arrow(WindBand(metresPerSecond: speed))
-            heading = (from + 180).truncatingRemainder(dividingBy: 360)
-        } else {
-            symbol = .calm
-            heading = 0
-        }
-    }
-
-    /// "12/25": mean wind and gusts in whole km/h. Gusts are left out when
-    /// they are not known or round to the same number.
-    static func speeds(mean: Double, gust: Double?) -> String {
-        let mean = Format.kilometresPerHour(metresPerSecond: mean)
-        guard let gust else { return mean }
-        let gusts = Format.kilometresPerHour(metresPerSecond: gust)
-        return gusts == mean ? mean : "\(mean)/\(gusts)"
     }
 }
 
@@ -109,9 +50,9 @@ struct WindMark: Equatable {
 enum WindSymbols {
     static let side: CGFloat = 30
 
-    static func name(of symbol: WindMark.Symbol) -> String {
+    static func name(of symbol: WindSymbol) -> String {
         switch symbol {
-        case .arrow(let band): "wind-arrow-\(band.rawValue)"
+        case .arrow(let band): "wind-arrow-\(band.name)"
         case .calm: "wind-calm"
         case .old: "wind-old"
         }
@@ -124,8 +65,8 @@ enum WindSymbols {
     }
 
     static var all: [Picture] {
-        var pictures = WindBand.allCases.map { band in
-            Picture(name: name(of: .arrow(band)), image: arrow(color: band.uiColor))
+        var pictures = WindBand.all.map { band in
+            Picture(name: name(of: .arrow(band: band)), image: arrow(color: band.uiColor))
         }
         pictures.append(Picture(name: name(of: .calm), image: dot(color: WindBand.light.uiColor)))
         pictures.append(Picture(name: name(of: .old), image: dot(color: UIColor(hex: 0xA9A8A2))))

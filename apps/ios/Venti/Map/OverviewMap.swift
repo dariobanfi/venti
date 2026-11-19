@@ -255,7 +255,7 @@ struct OverviewMap: UIViewRepresentable {
 
         /// One station as the map's symbol layer reads it.
         static func feature(for station: WindStation) -> MLNPointFeature {
-            let mark = WindMark(station)
+            let mark = station.mark
             var scale = 1.0
             // Lower ranks are placed first: strong wind before weak, and
             // stations with nothing current to say last.
@@ -271,7 +271,7 @@ struct OverviewMap: UIViewRepresentable {
             feature.attributes = [
                 "id": station.id,
                 "picture": WindSymbols.name(of: mark.symbol),
-                "heading": mark.heading,
+                "heading": mark.headingDeg,
                 "scale": scale,
                 "label": mark.label,
                 "rank": rank,

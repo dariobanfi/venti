@@ -35,7 +35,7 @@ struct FlightDetailsSheet: View {
                     } header: {
                         Text("Cross-country")
                     } footer: {
-                        Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm.formatted()) points per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
+                        Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm == 1 ? "1 point" : "\(score.pointsPerKm.formatted()) points") per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
                     }
                 }
                 if let analysis, analysis.takeoff != nil {

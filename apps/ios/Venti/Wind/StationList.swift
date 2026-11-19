@@ -68,7 +68,7 @@ struct StationRow: View {
     let now: Int64
 
     var body: some View {
-        let mark = WindMark(station)
+        let mark = station.mark
         HStack(spacing: 12) {
             WindGlyph(mark: mark)
                 .frame(width: 28, height: 28)
@@ -110,7 +110,7 @@ struct StationRow: View {
         guard let reading = station.latest, let speed = reading.speedMs, !station.isOld else {
             return "No current reading. \(detail)"
         }
-        var parts = ["Wind \(Format.kilometresPerHour(metresPerSecond: speed)) kilometres per hour"]
+        var parts = ["Wind \(Format.spokenKilometresPerHour(metresPerSecond: speed))"]
         if let gust = reading.gustMs {
             parts.append("gusts \(Format.kilometresPerHour(metresPerSecond: gust))")
         }
@@ -131,7 +131,7 @@ struct WindGlyph: View {
             Image(systemName: "location.north.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(band.color)
-                .rotationEffect(.degrees(mark.heading))
+                .rotationEffect(.degrees(mark.headingDeg))
         case .calm:
             Image(systemName: "circle.fill")
                 .font(.system(size: 9))

@@ -68,6 +68,13 @@ enum Format {
         (metresPerSecond * 3.6).formatted(.number.precision(.fractionLength(0)))
     }
 
+    /// A speed as VoiceOver says it: "1 kilometre per hour", "12 kilometres
+    /// per hour".
+    static func spokenKilometresPerHour(metresPerSecond: Double) -> String {
+        let whole = kilometresPerHour(metresPerSecond: metresPerSecond)
+        return whole == "1" ? "1 kilometre per hour" : "\(whole) kilometres per hour"
+    }
+
     /// A glide ratio with one decimal.
     static func glideRatio(_ ratio: Double) -> String {
         ratio.formatted(.number.precision(.fractionLength(1)))

@@ -23,6 +23,116 @@ use crate::{Coordinate, CoreError};
 /// beyond an hour a reading says little about the wind now.
 const OLD_AFTER_MIN: i64 = 60;
 
+/// Below this mean speed, in metres per second, the wind has no direction
+/// worth an arrow: a station reporting it is drawn as calm.
+const CALM_BELOW_MS: f64 = 0.5;
+
+/// How strong the wind is, in four bands of its mean speed.
+///
+/// A magnitude, not a verdict: whether 25 km/h is too much depends on the
+/// pilot, the wing and the place, and the app does not decide that from
+/// one number. The shells give each band one step of a single hue, light
+/// to dark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum WindBand {
+    /// Below 10 km/h.
+    Light,
+    /// From 10 to below 20 km/h.
+    Moderate,
+    /// From 20 to below 30 km/h.
+    Fresh,
+    /// 30 km/h and more.
+    Strong,
+}
+
+/// The band a mean wind speed falls in.
+#[uniffi::export]
+pub fn wind_band(speed_ms: f64) -> WindBand {
+    match speed_ms * 3.6 {
+        speed if speed < 10.0 => WindBand::Light,
+        speed if speed < 20.0 => WindBand::Moderate,
+        speed if speed < 30.0 => WindBand::Fresh,
+        _ => WindBand::Strong,
+    }
+}
+
+/// What a station is drawn as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(tag = "kind", rename_all = "camelCase"))]
+pub enum WindSymbol {
+    /// An arrow in the band's colour, pointing where the wind blows.
+    Arrow {
+        /// How strong the wind is.
+        band: WindBand,
+    },
+    /// Wind too weak to have a direction worth drawing.
+    Calm,
+    /// A reading too old to stand for the wind now, or none at all.
+    Old,
+}
+
+/// How one station is drawn on a map and read in a list. The same on
+/// every platform, so that a pilot who looks at the phone and then at the
+/// browser sees the same wind.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct WindMark {
+    /// What to draw.
+    pub symbol: WindSymbol,
+    /// Where an arrow points, in degrees clockwise from north: the
+    /// direction the wind blows towards. Zero for the other symbols.
+    pub heading_deg: f64,
+    /// Mean wind and gusts in whole km/h, "12/25", or only "12" when the
+    /// gusts are unknown or round to the same number. Empty for a station
+    /// with nothing current to say.
+    pub label: String,
+}
+
+/// Mean wind and gusts in whole km/h as a map and a list write them:
+/// "12/25", or only "12" when the gusts are unknown or round to the same
+/// number. Plain digits, without a region's separators.
+#[uniffi::export]
+pub fn wind_speeds_label(speed_ms: f64, gust_ms: Option<f64>) -> String {
+    let whole = |speed: f64| (speed * 3.6).round() as i64;
+    let mean = whole(speed_ms);
+    match gust_ms.map(whole) {
+        Some(gusts) if gusts != mean => format!("{mean}/{gusts}"),
+        _ => mean.to_string(),
+    }
+}
+
+fn wind_mark(latest: Option<&WindReading>, is_old: bool) -> WindMark {
+    let current = latest
+        .filter(|_| !is_old)
+        .and_then(|reading| Some((reading, reading.speed_ms?)));
+    let Some((reading, speed)) = current else {
+        return WindMark {
+            symbol: WindSymbol::Old,
+            heading_deg: 0.0,
+            label: String::new(),
+        };
+    };
+    let label = wind_speeds_label(speed, reading.gust_ms);
+    match reading.direction_deg {
+        Some(from) if speed >= CALM_BELOW_MS => WindMark {
+            symbol: WindSymbol::Arrow {
+                band: wind_band(speed),
+            },
+            heading_deg: (from + 180.0).rem_euclid(360.0),
+            label,
+        },
+        _ => WindMark {
+            symbol: WindSymbol::Calm,
+            heading_deg: 0.0,
+            label,
+        },
+    }
+}
+
 /// One reading of a station, in the units the API uses.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -63,6 +173,8 @@ pub struct WindStation {
     /// Whether the reading is too old to stand for the wind now. The shell
     /// draws such a station greyed out.
     pub is_old: bool,
+    /// How the station is drawn and labelled.
+    pub mark: WindMark,
 }
 
 /// Whose data is shown. The licences require this credit next to the data.
@@ -235,6 +347,8 @@ fn wind_station(station: &StationWithLatest, now_unix_s: i64) -> WindStation {
         .latest
         .as_ref()
         .map(|latest| (now - latest.time).num_minutes().max(0));
+    let latest = station.latest.as_ref().map(reading);
+    let is_old = age_min.is_none_or(|age| age > OLD_AFTER_MIN);
     WindStation {
         id: station.station.id.to_string(),
         name: readable_name(&station.station.name),
@@ -244,9 +358,10 @@ fn wind_station(station: &StationWithLatest, now_unix_s: i64) -> WindStation {
             lon: station.station.position.lon(),
         },
         elevation_m: station.station.elevation_m,
-        latest: station.latest.as_ref().map(reading),
+        mark: wind_mark(latest.as_ref(), is_old),
+        latest,
         age_min,
-        is_old: age_min.is_none_or(|age| age > OLD_AFTER_MIN),
+        is_old,
     }
 }
 
@@ -354,6 +469,77 @@ mod tests {
         assert_eq!(map.credits.len(), 1);
         assert_eq!(map.credits[0].text, "Quelle: Deutscher Wetterdienst");
         assert!(!map.truncated);
+    }
+
+    #[test]
+    fn a_station_is_marked_by_its_wind_the_same_way_everywhere() {
+        let map = wind_map(200, STATIONS.as_bytes().to_vec(), NOW).unwrap();
+
+        // 54 km/h from the west with gusts of 93: a dark arrow pointing east.
+        let summit = &map.stations[0].mark;
+        assert_eq!(
+            summit.symbol,
+            WindSymbol::Arrow {
+                band: WindBand::Strong
+            }
+        );
+        assert_eq!(summit.heading_deg, 80.0);
+        assert_eq!(summit.label, "54/93");
+
+        // An old reading and no reading say nothing about the wind now.
+        for silent in &map.stations[1..] {
+            assert_eq!(silent.mark.symbol, WindSymbol::Old);
+            assert_eq!(silent.mark.label, "");
+        }
+
+        let reading = |speed_ms, direction_deg| WindReading {
+            time_unix_s: NOW,
+            speed_ms,
+            gust_ms: None,
+            direction_deg,
+            temperature_c: None,
+        };
+        // Too weak for a direction, or without one: calm, with its speed.
+        let still = wind_mark(Some(&reading(Some(0.4), Some(90.0))), false);
+        assert_eq!(
+            (still.symbol, still.label.as_str()),
+            (WindSymbol::Calm, "1")
+        );
+        let turning = wind_mark(Some(&reading(Some(3.0), None)), false);
+        assert_eq!(
+            (turning.symbol, turning.label.as_str()),
+            (WindSymbol::Calm, "11")
+        );
+        // A station that reports no speed has nothing to draw.
+        assert_eq!(
+            wind_mark(Some(&reading(None, Some(90.0))), false).symbol,
+            WindSymbol::Old
+        );
+        // A north wind blows south; a direction of 360 is north too.
+        assert_eq!(
+            wind_mark(Some(&reading(Some(5.0), Some(0.0))), false).heading_deg,
+            180.0
+        );
+        assert_eq!(
+            wind_mark(Some(&reading(Some(5.0), Some(360.0))), false).heading_deg,
+            180.0
+        );
+    }
+
+    #[test]
+    fn wind_falls_into_four_bands_and_is_written_in_whole_kilometres_per_hour() {
+        assert_eq!(wind_band(0.0), WindBand::Light);
+        assert_eq!(wind_band(2.7), WindBand::Light);
+        assert_eq!(wind_band(2.8), WindBand::Moderate);
+        assert_eq!(wind_band(5.5), WindBand::Moderate);
+        assert_eq!(wind_band(5.6), WindBand::Fresh);
+        assert_eq!(wind_band(8.3), WindBand::Fresh);
+        assert_eq!(wind_band(8.4), WindBand::Strong);
+
+        assert_eq!(wind_speeds_label(3.0, None), "11");
+        assert_eq!(wind_speeds_label(3.0, Some(7.0)), "11/25");
+        // Gusts that round to the mean add nothing.
+        assert_eq!(wind_speeds_label(3.0, Some(3.1)), "11");
     }
 
     #[test]

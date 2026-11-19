@@ -428,7 +428,7 @@ private struct WindBadge: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Wind")
         .accessibilityValue(
-            "\(Format.kilometresPerHour(metresPerSecond: wind.speedMs)) kilometres per hour from \(Format.compassPoint(degrees: wind.fromDeg))"
+            "\(Format.spokenKilometresPerHour(metresPerSecond: wind.speedMs)) from \(Format.compassPoint(degrees: wind.fromDeg))"
         )
     }
 }

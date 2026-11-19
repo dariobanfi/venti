@@ -154,21 +154,21 @@ final class WindModelTests: XCTestCase {
         await wind.load()
 
         // From 260 degrees, a little south of west: the arrow points east.
-        let summit = WindMark(wind.stations[0])
-        XCTAssertEqual(summit.symbol, .arrow(.strong))
-        XCTAssertEqual(summit.heading, 80, accuracy: 0.001)
+        let summit = wind.stations[0].mark
+        XCTAssertEqual(summit.symbol, .arrow(band: .strong))
+        XCTAssertEqual(summit.headingDeg, 80, accuracy: 0.001)
         XCTAssertEqual(summit.label, "54/93")
 
         // A reading from hours ago is not drawn as wind.
-        let valley = WindMark(wind.stations[1])
+        let valley = wind.stations[1].mark
         XCTAssertEqual(valley.symbol, .old)
         XCTAssertEqual(valley.label, "")
 
-        XCTAssertEqual(WindMark.speeds(mean: 3.0, gust: nil), "11")
-        XCTAssertEqual(WindMark.speeds(mean: 3.0, gust: 3.1), "11")
-        XCTAssertEqual(WindBand(metresPerSecond: 2.7), .light)
-        XCTAssertEqual(WindBand(metresPerSecond: 2.8), .moderate)
-        XCTAssertEqual(WindBand(metresPerSecond: 8.4), .strong)
+        // The picture's name says which band it is.
+        XCTAssertEqual(WindSymbols.name(of: summit.symbol), "wind-arrow-strong")
+        XCTAssertEqual(WindSymbols.name(of: valley.symbol), "wind-old")
+        XCTAssertEqual(Format.spokenKilometresPerHour(metresPerSecond: 0.3), "1 kilometre per hour")
+        XCTAssertEqual(Format.spokenKilometresPerHour(metresPerSecond: 3.0), "11 kilometres per hour")
     }
 
     func testAgesAreWordedForAPilot() {

@@ -28,9 +28,12 @@ export function fontTable(byPath: Record<string, string> = files): Map<string, s
  * Where to fetch what the map asked for, or nothing if the app has no such
  * file.
  *
- * Only the ranges that cover Latin text are in the app. A label that needs
- * another script is drawn without those characters rather than failing the
- * whole map tile.
+ * The folder holds a file for every range of 256 characters up to 65,535:
+ * real glyphs for Latin, Greek, Cyrillic, punctuation and common symbols,
+ * and a file without glyphs for each other range. A label in another
+ * script is drawn without those characters. For anything else the map may
+ * ask for, another font or a range beyond those, there is no file, and
+ * {@link fontLoader} answers that with no glyphs too.
  */
 export function fontUrl(requested: string, table: Map<string, string>): string | undefined {
 	const prefix = `${FONT_SCHEME}://`;
@@ -47,6 +50,7 @@ export function fontLoader(
 ): (request: { url: string }, abort: AbortController) => Promise<Answer> {
 	return async (request, abort) => {
 		const url = fontUrl(request.url, table);
+		// Not an error: a failed font would cost the map tile all its labels.
 		// A font file with nothing in it holds no characters, which is the truth.
 		if (!url) return { data: new ArrayBuffer(0) };
 		const response = await fetch(url, { signal: abort.signal });

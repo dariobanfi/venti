@@ -1170,7 +1170,9 @@ Needs a token. Changes the password, and signs out every device except the askin
 }
 ```
 
-The answer is `204` with no body. A wrong `current_password` gives `403` with `wrong_password`, and counts as a wrong password for the handle. A `new_password` the server would not take gives `400` with `invalid_password`.
+The answer is `204` with no body. A wrong `current_password` gives `403` with `wrong_password`. A `new_password` the server would not take gives `400` with `invalid_password`.
+
+Wrong passwords on this request and on `DELETE /v1/account` are counted for the device that sends them, ten an hour for one session, and then answered `429` with `rate_limited`. They are not counted for the handle, and wrong passwords at sign-in are not counted here: whatever strangers do to a handle from outside, a pilot who is signed in can change the password and delete the account.
 
 ### `DELETE /v1/account`
 
@@ -1182,7 +1184,7 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
-Deletes the account with everything that belongs to it: its sessions, its flights and their files. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`.
+Deletes the account with everything that belongs to it: its sessions, its flights and their files. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
 

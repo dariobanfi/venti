@@ -134,6 +134,7 @@ What to know as the person who runs this:
 - **A pilot deletes their own account** in the app, with their password. It is gone from the database at once, with its flights. It is still in the dumps taken before, until they rotate out (see [Backup](#backup)). If someone asks you to delete an account for them and cannot do it themselves, that is a manual `DELETE FROM accounts WHERE handle = '...'` in the database; everything that belongs to the account goes with it.
 - **There is no way yet to report or take down a shared flight** other than by hand: `UPDATE flights SET visibility = 'private' WHERE id = '...'` hides one. Keep registration by invite until that exists.
 - **Attempts to sign in are counted** per account and per visitor's address, in the server's memory: restarting the server forgets the counts. The log has a line for every wrong password, with the address it came from and never the password.
+- **Anyone can close signing in to an account for an hour** by sending ten wrong passwords for its handle, and can keep it closed by doing so every hour. That is the price of stopping guesses from many addresses, and it is the owner's decision ([architecture.md](../docs/architecture.md#decision-log)). A pilot who is already signed in on a device notices nothing and can still change the password or delete the account there. A pilot who is locked out of a new device this way has to wait, or you restart the server, which forgets the counts: `docker compose restart server`. The log shows who is guessing: `docker compose logs --since 2h server | grep 'wrong password'`.
 
 ### The visitor's address
 
@@ -395,7 +396,7 @@ All settings are described in `env.example`. The ones that deserve a second thou
 
 Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
 
-**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, or accounts), 11 MB when full; there are five. A server with a few hundred pilots uses a few hundred places. If the log says
+**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, accounts, devices), 11 MB when full; there are six. A server with a few hundred pilots uses a few hundred places. If the log says
 
 ```
 the table of addresses that asked the connector is full: 100000 are being counted

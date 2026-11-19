@@ -67,7 +67,16 @@ pub struct Limits {
     /// several real people one /48 can hold, and little enough that the
     /// 65,536 networks of one /48 are of no use to whoever has them all.
     pub wrong_passwords_per_network: u32,
-    /// The window for both.
+    /// Wrong passwords accepted from one signed-in device within the
+    /// window, where a request that carries a session token has to name
+    /// the password as well: changing it, deleting the account. They are
+    /// counted for the session and not for the handle. Whoever holds a
+    /// token they should not have gets this many guesses and no more; and
+    /// what strangers do to a handle from outside, where they can use up
+    /// its wrong passwords whenever they like, does not keep a signed-in
+    /// pilot from their own account.
+    pub wrong_passwords_per_session: u32,
+    /// The window for all of these.
     pub sign_in_window: Duration,
     /// Attempts to create an account from one address within
     /// [`registration_window`](Self::registration_window), successful or
@@ -98,7 +107,7 @@ pub struct Limits {
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
-    /// has five. The size is not what the server expects to need, which is
+    /// has six. The size is not what the server expects to need, which is
     /// some hundreds: it is what someone who wants to fill a table has to
     /// bring. With IPv6 counted at two levels that is 100,000 IPv4
     /// addresses within a window, or some hundreds to thousands of IPv6
@@ -118,6 +127,7 @@ impl Default for Limits {
             wrong_passwords_per_handle: 10,
             wrong_passwords_per_address: 30,
             wrong_passwords_per_network: 120,
+            wrong_passwords_per_session: 10,
             sign_in_window: Duration::hours(1),
             registrations_per_address: 10,
             registrations_per_network: 40,
@@ -146,6 +156,7 @@ impl Limits {
             wrong_passwords_per_handle: u32::MAX,
             wrong_passwords_per_address: u32::MAX,
             wrong_passwords_per_network: u32::MAX,
+            wrong_passwords_per_session: u32::MAX,
             registrations_per_address: u32::MAX,
             registrations_per_network: u32::MAX,
             uploads_per_day: u32::MAX,

@@ -180,6 +180,8 @@ pub struct Api<S> {
     /// Wrong passwords by handle and by client address.
     wrong_by_handle: Throttle,
     wrong_by_address: Throttle,
+    /// Wrong passwords on requests that carry a session token, by session.
+    wrong_by_session: Throttle,
     /// Attempts to create an account, by client address.
     registrations: Throttle,
     /// Uploaded files, by account.
@@ -232,6 +234,11 @@ impl<S: Store> Api<S> {
             ),
             wrong_by_address: Throttle::new(
                 "addresses that sent wrong passwords",
+                limits.sign_in_window,
+                limits.watched_keys,
+            ),
+            wrong_by_session: Throttle::new(
+                "signed-in devices that sent wrong passwords",
                 limits.sign_in_window,
                 limits.watched_keys,
             ),

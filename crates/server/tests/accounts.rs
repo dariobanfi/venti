@@ -1181,33 +1181,118 @@ async fn a_new_password_needs_the_old_one_and_signs_other_devices_out() {
     assert_eq!(answer.status, StatusCode::CREATED);
 }
 
-#[tokio::test]
-async fn wrong_passwords_while_signed_in_are_counted_too() {
-    let clock = TestClock::new();
-    let router = limited_server(&clock, &[]);
-    let signed_in = sign_up(&router, "dario").await;
-    let delete = |password: &'static str| {
-        let (router, token) = (router.clone(), signed_in.token.clone());
-        async move {
-            ask(Method::DELETE, ACCOUNT_PATH)
-                .token(&token)
-                .json(&DeleteAccountRequest {
-                    password: Password::new(password),
-                })
-                .send(&router)
-                .await
-        }
+/// A server whose limits on wrong passwords are small enough to reach:
+/// three for a handle, three for a signed-in device.
+fn server_with_three_guesses(clock: &TestClock) -> Router {
+    let settings = Settings {
+        limits: Limits {
+            wrong_passwords_per_handle: 3,
+            wrong_passwords_per_session: 3,
+            ..Limits::default()
+        },
+        ..settings()
     };
+    server(settings, clock).0
+}
 
-    // A stolen token is no way to guess the password without limit.
-    for _ in 0..3 {
-        let answer = delete("a wrong guess!!").await;
+async fn delete_account(router: &Router, token: &str, password: &str) -> Answer {
+    ask(Method::DELETE, ACCOUNT_PATH)
+        .token(token)
+        .json(&DeleteAccountRequest {
+            password: Password::new(password),
+        })
+        .send(router)
+        .await
+}
+
+async fn change_password(router: &Router, token: &str, current: &str, new: &str) -> Answer {
+    ask(Method::PUT, ACCOUNT_PASSWORD_PATH)
+        .token(token)
+        .json(&ChangePasswordRequest {
+            current_password: Password::new(current),
+            new_password: Password::new(new),
+        })
+        .send(router)
+        .await
+}
+
+#[tokio::test]
+async fn wrong_passwords_while_signed_in_are_counted_for_the_device() {
+    let clock = TestClock::new();
+    let router = server_with_three_guesses(&clock);
+    let phone = sign_up(&router, "dario").await;
+    let laptop: SignInResponse = try_sign_in(&router, "dario", PASSWORD)
+        .await
+        .ok(StatusCode::CREATED);
+
+    // A stolen token is no way to guess the password without limit,
+    // whichever of the two requests is used for it.
+    let answer = delete_account(&router, &phone.token, "a wrong guess!!").await;
+    answer.error(StatusCode::FORBIDDEN, ErrorCode::WrongPassword);
+    for _ in 0..2 {
+        let answer =
+            change_password(&router, &phone.token, "a wrong guess!!", "a new password!!").await;
         answer.error(StatusCode::FORBIDDEN, ErrorCode::WrongPassword);
     }
-    let answer = delete(PASSWORD).await;
+    let answer = delete_account(&router, &phone.token, PASSWORD).await;
+    let message = answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    assert!(message.contains("from this device"), "{message}");
+    let answer = change_password(&router, &phone.token, PASSWORD, "a new password!!").await;
     answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
     // The account is still there, and so is the session.
-    assert!(works(&router, &signed_in.token).await);
+    assert!(works(&router, &phone.token).await);
+
+    // It is that device that guessed. The pilot's other device is not
+    // held to account for it, and nobody is kept from signing in.
+    let answer = try_sign_in(&router, "dario", PASSWORD).await;
+    assert_eq!(answer.status, StatusCode::CREATED);
+    let answer = change_password(&router, &laptop.token, PASSWORD, "a new password!!").await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT);
+
+    // An hour later the first device may try again; by now its session
+    // has gone with the old password.
+    clock.advance(Duration::hours(1));
+    let answer = delete_account(&router, &phone.token, "a new password!!").await;
+    answer.error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+}
+
+#[tokio::test]
+async fn a_stranger_cannot_keep_a_pilot_from_changing_or_deleting_their_account() {
+    let clock = TestClock::new();
+    let router = server_with_three_guesses(&clock);
+    let dario = sign_up(&router, "dario").await;
+    let anna = sign_up(&router, "anna").await;
+
+    // Strangers use up the wrong passwords of both handles, from wherever
+    // they like. Signing in to them is closed for the hour, as decided.
+    for handle in ["dario", "anna"] {
+        for n in 0..3 {
+            let peer = format!("198.51.100.{n}");
+            let answer = sign_in_from(&router, &peer, handle, "a wrong guess!!").await;
+            answer.error(StatusCode::UNAUTHORIZED, ErrorCode::InvalidCredentials);
+        }
+        let answer = try_sign_in(&router, handle, PASSWORD).await;
+        answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    }
+
+    // The pilots are signed in, and their accounts are theirs: one changes
+    // the password, the other deletes the account.
+    let answer = change_password(&router, &dario.token, PASSWORD, "a new password!!").await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT);
+    let answer = delete_account(&router, &anna.token, PASSWORD).await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT);
+    assert!(works(&router, &dario.token).await);
+    assert!(!works(&router, &anna.token).await);
+
+    // And a pilot who mistypes while signed in closes nothing for anyone
+    // who signs in.
+    clock.advance(Duration::hours(1));
+    for _ in 0..3 {
+        let answer = delete_account(&router, &dario.token, "a wrong guess!!").await;
+        answer.error(StatusCode::FORBIDDEN, ErrorCode::WrongPassword);
+    }
+    let answer = try_sign_in(&router, "dario", "a new password!!").await;
+    assert_eq!(answer.status, StatusCode::CREATED);
 }
 
 #[tokio::test]

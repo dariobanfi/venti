@@ -49,7 +49,8 @@ impl<S: Store> Api<S> {
     }
 
     /// Whether `password` is the password of the account with `handle`,
-    /// and that account if it is.
+    /// and that account if it is. This is signing in: the asker is known
+    /// by nothing but the handle they name and the address they come from.
     ///
     /// Wrong passwords are counted for the handle and for the client's
     /// address, and once either has too many, nothing is checked any more
@@ -92,43 +93,115 @@ impl<S: Store> Api<S> {
             self.wrong_by_address.give_back(by_address);
         };
 
-        let looked_up = match handle {
-            Some(handle) => self.store.password_hash(handle.as_str()).await,
-            None => Ok(None),
-        };
-        let stored = match looked_up {
-            Ok(stored) => stored,
-            Err(error) => {
-                // Nothing was found out about the password.
+        match self.is_password_of(handle, password).await {
+            Ok(Checked::Right(account)) => {
                 give_back(reserved);
-                return Err(error.into());
-            }
-        };
-        let hash = stored.as_ref().map(|(_, hash)| hash.as_str());
-        match self.hasher.verify(password, hash).await {
-            Ok(true) => {
-                give_back(reserved);
-                return Ok(stored.map(|(account, _)| account));
+                Ok(Some(account))
             }
             // The place stays taken: this is a wrong password.
-            Ok(false) => {}
+            Ok(Checked::Wrong(account)) => {
+                // The handle is logged only if it is one: text typed into
+                // the wrong field can be a password.
+                match account {
+                    Some(account) => {
+                        tracing::warn!(client = %client, account = %account.handle, "wrong password");
+                    }
+                    None => {
+                        tracing::warn!(client = %client, "sign-in attempt for a handle nobody has");
+                    }
+                }
+                Ok(None)
+            }
+            // The server could not look: busy, or its database away. That
+            // is no guess.
             Err(error) => {
-                // The server was too busy to look. That is no guess.
                 give_back(reserved);
-                return Err(error.into());
+                Err(error)
             }
         }
-
-        // The handle is logged only if it is one: text typed into the wrong
-        // field can be a password.
-        match &stored {
-            Some((account, _)) => {
-                tracing::warn!(client = %client, account = %account.handle, "wrong password");
-            }
-            None => tracing::warn!(client = %client, "sign-in attempt for a handle nobody has"),
-        }
-        Ok(None)
     }
+
+    /// Whether `password` is the password of the account a request is
+    /// signed in to: what changing the password and deleting the account
+    /// ask for beside the token.
+    ///
+    /// Wrong passwords are counted for the session, in the order
+    /// [`check_password`](Self::check_password) keeps: a place is taken
+    /// before the password is looked at and given back when it is right.
+    /// They are not counted for the handle or the address. A stranger can
+    /// use up a handle's wrong passwords from outside at any time; that
+    /// closes signing in to the handle, and must not close the account to
+    /// the pilot who is signed in to it. And whoever picked up a token has
+    /// one session, and with it the session's few guesses.
+    async fn confirm_password(
+        &self,
+        signed: &Signed,
+        password: &Password,
+        client: IpAddr,
+    ) -> Result<(), ApiError> {
+        let now = self.clock.now();
+        let by_session = [Counted::new(
+            &signed.session.id,
+            self.limits.wrong_passwords_per_session,
+        )];
+        let reserved = self
+            .wrong_by_session
+            .reserve(&by_session, now)
+            .map_err(|refused| {
+                ApiError::rate_limited(refused, "too many wrong passwords from this device")
+            })?;
+
+        let handle = Handle::new(&signed.account.handle).ok();
+        match self.is_password_of(handle.as_ref(), password).await {
+            // The handle's account is the one signed in to, unless the
+            // account was deleted and its handle taken in this very moment.
+            Ok(Checked::Right(account)) if account.id == signed.account.id => {
+                self.wrong_by_session.give_back(reserved);
+                Ok(())
+            }
+            Ok(_) => {
+                tracing::warn!(
+                    client = %client,
+                    account = %signed.account.handle,
+                    "wrong password from a signed-in device"
+                );
+                Err(wrong_password())
+            }
+            Err(error) => {
+                self.wrong_by_session.give_back(reserved);
+                Err(error)
+            }
+        }
+    }
+
+    /// Looks a password up and checks it, counting nothing. An account
+    /// that does not exist takes as long as one that does.
+    async fn is_password_of(
+        &self,
+        handle: Option<&Handle>,
+        password: &Password,
+    ) -> Result<Checked, ApiError> {
+        let stored = match handle {
+            Some(handle) => self.store.password_hash(handle.as_str()).await?,
+            None => None,
+        };
+        let hash = stored.as_ref().map(|(_, hash)| hash.as_str());
+        let right = self.hasher.verify(password, hash).await?;
+        let account = stored.map(|(account, _)| account);
+        Ok(match account {
+            Some(account) if right => Checked::Right(account),
+            account => Checked::Wrong(account),
+        })
+    }
+}
+
+/// What looking at a password found.
+enum Checked {
+    /// It is the password of this account.
+    Right(Account),
+    /// It is not the password of the account with the handle, if there is
+    /// one.
+    Wrong(Option<Account>),
 }
 
 fn wrong_password() -> ApiError {
@@ -317,9 +390,8 @@ pub(crate) async fn change_password<S: Store>(
 ) -> Result<Response, ApiError> {
     let request: ChangePasswordRequest = body::json(&body)?;
     let handle = Handle::new(&signed.account.handle).ok();
-    api.check_password(handle.as_ref(), &request.current_password, client)
-        .await?
-        .ok_or_else(wrong_password)?;
+    api.confirm_password(&signed, &request.current_password, client)
+        .await?;
     if let Some(handle) = &handle {
         password::check_new(&request.new_password, handle)
             .map_err(|e| ApiError::bad_request(ErrorCode::InvalidPassword, e.to_string()))?;
@@ -341,12 +413,10 @@ pub(crate) async fn delete<S: Store>(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let request: DeleteAccountRequest = body::json(&body)?;
-    let handle = Handle::new(&signed.account.handle).ok();
     // A token alone is not enough: whoever picks up an unlocked phone can
     // do much, but not this.
-    api.check_password(handle.as_ref(), &request.password, client)
-        .await?
-        .ok_or_else(wrong_password)?;
+    api.confirm_password(&signed, &request.password, client)
+        .await?;
 
     api.store.delete_account(&signed.account.id).await?;
     tracing::info!(account = %signed.account.handle, "account deleted");

@@ -205,6 +205,17 @@ class LogbookModel(
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()
 
+    /**
+     * What deleting a flight means, for the question that comes before it.
+     * With an account the next sync deletes the flight on the server and
+     * from there on the pilot's other devices; saying "from this phone"
+     * alone would then be a half-truth. The Android app cannot sign in
+     * yet, so today it is the whole truth: this asks the core, and will say
+     * the rest the day an account is there.
+     */
+    val deletionWarning: String
+        get() = deletionWarning(signedIn = runCatching { core.account() }.getOrNull() != null)
+
     /** Removes a flight for good. */
     fun delete(id: String) {
         try {
@@ -219,6 +230,14 @@ class LogbookModel(
         private const val LIST_EVERY = 20
 
         private const val STILL_RUNNING = "Another import is still running. Try again when it has finished."
+
+        /** What deleting a flight means, with and without an account on a Venti server. */
+        fun deletionWarning(signedIn: Boolean): String = if (signedIn) {
+            "Its file is removed from this phone, from your Venti server and from your other devices. " +
+                "This cannot be undone."
+        } else {
+            "Its file is removed from this phone. This cannot be undone."
+        }
 
         /** Opens the logbook kept in `folder`, creating it on first use. */
         fun open(folder: File, files: AppFiles): LogbookModel = LogbookModel(Core(folder.path), folder, files)

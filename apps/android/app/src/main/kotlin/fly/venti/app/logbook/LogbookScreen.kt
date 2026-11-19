@@ -180,6 +180,7 @@ fun LogbookScreen(
     // Deleting asks first: the flight's file exists only on this phone.
     flightToDelete?.let { entry ->
         DeleteFlightDialog(
+            warning = remember(entry.id) { logbook.deletionWarning },
             onConfirm = {
                 flightToDelete = null
                 try {
@@ -247,11 +248,16 @@ fun ImportNoticeDialog(notice: ImportNotice?, onDismiss: () -> Unit) {
 
 /** Asks before a flight is removed for good. */
 @Composable
-fun DeleteFlightDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun DeleteFlightDialog(
+    /** What deleting means: [LogbookModel.deletionWarning]. */
+    warning: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete this flight?") },
-        text = { Text("Its file is removed from this phone. This cannot be undone.") },
+        text = { Text(warning) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text("Delete flight", color = MaterialTheme.colorScheme.error)

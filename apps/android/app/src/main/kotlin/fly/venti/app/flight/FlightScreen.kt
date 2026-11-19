@@ -145,6 +145,7 @@ fun FlightScreen(id: String, logbook: LogbookModel, airspace: AirspaceModel, onB
 
     if (isConfirmingDelete) {
         DeleteFlightDialog(
+            warning = remember(id) { logbook.deletionWarning },
             onConfirm = {
                 isConfirmingDelete = false
                 try {

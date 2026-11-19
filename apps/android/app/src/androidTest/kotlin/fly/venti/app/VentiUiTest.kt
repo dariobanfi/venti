@@ -359,9 +359,11 @@ class VentiUiTest {
         val scenario = checkNotNull(app)
 
         waitFor(described("Wind stations"))
-        // The credit appears with the first answer from the server.
-        waitFor(hasTestTag("wind-credits"))
-        assertTrue(exists(hasText("Wind: Deutscher Wetterdienst and GeoSphere Austria")))
+        // The wind's credit appears with the server's first answer about
+        // wind. The airspace's has a line of its own in the same box and
+        // may be there before it.
+        waitFor(hasText("Wind: Deutscher Wetterdienst and GeoSphere Austria"))
+        assertTrue(exists(hasTestTag("wind-credits")))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
         letTheMapDraw()
         keepScreenshot("$prefix-wind-1-map")

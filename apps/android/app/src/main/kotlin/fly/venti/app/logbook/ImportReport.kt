@@ -1,5 +1,7 @@
 package fly.venti.app.logbook
 
+import fly.venti.app.design.Format
+
 /** What happened to a batch of imported files. */
 data class ImportReport(
     /** Identifiers of the flights that were added. */
@@ -11,8 +13,8 @@ data class ImportReport(
     data class Failure(val file: String, val reason: String)
 
     /**
-     * What the pilot should be told, if anything. A clean import needs no
-     * message: the new flights appear in the list.
+     * What the pilot should be told, if anything. One new flight needs no
+     * message: it opens. A batch says in a sentence what it did.
      */
     val notice: ImportNotice?
         get() {
@@ -37,6 +39,20 @@ data class ImportReport(
                         "These flights were imported before. Nothing was added."
                     },
                 )
+            }
+            if (added.size > 1 || (added.isNotEmpty() && alreadyThere.isNotEmpty())) {
+                val before = when (alreadyThere.size) {
+                    0 -> ""
+                    1 -> " 1 was in your logbook already."
+                    else -> " ${Format.count(alreadyThere.size.toLong())} were in your logbook already."
+                }
+                return ImportNotice(
+                    title = if (added.size == 1) "1 flight added" else "${Format.count(added.size.toLong())} flights added",
+                    text = (if (added.size == 1) "It is" else "They are") + " in your logbook, on this phone.$before",
+                )
+            }
+            if (added.isEmpty() && alreadyThere.isEmpty()) {
+                return ImportNotice("No flights found", "There was no flight file among what you chose.")
             }
             return null
         }

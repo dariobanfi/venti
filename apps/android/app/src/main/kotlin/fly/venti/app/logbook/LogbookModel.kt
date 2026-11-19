@@ -35,6 +35,12 @@ import java.nio.charset.CharacterCodingException
 class FlightFileSource(val name: String, val read: () -> String)
 
 /**
+ * How far an import has come: files done, of how many. No files at all
+ * means that a folder is still being looked through.
+ */
+data class ImportProgress(val done: Int, val total: Int)
+
+/**
  * The pilot's logbook as the screens see it.
  *
  * The model contains no flying logic. The core stores the flights, works out
@@ -50,6 +56,10 @@ class LogbookModel(
     private val background: CoroutineDispatcher = Dispatchers.IO,
 ) {
     var view: LogbookView by mutableStateOf(core.logbook())
+        private set
+
+    /** Set while files are being imported, for a screen to show. */
+    var importProgress: ImportProgress? by mutableStateOf(null)
         private set
 
     /**
@@ -81,24 +91,68 @@ class LogbookModel(
         }
     }
 
-    /** Imports flight files. */
-    suspend fun importFiles(sources: List<FlightFileSource>): ImportReport {
-        val report = withContext(background) {
-            val added = mutableListOf<String>()
-            val alreadyThere = mutableListOf<String>()
-            val failures = mutableListOf<ImportReport.Failure>()
-            for (source in sources) {
-                try {
-                    val imported = core.importFlight(source.read())
-                    (if (imported.alreadyInLogbook) alreadyThere else added) += imported.id
-                } catch (error: Exception) {
-                    failures += ImportReport.Failure(file = source.name, reason = error.pilotMessage)
-                }
-            }
-            ImportReport(added, alreadyThere, failures)
+    /**
+     * Imports flight files. Reading and parsing run away from the screen;
+     * `importProgress` says how far it has come, and the list fills while
+     * it runs.
+     */
+    suspend fun importFiles(sources: List<FlightFileSource>): ImportReport =
+        import(named = sources.map { it.name }) { sources }
+
+    /**
+     * Imports every flight file in a folder the pilot picked: a whole
+     * history at once. `find` lists them, which for a large folder takes a
+     * while and so runs with the rest; `name` is what to call the folder if
+     * it cannot be read.
+     */
+    suspend fun importFolder(name: String, find: () -> List<FlightFileSource>): ImportReport =
+        import(named = listOf(name), isFolder = true, find)
+
+    private suspend fun import(
+        named: List<String>,
+        isFolder: Boolean = false,
+        find: () -> List<FlightFileSource>,
+    ): ImportReport {
+        if (importProgress != null) {
+            return ImportReport(
+                failures = named.map { ImportReport.Failure(it, STILL_RUNNING) },
+            )
         }
-        view = core.logbook()
-        return report
+        // How many files a folder holds is known once it has been listed.
+        importProgress = ImportProgress(done = 0, total = if (isFolder) 0 else named.size)
+        try {
+            return withContext(background) {
+                val sources = try {
+                    find()
+                } catch (error: Exception) {
+                    return@withContext ImportReport(
+                        failures = listOf(ImportReport.Failure(named.first(), error.pilotMessage)),
+                    )
+                }
+                importProgress = ImportProgress(done = 0, total = sources.size)
+                val added = mutableListOf<String>()
+                val alreadyThere = mutableListOf<String>()
+                val failures = mutableListOf<ImportReport.Failure>()
+                sources.forEachIndexed { index, source ->
+                    try {
+                        val imported = core.importFlight(source.read())
+                        (if (imported.alreadyInLogbook) alreadyThere else added) += imported.id
+                    } catch (error: Exception) {
+                        failures += ImportReport.Failure(file = source.name, reason = error.pilotMessage)
+                    }
+                    // The count after every file; the list every so often.
+                    val done = index + 1
+                    importProgress = ImportProgress(done, sources.size)
+                    if (done % LIST_EVERY == 0) {
+                        view = core.logbook()
+                    }
+                }
+                ImportReport(added, alreadyThere, failures)
+            }
+        } finally {
+            view = core.logbook()
+            importProgress = null
+        }
     }
 
     /**
@@ -157,6 +211,11 @@ class LogbookModel(
     }
 
     companion object {
+        /** While many files are imported, the list is read again after every so many. */
+        private const val LIST_EVERY = 20
+
+        private const val STILL_RUNNING = "Another import is still running. Try again when it has finished."
+
         /** Opens the logbook kept in `folder`, creating it on first use. */
         fun open(folder: File, files: AppFiles): LogbookModel = LogbookModel(Core(folder.path), folder, files)
 

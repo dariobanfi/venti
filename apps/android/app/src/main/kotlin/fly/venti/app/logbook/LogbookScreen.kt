@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -37,7 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +45,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,21 +63,30 @@ import fly.venti.core.LogbookEntry
 import fly.venti.core.LogbookYear
 import fly.venti.core.RouteKind
 import fly.venti.core.Totals
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /** The pilot's flights, newest first, by year. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LogbookScreen(logbook: LogbookModel, navigation: AppNavigation, bars: PaddingValues) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var notice by remember { mutableStateOf<ImportNotice?>(null) }
+fun LogbookScreen(
+    logbook: LogbookModel,
+    navigation: AppNavigation,
+    /** Where an import runs: it carries on when the pilot leaves this screen. */
+    imports: CoroutineScope,
+    /** Called with what there is to say about an import or a deletion. */
+    onNotice: (ImportNotice?) -> Unit,
+    bars: PaddingValues,
+) {
+    val context = LocalContext.current.applicationContext
     var flightToDelete by remember { mutableStateOf<LogbookEntry?>(null) }
+    var isChoosingWhat by remember { mutableStateOf(false) }
+    val progress = logbook.importProgress
 
     // After an import: open the flight if there was exactly one new one,
     // and say so if something needs saying.
     fun finish(report: ImportReport) {
-        notice = report.notice
+        onNotice(report.notice)
         if (report.failures.isEmpty() && report.added.size == 1) {
             navigation.show(flight = report.added.first())
         }
@@ -82,12 +94,27 @@ fun LogbookScreen(logbook: LogbookModel, navigation: AppNavigation, bars: Paddin
 
     // Flight files have no type the system knows, so any file can be
     // picked; the core says which ones are flights.
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { files ->
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { files ->
         if (files.isNotEmpty()) {
-            scope.launch { finish(logbook.importFiles(files.map { FlightFiles.source(context, it) })) }
+            imports.launch { finish(logbook.importFiles(files.map { FlightFiles.source(context, it) })) }
         }
     }
-    val chooseFiles = { picker.launch(arrayOf("*/*")) }
+    // A folder brings in every flight file in it and in the folders inside
+    // it: a whole history at once. Android has one picker for files and
+    // another for a folder, so the pilot says which.
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
+        if (folder != null) {
+            imports.launch {
+                finish(
+                    logbook.importFolder(FlightFiles.folderName(context, folder)) {
+                        FlightFiles.inFolder(context, folder)
+                    },
+                )
+            }
+        }
+    }
+    val chooseFiles = { filePicker.launch(arrayOf("*/*")) }
+    val chooseFolder = { folderPicker.launch(null) }
 
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
@@ -95,8 +122,28 @@ fun LogbookScreen(logbook: LogbookModel, navigation: AppNavigation, bars: Paddin
             TopAppBar(
                 title = { Text("Logbook") },
                 actions = {
-                    IconButton(onClick = chooseFiles) {
-                        Icon(painterResource(R.drawable.ic_add), contentDescription = "Import flights")
+                    Box {
+                        IconButton(onClick = { isChoosingWhat = true }, enabled = progress == null) {
+                            Icon(painterResource(R.drawable.ic_add), contentDescription = "Import flights")
+                        }
+                        DropdownMenu(expanded = isChoosingWhat, onDismissRequest = { isChoosingWhat = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Flight files") },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_file_open), contentDescription = null) },
+                                onClick = {
+                                    isChoosingWhat = false
+                                    chooseFiles()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("A folder of flights") },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_folder_open), contentDescription = null) },
+                                onClick = {
+                                    isChoosingWhat = false
+                                    chooseFolder()
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -104,25 +151,31 @@ fun LogbookScreen(logbook: LogbookModel, navigation: AppNavigation, bars: Paddin
         // The tab bar below already keeps clear of the system's own bar.
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
-        if (logbook.view.years.isEmpty()) {
-            EmptyLogbook(
-                onImport = chooseFiles,
-                onAddSample = { scope.launch { finish(logbook.addSample()) } },
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            FlightList(
-                totals = logbook.view.totals,
-                years = logbook.view.years,
-                onOpen = { navigation.open(LogbookRoute.Flight(it.id)) },
-                onStatistics = { navigation.open(LogbookRoute.Statistics) },
-                onDelete = { flightToDelete = it },
-                modifier = Modifier.padding(padding),
-            )
+        Column(Modifier.padding(padding)) {
+            Box(Modifier.weight(1f)) {
+                if (logbook.view.years.isEmpty()) {
+                    EmptyLogbook(
+                        isImporting = progress != null,
+                        onImport = chooseFiles,
+                        onImportFolder = chooseFolder,
+                        onAddSample = { imports.launch { finish(logbook.addSample()) } },
+                    )
+                } else {
+                    FlightList(
+                        totals = logbook.view.totals,
+                        years = logbook.view.years,
+                        onOpen = { navigation.open(LogbookRoute.Flight(it.id)) },
+                        onStatistics = { navigation.open(LogbookRoute.Statistics) },
+                        onDelete = { flightToDelete = it },
+                    )
+                }
+            }
+            // One file is in before a bar could be read.
+            if (progress != null && progress.total != 1) {
+                ImportProgressBar(progress)
+            }
         }
     }
-
-    ImportNoticeDialog(notice) { notice = null }
 
     // Deleting asks first: the flight's file exists only on this phone.
     flightToDelete?.let { entry ->
@@ -132,11 +185,51 @@ fun LogbookScreen(logbook: LogbookModel, navigation: AppNavigation, bars: Paddin
                 try {
                     logbook.delete(entry.id)
                 } catch (error: Exception) {
-                    notice = ImportNotice("The flight could not be deleted", error.pilotMessage)
+                    onNotice(ImportNotice("The flight could not be deleted", error.pilotMessage))
                 }
             },
             onDismiss = { flightToDelete = null },
         )
+    }
+}
+
+/**
+ * How far an import of many files has come, under the list. It takes its
+ * room from the list and does not float over it.
+ */
+@Composable
+private fun ImportProgressBar(progress: ImportProgress) {
+    // A folder's files are counted before the first is read.
+    val isLooking = progress.total == 0
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("import-progress")
+            .clearAndSetSemantics {
+                contentDescription = "Importing flights"
+                stateDescription = if (isLooking) "Looking for flight files" else "${progress.done} of ${progress.total}"
+            },
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Text(
+                if (isLooking) {
+                    "Looking for flight files"
+                } else {
+                    "Importing ${Format.count(progress.done.toLong())} of ${Format.count(progress.total.toLong())}"
+                },
+                style = MaterialTheme.typography.titleSmall.numbers,
+            )
+            Spacer(Modifier.size(10.dp))
+            if (isLooking) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(
+                    progress = { progress.done.toFloat() / progress.total },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 
@@ -169,7 +262,14 @@ fun DeleteFlightDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun EmptyLogbook(onImport: () -> Unit, onAddSample: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyLogbook(
+    /** While files are being imported nothing more can be started. */
+    isImporting: Boolean,
+    onImport: () -> Unit,
+    onImportFolder: () -> Unit,
+    onAddSample: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.fillMaxSize().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
@@ -185,17 +285,21 @@ private fun EmptyLogbook(onImport: () -> Unit, onAddSample: () -> Unit, modifier
         Text("No flights yet", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.size(8.dp))
         Text(
-            "Import the IGC files your vario or flight app recorded. They stay on this phone.",
+            "Import the IGC files your vario or flight app recorded, one by one or a whole folder of " +
+                "them. They stay on this phone.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.size(24.dp))
-        Button(onClick = onImport, modifier = Modifier.heightIn(min = 52.dp)) {
+        Button(onClick = onImport, enabled = !isImporting, modifier = Modifier.heightIn(min = 52.dp)) {
             Text("Import flights", style = MaterialTheme.typography.titleMedium)
         }
         Spacer(Modifier.size(4.dp))
-        TextButton(onClick = onAddSample) {
+        TextButton(onClick = onImportFolder, enabled = !isImporting) {
+            Text("Import a folder of flights")
+        }
+        TextButton(onClick = onAddSample, enabled = !isImporting) {
             Text("Add a sample flight")
         }
     }

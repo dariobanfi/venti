@@ -57,17 +57,30 @@ fun RootScreen(
     val logbook = session.logbook
     val fly = session.fly
 
-    // A flight file opened from a file manager, mail or another app.
+    // Flight files opened from a file manager, mail or another app.
     LaunchedEffect(incoming) {
         if (incoming.isEmpty()) return@LaunchedEffect
+        val several = incoming.size > 1
+        if (several) {
+            // The logbook counts them as they come in.
+            navigation.showLogbook()
+        }
         val report = logbook.importFiles(incoming.map { FlightFiles.source(context, it) })
         onImported()
-        val flight = report.added.firstOrNull() ?: report.alreadyThere.firstOrNull()
-        if (flight != null) {
-            navigation.show(flight)
-        }
-        if (flight == null || report.failures.isNotEmpty()) {
+        if (several) {
+            // A batch says what it did, as one picked in the logbook does.
             notice = report.notice
+            if (report.failures.isEmpty() && report.added.size == 1) {
+                navigation.show(report.added.first())
+            }
+        } else {
+            // One file opens its flight, also when the logbook had it already.
+            val flight = report.added.firstOrNull() ?: report.alreadyThere.firstOrNull()
+            if (flight != null) {
+                navigation.show(flight)
+            } else {
+                notice = report.notice
+            }
         }
     }
 
@@ -95,7 +108,7 @@ fun RootScreen(
             },
         )
     } else {
-        Sections(session, navigation)
+        Sections(session, navigation, onNotice = { notice = it })
     }
 
     ImportNoticeDialog(notice) { notice = null }
@@ -111,7 +124,12 @@ fun RootScreen(
 }
 
 @Composable
-private fun Sections(session: Session.Ready, navigation: AppNavigation) {
+private fun Sections(
+    session: Session.Ready,
+    navigation: AppNavigation,
+    /** Called with what there is to say about an import, whichever section is in front by then. */
+    onNotice: (ImportNotice?) -> Unit,
+) {
     // Each section keeps what it remembers, such as how far its list was
     // scrolled, while the pilot is in another.
     val kept = rememberSaveableStateHolder()
@@ -156,7 +174,9 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
                 }
             }
             AppTab.Logbook -> when (val route = navigation.logbookPath.lastOrNull()) {
-                null -> kept.SaveableStateProvider("logbook") { LogbookScreen(logbook, navigation, bars) }
+                null -> kept.SaveableStateProvider("logbook") {
+                    LogbookScreen(logbook, navigation, imports = session.scope, onNotice = onNotice, bars = bars)
+                }
                 is LogbookRoute.Flight -> kept.SaveableStateProvider("flight-${route.id}") {
                     FlightScreen(route.id, logbook, onBack = { navigation.back() })
                 }

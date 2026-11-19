@@ -2,6 +2,7 @@ package fly.venti.app.logbook
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -19,6 +20,16 @@ object FlightFiles {
      */
     private const val LARGEST_BYTES = 32 * 1024 * 1024
 
+    /** How many folders deep a picked folder is searched. No pilot files flights deeper; a loop of links would be. */
+    private const val DEEPEST_FOLDER = 8
+
+    /** What is asked about each entry of a folder: how to reach it, its name, and whether it is a folder. */
+    private val FOLDER_COLUMNS = arrayOf(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+        DocumentsContract.Document.COLUMN_MIME_TYPE,
+    )
+
     /**
      * A file the pilot picked or another app sent, ready to be imported as
      * text. `what` says what it was picked as, for the words about a
@@ -31,18 +42,72 @@ object FlightFiles {
 
     /** The same file as it is, for a reader that looks at the bytes itself. */
     fun picked(context: Context, uri: Uri, what: String): PickedFile =
-        PickedFile(name(context, uri)) {
-            val stream = try {
-                context.contentResolver.openInputStream(uri)
+        PickedFile(name(context, uri)) { read(context, uri, what) }
+
+    private fun read(context: Context, uri: Uri, what: String): ByteArray {
+        val stream = try {
+            context.contentResolver.openInputStream(uri)
+        } catch (error: SecurityException) {
+            throw IOException("Venti is not allowed to read this file.", error)
+        } ?: throw IOException("The file could not be opened.")
+        return stream.use { input ->
+            val bytes = input.readAtMost(LARGEST_BYTES + 1)
+            if (bytes.size > LARGEST_BYTES) throw IOException("This file is too large to be $what.")
+            bytes
+        }
+    }
+
+    /**
+     * Every flight file in a folder the pilot picked and in the folders
+     * inside it, ready to be imported. Asking Android for a folder's
+     * contents takes a while for a large one: call this away from the
+     * screen.
+     */
+    fun inFolder(context: Context, tree: Uri): List<FlightFileSource> {
+        val found = mutableListOf<Pair<String, Uri>>()
+
+        fun list(folder: String, path: String, depth: Int) {
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, folder)
+            val rows = try {
+                context.contentResolver.query(children, FOLDER_COLUMNS, null, null, null)
             } catch (error: SecurityException) {
-                throw IOException("Venti is not allowed to read this file.", error)
-            } ?: throw IOException("The file could not be opened.")
-            stream.use { input ->
-                val bytes = input.readAtMost(LARGEST_BYTES + 1)
-                if (bytes.size > LARGEST_BYTES) throw IOException("This file is too large to be $what.")
-                bytes
+                throw IOException("Venti is not allowed to read this folder.", error)
+            } ?: throw IOException("The folder could not be opened.")
+            rows.use { row ->
+                while (row.moveToNext()) {
+                    val id = row.getString(0)
+                    val name = row.getString(1) ?: continue
+                    // Hidden files and folders are whatever an app left behind, not the pilot's.
+                    if (name.startsWith(".")) continue
+                    if (row.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (depth < DEEPEST_FOLDER) list(id, "$path$name/", depth + 1)
+                    } else {
+                        found += "$path$name" to DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                    }
+                }
             }
         }
+        list(DocumentsContract.getTreeDocumentId(tree), "", depth = 0)
+
+        return flightFilesAmong(found).map { (path, uri) ->
+            FlightFileSource(path.substringAfterLast('/')) { LogbookModel.decode(read(context, uri, "a flight file")) }
+        }
+    }
+
+    /**
+     * Of the files found in a folder, each with where it lies inside it,
+     * those to import. A file picked by hand is tried whatever its name; in
+     * a folder only names ending in `.igc` count, so that a folder of
+     * photos is not a list of failures. Recorders name files by date:
+     * oldest first reads naturally in the list as it fills.
+     */
+    fun <T> flightFilesAmong(found: List<Pair<String, T>>): List<Pair<String, T>> =
+        found.filter { (path, _) -> path.endsWith(".igc", ignoreCase = true) }.sortedBy { (path, _) -> path }
+
+    /** What to call a folder the pilot picked, to report a problem with it. */
+    fun folderName(context: Context, tree: Uri): String = runCatching {
+        name(context, DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)))
+    }.getOrDefault("The folder")
 
     /** The file's name as the pilot knows it, to report a problem with it. */
     private fun name(context: Context, uri: Uri): String {

@@ -77,6 +77,12 @@ class AppNavigation {
         logbookPath += LogbookRoute.Flight(flight)
     }
 
+    /** Brings the logbook's list to the front. */
+    fun showLogbook() {
+        tab = AppTab.Logbook
+        logbookPath.clear()
+    }
+
     fun open(route: LogbookRoute) {
         logbookPath += route
     }

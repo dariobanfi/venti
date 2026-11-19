@@ -3,6 +3,8 @@ package fly.venti.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.system.Os
+import android.system.OsConstants
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -630,6 +632,58 @@ class VentiUiTest {
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
     }
+
+    /**
+     * Many flights at once: shared to the app from another, as a folder of
+     * them picked in the logbook is imported. The logbook counts them as
+     * they come in, fills its list on the way, and says at the end what it
+     * did.
+     *
+     * The last but one file is a pipe that holds nothing until the test
+     * writes to it, so the import stands still at a known count for the
+     * screenshot, however fast or slow the device is.
+     */
+    private fun shareManyFlights(prefix: String, dark: Boolean) {
+        val sample = context.assets.open(AppFiles.SAMPLE_FLIGHT).use { it.readBytes() }.decodeToString()
+        // The sample flight as flown on another day: another flight.
+        fun flown(day: Int) = sample.replace("HFDTEDATE:040726", "HFDTEDATE:%02d0626".format(day))
+        val folder = File(context.cacheDir, "shared-${System.nanoTime()}").apply { mkdirs() }
+        val files = (1..22).map { day -> File(folder, "2026-06-%02d.igc".format(day)) }
+        val held = files[20]
+        for ((index, file) in files.withIndex()) {
+            if (file == held) {
+                Os.mkfifo(file.path, OsConstants.S_IRUSR or OsConstants.S_IWUSR)
+            } else {
+                file.writeText(flown(index + 1))
+            }
+        }
+
+        launch(dark = dark) {
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "application/octet-stream"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files.map(Uri::fromFile)))
+        }
+
+        // Twenty are in and listed; the twenty-first is being waited for.
+        waitFor(hasTestTag("import-progress") and saying("20 of 22"))
+        waitFor(hasTestTag("logbook-row"))
+        keepScreenshot("$prefix-import-2-progress")
+
+        held.writeText(flown(21))
+        waitFor(hasText("22 flights added"))
+        assertTrue(exists(hasText("They are in your logbook, on this phone.")))
+        assertFalse(exists(hasTestTag("import-progress")))
+        keepScreenshot("$prefix-import-3-summary")
+        tap(hasText("OK") and hasClickAction())
+        screen.onNode(hasTestTag("logbook-totals")).assertIsDisplayed()
+        folder.deleteRecursively()
+    }
+
+    @Test
+    fun manyFlightsSharedAtOnceAreCountedAsTheyComeIn() = shareManyFlights("light", dark = false)
+
+    @Test
+    fun manyFlightsInDarkAppearance() = shareManyFlights("dark", dark = true)
 
     /**
      * The same screens with tiles fetched from the public servers, as a

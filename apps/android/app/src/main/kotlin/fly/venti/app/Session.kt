@@ -25,6 +25,7 @@ import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -50,6 +51,8 @@ sealed interface Session {
         val airspace: AirspaceModel,
         val preferences: Preferences,
         val files: AppFiles,
+        /** Where work runs that must outlast the screen that started it: an import, a request. */
+        val scope: CoroutineScope,
     ) : Session
 
     /** The data folder could not be opened; the text says why. */
@@ -134,7 +137,7 @@ sealed interface Session {
             // The cockpit warns of the pilot's files and of what is kept
             // from the server, also when either changes during a flight.
             fly.airspace = { airspace.set }
-            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, preferences, files)
+            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, preferences, files, scope)
         }
     }
 }

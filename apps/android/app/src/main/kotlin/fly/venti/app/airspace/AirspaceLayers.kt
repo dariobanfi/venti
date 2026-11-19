@@ -39,6 +39,13 @@ object AirspaceLayers {
     /** From this zoom on there is room for names. */
     private const val NAMES_FROM_ZOOM = 9f
 
+    /** The wash inside an airspace fades in between these two zooms. */
+    private const val WASH_FROM_ZOOM = 8f
+    private const val WASH_FULL_AT_ZOOM = 10f
+
+    /** How strong the wash is once it is fully there: stronger for what is closed. */
+    private fun washOpacity(policy: AirspacePolicy): Float = if (policy == AirspacePolicy.AVOID) 0.1f else 0.06f
+
     private const val ID = "id"
     const val POLICY = "policy"
     const val LABEL = "label"
@@ -66,9 +73,20 @@ object AirspaceLayers {
         for (policy in listOf(AirspacePolicy.FREE, AirspacePolicy.CAUTION, AirspacePolicy.AVOID)) {
             val only = Expression.eq(Expression.get(POLICY), Expression.literal(rank(policy)))
             if (policy != AirspacePolicy.FREE) {
+                // On a map of a whole region the washes of airspace lying
+                // over airspace would paint the wind and the valleys over:
+                // there only the edges are drawn, and the wash comes in as
+                // the pilot zooms to a valley.
                 val wash = FillLayer("airspace-wash-${rank(policy)}", SOURCE).withProperties(
                     PropertyFactory.fillColor(colour(policy)),
-                    PropertyFactory.fillOpacity(if (policy == AirspacePolicy.AVOID) 0.1f else 0.06f),
+                    PropertyFactory.fillOpacity(
+                        Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(WASH_FROM_ZOOM, 0f),
+                            Expression.stop(WASH_FULL_AT_ZOOM, washOpacity(policy)),
+                        ),
+                    ),
                 )
                 wash.setFilter(only)
                 wash.minZoom = MINIMUM_ZOOM

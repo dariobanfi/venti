@@ -10,7 +10,15 @@ import VentiCore
 @MainActor
 @Observable
 final class LogbookModel {
+    /// How far an import has come.
+    struct ImportProgress: Equatable, Sendable {
+        var done: Int
+        let total: Int
+    }
+
     private(set) var view: LogbookView
+    /// Set while files are being imported, for a screen to show.
+    private(set) var importProgress: ImportProgress?
     /// The folder the core keeps its data in. The cockpit records into it.
     let folder: URL
     private let core: Core
@@ -57,19 +65,36 @@ final class LogbookModel {
         }
     }
 
-    /// Imports flight files. Reading and parsing run off the main thread.
+    /// Imports flight files, and every flight file in the folders among
+    /// them: a pilot's whole history at once. Reading and parsing run off
+    /// the main thread; `importProgress` says how far it has come, and the
+    /// list fills while it runs.
     func importFiles(at urls: [URL]) async -> ImportReport {
-        let core = self.core
-        let report = await Task.detached(priority: .userInitiated) { () -> ImportReport in
+        guard importProgress == nil else {
             var report = ImportReport()
-            for url in urls {
-                // Files picked in the Files app are only readable inside this pair.
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if scoped {
-                        url.stopAccessingSecurityScopedResource()
-                    }
+            report.failures = urls.map {
+                ImportReport.Failure(
+                    file: $0.lastPathComponent,
+                    reason: "Another import is still running. Try again when it has finished."
+                )
+            }
+            return report
+        }
+        importProgress = ImportProgress(done: 0, total: urls.count)
+        defer { importProgress = nil }
+        let core = self.core
+        let report = await Task.detached(priority: .userInitiated) { [weak self] () -> ImportReport in
+            // Files and folders picked in the Files app are only readable
+            // inside this pair, and a folder's pair covers what is in it.
+            let scoped = urls.filter { $0.startAccessingSecurityScopedResource() }
+            defer {
+                for url in scoped {
+                    url.stopAccessingSecurityScopedResource()
                 }
+            }
+            let files = LogbookModel.flightFiles(in: urls)
+            var report = ImportReport()
+            for (index, url) in files.enumerated() {
                 do {
                     let imported = try core.importFlight(igcText: try LogbookModel.text(at: url))
                     if imported.alreadyInLogbook {
@@ -82,11 +107,50 @@ final class LogbookModel {
                         ImportReport.Failure(file: url.lastPathComponent, reason: error.words)
                     )
                 }
+                // The count after every file; the list every so often.
+                let done = index + 1
+                let showsList = done % 20 == 0
+                await self?.imported(done, of: files.count, showingList: showsList)
             }
             return report
         }.value
         view = core.logbook()
         return report
+    }
+
+    private func imported(_ done: Int, of total: Int, showingList: Bool) {
+        importProgress = ImportProgress(done: done, total: total)
+        if showingList {
+            view = core.logbook()
+        }
+    }
+
+    /// The files to import: those picked, and for a picked folder every
+    /// flight file in it and in the folders inside it. A file picked by
+    /// hand is tried whatever its name; in a folder only names ending in
+    /// `.igc` count, so that a folder of photos is not a list of failures.
+    nonisolated static func flightFiles(in urls: [URL]) -> [URL] {
+        var files: [URL] = []
+        for url in urls {
+            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            guard isFolder else {
+                files.append(url)
+                continue
+            }
+            let inside = FileManager.default.enumerator(
+                at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+            var found: [URL] = []
+            while let file = inside?.nextObject() as? URL {
+                if file.pathExtension.lowercased() == "igc" {
+                    found.append(file)
+                }
+            }
+            // Recorders name files by date: oldest first reads naturally
+            // in the list as it fills.
+            files.append(contentsOf: found.sorted { $0.path < $1.path })
+        }
+        return files
     }
 
     /// Imports the made-up flight bundled with the app, so a new pilot has
@@ -192,6 +256,21 @@ struct ImportReport: Sendable, Equatable {
                     ? "This flight was imported before. Nothing was added."
                     : "These flights were imported before. Nothing was added."
             )
+        }
+        // A batch says what it did; one new flight simply opens.
+        if added.count > 1 || (!added.isEmpty && !alreadyThere.isEmpty) {
+            let before = alreadyThere.isEmpty
+                ? ""
+                : alreadyThere.count == 1
+                    ? " 1 was in your logbook already."
+                    : " \(alreadyThere.count) were in your logbook already."
+            return ImportNotice(
+                title: added.count == 1 ? "1 flight added" : "\(added.count) flights added",
+                text: (added.count == 1 ? "It is" : "They are") + " in your logbook, on this iPhone.\(before)"
+            )
+        }
+        if added.isEmpty, alreadyThere.isEmpty {
+            return ImportNotice(title: "No flights found", text: "There was no flight file among what you chose.")
         }
         return nil
     }

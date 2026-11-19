@@ -61,6 +61,53 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertTrue(logbook.view.years.isEmpty)
     }
 
+    func testAFolderOfFlightsIsImportedWholeAndSaysWhatItDid() async throws {
+        let logbook = try makeLogbook()
+        let sample = try String(
+            contentsOf: try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc")), encoding: .utf8
+        )
+        // The sample flight as flown on another day: another flight.
+        func flown(on day: String) -> String {
+            sample.replacingOccurrences(of: "HFDTEDATE:040726", with: "HFDTEDATE:\(day)")
+        }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-history-\(UUID().uuidString)", isDirectory: true)
+        let earlier = folder.appendingPathComponent("2025", isDirectory: true)
+        try FileManager.default.createDirectory(at: earlier, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try flown(on: "040726").write(to: folder.appendingPathComponent("a.igc"), atomically: true, encoding: .utf8)
+        try flown(on: "050726").write(to: folder.appendingPathComponent("b.IGC"), atomically: true, encoding: .utf8)
+        try flown(on: "060725").write(to: earlier.appendingPathComponent("c.igc"), atomically: true, encoding: .utf8)
+        // What else lies in such a folder is not a list of failures.
+        try "hello".write(to: folder.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(
+            LogbookModel.flightFiles(in: [folder]).map(\.lastPathComponent), ["c.igc", "a.igc", "b.IGC"]
+        )
+
+        let report = await logbook.importFiles(at: [folder])
+        XCTAssertEqual(report.added.count, 3)
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(report.notice?.title, "3 flights added")
+        XCTAssertEqual(report.notice?.text, "They are in your logbook, on this iPhone.")
+        XCTAssertNil(logbook.importProgress)
+        XCTAssertEqual(logbook.view.totals.flights, 3)
+
+        // The same folder a month later, with one more flight in it.
+        try flown(on: "070726").write(to: folder.appendingPathComponent("d.igc"), atomically: true, encoding: .utf8)
+        let again = await logbook.importFiles(at: [folder])
+        XCTAssertEqual(again.added.count, 1)
+        XCTAssertEqual(again.notice?.title, "1 flight added")
+        XCTAssertEqual(again.notice?.text, "It is in your logbook, on this iPhone. 3 were in your logbook already.")
+        XCTAssertEqual(logbook.view.totals.flights, 4)
+
+        // A folder without flights says so.
+        let photos = folder.appendingPathComponent("photos", isDirectory: true)
+        try FileManager.default.createDirectory(at: photos, withIntermediateDirectories: true)
+        let none = await logbook.importFiles(at: [photos])
+        XCTAssertEqual(none.notice?.title, "No flights found")
+    }
+
     func testADeletedFlightLeavesTheLogbook() async throws {
         let logbook = try makeLogbook()
         let report = await logbook.addSample()

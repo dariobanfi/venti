@@ -27,6 +27,7 @@ struct LogbookScreen: View {
                     Button("Import flights", systemImage: "plus") {
                         isChoosingFiles = true
                     }
+                    .disabled(logbook.importProgress != nil)
                 }
             }
             .navigationDestination(for: FlightRoute.self) { route in
@@ -36,11 +37,17 @@ struct LogbookScreen: View {
                 StatisticsScreen()
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if let progress = logbook.importProgress, progress.total > 1 {
+                ImportProgressBar(progress: progress)
+            }
+        }
         // Flight files have no type the system knows, so any file can be
-        // picked; the core says which ones are flights.
+        // picked; the core says which ones are flights. A folder brings in
+        // every flight file in it: a whole history at once.
         .fileImporter(
             isPresented: $isChoosingFiles,
-            allowedContentTypes: [.data],
+            allowedContentTypes: [.data, .folder],
             allowsMultipleSelection: true
         ) { result in
             guard case .success(let urls) = result else { return }
@@ -74,7 +81,7 @@ struct LogbookScreen: View {
         ContentUnavailableView {
             Label("No flights yet", systemImage: "book.closed")
         } description: {
-            Text("Import the IGC files your vario or flight app recorded. They stay on this iPhone.")
+            Text("Import the IGC files your vario or flight app recorded, one by one or a whole folder of them. They stay on this iPhone.")
         } actions: {
             Button("Import flights") {
                 isChoosingFiles = true
@@ -139,6 +146,29 @@ struct LogbookScreen: View {
         } catch {
             notice = ImportNotice(title: "The flight could not be deleted", text: error.words)
         }
+    }
+}
+
+/// How far an import of many files has come, over the bottom of the list.
+private struct ImportProgressBar: View {
+    let progress: LogbookModel.ImportProgress
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Importing \(progress.done.formatted()) of \(progress.total.formatted())")
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
+            ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Importing flights")
+        .accessibilityValue("\(progress.done) of \(progress.total)")
+        .accessibilityIdentifier("import-progress")
     }
 }
 

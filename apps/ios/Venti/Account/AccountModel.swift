@@ -31,6 +31,9 @@ final class AccountModel {
     /// Called after a sync changed the logbook, so its screens can catch up.
     @ObservationIgnored var onLogbookChanged: () -> Void = {}
     @ObservationIgnored private var lastAutomaticSync: Date?
+    /// Set when a sync was asked for while one was under way: the logbook
+    /// changed again, and another run follows the present one.
+    @ObservationIgnored private var isSyncDue = false
 
     init(
         core: Core,
@@ -146,13 +149,24 @@ final class AccountModel {
     /// changed. `force` skips the pause between runs. A run the pilot did
     /// not ask for is quiet: being offline after a flight is no news.
     func sync(force: Bool = false, quietly: Bool = true) async {
-        guard isSignedIn, !isWorking else { return }
+        guard isSignedIn else { return }
+        guard !isWorking else {
+            // An import of many flights changes the logbook again and
+            // again: what the present run does not take, the next one does.
+            if force {
+                isSyncDue = true
+            }
+            return
+        }
         if !force, let last = lastAutomaticSync, Date().timeIntervalSince(last) < 60 {
             return
         }
         isWorking = true
         defer { isWorking = false }
-        await runSync(reportsProblems: !quietly)
+        repeat {
+            isSyncDue = false
+            await runSync(reportsProblems: !quietly)
+        } while isSyncDue && isSignedIn
     }
 
     private func runSync(reportsProblems: Bool = true) async {

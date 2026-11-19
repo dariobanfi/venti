@@ -33,7 +33,7 @@ A tab appears when there is something real behind it. An empty section explains 
 
 A system list grouped by year, newest first. The first row holds the totals: flights, airtime, cross-country distance. It leads to the statistics: a bar chart of the last twelve months (airtime, distance or number of flights), the gliders flown, and the pilot's bests, each leading to its flight. Each year's header repeats that year's count and airtime. A row shows the track's shape as a thumbnail, the date, the take-off time and glider, and on the right the airtime and the scored distance, with a small triangle if the flight scored as one.
 
-With no flights the screen says so and offers two buttons: import flights (the main action) and add a sample flight.
+With no flights the screen says so and offers two buttons: import flights (the main action) and add a sample flight. Importing takes single files or a whole folder, with the folders inside it: a pilot's history in one go. While many files are read, a bar over the bottom of the list counts them ("Importing 37 of 312") and the list fills; at the end one sentence says how many flights were added and how many were there already. Files in a folder that are not flight files are passed over without a word.
 
 Deleting asks first. A flight's file exists only on the device, so it cannot be undone.
 

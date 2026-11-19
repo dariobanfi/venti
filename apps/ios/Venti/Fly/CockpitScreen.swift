@@ -17,6 +17,9 @@ struct CockpitScreen: View {
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
+    /// Whether the map shows the whole flight instead of following closely.
+    @State private var showsWholeFlight = false
+    @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
 
     var body: some View {
         @Bindable var fly = fly
@@ -26,7 +29,9 @@ struct CockpitScreen: View {
                 CockpitMap(
                     view: view, way: fly.way, airspace: fly.airspace(),
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
-                    route: fly.score?.route ?? []
+                    route: fly.score?.route ?? [],
+                    fai: hidesFaiAreas ? nil : fly.faiAreas,
+                    showsWholeFlight: showsWholeFlight
                 )
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
@@ -47,6 +52,23 @@ struct CockpitScreen: View {
                                 .accessibilityIdentifier("wind-badge")
                                 .padding(10)
                         }
+                    }
+                    .overlay(alignment: .leading) {
+                        // The whole flight at a glance, with the scored
+                        // route and where to go for an FAI triangle; again
+                        // for the close view that follows the glider.
+                        Button {
+                            showsWholeFlight.toggle()
+                        } label: {
+                            Image(systemName: showsWholeFlight ? "location.fill" : "arrow.up.left.and.arrow.down.right")
+                                .font(.headline)
+                                .frame(width: 44, height: 44)
+                                .contentShape(.circle)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular, in: .circle)
+                        .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
+                        .padding(10)
                     }
                     .overlay(alignment: .topLeading) {
                         if let daylight = fly.daylight {

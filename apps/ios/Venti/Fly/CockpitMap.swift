@@ -20,6 +20,11 @@ struct CockpitMap: UIViewRepresentable {
     var airspaceDistance: Double?
     /// The route the flight scores along so far.
     var route: [Coordinate] = []
+    /// Where to fly for an FAI triangle, if the pilot wants it drawn.
+    var fai: FaiAreas?
+    /// Whether the map shows the whole flight, with the scored route and
+    /// the FAI triangle areas, instead of following the glider closely.
+    var showsWholeFlight = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -41,6 +46,8 @@ struct CockpitMap: UIViewRepresentable {
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.airspace = airspace
         context.coordinator.airspaceDistance = airspaceDistance
+        context.coordinator.fai = fai
+        context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -65,10 +72,25 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnThermals: [ThermalMarkView]?
         /// The zoom the map was last set to by itself.
         private var chosenZoom: Double?
+        var fai: FaiAreas?
+        /// The side the drawn FAI triangle areas stand on.
+        private var drawnFaiSide: [Coordinate]?
+        var showsWholeFlight = false
+        /// The box the map shows while it shows the whole flight.
+        private var wholeFlight: Bounds?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
+
+            // Where to fly for an FAI triangle: two dashed outlines, under
+            // the route they belong to.
+            let areas = MLNShapeSource(identifier: "cockpit-fai", shape: nil, options: nil)
+            style.addSource(areas)
+            let edges = MapSetup.line("cockpit-fai-line", from: areas, color: Palette.accentOnMap, width: 1.5)
+            edges.lineDashPattern = NSExpression(forConstantValue: [3, 2])
+            edges.lineOpacity = NSExpression(forConstantValue: 0.85)
+            style.addLayer(edges)
 
             // The route the flight scores along: a thin line in the accent
             // colour, under everything that moves.
@@ -144,6 +166,7 @@ struct CockpitMap: UIViewRepresentable {
 
             isStyleLoaded = true
             drawnThermals = nil
+            drawnFaiSide = nil
             drawnRoute = nil
             show(route, on: mapView)
             if let shown {
@@ -171,7 +194,9 @@ struct CockpitMap: UIViewRepresentable {
             if let way {
                 target = way.position
             }
+            let isWholeFlightShown = wholeFlight != nil
             guard view.position != shown?.position || view.circling != shown?.circling || target != shownTarget
+                || fai?.side != drawnFaiSide || showsWholeFlight != isWholeFlightShown
             else { return }
             shown = view
             guard isStyleLoaded, let style = map.style, let position = view.position else { return }
@@ -199,6 +224,34 @@ struct CockpitMap: UIViewRepresentable {
                 source.shape = MLNShapeCollectionFeature(shapes: view.thermals.map(Self.thermalFeature))
             }
 
+            if fai?.side != drawnFaiSide, let source = style.source(withIdentifier: "cockpit-fai") as? MLNShapeSource {
+                drawnFaiSide = fai?.side
+                let outlines = (fai?.outlines ?? []).map { outline in
+                    let corners = outline.map(\.location)
+                    return MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                }
+                source.shape = MLNShapeCollectionFeature(shapes: outlines)
+            }
+
+            // The whole flight: everything it has to show in one view,
+            // refitted only when something has grown out of it.
+            if showsWholeFlight {
+                var places = [position] + route
+                places += fai?.outlines.flatMap { $0 } ?? []
+                places += [view.takeoff, target].compactMap { $0 }
+                let box = Self.box(around: places)
+                if wholeFlight.map({ !$0.contains(box) }) ?? true {
+                    wholeFlight = box
+                    MapSetup.show(box, on: map, animated: !LaunchOptions.isUITesting)
+                }
+                return
+            }
+            if wholeFlight != nil {
+                // Back to following the glider at the usual zoom.
+                wholeFlight = nil
+                chosenZoom = nil
+            }
+
             // Zoom only when the kind of flying changes or the airspace a
             // warning is about comes into or goes out of reach, so a zoom
             // level the pilot pinched to is kept until then.
@@ -211,6 +264,14 @@ struct CockpitMap: UIViewRepresentable {
             } else {
                 map.setCenter(position.location, animated: !LaunchOptions.isUITesting)
             }
+        }
+
+        /// The smallest box that holds every one of these places.
+        static func box(around places: [Coordinate]) -> Bounds {
+            let (lats, lons) = (places.map(\.lat), places.map(\.lon))
+            return Bounds(
+                south: lats.min() ?? 0, west: lons.min() ?? 0, north: lats.max() ?? 0, east: lons.max() ?? 0
+            )
         }
 
         /// The zoom for the kind of flying, or less if it takes less to

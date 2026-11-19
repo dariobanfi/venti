@@ -256,6 +256,17 @@ final class AirspaceTests: XCTestCase {
         XCTAssertTrue(FlightDetailsSheet.caveat(for: .whole).contains("not the airspace of the day of the flight"))
     }
 
+    func testTheWholeFlightIsTheBoxAroundEverythingItHasToShow() {
+        let box = CockpitMap.Coordinator.box(around: [
+            Coordinate(lat: 47.66, lon: 11.80), Coordinate(lat: 47.71, lon: 11.52),
+            Coordinate(lat: 47.58, lon: 11.66),
+        ])
+        XCTAssertEqual(box, Bounds(south: 47.58, west: 11.52, north: 47.71, east: 11.80))
+        // One place is a box without extent; the map gives it a margin.
+        let here = CockpitMap.Coordinator.box(around: [Coordinate(lat: 47.66, lon: 11.80)])
+        XCTAssertEqual(here.south, here.north)
+    }
+
     func testAnImportIsSummedUpForThePilot() {
         XCTAssertEqual(
             AirspaceModel.summary(

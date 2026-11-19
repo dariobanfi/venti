@@ -10,6 +10,7 @@ struct SettingsScreen: View {
     @AppStorage(Preferences.glider) private var glider = ""
     @AppStorage(Preferences.trimSpeed) private var trimSpeed = Preferences.defaultTrimSpeed
     @AppStorage(Preferences.glideRatio) private var glideRatio = Preferences.defaultGlideRatio
+    @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
 
     var body: some View {
         NavigationStack {
@@ -46,10 +47,17 @@ struct SettingsScreen: View {
                     Stepper(value: $glideRatio, in: 4...14, step: 0.5) {
                         LabeledContent("Glide ratio", value: Format.glideRatio(glideRatio))
                     }
+                    Toggle(
+                        "FAI triangle areas",
+                        isOn: Binding(
+                            get: { !hidesFaiAreas },
+                            set: { isOn in hidesFaiAreas = !isOn }
+                        )
+                    )
                 } header: {
                     Text("Cockpit")
                 } footer: {
-                    Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way.")
+                    Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way. The FAI triangle areas are drawn on the cockpit's map once you have flown three kilometres in a straight line: a turnpoint inside either of them makes that line one side of an FAI triangle.")
                 }
 
                 Section {

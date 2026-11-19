@@ -14,6 +14,8 @@ enum Preferences {
     static let trimSpeed = "VentiGliderTrimSpeed"
     /// The glider's glide ratio at that speed.
     static let glideRatio = "VentiGliderGlideRatio"
+    /// Whether the cockpit's map leaves out the FAI triangle areas.
+    static let hidesFaiAreas = "VentiCockpitHidesFaiAreas"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

@@ -212,6 +212,16 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("fly-5b-wind-by-height")
         app.buttons["Done"].tap()
 
+        // The whole flight at a glance: the scored route, and the two
+        // areas in which a turnpoint would make an FAI triangle of the
+        // longest line flown.
+        app.buttons["Show the whole flight"].tap()
+        XCTAssertTrue(app.buttons["Follow the glider"].waitForExistence(timeout: 10))
+        sleep(3)
+        keepScreenshot("fly-5c-whole-flight")
+        app.buttons["Follow the glider"].tap()
+        XCTAssertTrue(app.buttons["Show the whole flight"].waitForExistence(timeout: 10))
+
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))

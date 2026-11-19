@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::DateTime;
 use venti_domain::GeoPoint;
+use venti_flight::fai;
 use venti_flight::igc::{self, Fix, IgcFile};
 use venti_flight::live::navigation::{self, Glider, Target};
 use venti_flight::live::{
@@ -259,6 +260,28 @@ pub struct LiveScore {
     pub route: Vec<Coordinate>,
 }
 
+/// Where to fly for an FAI triangle: a triangle whose shortest side is at
+/// least 28% of its perimeter, which the leagues score highest.
+///
+/// The areas stand on the longest straight line the flight has covered so
+/// far, taken as one side of the triangle: a third corner inside either
+/// of them makes it an FAI triangle. While the glider still flies away
+/// from where it started, the line and the areas move with it.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct FaiAreas {
+    /// The two ends of the side the areas stand on.
+    pub side: Vec<Coordinate>,
+    /// The outline of each area, closed: one on each side of the side.
+    pub outlines: Vec<Vec<Coordinate>>,
+    /// The perimeter of the smallest FAI triangle on that side, metres.
+    pub smallest_m: f64,
+    /// The perimeter of the largest.
+    pub largest_m: f64,
+    /// Whether a corner where the glider is now would make an FAI
+    /// triangle of the side.
+    pub is_inside: bool,
+}
+
 /// How much of the day is left where the glider is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
 pub struct DaylightLeft {
@@ -282,6 +305,11 @@ const SCORE_AGAIN_AFTER_FIXES: usize = 3;
 
 /// The most positions kept for scoring: more than a day in the air.
 const SCORE_FIXES_AT_MOST: usize = 10_000;
+
+/// The FAI triangle areas are offered once the longest straight line flown
+/// is this long, in metres. Before that they are a clutter of small
+/// shapes around the take-off.
+const FAI_AREAS_FROM_M: f64 = 3_000.0;
 
 /// A place for the cockpit to navigate to.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -365,6 +393,8 @@ struct Inner {
     flown: Vec<Fix>,
     /// The latest score, and how many positions it was worked out from.
     score: Option<(usize, scoring::Score)>,
+    /// The two fixes of `flown` that lie farthest apart, and how far.
+    longest: Option<(GeoPoint, GeoPoint, f64)>,
 }
 
 /// Which sensor is supplying pressure.
@@ -422,6 +452,7 @@ impl FlightSession {
                 watch: None,
                 flown: Vec::new(),
                 score: None,
+                longest: None,
             }),
         })
     }
@@ -464,6 +495,35 @@ impl FlightSession {
         let view = live_score(&score, &flown);
         self.lock().score = Some((flown.len(), score));
         Some(view)
+    }
+
+    /// Where to fly for an FAI triangle, once the flight has covered
+    /// three kilometres in a straight line. Cheap: ask with the score.
+    pub fn fai_areas(&self) -> Option<FaiAreas> {
+        let (from, to, here) = {
+            let inner = self.lock();
+            let (from, to, length) = inner.longest?;
+            if length < FAI_AREAS_FROM_M {
+                return None;
+            }
+            (from, to, inner.flown.last()?.position)
+        };
+        let areas = fai::areas(from, to)?;
+        let coordinate = |point: &GeoPoint| Coordinate {
+            lat: point.lat(),
+            lon: point.lon(),
+        };
+        Some(FaiAreas {
+            side: vec![coordinate(&from), coordinate(&to)],
+            outlines: areas
+                .outlines
+                .iter()
+                .map(|outline| outline.iter().map(coordinate).collect())
+                .collect(),
+            smallest_m: areas.smallest_m,
+            largest_m: areas.largest_m,
+            is_inside: fai::is_fai(from, to, here),
+        })
     }
 
     /// Hands the session the airspace to warn about: the set from
@@ -627,6 +687,20 @@ impl FlightSession {
                 sample.time_unix_s - last.time.timestamp() as f64 >= SCORE_FIX_EVERY_S
             });
             if due && inner.flown.len() < SCORE_FIXES_AT_MOST {
+                // The longest straight line flown can only grow by a line
+                // that ends at the newest fix.
+                let reach = inner
+                    .flown
+                    .iter()
+                    .map(|fix| (fix.position, fix.position.distance_m(position)))
+                    .max_by(|a, b| a.1.total_cmp(&b.1));
+                if let Some((from, distance)) = reach
+                    && inner
+                        .longest
+                        .is_none_or(|(_, _, longest)| distance > longest)
+                {
+                    inner.longest = Some((from, position, distance));
+                }
                 let altitude = state.altitude_m.or(sample.altitude_m).unwrap_or(0.0);
                 inner.flown.push(Fix {
                     time: DateTime::from_timestamp(sample.time_unix_s as i64, 0)
@@ -1381,6 +1455,42 @@ mod tests {
             whole.distance_m,
             finished.distance_m
         );
+    }
+
+    #[test]
+    fn the_areas_for_an_fai_triangle_stand_on_the_longest_line_flown() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        assert_eq!(session.fai_areas(), None);
+
+        let replay = Replay::new(sample()).unwrap();
+        // Two minutes in the glider has not gone three kilometres yet.
+        replay.advance(session.clone(), 120.0);
+        assert_eq!(session.fai_areas(), None);
+
+        while replay.advance(session.clone(), 30.0) {}
+        let areas = session.fai_areas().unwrap();
+        let point = |place: &Coordinate| GeoPoint::new(place.lat, place.lon).unwrap();
+        let (from, to) = (point(&areas.side[0]), point(&areas.side[1]));
+        let side = from.distance_m(to);
+        // The sample flight covers some six kilometres in a straight line.
+        assert!(side > 3_000.0 && side < 12_000.0, "{side}");
+        assert!((areas.smallest_m - side / 0.44).abs() < 1.0);
+        assert!((areas.largest_m - side / 0.28).abs() < 1.0);
+        assert_eq!(areas.outlines.len(), 2);
+        for outline in &areas.outlines {
+            assert_eq!(outline.first(), outline.last());
+            // Every corner of an outline is a third corner that just makes
+            // an FAI triangle of the side.
+            for corner in outline {
+                let (a, b) = (from.distance_m(point(corner)), to.distance_m(point(corner)));
+                let share = side.min(a).min(b) / (side + a + b);
+                assert!((share - 0.28).abs() < 0.003, "{share}");
+            }
+        }
+        // The flight ends at one end of its longest line or near it, which
+        // is no corner of a triangle.
+        assert!(!areas.is_inside);
     }
 
     #[test]

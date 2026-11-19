@@ -10,6 +10,7 @@
 //! drawing, and runs the live flight computer.
 
 pub mod analysis;
+pub mod fai;
 mod identity;
 pub mod igc;
 mod summary;

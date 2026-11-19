@@ -81,9 +81,25 @@ struct CockpitScreen: View {
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
-                            isShowingAirspace = true
+                        VStack(alignment: .leading, spacing: 6) {
+                            // Whose airspace the map draws: its licence
+                            // asks for the credit next to the data. Beside
+                            // the map's own credits, in the corner.
+                            if let credit = Self.airspaceCredit(airspace.credits) {
+                                Text(credit)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(.regularMaterial, in: .rect(cornerRadius: 8))
+                                    .padding(.leading, 34)
+                                    .accessibilityIdentifier("cockpit-airspace-credit")
+                            }
+                            AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
+                                isShowingAirspace = true
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
                     }
                     .overlay(alignment: .top) {
@@ -176,6 +192,15 @@ struct CockpitScreen: View {
 
     private var isReplay: Bool {
         fly.mode != .live
+    }
+
+    /// The credit for the airspace fetched from the server, in a line:
+    /// "Airspace: openAIP, not certified". `nil` when the cockpit draws
+    /// none from a server.
+    static func airspaceCredit(_ credits: [Credit]) -> String? {
+        guard !credits.isEmpty else { return nil }
+        let certified = credits.contains { $0.notice != nil } ? ", not certified" : ""
+        return "Airspace: \(credits.map(\.provider).formatted(.list(type: .and)))\(certified)"
     }
 
     /// The direction of travel, once the glider moves fast enough for it

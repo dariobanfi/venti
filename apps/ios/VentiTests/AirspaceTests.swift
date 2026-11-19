@@ -282,4 +282,18 @@ final class AirspaceTests: XCTestCase {
         XCTAssertTrue(troubled.contains("In 1 place something could not be read and the cautious reading was taken."))
         XCTAssertTrue(troubled.hasSuffix("Line 7 (X): no shape."))
     }
+
+    func testTheCockpitCreditsTheAirspaceItDrawsFromAServer() {
+        XCTAssertNil(CockpitScreen.airspaceCredit([]))
+        let openAip = Credit(
+            source: "openaip", provider: "openAIP", notice: "Not certified.", text: "openAIP",
+            licence: "CC BY-NC 4.0", url: "https://www.openaip.net/"
+        )
+        XCTAssertEqual(CockpitScreen.airspaceCredit([openAip]), "Airspace: openAIP, not certified")
+        let plain = Credit(
+            source: "other", provider: "Another", notice: nil, text: "Another",
+            licence: "CC BY 4.0", url: "https://example.org/"
+        )
+        XCTAssertEqual(CockpitScreen.airspaceCredit([plain]), "Airspace: Another")
+    }
 }

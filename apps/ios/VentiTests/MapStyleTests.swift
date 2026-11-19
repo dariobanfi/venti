@@ -49,10 +49,21 @@ final class MapStyleTests: XCTestCase {
             XCTAssertTrue(glyphs.hasPrefix("file://"), glyphs)
             XCTAssertTrue(glyphs.hasSuffix("/{fontstack}/{range}.pbf"), glyphs)
         }
+        // Every range a label can ask for has a file. The map engine never
+        // gets an answer for one that is missing, and the tile the label
+        // belongs to then stays unfinished: an airspace named with a dash
+        // was not drawn at all.
         let fonts = try MapStyle.bundledRegion().appendingPathComponent("fonts/noto-sans-regular")
-        for range in ["0-255", "256-511"] {
-            let file = fonts.appendingPathComponent("\(range).pbf")
+        for start in stride(from: 0, to: 65536, by: 256) {
+            let file = fonts.appendingPathComponent("\(start)-\(start + 255).pbf")
             XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path)
+        }
+        // Latin, the dashes and quotation marks, Greek and Cyrillic are real
+        // glyphs, not placeholders.
+        for range in ["0-255", "256-511", "768-1023", "1024-1279", "8192-8447"] {
+            let file = fonts.appendingPathComponent("\(range).pbf")
+            let size = try XCTUnwrap(try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int)
+            XCTAssertGreaterThan(size, 10_000, range)
         }
     }
 

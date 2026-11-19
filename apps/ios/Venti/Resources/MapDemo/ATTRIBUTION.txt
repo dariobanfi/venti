@@ -12,4 +12,6 @@ terrain.pmtiles
 
 fonts/
   Noto Sans (c) The Noto Project Authors, SIL Open Font License 1.1.
-  See fonts/OFL.txt.
+  See fonts/OFL.txt. Latin, Greek, Cyrillic, punctuation and symbols; the
+  files of every other range hold no glyphs and are there so that the map
+  never waits for one.

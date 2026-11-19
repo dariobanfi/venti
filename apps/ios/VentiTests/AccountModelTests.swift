@@ -98,6 +98,32 @@ final class AccountModelTests: XCTestCase {
         XCTAssertEqual(last?.url?.path, "/v1/sessions/session0000000000000000000a")
     }
 
+    func testAKeychainThatRefusesTheSessionIsSaidAndNoSessionIsLeftBehind() async throws {
+        let core = try makeCore()
+        let sent = Sent()
+        // A Keychain that keeps nothing, as an app without an identity has.
+        let account = AccountModel(
+            core: core, transport: server(noting: sent), readToken: { nil }, saveToken: { _ in }
+        )
+
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+
+        XCTAssertFalse(account.isSignedIn)
+        XCTAssertNil(account.account)
+        XCTAssertNil(try core.account())
+        XCTAssertEqual(
+            account.problem,
+            "This iPhone could not keep the session in its Keychain, so you are not signed in. Restart the iPhone and try again."
+        )
+        // The server was told to forget the session, with the session's own
+        // token, and nothing else was asked of it.
+        let requests = await sent.requests
+        XCTAssertEqual(requests.map { $0.httpMethod ?? "" }, ["POST", "DELETE"])
+        XCTAssertEqual(requests[1].url?.path, "/v1/sessions/session0000000000000000000a")
+        XCTAssertEqual(requests[1].value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+    }
+
     func testAWrongPasswordIsSaidAndNothingIsKept() async throws {
         let box = TokenBox()
         let account = AccountModel(

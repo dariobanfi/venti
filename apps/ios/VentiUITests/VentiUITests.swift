@@ -28,17 +28,27 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
-    /// Changes to a tab. After a screen that covered the tab bar, the bar
-    /// slides back in, and a tap during that time goes nowhere: wait until
-    /// the button can be hit.
+    /// Changes to a tab. After a screen that covered the tab bar, and just
+    /// after launch, the bar is still settling and a tap goes nowhere: wait
+    /// until the button can be hit, tap, and tap again if the tab did not
+    /// become the selected one.
     private func openTab(_ name: String, in app: XCUIApplication) {
         let tab = app.tabBars.buttons[name]
         XCTAssertTrue(tab.waitForExistence(timeout: 15))
-        for _ in 0..<40 where !tab.isHittable {
-            usleep(250_000)
+        for _ in 0..<4 {
+            for _ in 0..<40 where !tab.isHittable {
+                usleep(250_000)
+            }
+            usleep(400_000)
+            tab.tap()
+            for _ in 0..<8 where !tab.isSelected {
+                usleep(250_000)
+            }
+            if tab.isSelected {
+                return
+            }
         }
-        usleep(500_000)
-        tab.tap()
+        XCTFail("The \(name) tab did not open.")
     }
 
     /// Anything on screen whose accessibility value contains this text.

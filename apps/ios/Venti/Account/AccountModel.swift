@@ -79,6 +79,22 @@ final class AccountModel {
             let (status, body, _) = try await ask(try request(), of: server.absoluteString)
             let signedIn = try core.signedIn(server: server.absoluteString, status: status, body: body)
             saveToken(signedIn.token)
+            // Without the token every later request would be refused. If
+            // the Keychain did not keep it, say that, and do not leave a
+            // session on the server that this iPhone cannot use.
+            guard readToken() == signedIn.token else {
+                if let request = try? core.signOutRequest(),
+                   let url = URL(string: server.absoluteString + request.path)
+                {
+                    var signOut = URLRequest(url: url)
+                    signOut.httpMethod = request.method
+                    signOut.setValue("Bearer \(signedIn.token)", forHTTPHeaderField: "Authorization")
+                    _ = try? await transport(signOut)
+                }
+                try? core.signedOut()
+                problem = "This iPhone could not keep the session in its Keychain, so you are not signed in. Restart the iPhone and try again."
+                return
+            }
             account = signedIn.account
         } catch {
             problem = Self.words(for: error)

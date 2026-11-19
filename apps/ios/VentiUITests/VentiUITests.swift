@@ -158,6 +158,40 @@ final class VentiUITests: XCTestCase {
         let app = launch(bundledMap: true, dark: true)
         addSampleFlightAndOpenIt(in: app, prefix: "dark")
 
+        // A flight of the logbook once more, as the cockpit would have
+        // shown it in the air.
+        app.buttons["More"].tap()
+        let replay = app.buttons["Replay in the cockpit"]
+        XCTAssertTrue(replay.waitForExistence(timeout: 10))
+        replay.tap()
+        let faster = app.buttons["20 times faster"]
+        XCTAssertTrue(faster.waitForExistence(timeout: 10))
+        faster.tap()
+        XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(element("Gained", in: app).waitForExistence(timeout: 40))
+        XCTAssertTrue(element("lift-badge", in: app).waitForExistence(timeout: 20))
+        sleep(2)
+        keepScreenshot("dark-3b-replayed-in-the-cockpit")
+        app.buttons["End replay"].tap()
+        let close = app.buttons["Close the cockpit"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        // Back to the logbook, where the flight's page still is. It hides
+        // the tab bar, so the tab cannot be asked whether it is selected.
+        let logbookTab = app.tabBars.buttons["Logbook"]
+        for _ in 0..<4 where !app.buttons["Flight details"].exists {
+            for _ in 0..<40 where !(logbookTab.exists && logbookTab.isHittable) {
+                usleep(250_000)
+            }
+            usleep(400_000)
+            if logbookTab.exists {
+                logbookTab.tap()
+            }
+            _ = app.buttons["Flight details"].waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(app.buttons["Flight details"].exists)
+
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
         sleep(1)

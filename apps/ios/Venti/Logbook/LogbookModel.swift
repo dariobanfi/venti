@@ -207,6 +207,14 @@ final class LogbookModel {
         }.value
     }
 
+    /// The text of a flight's file, as the logbook keeps it.
+    func fileText(id: String) async throws -> String {
+        let core = self.core
+        return try await Task.detached(priority: .userInitiated) {
+            try core.flightFile(id: id).igcText
+        }.value
+    }
+
     /// A new conversation with the assistant, which answers from this
     /// logbook.
     func makeAssistant(model: String) -> Assistant {

@@ -73,6 +73,8 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 
 To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
 
+**A flight once more, in the cockpit.** The menu of a flight's page has "Replay in the cockpit", in real time or ten or twenty times faster. The flight is played through the same cockpit a pilot flies with, from its own file: the wind it works out from the circles, the picture of each thermal, the airspace warnings, a task if one is kept. Nothing is recorded and nothing is shared. It is how a pilot sees what the cockpit would have said on a day they remember, and how the cockpit's rules are tried against real flights before anyone trusts them in the air.
+
 ### Live tracking in the app
 
 Sharing a flight while it is under way is a choice between three audiences, on one page that is reached from the Fly tab before take-off ("Live tracking: Off") and from a round button in the cockpit: **Nobody**, **People I give the link**, **Everyone**. Under the choice stands what it means in a sentence, and at the foot of the page what is sent, where to, and when the server removes it. Nobody is the choice until the pilot makes another, and it cannot be changed without an account to send the positions to; the page says so first. The choice is kept for the next flights, which is why the Fly tab shows it before every start.

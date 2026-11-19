@@ -9,6 +9,8 @@ struct FlightScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AirspaceModel.self) private var airspace
     @Environment(AccountModel.self) private var account
+    @Environment(FlySession.self) private var fly
+    @Environment(AppNavigation.self) private var navigation
     @Environment(\.dismiss) private var dismiss
 
     private enum Phase {
@@ -58,6 +60,22 @@ struct FlightScreen: View {
                     if let exported {
                         ShareLink("Share flight file", item: exported)
                     }
+                    // The flight once more, as the cockpit would have
+                    // shown it in the air: its wind, its thermals, the
+                    // airspace it came near. Not while a flight is on.
+                    if fly.mode == nil {
+                        Menu("Replay in the cockpit", systemImage: "play") {
+                            Button("In real time") {
+                                replay(speed: 1)
+                            }
+                            Button("10 times faster") {
+                                replay(speed: 10)
+                            }
+                            Button("20 times faster") {
+                                replay(speed: 20)
+                            }
+                        }
+                    }
                     Button("Delete flight", systemImage: "trash", role: .destructive) {
                         isConfirmingDelete = true
                     }
@@ -91,6 +109,22 @@ struct FlightScreen: View {
             analysis = try? await logbook.analysis(id: id)
             exported = try? await logbook.exportFile(id: id)
             airspaceCheck = try? await logbook.airspace(of: id)
+        }
+    }
+}
+
+extension FlightScreen {
+    /// Plays this flight through the cockpit, on the Fly tab, which is
+    /// where the cockpit is. Nothing is recorded and nothing is shared.
+    private func replay(speed: Double) {
+        Task {
+            do {
+                let text = try await logbook.fileText(id: id)
+                navigation.tab = .fly
+                fly.startReplay(igcText: text, speed: speed)
+            } catch {
+                fly.problem = error.words
+            }
         }
     }
 }

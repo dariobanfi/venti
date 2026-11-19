@@ -71,6 +71,9 @@ final class FlySessionTests: XCTestCase {
         let exported = try await logbook.exportFile(id: id)
         XCTAssertEqual(exported.lastPathComponent, "2026-07-04-XVE-001-01.igc")
         XCTAssertEqual(try String(contentsOf: exported, encoding: .utf8), recording.igcText)
+        // And read back as it is kept, for replaying it in the cockpit.
+        let kept = try await logbook.fileText(id: id)
+        XCTAssertEqual(kept, recording.igcText)
         XCTAssertTrue(pendingRecordings(dataFolder: folder.path).isEmpty)
     }
 

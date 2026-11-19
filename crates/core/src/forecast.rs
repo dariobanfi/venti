@@ -511,7 +511,46 @@ mod tests {
     }
 
     #[test]
+    fn what_the_server_itself_answers_is_read() {
+        // The server's own golden file of this endpoint: if the server
+        // changes what it sends, this says whether the apps still read it.
+        let answer = include_str!("../../server/tests/golden/forecast.json");
+        let view = forecast(200, answer.as_bytes().to_vec(), 3600).unwrap();
+        assert!(!view.models.is_empty());
+        for model in &view.models {
+            assert!(
+                !model.grid.is_empty(),
+                "the app does not know the model {}",
+                model.model
+            );
+            assert!(model.cell_elevation_m.is_some());
+            assert!(!model.levels.is_empty());
+            let hours: Vec<_> = model.days.iter().flat_map(|day| &day.hours).collect();
+            assert!(!hours.is_empty());
+            assert!(hours.iter().all(|hour| hour.wind.is_some()));
+            assert!(
+                hours
+                    .iter()
+                    .all(|hour| hour.aloft.len() == model.levels.len())
+            );
+        }
+        assert!(!view.credits.is_empty());
+    }
+
+    #[test]
     fn a_server_without_forecasts_is_said_in_words() {
+        for (status, code, words) in [
+            (501, "no_forecasts", "This server has no forecasts."),
+            (
+                404,
+                "outside_region",
+                "This place lies outside the area the server has forecasts for.",
+            ),
+        ] {
+            let body = format!(r#"{{"error": {{"code": "{code}", "message": "x"}}}}"#);
+            let refused = forecast(status, body.into_bytes(), 0).unwrap_err();
+            assert_eq!(refused.to_string(), words);
+        }
         let refused = forecast(
             503,
             br#"{"error": {"code": "forecast_unavailable", "message": "x"}}"#.to_vec(),

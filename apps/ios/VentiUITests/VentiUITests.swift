@@ -445,6 +445,19 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(saying("OpenStreetMap", in: app).exists)
         sleep(1)
         keepScreenshot("sites-3-site")
+
+        // The same server's forecast for the place: the wind at each
+        // height through the day, and the sky.
+        let forecast = element("site-forecast", in: app)
+        XCTAssertTrue(forecast.waitForExistence(timeout: 10))
+        forecast.tap()
+        XCTAssertTrue(element("forecast-table", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "hPa", in: app).exists)
+        sleep(1)
+        keepScreenshot("sites-4-forecast")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 10))
+
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].tap()
 

@@ -135,13 +135,14 @@ struct ForecastScreen: View {
         return days.first { ($0.startUnixS..<($0.startUnixS + 86_400)).contains(now) } ?? days.first
     }
 
-    /// "Today", or the weekday in short: seven of them fit side by side.
+    /// "Today", or the weekday and the day of the month in short, so that
+    /// a forecast kept from last week is not taken for this week's.
     static func name(of day: ForecastDay) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(day.startUnixS + 12 * 3600))
         if Calendar.current.isDateInToday(date) {
             return "Today"
         }
-        return date.formatted(.dateTime.weekday(.abbreviated))
+        return date.formatted(.dateTime.weekday(.abbreviated).day())
     }
 
     /// What the numbers are, and what they are not.

@@ -56,6 +56,10 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
         (_, Some("box_too_large")) => {
             "The server holds more airspace around this place than one answer carries.".to_owned()
         }
+        (_, Some("outside_region")) => {
+            "This place lies outside the area the server has forecasts for.".to_owned()
+        }
+        (_, Some("no_forecasts")) => "This server has no forecasts.".to_owned(),
         (503, _) => "The server is busy or being restarted. Try again in a moment.".to_owned(),
         (_, Some(code)) => format!("The server could not answer ({code})."),
         _ => format!("The server could not answer (status {status})."),

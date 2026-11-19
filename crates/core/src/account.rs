@@ -221,6 +221,11 @@ struct Stored {
     /// Flights the server would not take. They are not sent again.
     #[serde(default)]
     refused: BTreeSet<String>,
+    /// When the server last said the account is full. For an hour after,
+    /// nothing is sent: every try costs a whole file. Forgotten as soon as
+    /// a flight is deleted there or one is taken.
+    #[serde(default)]
+    full_since_unix_s: Option<i64>,
     #[serde(default)]
     last_sync_unix_s: Option<i64>,
 }
@@ -520,6 +525,9 @@ impl Core {
     }
 }
 
+/// How long nothing is sent to an account that said it is full, seconds.
+const FULL_HOLD_S: i64 = 3600;
+
 /// One run of bringing the logbook in step with the server.
 #[derive(Debug, uniffi::Object)]
 pub struct FlightSync {
@@ -690,6 +698,8 @@ impl FlightSync {
                 }
                 stored.deleted_here.remove(&identity);
                 progress.summary.removed_there += 1;
+                // Room was made.
+                stored.full_since_unix_s = None;
             }
             Waiting::Changes => {
                 let changes: FlightChangesResponse = match answer(status, body) {
@@ -767,6 +777,16 @@ impl FlightSync {
                         },
                     );
                     progress.summary.sent += 1;
+                    stored.full_since_unix_s = None;
+                }
+                // No room for it. It stays on this device and is sent once
+                // there is room; what was done so far is kept.
+                403 if code(body).as_deref() == Some("account_full") => {
+                    stored.full_since_unix_s = Some(progress.now_unix_s);
+                    if let Err(error) = self.core.store_account(&stored) {
+                        return Err(failed(&error.to_string(), false).into());
+                    }
+                    return Err(failed(&refusal(status, body).to_string(), false).into());
                 }
                 // Not a flight the server can take, or too large: it stays
                 // on this device and is not sent again.
@@ -867,13 +887,25 @@ impl FlightSync {
             });
         }
 
-        // 4. What the server lacks is sent, one flight after another.
-        let to_send = progress.to_send.get_or_insert_with(|| {
+        // 4. What the server lacks is sent, one flight after another. Not
+        // to an account that said within the hour that it is full: the
+        // answer would be the same, after a whole file was sent for it.
+        let full = stored
+            .full_since_unix_s
+            .is_some_and(|since| (0..FULL_HOLD_S).contains(&(progress.now_unix_s - since)));
+        let waiting = || {
             self.core
                 .flight_ids()
                 .into_iter()
                 .filter(|id| !stored.flights.contains_key(id) && !stored.refused.contains(id))
-                .collect()
+        };
+        let held_back = full && waiting().next().is_some();
+        let to_send = progress.to_send.get_or_insert_with(|| {
+            if full {
+                VecDeque::new()
+            } else {
+                waiting().collect()
+            }
         });
         while let Some(identity) = to_send.front().cloned() {
             let text = match self.core.logbook.flight_text(&identity) {
@@ -905,6 +937,11 @@ impl FlightSync {
         stored.last_sync_unix_s = Some(progress.now_unix_s);
         if let Err(error) = self.core.store_account(&stored) {
             return Ok(failed(&error.to_string(), false));
+        }
+        if held_back {
+            // Everything else is done; the pilot is told why flights wait.
+            let full = br#"{"error":{"code":"account_full"}}"#;
+            return Ok(failed(&refusal(403, full).to_string(), false));
         }
         Ok(SyncStep::Finished {
             summary: progress.summary,
@@ -1411,6 +1448,47 @@ mod tests {
             }
         );
         assert_eq!(core.account().unwrap().unwrap().flights_to_send, 0);
+
+        // A full account says so in words, and for the next hour the
+        // waiting flight is not sent again: the sync does the rest and
+        // ends with the same words, having asked for the changes only.
+        let folder_full = TempFolder::new();
+        let full_core = super::tests::core(&folder_full);
+        full_core.import_flight(sample()).unwrap();
+        signed_in(&full_core);
+        let words = "Your account on this server is full. Delete flights you no longer need to make room; what was not sent stays on this device.";
+        let no_room = json!({"error": {"code": "account_full", "message": "x"}});
+        let sync = full_core.clone().sync();
+        sync.start(NOW);
+        let step = sync.receive(200, no_more_changes(), None);
+        assert_eq!(request(&step).method, "POST");
+        assert_eq!(
+            sync.receive(403, no_room.to_string().into_bytes(), None),
+            SyncStep::Failed {
+                message: words.to_owned(),
+                needs_sign_in: false
+            }
+        );
+        assert_eq!(full_core.account().unwrap().unwrap().flights_to_send, 1);
+        let sync = full_core.clone().sync();
+        sync.start(NOW + 600);
+        assert_eq!(
+            sync.receive(200, no_more_changes(), None),
+            SyncStep::Failed {
+                message: words.to_owned(),
+                needs_sign_in: false
+            }
+        );
+        // An hour on it is tried again, and taken once there is room.
+        let sync = full_core.clone().sync();
+        sync.start(NOW + 3700);
+        let step = sync.receive(200, no_more_changes(), None);
+        assert_eq!(request(&step).method, "POST");
+        assert!(matches!(
+            sync.receive(201, golden("upload.json"), None),
+            SyncStep::Finished { .. }
+        ));
+        assert_eq!(full_core.account().unwrap().unwrap().flights_to_send, 0);
 
         // A session that has ended is said, and remembered, and nothing
         // more is asked until the pilot has signed in again.

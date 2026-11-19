@@ -31,7 +31,7 @@ Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before ch
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo deny check licenses bans sources
+cargo deny check licenses bans sources advisories
 VENTI_UPDATE_GOLDEN=1 cargo test --workspace   # rewrite golden files, then review the diff
 cargo run -p venti-server -- ingest regions/alps-de-at/region.toml   # live run against the providers
 cargo run -p venti-server -- dev   # the API on 127.0.0.1:8080 over recorded data; no network, no database

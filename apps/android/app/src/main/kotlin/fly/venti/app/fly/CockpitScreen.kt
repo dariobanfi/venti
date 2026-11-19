@@ -377,7 +377,7 @@ private fun Instruments(view: CockpitView, way: WayToTarget?) {
                 VerticalDivider()
                 // Next to the glide the glider is making: the glide it
                 // needs to reach the place it is flying to.
-                Instrument("Needs", way?.requiredGlide?.let(Format::glideRatio), "", Modifier.weight(1f))
+                Instrument("Needs", way?.requiredGlide?.let(Format::neededGlide), "", Modifier.weight(1f))
             }
         }
         HorizontalDivider()

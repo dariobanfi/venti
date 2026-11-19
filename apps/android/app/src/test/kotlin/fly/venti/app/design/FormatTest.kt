@@ -39,6 +39,11 @@ class FormatTest {
         assertEquals("12.3", Format.kilometres(12_345.0))
         assertEquals("12", Format.wholeKilometres(12_345.0))
         assertEquals("8.4", Format.glideRatio(8.44))
+        assertEquals("8.4", Format.neededGlide(8.44))
+        assertEquals("99.9", Format.neededGlide(99.94))
+        // Level with the place there is no glide that reaches it.
+        assertEquals("99+", Format.neededGlide(100.0))
+        assertEquals("99+", Format.neededGlide(1_396_016.2))
         assertEquals("17.28", Format.points(17.284))
         assertEquals("24%", Format.percent(0.239))
         assertEquals("1.4", Format.plain(1.4))

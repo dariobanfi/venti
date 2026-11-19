@@ -82,6 +82,13 @@ object Format {
     /** A glide ratio with one decimal. */
     fun glideRatio(ratio: Double): String = number(ratio, decimals = 1)
 
+    /**
+     * The glide ratio needed to reach a place. Level with the place the
+     * ratio has no upper end, and from a hundred on the number says no more
+     * than "out of reach": it is shown as "99+".
+     */
+    fun neededGlide(ratio: Double): String = if (ratio >= 99.95) "99+" else glideRatio(ratio)
+
     /** Cross-country points, with two decimals. */
     fun points(points: Double): String = number(points, decimals = 2)
 

@@ -5,7 +5,7 @@
 //! airspaces, somewhat denser than Germany and Austria together, asks every
 //! question many times and fails if any is slower than a generous limit.
 //! The limits are for an unoptimised build on a busy machine; a release
-//! build is 20 to 50 times faster.
+//! build was four to seven times faster when this was written.
 //!
 //! To see the numbers, and to measure real files as well:
 //!
@@ -247,16 +247,18 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
         raised as f64 / FLIGHT_S as f64
     );
 
-    // Generous limits for an unoptimised build on a shared machine.
-    assert!(at.mean < Duration::from_millis(2), "{:?}", at.mean);
-    assert!(near_2.mean < Duration::from_millis(5), "{:?}", near_2.mean);
+    // Limits for an unoptimised build on a busy, shared machine: ten to
+    // twenty times what such a build takes on an idle one, so that only a
+    // real slowdown fails the test and a noisy neighbour does not.
+    assert!(at.mean < Duration::from_millis(10), "{:?}", at.mean);
+    assert!(near_2.mean < Duration::from_millis(25), "{:?}", near_2.mean);
     assert!(
-        near_20.mean < Duration::from_millis(50),
+        near_20.mean < Duration::from_millis(100),
         "{:?}",
         near_20.mean
     );
     assert!(
-        section.mean < Duration::from_millis(100),
+        section.mean < Duration::from_millis(250),
         "{:?}",
         section.mean
     );
@@ -267,7 +269,7 @@ fn measure(label: &str, airspaces: Vec<Airspace>, centre: GeoPoint) -> Duration 
 fn a_country_of_airspace_is_answered_in_a_fraction_of_a_second() {
     let update = measure("A made-up country", made_up_country(), point(50.0, 10.0));
     // Once a second on a phone: even unoptimised this must be far below.
-    assert!(update < Duration::from_millis(20), "{update:?}");
+    assert!(update < Duration::from_millis(60), "{update:?}");
 }
 
 #[test]

@@ -270,7 +270,7 @@ What the shell has to do, because the engine cannot:
 
 ## Measured
 
-On openAIP's exports for Germany and Austria of 2026-11-19, read as OpenAir files: 1,018 airspaces with 58,980 corners. Release build, one core of a cloud server (Intel Xeon, 2.1 GHz); a current phone is of the same order. Reproduce with `VENTI_AIRSPACE_FILES=de.txt,at.txt cargo test -p venti-airspace --release --test speed -- --nocapture`.
+On openAIP's exports for Germany and Austria of 2026-11-19, read as OpenAir files: 1,018 airspaces with 58,980 corners. Release build, one core of a cloud server (Intel Xeon, 2.1 GHz). Not measured on a phone: *to verify*. Reproduce with `VENTI_AIRSPACE_FILES=de.txt,at.txt cargo test -p venti-airspace --release --test speed -- --nocapture`.
 
 | | Germany and Austria | A made-up country of 3,000 airspaces and 225,000 corners |
 |---|---|---|

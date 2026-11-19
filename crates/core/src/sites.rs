@@ -66,12 +66,19 @@ pub fn wind_fits(spans: Vec<WindSpan>, from_deg: f64) -> Option<bool> {
         return None;
     }
     Some(spans.iter().any(|span| {
-        // How far the span reaches clockwise from its start, and how far
-        // clockwise from that start the wind is; both widened by the
-        // tolerance at either end.
-        let width = (span.to_deg - span.from_deg).rem_euclid(360.0) + 2.0 * DIRECTION_TOLERANCE_DEG;
-        let into = (from_deg - span.from_deg + DIRECTION_TOLERANCE_DEG).rem_euclid(360.0);
-        width >= 360.0 || into <= width
+        // The span as its source gives it, widened at both ends, and
+        // asked the way the domain asks a sector.
+        let reach = span.to_deg - span.from_deg;
+        let width = if reach >= 360.0 {
+            360.0
+        } else {
+            reach.rem_euclid(360.0)
+        };
+        WindSector {
+            from_deg: span.from_deg - DIRECTION_TOLERANCE_DEG,
+            to_deg: span.from_deg + width + DIRECTION_TOLERANCE_DEG,
+        }
+        .contains(from_deg)
     }))
 }
 
@@ -489,6 +496,7 @@ mod tests {
         assert_eq!(wind_fits(two, 225.0), Some(false));
         // All the way round.
         assert_eq!(wind_fits(vec![span(0.0, 359.0)], 359.5), Some(true));
+        assert_eq!(wind_fits(vec![span(0.0, 360.0)], 180.0), Some(true));
         // A site that names no direction is not said to fit or not.
         assert_eq!(wind_fits(Vec::new(), 270.0), None);
         assert_eq!(wind_fits(south, f64::NAN), None);

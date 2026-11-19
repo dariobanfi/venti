@@ -473,7 +473,7 @@ pub(crate) fn box_around(place: GeoPoint, radius_km: f64) -> BoundingBox {
 }
 
 /// The direction from one point to another, degrees clockwise from north.
-fn bearing_deg(from: GeoPoint, to: GeoPoint) -> f64 {
+pub(crate) fn bearing_deg(from: GeoPoint, to: GeoPoint) -> f64 {
     let (lat1, lat2) = (from.lat().to_radians(), to.lat().to_radians());
     let along = (to.lon() - from.lon()).to_radians();
     let east = along.sin() * lat2.cos();

@@ -1,0 +1,574 @@
+//! The forecast for a place, for an assistant.
+//!
+//! Like the wind tools, this is answered in two steps so that the crate
+//! stays free of I/O: [`request`] says what to ask a Venti server for, and
+//! [`result`] turns the server's answer into the tool's result.
+//!
+//! The server fetches a forecast when a place is asked for, which is a
+//! request the app makes on the pilot's behalf. The server's own connector
+//! does not offer this tool: nothing a connector's tool call does may make
+//! the server fetch.
+//!
+//! The result keeps the forecast what it is: what one weather model
+//! computed for one cell of its grid. Models stand side by side and are
+//! never blended, every one with its run and the height it takes the
+//! ground to be, and nothing says whether a day can be flown.
+
+use chrono::{DateTime, Duration, NaiveDate, Timelike, Utc};
+use serde_json::{Map, Value, json};
+use venti_api_types::v1::{ForecastRequest, ForecastResponse};
+use venti_domain::{ForecastHour, ForecastSeries, GeoPoint, WindAloft};
+
+use crate::wind::{error_code, sources, tenth, unreadable};
+use crate::{Tool, ToolError};
+
+/// Every how many hours a value is given when the model does not say.
+const DEFAULT_EVERY_HOURS: u32 = 2;
+/// The widest step the model may ask for.
+const MAX_EVERY_HOURS: u32 = 6;
+
+/// What every result says about itself.
+pub const CAVEATS: [&str; 5] = [
+    "These are a weather model's numbers for one cell of its grid, a few kilometres wide, not \
+     measurements. Say which model and which run a number is from.",
+    "model_ground_m is how high the model takes the ground to be in that cell. In the mountains \
+     a take-off or a valley floor can be hundreds of metres above or below it, and \
+     wind_10m_kmh is the wind 10 m above the model's ground, not at the place itself.",
+    "Models are often wrong about valley winds, foehn, the height of the cloud base and where \
+     showers and thunderstorms form. Where two models disagree, say so; never average them.",
+    "convective_cloud_base_m is the base of the model's convective cloud and is left out when \
+     the model has none at that hour. cape_j_kg says how much showers and thunderstorms can \
+     grow, not how good thermals are. There is no thermal strength and no height of the \
+     boundary layer in this data.",
+    "Nothing here says whether the day can be flown. That depends on the pilot, the wing and \
+     the place, and is the pilot's decision.",
+];
+
+/// The tools that read forecasts from a Venti server.
+pub const FORECAST_TOOLS: [Tool; 1] = [Tool {
+    name: "forecast_at",
+    description: "What weather models forecast for a place on one day, from a Venti server: \
+        for each model the wind 10 m above ground with gusts, the wind at several heights above \
+        ground and on pressure levels with about how high those lie, cloud cover, rain, \
+        temperature, the height of the 0 °C level, and the base of convective cloud where the \
+        model has one, from six in the morning to eight in the evening by the sun at the place. Give the place as coordinates; you may \
+        use your own knowledge of where a mountain, town or flying site is. Give the date to \
+        look at another day than today; forecasts reach about two days ahead. Times are UTC. \
+        Each model is given by itself with its run and the height it takes the ground to be: \
+        say which model a number is from, pass on the caveats in the result, name the source, \
+        and do not say whether the day can be flown.",
+    read_only: true,
+    schema: r#"{
+        "type": "object",
+        "properties": {
+            "latitude": {"type": "number", "minimum": -90, "maximum": 90,
+                         "description": "Latitude of the place in decimal degrees, north positive."},
+            "longitude": {"type": "number", "minimum": -180, "maximum": 180,
+                          "description": "Longitude of the place in decimal degrees, east positive."},
+            "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                     "description": "The day to look at, as YYYY-MM-DD: the calendar day at the place. Today if left out."},
+            "every_hours": {"type": "integer", "minimum": 1, "maximum": 6,
+                            "description": "Give a value every this many hours. 2 if left out; 1 for every hour."}
+        },
+        "required": ["latitude", "longitude"],
+        "additionalProperties": false
+    }"#,
+}];
+
+/// Whether a tool is one of [`FORECAST_TOOLS`].
+pub fn needs_server(name: &str) -> bool {
+    FORECAST_TOOLS.iter().any(|tool| tool.name == name)
+}
+
+/// A call of `forecast_at`, with its arguments read and bounded.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForecastCall {
+    /// The place asked about.
+    pub place: GeoPoint,
+    /// The day asked about, by the sun at the place. Today if `None`.
+    pub date: Option<NaiveDate>,
+    /// Every how many hours a value is wanted.
+    pub every_hours: u32,
+}
+
+impl ForecastCall {
+    /// Reads the arguments the model gave.
+    pub fn read(input: &Value) -> Result<Self, ToolError> {
+        let number = |name: &str| {
+            input[name]
+                .as_f64()
+                .ok_or_else(|| ToolError::BadArguments(format!("{name} must be a number")))
+        };
+        let place = GeoPoint::new(number("latitude")?, number("longitude")?).map_err(|_| {
+            ToolError::BadArguments(
+                "latitude must be between -90 and 90, longitude between -180 and 180".to_owned(),
+            )
+        })?;
+        let date = match &input["date"] {
+            Value::Null => None,
+            date => Some(
+                date.as_str()
+                    .and_then(|text| NaiveDate::parse_from_str(text, "%Y-%m-%d").ok())
+                    .ok_or_else(|| {
+                        ToolError::BadArguments("date must be a day as YYYY-MM-DD".to_owned())
+                    })?,
+            ),
+        };
+        let every_hours = match &input["every_hours"] {
+            Value::Null => DEFAULT_EVERY_HOURS,
+            every => every
+                .as_u64()
+                .filter(|every| *every >= 1)
+                .map(|every| (every as u32).min(MAX_EVERY_HOURS))
+                .ok_or_else(|| {
+                    ToolError::BadArguments("every_hours must be a whole number from 1".to_owned())
+                })?,
+        };
+        Ok(Self {
+            place,
+            date,
+            every_hours,
+        })
+    }
+}
+
+/// What a tool needs from the server: the path and query to `GET`.
+pub fn request(name: &str, input: &Value) -> Result<String, ToolError> {
+    match name {
+        "forecast_at" => Ok(ForecastRequest {
+            point: ForecastCall::read(input)?.place,
+        }
+        .path_and_query()),
+        other => Err(ToolError::UnknownTool(other.to_owned())),
+    }
+}
+
+/// What to tell the model when the server did not answer with a forecast.
+fn refusal(status: u16, code: Option<&str>) -> ToolError {
+    ToolError::Failed(match code {
+        Some("outside_region") => {
+            "This place lies outside the area the Venti server has forecasts for.".to_owned()
+        }
+        Some("no_forecasts") => "This Venti server has no forecasts.".to_owned(),
+        Some("unavailable") => "The Venti server is still fetching this forecast, or its \
+            forecast service is busy. Ask again in a little while."
+            .to_owned(),
+        Some(code) => format!("The Venti server could not answer ({code})."),
+        None => format!("The Venti server could not answer (status {status})."),
+    })
+}
+
+/// The tool's result, as JSON text, from the server's answer to
+/// [`request`]. `now` is the current time, which says which day is today.
+pub fn result(
+    name: &str,
+    input: &Value,
+    status: u16,
+    body: &[u8],
+    now: DateTime<Utc>,
+) -> Result<String, ToolError> {
+    if !(200..300).contains(&status) {
+        return Err(refusal(status, error_code(body).as_deref()));
+    }
+    match name {
+        "forecast_at" => {
+            let call = ForecastCall::read(input)?;
+            let answer: ForecastResponse = serde_json::from_slice(body).map_err(unreadable)?;
+            Ok(forecast_at(&answer, &call, now).to_string())
+        }
+        other => Err(ToolError::UnknownTool(other.to_owned())),
+    }
+}
+
+/// The first and the last hour of the day, by the sun at the place, that
+/// a result covers.
+const FIRST_HOUR: u32 = 6;
+const LAST_HOUR: u32 = 20;
+
+/// How far the sun's time at a place is ahead of UTC: four minutes for
+/// every degree of longitude east.
+fn solar_offset(place: GeoPoint) -> Duration {
+    Duration::seconds((place.lon() * 240.0).round() as i64)
+}
+
+/// The day a moment falls on by the sun at a place.
+fn day_at(time: DateTime<Utc>, place: GeoPoint) -> NaiveDate {
+    (time + solar_offset(place)).date_naive()
+}
+
+fn clock(time: DateTime<Utc>) -> String {
+    time.format("%Y-%m-%dT%H:%MZ").to_string()
+}
+
+fn kmh(metres_per_second: f64) -> f64 {
+    (metres_per_second * 3.6).round()
+}
+
+/// The forecast for a place on one day, as the model reads it.
+pub fn forecast_at(answer: &ForecastResponse, call: &ForecastCall, now: DateTime<Utc>) -> Value {
+    let place = answer.point;
+    let date = call.date.unwrap_or_else(|| day_at(now, place));
+    // The hours a pilot can be in the air in, generously: from six in the
+    // morning to eight in the evening by the sun at the place. This crate
+    // cannot work out sunrise and sunset; the model is told the hours are
+    // by the clock, not by the light.
+    let wanted = |time: DateTime<Utc>| {
+        let by_the_sun = time + solar_offset(place);
+        by_the_sun.date_naive() == date
+            && (FIRST_HOUR * 3600..=LAST_HOUR * 3600)
+                .contains(&by_the_sun.num_seconds_from_midnight())
+    };
+
+    let series: Vec<&ForecastSeries> = answer
+        .layers
+        .iter()
+        .flat_map(|layer| &layer.series)
+        .collect();
+    let models: Vec<Value> = series
+        .iter()
+        .map(|series| {
+            let hours: Vec<Value> = series
+                .hours
+                .iter()
+                .filter(|hour| wanted(hour.time))
+                .step_by(call.every_hours as usize)
+                .map(hour_fields)
+                .collect();
+            let mut model = Map::new();
+            model.insert("model".to_owned(), json!(series.model.as_str()));
+            model.insert("run_utc".to_owned(), json!(clock(series.run)));
+            model.insert(
+                "cell_distance_km".to_owned(),
+                json!(tenth(place.distance_m(series.cell) / 1000.0)),
+            );
+            if let Some(ground) = series.cell_elevation_m {
+                model.insert("model_ground_m".to_owned(), json!(ground.round()));
+            }
+            if hours.is_empty() {
+                model.insert(
+                    "no_hours".to_owned(),
+                    json!("this model's run has nothing for that day"),
+                );
+            }
+            model.insert("hours".to_owned(), Value::Array(hours));
+            Value::Object(model)
+        })
+        .collect();
+
+    // The days there is anything for, so that a wrong date can be put
+    // right without guessing.
+    let mut days: Vec<NaiveDate> = series
+        .iter()
+        .flat_map(|series| &series.hours)
+        .map(|hour| day_at(hour.time, place))
+        .collect();
+    days.sort();
+    days.dedup();
+
+    let mut result = Map::new();
+    result.insert(
+        "place".to_owned(),
+        json!({"latitude": place.lat(), "longitude": place.lon()}),
+    );
+    result.insert("date".to_owned(), json!(date.to_string()));
+    result.insert(
+        "hours_covered".to_owned(),
+        json!("06:00 to 20:00 by the sun at the place, whether it is light or not"),
+    );
+    result.insert(
+        "days_with_forecast".to_owned(),
+        json!(days.iter().map(ToString::to_string).collect::<Vec<_>>()),
+    );
+    if models.is_empty() {
+        result.insert(
+            "no_models".to_owned(),
+            json!("the server has no weather model that reaches this place"),
+        );
+    }
+    result.insert("models".to_owned(), Value::Array(models));
+    result.insert("fetched_utc".to_owned(), json!(clock(answer.fetched_at)));
+    result.insert("caveats".to_owned(), json!(CAVEATS));
+    result.insert("sources".to_owned(), sources(&answer.attributions));
+    Value::Object(result)
+}
+
+/// One hour of one model. Only what the model has is listed.
+fn hour_fields(hour: &ForecastHour) -> Value {
+    let mut fields = Map::new();
+    fields.insert("time_utc".to_owned(), json!(clock(hour.time)));
+    let mut put = |name: &str, value: Option<f64>| {
+        if let Some(value) = value {
+            fields.insert(name.to_owned(), json!(value));
+        }
+    };
+    put("wind_10m_kmh", hour.wind_speed_ms.map(kmh));
+    put("gusts_kmh", hour.wind_gust_ms.map(kmh));
+    put("wind_from_deg", hour.wind_direction_deg.map(f64::round));
+    put("temperature_c", hour.temperature_c.map(f64::round));
+    put("cloud_cover_pct", hour.cloud_cover_pct.map(f64::round));
+    put("precipitation_mm", hour.precipitation_mm.map(tenth));
+    put("freezing_level_m", hour.freezing_level_m.map(hundred));
+    put(
+        "convective_cloud_base_m",
+        hour.convective_cloud_base_m.map(hundred),
+    );
+    put("cape_j_kg", hour.cape_j_kg.map(f64::round));
+    let aloft: Vec<Value> = hour.winds_aloft.iter().filter_map(aloft_fields).collect();
+    if !aloft.is_empty() {
+        fields.insert("wind_aloft".to_owned(), Value::Array(aloft));
+    }
+    Value::Object(fields)
+}
+
+fn hundred(metres: f64) -> f64 {
+    (metres / 100.0).round() * 100.0
+}
+
+/// The wind at one level, if the model has a speed there.
+fn aloft_fields(wind: &WindAloft) -> Option<Value> {
+    let speed = wind.wind_speed_ms?;
+    let mut fields = Map::new();
+    match (wind.above_ground_m, wind.pressure_hpa) {
+        (Some(height), _) => {
+            fields.insert("above_ground_m".to_owned(), json!(height));
+        }
+        (None, Some(pressure)) => {
+            fields.insert("pressure_hpa".to_owned(), json!(pressure));
+            if let Some(altitude) = wind.altitude_m {
+                fields.insert("about_altitude_m".to_owned(), json!(hundred(altitude)));
+            }
+        }
+        (None, None) => return None,
+    }
+    fields.insert("kmh".to_owned(), json!(kmh(speed)));
+    if let Some(from) = wind.wind_direction_deg {
+        fields.insert("from_deg".to_owned(), json!(from.round()));
+    }
+    Some(Value::Object(fields))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The server's own golden answer of the endpoint.
+    const ANSWER: &str = include_str!("../../server/tests/golden/forecast.json");
+
+    /// Two models over two days at the Tegernsee, written by hand: the
+    /// fine one hourly from 05:00 to 19:00 UTC on 4 July, the coarse one
+    /// with one hour on each of two days. The sun's time there is 47
+    /// minutes ahead of UTC.
+    fn two_days() -> String {
+        let mut hours = Vec::new();
+        for hour in 5..=19 {
+            hours.push(json!({
+                "time": format!("2026-07-04T{hour:02}:00:00Z"),
+                "wind_speed_ms": 2.5, "wind_gust_ms": 6.9, "wind_direction_deg": 250.4,
+                "temperature_c": 24.4, "cloud_cover_pct": 30.2, "precipitation_mm": 0.04,
+                "cape_j_kg": 180.0, "freezing_level_m": 3940.0, "convective_cloud_base_m": 2450.0,
+                "winds_aloft": [
+                    {"above_ground_m": 80.0, "wind_speed_ms": 3.6, "wind_direction_deg": 255.0},
+                    {"pressure_hpa": 850.0, "altitude_m": 1532.0, "wind_speed_ms": 5.6, "wind_direction_deg": 270.0},
+                    {"pressure_hpa": 700.0, "altitude_m": 3140.0}
+                ]
+            }));
+        }
+        json!({
+            "point": {"lat": 47.7, "lon": 11.8},
+            "fetched_at": "2026-07-04T04:40:00Z",
+            "layers": [{"source": "open-meteo", "series": [
+                {"source": "open-meteo", "model": "icon-d2", "run": "2026-07-04T03:00:00Z",
+                 "point": {"lat": 47.7, "lon": 11.8}, "cell": {"lat": 47.7, "lon": 11.8},
+                 "cell_elevation_m": 812.0, "hours": hours},
+                {"source": "open-meteo", "model": "icon-eu", "run": "2026-07-04T00:00:00Z",
+                 "point": {"lat": 47.7, "lon": 11.8}, "cell": {"lat": 47.6875, "lon": 11.8125},
+                 "hours": [
+                    {"time": "2026-07-04T12:00:00Z", "wind_speed_ms": 3.0},
+                    {"time": "2026-07-05T12:00:00Z", "wind_speed_ms": 4.0}
+                 ]}
+            ]}],
+            "attributions": [{"source": "open-meteo", "provider": "Open-Meteo", "licence": "CC BY 4.0",
+                              "text": "Weather data by Open-Meteo.com", "url": "https://open-meteo.com/"}]
+        })
+        .to_string()
+    }
+
+    fn at(text: &str) -> DateTime<Utc> {
+        text.parse().unwrap()
+    }
+
+    #[test]
+    fn the_forecast_of_a_place_is_asked_for() {
+        let input = json!({"latitude": 47.7, "longitude": 11.8});
+        assert!(needs_server("forecast_at"));
+        assert!(!needs_server("wind_stations"));
+        assert_eq!(
+            request("forecast_at", &input).unwrap(),
+            "/v1/forecast?lat=47.7&lon=11.8"
+        );
+        assert!(matches!(
+            request("nothing", &input),
+            Err(ToolError::UnknownTool(_))
+        ));
+        for bad in [
+            json!({"latitude": 97.0, "longitude": 11.8}),
+            json!({"latitude": 47.7}),
+            json!({"latitude": 47.7, "longitude": 11.8, "date": "tomorrow"}),
+            json!({"latitude": 47.7, "longitude": 11.8, "date": "2026-13-40"}),
+            json!({"latitude": 47.7, "longitude": 11.8, "every_hours": 0}),
+        ] {
+            assert!(
+                matches!(
+                    request("forecast_at", &bad),
+                    Err(ToolError::BadArguments(_))
+                ),
+                "{bad}"
+            );
+        }
+        // A step wider than allowed is brought down, not refused.
+        let wide =
+            ForecastCall::read(&json!({"latitude": 47.7, "longitude": 11.8, "every_hours": 12}))
+                .unwrap();
+        assert_eq!(wide.every_hours, MAX_EVERY_HOURS);
+    }
+
+    #[test]
+    fn a_day_is_given_model_by_model_through_the_hours_of_flying() {
+        let input = json!({"latitude": 47.7, "longitude": 11.8});
+        let text = result(
+            "forecast_at",
+            &input,
+            200,
+            two_days().as_bytes(),
+            at("2026-07-04T05:00:00Z"),
+        )
+        .unwrap();
+        let result: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(result["date"], "2026-07-04");
+        assert!(result["hours_covered"].is_string());
+        assert_eq!(
+            result["days_with_forecast"],
+            json!(["2026-07-04", "2026-07-05"])
+        );
+        assert_eq!(
+            result["sources"],
+            json!(["Weather data by Open-Meteo.com (CC BY 4.0)"])
+        );
+        assert_eq!(result["caveats"].as_array().unwrap().len(), CAVEATS.len());
+
+        let models = result["models"].as_array().unwrap();
+        assert_eq!(models.len(), 2);
+        let fine = &models[0];
+        assert_eq!(fine["model"], "icon-d2");
+        assert_eq!(fine["run_utc"], "2026-07-04T03:00Z");
+        assert_eq!(fine["model_ground_m"], 812.0);
+        assert_eq!(fine["cell_distance_km"], 0.0);
+        // 05:00 UTC is before six by the sun there. Of the fourteen hours
+        // from 06:00 UTC on, every second: 06, 08, ... 18.
+        let hours = fine["hours"].as_array().unwrap();
+        assert_eq!(hours.len(), 7);
+        assert_eq!(hours[0]["time_utc"], "2026-07-04T06:00Z");
+        assert_eq!(hours[6]["time_utc"], "2026-07-04T18:00Z");
+        // Whole km/h, whole degrees, heights to the hundred, rain to a
+        // tenth; the units are in the names.
+        let first = &hours[0];
+        assert_eq!(first["wind_10m_kmh"], 9.0);
+        assert_eq!(first["gusts_kmh"], 25.0);
+        assert_eq!(first["wind_from_deg"], 250.0);
+        assert_eq!(first["temperature_c"], 24.0);
+        assert_eq!(first["cloud_cover_pct"], 30.0);
+        assert_eq!(first["precipitation_mm"], 0.0);
+        assert_eq!(first["freezing_level_m"], 3900.0);
+        assert_eq!(first["convective_cloud_base_m"], 2500.0);
+        // A level without a speed is left out.
+        assert_eq!(
+            first["wind_aloft"],
+            json!([
+                {"above_ground_m": 80.0, "kmh": 13.0, "from_deg": 255.0},
+                {"pressure_hpa": 850.0, "about_altitude_m": 1500.0, "kmh": 20.0, "from_deg": 270.0}
+            ])
+        );
+
+        // The coarse model has one hour of that day, and no ground height.
+        let coarse = &models[1];
+        assert_eq!(coarse["hours"].as_array().unwrap().len(), 1);
+        assert!(coarse.get("model_ground_m").is_none());
+        assert!(coarse["cell_distance_km"].as_f64().unwrap() > 1.0);
+    }
+
+    #[test]
+    fn another_day_and_every_hour_can_be_asked_for() {
+        let tomorrow =
+            json!({"latitude": 47.7, "longitude": 11.8, "date": "2026-07-05", "every_hours": 1});
+        let text = result(
+            "forecast_at",
+            &tomorrow,
+            200,
+            two_days().as_bytes(),
+            at("2026-07-04T05:00:00Z"),
+        )
+        .unwrap();
+        let read: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(read["date"], "2026-07-05");
+        let models = read["models"].as_array().unwrap();
+        // The fine model's run does not reach that day, and says so.
+        assert_eq!(models[0]["hours"], json!([]));
+        assert!(models[0]["no_hours"].is_string());
+        assert_eq!(models[1]["hours"][0]["time_utc"], "2026-07-05T12:00Z");
+        assert_eq!(models[1]["hours"][0]["wind_10m_kmh"], 14.0);
+
+        let hourly = json!({"latitude": 47.7, "longitude": 11.8, "every_hours": 1});
+        let text = result(
+            "forecast_at",
+            &hourly,
+            200,
+            two_days().as_bytes(),
+            at("2026-07-04T05:00:00Z"),
+        )
+        .unwrap();
+        let read: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(read["models"][0]["hours"].as_array().unwrap().len(), 14);
+    }
+
+    #[test]
+    fn the_servers_own_answer_is_read_and_stays_small() {
+        let input = json!({"latitude": 47.7, "longitude": 11.8, "date": "2026-11-19"});
+        let text = result(
+            "forecast_at",
+            &input,
+            200,
+            ANSWER.as_bytes(),
+            at("2026-11-19T20:00:00Z"),
+        )
+        .unwrap();
+        let result: Value = serde_json::from_str(&text).unwrap();
+        assert!(!result["models"].as_array().unwrap().is_empty());
+        assert!(!result["days_with_forecast"].as_array().unwrap().is_empty());
+        // A model pays for every token of a result.
+        assert!(text.len() < 12_000, "{}", text.len());
+    }
+
+    #[test]
+    fn a_server_without_a_forecast_is_said_in_words() {
+        let input = json!({"latitude": 47.7, "longitude": 11.8});
+        let now = at("2026-07-04T05:00:00Z");
+        for (status, code, said) in [
+            (404, "outside_region", "outside the area"),
+            (501, "no_forecasts", "has no forecasts"),
+            (503, "unavailable", "Ask again"),
+            (500, "internal", "(internal)"),
+        ] {
+            let body = format!(r#"{{"error": {{"code": "{code}", "message": "x"}}}}"#);
+            let Err(ToolError::Failed(message)) =
+                result("forecast_at", &input, status, body.as_bytes(), now)
+            else {
+                panic!("{code} was not refused");
+            };
+            assert!(message.contains(said), "{message}");
+        }
+        assert!(matches!(
+            result("forecast_at", &input, 200, b"not json", now),
+            Err(ToolError::Failed(_))
+        ));
+    }
+}

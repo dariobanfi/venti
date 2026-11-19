@@ -9,11 +9,15 @@
 //! implements [`Host`]: in the app, the client core answers from the
 //! logbook on the device.
 //!
-//! The tools in [`wind`] and [`airspace`] read from a Venti server
-//! instead, and are answered in two steps so that this crate stays free of
-//! I/O: one function says what to ask the server for, one turns its answer
-//! into the tool's result. The server's connector offers exactly these and
-//! skips the first step: it builds the answer from its own database.
+//! The tools in [`wind`], [`airspace`], [`forecast`] and [`sites`] read
+//! from a Venti server instead, and are answered in two steps so that this
+//! crate stays free of I/O: one function says what to ask the server for,
+//! one turns its answer into the tool's result. The server's connector
+//! offers the wind and airspace tools and skips the first step: it builds
+//! the answer from its own database. It does not offer the forecast, which
+//! the server has to fetch when it is asked for, and nothing a connector's
+//! tool call does may make the server fetch; it does not offer the sites
+//! yet.
 //!
 //! Rules for tools:
 //!
@@ -27,6 +31,8 @@
 use serde_json::{Value, json};
 
 pub mod airspace;
+pub mod forecast;
+pub mod sites;
 pub mod wind;
 
 /// One tool.

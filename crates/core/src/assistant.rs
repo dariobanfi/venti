@@ -408,16 +408,23 @@ fn continue_round(core: &Core, state: &mut State, key: &str) -> AssistantStep {
     }
 }
 
-/// Whether a tool is answered from the pilot's Venti server: live wind and
-/// airspace.
+/// Whether a tool is answered from the pilot's Venti server: live wind,
+/// airspace, forecasts and flying sites.
 fn needs_server(name: &str) -> bool {
-    venti_tools::wind::needs_server(name) || venti_tools::airspace::needs_server(name)
+    venti_tools::wind::needs_server(name)
+        || venti_tools::airspace::needs_server(name)
+        || venti_tools::forecast::needs_server(name)
+        || venti_tools::sites::needs_server(name)
 }
 
 /// What such a tool needs from the server: the path and query to `GET`.
 fn server_request(name: &str, input: &Value) -> Result<String, ToolError> {
     if venti_tools::airspace::needs_server(name) {
         venti_tools::airspace::request(name, input)
+    } else if venti_tools::forecast::needs_server(name) {
+        venti_tools::forecast::request(name, input)
+    } else if venti_tools::sites::needs_server(name) {
+        venti_tools::sites::request(name, input)
     } else {
         venti_tools::wind::request(name, input)
     }
@@ -433,6 +440,10 @@ fn server_result(
 ) -> Result<String, ToolError> {
     if venti_tools::airspace::needs_server(name) {
         venti_tools::airspace::result(name, input, status, body, now)
+    } else if venti_tools::forecast::needs_server(name) {
+        venti_tools::forecast::result(name, input, status, body, now)
+    } else if venti_tools::sites::needs_server(name) {
+        venti_tools::sites::result(name, input, status, body, now)
     } else {
         venti_tools::wind::result(name, input, status, body, now)
     }
@@ -449,19 +460,21 @@ fn tool_result(call_id: String, result: Result<String, ToolError>) -> Block {
 
 /// The request for the conversation as it stands.
 fn send(state: &State, key: &str) -> AssistantStep {
-    // Live wind and airspace are offered only when there is a server to ask.
-    let (wind, airspace): (&[venti_tools::Tool], &[venti_tools::Tool]) = if state.server.is_some() {
-        (
+    // What the pilot's server knows is offered only when there is a
+    // server to ask.
+    let from_server: [&[venti_tools::Tool]; 4] = if state.server.is_some() {
+        [
             &venti_tools::wind::SERVER_TOOLS,
             &venti_tools::airspace::AIRSPACE_TOOLS,
-        )
+            &venti_tools::forecast::FORECAST_TOOLS,
+            &venti_tools::sites::SITES_TOOLS,
+        ]
     } else {
-        (&[], &[])
+        [&[], &[], &[], &[]]
     };
     let tools: Vec<ToolSpec> = venti_tools::TOOLS
         .iter()
-        .chain(wind)
-        .chain(airspace)
+        .chain(from_server.into_iter().flatten())
         .map(|tool| ToolSpec {
             name: tool.name.to_owned(),
             description: tool.description.to_owned(),
@@ -525,14 +538,16 @@ fn describe(tool: &str) -> String {
         "wind_stations" => "the wind stations around a place",
         "airspace_at" => "the airspace over and near a place",
         "station_history" => "a wind station's last hours",
+        "forecast_at" => "the forecast for a place",
+        "sites_near" => "the flying sites near a place",
         other => other,
     }
     .to_owned()
 }
 
 /// The standing instructions for the model. `has_server` says whether the
-/// tools that ask the pilot's Venti server, live wind and airspace, are on
-/// offer.
+/// tools that ask the pilot's Venti server are on offer: live wind,
+/// airspace, forecasts and flying sites.
 fn instructions(today: &str, has_server: bool) -> String {
     let wind = if has_server {
         "You can look up live wind with the wind tools: measurements from weather stations, a \
@@ -549,14 +564,29 @@ only, so an empty result does not mean free airspace. Pass on the caveats the re
 name its source and say how old the data is. Whether a pilot may enter an airspace is for them \
 to establish from the official publications.
 
-What you cannot see in this version: forecasts, flying sites and other pilots. If asked about \
-them, say plainly that this version of the app cannot look that up. Do not guess at \
-conditions, and do not turn measurements into a forecast."
+You can look up what weather models forecast for a place with forecast_at: wind at the ground \
+and at several heights, cloud, rain, temperature, the 0 °C level and the base of convective \
+cloud, hour by hour for one day. These are a model's numbers for one cell of its grid, not \
+measurements: say which model and run they are from, keep models apart and say where they \
+disagree, and remember that the model's ground can be hundreds of metres from the real one \
+in the mountains. Pass on the caveats the result carries. Do not turn measurements into a \
+forecast, and do not present a forecast as what the wind is now.
+
+You can look up flying sites near a place with sites_near: take-offs and landings with the \
+wind directions their source gives. The list is incomplete and a site on it is not \
+permission to fly there; say so, and name the source.
+
+Whatever the wind, the forecast and a site's directions say, you do not say whether a day or \
+a site can be flown: that is the pilot's decision. You may set the facts side by side.
+
+What you cannot see in this version: other pilots, webcams, rain radar and anything about \
+thermal strength. If asked about them, say plainly that this version of the app cannot look \
+that up. Do not guess at conditions."
     } else {
         "What you cannot see in this version: live weather, wind stations, forecasts, airspace, \
 flying sites and other pilots. If asked about them, say plainly that this version of the app \
-cannot look that up. Do not guess at conditions. (Live wind and airspace become available when \
-the pilot sets a Venti server in the app's settings.)"
+cannot look that up. Do not guess at conditions. (Live wind, airspace, forecasts and flying \
+sites become available when the pilot sets a Venti server in the app's settings.)"
     };
     format!(
         "You are the assistant inside Venti, a free paragliding app. You are talking with the \
@@ -862,6 +892,101 @@ mod tests {
     }
 
     #[test]
+    fn a_forecast_and_the_sites_near_a_place_are_looked_up_on_the_pilots_server() {
+        let folder = TempFolder::new();
+        let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
+        assistant.use_server(Some("https://venti.example.org".to_owned()));
+
+        let first = assistant.ask(
+            "How does tomorrow look at the Wallberg?".to_owned(),
+            NOW,
+            "sk-secret".to_owned(),
+        );
+        // The model is told what a forecast and a list of sites are worth.
+        let system = body(&first)["system"].to_string();
+        assert!(system.contains("not measurements"), "{system}");
+        assert!(system.contains("not permission to fly there"));
+        assert!(system.contains("you do not say whether a day or a site can be flown"));
+
+        // The forecast: the server is asked for the place and nothing else.
+        let step = assistant.receive(
+            200,
+            tool_calls(&[(
+                "call_1",
+                "forecast_at",
+                json!({"latitude": 47.66, "longitude": 11.8, "date": "2026-11-20"}),
+            )]),
+            "sk-secret".to_owned(),
+        );
+        let AssistantStep::Fetch { url } = &step else {
+            panic!("{step:?}");
+        };
+        assert_eq!(
+            url,
+            "https://venti.example.org/v1/forecast?lat=47.66&lon=11.8"
+        );
+        let step = assistant.receive(200, server_answer("forecast.json"), "sk-secret".to_owned());
+        let second = body(&step);
+        let result = &second["messages"][2]["content"][0];
+        assert_eq!(result["is_error"], false);
+        let text = result["content"].as_str().unwrap();
+        assert!(text.contains("icon-d2"), "{text}");
+        assert!(text.contains("model_ground_m"), "{text}");
+        assert!(text.contains("Open-Meteo"), "{text}");
+        assert!(
+            text.contains("Nothing here says whether the day can be flown"),
+            "{text}"
+        );
+
+        // Then the sites around it.
+        let step = assistant.receive(
+            200,
+            tool_calls(&[(
+                "call_2",
+                "sites_near",
+                json!({"latitude": 47.68, "longitude": 11.9, "radius_km": 20}),
+            )]),
+            "sk-secret".to_owned(),
+        );
+        let AssistantStep::Fetch { url } = &step else {
+            panic!("{step:?}");
+        };
+        assert!(
+            url.starts_with("https://venti.example.org/v1/sites?bbox=11."),
+            "{url}"
+        );
+        let step = assistant.receive(200, server_answer("sites.json"), "sk-secret".to_owned());
+        let third = body(&step);
+        let result = &third["messages"][4]["content"][0];
+        assert_eq!(result["is_error"], false);
+        let text = result["content"].as_str().unwrap();
+        assert!(text.contains("OpenStreetMap"), "{text}");
+        assert!(text.contains("not permission to fly there"), "{text}");
+
+        // A server that is still fetching a forecast is told to the model
+        // as a failure it can wait out.
+        let step = assistant.receive(
+            200,
+            tool_calls(&[(
+                "call_3",
+                "forecast_at",
+                json!({"latitude": 47.66, "longitude": 11.8}),
+            )]),
+            "sk-secret".to_owned(),
+        );
+        assert!(matches!(step, AssistantStep::Fetch { .. }));
+        let step = assistant.receive(
+            503,
+            br#"{"error": {"code": "unavailable", "message": "x"}}"#.to_vec(),
+            "sk-secret".to_owned(),
+        );
+        let fourth = body(&step);
+        let result = &fourth["messages"][6]["content"][0];
+        assert_eq!(result["is_error"], true);
+        assert!(result["content"].as_str().unwrap().contains("Ask again"));
+    }
+
+    #[test]
     fn live_wind_is_fetched_from_the_pilots_server_and_nothing_but_an_address_goes_there() {
         let folder = TempFolder::new();
         let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
@@ -889,7 +1014,9 @@ mod tests {
                 "get_flight",
                 "wind_stations",
                 "station_history",
-                "airspace_at"
+                "airspace_at",
+                "forecast_at",
+                "sites_near"
             ]
         );
         assert!(

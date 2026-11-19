@@ -80,6 +80,9 @@ jobs:
       - name: Build and test the app on the simulator
         run: |
           set -o pipefail
+          # The build cache restores `target`, and with it what an earlier
+          # run left there. xcodebuild refuses to overwrite a result bundle.
+          rm -rf target/apple/Venti.xcresult target/apple/attachments target/apple/screenshots
           xcodebuild test \
             -project apps/ios/Venti.xcodeproj \
             -scheme Venti \

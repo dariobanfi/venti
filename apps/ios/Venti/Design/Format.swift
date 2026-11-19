@@ -90,6 +90,13 @@ enum Format {
         Duration.seconds(seconds).formatted(.time(pattern: .hourMinuteSecond))
     }
 
+    /// A place in degrees with four decimals, which is to about ten
+    /// metres: "47.6642° N, 11.7967° E".
+    static func place(lat: Double, lon: Double) -> String {
+        let degrees = { (value: Double) in abs(value).formatted(.number.precision(.fractionLength(4))) }
+        return "\(degrees(lat))° \(lat < 0 ? "S" : "N"), \(degrees(lon))° \(lon < 0 ? "W" : "E")"
+    }
+
     /// A compass direction in one or two letters: "N", "SW".
     static func compassPoint(degrees: Double) -> String {
         let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]

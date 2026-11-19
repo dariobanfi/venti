@@ -179,5 +179,8 @@ final class WindModelTests: XCTestCase {
         XCTAssertEqual(Format.age(minutes: 3 * 1440), "3 days ago")
         XCTAssertEqual(Format.minutes(from: 120, to: 60), 0)
         XCTAssertEqual(Format.temperature(celsius: -0.2), "0")
+        XCTAssertEqual(Format.place(lat: 47.66421, lon: 11.79668), "47.6642° N, 11.7967° E")
+        XCTAssertEqual(Format.place(lat: -33.5, lon: -70.25), "33.5000° S, 70.2500° W")
+        XCTAssertEqual(Format.dayAndTime(unixSeconds: 0).isEmpty, false)
     }
 }

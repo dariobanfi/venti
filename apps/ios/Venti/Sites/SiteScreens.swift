@@ -161,7 +161,10 @@ private struct SiteRow: View {
         if !site.windInWords.isEmpty {
             parts.append("wind \(site.windInWords)")
         }
-        return parts.isEmpty ? "No more is known" : parts.joined(separator: " · ")
+        // A site of which nothing else is known is at least somewhere.
+        return parts.isEmpty
+            ? Format.place(lat: site.position.lat, lon: site.position.lon)
+            : parts.joined(separator: " · ")
     }
 }
 
@@ -187,6 +190,7 @@ struct SiteScreen: View {
                 if let elevation = site.elevationM {
                     LabeledContent("Height", value: "\(Format.metres(elevation)) m")
                 }
+                LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
                 LabeledContent("Wind it works in") {
                     if site.wind.isEmpty {
                         Text("Not given")

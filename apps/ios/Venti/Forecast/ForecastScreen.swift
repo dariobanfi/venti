@@ -183,7 +183,9 @@ struct ForecastTable: View {
         let cells: [Cell]
     }
 
-    private static let cellWidth: CGFloat = 34
+    /// Wide enough for a wind with its gusts ("12/48") and for a height
+    /// ("1,600") to stand apart from their neighbours.
+    private static let cellWidth: CGFloat = 46
     private static let rowHeight: CGFloat = 40
     private static let namesWidth: CGFloat = 88
 
@@ -288,7 +290,7 @@ struct ForecastTable: View {
                 guard let temperature = hour.temperatureC else { return Row.Cell.empty }
                 return Row.Cell.number(Format.temperature(celsius: temperature))
             }),
-            Row(id: "freezing", name: "0 °C", detail: "at m", cells: hours.map { hour -> Row.Cell in
+            Row(id: "freezing", name: "0 °C level", detail: "m", cells: hours.map { hour -> Row.Cell in
                 guard let level = hour.freezingLevelM else { return Row.Cell.empty }
                 return Row.Cell.number(hundreds(level))
             }),

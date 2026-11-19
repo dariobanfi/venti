@@ -37,6 +37,7 @@ mod server;
 mod sites;
 mod statistics;
 mod storage;
+mod task;
 #[cfg(test)]
 mod testing;
 mod waypoints;
@@ -53,6 +54,7 @@ pub use forecast::*;
 pub use kept_airspace::*;
 pub use sites::*;
 pub use statistics::*;
+pub use task::*;
 pub use waypoints::*;
 pub use wind::*;
 

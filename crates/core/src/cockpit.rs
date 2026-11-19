@@ -34,6 +34,7 @@ use venti_flight::sun;
 use venti_sensors::{Battery, SentenceReader};
 
 use crate::airspace::AirspaceWatch;
+use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
 };
@@ -395,6 +396,8 @@ struct Inner {
     score: Option<(usize, scoring::Score)>,
     /// The two fixes of `flown` that lie farthest apart, and how far.
     longest: Option<(GeoPoint, GeoPoint, f64)>,
+    /// The task being flown, if the pilot set one.
+    task: Option<TaskFlown>,
 }
 
 /// Which sensor is supplying pressure.
@@ -453,6 +456,7 @@ impl FlightSession {
                 flown: Vec::new(),
                 score: None,
                 longest: None,
+                task: None,
             }),
         })
     }
@@ -606,6 +610,46 @@ impl FlightSession {
         });
     }
 
+    /// Sets the task to fly, from its file's text as the core keeps it
+    /// ([`Core::kept_task_file`]), or with `None` flies no task. The
+    /// cockpit then navigates to the task's next turnpoint unless the
+    /// pilot chose another place. `now_unix_s` says which day the task's
+    /// times of day mean.
+    pub fn fly_task(&self, file_text: Option<String>, now_unix_s: f64) -> Result<(), CoreError> {
+        let task = file_text
+            .map(|text| TaskFlown::begin(&text, now_unix_s as i64))
+            .transpose()?;
+        self.lock().task = task;
+        Ok(())
+    }
+
+    /// The task as the cockpit shows it. `None` without a task, and until
+    /// there is a position.
+    pub fn task_status(&self, now_unix_s: f64) -> Option<TaskStatusView> {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        inner
+            .task
+            .as_ref()?
+            .view(now_unix_s, state.altitude_m, state.ground_speed_ms)
+    }
+
+    /// The next thing that happened in the task and was not yet said: the
+    /// start taken, a turnpoint reached, the goal. The cockpit says each
+    /// once.
+    pub fn take_task_event(&self) -> Option<TaskEventView> {
+        self.lock().task.as_mut()?.take_event()
+    }
+
+    /// Moves the task on to its next turnpoint without this one being
+    /// reached, or with `forward` false back to the one before: for a
+    /// pilot who skips a turnpoint, or goes back for a later start.
+    pub fn step_task(&self, forward: bool) {
+        if let Some(task) = self.lock().task.as_mut() {
+            task.step(forward);
+        }
+    }
+
     /// Says how the pilot's glider flies on a straight glide in still air:
     /// its speed with the brakes up, and its glide ratio. Predictions of
     /// arrival heights use these. Values that make no sense are ignored.
@@ -625,8 +669,14 @@ impl FlightSession {
         let inner = self.lock();
         let state = inner.computer.state(now_unix_s);
         let position = state.position?;
-        let (target, is_takeoff) = match &inner.target {
-            Some(target) => (target.clone(), false),
+        // The place the pilot chose comes first, then the task, then the
+        // way back to the take-off.
+        let chosen = inner
+            .target
+            .clone()
+            .or_else(|| inner.task.as_ref().and_then(TaskFlown::aim));
+        let (target, is_takeoff) = match chosen {
+            Some(target) => (target, false),
             None => (
                 Target {
                     name: "Take-off".to_owned(),
@@ -711,6 +761,9 @@ impl FlightSession {
                     valid: true,
                 });
             }
+        }
+        if let Some(task) = inner.task.as_mut() {
+            task.feed(sample.time_unix_s, position);
         }
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
@@ -1329,6 +1382,86 @@ mod tests {
             "{:?}",
             view.winds_by_height
         );
+    }
+
+    #[test]
+    fn with_a_task_the_cockpit_navigates_to_its_next_turnpoint() {
+        let folder = TempFolder::new();
+        let (session, replay) = fly(&folder, 300.0, false);
+        let now = replay.now();
+        assert_eq!(session.task_status(now), None);
+        let here = session.view(now).position.unwrap();
+
+        // A task from here: a turnpoint about 6 km east, the goal 12 km.
+        let east = |km: f64| here.lon + km / 75.0;
+        let task = format!(
+            r#"{{"taskType":"CLASSIC","version":1,"turnpoints":[
+                {{"type":"TAKEOFF","radius":400,"waypoint":{{"name":"HERE","lat":{lat},"lon":{lon},"altSmoothed":900}}}},
+                {{"radius":1000,"waypoint":{{"name":"RIDGE","lat":{lat},"lon":{ridge},"altSmoothed":1500}}}},
+                {{"radius":400,"waypoint":{{"name":"FIELD","lat":{lat},"lon":{field},"altSmoothed":700}}}}]}}"#,
+            lat = here.lat,
+            lon = here.lon,
+            ridge = east(6.0),
+            field = east(12.0),
+        );
+        session.fly_task(Some(task), now).unwrap();
+        // Nothing to show until the next position comes in.
+        assert_eq!(session.task_status(now), None);
+        session.on_location(LocationSample {
+            time_unix_s: now + 1.0,
+            lat: here.lat,
+            lon: here.lon,
+            altitude_m: session.view(now).altitude_m,
+            ground_speed_ms: None,
+            course_deg: None,
+        });
+
+        let status = session.task_status(now + 1.0).unwrap();
+        assert_eq!(status.phase, crate::TaskPhase::OnTask);
+        let next = status.next.unwrap();
+        assert_eq!((next.number, next.name.as_str()), (2, "RIDGE"));
+        // To the edge of the ridge's cylinder, and on to the goal's.
+        assert!(
+            (next.distance_m - 5_000.0).abs() < 150.0,
+            "{}",
+            next.distance_m
+        );
+        assert!(
+            (status.to_goal_m - 11_600.0).abs() < 300.0,
+            "{}",
+            status.to_goal_m
+        );
+        assert!(status.gate.is_none());
+        assert!(status.above_goal_m.is_some());
+
+        // The cockpit's navigation follows the task.
+        let way = session.navigation(now + 1.0).unwrap();
+        assert!(!way.is_takeoff);
+        assert_eq!(way.name, "RIDGE");
+        // The same point; the task measures on the ellipsoid and the glide
+        // on the sphere, which is a few metres in five kilometres.
+        assert!((way.distance_m - next.distance_m).abs() < 0.005 * next.distance_m);
+        assert!((way.bearing_deg - 90.0).abs() < 2.0);
+
+        // A place the pilot chooses comes first; letting go of it goes
+        // back to the task, and stepping on moves to the goal.
+        session.go_to(Some(TargetPlace {
+            name: "Landeplatz".to_owned(),
+            position: here,
+            elevation_m: None,
+        }));
+        assert_eq!(session.navigation(now + 1.0).unwrap().name, "Landeplatz");
+        session.go_to(None);
+        assert_eq!(session.navigation(now + 1.0).unwrap().name, "RIDGE");
+        session.step_task(true);
+        assert_eq!(session.navigation(now + 1.0).unwrap().name, "FIELD");
+        assert!(session.take_task_event().is_none());
+
+        // Without a task it is the take-off again.
+        session.fly_task(None, now).unwrap();
+        assert!(session.navigation(now + 1.0).unwrap().is_takeoff);
+        // What is not a task is refused and changes nothing.
+        assert!(session.fly_task(Some("nothing".to_owned()), now).is_err());
     }
 
     #[test]

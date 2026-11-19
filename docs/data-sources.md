@@ -237,6 +237,7 @@ As of 2026-11-19:
 | Adapter: `osm-free-flying` | Built, with an answer recorded 2026-11-19 for the whole first region and golden files |
 | Flying sites in the server: collecting once a day, storing as one set per source, serving at `GET /v1/sites`, health, the development mode over the whole first region, `ingest` and with it the canary | Built; installed on no machine yet |
 | The `[sites]` and `[forecasts]` sections of a region pack (`venti-regions`); what the store keeps about forecast models | Built |
+| Adapter: `open-meteo` | Built, with answers recorded 2026-11-19 for five places from an Open-Meteo instance run for the purpose, and golden files |
 | Forecasts in the server | Not built |
 | Every kind other than observations, airspace, sites and point forecasts | Designed, not built |
 
@@ -275,13 +276,94 @@ On 2026-11-19 the server ran against the live providers and a real database for 
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| Self-hosted Open-Meteo | One API over ICON-D2 (about 2 km), ICON-EU, ICON-CH and ECMWF. Soaring-relevant fields include CAPE, updraft, convective cloud base and top, freezing level, cloud layers, wind at several heights | Data CC BY 4.0; code AGPL-3.0, run unmodified as a separate service. Needs 8 to 16 GB memory and at least 100 GB fast disk | Open |
+| Self-hosted Open-Meteo, `open-meteo` | Point forecasts of DWD's ICON-D2 (about 2 km) and ICON-EU, hour by hour: wind and gusts, wind at heights, temperature, dew point, cloud by layer, precipitation, CAPE, freezing level, convective cloud base and top, and from ICON-D2 the strongest updraft | Data CC BY 4.0 from both Open-Meteo and DWD, verified 2026-11-19; code AGPL-3.0-or-later, run unmodified as a separate service. Needs 8 to 16 GB memory and fast disk | **Built** (ICON-D2 and ICON-EU). ICON-CH and ECMWF through the same instance: open |
 | DWD ICON-D2 raw GRIB | Model levels, mixing height, maximum updraft | CC BY 4.0 | Open (later, for fields Open-Meteo lacks) |
 | GeoSphere Austria C-LAEF 1 km | Alpine high-resolution model, hourly | CC BY 4.0 | Open (later) |
 | ECMWF open data | Global 0.25° | CC BY 4.0 | Open |
 | Soaringmeteo | WRF thermal forecasts for the Alps | Code GPL-3.0; data licence not stated | Ask |
 
-Open-Meteo does not expose boundary-layer height or model-level winds for ICON. A proper thermal forecast will need our own pipeline on raw ICON-D2 data.
+#### Open-Meteo: licence and terms
+
+Read on 2026-11-19.
+
+- **The data.** [open-meteo.com/en/licence](https://open-meteo.com/en/licence): "API data are offered under Attribution 4.0 International (CC BY 4.0)", and "You must include a link next to any location Open-Meteo data are displayed, for example: Weather data by Open-Meteo.com". The model output is Deutscher Wetterdienst's, which its [legal notice](https://www.dwd.de/EN/service/legal_notice/legal_notice_node.html) puts under CC BY 4.0 "providing the source is acknowledged". DWD's [templates](https://www.dwd.de/DE/service/rechtliche_hinweise/vorlagen_quellenangabe.html) give "Quelle: Deutscher Wetterdienst" for unchanged data and "Datenbasis: Deutscher Wetterdienst" with a note of the change for changed data. The credit in the manifest carries both: "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo", linked to open-meteo.com.
+- **The public API.** [open-meteo.com/en/terms](https://open-meteo.com/en/terms): free for non-commercial use, under 10,000 requests a day, 5,000 an hour and 600 a minute, counted per address. Venti does not use it: not in production, not as a fallback, and not for the recorded fixtures (below).
+- **The software.** AGPL-3.0-or-later, [on GitHub](https://github.com/open-meteo/open-meteo). It runs as a service of its own beside the server; none of its code is in this repository.
+- **Running an instance.** Open-Meteo documents two ways ([getting started](https://github.com/open-meteo/open-meteo/blob/main/docs/getting-started.md), [remote data](https://github.com/open-meteo/open-meteo/blob/main/docs/remote-data.md), [sync](https://github.com/open-meteo/open-meteo/blob/main/docs/sync-command.md)), both from its container image `ghcr.io/open-meteo/open-meteo` and both fed from Open-Meteo's open data on AWS, `https://openmeteo.s3.amazonaws.com/data/`, which needs no key. *Remote data*: the instance reads the parts of the files it needs when it is asked, and keeps them in a cache on disk. *Sync*: a second process copies the files of chosen models and variables to disk every few minutes, for a box if one is given, and the instance answers from disk. What the owner has to set up is in [deploy/README.md](../deploy/README.md).
+
+#### What was tried, 2026-11-19
+
+An instance was started from the image as built on 2026-11-03, in remote-data mode, and asked the adapter's own requests for five places. That is where the recorded fixtures are from. What it showed:
+
+- **It works as documented**, including the two models under their names on the native grid, `dwd_icon_d2_native` and `dwd_icon_eu_native`, which Open-Meteo's bucket holds.
+- **The run of a model is at `/data/<model>/static/meta.json`**, and only if the instance has `API_SYNC_APIKEYS` set. Without it the address answers 404, and then the server delivers no forecast: a series must say its run. With it set (to any value), the file is served without a key.
+- **A first request for a place is slow in remote-data mode**: 25 to 60 seconds through the slow connection of the machine that tried it, and about 270 reads of 64 kB each from the bucket; a neighbouring place afterwards took under half a second, and a repeated one a few milliseconds. On a server with a direct connection the first request will be faster; *to verify* by how much. Sync mode has no such first request.
+- **An answer is 19 kB**, for 72 hours of 44 values. The two answers about the runs are 494 bytes each.
+- Open-Meteo's public API answered the same machine "Daily API request limit exceeded. Please try again tomorrow." for every forecast request that day: the address is shared with others. That is the limit working as its terms say, and one more reason not to build on it.
+
+#### What a series holds
+
+Two models, each asked for by itself and delivered as a series of its own. Open-Meteo's "seamless" blends are not used.
+
+| | ICON-D2 | ICON-EU |
+|---|---|---|
+| Cells | About 2 km, triangles | About 5 km, triangles: two neighbouring cell centres in the recordings lie 5.3 km apart. DWD made the grid finer on 2026-10-06 |
+| Runs | Every 3 hours | Every 3 hours |
+| Reach of a run | 48 hours | 120 hours from 00, 06, 12 and 18 UTC, of which the first 78 hour by hour; 30 hours from 03, 09, 15 and 21 UTC |
+| At the instance | About 70 minutes after the run began (18 UTC run: 19:10) | About 2 hours 50 minutes (15 UTC run: 17:50) |
+
+The reach is from Open-Meteo's downloader, [`IconDownloadDomains.swift`](https://github.com/open-meteo/open-meteo/blob/main/Sources/App/Icon/IconDownloadDomains.swift), read on 2026-11-19; the times at the instance are the two runs that were recorded.
+
+**A series holds only the hours its run computed.** An instance keeps one value per hour, the newest it has. Asked for three days, it answers every hour of them: the hours before the newest run began are older runs', and so are the hours beyond a short run's reach. On 2026-11-19 at 19:25 UTC the instance answered all 72 hours for ICON-EU, whose newest run was the one of 15 UTC that reaches 30 hours; the other hours came from the run of 12 UTC or an older one, and nothing in the answer says so. The adapter delivers the hours after the run began as far as that kind of run reaches, and no others. The hour the run begins at is left out as well: Open-Meteo's downloader skips gusts, precipitation and updraft for it, so those three would be the run before's.
+
+**The gap this leaves.** "Today and the next two days" is not always covered:
+
+- The hours of today before the newest run are never in a series.
+- ICON-D2 ends 48 hours after its run, which is somewhere on the day after tomorrow.
+- ICON-EU covers all three days after a run of 00, 06, 12 or 18 UTC, and only 30 hours after one in between. So the day after tomorrow has ICON-EU's hours for about three hours out of every six.
+
+Closing it without guessing needs the run of every hour. Two ways are open: Open-Meteo's single-runs API, which answers for one named run (`&run=`), if a self-hosted instance can serve it (*to verify*; it needs each run kept whole); or the server remembering which runs it saw arrive, which it already notes for the health report.
+
+**Between two runs.** Open-Meteo writes a new run into its files variable by variable and updates `meta.json` at the end. For some minutes an answer can hold values of the next run under the name of the one before. The server keeps an answer for half an hour at most. *To verify* how long that window is.
+
+#### The values
+
+All are the model's values for its own cell: the request asks for the nearest cell and switches off Open-Meteo's shift of temperatures to the height of the place (`cell_selection=nearest`, `elevation=nan`). The series carries the centre of the cell and the height of the model's ground there. East of the Tegernsee, whose shore lies at 725 m, ICON-D2's ground is at 1069 m and ICON-EU's at 1100 m.
+
+| Value | From | What it is, and what it is not |
+|---|---|---|
+| Wind at 10 m, speed and direction | `U_10M`, `V_10M` | Open-Meteo computes speed and direction from the two components |
+| Gusts at 10 m | `VMAX_10M` | The strongest in the hour before |
+| Temperature at 2 m | `T_2M` | |
+| Dew point at 2 m | `T_2M`, `RELHUM_2M` | Computed by Open-Meteo from temperature and relative humidity. ICON's own dew point is not used by it |
+| Cloud cover, total and low, mid, high | `CLCT`, `CLCL`, `CLCM`, `CLCH` | Where "low" ends is ICON's definition |
+| Precipitation | `TOT_PREC` | Rain, showers and snow of the hour before, as water |
+| CAPE | `CAPE_ML` | Of a parcel mixed over the lowest layer. It says whether showers and storms can grow, not how good thermals are |
+| Freezing level | `HZEROCL` | Metres above sea level. Where the whole column is below 0 °C, ICON writes the height of its ground: for seven hours of 2026-11-21 the recorded series has 1050 to 1070 m in a cell whose ground is at 1069 m. Open-Meteo keeps it in steps of 10 m |
+| Updraft, ICON-D2 only | `W_CTMAX` | The strongest rising air anywhere in the column up to 10 km, in the hour before. It is what a model with 2 km cells resolves: showers, storms, flow over mountains. **It is not thermal strength.** In the recorded two days, with showers and no storm, the values are 0.1 to 2.1 m/s |
+| Convective cloud base and top | ICON-D2: `HBAS_SC`, `HTOP_SC`. ICON-EU: `HBAS_CON`, `HTOP_CON` | Not the same thing in the two models. ICON-D2 computes deep convection itself and estimates only shallow convection, and these are the base and top of that. ICON-EU estimates all convection. ICON writes -500 m for "none"; the instance handed that on for ICON-EU and wrote 0 for ICON-D2; the adapter reads both as no value. Whether the heights are above sea level is *to verify* on DWD's description of the fields; the recorded values fit that |
+| Wind and temperature at 80, 120 and 180 m | `U`, `V`, `T` on model levels | The third, fourth and fifth level from the ground; the heights are nominal. Open-Meteo's comment gives 78 m and 126 m for the two lowest of ICON-D2 |
+| Wind, temperature and height on 950, 850, 700, 600, 500 hPa | `U`, `V`, `T`, `FI` | Both models compute these five surfaces. The height is the geopotential divided by 9.80665. A surface under the model's ground is not delivered: at Tegernsee the 950 hPa surface lay at 436 m and the instance answered it with the wind at 10 m |
+
+Not asked for: the surfaces of 925, 900 and 800 hPa, which ICON-D2 does not compute and Open-Meteo fills from their neighbours; ICON-EU's hours after the 78th of a run, which Open-Meteo fills from values three hours apart; and anything "seamless".
+
+**What a soaring forecast needs and this does not have:**
+
+- **Boundary-layer height.** DWD publishes the mixing layer height (`MH`) for ICON-D2 and ICON-EU, since September 2026 on the native grid. Open-Meteo does not take it. Without it there is no height to which thermals reach.
+- **Thermal strength.** No field of either model is a climb rate a glider sees. Deriving one (from the boundary-layer height and the heat flux at the ground) is a model of its own; Venti has none and shows none.
+- **Wind on model levels above 180 m.** Between 180 m above the ground and the pressure surfaces, which are 1.5 km apart, there is nothing. In the mountains that is where pilots fly.
+- **A cloud base for ordinary cumulus.** ICON-D2's value is for the shallow convection it estimates and is often absent on a day with cumulus the model resolves or misses.
+
+These need DWD's own files, read on the native grid: the "DWD ICON-D2 raw GRIB" row above.
+
+#### What DWD's change of 2026-11-30 means
+
+DWD's [announcement](https://www.dwd.de/DE/leistungen/opendata/neuigkeiten/opendata_september2026_1.html), read on 2026-11-19: after 30 November 2026 the old addresses of ICON, ICON-EU and ICON-D2 are switched off. The new ones (`opendata.dwd.de/weather/nwp/v1/m/<model>/p/<field>/…`) carry the same fields, reach and hours, on the original triangular grid only: ICON-D2 loses its second delivery on a regular grid and ICON-EU changes grid. Visibility is dropped, and the mixing layer height is there on the triangular grid for the first time.
+
+- **For Venti's forecasts: nothing to do.** Venti does not read DWD's files. Open-Meteo does, and its downloader reads the new addresses already; the two `_native` models the adapter asks for are the ones made from them. Open-Meteo's page says its models without `_native` in the name "will use native grids" after that day. Whether the `_native` names stay beside them is *to verify* on 1 December.
+- **For the instance:** it has to be an Open-Meteo version that knows the native grids. The image of 2026-11-03 does.
+- **For a pilot:** values are for a triangle about 2 km across, not for a square of a regular grid, and the series says where its centre is.
+- **For a raw ICON adapter, later:** it has to read the triangular grid, and it gets the mixing layer height.
 
 ### Radar and lightning
 
@@ -454,6 +536,6 @@ Permissions to request, roughly in order of how much they block. AI sessions dra
 
 | Date | Change | Effect |
 |---|---|---|
-| 2026-11-30 | DWD switches off the old ICON-D2 and ICON-EU download paths and regular grids; the new feed is on the native triangular grid only | A raw ICON adapter needs grid remapping. Self-hosted Open-Meteo has already migrated. |
+| 2026-11-30 | DWD switches off the old ICON-D2 and ICON-EU download paths and regular grids; the new feed is on the native triangular grid only | Nothing to do for the forecasts Venti serves: Open-Meteo reads the new feed already, and the adapter asks for its models on the native grid. A raw ICON adapter has to read the triangular grid. See [what the change means](#what-dwds-change-of-2026-11-30-means). |
 | 2026-11-04 | GeoSphere Austria replaced its AROME dataset with C-LAEF 1 km | Use the new dataset identifiers |
 | Early 2027 | GeoSphere Austria's 2.5 km endpoint changes again | Canary must cover it |

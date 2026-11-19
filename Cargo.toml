@@ -19,6 +19,7 @@ venti-sources-dwd = { path = "crates/sources-dwd" }
 venti-sources-geosphere = { path = "crates/sources-geosphere" }
 venti-sources-openaip = { path = "crates/sources-openaip" }
 venti-sources-osm = { path = "crates/sources-osm" }
+venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
 venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
 venti-sensors = { path = "crates/sensors" }

@@ -24,13 +24,15 @@ pub struct ForecastSeries {
     pub source: SourceId,
     /// The model that computed them.
     pub model: ModelId,
-    /// When the newest run of the model that the source held began: the
-    /// time the model's computation started from.
+    /// When the run of the model that computed these hours began: the time
+    /// the model's computation started from. It is the newest run the
+    /// source held.
     ///
-    /// A source keeps one value per hour, the newest it has. An hour from
-    /// `run` on comes from this run as far as the run reaches; an hour
-    /// before `run`, or beyond the reach of a short run, comes from an
-    /// earlier run. Sources do not say which.
+    /// Every hour of the series is this run's. A source keeps one value per
+    /// hour, the newest it has, so it also holds hours of earlier runs:
+    /// those before `run`, and those beyond the reach of a short run. It
+    /// does not say which run they are from, and an adapter leaves them
+    /// out. A series can therefore end before the days asked for do.
     pub run: Timestamp,
     /// When the source had that run ready to be asked, if it says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -95,7 +97,10 @@ pub struct ForecastHour {
     /// thunderstorms can grow, not that thermals are good.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cape_j_kg: Option<f64>,
-    /// Height of the 0 °C level, metres above mean sea level.
+    /// Height of the 0 °C level, metres above mean sea level. Where the air
+    /// is below 0 °C all the way down, a model gives the height of its own
+    /// ground instead: a value at or near `cell_elevation_m` means "at the
+    /// ground or below it", not a level in the air.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub freezing_level_m: Option<f64>,
     /// The strongest rising air the model has anywhere above the cell, up
@@ -106,6 +111,9 @@ pub struct ForecastHour {
     pub updraft_ms: Option<f64>,
     /// Base of convective cloud, metres above mean sea level. `None` also
     /// when the model has no convective cloud over the cell at this hour.
+    /// Which convection a model means differs from model to model: one
+    /// that resolves showers and storms itself reports only the shallow
+    /// cloud it still has to estimate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub convective_cloud_base_m: Option<f64>,
     /// Top of convective cloud, metres above mean sea level. `None` also
@@ -124,7 +132,8 @@ pub struct ForecastHour {
 /// A level is given in one of two ways, and exactly one of
 /// `above_ground_m` and `pressure_hpa` is set:
 ///
-/// - a fixed height above the model's ground, such as 80 m;
+/// - a fixed height above the model's ground, such as 80 m: the nominal
+///   height of one of the model's own levels;
 /// - a surface of equal air pressure, such as 850 hPa. How high that
 ///   surface lies changes with the weather, so the model's own height for
 ///   it at this hour comes with it in `altitude_m`.

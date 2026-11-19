@@ -1,0 +1,53 @@
+id = "open-meteo"
+provider = "Open-Meteo, with models of Deutscher Wetterdienst"
+kinds = ["forecasts"]
+# ICON-D2 covers Germany, the Alps and their surroundings, ICON-EU all of
+# Europe, and the adapter asks for a place, not for countries. These are the
+# countries the first region's box takes in.
+countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
+# How often the server looks at the instance to see which runs it holds. The
+# models themselves start a new run every three hours.
+cadence_seconds = 600
+auth = "none"
+
+# An instance that whoever runs the server runs themself imposes no limit.
+# These numbers keep the load on it small, and they are below what
+# Open-Meteo's own free API allows an address (10,000 requests a day), so a
+# server that is pointed there by its operator stays inside those terms too.
+# A forecast for one place is four requests.
+[rate_limit]
+per_second = 4
+per_hour = 400
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# Open-Meteo asks for "Weather data by Open-Meteo.com" with a link, beside
+# the data. Deutscher Wetterdienst asks to be named as the source, and for
+# data that was changed in the form "Datenbasis: Deutscher Wetterdienst"
+# with a note of the change.
+attribution = "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo"
+link = "https://open-meteo.com/"
+constraints = [
+    "Show the credit, with its link to https://open-meteo.com/, next to any place the forecast is shown.",
+    "The instance that is asked is one the operator of the server runs (the server setting open_meteo_url). Open-Meteo's own free API is for non-commercial use, under 10,000 requests a day, 5,000 an hour and 600 a minute per address; a server never falls back to it.",
+    "Open-Meteo's software is under the AGPL-3.0-or-later. It runs as a service of its own beside the server, and none of its code is in this repository.",
+    "A value is what a model computed for a grid cell, not a measurement, and no statement that a place can be flown. Every series carries its model, the run of the model, the cell and the height of the model's ground there: show them with the values.",
+]
+verified_on = "2026-11-19"
+verified_from = [
+    "https://open-meteo.com/en/terms",
+    "https://open-meteo.com/en/licence",
+    "https://open-meteo.com/en/docs/dwd-api",
+    "https://open-meteo.com/en/docs/model-updates",
+    "https://raw.githubusercontent.com/open-meteo/open-meteo/main/docs/getting-started.md",
+    "https://raw.githubusercontent.com/open-meteo/open-meteo/main/docs/remote-data.md",
+    "https://raw.githubusercontent.com/open-meteo/open-meteo/main/docs/sync-command.md",
+    "https://raw.githubusercontent.com/open-meteo/open-meteo/main/Sources/App/Icon/IconDownloadDomains.swift",
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html",
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/vorlagen_quellenangabe.html",
+    "https://www.dwd.de/EN/service/legal_notice/legal_notice_node.html",
+    "https://www.dwd.de/DE/leistungen/opendata/neuigkeiten/opendata_september2026_1.html",
+]

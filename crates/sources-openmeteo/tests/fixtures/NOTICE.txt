@@ -1,0 +1,50 @@
+The files in this folder are weather model data of Deutscher Wetterdienst
+(ICON-D2 and ICON-EU), processed and served by the software of
+Open-Meteo.com. Deutscher Wetterdienst publishes the data under CC BY 4.0,
+https://www.dwd.de/EN/service/legal_notice/legal_notice_node.html, and
+Open-Meteo offers its data under CC BY 4.0,
+https://open-meteo.com/en/licence. Credit: Weather data by Open-Meteo.com.
+Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo. The files
+are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-19 between 19:23 and 19:30 UTC from an
+Open-Meteo instance started for the purpose: the container image
+ghcr.io/open-meteo/open-meteo:latest as built on 2026-11-03 (digest
+sha256:bf94e8b39761b59a91bd04bb926b3834cad00eaf71f1aa64b2fd17fbe987846a),
+with REMOTE_DATA_DIRECTORY pointing at Open-Meteo's open data on AWS,
+https://openmeteo.s3.amazonaws.com/data/, and API_SYNC_APIKEYS set. That is
+one of the two arrangements Open-Meteo documents for running an instance
+of one's own. Open-Meteo's public API was not used: it answered "Daily API
+request limit exceeded" to the address of the machine that recorded.
+
+Each file is the whole answer to one request of the adapter, unchanged:
+
+    meta_icon_d2.json      GET /data/dwd_icon_d2_native/static/meta.json
+    meta_icon_eu.json      GET /data/dwd_icon_eu_native/static/meta.json
+    icon_d2_LAT_LON.json   GET /v1/forecast?latitude=LAT&longitude=LON
+                           &models=dwd_icon_d2_native&hourly=...
+    icon_eu_LAT_LON.json   the same with models=dwd_icon_eu_native
+
+with the query the adapter builds (src/lib.rs, series_url): 44 hourly
+variables for ICON-D2 and 43 for ICON-EU, forecast_days=3,
+wind_speed_unit=ms, timeformat=unixtime, elevation=nan and
+cell_selection=nearest. The instance held ICON-D2's run of 2026-11-19
+18:00 UTC and ICON-EU's of 15:00 UTC, and the two answers about the runs
+were the same before and after the forecasts were asked for.
+
+The five places: 47.70 N 11.80 E (east shore of the Tegernsee), 47.66 N
+11.80 E (take-off on the Wallberg), 47.70 N 11.88 E and 47.68 N 11.90 E
+(landing and take-off below the Jägerkamp), and 47.40 N 13.30 E (the
+middle of the first region).
+
+To record them again: run an Open-Meteo instance as deploy/README.md
+describes, make the adapter's requests for these places against it, replace
+the files, set the date and the runs in src/fixtures.rs, then run the tests
+with VENTI_UPDATE_GOLDEN=1 and review what changed. The tests pin the runs,
+the cells and a handful of values.
+
+No file here was written by hand. The tests that need a damaged or partial
+answer make one from these files and say what they change.
+
+A value in these files is what a model computed for a grid cell. It is not
+a measurement and no statement that a place can be flown.

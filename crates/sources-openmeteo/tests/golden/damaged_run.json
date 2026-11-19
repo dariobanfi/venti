@@ -1,0 +1,88 @@
+{
+  "report": {
+    "budget_exhausted": false,
+    "failures": [],
+    "hours": 78,
+    "newest_run": "2026-11-19T18:00:00Z",
+    "rejected": [
+      {
+        "field": "cloud_cover_low_pct",
+        "model": "icon-d2",
+        "reason": "outside 0..=100",
+        "time": "2026-11-19T20:00:00Z",
+        "value": 140.0
+      }
+    ],
+    "requests": 4,
+    "series": 2,
+    "skipped": [
+      {
+        "reason": "it comes in \"km/h\" where \"m/s\" was asked for",
+        "what": "wind_speed_10m"
+      },
+      {
+        "reason": "the answer does not say in which unit it is",
+        "what": "wind_gusts_10m"
+      },
+      {
+        "reason": "it has 71 values for 72 hours",
+        "what": "temperature_2m"
+      },
+      {
+        "reason": "the answer does not have it",
+        "what": "dew_point_2m"
+      },
+      {
+        "reason": "its values are not numbers: invalid type: string \"overcast\", expected f64",
+        "what": "cloud_cover"
+      },
+      {
+        "reason": "the instance has no value for any hour of the run",
+        "what": "precipitation"
+      }
+    ],
+    "source": "open-meteo"
+  },
+  "series": [
+    {
+      "available_at": "2026-11-19T19:10:09Z",
+      "cell": {
+        "lat": 47.70034,
+        "lon": 11.799969
+      },
+      "cell_elevation_m": 1069.0,
+      "hours": {
+        "2026-11-19T19:00:00+00:00": "wind_direction_deg 225; cloud_cover_low_pct 83; cloud_cover_mid_pct 98; cloud_cover_high_pct 0; cape_j_kg 0; freezing_level_m 1800; updraft_ms 1.45; 80 m above ground: wind_speed_ms 5.49 wind_direction_deg 237 temperature_c 4.7; 120 m above ground: wind_speed_ms 6.62 wind_direction_deg 241 temperature_c 4.5; 180 m above ground: wind_speed_ms 7.88 wind_direction_deg 246 temperature_c 4.2; 850 hPa: altitude_m 1340 wind_speed_ms 11.51 wind_direction_deg 255 temperature_c 3.6; 700 hPa: altitude_m 2883 wind_speed_ms 24.66 wind_direction_deg 277 temperature_c -7.6; 600 hPa: altitude_m 4066 wind_speed_ms 21.99 wind_direction_deg 288 temperature_c -15.3; 500 hPa: altitude_m 5417 wind_speed_ms 19.92 wind_direction_deg 288 temperature_c -24.7",
+        "2026-11-19T20:00:00+00:00": "wind_direction_deg 243; cloud_cover_mid_pct 98; cloud_cover_high_pct 0; cape_j_kg 0; freezing_level_m 1780; updraft_ms 1.5; 80 m above ground: wind_speed_ms 6.96 wind_direction_deg 249 temperature_c 4.8; 120 m above ground: wind_speed_ms 8.38 wind_direction_deg 250 temperature_c 4.6; 180 m above ground: wind_speed_ms 9.84 wind_direction_deg 253 temperature_c 4.4; 850 hPa: altitude_m 1346 wind_speed_ms 13.24 wind_direction_deg 257 temperature_c 3.6; 700 hPa: altitude_m 2889 wind_speed_ms 26.09 wind_direction_deg 274 temperature_c -7.5; 600 hPa: altitude_m 4071 wind_speed_ms 22.46 wind_direction_deg 281 temperature_c -15.5; 500 hPa: altitude_m 5423 wind_speed_ms 21.3 wind_direction_deg 287 temperature_c -25",
+        "2026-11-19T21:00:00+00:00": "wind_direction_deg 249; cloud_cover_low_pct 69; cloud_cover_mid_pct 82; cloud_cover_high_pct 0; cape_j_kg 0; freezing_level_m 1760; updraft_ms 1.78; 80 m above ground: wind_speed_ms 7.38 wind_direction_deg 254 temperature_c 4.6; 120 m above ground: wind_speed_ms 8.97 wind_direction_deg 256 temperature_c 4.4; 180 m above ground: wind_speed_ms 10.46 wind_direction_deg 257 temperature_c 4.2; 850 hPa: altitude_m 1351 wind_speed_ms 14.01 wind_direction_deg 260 temperature_c 3.3; 700 hPa: altitude_m 2894 wind_speed_ms 27.62 wind_direction_deg 273 temperature_c -7.3; 600 hPa: altitude_m 4076 wind_speed_ms 21.41 wind_direction_deg 279 temperature_c -15.3; 500 hPa: altitude_m 5428 wind_speed_ms 20.94 wind_direction_deg 284 temperature_c -24.7"
+      },
+      "model": "icon-d2",
+      "point": {
+        "lat": 47.7,
+        "lon": 11.8
+      },
+      "run": "2026-11-19T18:00:00Z",
+      "source": "open-meteo"
+    },
+    {
+      "available_at": "2026-11-19T17:49:54Z",
+      "cell": {
+        "lat": 47.68324,
+        "lon": 11.818885
+      },
+      "cell_elevation_m": 1100.0,
+      "hours": {
+        "2026-11-19T16:00:00+00:00": "wind_speed_ms 4.98; wind_direction_deg 260; wind_gust_ms 25.2; temperature_c 3.9; dew_point_c 0.9; cloud_cover_pct 60; cloud_cover_low_pct 53; cloud_cover_mid_pct 13; cloud_cover_high_pct 4; precipitation_mm 0; cape_j_kg 0; freezing_level_m 1710; 80 m above ground: wind_speed_ms 9.72 wind_direction_deg 261 temperature_c 3.9; 120 m above ground: wind_speed_ms 11.4 wind_direction_deg 262 temperature_c 3.5; 180 m above ground: wind_speed_ms 13.19 wind_direction_deg 263 temperature_c 2.9; 850 hPa: altitude_m 1324 wind_speed_ms 13.9 wind_direction_deg 263 temperature_c 2.8; 700 hPa: altitude_m 2864 wind_speed_ms 23.17 wind_direction_deg 285 temperature_c -8.1; 600 hPa: altitude_m 4047 wind_speed_ms 19.85 wind_direction_deg 294 temperature_c -14.7; 500 hPa: altitude_m 5401 wind_speed_ms 18.41 wind_direction_deg 305 temperature_c -24.5",
+        "2026-11-19T17:00:00+00:00": "wind_speed_ms 4.41; wind_direction_deg 257; wind_gust_ms 23.5; temperature_c 4; dew_point_c 1; cloud_cover_pct 84; cloud_cover_low_pct 69; cloud_cover_mid_pct 74; cloud_cover_high_pct 0; precipitation_mm 0; cape_j_kg 0; freezing_level_m 1670; convective_cloud_base_m 2810; convective_cloud_top_m 3210; 80 m above ground: wind_speed_ms 8.85 wind_direction_deg 260 temperature_c 3.9; 120 m above ground: wind_speed_ms 10.32 wind_direction_deg 261 temperature_c 3.5; 180 m above ground: wind_speed_ms 12.02 wind_direction_deg 262 temperature_c 2.9; 850 hPa: altitude_m 1332 wind_speed_ms 12.91 wind_direction_deg 262 temperature_c 2.7; 700 hPa: altitude_m 2871 wind_speed_ms 22.96 wind_direction_deg 280 temperature_c -8.1; 600 hPa: altitude_m 4052 wind_speed_ms 21.15 wind_direction_deg 291 temperature_c -15.1; 500 hPa: altitude_m 5408 wind_speed_ms 18.98 wind_direction_deg 301 temperature_c -24",
+        "2026-11-19T18:00:00+00:00": "wind_speed_ms 3.89; wind_direction_deg 252; wind_gust_ms 21.2; temperature_c 4.2; dew_point_c 0.2; cloud_cover_pct 42; cloud_cover_low_pct 34; cloud_cover_mid_pct 22; cloud_cover_high_pct 0; precipitation_mm 0; cape_j_kg 0; freezing_level_m 1730; 80 m above ground: wind_speed_ms 7.67 wind_direction_deg 255 temperature_c 4.4; 120 m above ground: wind_speed_ms 8.95 wind_direction_deg 256 temperature_c 3.9; 180 m above ground: wind_speed_ms 10.34 wind_direction_deg 258 temperature_c 3.3; 850 hPa: altitude_m 1335 wind_speed_ms 11.27 wind_direction_deg 258 temperature_c 3.1; 700 hPa: altitude_m 2875 wind_speed_ms 24.09 wind_direction_deg 279 temperature_c -7.8; 600 hPa: altitude_m 4058 wind_speed_ms 20.56 wind_direction_deg 290 temperature_c -14.6; 500 hPa: altitude_m 5414 wind_speed_ms 17.83 wind_direction_deg 291 temperature_c -24.3"
+      },
+      "model": "icon-eu",
+      "point": {
+        "lat": 47.7,
+        "lon": 11.8
+      },
+      "run": "2026-11-19T15:00:00Z",
+      "source": "open-meteo"
+    }
+  ]
+}

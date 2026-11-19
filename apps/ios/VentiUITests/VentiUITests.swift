@@ -180,7 +180,10 @@ final class VentiUITests: XCTestCase {
         // Circling in lift, the cockpit changes to its thermal numbers by
         // itself.
         XCTAssertTrue(element("Gained", in: app).waitForExistence(timeout: 40))
-        sleep(3)
+        // Most of a circle later the map pictures the thermal: the circles
+        // flown, moved with the wind, and where among them the lift is.
+        XCTAssertTrue(element("lift-badge", in: app).waitForExistence(timeout: 20))
+        sleep(2)
         keepScreenshot("fly-2-thermal")
 
         // On the glide after the thermal it changes back, now with the wind

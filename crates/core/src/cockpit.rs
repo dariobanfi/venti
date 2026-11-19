@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use chrono::DateTime;
 use venti_domain::GeoPoint;
 use venti_flight::fai;
+use venti_flight::geodesy::Earth;
 use venti_flight::igc::{self, Fix, IgcFile};
 use venti_flight::live::navigation::{self, Glider, Target};
 use venti_flight::live::{
@@ -33,7 +34,7 @@ use venti_flight::scoring;
 use venti_flight::sun;
 use venti_sensors::{Battery, SentenceReader};
 
-use crate::airspace::AirspaceWatch;
+use crate::airspace::{AirspaceWatch, compass};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
@@ -142,6 +143,64 @@ pub struct ThermalMarkView {
     pub label: String,
 }
 
+/// One place the glider flew through in the thermal it is circling in.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct LiftPointView {
+    /// Latitude in degrees of where the air it flew through there is now.
+    pub lat: f64,
+    /// Longitude in degrees, likewise.
+    pub lon: f64,
+    /// The climb rate around there, metres per second.
+    pub climb_ms: f64,
+    /// That climb beside the mean of the picture, from 0 to 1: one half is
+    /// the mean, 1 is a metre per second or more above it, 0 as much
+    /// below. For the size of a dot: its colour says how good the climb
+    /// is, its size where in this thermal it is better.
+    pub strength: f64,
+}
+
+/// Where the lift is in the thermal the glider is circling in.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct LiftCentreView {
+    /// Where to centre the next circle: the middle of the circles flown,
+    /// moved toward the side where the climb was stronger.
+    pub position: Coordinate,
+    /// The circle to fly around it, with the radius of the circles flown:
+    /// a closed line for the map.
+    pub outline: Vec<Coordinate>,
+    /// The radius of the circles flown, metres.
+    pub radius_m: f64,
+    /// How far `position` lies from the middle of the circles flown,
+    /// metres. Never more than the radius.
+    pub shift_m: f64,
+    /// The direction it lies in from there.
+    pub toward_deg: f64,
+    /// How much stronger the climb is on that side than on average,
+    /// metres per second.
+    pub stronger_by_ms: f64,
+    /// Whether that is so little that the circle counts as centred: less
+    /// than a fifth of its radius.
+    pub is_centred: bool,
+    /// The same in words: "Centred", or "Stronger 20 m NW".
+    pub words: String,
+}
+
+/// The thermal the glider is circling in, as its last circles show it. The
+/// air of a thermal moves with the wind, so every place is shown where its
+/// air is now: the circles stay circles and the lift stays where it was
+/// found.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct LiftView {
+    /// The places flown through in the last fifty seconds, oldest first.
+    pub points: Vec<LiftPointView>,
+    /// Where the lift is. Absent until most of a circle is flown, and
+    /// while what was flown is no circle.
+    pub centre: Option<LiftCentreView>,
+    /// Whether a wind was known to move the places with. Without one they
+    /// are where the glider was over the ground.
+    pub drifted: bool,
+}
+
 /// One point of the track behind the glider.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct TrailPointView {
@@ -224,6 +283,8 @@ pub struct CockpitView {
     pub circling: bool,
     /// The thermal it is in, or the last one it left.
     pub thermal: Option<ThermalView>,
+    /// While circling: the last circles and where the lift is among them.
+    pub lift: Option<LiftView>,
     /// The thermals it has left that gave fifty metres or more, oldest
     /// first, the last twelve: marks for the map.
     pub thermals: Vec<ThermalMarkView>,
@@ -931,6 +992,7 @@ impl FlightSession {
                 gain_m: thermal.gain_m,
                 climb_ms: thermal.climb_ms,
             }),
+            lift: state.lift.as_ref().map(lift_view),
             thermals: state
                 .thermals
                 .iter()
@@ -1272,6 +1334,72 @@ impl Replay {
     }
 }
 
+/// A place whose climb is this far above the mean of the thermal's
+/// picture, metres per second, is drawn at full size, and one as far
+/// below at the smallest. A fixed measure, so that the dots of an even
+/// thermal are all alike and do not show the vario's noise.
+const FULL_STRENGTH_MS: f64 = 1.0;
+
+/// While the lift lies less than this share of the circle's radius from the
+/// middle of the circle, the circle counts as centred.
+const CENTRED_SHARE: f64 = 0.2;
+
+fn lift_view(picture: &live::ThermalPicture) -> LiftView {
+    let mean = picture
+        .points
+        .iter()
+        .map(|point| point.climb_ms)
+        .sum::<f64>()
+        / picture.points.len().max(1) as f64;
+    LiftView {
+        points: picture
+            .points
+            .iter()
+            .map(|point| LiftPointView {
+                lat: point.position.lat(),
+                lon: point.position.lon(),
+                climb_ms: point.climb_ms,
+                strength: (0.5 + (point.climb_ms - mean) / (2.0 * FULL_STRENGTH_MS))
+                    .clamp(0.0, 1.0),
+            })
+            .collect(),
+        centre: picture.centre.map(|centre| LiftCentreView {
+            position: Coordinate {
+                lat: centre.position.lat(),
+                lon: centre.position.lon(),
+            },
+            outline: (0..=48)
+                .map(|step| {
+                    let point = Earth::FaiSphere.destination(
+                        centre.position,
+                        f64::from(step) * 7.5,
+                        centre.radius_m,
+                    );
+                    Coordinate {
+                        lat: point.lat(),
+                        lon: point.lon(),
+                    }
+                })
+                .collect(),
+            radius_m: centre.radius_m,
+            shift_m: centre.shift_m,
+            toward_deg: centre.toward_deg,
+            stronger_by_ms: centre.stronger_by_ms,
+            is_centred: centre.shift_m < CENTRED_SHARE * centre.radius_m,
+            words: if centre.shift_m < CENTRED_SHARE * centre.radius_m {
+                "Centred".to_owned()
+            } else {
+                format!(
+                    "Stronger {:.0} m {}",
+                    (centre.shift_m / 5.0).round() * 5.0,
+                    compass(centre.toward_deg)
+                )
+            },
+        }),
+        drifted: picture.drifted,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use venti_flight::testing::synthetic_flight;
@@ -1307,6 +1435,68 @@ mod tests {
                 .iter()
                 .any(|service| service.service.starts_with("6E400001"))
         );
+    }
+
+    #[test]
+    fn the_thermals_picture_says_where_the_lift_is_stronger() {
+        let at = |east: f64, north: f64| {
+            GeoPoint::new(47.5 + north / 111_195.0, 11.0 + east / 75_123.0).unwrap()
+        };
+        let place = |east: f64, north: f64, climb_ms: f64| live::LiftPoint {
+            position: at(east, north),
+            climb_ms,
+            age_s: 0.0,
+        };
+        let centre = |shift_m: f64, toward_deg: f64| live::LiftCentre {
+            position: at(0.0, 0.0),
+            circle: at(0.0, 0.0),
+            radius_m: 40.0,
+            shift_m,
+            toward_deg,
+            climb_ms: 2.0,
+            stronger_by_ms: shift_m / 40.0,
+        };
+
+        let view = lift_view(&live::ThermalPicture {
+            points: vec![
+                place(40.0, 0.0, 0.5),
+                place(0.0, 40.0, 1.5),
+                place(-40.0, 0.0, 2.0),
+                place(0.0, -40.0, 4.0),
+            ],
+            centre: Some(centre(22.0, 300.0)),
+            drifted: true,
+        });
+        // Around a mean of 2 m/s: a metre and a half below it is as small
+        // as a dot gets, half a metre below is a quarter, the mean a half,
+        // and two metres above as large as it gets.
+        let strengths: Vec<f64> = view.points.iter().map(|point| point.strength).collect();
+        assert_eq!(strengths, [0.0, 0.25, 0.5, 1.0]);
+        let shown = view.centre.unwrap();
+        assert_eq!(shown.words, "Stronger 20 m NW");
+        assert!(!shown.is_centred);
+        // The circle to fly has the radius of the circles flown.
+        for corner in &shown.outline {
+            let corner = GeoPoint::new(corner.lat, corner.lon).unwrap();
+            assert!((corner.distance_m(at(0.0, 0.0)) - 40.0).abs() < 0.1);
+        }
+
+        // Lift that differs by the vario's noise gives dots nearly alike,
+        // and a lean of a few metres is a centred circle.
+        let view = lift_view(&live::ThermalPicture {
+            points: vec![place(40.0, 0.0, 2.0), place(0.0, 40.0, 2.2)],
+            centre: Some(centre(7.0, 90.0)),
+            drifted: false,
+        });
+        assert!(
+            view.points
+                .iter()
+                .all(|point| (point.strength - 0.5).abs() < 0.06)
+        );
+        let shown = view.centre.unwrap();
+        assert!(shown.is_centred);
+        assert_eq!(shown.words, "Centred");
+        assert!(!view.drifted);
     }
 
     #[test]
@@ -1349,6 +1539,22 @@ mod tests {
         assert!(tone.frequency_hz > 700.0 && tone.duty < 1.0);
         // A thermal is marked once it is left, not while the glider is in it.
         assert!(view.thermals.is_empty());
+        // Its picture: the last fifty seconds as the circles flown, with a
+        // circle to fly drawn around where the lift is. The made-up thermal
+        // lifts evenly, so that is where the glider circles already.
+        let lift = view.lift.as_ref().unwrap();
+        assert!(lift.drifted);
+        assert_eq!(lift.points.len(), 51);
+        assert!(
+            lift.points
+                .iter()
+                .all(|point| (0.0..=1.0).contains(&point.strength))
+        );
+        let centre = lift.centre.as_ref().unwrap();
+        assert!((centre.radius_m - 45.0).abs() < 3.0, "{centre:?}");
+        assert_eq!(centre.words, "Centred");
+        assert_eq!(centre.outline.len(), 49);
+        assert_eq!(centre.outline.first(), centre.outline.last());
 
         // Ten minutes in, on the glide after it: the thermal is on the map
         // with its climb, to be found again.
@@ -1356,6 +1562,7 @@ mod tests {
         let (session, replay) = fly(&folder, 600.0, false);
         let view = session.view(replay.now());
         assert!(!view.circling);
+        assert_eq!(view.lift, None);
         assert_eq!(view.thermals.len(), 1);
         let mark = &view.thermals[0];
         assert!(mark.gain_m > 500.0, "{mark:?}");

@@ -76,6 +76,7 @@ struct CockpitMap: UIViewRepresentable {
         private var shownTarget: Coordinate?
         private var target: Coordinate?
         private var drawnThermals: [ThermalMarkView]?
+        private var drawnLift: LiftView?
         /// The zoom the map was last set to by itself.
         private var chosenZoom: Double?
         var fai: FaiAreas?
@@ -171,6 +172,39 @@ struct CockpitMap: UIViewRepresentable {
             climbs.textHaloWidth = NSExpression(forConstantValue: 1.6)
             style.addLayer(climbs)
 
+            // The thermal being circled in. Around where the lift is, the
+            // circle to fly as a dashed ring; over it the last circles as
+            // dots, each where the air it was flown through is now, in the
+            // colour of its climb and larger where the climb is stronger.
+            // The dots lie over the ring: a circle that is centred covers
+            // it, and the dots are what there is to read.
+            let ring = MLNShapeSource(identifier: "cockpit-lift-ring", shape: nil, options: nil)
+            style.addSource(ring)
+            style.addLayer(MapSetup.line("cockpit-lift-ring-edge", from: ring, color: .white, width: 4.5))
+            let circle = MapSetup.line(
+                "cockpit-lift-ring-line", from: ring, color: UIColor(hex: 0x1F1F1D), width: 2
+            )
+            circle.lineDashPattern = NSExpression(forConstantValue: [2, 2])
+            style.addLayer(circle)
+            let lift = MLNShapeSource(identifier: "cockpit-lift", shape: nil, options: nil)
+            style.addSource(lift)
+            for band in ClimbBand.allCases {
+                let dots = MLNCircleStyleLayer(identifier: "cockpit-lift-\(band.rawValue)", source: lift)
+                dots.predicate = NSPredicate(format: "band == %d", band.rawValue)
+                dots.circleRadius = NSExpression(forKeyPath: "radius")
+                dots.circleColor = NSExpression(forConstantValue: band.uiColor)
+                dots.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                dots.circleStrokeWidth = NSExpression(forConstantValue: 1)
+                style.addLayer(dots)
+            }
+            let core = MLNShapeSource(identifier: "cockpit-lift-centre", shape: nil, options: nil)
+            style.addSource(core)
+            style.addLayer(
+                MapSetup.dot(
+                    "cockpit-lift-centre-dot", from: core, radius: 4, color: UIColor(hex: 0x1F1F1D), ring: .white
+                )
+            )
+
             let place = MLNShapeSource(identifier: "cockpit-target", shape: nil, options: nil)
             style.addSource(place)
             style.addLayer(
@@ -197,6 +231,7 @@ struct CockpitMap: UIViewRepresentable {
 
             isStyleLoaded = true
             drawnThermals = nil
+            drawnLift = nil
             drawnFaiSide = nil
             drawnRoute = nil
             drawnTask = nil
@@ -258,6 +293,28 @@ struct CockpitMap: UIViewRepresentable {
             {
                 drawnThermals = view.thermals
                 source.shape = MLNShapeCollectionFeature(shapes: view.thermals.map(Self.thermalFeature))
+            }
+            if view.lift != drawnLift {
+                drawnLift = view.lift
+                if let source = style.source(withIdentifier: "cockpit-lift") as? MLNShapeSource {
+                    source.shape = MLNShapeCollectionFeature(shapes: Self.liftFeatures(view.lift))
+                }
+                let centre = view.lift?.centre
+                if let source = style.source(withIdentifier: "cockpit-lift-ring") as? MLNShapeSource {
+                    let corners = (centre?.outline ?? []).map(\.location)
+                    source.shape = corners.count >= 2
+                        ? MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                        : nil
+                }
+                if let source = style.source(withIdentifier: "cockpit-lift-centre") as? MLNShapeSource {
+                    if let centre {
+                        let middle = MLNPointFeature()
+                        middle.coordinate = centre.position.location
+                        source.shape = middle
+                    } else {
+                        source.shape = nil
+                    }
+                }
             }
 
             if fai?.side != drawnFaiSide, let source = style.source(withIdentifier: "cockpit-fai") as? MLNShapeSource {
@@ -386,6 +443,27 @@ struct CockpitMap: UIViewRepresentable {
             feature.coordinate = mark.position.location
             feature.attributes = ["label": mark.label]
             return feature
+        }
+
+        /// The places of a thermal's picture, a dot each: its climb band for
+        /// the colour and its size in points.
+        static func liftFeatures(_ lift: LiftView?) -> [MLNPointFeature] {
+            (lift?.points ?? []).map { point in
+                let feature = MLNPointFeature()
+                feature.coordinate = CLLocationCoordinate2D(latitude: point.lat, longitude: point.lon)
+                feature.attributes = [
+                    "band": ClimbBand(metresPerSecond: point.climbMs).rawValue,
+                    "radius": liftDotRadius(strength: point.strength),
+                ]
+                return feature
+            }
+        }
+
+        /// From 2 points where the thermal lifts least to 5 where it lifts
+        /// most; 3.5 all around an even one, which at a point a second
+        /// makes a string of beads.
+        static func liftDotRadius(strength: Double) -> Double {
+            2 + 3 * min(max(strength, 0), 1)
         }
 
         /// The trail as one feature per climb band, like a finished flight's

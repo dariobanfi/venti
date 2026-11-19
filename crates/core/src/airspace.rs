@@ -733,7 +733,7 @@ pub(crate) fn kind_in_words(airspace: &Airspace) -> String {
 }
 
 /// A direction as one of eight compass points.
-fn compass(degrees: f64) -> &'static str {
+pub(crate) fn compass(degrees: f64) -> &'static str {
     const POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
     POINTS[((degrees.rem_euclid(360.0) + 22.5) / 45.0) as usize % 8]
 }

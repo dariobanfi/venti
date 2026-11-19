@@ -6,13 +6,16 @@ use venti_domain::GeoPoint;
 
 use super::atmosphere::pressure_altitude_m;
 use super::navigation::bearing_deg;
+use super::thermal::{self, ThermalPicture};
 use super::vario::VarioFilter;
-use super::wind::{Wind, WindEstimator};
+use super::wind::{Wind, WindEstimator, WindFix};
 
 /// The settings of the flight computer.
 ///
-/// The circling rule is the one XCTrack documents; the take-off and landing
-/// rules are our own. To verify in the air, all of them.
+/// The circling rule is the one XCTrack documents, with one addition of
+/// our own: once a wind is known, the turn is also measured through the
+/// air. The take-off and landing rules are our own. To verify in the air,
+/// all of them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     /// Seconds over which the average climb is taken.
@@ -35,7 +38,11 @@ pub struct Config {
     pub landing_hold_s: f64,
     /// Circling starts when the direction of travel has turned at least this
     /// many degrees within `turn_window_s` seconds while the average climb
-    /// is no worse than `circling_min_climb_ms`.
+    /// is no worse than `circling_min_climb_ms`. The direction of travel is
+    /// the one over the ground or, once a wind is known, the one through
+    /// the air, whichever has turned further: in a wind stronger than the
+    /// glider is fast the track over the ground swings from side to side
+    /// and never comes around.
     pub circling_start_deg: f64,
     /// Circling ends when it has turned less than this within the window.
     pub circling_end_deg: f64,
@@ -175,7 +182,8 @@ const WIND_VISIT_GAP_S: f64 = 300.0;
 struct WindBand {
     floor_m: f64,
     /// The sums of where the air moved to, east and north, metres per
-    /// second, and how many measurements went into them.
+    /// second, each measurement counted by how far it is trusted, and the
+    /// sum of that trust.
     east_ms: f64,
     north_ms: f64,
     count: f64,
@@ -196,6 +204,11 @@ impl WindBand {
         }
     }
 }
+
+/// The thermal's picture reaches back this many seconds before circling
+/// was noticed: a quarter turn at a thermal's rate, which is what it takes
+/// to notice.
+const PICTURE_LEAD_S: f64 = 8.0;
 
 /// A thermal is marked when it gave at least this much height, in metres.
 /// Less is a bubble, or a turn in lift that led nowhere.
@@ -244,6 +257,9 @@ pub struct LiveState {
     pub winds: Vec<HeightWind>,
     /// The thermal it is in, or the last one it left.
     pub thermal: Option<Thermal>,
+    /// While circling: the last circles moved with the wind to where their
+    /// air is now, and where among them the lift is.
+    pub lift: Option<ThermalPicture>,
     /// The thermals it has left that were worth marking, oldest first.
     pub thermals: Vec<ThermalMark>,
     /// Where the glider took off.
@@ -294,8 +310,9 @@ pub struct FlightComputer {
 
     /// Recent altitudes for the average climb.
     altitudes: VecDeque<(f64, f64)>,
-    /// Recent directions of travel for the circling rule.
-    courses: VecDeque<(f64, f64)>,
+    /// Recent velocities over the ground for the circling rule: when, and
+    /// the east and north parts in metres per second.
+    velocities: VecDeque<(f64, f64, f64)>,
     circling: bool,
     thermal: Option<Thermal>,
     /// The sum of the positions flown while circling in the present
@@ -349,7 +366,7 @@ impl FlightComputer {
             pressure_offset_m: None,
             instrument_vario: None,
             altitudes: VecDeque::new(),
-            courses: VecDeque::new(),
+            velocities: VecDeque::new(),
             circling: false,
             thermal: None,
             circled: (0.0, 0.0, 0),
@@ -426,23 +443,20 @@ impl FlightComputer {
         }
 
         if let Some(velocity) = self.velocity {
-            if velocity.speed_ms > 1.0 {
-                self.courses.push_back((now, velocity.course_deg));
-            }
-            while self
-                .courses
-                .front()
-                .is_some_and(|&(time, _)| time < now - self.config.turn_window_s)
-            {
-                self.courses.pop_front();
-            }
             // The sine of a course is its east part, the cosine its north part.
             let (east, north) = velocity.course_deg.to_radians().sin_cos();
-            let measured = self
-                .wind
-                .add(now, velocity.speed_ms * east, velocity.speed_ms * north);
-            if let (Some(wind), Some(altitude)) = (measured, altitude) {
-                self.note_wind(now, altitude, wind);
+            let (east, north) = (velocity.speed_ms * east, velocity.speed_ms * north);
+            self.velocities.push_back((now, east, north));
+            while self
+                .velocities
+                .front()
+                .is_some_and(|&(time, _, _)| time < now - self.config.turn_window_s)
+            {
+                self.velocities.pop_front();
+            }
+            let measured = self.wind.add(now, east, north);
+            if let (Some(fix), Some(altitude)) = (measured, altitude) {
+                self.note_wind(now, altitude, fix);
             }
         }
 
@@ -497,6 +511,14 @@ impl FlightComputer {
             winds: self.winds.iter().map(WindBand::wind).collect(),
             circling: self.circling,
             thermal: self.thermal,
+            lift: self.thermal.filter(|_| self.circling).and_then(|thermal| {
+                thermal::picture(
+                    self.trail.iter().copied(),
+                    thermal.entered_s - PICTURE_LEAD_S,
+                    now_s,
+                    self.wind.wind(),
+                )
+            }),
             thermals: self.thermals.iter().copied().collect(),
             takeoff: takeoff_position,
             height_above_takeoff_m: altitude
@@ -606,17 +628,39 @@ impl FlightComputer {
     /// How far the direction of travel has turned within the window, in
     /// degrees. Turns to the left and to the right cancel, so weaving along
     /// a ridge does not count as circling.
+    ///
+    /// It is measured twice, over the ground and, with the wind last
+    /// measured taken off, through the air, and the larger counts. Flying
+    /// straight turns neither, whatever wind is taken off. Circling turns
+    /// both in a light wind and only the second in a strong one. A wind
+    /// that was measured wrong, or lower down, can spoil the second for a
+    /// circle, and then the first still stands.
     fn turned_deg(&self) -> f64 {
-        let mut total = 0.0;
-        let mut courses = self.courses.iter();
-        let Some(&(_, mut previous)) = courses.next() else {
-            return 0.0;
+        let turned = |drift: (f64, f64)| {
+            let mut total = 0.0;
+            let mut previous: Option<f64> = None;
+            for &(_, east, north) in &self.velocities {
+                let (east, north) = (east - drift.0, north - drift.1);
+                // A glider barely moving has no direction worth the name.
+                if east.hypot(north) <= 1.0 {
+                    continue;
+                }
+                let course = east.atan2(north).to_degrees();
+                if let Some(previous) = previous {
+                    total += (course - previous + 540.0).rem_euclid(360.0) - 180.0;
+                }
+                previous = Some(course);
+            }
+            total.abs()
         };
-        for &(_, course) in courses {
-            total += (course - previous + 540.0).rem_euclid(360.0) - 180.0;
-            previous = course;
+        let over_the_ground = turned((0.0, 0.0));
+        match self.wind.wind() {
+            Some(wind) => {
+                let (sin, cos) = wind.from_deg.to_radians().sin_cos();
+                over_the_ground.max(turned((-wind.speed_ms * sin, -wind.speed_ms * cos)))
+            }
+            None => over_the_ground,
         }
-        total.abs()
     }
 
     fn update_circling(&mut self, now: f64, altitude: Option<f64>) {
@@ -643,9 +687,9 @@ impl FlightComputer {
             }
         } else if turned < self.config.circling_end_deg
             && self
-                .courses
+                .velocities
                 .front()
-                .is_some_and(|&(time, _)| now - time >= window - 2.0)
+                .is_some_and(|&(time, _, _)| now - time >= window - 2.0)
         {
             self.circling = false;
         }
@@ -675,16 +719,20 @@ impl FlightComputer {
     /// height the glider is in. One measurement is a fit to the last
     /// circle, and the first and the last of a climb are fits to a circle
     /// that is only just one: the mean over the visit is steadier than any
-    /// of them.
-    fn note_wind(&mut self, now: f64, altitude: f64, wind: Wind) {
+    /// of them. Each counts by how well its circle fitted, so a circle
+    /// flown through rough air moves the mean less than a clean one.
+    fn note_wind(&mut self, now: f64, altitude: f64, fix: WindFix) {
         let floor_m = (altitude / WIND_BAND_M).floor() * WIND_BAND_M;
-        let (sin, cos) = wind.from_deg.to_radians().sin_cos();
-        let (east, north) = (-wind.speed_ms * sin, -wind.speed_ms * cos);
+        let (sin, cos) = fix.wind.from_deg.to_radians().sin_cos();
+        let (east, north) = (
+            -fix.wind.speed_ms * sin * fix.quality,
+            -fix.wind.speed_ms * cos * fix.quality,
+        );
         let fresh = WindBand {
             floor_m,
             east_ms: east,
             north_ms: north,
-            count: 1.0,
+            count: fix.quality,
             measured_s: now,
         };
         match self
@@ -695,7 +743,7 @@ impl FlightComputer {
                 let band = &mut self.winds[index];
                 band.east_ms += east;
                 band.north_ms += north;
-                band.count += 1.0;
+                band.count += fix.quality;
                 band.measured_s = now;
             }
             Ok(index) => self.winds[index] = fresh,
@@ -927,6 +975,87 @@ mod tests {
         // And it holds through the long glide, until the next thermal.
         let before_next = states[700].wind.unwrap();
         assert!((before_next.speed_ms - 3.0).abs() < 0.5, "{before_next:?}");
+    }
+
+    #[test]
+    fn the_thermal_is_pictured_as_the_circles_flown_in_its_moving_air() {
+        let states = replay(&synthetic_flight().fixes);
+        // On the glide there is nothing to picture.
+        assert!(states[60].lift.is_none());
+
+        // Deep in the climb. Over the ground the last fifty seconds are
+        // loops stretched 150 m by the wind; moved with the wind they are
+        // the circles of 45 m the glider flew.
+        let lift = states[300].lift.as_ref().unwrap();
+        assert!(lift.drifted);
+        assert_eq!(lift.points.len(), 51);
+        let centre = lift.centre.unwrap();
+        assert!((centre.radius_m - 45.0).abs() < 3.0, "{centre:?}");
+        for point in &lift.points {
+            let distance = point.position.distance_m(centre.circle);
+            assert!((distance - 45.0).abs() < 12.0, "{point:?}");
+        }
+        // The made-up thermal lifts evenly: the lift is where the circle is.
+        assert!((centre.climb_ms - 2.4).abs() < 0.2, "{centre:?}");
+        assert!(centre.shift_m < 0.3 * centre.radius_m, "{centre:?}");
+        // The newest place is the glider itself.
+        let newest = lift.points.last().unwrap();
+        assert_eq!(newest.age_s, 0.0);
+        assert!(newest.position.distance_m(states[300].position.unwrap()) < 0.5);
+
+        // Gone once the thermal is left.
+        assert!(states[380].lift.is_none());
+    }
+
+    #[test]
+    fn circling_is_recognised_in_a_wind_stronger_than_the_glider_is_fast() {
+        // A glider flying 10 m/s in 12 m/s from the north: a glide downwind
+        // for half a minute, then circles of 28 s climbing 2 m/s. Over the
+        // ground it is carried south the whole time, backwards on the
+        // upwind half of each circle, and its track only swings between
+        // south-east and south-west.
+        let mut computer = FlightComputer::new(Config::default());
+        let (mut east, mut north) = (0.0_f64, 0.0_f64);
+        let mut states = Vec::new();
+        for second in 0..200 {
+            let turning_for = f64::from((second - 30).max(0));
+            let heading = 180.0_f64.to_radians() + std::f64::consts::TAU * turning_for / 28.0;
+            east += 10.0 * heading.sin();
+            north += 10.0 * heading.cos() - 12.0;
+            let altitude = 1500.0
+                + if second < 30 {
+                    -f64::from(second)
+                } else {
+                    -30.0 + 2.0 * turning_for
+                };
+            let time = f64::from(second);
+            computer.pressure_altitude(time, altitude);
+            computer.position(PositionSample {
+                time_s: time,
+                position: GeoPoint::new(
+                    47.0 + north / M_PER_DEG_LAT,
+                    11.0 + east / (M_PER_DEG_LAT * 47.0_f64.to_radians().cos()),
+                )
+                .unwrap(),
+                altitude_m: Some(altitude),
+                ground_speed_ms: None,
+                course_deg: None,
+            });
+            states.push(computer.state(time));
+        }
+
+        // Recognised once the first circle has given the wind, and held
+        // from then on: the track over the ground alone would say
+        // "circling" for a few seconds of each circle and then let go.
+        assert!(!states[35].circling);
+        assert!(states[70..].iter().all(|state| state.circling));
+        let wind = states[120].wind.unwrap();
+        assert!(wind.from_deg < 3.0 || wind.from_deg > 357.0, "{wind:?}");
+        assert!((wind.speed_ms - 12.0).abs() < 0.3, "{wind:?}");
+        // And the thermal's picture is the circle flown: ten metres per
+        // second around in 28 s is a radius of 44.6 m.
+        let centre = states[120].lift.as_ref().unwrap().centre.unwrap();
+        assert!((centre.radius_m - 44.6).abs() < 2.0, "{centre:?}");
     }
 
     #[test]

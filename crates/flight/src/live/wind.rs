@@ -15,18 +15,52 @@ pub struct Wind {
 /// one circle in a thermal.
 const WINDOW_S: f64 = 40.0;
 
-/// The directions of travel are sorted into this many sectors; the estimate
-/// needs samples in nearly all of them, which means nearly a full circle.
+/// The directions the glider pointed in are sorted into this many sectors;
+/// the estimate needs samples in nearly all of them, which means nearly a
+/// full circle.
 const SECTORS: usize = 12;
 const SECTORS_NEEDED: usize = 10;
 
-/// The glider is turning while its direction of travel changes at least
-/// this fast, in degrees per second. A circle in a thermal turns at 12 to
-/// 24; straight flight wanders by one or two.
-const TURNING_DEG_PER_S: f64 = 4.0;
+/// The glider is turning while its velocity over the ground changes at
+/// least this fast, in metres per second each second. A glider on a circle
+/// is pulled toward the middle by its speed through the air times its rate
+/// of turn, whatever the wind: 0.7 is a turn of four degrees a second at
+/// ten metres per second. A circle in a thermal gives 2 to 4; straight
+/// flight a few tenths.
+///
+/// The direction of travel over the ground would not do. With the wind
+/// from behind it hardly changes, and in a wind stronger than the glider
+/// is fast the glider is blown backwards on the upwind half of its circle
+/// and its track never points into the wind at all.
+const TURNING_MS2: f64 = 0.7;
+
+/// The change of velocity is taken over at least this long, seconds, so
+/// that a receiver reporting ten times a second is not judged by its noise.
+const TURN_STEP_S: f64 = 0.9;
 
 /// This many samples in a row below that rate end a turn.
 const STRAIGHT_SAMPLES_END_TURN: u32 = 3;
+
+/// The points may lie this far from the fitted circle, root mean square in
+/// metres per second, and no further than [`MISFIT_SHARE`] of its radius.
+const MISFIT_LIMIT_MS: f64 = 2.0;
+
+/// See [`MISFIT_LIMIT_MS`]. A cloud of noise around one velocity fits a
+/// circle too, but badly for its size.
+const MISFIT_SHARE: f64 = 0.25;
+
+/// One measurement of the wind: the fit to one stretch of circling.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WindFix {
+    /// The wind.
+    pub wind: Wind,
+    /// The speed through the air the glider circled at, metres per second.
+    pub airspeed_ms: f64,
+    /// How far to trust it, above 0 and up to 1: how close the velocities
+    /// lay to the circle, times the share of the circle they covered. For
+    /// weighing one measurement against another, not a probability.
+    pub quality: f64,
+}
 
 /// Estimates the wind while the glider circles.
 ///
@@ -35,12 +69,18 @@ const STRAIGHT_SAMPLES_END_TURN: u32 = 3;
 /// from one point, its ground velocities lie on a circle whose radius is the
 /// airspeed and whose centre, measured from that point, is the wind. The
 /// estimator fits that circle to the last 40 seconds of ground velocity.
-/// It needs no compass and no airspeed sensor.
+/// It needs no compass and no airspeed sensor, and it works the same in a
+/// wind stronger than the glider is fast, where the circle of velocities
+/// no longer goes around zero.
 ///
 /// Straight flight tells it nothing, and fitted together with part of a
 /// circle it would give a wrong wind. So only one unbroken stretch of
 /// turning is ever fitted, and the estimate stays as it was from the moment
 /// the glider straightens out until it has nearly completed its next circle.
+///
+/// The method is the one gliding computers have long used: Cumulus and
+/// XCSoar fit a cosine to the ground speed around each circle, which is the
+/// same picture seen along one axis. The code here is the project's own.
 #[derive(Debug, Clone, Default)]
 pub struct WindEstimator {
     samples: VecDeque<(f64, f64, f64)>,
@@ -48,7 +88,7 @@ pub struct WindEstimator {
     /// sample to its latest. `None` in straight flight.
     turn: Option<(f64, f64)>,
     straight_samples: u32,
-    estimate: Option<Wind>,
+    estimate: Option<WindFix>,
 }
 
 impl WindEstimator {
@@ -61,15 +101,19 @@ impl WindEstimator {
     /// second, and when it was measured. Returns the wind if this sample
     /// gave a new measurement of it: `None` in straight flight, where the
     /// estimate stays as it was.
-    pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) -> Option<Wind> {
-        if let Some(&(last_time, last_east, last_north)) = self.samples.back() {
-            let course = |east: f64, north: f64| east.atan2(north).to_degrees();
-            let turned = (course(east_ms, north_ms) - course(last_east, last_north) + 540.0)
-                .rem_euclid(360.0)
-                - 180.0;
+    pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) -> Option<WindFix> {
+        // The latest sample old enough to measure a change against.
+        let before = self
+            .samples
+            .iter()
+            .rev()
+            .find(|&&(time, _, _)| time <= time_s - TURN_STEP_S)
+            .or(self.samples.front())
+            .copied();
+        if let Some((last_time, last_east, last_north)) = before {
             let seconds = time_s - last_time;
-            let moving = east_ms.hypot(north_ms) > 1.0 && last_east.hypot(last_north) > 1.0;
-            if moving && seconds > 0.0 && turned.abs() / seconds >= TURNING_DEG_PER_S {
+            let change = (east_ms - last_east).hypot(north_ms - last_north);
+            if seconds > 0.0 && change / seconds >= TURNING_MS2 {
                 self.turn = Some((self.turn.map_or(last_time, |(since, _)| since), time_s));
                 self.straight_samples = 0;
             } else {
@@ -88,18 +132,23 @@ impl WindEstimator {
             self.samples.pop_front();
         }
         let measured = self.fit();
-        if let Some(wind) = measured {
-            self.estimate = Some(wind);
+        if let Some(fix) = measured {
+            self.estimate = Some(fix);
         }
         measured
     }
 
     /// The latest estimate, if the glider has circled yet.
     pub fn wind(&self) -> Option<Wind> {
+        self.estimate.map(|fix| fix.wind)
+    }
+
+    /// The latest measurement with what is known about it.
+    pub fn latest(&self) -> Option<WindFix> {
         self.estimate
     }
 
-    fn fit(&self) -> Option<Wind> {
+    fn fit(&self) -> Option<WindFix> {
         // Only the current stretch of turning, up to its latest turning
         // sample: nothing from before it began or after it faltered.
         let (since, until) = self.turn?;
@@ -110,14 +159,8 @@ impl WindEstimator {
             .filter(|&(time, _, _)| time >= since && time <= until)
             .collect();
 
-        let mut covered = [false; SECTORS];
-        for &(_, east, north) in &samples {
-            if east.hypot(north) > 1.0 {
-                let course = east.atan2(north).to_degrees().rem_euclid(360.0);
-                covered[(course / (360.0 / SECTORS as f64)) as usize % SECTORS] = true;
-            }
-        }
-        if covered.iter().filter(|&&sector| sector).count() < SECTORS_NEEDED {
+        // A full circle has at least one sample in nearly every sector.
+        if samples.len() < SECTORS_NEEDED {
             return None;
         }
 
@@ -156,25 +199,46 @@ impl WindEstimator {
             .sum::<f64>()
             / n)
             .sqrt();
-        if misfit > 2.0 {
+        let allowed = MISFIT_LIMIT_MS.min(MISFIT_SHARE * airspeed);
+        if misfit > allowed {
             return None;
         }
 
-        Some(Wind {
-            // The centre is where the air is going; wind is named for where
-            // it comes from.
-            from_deg: (-centre_east)
-                .atan2(-centre_north)
+        // Seen from the centre, each velocity lies in the direction the
+        // glider pointed. Around a circle it points everywhere once, however
+        // strong the wind; its track over the ground does not.
+        let mut covered = [false; SECTORS];
+        for &(_, east, north) in &samples {
+            let heading = (east - centre_east)
+                .atan2(north - centre_north)
                 .to_degrees()
-                .rem_euclid(360.0),
-            speed_ms: centre_east.hypot(centre_north),
+                .rem_euclid(360.0);
+            covered[(heading / (360.0 / SECTORS as f64)) as usize % SECTORS] = true;
+        }
+        let sectors = covered.iter().filter(|&&sector| sector).count();
+        if sectors < SECTORS_NEEDED {
+            return None;
+        }
+
+        Some(WindFix {
+            wind: Wind {
+                // The centre is where the air is going; wind is named for
+                // where it comes from.
+                from_deg: (-centre_east)
+                    .atan2(-centre_north)
+                    .to_degrees()
+                    .rem_euclid(360.0),
+                speed_ms: centre_east.hypot(centre_north),
+            },
+            airspeed_ms: airspeed,
+            quality: ((1.0 - misfit / allowed) * sectors as f64 / SECTORS as f64).max(0.01),
         })
     }
 }
 
 /// Solves three linear equations by Gaussian elimination. `None` if they
 /// have no single solution.
-fn solve(mut a: [[f64; 3]; 3], mut b: [f64; 3]) -> Option<[f64; 3]> {
+pub(super) fn solve(mut a: [[f64; 3]; 3], mut b: [f64; 3]) -> Option<[f64; 3]> {
     for column in 0..3 {
         let pivot =
             (column..3).max_by(|&i, &j| a[i][column].abs().total_cmp(&a[j][column].abs()))?;
@@ -272,6 +336,113 @@ mod tests {
             (on_glide.speed_ms - in_thermal.speed_ms).abs() < 0.1,
             "{on_glide:?}"
         );
+    }
+
+    #[test]
+    fn finds_a_wind_stronger_than_the_glider_is_fast() {
+        // Twelve metres per second from the north against a glider flying
+        // ten: over the ground it only ever travels between south-east and
+        // south-west, and a rule that waits for its track to come around
+        // waits for ever.
+        let mut estimator = WindEstimator::new();
+        circle(&mut estimator, 40, 10.0, (0.0, -12.0));
+        let fix = estimator.latest().unwrap();
+        assert!(
+            fix.wind.from_deg < 1.0 || fix.wind.from_deg > 359.0,
+            "{fix:?}"
+        );
+        assert!((fix.wind.speed_ms - 12.0).abs() < 0.05, "{fix:?}");
+        assert!((fix.airspeed_ms - 10.0).abs() < 0.05, "{fix:?}");
+        assert!(fix.quality > 0.9, "{fix:?}");
+    }
+
+    #[test]
+    fn finds_a_wind_nearly_as_strong_as_the_glider_is_fast() {
+        // Here the track does come around, but in two samples: it sweeps
+        // through the upwind half faster than a receiver reports.
+        let mut estimator = WindEstimator::new();
+        circle(&mut estimator, 30, 10.0, (9.5, 0.0));
+        let wind = estimator.wind().unwrap();
+        assert!((wind.from_deg - 270.0).abs() < 1.0, "{wind:?}");
+        assert!((wind.speed_ms - 9.5).abs() < 0.05, "{wind:?}");
+    }
+
+    /// Numbers between -1 and 1 that look random and are the same on every
+    /// run.
+    fn noise(seed: &mut u64) -> f64 {
+        *seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((*seed >> 33) as f64 / f64::from(1_u32 << 31)) * 2.0 - 1.0
+    }
+
+    #[test]
+    fn a_rough_circle_is_trusted_less_than_a_clean_one() {
+        let mut clean = WindEstimator::new();
+        circle(&mut clean, 40, 10.0, (3.0, 0.0));
+
+        let mut rough = WindEstimator::new();
+        let mut seed = 7;
+        for second in 0..40 {
+            let heading = TAU * f64::from(second) / 28.0;
+            rough.add(
+                f64::from(second),
+                10.0 * heading.sin() + 3.0 + noise(&mut seed),
+                10.0 * heading.cos() + noise(&mut seed),
+            );
+        }
+        let (clean, rough) = (clean.latest().unwrap(), rough.latest().unwrap());
+        assert!(clean.quality > 0.95, "{clean:?}");
+        assert!(rough.quality < 0.8 && rough.quality > 0.3, "{rough:?}");
+        assert!((rough.wind.from_deg - 270.0).abs() < 12.0, "{rough:?}");
+        assert!((rough.wind.speed_ms - 3.0).abs() < 0.6, "{rough:?}");
+    }
+
+    #[test]
+    fn says_nothing_about_noise_around_straight_flight() {
+        // A receiver whose speed jumps about by three metres per second
+        // looks like turning all the time. The cloud of its velocities has
+        // a middle and a size, but it is no circle.
+        let mut estimator = WindEstimator::new();
+        let mut seed = 99;
+        for second in 0..300 {
+            estimator.add(
+                f64::from(second),
+                8.0 + 3.0 * noise(&mut seed),
+                6.0 + 3.0 * noise(&mut seed),
+            );
+        }
+        assert_eq!(estimator.wind(), None);
+    }
+
+    #[test]
+    fn a_receiver_that_reports_ten_times_a_second_changes_nothing() {
+        let mut estimator = WindEstimator::new();
+        for tenth in 0..400 {
+            let time = f64::from(tenth) / 10.0;
+            let heading = TAU * time / 28.0;
+            estimator.add(time, 10.0 * heading.sin() + 3.0, 10.0 * heading.cos());
+        }
+        let wind = estimator.wind().unwrap();
+        assert!((wind.from_deg - 270.0).abs() < 1.0, "{wind:?}");
+        assert!((wind.speed_ms - 3.0).abs() < 0.05, "{wind:?}");
+
+        // And straight flight at that rate, with a little noise, is not
+        // taken for turning: the estimate holds.
+        let mut seed = 5;
+        let mut measured = 0;
+        for tenth in 400..1400 {
+            let time = f64::from(tenth) / 10.0;
+            let fix = estimator.add(
+                time,
+                11.0 + 0.05 * noise(&mut seed),
+                4.0 + 0.05 * noise(&mut seed),
+            );
+            if time > 50.0 && fix.is_some() {
+                measured += 1;
+            }
+        }
+        assert_eq!(measured, 0);
     }
 
     #[test]

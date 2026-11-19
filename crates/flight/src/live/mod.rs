@@ -8,6 +8,7 @@
 pub mod atmosphere;
 mod computer;
 pub mod navigation;
+pub mod thermal;
 pub mod tone;
 pub mod vario;
 pub mod wind;
@@ -16,4 +17,5 @@ pub use computer::{
     Config, FlightComputer, HeightWind, LiveState, Phase, PositionSample, Thermal, ThermalMark,
     TrailPoint, VarioSource, WIND_BAND_M,
 };
-pub use wind::Wind;
+pub use thermal::{LiftCentre, LiftPoint, ThermalPicture};
+pub use wind::{Wind, WindFix};

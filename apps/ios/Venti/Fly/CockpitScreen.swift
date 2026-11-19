@@ -43,19 +43,27 @@ struct CockpitScreen: View {
                     // time out. The badges laid over it stay in.
                     .accessibilityHidden(true)
                     .overlay(alignment: .topTrailing) {
-                        if let wind = view.wind {
-                            // A tap lists the wind of every band of height
-                            // the glider has circled in.
-                            WindBadge(wind: wind)
-                                .contentShape(.capsule)
-                                .onTapGesture {
-                                    isShowingWinds = true
-                                }
-                                .accessibilityAddTraits(.isButton)
-                                .accessibilityHint("Shows the wind by height")
-                                .accessibilityIdentifier("wind-badge")
-                                .padding(10)
+                        VStack(alignment: .trailing, spacing: 8) {
+                            if let wind = view.wind {
+                                // A tap lists the wind of every band of
+                                // height the glider has circled in.
+                                WindBadge(wind: wind)
+                                    .contentShape(.capsule)
+                                    .onTapGesture {
+                                        isShowingWinds = true
+                                    }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityHint("Shows the wind by height")
+                                    .accessibilityIdentifier("wind-badge")
+                            }
+                            // While circling: which way the lift is
+                            // stronger, in words beside the picture on the
+                            // map.
+                            if let centre = view.lift?.centre {
+                                LiftBadge(centre: centre)
+                            }
                         }
+                        .padding(10)
                     }
                     .overlay(alignment: .leading) {
                         // The whole flight at a glance, with the scored
@@ -496,6 +504,32 @@ private struct DaylightBadge: View {
 
     private static func hoursMinutes(_ minutes: Int64) -> String {
         Format.hoursMinutes(seconds: minutes * 60)
+    }
+}
+
+/// Where the lift is in the thermal being circled in: an arrow toward the
+/// side where the climb is stronger and how far to move the circle, or
+/// that the circle is centred.
+private struct LiftBadge: View {
+    let centre: LiftCentreView
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: centre.isCentred ? "scope" : "arrow.up")
+                .font(.subheadline.weight(.bold))
+                // The map is north-up, so the arrow points the way to move.
+                .rotationEffect(.degrees(centre.isCentred ? 0 : centre.towardDeg))
+            Text(centre.words)
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .glassEffect(.regular, in: .capsule)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Lift")
+        .accessibilityValue(centre.words)
+        .accessibilityIdentifier("lift-badge")
     }
 }
 

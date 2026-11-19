@@ -83,6 +83,17 @@ jobs:
       - name: Install the browser the tests drive
         run: npx playwright install --with-deps chromium
 
+      # The app uses the system's typeface, and this machine's is wider than
+      # any phone's or desktop's. See e2e/fonts.conf.
+      - name: Give the screenshots a typeface like a phone's
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-inter
+          mkdir -p ~/.config/fontconfig
+          cp e2e/fonts.conf ~/.config/fontconfig/fonts.conf
+          fc-cache -f
+          fc-match system-ui | grep Inter
+
       - name: Use the site as a pilot would, and keep a screenshot of every screen
         run: npm run test:e2e
 

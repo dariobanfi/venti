@@ -36,6 +36,8 @@ The end-to-end tests need a Chromium that Playwright can drive: `npx playwright 
 
 The tests draw a real map without the network. The app asks OpenFreeMap and Mapterhorn for tiles as it always does; the test browser answers those requests from the small region the iPhone app bundles (`apps/ios/Venti/Resources/MapDemo`, the valley of the sample flight). Outside that valley the test maps are blank, which is the region's edge and not a fault.
 
+The app uses the system's typeface, so the screenshots show the test machine's. A bare Linux machine's is wide and cuts text short that fits on a phone; `e2e/fonts.conf` says how the `Web` workflow gives its screenshots Inter instead.
+
 Every push that touches the app or the core runs all of this in the `Web` workflow. Its `web-screenshots` artifact holds the screenshots and `web-site` the built site: `gh run download <run> -n web-screenshots`.
 
 ## Layout

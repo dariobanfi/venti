@@ -101,7 +101,12 @@ object ForecastRows {
                 "°C at 2 m",
                 hours.map { cell(it.temperatureC) { temperature -> number(Format.temperature(temperature)) } },
             ),
-            ForecastRow("freezing", "0 °C", "at m", hours.map { cell(it.freezingLevelM) { level -> number(hundreds(level)) } }),
+            ForecastRow(
+                "freezing",
+                "0 °C level",
+                "m",
+                hours.map { cell(it.freezingLevelM) { level -> number(hundreds(level)) } },
+            ),
         )
         rows += sky.filter { row -> row.cells.any { it != ForecastCell.Empty } }
         return rows

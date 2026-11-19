@@ -124,6 +124,14 @@ object Format {
         return points[index]
     }
 
+    /**
+     * A place in degrees with four decimals, which is to about ten metres:
+     * "47.6642° N, 11.7967° E".
+     */
+    fun place(lat: Double, lon: Double): String =
+        "${number(abs(lat), decimals = 4)}° ${if (lat < 0) "S" else "N"}, " +
+            "${number(abs(lon), decimals = 4)}° ${if (lon < 0) "W" else "E"}"
+
     /** Whole degrees Celsius. */
     fun temperature(celsius: Double): String {
         // Minus zero would read "-0".

@@ -3,6 +3,7 @@ package fly.venti.app.map
 import android.annotation.SuppressLint
 import android.graphics.PointF
 import android.graphics.RectF
+import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.sites.SiteFeature
 import fly.venti.app.sites.SiteSymbols
@@ -50,6 +51,9 @@ class OverviewMap : MapContent {
     /** Told a site's identifier when the pilot taps its sign. */
     var onSite: (String) -> Unit = {}
 
+    /** Told the place under the finger after a long press on the map. */
+    var onPlace: (Coordinate) -> Unit = {}
+
     private var outlines: List<List<Coordinate>> = emptyList()
     private var drawn: List<List<Coordinate>>? = null
     private var stations: List<WindStation> = emptyList()
@@ -70,6 +74,12 @@ class OverviewMap : MapContent {
         map.cameraPosition = CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
         map.addOnCameraIdleListener { tellRegion(map, view) }
         map.addOnMapClickListener { place -> tapped(place, map, view) }
+        // A long press asks about the place under the finger.
+        map.addOnMapLongClickListener { place ->
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            onPlace(Coordinate(lat = place.latitude, lon = place.longitude))
+            true
+        }
     }
 
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {

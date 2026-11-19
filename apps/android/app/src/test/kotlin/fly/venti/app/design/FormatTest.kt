@@ -53,6 +53,8 @@ class FormatTest {
         assertEquals("3.0", Format.oneDecimal(3.0))
         // 2026-07-04 10:30 UTC.
         assertEquals("Sat, 4 Jul at 10:30", Format.dayAndTime(1_783_161_000, ZoneOffset.UTC))
+        assertEquals("47.6642° N, 11.7967° E", Format.place(lat = 47.66421, lon = 11.79668))
+        assertEquals("33.9000° S, 70.5000° W", Format.place(lat = -33.9, lon = -70.5))
         assertEquals("1 flight", Format.flights(1u))
         assertEquals("3 flights", Format.flights(3u))
     }

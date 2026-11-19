@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
 import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.forecast.ForecastSheet
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.sites.SitesModel
@@ -67,7 +68,7 @@ import fly.venti.core.WindStation
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
  * server, the flying sites it knows, the pilot's airspace and the pilot's
- * own flights.
+ * own flights. A long press shows the forecast for the place pressed.
  */
 @Composable
 fun MapScreen(
@@ -85,6 +86,8 @@ fun MapScreen(
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     var showsSites by remember { mutableStateOf(false) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
+    // A place the pilot pressed on, to show its forecast.
+    var pressed by remember { mutableStateOf<Coordinate?>(null) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
@@ -102,6 +105,13 @@ fun MapScreen(
     }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
+    // A long press: the forecast for the place under the finger, where
+    // there is a server to ask.
+    map.onPlace = { place ->
+        if (wind.server is WindServer.Usable) {
+            pressed = place
+        }
+    }
 
     val askForPosition = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -219,6 +229,10 @@ fun MapScreen(
                 showsSites = false
             },
         )
+    }
+
+    pressed?.let { place ->
+        ForecastSheet(place, wind, onDismiss = { pressed = null })
     }
 
     problem?.let { text ->

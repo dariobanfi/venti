@@ -690,15 +690,38 @@ class VentiUiTest {
         // A take-off whose source says which wind it works in, on the Wank
         // above Garmisch. The map shipped with the app ends before it; the
         // sites are the server's all the same.
-        assertTrue(TestDevice.lookAt(scenario, lat = 47.5067, lon = 11.1478, zoom = 12.0))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.5067, lon = 11.10, zoom = 10.5))
         tap(described("Flying sites"))
         val south = "Startplatz Wank Süd"
-        waitFor(described(south))
+        // The list is the old part's until the server has answered for
+        // this one, and then longer than the screen.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("site-list")).performScrollToNode(described(south)) }.isSuccess
+        }
         tap(described(south))
         waitFor(hasText("Wind it works in"))
         assertTrue(exists(hasText("E to WSW")))
+        assertTrue(exists(hasText("Where")))
+
+        // Under it, the wind measured nearby: the station in the valley,
+        // 7 km away, with whether its wind comes from a direction the
+        // site works in. The map has that station once it has asked for
+        // the wind of this part.
+        val page = hasTestTag("site-page")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(page).performScrollToNode(hasTestTag("site-station")) }.isSuccess
+        }
+        assertTrue(exists(hasText("Wind measured nearby")))
+        assertTrue(exists(hasTestTag("site-station") and hasText("Garmisch-Partenkirchen")))
+        assertTrue(exists(hasText("direction the site works in", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-8-site-with-wind")
+
+        // The station opens in the same sheet, and leads back.
+        tap(hasTestTag("site-station"))
+        waitFor(hasText("Last 24 hours"))
+        tap(described("Back"))
+        waitFor(hasText("Wind it works in"))
         tap(hasText("Done"))
         waitFor(described("Flying sites"))
 
@@ -707,6 +730,32 @@ class VentiUiTest {
         waitFor(hasText("Vario sound"))
         tap(hasText("Waypoints"))
         waitFor(described(takeoff))
+    }
+
+    /**
+     * A long press on the map shows the server's forecast for the place
+     * under the finger, named by where it is. Skipped without a server.
+     */
+    @Test
+    fun aLongPressOnTheMapShowsTheForecastThere() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        letTheMapDraw(2)
+
+        // Above Garmisch, inside the server's first region.
+        val place = checkNotNull(TestDevice.onScreen(scenario, lat = 47.5, lon = 11.1))
+        TestDevice.longPress(place)
+        waitFor(hasTestTag("forecast-table"))
+        assertTrue(exists(hasText("° N, ", substring = true)))
+        assertTrue(exists(hasContentDescription("hPa", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("map-forecast")
+        tap(hasText("Done"))
+        waitFor(described("Show my position"))
+        assertFalse(exists(hasTestTag("forecast-table")))
     }
 
     @Test

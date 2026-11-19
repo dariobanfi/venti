@@ -8,7 +8,11 @@ import fly.venti.core.Coordinate
 import fly.venti.core.SiteKind
 import fly.venti.core.SiteView
 import fly.venti.core.WindSpan
+import fly.venti.core.WindStation
+import fly.venti.core.serverStatus
 import fly.venti.core.sitesPath
+import fly.venti.core.stationsNear
+import fly.venti.core.windMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -113,7 +117,8 @@ class SitesModelTest {
         // A site the source has no name for is named by what it is, and its row says no more.
         val bare = sites.sites.first { !it.isNamed && it.kind == SiteKind.LANDING }
         assertEquals("Landing", bare.name)
-        assertEquals("No more is known", SiteWords.detail(bare))
+        // Nothing else is known of it; it is at least somewhere.
+        assertEquals("47.6919° N, 11.8880° E", SiteWords.detail(bare))
     }
 
     @Test
@@ -258,27 +263,76 @@ class SitesModelTest {
         assertEquals(SiteKind.entries.size, SiteKind.entries.map { it.picture }.toSet().size)
     }
 
+    /** A made-up take-off and landing, as the core would hand it out. */
+    private fun site(position: Coordinate, elevationM: Double?, wind: List<WindSpan>, windInWords: String) = SiteView(
+        id = "test:1",
+        name = "Sample take-off (not real)",
+        isNamed = true,
+        kind = SiteKind.TAKEOFF,
+        uses = listOf(SiteKind.TAKEOFF, SiteKind.LANDING),
+        kindInWords = "Take-off and landing",
+        position = position,
+        elevationM = elevationM,
+        wind = wind,
+        windInWords = windInWords,
+        official = true,
+        discouraged = false,
+        paragliding = null,
+        hangGliding = null,
+        source = "test",
+        url = null,
+    )
+
     @Test
     fun aRowSaysTheWindASiteWorksIn() {
-        val site = SiteView(
-            id = "test:1",
-            name = "Sample take-off (not real)",
-            isNamed = true,
-            kind = SiteKind.TAKEOFF,
-            uses = listOf(SiteKind.TAKEOFF, SiteKind.LANDING),
-            kindInWords = "Take-off and landing",
-            position = Coordinate(lat = 47.0, lon = 11.0),
+        val site = site(
+            Coordinate(lat = 47.0, lon = 11.0),
             elevationM = 1234.4,
             wind = listOf(WindSpan(fromDeg = 180.0, toDeg = 225.0)),
             windInWords = "S to SW",
-            official = true,
-            discouraged = false,
-            paragliding = null,
-            hangGliding = null,
-            source = "test",
-            url = null,
         )
         assertEquals("Take-off and landing · 1,234 m · wind S to SW", SiteWords.detail(site))
+    }
+
+    @Test
+    fun theWindMeasuredNearASiteSaysWhereItStandsAndWhetherItsDirectionFits() {
+        // The stations the server's own tests keep, at the moment they were recorded.
+        val now = serverStatus(200.toUShort(), Server.recorded("health.json")).timeUnixS
+        val recorded = Server.recorded("stations.json")
+        val stations = windMap(200.toUShort(), recorded, now).stations
+        // A made-up take-off due east of the station in Garmisch, which
+        // stands in the valley and had a light wind from the north.
+        val takeoff = site(
+            Coordinate(lat = 47.483, lon = 11.1478),
+            elevationM = 1700.0,
+            wind = listOf(WindSpan(fromDeg = 90.0, toDeg = 247.5)),
+            windInWords = "E to WSW",
+        )
+
+        fun near(site: SiteView, among: List<WindStation> = stations) =
+            stationsNear(among, site.position, site.elevationM, site.wind, SiteWords.STATIONS_WITHIN_M, 3u)
+
+        // The summit of the Zugspitze, 14 km on, is within reach too; the nearest comes first.
+        val valley = near(takeoff).first()
+        assertEquals("Garmisch-Partenkirchen", valley.station.name)
+        assertEquals("6.4 km W · 980 m lower", SiteWords.whereabouts(valley))
+        assertEquals("From N: not a direction the site works in", SiteWords.fit(valley))
+
+        // The same site turned to the north: the same wind fits, and that is all that is said.
+        val north = takeoff.copy(wind = listOf(WindSpan(fromDeg = 315.0, toDeg = 45.0)))
+        assertEquals("From N: a direction the site works in", SiteWords.fit(near(north).first()))
+
+        // A site that gives no height and no directions: no word on either.
+        val bare = near(takeoff.copy(elevationM = null, wind = emptyList())).first()
+        assertEquals("6.4 km W", SiteWords.whereabouts(bare))
+        assertNull(SiteWords.fit(bare))
+
+        // Two hours on, the reading no longer stands for the wind now.
+        val later = now + 2 * 3600
+        val old = near(takeoff, among = windMap(200.toUShort(), recorded, later).stations).first()
+        assertNull(SiteWords.fit(old))
+        assertEquals("", old.station.mark.label)
+        assertEquals("3 hours ago", SiteWords.age(old.station, later))
     }
 
     @Test

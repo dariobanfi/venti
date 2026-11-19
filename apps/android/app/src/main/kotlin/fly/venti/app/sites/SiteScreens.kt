@@ -46,23 +46,35 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
+import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
 import fly.venti.app.forecast.ForecastPage
 import fly.venti.app.forecast.ForecastPlace
 import fly.venti.app.waypoints.WaypointsModel
+import fly.venti.app.wind.StationPage
+import fly.venti.app.wind.WindGlyph
 import fly.venti.app.wind.WindModel
 import fly.venti.core.SiteView
+import fly.venti.core.StationNearby
 import fly.venti.core.WindSpan
+import fly.venti.core.WindStation
+import fly.venti.core.stationsNear
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * The sheet over the map for flying sites: the sites in view as a list, or
@@ -83,45 +95,70 @@ fun SiteSheet(
     onChoose: (SiteView?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // The place whose forecast shows, over the site's page.
-    var forecast by remember { mutableStateOf<ForecastPlace?>(null) }
+    // What the pilot has opened from the site's page, the newest last: a
+    // wind station near the site, a forecast. Back takes the last away.
+    var opened by remember { mutableStateOf(emptyList<FromASite>()) }
     // The sites kept as waypoints while this sheet is open: a page says so
     // also when the pilot comes back to it from the forecast.
     var kept by remember { mutableStateOf(emptySet<String>()) }
     // The list opens at full height, for the search field and the names; a
     // site tapped on the map leaves the map in view.
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = showsList)
-    // A forecast is a table of a whole day: it takes all the room there is.
-    LaunchedEffect(forecast) {
-        if (forecast != null) sheet.expand()
+    // A forecast is a table of a whole day, and a station has its charts:
+    // they take all the room there is.
+    LaunchedEffect(opened.size) {
+        if (opened.isNotEmpty()) sheet.expand()
     }
+    val back = { opened = opened.dropLast(1) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        val place = forecast
-        if (place != null) {
-            ForecastPage(place, wind, onBack = { forecast = null }, onDone = onDismiss)
-        } else if (chosen != null) {
-            SitePage(
-                site = chosen,
-                sites = sites,
-                isKept = chosen.id in kept,
-                onKeep = {
-                    if (waypoints.add(chosen.name, chosen.position, chosen.elevationM)) {
-                        kept = kept + chosen.id
-                    }
+        when (val top = opened.lastOrNull()) {
+            is FromASite.Forecast -> ForecastPage(top.place, wind, onBack = back, onDone = onDismiss)
+            is FromASite.Station -> StationPage(
+                // The newest reading, if the stations were fetched again
+                // while the page was open.
+                station = wind.stations.firstOrNull { it.id == top.station.id } ?: top.station,
+                wind = wind,
+                onForecast = {
+                    opened = opened + FromASite.Forecast(ForecastPlace(top.station.name, top.station.position))
                 },
-                // The forecast comes from the server the sites come from.
-                onForecast = { forecast = ForecastPlace(chosen.name, chosen.position) },
-                onBack = if (showsList) ({ onChoose(null) }) else null,
+                onBack = back,
                 onDone = onDismiss,
             )
-        } else {
-            SiteList(sites, onOpen = onChoose, onDone = onDismiss)
+            null -> if (chosen != null) {
+                SitePage(
+                    site = chosen,
+                    sites = sites,
+                    wind = wind,
+                    isKept = chosen.id in kept,
+                    onKeep = {
+                        if (waypoints.add(chosen.name, chosen.position, chosen.elevationM)) {
+                            kept = kept + chosen.id
+                        }
+                    },
+                    onStation = { opened = opened + FromASite.Station(it) },
+                    // The forecast comes from the server the sites come from.
+                    onForecast = { opened = opened + FromASite.Forecast(ForecastPlace(chosen.name, chosen.position)) },
+                    onBack = if (showsList) ({ onChoose(null) }) else null,
+                    onDone = onDismiss,
+                )
+            } else {
+                SiteList(sites, onOpen = onChoose, onDone = onDismiss)
+            }
         }
     }
+}
+
+/** What a pilot opens from a site's page, in the same sheet. */
+private sealed interface FromASite {
+    /** A wind station near the site. */
+    data class Station(val station: WindStation) : FromASite
+
+    /** The forecast for the site's place, or for a station's. */
+    data class Forecast(val place: ForecastPlace) : FromASite
 }
 
 /**
@@ -253,9 +290,13 @@ private fun SiteRow(site: SiteView, onClick: () -> Unit) {
 private fun SitePage(
     site: SiteView,
     sites: SitesModel,
+    /** The wind stations the map has, for the wind measured near the site. */
+    wind: WindModel,
     /** Whether the pilot has kept the site as a waypoint from this sheet. */
     isKept: Boolean,
     onKeep: () -> Unit,
+    /** Opens a wind station near the site. */
+    onStation: (WindStation) -> Unit,
     /** Opens the forecast for the site's place. */
     onForecast: () -> Unit,
     /** Back to the list of sites, if that is where the pilot came from. */
@@ -263,6 +304,13 @@ private fun SitePage(
     onDone: () -> Unit,
 ) {
     val links = LocalUriHandler.current
+    // The wind measured around the site now, from the stations the map
+    // already has, and for each whether it comes from a direction the site
+    // works in. Which stations, and whether a wind fits, is the core's.
+    val stations = wind.stations
+    val near = remember(site, stations) {
+        stationsNear(stations, site.position, site.elevationM, site.wind, SiteWords.STATIONS_WITHIN_M, 3u)
+    }
 
     Column {
         Row(
@@ -294,6 +342,7 @@ private fun SitePage(
                     site.elevationM?.let { elevation ->
                         row { ValueRow("Height", "${Format.metres(elevation)} m") }
                     }
+                    row { ValueRow("Where", Format.place(site.position.lat, site.position.lon)) }
                     row { WindRow(site) }
                 }
             }
@@ -316,6 +365,17 @@ private fun SitePage(
                             row { MarkRow(R.drawable.ic_block, "Marked as not for paragliders") }
                         }
                     }
+                }
+            }
+            if (near.isNotEmpty()) {
+                item {
+                    SectionHeader("Wind measured nearby")
+                    Group {
+                        for (station in near) {
+                            row { StationNearbyRow(station, wind.now, onClick = { onStation(station.station) }) }
+                        }
+                    }
+                    SectionFooter(SiteWords.NEARBY_CAUTION)
                 }
             }
             item {
@@ -351,6 +411,66 @@ private fun SitePage(
                 }
                 SectionFooter(SiteWords.footnote(site, sites))
             }
+        }
+    }
+}
+
+/**
+ * A wind station near a site: its wind as the map draws it, how far and
+ * which way it stands from the site and how much higher or lower, and
+ * whether its wind comes from a direction the site works in.
+ */
+@Composable
+private fun StationNearbyRow(
+    near: StationNearby,
+    /** The current time by the server's clock. */
+    now: Long,
+    onClick: () -> Unit,
+) {
+    val mark = near.station.mark
+    val whereabouts = SiteWords.whereabouts(near)
+    val fit = SiteWords.fit(near)
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("site-station")
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        WindGlyph(mark)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                near.station.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(whereabouts, style = MaterialTheme.typography.bodyMedium.numbers, color = quiet)
+            if (fit != null) {
+                Text(fit, style = MaterialTheme.typography.bodyMedium, color = quiet)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        if (mark.label.isNotEmpty()) {
+            val unit = MaterialTheme.typography.bodySmall
+            Text(
+                buildAnnotatedString {
+                    append(mark.label)
+                    withStyle(SpanStyle(fontSize = unit.fontSize, fontWeight = FontWeight.Normal, color = quiet)) {
+                        append(" km/h")
+                    }
+                },
+                style = MaterialTheme.typography.titleMedium.numbers,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        } else {
+            // What stands in place of a wind that is not current.
+            Text(SiteWords.age(near.station, now), style = MaterialTheme.typography.bodyMedium, color = quiet)
         }
     }
 }
@@ -456,7 +576,45 @@ object SiteWords {
         if (site.isNamed) parts += site.kindInWords
         site.elevationM?.let { parts += "${Format.metres(it)} m" }
         if (site.windInWords.isNotEmpty()) parts += "wind ${site.windInWords}"
-        return if (parts.isEmpty()) "No more is known" else parts.joinToString(" · ")
+        // A site of which nothing else is known is at least somewhere.
+        return if (parts.isEmpty()) Format.place(site.position.lat, site.position.lon) else parts.joinToString(" · ")
+    }
+
+    /** How far from a site a wind station still says something about it, metres. */
+    const val STATIONS_WITHIN_M = 15_000.0
+
+    /** What a station near a site is worth, said under the stations. */
+    const val NEARBY_CAUTION =
+        "A station near a site is not the site: it may stand on a summit, in the valley or behind a ridge. " +
+            "A direction that fits says nothing about the wind's strength or its gusts."
+
+    /** Where a station stands, seen from the site: "2.1 km NE · 300 m higher". */
+    fun whereabouts(near: StationNearby): String {
+        val parts = mutableListOf("${Format.kilometres(near.distanceM)} km ${Format.compassPoint(near.bearingDeg)}")
+        val higher = near.higherByM
+        if (higher != null && abs(higher) >= 50) {
+            val rounded = (abs(higher) / 10).roundToLong() * 10.0
+            parts += "${Format.metres(rounded)} m ${if (higher > 0) "higher" else "lower"}"
+        }
+        return parts.joinToString(" · ")
+    }
+
+    /**
+     * Whether the station's wind comes from a direction the site works in,
+     * with the direction; `null` when that cannot be said. It is a fact
+     * about a direction, and no word on whether the site can be flown.
+     */
+    fun fit(near: StationNearby): String? {
+        val fits = near.fits ?: return null
+        val from = near.station.latest?.directionDeg ?: return null
+        val point = Format.compassPoint(from)
+        return if (fits) "From $point: a direction the site works in" else "From $point: not a direction the site works in"
+    }
+
+    /** What stands in place of a station's wind when it is not current. */
+    fun age(station: WindStation, now: Long): String {
+        val reading = station.latest ?: return "no reading"
+        return Format.age(Format.minutes(from = reading.timeUnixS, to = now))
     }
 
     /** Under the list: what a site on a map is worth, whose data it is, and how old. */

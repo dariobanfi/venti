@@ -153,6 +153,11 @@ object TestDevice {
         shell("input tap ${place.first} ${place.second}")
     }
 
+    /** A finger held down in one place, long enough for the phone to take it as a long press. */
+    fun longPress(place: Pair<Int, Int>) {
+        shell("input swipe ${place.first} ${place.second} ${place.first} ${place.second} 1500")
+    }
+
     private fun mapIn(view: View): MapView? = when (view) {
         is MapView -> view
         is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { mapIn(view.getChildAt(it)) }

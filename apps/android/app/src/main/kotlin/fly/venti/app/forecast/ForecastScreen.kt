@@ -21,14 +21,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +77,27 @@ import kotlin.math.roundToInt
 /** A place whose forecast is asked for: what it is called and where it is. */
 data class ForecastPlace(val name: String, val position: Coordinate)
 
+/**
+ * The forecast for a place the pilot pressed on, on the map: a sheet of its
+ * own, at full height, named by where the place is.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ForecastSheet(place: Coordinate, wind: WindModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        ForecastPage(
+            ForecastPlace(Format.place(place.lat, place.lon), place),
+            wind,
+            onBack = null,
+            onDone = onDismiss,
+        )
+    }
+}
+
 private sealed interface Phase {
     data object Loading : Phase
 
@@ -86,14 +110,20 @@ private sealed interface Phase {
  * What the weather models say about one place: the wind through the day at
  * the ground and higher up, the cloud base, cloud, rain and temperature,
  * hour by hour. Shown in the sheet of the site or the station it was opened
- * from.
+ * from, or in a sheet of its own.
  *
  * It shows magnitudes and no verdict. Whether a day can be flown depends on
  * the pilot, the wing and the place, and a model's cell of a few kilometres
  * knows none of them.
  */
 @Composable
-fun ForecastPage(place: ForecastPlace, wind: WindModel, onBack: () -> Unit, onDone: () -> Unit) {
+fun ForecastPage(
+    place: ForecastPlace,
+    wind: WindModel,
+    /** Back to the page the forecast was opened from, if there is one. */
+    onBack: (() -> Unit)?,
+    onDone: () -> Unit,
+) {
     var phase by remember(place) { mutableStateOf<Phase>(Phase.Loading) }
     var attempt by remember(place) { mutableIntStateOf(0) }
     // The model looked at, by its identifier: the finest one at first.
@@ -120,11 +150,13 @@ fun ForecastPage(place: ForecastPlace, wind: WindModel, onBack: () -> Unit, onDo
 
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                }
             }
             Text(
                 place.name,
@@ -348,9 +380,11 @@ fun ForecastTable(model: ModelForecast, day: ForecastDay, modifier: Modifier = M
     }
 }
 
-// The table's measures, in the units of text.
+// The table's measures, in the units of text. A column is wide enough for
+// a wind with its gusts ("12/48") and for a height ("1,600") to stand apart
+// from their neighbours.
 private val NAMES_WIDTH = 92.sp
-private val CELL_WIDTH = 38.sp
+private val CELL_WIDTH = 46.sp
 private val ROW_HEIGHT = 42.sp
 private val HEAD_HEIGHT = 22.sp
 private val ARROW_SIDE = 17.sp

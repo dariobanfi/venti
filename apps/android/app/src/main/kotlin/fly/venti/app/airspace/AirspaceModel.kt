@@ -40,6 +40,13 @@ class AirspaceModel(
     var set: AirspaceSet? by mutableStateOf(null)
         private set
 
+    /**
+     * Set when there are files but their airspace could not be put
+     * together: the cockpit would be silent, and the pilot must know.
+     */
+    var problem: String? by mutableStateOf(null)
+        private set
+
     init {
         reload()
     }
@@ -78,7 +85,18 @@ class AirspaceModel(
 
     private fun reload() {
         files = runCatching { core.airspaceFiles() }.getOrDefault(emptyList())
-        set = if (files.isEmpty()) null else runCatching { core.airspace() }.getOrNull()
+        problem = null
+        set = if (files.isEmpty()) {
+            null
+        } else {
+            try {
+                core.airspace()
+            } catch (error: Exception) {
+                problem = "Your airspace files could not be loaded, so nothing is drawn or warned about. " +
+                    error.pilotMessage
+                null
+            }
+        }
     }
 
     companion object {

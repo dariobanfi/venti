@@ -424,7 +424,7 @@ class VentiUiTest {
         tap(hasText("Close the cockpit"))
         waitFor(hasText("Start flight"))
 
-        // The files behind the warnings, and the zone on the map.
+        // The files behind the warnings.
         tap(tab("Settings"))
         waitFor(hasText("Vario sound"))
         tap(hasText("Airspace"))
@@ -432,9 +432,18 @@ class VentiUiTest {
         keepScreenshot("$prefix-settings-4-airspace")
         tap(described("Back"))
         waitFor(hasText("Vario sound"))
+
+        // And the zone on the map: with the sample flight in the logbook
+        // the map shows the valley the flight ends in, beside the zone.
+        tap(tab("Logbook"))
+        waitFor(hasText("No flights yet"))
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"), seconds = 30)
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
         tap(tab("Map"))
         waitFor(described("Show my position"))
-        letTheMapDraw()
+        letTheMapDraw(5)
         keepScreenshot("$prefix-map-airspace")
     }
 

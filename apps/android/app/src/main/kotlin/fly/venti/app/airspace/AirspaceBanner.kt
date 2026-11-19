@@ -3,6 +3,7 @@ package fly.venti.app.airspace
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,6 +43,7 @@ import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.numbers
 import fly.venti.app.fly.Announcer
+import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceLevel
 import fly.venti.core.AirspaceWarning
 import java.util.Locale
@@ -59,6 +62,17 @@ object AirspaceWords {
     /** The warning the cockpit shows: the most urgent that has not been quieted, or else the most urgent. */
     fun shown(warnings: List<AirspaceWarning>): AirspaceWarning? =
         warnings.firstOrNull { !it.silenced } ?: warnings.firstOrNull()
+
+    /**
+     * What to say when the app is not checking, so that its silence is not
+     * taken for "no airspace near".
+     */
+    fun notChecking(check: AirspaceCheck): String? = when (check) {
+        AirspaceCheck.CHECKING, AirspaceCheck.NO_AIRSPACE -> null
+        AirspaceCheck.WAITING_FOR_HEIGHT -> "Airspace is not being checked yet: no position with a height."
+        AirspaceCheck.STALE -> "Airspace is not being checked: no position. What is shown is from the last one."
+        AirspaceCheck.OUTSIDE_FILES -> "Your airspace files do not cover this place. Nothing is checked here."
+    }
 
     /** A warning as a screen reader says it. */
     fun spoken(warning: AirspaceWarning): String =
@@ -82,11 +96,39 @@ object AirspaceWords {
  * or quieted. A tap shows them all.
  */
 @Composable
-fun AirspaceBanner(warnings: List<AirspaceWarning>, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+fun AirspaceBanner(
+    warnings: List<AirspaceWarning>,
+    /** Whether anything is being checked at all. */
+    check: AirspaceCheck,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AirspaceWords.notChecking(check)?.let { notice ->
+            Surface(
+                modifier = Modifier.fillMaxWidth().testTag("airspace-notice"),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shadowElevation = 2.dp,
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_visibility_off), contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(notice, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+        Warning(warnings, onOpen)
+    }
+}
+
+/** The band with the most urgent warning, if there is one. */
+@Composable
+private fun Warning(warnings: List<AirspaceWarning>, onOpen: () -> Unit) {
     val warning = AirspaceWords.shown(warnings) ?: return
     val (ground, ink) = colours(warning)
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .testTag("airspace-banner")
             .clickable(role = Role.Button, onClick = onOpen)

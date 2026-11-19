@@ -114,6 +114,7 @@ fun CockpitScreen(
                 }
                 AirspaceBanner(
                     fly.airspaceWarnings,
+                    fly.airspaceCheck,
                     onOpen = { isShowingAirspace = true },
                     // Clear of the map's own credits button in the corner.
                     modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),

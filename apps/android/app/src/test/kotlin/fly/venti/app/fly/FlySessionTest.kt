@@ -5,6 +5,7 @@ import fly.venti.app.TestSupport
 import fly.venti.app.airspace.AirspaceWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
+import fly.venti.core.AirspaceCheck
 import fly.venti.core.Coordinate
 import fly.venti.core.FlightPhase
 import fly.venti.core.FlightSession
@@ -168,6 +169,9 @@ class FlySessionTest {
         val fly = FlySession(folder, MemoryPreferences(), FakeSensors(), SilentTone(), scope, voice)
         fly.airspace = { airspace.set }
         assertTrue(fly.airspaceWarnings.isEmpty())
+        // Nothing runs, so nothing is checked, and nothing needs saying.
+        assertEquals(AirspaceCheck.NO_AIRSPACE, fly.airspaceCheck)
+        assertNull(AirspaceWords.notChecking(fly.airspaceCheck))
 
         fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
         var waited = 0
@@ -177,6 +181,7 @@ class FlySessionTest {
         }
 
         val warning = fly.airspaceWarnings.first()
+        assertEquals(AirspaceCheck.CHECKING, fly.airspaceCheck)
         assertEquals("SAMPLE ZONE (NOT REAL)", warning.name)
         assertFalse(warning.silenced)
         assertTrue(warning.headline, "SAMPLE ZONE (NOT REAL)" in warning.headline)
@@ -195,6 +200,12 @@ class FlySessionTest {
 
         fly.finish()
         assertTrue(fly.airspaceWarnings.isEmpty())
+
+        // Silence that is not "no airspace near" is said in words.
+        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.WAITING_FOR_HEIGHT)).startsWith("Airspace is not being checked yet"))
+        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE)).startsWith("Airspace is not being checked: no position."))
+        assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace files do not cover this place."))
+        assertNull(AirspaceWords.notChecking(AirspaceCheck.CHECKING))
     }
 
     @Test

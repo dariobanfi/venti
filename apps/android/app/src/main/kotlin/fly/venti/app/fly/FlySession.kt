@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
+import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
@@ -112,10 +113,21 @@ class FlySession(
         private set
 
     /**
-     * The airspace to warn about, asked for when a session starts. The app
+     * Whether the glider is being checked against airspace right now.
+     * Anything but `CHECKING` means that silence is not "no airspace near",
+     * and the cockpit says which it is.
+     */
+    var airspaceCheck: AirspaceCheck by mutableStateOf(AirspaceCheck.NO_AIRSPACE)
+        private set
+
+    /**
+     * The airspace to warn about, asked for while a session runs. The app
      * sets this to the pilot's airspace files.
      */
     var airspace: () -> AirspaceSet? = { null }
+
+    /** The airspace last handed to the core's session. */
+    private var handedAirspace: AirspaceSet? = null
 
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
@@ -229,6 +241,8 @@ class FlySession(
         way = null
         score = null
         airspaceWarnings = emptyList()
+        airspaceCheck = AirspaceCheck.NO_AIRSPACE
+        handedAirspace = null
         return recording
     }
 
@@ -237,7 +251,8 @@ class FlySession(
         this.mode = mode
         // How the pilot's glider glides, for predicting arrival heights.
         session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
-        session.useAirspace(airspace())
+        handedAirspace = airspace()
+        session.useAirspace(handedAirspace)
         refreshesSinceScore = 0
         sound.isMuted = isMuted
         sound.start()
@@ -277,6 +292,17 @@ class FlySession(
             if (latest != score) {
                 score = latest
             }
+        }
+        // Files brought in or removed in the middle of a session reach the
+        // core at once; what the pilot silenced stays silenced.
+        val latest = airspace()
+        if (latest !== handedAirspace) {
+            handedAirspace = latest
+            session.useAirspace(latest)
+        }
+        val check = session.airspaceCheck(now)
+        if (check != airspaceCheck) {
+            airspaceCheck = check
         }
         val warnings = session.airspaceWarnings()
         if (warnings != airspaceWarnings) {

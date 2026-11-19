@@ -89,6 +89,17 @@ fun AirspaceScreen(airspace: AirspaceModel, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         ) {
+            airspace.problem?.let { problem ->
+                Row(Modifier.padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
+                    Icon(
+                        painterResource(R.drawable.ic_warning),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
+            }
             Group {
                 for (file in airspace.files) {
                     row { FileRow(file, onDelete = { airspace.delete(file) }) }
@@ -122,9 +133,10 @@ fun AirspaceScreen(airspace: AirspaceModel, onBack: () -> Unit) {
                     "about to enter or are inside.",
             )
             SectionFooter(
-                "It knows the airspace in these files and no other. Where you have no file, or an old one, " +
-                    "it knows nothing and stays silent. It does not know which areas are active today. " +
-                    "Every warning is advice: you remain responsible for where you fly.",
+                "It knows the airspace in these files and no other. Where no file of yours reaches, the " +
+                    "cockpit says that nothing is checked there; an old file it cannot tell from a new " +
+                    "one. It does not know which areas are active today. Every warning is advice: you " +
+                    "remain responsible for where you fly.",
             )
         }
     }

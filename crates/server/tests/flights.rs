@@ -533,13 +533,14 @@ async fn the_time_an_analysis_takes_counts_against_the_account_also_when_it_ends
     let clock = TestClock::new();
     let folder = std::env::temp_dir().join(format!("venti-dawdling-{}", std::process::id()));
     let program = dawdling_analyser(&folder);
-    // Ten seconds are allowed, and all ten would count for a hundred
-    // uploads: two seconds count for twenty. An account has twenty-one.
+    // Ten seconds are allowed. The first is free, and the nine after it
+    // would count for ninety uploads: two seconds count for ten, beside
+    // the one every upload counts for. An account has eleven.
     let settings = Settings {
         analyser: Analyser::with_time_allowed(Where::Child(program), StdDuration::from_secs(10)),
         limits: Limits {
-            uploads_per_day: 21,
-            slow_upload_weight: 100,
+            uploads_per_day: 11,
+            slow_upload_weight: 90,
             ..Limits::default()
         },
         ..settings()
@@ -1089,6 +1090,7 @@ async fn a_shared_flight_is_seen_by_others_and_changed_by_its_pilot_only() {
     ] {
         let answer = ask(Method::PATCH, &flight_path(&public.id))
             .token(&dario.token)
+            .header(header::CONTENT_TYPE, "application/json")
             .bytes(body)
             .send(&router)
             .await;
@@ -1096,6 +1098,7 @@ async fn a_shared_flight_is_seen_by_others_and_changed_by_its_pilot_only() {
     }
     let answer = ask(Method::PATCH, &flight_path(&public.id))
         .token(&dario.token)
+        .header(header::CONTENT_TYPE, "application/json")
         .bytes(r#"{"visible":true}"#)
         .send(&router)
         .await;

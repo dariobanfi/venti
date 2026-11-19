@@ -139,10 +139,15 @@ async fn arrival(body: Body) -> Result<Vec<u8>, NotArrived> {
         .unwrap_or(Err(NotArrived::TooSlow))
 }
 
+/// How long an analysis may take without counting for anything. A real
+/// flight never takes this long: twelve hours at a fix a second are
+/// analysed in about half a second (measured 2026-11-19).
+const ANALYSIS_FREE: std::time::Duration = std::time::Duration::from_secs(1);
+
 /// What an analysis that took `took` counts for among an account's uploads
-/// of the day, beside the one every upload counts for: in proportion to
-/// the time allowed, so that an analysis that used all of it counts for
-/// `slow_upload_weight`.
+/// of the day, beside the one every upload counts for. The first second is
+/// free; the time beyond it counts in proportion, so that an analysis
+/// that used all the time allowed counts for `slow_upload_weight`.
 ///
 /// Without this only a file that had to be killed cost anything, and a
 /// file built to take nine of the ten seconds allowed cost nothing: two
@@ -152,8 +157,9 @@ fn analysis_weight(
     allowed: std::time::Duration,
     slow_upload_weight: u32,
 ) -> u32 {
-    let allowed_ms = allowed.as_millis().max(1);
-    let weight = u128::from(slow_upload_weight) * took.as_millis() / allowed_ms;
+    let beyond = took.saturating_sub(ANALYSIS_FREE).as_millis();
+    let span = allowed.saturating_sub(ANALYSIS_FREE).as_millis().max(1);
+    let weight = u128::from(slow_upload_weight) * beyond / span;
     u32::try_from(weight)
         .unwrap_or(u32::MAX)
         .min(slow_upload_weight)
@@ -570,9 +576,10 @@ pub(crate) async fn update<S: Store>(
     State(api): State<Arc<Api<S>>>,
     signed: Signed,
     Path(id): Path<String>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let request: UpdateFlightRequest = body::json(&body)?;
+    let request: UpdateFlightRequest = body::json(&headers, &body)?;
     let visibility = wire::stored_visibility(request.visibility).ok_or_else(|| {
         ApiError::bad_request(
             ErrorCode::InvalidVisibility,
@@ -626,13 +633,16 @@ mod tests {
         let allowed = Duration::from_secs(10);
         let weight = |millis: u64| analysis_weight(Duration::from_millis(millis), allowed, 50);
 
-        // A real flight takes a fraction of a second: nothing beside the
-        // one every upload counts for.
+        // A real flight takes a fraction of a second, and a slow machine
+        // some more: nothing beside the one every upload counts for.
         assert_eq!(weight(0), 0);
         assert_eq!(weight(150), 0);
-        // A file that keeps the analysis busy counts by the second.
-        assert_eq!(weight(1000), 5);
-        assert_eq!(weight(9000), 45);
+        assert_eq!(weight(1000), 0);
+        // A file that keeps the analysis busy counts for the time beyond
+        // the first second.
+        assert_eq!(weight(1900), 5);
+        assert_eq!(weight(5500), 25);
+        assert_eq!(weight(9100), 45);
         // All the time allowed counts as a file that had to be killed, and
         // nothing counts for more.
         assert_eq!(weight(10_000), 50);

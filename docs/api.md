@@ -59,6 +59,8 @@ A client that shows the data shows the credit of its source next to it, and the 
 
 **Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB.
 
+**Bodies.** A request that carries JSON says so: `Content-Type: application/json`, with or without a character set. Anything else, and no type at all, is answered `415` with `unsupported_media_type` before the body is looked at. The one request whose body is not JSON is the upload of a flight file, which takes any type. The rule is what keeps a page on another site from sending sign-in or registration attempts through a visitor's browser: a browser sends a body typed `text/plain` anywhere without asking, and asks the server first before it sends one typed `application/json`.
+
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
 **Errors.** Every answer with a 4xx or 5xx status has the same body:
@@ -100,6 +102,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, or a flight file of more than 4 MB |
+| 415 | `unsupported_media_type` | A request whose body is JSON did not say so with `Content-Type: application/json` |
 | 422 | `invalid_flight` | The uploaded file is not a flight file the server can use |
 | 429 | `rate_limited` | Too many attempts. `Retry-After` says when to try again |
 | 501 | `no_forecasts` | The server has no forecast service. Asking again does not help |
@@ -1282,7 +1285,7 @@ The answer is `201` when the upload created the flight, and `200` when the accou
 
 Send a logbook's flights one after another, or two at a time. A file has 100 seconds to arrive and must not stand still for more than 10 on the way; that lets the largest file through at 40 kB a second.
 
-What counts against the 1000 uploads of a day: every upload counts for one, whatever becomes of it. The time its analysis takes counts as well, five for each second, so that a file which keeps the analysis busy for the ten seconds it is allowed counts for fifty more; a flight is analysed in a fraction of a second and counts for nothing more. A file that did not arrive in time counts for fifty more too.
+What counts against the 1000 uploads of a day: every upload counts for one, whatever becomes of it. The time its analysis takes beyond the first second counts as well, in proportion, so that a file which keeps the analysis busy for the ten seconds it is allowed counts for fifty more; a flight is analysed in a fraction of a second and counts for nothing more. A file that did not arrive in time counts for fifty more too.
 
 ### `GET /v1/flights?after=&limit=`
 

@@ -941,7 +941,117 @@ async fn a_full_table_does_not_refuse_whoever_the_server_has_not_seen() {
     );
 }
 
+// --- What a browser can be made to send --------------------------------------
+
+#[tokio::test]
+async fn a_json_body_is_taken_only_from_a_request_that_says_it_is_json() {
+    let clock = TestClock::new();
+    let router = limited_server(&clock, &[]);
+    let dario = sign_up(&router, "dario").await;
+    let flight = upload(&router, &dario.token, &sample_file()).await.flight;
+
+    // Every request of the API that carries JSON, each with a body that
+    // would do something.
+    let sign_in = serde_json::json!({"handle": "dario", "password": "a wrong guess!!"});
+    let register = serde_json::json!({
+        "handle": "mallory", "display_name": "Mallory", "password": PASSWORD,
+    });
+    let change = serde_json::json!({
+        "current_password": PASSWORD, "new_password": "a new password!!",
+    });
+    let delete = serde_json::json!({"password": PASSWORD});
+    let share = serde_json::json!({"visibility": "public"});
+    let requests = [
+        (Method::POST, SESSIONS_PATH.to_owned(), sign_in, false),
+        (Method::POST, ACCOUNTS_PATH.to_owned(), register, false),
+        (Method::PUT, ACCOUNT_PASSWORD_PATH.to_owned(), change, true),
+        (Method::DELETE, ACCOUNT_PATH.to_owned(), delete, true),
+        (Method::PATCH, flight_path(&flight.id), share, true),
+    ];
+
+    // A page on any site can make a visitor's browser send these types
+    // without asking the server first; and a request that names no type.
+    for said in [
+        Some("text/plain"),
+        Some("text/plain;charset=UTF-8"),
+        Some("application/x-www-form-urlencoded"),
+        Some("multipart/form-data; boundary=x"),
+        None,
+    ] {
+        for (method, path, body, signed) in &requests {
+            let mut request = ask(method.clone(), path).bytes(body.to_string());
+            if let Some(said) = said {
+                request = request.header(header::CONTENT_TYPE, said);
+            }
+            if *signed {
+                request = request.token(&dario.token);
+            }
+            let answer = request.send(&router).await;
+            let message = answer.error(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                ErrorCode::UnsupportedMediaType,
+            );
+            assert!(message.contains("application/json"), "{message}");
+        }
+    }
+
+    // None of it happened: no account was made, the password is the old
+    // one, the account and its flight are there and the flight is private.
+    // Not even the wrong passwords were looked at: five of them from one
+    // address would have closed sign-in to it, and it is open.
+    let answer = try_sign_in(&router, "mallory", PASSWORD).await;
+    answer.error(StatusCode::UNAUTHORIZED, ErrorCode::InvalidCredentials);
+    let answer = try_sign_in(&router, "dario", PASSWORD).await;
+    assert_eq!(answer.status, StatusCode::CREATED);
+    assert!(works(&router, &dario.token).await);
+    let answer = get(&router, &flight_path(&flight.id)).await;
+    answer.error(StatusCode::NOT_FOUND, ErrorCode::FlightNotFound);
+
+    // Said as JSON, with or without a character set, the same bodies work.
+    for said in ["application/json", "application/json; charset=utf-8"] {
+        let (method, path, body, _) = &requests[4];
+        let answer = ask(method.clone(), path)
+            .header(header::CONTENT_TYPE, said)
+            .bytes(body.to_string())
+            .token(&dario.token)
+            .send(&router)
+            .await;
+        assert_eq!(answer.status, StatusCode::OK, "{said}");
+    }
+}
+
 // --- Sessions ---------------------------------------------------------------
+
+#[tokio::test]
+async fn text_that_can_be_no_identifier_is_the_identifier_of_no_session() {
+    let router = open_server();
+    let dario = sign_up(&router, "dario").await;
+
+    // A zero byte, which a database refuses in text; a path that climbs;
+    // an identifier that is one character short, and one in capitals.
+    for id in [
+        "%00",
+        "0000000000000000000000000%00",
+        "..%2F..%2Faccount",
+        "%27%20OR%20%271%27%3D%271",
+        &dario.session.id[1..],
+        &dario.session.id.to_uppercase(),
+        &"x".repeat(5000),
+    ] {
+        let answer = ask(Method::DELETE, &format!("{SESSIONS_PATH}/{id}"))
+            .token(&dario.token)
+            .send(&router)
+            .await;
+        answer.error(StatusCode::NOT_FOUND, ErrorCode::SessionNotFound);
+    }
+    // The session is still there, and its own identifier still ends it.
+    assert!(works(&router, &dario.token).await);
+    let answer = ask(Method::DELETE, &session_path(&dario.session.id))
+        .token(&dario.token)
+        .send(&router)
+        .await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT);
+}
 
 #[tokio::test]
 async fn a_request_for_an_account_needs_a_good_token_in_the_header() {
@@ -1327,8 +1437,18 @@ async fn a_deleted_account_is_gone_with_everything_it_had() {
     // Whoever holds an unlocked phone cannot do this without the password.
     let answer = delete(&dario.token, "not the password!").await;
     answer.error(StatusCode::FORBIDDEN, ErrorCode::WrongPassword);
+    // Nor with nothing in the place of it.
     let answer = ask(Method::DELETE, ACCOUNT_PATH)
         .token(&dario.token)
+        .send(&router)
+        .await;
+    answer.error(
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        ErrorCode::UnsupportedMediaType,
+    );
+    let answer = ask(Method::DELETE, ACCOUNT_PATH)
+        .token(&dario.token)
+        .header(header::CONTENT_TYPE, "application/json")
         .send(&router)
         .await;
     answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);

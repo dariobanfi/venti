@@ -68,6 +68,16 @@ pub fn random_id() -> Result<String, NoRandomness> {
     Ok(encode(&random::<16>()?))
 }
 
+/// Whether text has the form of an identifier made by [`random_id`]. One
+/// that has not is the identifier of nothing, which is known without
+/// asking the database.
+pub fn is_id(text: &str) -> bool {
+    text.len() == ID_LENGTH && text.bytes().all(|byte| ALPHABET.contains(&byte))
+}
+
+/// How many characters an identifier has: 128 bits, five to a character.
+const ID_LENGTH: usize = 26;
+
 /// The address of an account's flight with a given identity: 26 characters.
 ///
 /// It is worked out, not drawn, so the same flight uploaded again by the

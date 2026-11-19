@@ -274,6 +274,11 @@ pub(super) async fn delete_session(
     account_id: &str,
     session_id: &str,
 ) -> Result<bool, StoreError> {
+    // PostgreSQL takes no zero byte in text and would refuse the whole
+    // statement. No stored identifier holds one, so the answer is known.
+    if account_id.contains('\0') || session_id.contains('\0') {
+        return Ok(false);
+    }
     let deleted = client
         .execute(
             "DELETE FROM sessions WHERE account_id = $1 AND id = $2",

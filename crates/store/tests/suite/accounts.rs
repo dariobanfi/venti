@@ -297,6 +297,42 @@ pub(crate) async fn using_a_session_is_recorded_every_few_minutes(store: &impl S
     assert_eq!(last_used(at(9, 0)).await, later);
 }
 
+pub(crate) async fn no_session_has_an_identifier_that_cannot_be_one(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    sign_in(store, "phone", &dario, at(10, 0), 1).await;
+
+    // What a path can carry and a database may refuse to look at: a zero
+    // byte above all, which PostgreSQL takes in no text at all. None of it
+    // is an error, and none of it removes anything.
+    let long = "x".repeat(100_000);
+    for text in [
+        "\0",
+        "0000000000000000000000000\0",
+        "",
+        " ",
+        "phone' OR '1'='1",
+        "\u{feff}",
+        "\u{1F6E9}",
+        long.as_str(),
+    ] {
+        let removed = store.delete_session(&dario.id, text).await;
+        assert_eq!(
+            removed.ok(),
+            Some(false),
+            "{:?}",
+            &text[..text.len().min(40)]
+        );
+        let removed = store.delete_session(text, &id("phone")).await;
+        assert_eq!(
+            removed.ok(),
+            Some(false),
+            "{:?}",
+            &text[..text.len().min(40)]
+        );
+    }
+    assert_eq!(session_names(store, &dario).await, ["phone"]);
+}
+
 pub(crate) async fn sessions_are_listed_and_removed_per_account(store: &impl Store) {
     let dario = create(store, "dario").await;
     let anna = create(store, "anna").await;

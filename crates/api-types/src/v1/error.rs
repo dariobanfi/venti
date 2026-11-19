@@ -90,6 +90,9 @@ pub enum ErrorCode {
     MethodNotAllowed,
     /// The request carried a body larger than the server accepts.
     PayloadTooLarge,
+    /// The request's body is JSON and was not sent as
+    /// `Content-Type: application/json`.
+    UnsupportedMediaType,
     /// The server could not answer in time.
     Timeout,
     /// The server cannot reach its database. Try again later.

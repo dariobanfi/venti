@@ -71,6 +71,7 @@ macro_rules! store_suite {
             a_session_is_found_by_its_token_until_it_expires,
             using_a_session_is_recorded_every_few_minutes,
             sessions_are_listed_and_removed_per_account,
+            no_session_has_an_identifier_that_cannot_be_one,
             an_account_keeps_only_its_most_recent_sessions,
             sessions_unused_for_too_long_are_pruned,
             a_new_password_signs_out_the_other_devices,

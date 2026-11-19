@@ -9,7 +9,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use axum::http::{Method, StatusCode};
+use axum::http::{Method, StatusCode, header};
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, ChangePasswordRequest,
     CreateAccountRequest, DeleteAccountRequest, HEALTH_PATH, Password, SESSIONS_PATH,
@@ -72,6 +72,7 @@ async fn no_password_and_no_token_reaches_the_log() {
     try_sign_in(&router, "hunter2_hunter2", guess).await;
     try_sign_in(&router, guess, first).await;
     let malformed = ask(Method::POST, SESSIONS_PATH)
+        .header(header::CONTENT_TYPE, "application/json")
         .bytes(format!(r#"{{"handle":["dario"],"password":"{guess}""#))
         .send(&router)
         .await;

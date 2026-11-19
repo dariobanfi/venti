@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use venti_api_types::v1::{
     AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest, ErrorCode,
@@ -18,7 +18,7 @@ use super::auth::{Client, Signed};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::client::counting_keys;
-use crate::accounts::secret::{InviteCode, Token, random_id};
+use crate::accounts::secret::{InviteCode, Token, is_id, random_id};
 use crate::accounts::throttle::{self, Counted};
 use crate::accounts::{Registration, device_label, is_reserved, password};
 
@@ -212,9 +212,14 @@ fn wrong_password() -> ApiError {
 pub(crate) async fn create<S: Store>(
     State(api): State<Arc<Api<S>>>,
     Client(client): Client,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let now = api.clock.now();
+    // Not an attempt at all, and not counted as one: a body that does not
+    // say it is JSON, which is what a page elsewhere can make a visitor's
+    // browser send.
+    body::must_say_json(&headers)?;
     // Every attempt counts, whatever becomes of it, and before anything
     // else is done with it, the password's hashing above all: this is what
     // makes trying out invite codes or handles slow.
@@ -238,7 +243,7 @@ pub(crate) async fn create<S: Store>(
         ));
     }
 
-    let request: CreateAccountRequest = body::json(&body)?;
+    let request: CreateAccountRequest = body::json(&headers, &body)?;
     let handle = Handle::new(&request.handle)
         .map_err(|e| ApiError::bad_request(ErrorCode::InvalidHandle, e.to_string()))?;
     let display_name = parse_display_name(&request.display_name)
@@ -303,9 +308,10 @@ fn invalid_invite() -> ApiError {
 pub(crate) async fn sign_in<S: Store>(
     State(api): State<Arc<Api<S>>>,
     Client(client): Client,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let request: SignInRequest = body::json(&body)?;
+    let request: SignInRequest = body::json(&headers, &body)?;
     // Text that cannot be a handle is the handle of no account. It is
     // checked like any other, so that it takes as long.
     let handle = Handle::new(&request.handle).ok();
@@ -353,7 +359,11 @@ pub(crate) async fn sign_out<S: Store>(
     signed: Signed,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    if !api.store.delete_session(&signed.account.id, &id).await? {
+    // Text of another form is the identifier of no session, and the
+    // database is not asked about it: a path can hold what a database
+    // refuses to compare with anything, a zero byte for one.
+    let deleted = is_id(&id) && api.store.delete_session(&signed.account.id, &id).await?;
+    if !deleted {
         return Err(ApiError::missing(
             ErrorCode::SessionNotFound,
             "the account has no session with this identifier",
@@ -386,9 +396,10 @@ pub(crate) async fn change_password<S: Store>(
     State(api): State<Arc<Api<S>>>,
     signed: Signed,
     Client(client): Client,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let request: ChangePasswordRequest = body::json(&body)?;
+    let request: ChangePasswordRequest = body::json(&headers, &body)?;
     let handle = Handle::new(&signed.account.handle).ok();
     api.confirm_password(&signed, &request.current_password, client)
         .await?;
@@ -410,9 +421,10 @@ pub(crate) async fn delete<S: Store>(
     State(api): State<Arc<Api<S>>>,
     signed: Signed,
     Client(client): Client,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let request: DeleteAccountRequest = body::json(&body)?;
+    let request: DeleteAccountRequest = body::json(&headers, &body)?;
     // A token alone is not enough: whoever picks up an unlocked phone can
     // do much, but not this.
     api.confirm_password(&signed, &request.password, client)

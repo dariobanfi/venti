@@ -203,7 +203,8 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("settings-3-waypoints")
         app.navigationBars.buttons.firstMatch.tap()
 
-        for _ in 0..<3 where !app.buttons["Data and licences"].isHittable {
+        let licences = app.buttons["Data and licences"]
+        for _ in 0..<4 where !(licences.exists && licences.isHittable) {
             app.swipeUp()
         }
         app.buttons["Data and licences"].tap()
@@ -361,10 +362,13 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
         openTab("Settings", in: app)
-        let link = labelled(containing: "Not signed in", in: app)
-        for _ in 0..<3 where !link.isHittable {
+        // The row is below the first screenful, and a row that is not on
+        // screen does not exist yet.
+        let link = app.buttons["Account"]
+        for _ in 0..<4 where !(link.exists && link.isHittable) {
             app.swipeUp()
         }
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
         link.tap()
         let handle = app.textFields["Handle"]
         XCTAssertTrue(handle.waitForExistence(timeout: 15))

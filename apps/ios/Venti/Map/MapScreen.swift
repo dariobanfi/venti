@@ -124,6 +124,9 @@ struct MapScreen: View {
                         }
                     }
             }
+            // At half height first, like a site's and a station's page:
+            // the place that was pressed stays in view above it.
+            .presentationDetents([.medium, .large])
         }
         .alert(
             "Position unavailable",

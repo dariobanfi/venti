@@ -408,9 +408,12 @@ class VentiUiTest {
     }
 
     /**
-     * Airspace: a made-up control zone lies beside the end of the sample
-     * flight. Replayed at twenty times its speed, the glider comes near it
-     * after about a minute, and the cockpit says so.
+     * Airspace: a made-up control zone lies beside the valley the sample
+     * flight crosses. Replayed at twenty times its speed, the glider comes
+     * near it after about half a minute, and the cockpit says so. From then
+     * on it stays near until it lands, and the last warning stays when the
+     * replay has run out, so that this test finds a warning to look at
+     * however long the emulator takes over each step.
      */
     private fun flyNearAirspace(prefix: String, dark: Boolean) {
         launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }

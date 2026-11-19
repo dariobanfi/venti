@@ -6,6 +6,7 @@ import fly.venti.app.airspace.AirspaceWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.AirspaceCheck
+import fly.venti.core.AirspaceLevel
 import fly.venti.core.Coordinate
 import fly.venti.core.FlightPhase
 import fly.venti.core.FlightSession
@@ -162,7 +163,7 @@ class FlySessionTest {
     @Test
     fun theCockpitWarnsOfThePilotsAirspaceAndCanBeToldToBeQuiet() {
         val folder = TestSupport.newFolder("fly")
-        // A made-up control zone beside the end of the sample flight.
+        // A made-up control zone beside the valley the sample flight crosses.
         val airspace = LogbookModel.open(folder, TestSupport.files).makeAirspace()
         airspace.importText("zones.txt", LaunchOptions.SAMPLE_AIRSPACE_FILE)
         val voice = Spoken()
@@ -206,6 +207,47 @@ class FlySessionTest {
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.STALE)).startsWith("Airspace is not being checked: no position."))
         assertTrue(checkNotNull(AirspaceWords.notChecking(AirspaceCheck.OUTSIDE_FILES)).startsWith("Your airspace files do not cover this place."))
         assertNull(AirspaceWords.notChecking(AirspaceCheck.CHECKING))
+    }
+
+    /**
+     * What the UI tests rely on: the sample flight comes near the sample
+     * zone some minutes after take-off and then stays near until it lands.
+     * A zone it left again for a while made those tests fail whenever a
+     * slow emulator looked at the warnings in just that while.
+     */
+    @Test
+    fun onceNearTheSampleZoneTheSampleFlightStaysNear() {
+        val folder = TestSupport.newFolder("fly")
+        val airspace = LogbookModel.open(folder, TestSupport.files).makeAirspace()
+        airspace.importText("zones.txt", LaunchOptions.SAMPLE_AIRSPACE_FILE)
+        val session = FlightSession(folder.path)
+        session.useAirspace(airspace.set)
+        val replay = Replay(TestSupport.sampleFlight)
+
+        var seconds = 0
+        var firstWarning: Int? = null
+        val levels = mutableSetOf<AirspaceLevel>()
+        while (replay.advance(session, 1.0)) {
+            seconds += 1
+            val warnings = session.airspaceWarnings()
+            if (firstWarning == null && warnings.isNotEmpty()) firstWarning = seconds
+            if (firstWarning != null) {
+                assertTrue("No warning $seconds s into the flight.", warnings.isNotEmpty())
+                levels += warnings.first().level
+            }
+        }
+
+        // The cockpit starts without a warning, and the flight is long
+        // enough afterwards for a test to look at one.
+        assertTrue("First warning after $firstWarning s.", checkNotNull(firstWarning) in 300..700)
+        assertTrue("The flight lasted $seconds s.", seconds > 1500)
+        // The glider flies into the zone and out again: every kind of warning is seen.
+        assertEquals(AirspaceLevel.entries.toSet(), levels)
+        // And it is still there when the replay has run out.
+        assertTrue(session.airspaceWarnings().isNotEmpty())
+        assertEquals(AirspaceCheck.CHECKING, session.airspaceCheck(replay.now()))
+        assertEquals(AirspaceCheck.STALE, session.airspaceCheck(replay.now() + 600.0))
+        assertTrue(session.airspaceWarnings().isNotEmpty())
     }
 
     @Test

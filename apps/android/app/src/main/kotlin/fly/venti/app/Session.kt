@@ -194,8 +194,8 @@ data class LaunchOptions(
      */
     val usesSampleWaypoints: Boolean = false,
     /**
-     * Start with a made-up control zone near the end of the sample flight,
-     * so the cockpit's airspace warnings can be tested.
+     * Start with a made-up control zone beside the valley the sample flight
+     * crosses, so the cockpit's airspace warnings can be tested.
      */
     val usesSampleAirspace: Boolean = false,
 ) {
@@ -208,7 +208,12 @@ data class LaunchOptions(
         const val SAMPLE_WAYPOINTS = "sample-waypoints"
         const val SAMPLE_AIRSPACE = "sample-airspace"
 
-        /** The made-up airspace, in OpenAir format. Its names say that it is not real. */
+        /**
+         * The made-up airspace, in OpenAir format. Its names say that it is
+         * not real. It lies where the sample flight, once it has come near,
+         * stays near until it lands: a test that looks at a warning then
+         * finds one however slowly the device replays the flight.
+         */
         val SAMPLE_AIRSPACE_FILE = """
             * Made-up airspace for testing Venti. Not real.
             AC D
@@ -216,7 +221,7 @@ data class LaunchOptions(
             AN SAMPLE ZONE (NOT REAL)
             AL GND
             AH 9000ft AMSL
-            V X=47:42:00 N 011:44:00 E
+            V X=47:41:10 N 011:43:40 E
             DC 1
         """.trimIndent()
 

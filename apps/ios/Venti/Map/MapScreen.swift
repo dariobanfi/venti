@@ -6,20 +6,27 @@ import VentiCore
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
+    @Environment(AirspaceModel.self) private var airspace
 
     @State private var isFollowing = false
     @State private var problem: String?
     @State private var chosen: ChosenStation?
     @State private var showsStations = false
+    /// The part of the map in view, as the map last reported it.
+    @State private var region: Bounds?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             OverviewMap(
                 outlines: outlines,
                 stations: wind.stations,
+                airspace: airspaceInView,
                 isFollowing: $isFollowing,
                 problem: $problem,
-                onRegion: { region in wind.show(region) },
+                onRegion: { region in
+                    self.region = region
+                    wind.show(region)
+                },
                 onStation: { id in
                     if let station = wind.stations.first(where: { $0.id == id }) {
                         chosen = ChosenStation(station: station)
@@ -136,6 +143,14 @@ struct MapScreen: View {
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("wind-credits")
         }
+    }
+
+    /// The airspace in the part of the map in view. Zoomed far out, a
+    /// country's airspace is a tangle and is not drawn, so it is not
+    /// asked for either.
+    private var airspaceInView: [AirspaceShape] {
+        guard let region, region.east - region.west < 6 else { return [] }
+        return airspace.shapes(in: region)
     }
 
     private var outlines: [[Coordinate]] {

@@ -17,6 +17,7 @@ crate-type = ["lib", "staticlib", "cdylib"]
 wasm = ["dep:tsify", "dep:wasm-bindgen"]
 
 [dependencies]
+venti-airspace.workspace = true
 venti-api-types.workspace = true
 venti-domain.workspace = true
 venti-flight.workspace = true

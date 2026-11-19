@@ -18,11 +18,12 @@
 //! product phase.
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
+mod airspace;
 mod analysis;
 mod assistant;
 mod cockpit;
@@ -35,6 +36,7 @@ mod testing;
 mod waypoints;
 mod wind;
 
+pub use airspace::*;
 pub use analysis::*;
 pub use assistant::*;
 pub use cockpit::*;
@@ -307,8 +309,11 @@ pub struct LogbookView {
 #[derive(Debug, uniffi::Object)]
 pub struct Core {
     logbook: Logbook,
-    /// Where the core keeps what is not a flight: the pilot's waypoints.
+    /// Where the core keeps what is not a flight: the pilot's waypoints
+    /// and airspace files.
     storage: Arc<dyn Storage>,
+    /// The airspace of the pilot's files, once it has been asked for.
+    airspace: Mutex<Option<Arc<AirspaceSet>>>,
 }
 
 #[uniffi::export]
@@ -458,6 +463,7 @@ impl Core {
         Ok(Arc::new(Self {
             logbook: Logbook::open(Arc::clone(&storage))?,
             storage,
+            airspace: Mutex::new(None),
         }))
     }
 

@@ -192,6 +192,7 @@ The first version is built and has been checked on a simulator with a replayed f
 - **The map follows.** North up, the glider in the middle, the last three minutes of track behind it in the climb colours. It cannot be dragged away; it can be zoomed.
 - **The climb bar** beside the climb number grows up or down from the middle, in the climb colours. The number itself stays in the text colour.
 - **What is missing is said in red at the top:** no position, or a vario that has stopped talking.
+- **Airspace.** The most urgent warning lies over the bottom of the map as a band: what and where in one line ("CTR Innsbruck 300 m NE", "CTR Innsbruck in 30 s", "Inside CTR Innsbruck"), its class and limits below, and a line when the height is in doubt. Plain while the airspace is near, amber when very near, red when the glider is about to be inside or is. A new or more urgent warning is spoken, because the pilot's eyes are outside. A tap lists all warnings with two answers: "Seen: quiet for 10 minutes", which speaks again if it gets worse, and "Does not apply today". On the maps airspace to stay out of has a magenta edge and a faint wash, as aviation charts draw boundaries; airspace that deserves attention is amber; the rest a thin grey line without a name.
 - **Sound.** Beeps that rise in pitch and speed with the climb, a continuous low tone in heavy sink, silence on the ground. One button mutes it.
 - **Trying it on the ground.** The Fly tab can replay the sample flight through the cockpit, in real time or twenty times faster.
 
@@ -204,7 +205,7 @@ What the apps pilots already fly with teach, and what the next versions should t
 - burnair shortens the pilot's own track to the last minute and a half while circling, to clear the map.
 - ForeFlight fixes its hazard colours (red within 100 ft, yellow within 1,000 ft) and repeats every alert in sound.
 
-Still to design: a high-contrast theme for sun, layouts the pilot can change, routes of more than one place, and airspace.
+Still to design: a high-contrast theme for sun, layouts the pilot can change, routes of more than one place, and the airspace side view.
 
 ## Open
 

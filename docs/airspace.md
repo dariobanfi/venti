@@ -19,6 +19,8 @@ Everything is advisory. A record names its source and carries the age of its dat
 
 A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider. The last two rows are server-side: they produce the records, which reach a client in a region bundle that does not exist yet.
 
+**In the app (since 2026-11-19).** Until that bundle exists, the pilot brings airspace in as OpenAir files. The core (`crates/core/src/airspace.rs`) keeps each file as it came, under the day it was brought in, reads all of them into one index, and gives a map the airspaces in view and the cockpit's session the warnings: the session feeds the engine every position, at most once a second, with the flight computer's altitude, pressure altitude, speed, course and averaged climb, and no ground elevation. The wording of a warning ("Inside CTR Innsbruck", "CTR Innsbruck in 30 s", "CTR Innsbruck 300 m NE", "Climbing into ...") is made in the core, so every shell says the same. The iPhone draws the airspace on both maps, shows the most urgent warning over the cockpit's map, says a new or more urgent one aloud, and offers "Seen: quiet for 10 minutes" (acknowledge) and "Does not apply today" (ignore). What a file left out is said at import and stays on the file's row in red. Not done: the ground elevation, so every limit above ground is "possibly"; activations; the airspace side view; anything on Android or the web.
+
 ## The record
 
 One shape for every source, in `crates/domain/src/airspace.rs`:

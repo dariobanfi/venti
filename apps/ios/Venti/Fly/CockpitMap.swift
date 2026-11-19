@@ -11,6 +11,8 @@ struct CockpitMap: UIViewRepresentable {
     let view: CockpitView
     /// The way to the place being navigated to, if any.
     var way: WayToTarget?
+    /// The pilot's airspace, to draw what lies around the glider.
+    var airspace: AirspaceSet?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -30,6 +32,7 @@ struct CockpitMap: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
+        context.coordinator.airspace = airspace
         context.coordinator.show(view, way: way, on: map)
     }
 
@@ -40,12 +43,18 @@ struct CockpitMap: UIViewRepresentable {
 
         private var isStyleLoaded = false
         private var shown: CockpitView?
+        /// The pilot's airspace, and where it was last drawn around.
+        var airspace: AirspaceSet?
+        private var airspaceDrawnAt: Coordinate?
         private var shownTarget: Coordinate?
         private var target: Coordinate?
         private var wasCircling: Bool?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            // The line to the place being flown to, added first so that it
+            // Airspace lowest of all.
+            AirspaceLayers.add(to: style)
+
+            // The line to the place being flown to, added next so that it
             // lies under the trail and the glider.
             let course = MLNShapeSource(identifier: "cockpit-course", shape: nil, options: nil)
             style.addSource(course)
@@ -108,6 +117,7 @@ struct CockpitMap: UIViewRepresentable {
             shownTarget = target
 
             point(position, in: "cockpit-glider", of: style)
+            drawAirspace(around: position, in: style)
             if let target {
                 point(target, in: "cockpit-target", of: style)
                 if let source = style.source(withIdentifier: "cockpit-course") as? MLNShapeSource {
@@ -131,6 +141,23 @@ struct CockpitMap: UIViewRepresentable {
             } else {
                 map.setCenter(position.location, animated: !LaunchOptions.isUITesting)
             }
+        }
+
+        /// Draws the airspace within about 40 km of the glider, again once
+        /// the glider has flown some 10 km from where it was last drawn.
+        private func drawAirspace(around position: Coordinate, in style: MLNStyle) {
+            guard let airspace else { return }
+            if let drawn = airspaceDrawnAt,
+               abs(drawn.lat - position.lat) < 0.09, abs(drawn.lon - position.lon) < 0.13
+            {
+                return
+            }
+            airspaceDrawnAt = position
+            let area = Bounds(
+                south: position.lat - 0.36, west: position.lon - 0.54,
+                north: position.lat + 0.36, east: position.lon + 0.54
+            )
+            AirspaceLayers.show(airspace.inArea(area: area), in: style)
         }
 
         private func point(_ coordinate: Coordinate, in identifier: String, of style: MLNStyle) {

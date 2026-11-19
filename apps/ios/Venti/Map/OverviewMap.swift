@@ -10,6 +10,8 @@ struct OverviewMap: UIViewRepresentable {
     let outlines: [[Coordinate]]
     /// The wind stations to draw.
     let stations: [WindStation]
+    /// The airspaces to draw.
+    let airspace: [AirspaceShape]
     /// Whether the map keeps the pilot's position in its centre.
     @Binding var isFollowing: Bool
     /// Set when the position cannot be shown, with words for the pilot.
@@ -53,6 +55,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onStation = onStation
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
+        coordinator.show(airspace, on: map)
         coordinator.follow(isFollowing, on: map)
     }
 
@@ -68,6 +71,8 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnOutlines: [[Coordinate]]?
         private var stations: [WindStation] = []
         private var drawnStations: [WindStation]?
+        private var airspace: [AirspaceShape] = []
+        private var drawnAirspace: [AirspaceShape]?
         private var isStyleLoaded = false
         private var requested = false
 
@@ -82,6 +87,11 @@ struct OverviewMap: UIViewRepresentable {
         func show(_ stations: [WindStation], on map: MLNMapView) {
             self.stations = stations
             drawStations(on: map)
+        }
+
+        func show(_ airspace: [AirspaceShape], on map: MLNMapView) {
+            self.airspace = airspace
+            drawAirspace(on: map)
         }
 
         /// Acts only when the screen asks for something new. The map also
@@ -101,6 +111,7 @@ struct OverviewMap: UIViewRepresentable {
             isStyleLoaded = true
             drawOutlines(on: mapView)
             drawStations(on: mapView)
+            drawAirspace(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -165,8 +176,9 @@ struct OverviewMap: UIViewRepresentable {
         }
 
         /// Adds what this map draws on top of the base map, empty at first:
-        /// the flights below, the wind above them.
+        /// airspace lowest, the flights over it, the wind above them.
         private func prepare(_ style: MLNStyle) {
+            AirspaceLayers.add(to: style)
             let empty = MLNShapeCollectionFeature(shapes: [])
 
             let tracks = MLNShapeSource(identifier: Self.tracks, shape: empty, options: nil)
@@ -221,6 +233,14 @@ struct OverviewMap: UIViewRepresentable {
             if let box = Self.box(around: outlines) {
                 MapSetup.show(box, on: map, animated: false)
             }
+        }
+
+        /// Draws the airspace, once the style is there and only when it has
+        /// changed.
+        private func drawAirspace(on map: MLNMapView) {
+            guard isStyleLoaded, airspace != drawnAirspace, let style = map.style else { return }
+            drawnAirspace = airspace
+            AirspaceLayers.show(airspace, in: style)
         }
 
         /// Draws the stations, once the style is there and only when they

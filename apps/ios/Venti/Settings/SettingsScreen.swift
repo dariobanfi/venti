@@ -36,6 +36,9 @@ struct SettingsScreen: View {
                     NavigationLink("Waypoints") {
                         WaypointsScreen()
                     }
+                    NavigationLink("Airspace") {
+                        AirspaceScreen()
+                    }
                     Stepper(value: $trimSpeed, in: 25...60, step: 1) {
                         LabeledContent("Trim speed", value: "\(Format.metres(trimSpeed)) km/h")
                     }

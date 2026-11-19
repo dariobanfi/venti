@@ -8,13 +8,14 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat, let wind, let waypoints):
+            case .ready(let logbook, let fly, let chat, let wind, let waypoints, let airspace):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
                     .environment(chat)
                     .environment(wind)
                     .environment(waypoints)
+                    .environment(airspace)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -31,7 +32,7 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel)
+    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel)
     case failed(String)
 
     static func start() -> Session {
@@ -43,6 +44,14 @@ enum Session {
                 _ = try? core.importWaypoints(text: LaunchOptions.sampleWaypoints)
             }
             let waypoints = WaypointsModel(core: core)
+            if LaunchOptions.usesSampleAirspace {
+                _ = try? core.importAirspace(
+                    fileName: "Sample zones (not real).txt",
+                    bytes: Data(LaunchOptions.sampleAirspace.utf8),
+                    nowUnixS: Int64(Date().timeIntervalSince1970)
+                )
+            }
+            let airspace = AirspaceModel(core: core)
             // Under test the server is the one named on the command line,
             // or none: a test must not depend on what a pilot has saved.
             let wind =
@@ -63,7 +72,9 @@ enum Session {
                 server: { wind.server?.absoluteString },
                 now: { wind.now }
             )
-            return .ready(logbook, FlySession(dataFolder: folder), chat, wind, waypoints)
+            let fly = FlySession(dataFolder: folder)
+            fly.airspace = { airspace.set }
+            return .ready(logbook, fly, chat, wind, waypoints, airspace)
         } catch {
             return .failed(error.words)
         }
@@ -102,6 +113,23 @@ enum LaunchOptions {
         "Sample landing field",SLF,DE,4741.000N,01145.300E,735m,21
         "Sample turnpoint",STP,DE,4737.200N,01152.000E,1700m,1
         "Sample summit far away",SSF,DE,4725.260N,01059.090E,2962m,7
+        """
+
+    /// Start with a made-up control zone near the end of the sample
+    /// flight, so the cockpit's airspace warnings can be tested.
+    static let usesSampleAirspace = arguments.contains("--sample-airspace")
+
+    /// The made-up airspace, in OpenAir format. Its names say that it is
+    /// not real.
+    static let sampleAirspace = """
+        * Made-up airspace for testing Venti. Not real.
+        AC D
+        AY CTR
+        AN SAMPLE ZONE (NOT REAL)
+        AL GND
+        AH 9000ft AMSL
+        V X=47:42:00 N 011:44:00 E
+        DC 1
         """
 
     /// The Venti server to use, given as `--server <address>`: the UI tests

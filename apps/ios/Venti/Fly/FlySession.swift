@@ -27,6 +27,11 @@ final class FlySession {
     /// The way to the place the cockpit navigates to: the one the pilot
     /// chose, or the take-off. Absent until there is one to go to.
     private(set) var way: WayToTarget?
+    /// The airspace warnings of the moment, the most urgent first.
+    private(set) var airspaceWarnings: [AirspaceWarning] = []
+    /// The airspace to warn about, asked for when a session starts. The
+    /// app sets this to the pilot's airspace files.
+    @ObservationIgnored var airspace: () -> AirspaceSet? = { nil }
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
     /// Whether the vario is silent. Remembered between flights.
@@ -46,6 +51,7 @@ final class FlySession {
     @ObservationIgnored private let location = LocationProvider()
     @ObservationIgnored private let barometer = BarometerProvider()
     @ObservationIgnored private let sound = VarioSound()
+    @ObservationIgnored private let voice = AirspaceVoice()
 
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
@@ -101,6 +107,24 @@ final class FlySession {
         refresh(elapsed: 0)
     }
 
+    /// "I have seen it": the warning stays on screen and is quiet for ten
+    /// minutes, unless it becomes more urgent.
+    func acknowledgeAirspace(_ id: String) {
+        session?.acknowledgeAirspace(id: id, minutes: 10)
+        airspaceWarnings = session?.airspaceWarnings() ?? []
+    }
+
+    /// "This airspace does not apply to me today": quiet until midnight.
+    func ignoreAirspaceToday(_ id: String) {
+        session?.ignoreAirspaceToday(id: id, utcOffsetS: Int32(TimeZone.current.secondsFromGMT()))
+        airspaceWarnings = session?.airspaceWarnings() ?? []
+    }
+
+    func unsilenceAirspace(_ id: String) {
+        session?.unsilenceAirspace(id: id)
+        airspaceWarnings = session?.airspaceWarnings() ?? []
+    }
+
     /// Ends the session. For a live flight, returns the recording to put
     /// into the logbook, if any position was recorded.
     func finish() -> PendingRecording? {
@@ -111,6 +135,7 @@ final class FlySession {
         barometer.stop()
         vario.onBytes = nil
         sound.stop()
+        voice.stop()
         UIApplication.shared.isIdleTimerDisabled = false
 
         var recording: PendingRecording?
@@ -126,12 +151,14 @@ final class FlySession {
         mode = nil
         view = nil
         way = nil
+        airspaceWarnings = []
         return recording
     }
 
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
+        session.useAirspace(airspace: airspace())
         // How the pilot's glider glides, for predicting arrival heights.
         // Unset values are zero, which the core ignores.
         let defaults = UserDefaults.standard
@@ -173,5 +200,17 @@ final class FlySession {
         self.view = view
         way = session.navigation(nowUnixS: now)
         sound.play(view.tone)
+
+        let warnings = session.airspaceWarnings()
+        if warnings != airspaceWarnings {
+            airspaceWarnings = warnings
+        }
+        // A warning that is new, or more urgent than it was, is said aloud
+        // once. Tests have nobody listening.
+        if session.takeAirspaceAlert() != nil, !LaunchOptions.isUnderTest,
+           let loudest = warnings.first(where: { !$0.silenced })
+        {
+            voice.say("Airspace. \(loudest.headline).")
+        }
     }
 }

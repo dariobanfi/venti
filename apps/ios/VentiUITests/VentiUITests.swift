@@ -28,6 +28,19 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
+    /// Changes to a tab. After a screen that covered the tab bar, the bar
+    /// slides back in, and a tap during that time goes nowhere: wait until
+    /// the button can be hit.
+    private func openTab(_ name: String, in app: XCUIApplication) {
+        let tab = app.tabBars.buttons[name]
+        XCTAssertTrue(tab.waitForExistence(timeout: 15))
+        for _ in 0..<40 where !tab.isHittable {
+            usleep(250_000)
+        }
+        usleep(500_000)
+        tab.tap()
+    }
+
     /// Anything on screen whose accessibility value contains this text.
     private func valued(containing text: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)
@@ -198,6 +211,51 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("settings-2-credits")
     }
 
+    /// Airspace: a made-up control zone lies beside the end of the sample
+    /// flight. Replayed at twenty times its speed, the glider comes near it
+    /// after about a minute, and the cockpit says so.
+    func testTheCockpitWarnsOfAirspace() {
+        let app = launch(bundledMap: true, extra: ["--sample-airspace"])
+
+        // The zone is on the map tab.
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+
+        app.tabBars.buttons["Fly"].tap()
+        app.buttons["Replay the sample flight"].tap()
+        app.buttons["20 times faster"].tap()
+        XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
+
+        let banner = element("airspace-banner", in: app)
+        XCTAssertTrue(banner.waitForExistence(timeout: 120))
+        XCTAssertTrue(valued(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
+        sleep(2)
+        keepScreenshot("fly-6-airspace")
+
+        banner.tap()
+        XCTAssertTrue(app.buttons["Seen: quiet for 10 minutes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "Class D control zone", in: app).exists)
+        sleep(1)
+        keepScreenshot("fly-7-airspace-warnings")
+        // "Seen" would speak again as the glider comes closer; "does not
+        // apply today" stays quiet, which is what this test can rely on.
+        app.buttons["Does not apply today"].tap()
+        XCTAssertTrue(element("Airspace warning, quieted", in: app).waitForExistence(timeout: 10))
+
+        app.buttons["End replay"].tap()
+        let close = app.buttons["Close the cockpit"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+
+        // The files behind the warnings, and the zone on the map.
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["Airspace"].tap()
+        XCTAssertTrue(labelled(containing: "sample-zones-not-real", in: app).waitForExistence(timeout: 15))
+        keepScreenshot("settings-4-airspace")
+        app.tabBars.buttons["Map"].tap()
+        sleep(4)
+        keepScreenshot("map-airspace")
+    }
+
     /// The assistant, with the provider played by a script: the real tool
     /// loop runs against the logbook, but no key and no network are used.
     func testTheAssistantAnswersFromTheLogbook() {
@@ -213,8 +271,12 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
 
-        app.tabBars.buttons["Assistant"].tap()
+        openTab("Assistant", in: app)
         let question = app.buttons["How was my flying this year?"]
+        if !question.waitForExistence(timeout: 8) {
+            // The first tap can still be swallowed by the bar's animation.
+            openTab("Assistant", in: app)
+        }
         XCTAssertTrue(question.waitForExistence(timeout: 15))
         keepScreenshot("assistant-1-start")
         question.tap()

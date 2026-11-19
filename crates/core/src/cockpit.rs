@@ -30,7 +30,8 @@ use venti_flight::live::{
 };
 use venti_sensors::{Battery, SentenceReader};
 
-use crate::{Coordinate, CoreError};
+use crate::airspace::AirspaceWatch;
+use crate::{AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError};
 
 /// How long an external instrument may be silent, in seconds, before it
 /// counts as disconnected and the phone's own pressure sensor takes over.
@@ -270,6 +271,8 @@ struct Inner {
     /// navigates back to the take-off.
     target: Option<Target>,
     glider: Glider,
+    /// The airspace warnings, once the shell has handed over the airspace.
+    watch: Option<AirspaceWatch>,
 }
 
 /// Which sensor is supplying pressure.
@@ -324,8 +327,61 @@ impl FlightSession {
                 last_position_s: None,
                 target: None,
                 glider: Glider::default(),
+                watch: None,
             }),
         })
+    }
+
+    /// Hands the session the airspace to warn about: the set from
+    /// [`crate::Core::airspace`]. From then on every position is checked
+    /// against it. `None` switches the warnings off.
+    pub fn use_airspace(&self, airspace: Option<Arc<AirspaceSet>>) {
+        self.lock().watch = airspace.map(AirspaceWatch::new);
+    }
+
+    /// The airspace warnings as of the latest position, the most urgent
+    /// first, at most one per airspace. Empty without airspace.
+    pub fn airspace_warnings(&self) -> Vec<AirspaceWarning> {
+        self.lock()
+            .watch
+            .as_ref()
+            .map(AirspaceWatch::warnings)
+            .unwrap_or_default()
+    }
+
+    /// The level to sound a warning for, once: the most urgent warning
+    /// that appeared, became more urgent or came out of a silence since
+    /// this was last asked, and that the pilot has not silenced.
+    pub fn take_airspace_alert(&self) -> Option<AirspaceLevel> {
+        self.lock()
+            .watch
+            .as_mut()
+            .and_then(AirspaceWatch::take_alert)
+    }
+
+    /// "I have seen it": the warning stays on screen and is quiet for
+    /// this many minutes, unless it becomes more urgent.
+    pub fn acknowledge_airspace(&self, id: String, minutes: u32) {
+        if let Some(watch) = self.lock().watch.as_mut() {
+            watch.acknowledge(&id, minutes);
+        }
+    }
+
+    /// "This airspace does not apply to me today", for an area known to
+    /// be inactive or one the pilot has permission for: quiet at every
+    /// level until midnight. `utc_offset_s` is the local time zone's
+    /// offset from UTC. The app cannot check the claim.
+    pub fn ignore_airspace_today(&self, id: String, utc_offset_s: i32) {
+        if let Some(watch) = self.lock().watch.as_mut() {
+            watch.ignore_today(&id, utc_offset_s);
+        }
+    }
+
+    /// Takes back an acknowledgement or an ignore.
+    pub fn unsilence_airspace(&self, id: String) {
+        if let Some(watch) = self.lock().watch.as_mut() {
+            watch.unsilence(&id);
+        }
     }
 
     /// Chooses the place to navigate to, or with `None` goes back to
@@ -414,7 +470,19 @@ impl FlightSession {
         });
         inner.last_position_s = Some(sample.time_unix_s);
 
-        let pressure_altitude = inner.computer.state(sample.time_unix_s).pressure_altitude_m;
+        let state = inner.computer.state(sample.time_unix_s);
+        let pressure_altitude = state.pressure_altitude_m;
+        if let Some(watch) = inner.watch.as_mut() {
+            watch.feed(
+                sample.time_unix_s,
+                position,
+                state.altitude_m,
+                state.pressure_altitude_m,
+                state.ground_speed_ms,
+                state.course_deg,
+                state.average_climb_ms,
+            );
+        }
         if let Some(recorder) = inner.recorder.as_mut() {
             // A failed write must not stop the flight computer. The fix is
             // lost; the next one tries again.

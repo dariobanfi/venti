@@ -14,13 +14,14 @@ struct CockpitScreen: View {
     @Environment(FlySession.self) private var fly
     @State private var isConfirmingFinish = false
     @State private var isChoosingTarget = false
+    @State private var isShowingAirspace = false
 
     var body: some View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(view: view, mode: fly.mode, varioName: fly.vario.connectedName)
-                CockpitMap(view: view, way: fly.way)
+                CockpitMap(view: view, way: fly.way, airspace: fly.airspace())
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
                     // labels made reading the screen by code or by VoiceOver
@@ -31,6 +32,12 @@ struct CockpitScreen: View {
                             WindBadge(wind: wind)
                                 .padding(10)
                         }
+                    }
+                    .overlay(alignment: .bottom) {
+                        AirspaceBanner(warnings: fly.airspaceWarnings) {
+                            isShowingAirspace = true
+                        }
+                        .padding(10)
                     }
                     .overlay(alignment: .top) {
                         if view.phase != .flying {
@@ -66,6 +73,10 @@ struct CockpitScreen: View {
                 .padding(.vertical, 10)
             }
             .background(Color(.systemBackground))
+            .sheet(isPresented: $isShowingAirspace) {
+                AirspaceWarningsSheet()
+                    .presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $isChoosingTarget) {
                 TargetPicker(
                     position: view.position,

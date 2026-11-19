@@ -7,8 +7,10 @@ use std::sync::Arc;
 use std::time::{Duration as StdDuration, Instant};
 
 use axum::Router;
+use axum::body::{Body, Bytes};
 use axum::http::{Method, StatusCode, header};
 use chrono::Duration;
+use futures::StreamExt;
 use venti_api_types::v1::{
     ErrorCode, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, Flight, FlightChangesRequest,
     FlightChangesResponse, FlightId, FlightResponse, FlightsRequest, FlightsResponse, Handle,
@@ -406,6 +408,176 @@ async fn a_file_that_keeps_the_analysis_busy_is_given_up_on() {
 
     clock.advance(Duration::days(1));
     assert!(upload(&router, &dario.token, &sample_file()).await.created);
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
+/// The start of a flight file, and then a connection on which nothing
+/// more arrives.
+fn nine_bytes_and_then_nothing() -> Body {
+    let first = futures::stream::once(async {
+        Ok::<_, std::io::Error>(Bytes::from_static(b"AXVE000\r\n"))
+    });
+    Body::from_stream(first.chain(futures::stream::pending()))
+}
+
+/// A flight file that arrives a byte every five seconds and never ends.
+fn a_byte_now_and_then() -> Body {
+    Body::from_stream(futures::stream::unfold((), |()| async {
+        tokio::time::sleep(StdDuration::from_secs(5)).await;
+        Some((Ok::<_, std::io::Error>(Bytes::from_static(b"A")), ()))
+    }))
+}
+
+// The clock of the runtime is the test's: ten seconds of waiting take none
+// of the test's time.
+#[tokio::test(start_paused = true)]
+async fn uploads_that_stand_still_give_their_places_back() {
+    let clock = TestClock::new();
+    let settings = Settings {
+        limits: Limits {
+            uploads_per_day: 60,
+            slow_upload_weight: 50,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let (router, _) = server(settings, &clock);
+    let attempt = |token: &str, body: Body| {
+        let (router, token) = (router.clone(), token.to_owned());
+        async move {
+            ask(Method::POST, FLIGHTS_PATH)
+                .token(&token)
+                .body(body)
+                .send(&router)
+                .await
+        }
+    };
+
+    // Four accounts, two uploads each, which is every place the server
+    // has: nine bytes, and then nothing.
+    let mut tokens = Vec::new();
+    let mut standing_still = Vec::new();
+    for handle in ["anna", "bernd", "carla", "dora"] {
+        let token = sign_up(&router, handle).await.token;
+        for _ in 0..2 {
+            let upload = attempt(&token, nine_bytes_and_then_nothing());
+            standing_still.push(tokio::spawn(upload));
+        }
+        tokens.push(token);
+    }
+    tokio::time::sleep(StdDuration::from_secs(1)).await;
+
+    // A fifth pilot finds no place at that moment...
+    let dario = sign_up(&router, "dario").await;
+    let answer = attempt(&dario.token, sample_file().into()).await;
+    answer.error(StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Unavailable);
+    // ...and ten seconds later finds one, where it used to be two minutes.
+    tokio::time::sleep(StdDuration::from_secs(10)).await;
+    assert!(upload(&router, &dario.token, &sample_file()).await.created);
+
+    // The eight were told what happened,
+    for upload in standing_still {
+        let answer = upload.await.unwrap();
+        let message = answer.error(StatusCode::REQUEST_TIMEOUT, ErrorCode::Timeout);
+        assert!(message.contains("did not arrive"), "{message}");
+    }
+    // and holding a place for nothing counts like a file that keeps the
+    // analysis busy: after two, the account's day is used up.
+    for token in &tokens {
+        let answer = attempt(token, sample_file().into()).await;
+        answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    }
+
+    // A file that keeps arriving, a byte at a time, is not standing still.
+    // It gets the time a file gets and no more, and counts the same.
+    let emil = sign_up(&router, "emil").await;
+    let began = tokio::time::Instant::now();
+    let answer = attempt(&emil.token, a_byte_now_and_then()).await;
+    answer.error(StatusCode::REQUEST_TIMEOUT, ErrorCode::Timeout);
+    let took = began.elapsed();
+    assert!(
+        took >= StdDuration::from_secs(100) && took < StdDuration::from_secs(101),
+        "{took:?}"
+    );
+    let answer = attempt(&emil.token, a_byte_now_and_then()).await;
+    answer.error(StatusCode::REQUEST_TIMEOUT, ErrorCode::Timeout);
+    let answer = attempt(&emil.token, sample_file().into()).await;
+    answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+}
+
+/// A stand-in for the analysis that takes two seconds over a file with the
+/// word SLOWLY in it, and then analyses it like any other.
+#[cfg(unix)]
+fn dawdling_analyser(folder: &std::path::Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real = env!("CARGO_BIN_EXE_venti-server");
+    let script = folder.join("analyser.sh");
+    std::fs::create_dir_all(folder).unwrap();
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\nfile=\"$0.$$\"\ncat > \"$file\"\n\
+             if grep -q SLOWLY \"$file\"; then sleep 2; fi\n\
+             \"{real}\" \"$@\" < \"$file\"\nstatus=$?\nrm -f \"$file\"\nexit $status\n"
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_time_an_analysis_takes_counts_against_the_account_also_when_it_ends_well() {
+    let clock = TestClock::new();
+    let folder = std::env::temp_dir().join(format!("venti-dawdling-{}", std::process::id()));
+    let program = dawdling_analyser(&folder);
+    // Ten seconds are allowed, and all ten would count for a hundred
+    // uploads: two seconds count for twenty. An account has twenty-one.
+    let settings = Settings {
+        analyser: Analyser::with_time_allowed(Where::Child(program), StdDuration::from_secs(10)),
+        limits: Limits {
+            uploads_per_day: 21,
+            slow_upload_weight: 100,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let (router, _) = server(settings, &clock);
+    let dario = sign_up(&router, "dario").await;
+    let anna = sign_up(&router, "anna").await;
+    let attempt = |token: &str, file: Vec<u8>| {
+        let (router, token) = (router.clone(), token.to_owned());
+        async move {
+            ask(Method::POST, FLIGHTS_PATH)
+                .token(&token)
+                .bytes(file)
+                .send(&router)
+                .await
+                .status
+        }
+    };
+    let mut slow = sample_file();
+    slow.extend_from_slice(b"LXVESLOWLY\r\n");
+
+    // The file is a flight and is kept. What it cost is remembered: the
+    // account's day is used up by one upload and its two seconds.
+    assert_eq!(attempt(&dario.token, slow).await, StatusCode::CREATED);
+    assert_eq!(
+        attempt(&dario.token, sample_file_on("050726")).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // A file that is analysed in the fraction of a second a flight takes
+    // counts for itself and nothing more.
+    assert_eq!(
+        attempt(&anna.token, sample_file()).await,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        attempt(&anna.token, sample_file_on("050726")).await,
+        StatusCode::CREATED
+    );
     let _ = std::fs::remove_dir_all(&folder);
 }
 

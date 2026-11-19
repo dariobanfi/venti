@@ -89,10 +89,11 @@ const MAX_BODY_BYTES: usize = 16 * 1024;
 /// How long a request may take before the server gives up on it.
 const DEADLINE: Duration = Duration::from_secs(10);
 
-/// How long an upload may take, from its first byte to the answer. A flight
-/// file sent over a weak mobile connection needs time; analysing it has a
-/// limit of its own.
-const UPLOAD_DEADLINE: Duration = Duration::from_secs(120);
+/// How long an upload may take, from its first byte to the answer. The
+/// handler has bounds of its own for every part (the file's arrival, the
+/// wait for an analysis, the analysis); this is behind them, for whatever
+/// they miss.
+const UPLOAD_DEADLINE: Duration = Duration::from_secs(150);
 
 /// How long a browser may reuse the answer to a CORS preflight request.
 const PREFLIGHT_MAX_AGE: Duration = Duration::from_secs(3600);

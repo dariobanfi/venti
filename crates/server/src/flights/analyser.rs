@@ -108,10 +108,35 @@ impl Analyser {
 
     /// Works out a file's identity and derived values.
     pub async fn analyse(&self, file: Arc<[u8]>) -> Result<Derivation, Failure> {
-        let turn = tokio::time::timeout(PATIENCE, self.turns.clone().acquire_owned())
-            .await
-            .map_err(|_| Failure::Busy)?
-            .map_err(|_| Failure::Broken)?;
+        self.analyse_timed(file).await.0
+    }
+
+    /// Like [`analyse`](Self::analyse), and says how long the analysis
+    /// itself took: from the moment it had its turn, not from the moment
+    /// it began to wait for one. A file that never got a turn took no
+    /// time.
+    pub async fn analyse_timed(&self, file: Arc<[u8]>) -> (Result<Derivation, Failure>, Duration) {
+        let turn = tokio::time::timeout(PATIENCE, self.turns.clone().acquire_owned()).await;
+        let turn = match turn {
+            Ok(Ok(turn)) => turn,
+            Ok(Err(_)) => return (Err(Failure::Broken), Duration::ZERO),
+            Err(_) => return (Err(Failure::Busy), Duration::ZERO),
+        };
+        let began = tokio::time::Instant::now();
+        let outcome = self.with_turn(turn, file).await;
+        (outcome, began.elapsed().min(self.time_allowed))
+    }
+
+    /// The time one file may take.
+    pub fn time_allowed(&self) -> Duration {
+        self.time_allowed
+    }
+
+    async fn with_turn(
+        &self,
+        turn: tokio::sync::OwnedSemaphorePermit,
+        file: Arc<[u8]>,
+    ) -> Result<Derivation, Failure> {
         match &self.place {
             Where::Child(program) => {
                 let _turn = turn;

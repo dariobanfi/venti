@@ -9,6 +9,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use chrono::DateTime;
+use futures::StreamExt;
 use serde::Deserialize;
 use tokio::sync::{Semaphore, SemaphorePermit};
 use venti_api_types::v1::{
@@ -86,6 +87,76 @@ fn keeper(flight: &Flight) -> Keeper {
         Visibility::Public => Keeper::Anyone,
         Visibility::Unlisted | Visibility::Private => Keeper::OnlyTheAsker,
     }
+}
+
+/// How long a flight file may take to arrive. A file sent over a weak
+/// mobile connection needs time: this lets the largest one through at
+/// 40 kB a second, and a usual one of a few hundred kilobytes at a few.
+const ARRIVAL_DEADLINE: std::time::Duration = std::time::Duration::from_secs(100);
+
+/// How long a file that is arriving may stand still. A connection that
+/// sends nothing for this long has gone, or belongs to someone who is
+/// holding a place and nothing else: four accounts that sent nine bytes
+/// each and then nothing held every place for two minutes (the security
+/// review of 2026-11-19).
+const ARRIVAL_PAUSE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How a file failed to arrive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NotArrived {
+    /// Nothing came for [`ARRIVAL_PAUSE`], or not all of it within
+    /// [`ARRIVAL_DEADLINE`].
+    TooSlow,
+    /// It is larger than a file may be, or the connection broke.
+    TooLargeOrBroken,
+}
+
+/// Takes in a request's body piece by piece, within the time a file gets.
+async fn arrival(body: Body) -> Result<Vec<u8>, NotArrived> {
+    let mut pieces = body.into_data_stream();
+    let reading = async {
+        let mut file = Vec::new();
+        loop {
+            let piece = tokio::time::timeout(ARRIVAL_PAUSE, pieces.next())
+                .await
+                .map_err(|_| NotArrived::TooSlow)?;
+            match piece {
+                None => return Ok(file),
+                // The layer around the handler ends a body that is too
+                // large with an error, as a broken connection does.
+                Some(Err(_)) => return Err(NotArrived::TooLargeOrBroken),
+                Some(Ok(piece)) => {
+                    if file.len() + piece.len() > MAX_UPLOAD_BYTES {
+                        return Err(NotArrived::TooLargeOrBroken);
+                    }
+                    file.extend_from_slice(&piece);
+                }
+            }
+        }
+    };
+    tokio::time::timeout(ARRIVAL_DEADLINE, reading)
+        .await
+        .unwrap_or(Err(NotArrived::TooSlow))
+}
+
+/// What an analysis that took `took` counts for among an account's uploads
+/// of the day, beside the one every upload counts for: in proportion to
+/// the time allowed, so that an analysis that used all of it counts for
+/// `slow_upload_weight`.
+///
+/// Without this only a file that had to be killed cost anything, and a
+/// file built to take nine of the ten seconds allowed cost nothing: two
+/// accounts could keep both turns at analysing busy all day.
+fn analysis_weight(
+    took: std::time::Duration,
+    allowed: std::time::Duration,
+    slow_upload_weight: u32,
+) -> u32 {
+    let allowed_ms = allowed.as_millis().max(1);
+    let weight = u128::from(slow_upload_weight) * took.as_millis() / allowed_ms;
+    u32::try_from(weight)
+        .unwrap_or(u32::MAX)
+        .min(slow_upload_weight)
 }
 
 /// How many flight files the server takes in at the same time. A file is
@@ -198,35 +269,61 @@ pub(crate) async fn upload<S: Store>(
     api.uploads.attempt(&by_account, now).map_err(|refused| {
         ApiError::rate_limited(refused, "this account has uploaded too many files today")
     })?;
-    let file: Bytes = axum::body::to_bytes(body, MAX_UPLOAD_BYTES)
-        .await
-        .map_err(|_| {
-            ApiError::new(
+    let file = match arrival(body).await {
+        Ok(file) => file,
+        Err(NotArrived::TooSlow) => {
+            // The place was held for nothing. That is tolerated a few
+            // times a day, like a file that keeps the analysis busy.
+            api.uploads
+                .count(&by_account, api.limits.slow_upload_weight, now);
+            return Err(ApiError::new(
+                StatusCode::REQUEST_TIMEOUT,
+                ErrorCode::Timeout,
+                format!(
+                    "the file did not arrive: nothing came for {} seconds, or not all of it \
+                     within {}",
+                    ARRIVAL_PAUSE.as_secs(),
+                    ARRIVAL_DEADLINE.as_secs()
+                ),
+            ));
+        }
+        Err(NotArrived::TooLargeOrBroken) => {
+            return Err(ApiError::new(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 ErrorCode::PayloadTooLarge,
                 format!(
                     "the file is larger than {} MB, or its upload broke off",
                     MAX_UPLOAD_BYTES / (1024 * 1024)
                 ),
-            )
-        })?;
+            ));
+        }
+    };
     if file.is_empty() {
         return Err(unusable(
             "the request has no body; send the IGC flight file as the body",
         ));
     }
 
-    let file: Arc<[u8]> = file.to_vec().into();
-    let derivation = match api.analyser.analyse(file.clone()).await {
-        Ok(derivation) => derivation,
+    let file: Arc<[u8]> = file.into();
+    let (analysed, took) = api.analyser.analyse_timed(file.clone()).await;
+    let slow_upload_weight = api.limits.slow_upload_weight;
+    let derivation = match analysed {
+        Ok(derivation) => {
+            // The time the analysis took is the account's, also when all
+            // went well.
+            let weight = analysis_weight(took, api.analyser.time_allowed(), slow_upload_weight);
+            api.uploads.count(&by_account, weight, now);
+            derivation
+        }
         Err(Failure::Unusable(reason)) => {
+            let weight = analysis_weight(took, api.analyser.time_allowed(), slow_upload_weight);
+            api.uploads.count(&by_account, weight, now);
             return Err(unusable(format!("the file cannot be used: {reason}")));
         }
         Err(failure @ (Failure::TooSlow | Failure::Crashed)) => {
             // Such a file cost the server all the time it allows. Only a
             // few a day are tolerated from one account.
-            let weight = api.limits.slow_upload_weight;
-            api.uploads.count(&by_account, weight, now);
+            api.uploads.count(&by_account, slow_upload_weight, now);
             tracing::warn!(account = %signed.account.handle, "upload refused: {failure}");
             return Err(unusable(
                 "the file could not be analysed; if it is a flight file that other \
@@ -522,6 +619,31 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use super::*;
+
+    #[test]
+    fn an_analysis_counts_for_the_share_of_the_time_allowed_that_it_took() {
+        use std::time::Duration;
+        let allowed = Duration::from_secs(10);
+        let weight = |millis: u64| analysis_weight(Duration::from_millis(millis), allowed, 50);
+
+        // A real flight takes a fraction of a second: nothing beside the
+        // one every upload counts for.
+        assert_eq!(weight(0), 0);
+        assert_eq!(weight(150), 0);
+        // A file that keeps the analysis busy counts by the second.
+        assert_eq!(weight(1000), 5);
+        assert_eq!(weight(9000), 45);
+        // All the time allowed counts as a file that had to be killed, and
+        // nothing counts for more.
+        assert_eq!(weight(10_000), 50);
+        assert_eq!(weight(60_000), 50);
+        // Whatever the settings, the sum does not overflow or divide by
+        // nothing.
+        assert_eq!(
+            analysis_weight(Duration::from_secs(5), Duration::ZERO, u32::MAX),
+            u32::MAX
+        );
+    }
 
     #[test]
     fn only_so_many_files_are_taken_in_at_once() {

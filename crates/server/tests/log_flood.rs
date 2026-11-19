@@ -7,17 +7,15 @@
 
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
-use axum::body::{Body, Bytes};
 use axum::http::{Method, StatusCode, header};
-use venti_api_types::v1::{ErrorCode, FLIGHTS_PATH};
 use venti_server::accounts::Limits;
-use venti_server::api::{MCP_PATH, Settings};
+use venti_server::api::{Api, Cors, MCP_PATH, Settings};
+use venti_store::testing::TroubledStore;
 
 mod common;
 
-use common::{Answer, TestClock, ask, server, settings, sign_up};
+use common::{Answer, TestClock, ask, get, server, settings};
 
 /// Collects what the server logs while a test holds it.
 #[derive(Clone, Default)]
@@ -48,17 +46,7 @@ impl Captured {
     }
 }
 
-/// A flight file that arrives one byte a second and never ends.
-fn trickle() -> Body {
-    Body::from_stream(futures::stream::unfold((), |()| async {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        Some((Ok::<_, std::io::Error>(Bytes::from_static(b"A")), ()))
-    }))
-}
-
-// The clock of the runtime is the test's: an upload that takes two minutes
-// takes none of the test's time.
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn a_client_that_does_not_stop_costs_a_line_and_not_one_per_request() {
     let captured = Captured::default();
     let writer = captured.clone();
@@ -119,24 +107,33 @@ async fn a_client_that_does_not_stop_costs_a_line_and_not_one_per_request() {
     assert_eq!(flood("203.0.113.9", 505).await, 500);
     assert_eq!(captured.lines_with(REFUSAL).len(), 3);
 
-    // --- Requests the server gives up on, one after another --------------------
-    let token = sign_up(&router, "dario").await.token;
-    for _ in 0..40 {
-        let answer = ask(Method::POST, FLIGHTS_PATH)
-            .token(&token)
-            .body(trickle())
-            .send(&router)
-            .await;
-        answer.error(StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Timeout);
+    // --- A server whose database is away, asked a thousand times ---------------
+    let troubled = Api::new(
+        Arc::new(TroubledStore::down()),
+        Arc::new(TestClock::new()),
+        std::iter::empty(),
+        common::settings(),
+    )
+    .router(&Cors::Any);
+    for n in 0..1000 {
+        let path = [
+            "/v1/health",
+            "/v1/pilots/dario",
+            "/f/0123456789abcdefghjkmnpqrs",
+        ][n % 3];
+        let answer = get(&troubled, path).await;
+        assert_eq!(answer.status, StatusCode::SERVICE_UNAVAILABLE);
     }
-    // The first is written at once, and the rest are counted for a later
-    // line. The gate opens every ten real seconds; the test takes far less,
-    // but a slow machine may see it open once more.
-    let failures = captured.lines_with("a request failed");
-    assert!((1..=3).contains(&failures.len()), "{failures:#?}");
-    assert!(failures[0].contains("503"), "{}", failures[0]);
+    // The first of each kind is written at once, and the rest are counted
+    // for a later line. A gate opens every ten seconds; the test takes far
+    // less, but a slow machine may see one open once more.
+    for kind in ["store:", "a request failed"] {
+        let lines = captured.lines_with(kind);
+        assert!((1..=3).contains(&lines.len()), "{kind}: {lines:#?}");
+    }
+    assert!(captured.lines_with("a request failed")[0].contains("503"));
 
-    // 2,500 refusals and 40 failures: a few lines, not a few thousand.
+    // 2,500 refusals and 1,000 failures: a few lines, not a few thousand.
     assert!(
         captured.bytes() < 4096,
         "{} bytes of log:\n{}",

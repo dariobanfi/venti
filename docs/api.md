@@ -97,6 +97,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
+| 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, or a flight file of more than 4 MB |
 | 422 | `invalid_flight` | The uploaded file is not a flight file the server can use |
@@ -1272,13 +1273,16 @@ The answer is `201` when the upload created the flight, and `200` when the accou
 
 | Status | Code | When |
 |---|---|---|
+| 408 | `timeout` | The file did not arrive: nothing came for 10 seconds, or not all of it within 100. Send it again; such an upload counts for fifty of the day's 1000 |
 | 413 | `payload_too_large` | The file is larger than 4 MB. Twelve hours at one fix a second are about 2 MB |
 | 403 | `account_full` | The account has no room for the flight. A server gives an account room for 25,000 flights and 4,096 MB of flight files unless whoever runs it set other numbers; files count as they were uploaded. That is more than twenty years of flying a great deal, so a pilot does not meet it by keeping a logbook. `message` says what the account keeps and what the room is. The same file sent again gets the same answer until flights are deleted; a flight the account already has is answered `200` as always |
 | 422 | `invalid_flight` | The file is not an IGC flight file, holds no position, is mostly something other than positions, or could not be analysed. `message` says which. "Mostly something other" means: what is not a position line is larger than the position lines and 64 kB together. Headers, a task, comments and a recorder's signature are a few kilobytes |
 | 429 | `rate_limited` | The account is sending more than two files at the same time, or has uploaded 1000 within a day. `Retry-After` says when to try again |
 | 503 | `unavailable` | The server is taking in or analysing as many flights as it can right now. `Retry-After` says when to try again |
 
-Send a logbook's flights one after another, or two at a time. An upload may take up to two minutes on a slow connection before the server gives up on it.
+Send a logbook's flights one after another, or two at a time. A file has 100 seconds to arrive and must not stand still for more than 10 on the way; that lets the largest file through at 40 kB a second.
+
+What counts against the 1000 uploads of a day: every upload counts for one, whatever becomes of it. The time its analysis takes counts as well, five for each second, so that a file which keeps the analysis busy for the ten seconds it is allowed counts for fifty more; a flight is analysed in a fraction of a second and counts for nothing more. A file that did not arrive in time counts for fifty more too.
 
 ### `GET /v1/flights?after=&limit=`
 

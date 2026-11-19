@@ -22,7 +22,7 @@ use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
 use super::{Api, body, cache, wire};
-use crate::accounts::throttle::Refused;
+use crate::accounts::throttle::{Counted, Refused};
 use crate::flights::analyser::Failure;
 use crate::flights::{new_flight, unpack};
 
@@ -177,7 +177,8 @@ pub(crate) async fn upload<S: Store>(
         ),
     })?;
     // Counted before the file is looked at: looking is the expensive part.
-    api.uploads.attempt(account_id, now).map_err(|refused| {
+    let by_account = [Counted::new(account_id, api.limits.uploads_per_day)];
+    api.uploads.attempt(&by_account, now).map_err(|refused| {
         ApiError::rate_limited(refused, "this account has uploaded too many files today")
     })?;
     let file: Bytes = axum::body::to_bytes(body, MAX_UPLOAD_BYTES)
@@ -208,7 +209,7 @@ pub(crate) async fn upload<S: Store>(
             // Such a file cost the server all the time it allows. Only a
             // few a day are tolerated from one account.
             let weight = api.limits.slow_upload_weight;
-            api.uploads.count(account_id, weight, now);
+            api.uploads.count(&by_account, weight, now);
             tracing::warn!(account = %signed.account.handle, "upload refused: {failure}");
             return Err(unusable(
                 "the file could not be analysed; if it is a flight file that other \

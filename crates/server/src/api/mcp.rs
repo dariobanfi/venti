@@ -50,6 +50,7 @@ use super::auth::Client;
 use super::error::ApiError;
 use super::{Api, Cors, ServedSource};
 use crate::accounts::client::counting_key;
+use crate::accounts::throttle::Counted;
 use crate::flights::share::PublicUrl;
 
 /// The path of the connector.
@@ -161,7 +162,11 @@ pub(crate) async fn endpoint<S: Store>(
     // look into a table and nothing else.
     let now = api.clock.now();
     let address = counting_key(client);
-    if let Err(refused) = api.connector_requests.attempt(&address, now) {
+    let by_address = [Counted::new(
+        &address,
+        api.limits.connector_requests_per_address,
+    )];
+    if let Err(refused) = api.connector_requests.attempt(&by_address, now) {
         // One line for the address and the window, however often it asks
         // again: a line per refusal is a megabyte of log a second from one
         // client that does not stop.
@@ -205,7 +210,7 @@ pub(crate) async fn endpoint<S: Store>(
             // A batch is one request with several calls in it; each call
             // after the first counts as a request of its own.
             let further = u32::try_from(calls.calls().len().saturating_sub(1)).unwrap_or(u32::MAX);
-            api.connector_requests.count(&address, further, now);
+            api.connector_requests.count(&by_address, further, now);
             let mut results = Vec::with_capacity(calls.calls().len());
             for call in calls.calls() {
                 results.push(api.run_tool(call).await);

@@ -19,6 +19,7 @@ use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::client::counting_key;
 use crate::accounts::secret::{InviteCode, Token, random_id};
+use crate::accounts::throttle::{self, Counted};
 use crate::accounts::{Registration, device_label, is_reserved, password};
 
 impl<S: Store> Api<S> {
@@ -54,6 +55,13 @@ impl<S: Store> Api<S> {
     /// address, and once either has too many, nothing is checked any more
     /// until its window closes. An account that does not exist takes as
     /// long and answers the same as a wrong password.
+    ///
+    /// The attempt takes its place among the wrong ones *before* the
+    /// password is looked at, under one lock for both counts, and gives the
+    /// place back when the password turns out right. Checking a password
+    /// takes tens of milliseconds of a whole core; counting only afterwards
+    /// let a thousand guesses that arrived together all be checked where
+    /// ten are allowed.
     async fn check_password(
         &self,
         handle: Option<&Handle>,
@@ -62,34 +70,55 @@ impl<S: Store> Api<S> {
     ) -> Result<Option<Account>, ApiError> {
         let now = self.clock.now();
         let address = counting_key(client);
-        let too_many = |refused| {
+        let by_address = [Counted::new(
+            &address,
+            self.limits.wrong_passwords_per_address,
+        )];
+        let by_handle = handle
+            .map(|handle| Counted::new(handle.as_str(), self.limits.wrong_passwords_per_handle));
+        let reserved = throttle::reserve_both(
+            (&self.wrong_by_handle, by_handle.as_slice()),
+            (&self.wrong_by_address, &by_address),
+            now,
+        )
+        .map_err(|refused| {
             ApiError::rate_limited(
                 refused,
                 "too many wrong passwords for this handle or from this address",
             )
+        })?;
+        let give_back = |(by_handle, by_address)| {
+            self.wrong_by_handle.give_back(by_handle);
+            self.wrong_by_address.give_back(by_address);
         };
-        self.wrong_by_address
-            .check(&address, now)
-            .map_err(too_many)?;
-        if let Some(handle) = handle {
-            self.wrong_by_handle
-                .check(handle.as_str(), now)
-                .map_err(too_many)?;
-        }
 
-        let stored = match handle {
-            Some(handle) => self.store.password_hash(handle.as_str()).await?,
-            None => None,
+        let looked_up = match handle {
+            Some(handle) => self.store.password_hash(handle.as_str()).await,
+            None => Ok(None),
+        };
+        let stored = match looked_up {
+            Ok(stored) => stored,
+            Err(error) => {
+                // Nothing was found out about the password.
+                give_back(reserved);
+                return Err(error.into());
+            }
         };
         let hash = stored.as_ref().map(|(_, hash)| hash.as_str());
-        if self.hasher.verify(password, hash).await? {
-            return Ok(stored.map(|(account, _)| account));
+        match self.hasher.verify(password, hash).await {
+            Ok(true) => {
+                give_back(reserved);
+                return Ok(stored.map(|(account, _)| account));
+            }
+            // The place stays taken: this is a wrong password.
+            Ok(false) => {}
+            Err(error) => {
+                // The server was too busy to look. That is no guess.
+                give_back(reserved);
+                return Err(error.into());
+            }
         }
 
-        self.wrong_by_address.count(&address, 1, now);
-        if let Some(handle) = handle {
-            self.wrong_by_handle.count(handle.as_str(), 1, now);
-        }
         // The handle is logged only if it is one: text typed into the wrong
         // field can be a password.
         match &stored {
@@ -113,10 +142,13 @@ pub(crate) async fn create<S: Store>(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let now = api.clock.now();
-    // Every attempt counts, whatever becomes of it: this is what makes
-    // trying out invite codes or handles slow.
+    // Every attempt counts, whatever becomes of it, and before anything
+    // else is done with it, the password's hashing above all: this is what
+    // makes trying out invite codes or handles slow.
+    let address = counting_key(client);
+    let by_address = [Counted::new(&address, api.limits.registrations_per_address)];
     api.registrations
-        .attempt(&counting_key(client), now)
+        .attempt(&by_address, now)
         .map_err(|refused| {
             ApiError::rate_limited(
                 refused,
@@ -316,4 +348,65 @@ pub(crate) async fn delete<S: Store>(
     api.store.delete_account(&signed.account.id).await?;
     tracing::info!(account = %signed.account.handle, "account deleted");
     Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
+}
+
+#[cfg(test)]
+mod tests {
+    use venti_store::MemoryStore;
+
+    use super::*;
+    use crate::accounts::Limits;
+    use crate::accounts::password::Cost;
+    use crate::api::Settings;
+    use crate::clock::FixedClock;
+    use crate::flights::analyser::{Analyser, Where};
+    use crate::flights::share::PublicUrl;
+
+    /// An API with an empty store and the limits a real server has.
+    fn limited_api() -> Api<MemoryStore> {
+        let settings = Settings {
+            limits: Limits::default(),
+            ..crate::dev::settings(
+                PublicUrl::new("https://venti.example").unwrap(),
+                Analyser::new(Where::Thread),
+                Cost::TESTS_ONLY,
+            )
+        };
+        let clock = FixedClock(crate::adapters::recorded_at());
+        Api::new(Arc::new(MemoryStore::new()), Arc::new(clock), [], settings)
+    }
+
+    #[tokio::test]
+    async fn a_password_the_server_was_too_busy_to_check_is_not_a_wrong_one() {
+        let api = limited_api();
+        let handle = Handle::new("dario").unwrap();
+        let client: IpAddr = "203.0.113.9".parse().unwrap();
+        let guess = Password::new("a wrong guess!!");
+
+        // Every turn at hashing is taken, and the test owns the clock:
+        // each of these waits out its patience and is told "busy".
+        let held = api.hasher.take_every_turn();
+        tokio::time::pause();
+        for _ in 0..50 {
+            let busy = api
+                .check_password(Some(&handle), &guess, client)
+                .await
+                .unwrap_err();
+            assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        }
+        drop(held);
+        tokio::time::resume();
+
+        // None of the fifty was a guess. The handle has its ten left, and
+        // then no more.
+        for _ in 0..10 {
+            let wrong = api.check_password(Some(&handle), &guess, client).await;
+            assert!(wrong.unwrap().is_none());
+        }
+        let refused = api
+            .check_password(Some(&handle), &guess, client)
+            .await
+            .unwrap_err();
+        assert_eq!(refused.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
 }

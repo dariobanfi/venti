@@ -9,9 +9,12 @@
 //! parameters and salt: when the cost is raised, old hashes still verify.
 //!
 //! Hashing is slow and hungry on purpose, so it never runs on the threads
-//! that answer requests, and only a few run at once.
+//! that answer requests, only a few run at once, and only a few wait for
+//! their turn: a request that finds the queue long is told at once that
+//! the server is busy.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use argon2::password_hash::{PasswordHasher, PasswordVerifier};
@@ -24,7 +27,16 @@ use venti_api_types::v1::{Handle, Password, PasswordError};
 /// whole core for some tens of milliseconds; more requests wait their turn.
 const AT_ONCE: usize = 4;
 
+/// How many requests wait for their turn at most. With four at once and
+/// some tens of milliseconds each, the last in a full queue waits under a
+/// second. A request that finds the queue full is told that the server is
+/// busy before it has cost anything, where it used to wait five seconds to
+/// be told the same.
+const MAX_WAITING: usize = 32;
+
 /// How long a request waits for its turn before the server says it is busy.
+/// With the queue bounded this is not reached unless hashing is far slower
+/// than it should be.
 const PATIENCE: Duration = Duration::from_secs(5);
 
 /// What hashing a password costs.
@@ -106,6 +118,8 @@ fn normalise(password: &str) -> String {
 pub struct Hasher {
     cost: Cost,
     turns: Arc<Semaphore>,
+    /// How many requests are waiting for a turn.
+    waiting: Arc<AtomicUsize>,
     /// The hash of a password nobody has. Checking against it takes as long
     /// as checking against a real one.
     decoy: Arc<str>,
@@ -124,6 +138,7 @@ impl Hasher {
         Self {
             cost,
             turns: Arc::new(Semaphore::new(AT_ONCE)),
+            waiting: Arc::new(AtomicUsize::new(0)),
             decoy: decoy.into(),
         }
     }
@@ -161,10 +176,13 @@ impl Hasher {
         &self,
         work: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T, HashError> {
-        let turn = tokio::time::timeout(PATIENCE, self.turns.clone().acquire_owned())
-            .await
-            .map_err(|_| HashError::Busy)?
-            .map_err(|_| HashError::Failed)?;
+        let turn = {
+            let _waiting = Waiting::join(&self.waiting).ok_or(HashError::Busy)?;
+            tokio::time::timeout(PATIENCE, self.turns.clone().acquire_owned())
+                .await
+                .map_err(|_| HashError::Busy)?
+                .map_err(|_| HashError::Failed)?
+        };
         // The turn is given back when the work is done, also when the
         // request that asked for it has gone away in the meantime.
         tokio::task::spawn_blocking(move || {
@@ -174,6 +192,39 @@ impl Hasher {
         })
         .await
         .map_err(|_| HashError::Failed)
+    }
+}
+
+/// A place in the queue for a turn. Dropping it leaves the queue, whether a
+/// turn came, patience ran out or the request went away.
+struct Waiting(Arc<AtomicUsize>);
+
+impl Waiting {
+    /// Joins the queue, unless it is as long as it may get.
+    fn join(waiting: &Arc<AtomicUsize>) -> Option<Self> {
+        waiting
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
+                (count < MAX_WAITING).then_some(count + 1)
+            })
+            .ok()
+            .map(|_| Self(waiting.clone()))
+    }
+}
+
+impl Drop for Waiting {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+#[cfg(test)]
+impl Hasher {
+    /// Takes every turn, so that whatever asks next has to wait. The turns
+    /// are free again when what this returns is dropped.
+    pub(crate) fn take_every_turn(&self) -> Vec<tokio::sync::OwnedSemaphorePermit> {
+        (0..AT_ONCE)
+            .map(|_| self.turns.clone().try_acquire_owned().expect("a free turn"))
+            .collect()
     }
 }
 
@@ -318,9 +369,7 @@ mod tests {
     async fn only_a_few_passwords_are_hashed_at_once() {
         let hasher = Hasher::new(Cost::TESTS_ONLY);
         // Take every turn; the next request cannot start.
-        let held: Vec<_> = (0..AT_ONCE)
-            .map(|_| hasher.turns.clone().try_acquire_owned().unwrap())
-            .collect();
+        let held = hasher.take_every_turn();
         tokio::time::pause();
 
         let busy = hasher.verify(&password("anything"), None).await;
@@ -329,5 +378,59 @@ mod tests {
         drop(held);
         tokio::time::resume();
         assert_eq!(hasher.verify(&password("anything"), None).await, Ok(false));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_that_finds_the_queue_long_is_turned_away_at_once() {
+        let hasher = Hasher::new(Cost::TESTS_ONLY);
+        let held = hasher.take_every_turn();
+        // As many as may wait are waiting.
+        let waiting: Vec<_> = (0..MAX_WAITING)
+            .map(|_| {
+                let hasher = hasher.clone();
+                tokio::spawn(async move { hasher.verify(&password("anything"), None).await })
+            })
+            .collect();
+        tokio::task::yield_now().await;
+        assert_eq!(hasher.waiting.load(Ordering::Acquire), MAX_WAITING);
+
+        // The next is not made to wait five seconds to hear "busy".
+        let asked_at = tokio::time::Instant::now();
+        let late = hasher.verify(&password("anything"), None).await;
+        assert_eq!(late, Err(HashError::Busy));
+        assert_eq!(asked_at.elapsed(), Duration::ZERO);
+
+        // Those in the queue get their turn when turns are free, and leave
+        // the queue behind them empty.
+        drop(held);
+        for waited in waiting {
+            assert_eq!(waited.await.unwrap(), Ok(false));
+        }
+        assert_eq!(hasher.waiting.load(Ordering::Acquire), 0);
+        assert_eq!(hasher.verify(&password("anything"), None).await, Ok(false));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_that_gives_up_waiting_leaves_the_queue() {
+        let hasher = Hasher::new(Cost::TESTS_ONLY);
+        let held = hasher.take_every_turn();
+
+        // Patience runs out, on the clock the test owns.
+        assert_eq!(
+            hasher.verify(&password("anything"), None).await,
+            Err(HashError::Busy)
+        );
+        // And a request that goes away while it waits.
+        let gone = {
+            let hasher = hasher.clone();
+            tokio::spawn(async move { hasher.verify(&password("anything"), None).await })
+        };
+        tokio::task::yield_now().await;
+        assert_eq!(hasher.waiting.load(Ordering::Acquire), 1);
+        gone.abort();
+        let _ = gone.await;
+
+        assert_eq!(hasher.waiting.load(Ordering::Acquire), 0);
+        drop(held);
     }
 }

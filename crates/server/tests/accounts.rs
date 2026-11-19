@@ -523,6 +523,92 @@ async fn wrong_passwords_from_one_address_are_counted_whatever_handle_they_are_f
     assert_eq!(answer.status, StatusCode::CREATED);
 }
 
+/// Sends sign-in attempts at the same moment, each a task of its own, and
+/// returns the statuses of the answers.
+async fn sign_in_all_at_once(
+    router: &Router,
+    attempts: impl IntoIterator<Item = (String, String, &'static str)>,
+) -> Vec<StatusCode> {
+    let sent: Vec<_> = attempts
+        .into_iter()
+        .map(|(peer, handle, password)| {
+            let router = router.clone();
+            tokio::spawn(
+                async move { sign_in_from(&router, &peer, &handle, password).await.status },
+            )
+        })
+        .collect();
+    let mut statuses = Vec::with_capacity(sent.len());
+    for answer in sent {
+        statuses.push(answer.await.unwrap());
+    }
+    statuses
+}
+
+fn count(statuses: &[StatusCode], status: StatusCode) -> usize {
+    statuses.iter().filter(|s| **s == status).count()
+}
+
+// Several threads, as a server has: the guesses really do arrive together.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn guesses_that_arrive_together_get_no_more_checks_than_one_after_another() {
+    let clock = TestClock::new();
+    let settings = Settings {
+        limits: Limits::default(),
+        ..settings()
+    };
+    let router = server(settings, &clock).0;
+    sign_up(&router, "dario").await;
+
+    // A thousand guesses for one handle at the same moment, each from an
+    // address of its own. Ten are looked at, which is the limit; the rest
+    // are refused before any password is hashed for them.
+    let guesses = (0..1000).map(|n| {
+        let peer = format!("10.{}.{}.7", n / 250, n % 250);
+        (peer, "dario".to_owned(), "a wrong guess!!")
+    });
+    let answers = sign_in_all_at_once(&router, guesses).await;
+    assert_eq!(count(&answers, StatusCode::UNAUTHORIZED), 10);
+    assert_eq!(count(&answers, StatusCode::TOO_MANY_REQUESTS), 990);
+
+    // A thousand from one address, each for another handle: thirty.
+    let guesses = (0..1000).map(|n| {
+        let handle = format!("pilot{n}");
+        ("198.51.100.7".to_owned(), handle, "Sommer2026Sommer")
+    });
+    let answers = sign_in_all_at_once(&router, guesses).await;
+    assert_eq!(count(&answers, StatusCode::UNAUTHORIZED), 30);
+    assert_eq!(count(&answers, StatusCode::TOO_MANY_REQUESTS), 970);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_right_password_is_not_counted_however_many_arrive_together() {
+    let clock = TestClock::new();
+    let settings = Settings {
+        limits: Limits::default(),
+        ..settings()
+    };
+    let router = server(settings, &clock).0;
+    sign_up(&router, "dario").await;
+
+    // A pilot's devices all sign in at once, several times over. Each
+    // attempt holds a place while its password is checked and gives it
+    // back; none is left counted.
+    for _ in 0..20 {
+        let devices = (0..8).map(|_| ("203.0.113.50".to_owned(), "dario".to_owned(), PASSWORD));
+        let answers = sign_in_all_at_once(&router, devices).await;
+        assert_eq!(count(&answers, StatusCode::CREATED), 8, "{answers:?}");
+    }
+    // All ten wrong passwords of the handle are still to be had.
+    for n in 0..10 {
+        let peer = format!("198.51.100.{n}");
+        let answer = sign_in_from(&router, &peer, "dario", "a wrong guess!!").await;
+        assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
+    }
+    let answer = sign_in_from(&router, "203.0.113.50", "dario", PASSWORD).await;
+    answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+}
+
 #[tokio::test]
 async fn a_forwarded_address_is_believed_from_a_named_proxy_only() {
     let clock = TestClock::new();

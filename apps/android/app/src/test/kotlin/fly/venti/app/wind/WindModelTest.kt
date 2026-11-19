@@ -274,7 +274,10 @@ class WindModelTest {
         assertTrue(wind.stations.isEmpty())
         assertTrue(wind.credits.isEmpty())
         assertNull(wind.problem)
-        assertEquals("The map shows the wind stations this server collects.", wind.addressNote)
+        assertEquals(
+            "The map shows the wind stations this server collects, and the assistant can look them up.",
+            wind.addressNote,
+        )
 
         wind.use("")
         assertEquals("", preferences.server)

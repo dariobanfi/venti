@@ -3,6 +3,7 @@ package fly.venti.app.assistant
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import fly.venti.app.Http
 import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
@@ -29,7 +30,9 @@ typealias AssistantTransport = suspend (AssistantRequest) -> HttpAnswer
  * The conversation itself is the core's: what to send, which tools to run
  * against the logbook, what the reply is. This class does the one thing the
  * core cannot: it sends each request over the network and hands back the
- * answer.
+ * answer. Requests go to the pilot's model provider; when the model looks
+ * up live wind, the core names an address on the pilot's Venti server and
+ * this class fetches it, without the key or the question.
  */
 class AssistantChat(
     private val makeAssistant: (String) -> Assistant,
@@ -43,6 +46,12 @@ class AssistantChat(
     private val transport: AssistantTransport = AssistantHttp::send,
     /** Where the core works on a request, so the screen stays responsive. */
     private val background: CoroutineDispatcher = Dispatchers.IO,
+    /** How an address on the Venti server is fetched. */
+    private val fetch: suspend (String) -> HttpAnswer = { url -> Http.get(url) },
+    /** The pilot's Venti server, if one is set. With one, the assistant can look up live wind. */
+    private val server: () -> String? = { null },
+    /** The current time in seconds since 1970, by the server's clock where it is known. */
+    private val now: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
     var entries: List<TranscriptEntry> by mutableStateOf(emptyList())
         private set
@@ -83,23 +92,38 @@ class AssistantChat(
     }
 
     private suspend fun answer(question: String, key: String, assistant: Assistant) {
-        var step = withContext(background) { assistant.ask(question, System.currentTimeMillis() / 1000, key) }
-        while (step is AssistantStep.Send) {
-            val answer = try {
-                transport(step.request)
-            } catch (error: IOException) {
-                assistant.abandon()
-                problem = "The provider could not be reached. ${error.pilotMessage}"
-                return
-            } catch (error: CancellationException) {
-                assistant.abandon()
-                throw error
+        assistant.useServer(server())
+        var step = withContext(background) { assistant.ask(question, now(), key) }
+        while (true) {
+            val answer = when (val current = step) {
+                is AssistantStep.Send -> try {
+                    transport(current.request)
+                } catch (error: IOException) {
+                    assistant.abandon()
+                    problem = "The provider could not be reached. ${error.pilotMessage}"
+                    return
+                } catch (error: CancellationException) {
+                    assistant.abandon()
+                    throw error
+                }
+                // A Venti server that cannot be reached does not end the
+                // conversation: the model is told, and says so in its reply.
+                is AssistantStep.Fetch -> try {
+                    fetch(current.url)
+                } catch (_: IOException) {
+                    HttpAnswer(0, ByteArray(0))
+                } catch (error: CancellationException) {
+                    assistant.abandon()
+                    throw error
+                }
+                is AssistantStep.Failed -> {
+                    problem = current.message
+                    break
+                }
+                AssistantStep.Finished -> break
             }
             val status = answer.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
             step = withContext(background) { assistant.receive(status, answer.body, key) }
-        }
-        if (step is AssistantStep.Failed) {
-            problem = step.message
         }
         // Unless the pilot started a new conversation meanwhile.
         if (assistant === this.assistant) {

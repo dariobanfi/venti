@@ -110,8 +110,9 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, bars: PaddingValues) {
             Notice(text, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(16.dp, 8.dp))
         }
         wind.creditLine?.let { text ->
-            // Beside the map's own credits button, clear of the round buttons.
-            Credits(text, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 80.dp, bottom = 10.dp))
+            // Clear of the map's own credits button on the left and of
+            // the round buttons on the right.
+            Credits(text, Modifier.align(Alignment.BottomStart).padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
         }
 
         Column(
@@ -209,7 +210,7 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
 private fun Credits(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("wind-credits"),
-        shape = CircleShape,
+        shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
     ) {
         Text(
@@ -217,7 +218,8 @@ private fun Credits(text: String, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            // Two providers' names do not fit one line of a phone.
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }

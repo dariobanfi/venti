@@ -236,6 +236,7 @@ private fun FlightDetail(flight: FlightView, analysis: FlightAnalysis?) {
         StatusBarScrim()
         FlightPanel(
             flight = flight,
+            score = analysis?.score,
             cursor = cursor,
             onCursor = { cursor = it },
             isPlaying = isPlaying,

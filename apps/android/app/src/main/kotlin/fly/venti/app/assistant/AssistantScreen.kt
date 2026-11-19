@@ -84,7 +84,12 @@ import fly.venti.core.assistantModels
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssistantScreen(chat: AssistantChat, bars: PaddingValues) {
+fun AssistantScreen(
+    chat: AssistantChat,
+    /** Whether a Venti server is set: the assistant can then look up live wind. */
+    hasWind: Boolean,
+    bars: PaddingValues,
+) {
     Scaffold(
         modifier = Modifier
             .padding(bottom = bars.calculateBottomPadding())
@@ -104,7 +109,7 @@ fun AssistantScreen(chat: AssistantChat, bars: PaddingValues) {
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            if (chat.hasKey) Conversation(chat) else KeyEntry(chat)
+            if (chat.hasKey) Conversation(chat, hasWind) else KeyEntry(chat)
         }
     }
 
@@ -175,7 +180,7 @@ private fun Options(chat: AssistantChat) {
 }
 
 @Composable
-private fun Conversation(chat: AssistantChat) {
+private fun Conversation(chat: AssistantChat, hasWind: Boolean) {
     var draft by rememberSaveable { mutableStateOf("") }
     val list = rememberLazyListState()
     val pending = chat.pending
@@ -201,7 +206,7 @@ private fun Conversation(chat: AssistantChat) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (chat.entries.isEmpty() && !chat.isWorking) {
-                item { Suggestions(::ask) }
+                item { Suggestions(hasWind, ::ask) }
             }
             itemsIndexed(chat.entries) { _, entry ->
                 Bubble(entry)
@@ -313,7 +318,7 @@ private fun formatted(text: String): AnnotatedString = buildAnnotatedString {
 
 /** Questions to start with. */
 @Composable
-private fun Suggestions(ask: (String) -> Unit) {
+private fun Suggestions(hasWind: Boolean, ask: (String) -> Unit) {
     Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             "Ask about your flying",
@@ -321,11 +326,16 @@ private fun Suggestions(ask: (String) -> Unit) {
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet.",
+            if (hasWind) {
+                "The assistant reads your logbook to answer, and the wind stations of your Venti server. " +
+                    "It cannot see forecasts, airspace or other pilots yet."
+            } else {
+                "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet."
+            },
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        for (question in QUESTIONS) {
+        for (question in if (hasWind) QUESTIONS + WIND_QUESTION else QUESTIONS) {
             OutlinedButton(onClick = { ask(question) }) {
                 Text(question, textAlign = TextAlign.Start)
             }
@@ -338,6 +348,9 @@ private val QUESTIONS = listOf(
     "Which was my best flight, and why?",
     "Where did I find my strongest thermals?",
 )
+
+/** Offered as well when a Venti server is set. */
+private const val WIND_QUESTION = "How is the wind on the Zugspitze right now?"
 
 /**
  * Where the pilot enters the key for their own account, and reads what that
@@ -383,8 +396,10 @@ private fun KeyEntry(chat: AssistantChat) {
         }
         SectionFooter(
             "Kept encrypted on this phone and sent only to Anthropic. Your questions, and what the " +
-                "assistant looks up in your logbook to answer them, go from this phone straight to " +
-                "Anthropic, which bills your account for them. Venti's server is not involved.",
+                "assistant looks up to answer them, go from this phone straight to Anthropic, which " +
+                "bills your account for them. No Venti server sees your key or your questions. When " +
+                "the assistant looks up live wind, the app asks your Venti server for the stations " +
+                "around a place, as the map does.",
         )
         Spacer(Modifier.height(16.dp))
         TextButton(onClick = { links.openUri("https://console.anthropic.com/settings/keys") }) {

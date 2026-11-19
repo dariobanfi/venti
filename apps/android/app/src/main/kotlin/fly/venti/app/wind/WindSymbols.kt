@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
@@ -106,6 +108,9 @@ fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
                     lineTo(side * 0.22f, side * 0.87f)
                     close()
                 }
+                // The white edge the arrows have on the map: without it the
+                // two dark blues are lost on a dark list.
+                drawPath(dart, Color.White, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round))
                 drawPath(dart, symbol.band.color)
             }
             WindMark.Symbol.Calm -> drawCircle(WindBand.Light.color, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))

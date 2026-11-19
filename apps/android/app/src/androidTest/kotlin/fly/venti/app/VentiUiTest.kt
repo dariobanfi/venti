@@ -286,7 +286,11 @@ class VentiUiTest {
     private fun lookAtTheWind(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
-        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        // The model provider is played by a script; the Venti server is real.
+        launch(dark = dark) {
+            putExtra(LaunchOptions.SERVER, server)
+            putExtra(LaunchOptions.SCRIPTED_ASSISTANT, true)
+        }
         val scenario = checkNotNull(app)
 
         waitFor(described("Wind stations"), seconds = 90)
@@ -331,12 +335,22 @@ class VentiUiTest {
         tap(hasText("Done"))
         waitFor(described("Wind stations"))
 
+        // The assistant looks up the same wind on the same server.
+        tap(tab("Assistant"))
+        val question = hasText("How is the wind on the Zugspitze right now?")
+        waitFor(question)
+        tap(question)
+        waitFor(hasText("Zugspitze: 54 km/h", substring = true), seconds = 30)
+        assertTrue(exists(hasText("Looked up the wind stations around a place")))
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-wind-5-assistant")
+
         // The settings hold the server's address, and the credits name
         // whose stations it delivers.
         tap(tab("Settings"))
         waitFor(hasText("Live wind"))
         screen.onNode(hasText("Data and licences")).performScrollTo()
-        keepScreenshot("$prefix-wind-5-settings")
+        keepScreenshot("$prefix-wind-6-settings")
         tap(hasText("Data and licences"))
         waitFor(hasText("GeoSphere Austria"))
     }

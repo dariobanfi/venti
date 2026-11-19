@@ -112,6 +112,10 @@ class FormatTest {
         Format.uses24HourClock = false
         assertTrue(Format.time(moment + 3 * 3600, ZoneOffset.UTC).startsWith("1:30"))
         assertEquals("1:30", Format.timeOnAxis(moment + 3 * 3600, ZoneOffset.UTC))
+        // Over a whole day a time needs its half of the day.
+        assertTrue(Format.timeOnDayAxis(moment + 3 * 3600, ZoneOffset.UTC).startsWith("1 "))
+        Format.uses24HourClock = true
+        assertEquals("13:30", Format.timeOnDayAxis(moment + 3 * 3600, ZoneOffset.UTC))
     }
 
     @Test

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.text.format.DateFormat
 import fly.venti.app.assistant.AssistantChat
+import fly.venti.app.assistant.AssistantHttp
 import fly.venti.app.assistant.EncryptedKeyStore
 import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
@@ -19,6 +20,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.wind.WindModel
+import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -87,18 +89,27 @@ sealed interface Session {
             if (interrupted.isNotEmpty()) {
                 scope.launch { logbook.adopt(interrupted) }
             }
-            val chat = when {
-                scriptedAssistant ->
-                    AssistantChat(logbook::makeAssistant, FixedKey("scripted"), preferences, scope, ScriptedProvider::answer)
-                // A test never reads or replaces the pilot's own key.
-                isUnderTest -> AssistantChat(logbook::makeAssistant, FixedKey(null), preferences, scope)
-                else -> AssistantChat(logbook::makeAssistant, EncryptedKeyStore(app), preferences, scope)
-            }
             val wind = WindModel(
                 remembered = preferences,
                 // A test never asks the server the pilot has set.
                 address = if (isUnderTest) server.orEmpty() else preferences.server,
                 scope = scope,
+            )
+            val chat = AssistantChat(
+                makeAssistant = logbook::makeAssistant,
+                keys = when {
+                    scriptedAssistant -> FixedKey("scripted")
+                    // A test never reads or replaces the pilot's own key.
+                    isUnderTest -> FixedKey(null)
+                    else -> EncryptedKeyStore(app)
+                },
+                preferences = preferences,
+                scope = scope,
+                transport = if (scriptedAssistant) ScriptedProvider::answer else AssistantHttp::send,
+                // The assistant looks up live wind on the same server as
+                // the map, and measures ages against the same clock.
+                server = { (wind.server as? WindServer.Usable)?.url },
+                now = { wind.now },
             )
             return Ready(logbook, fly, vario, chat, wind, preferences, files)
         }

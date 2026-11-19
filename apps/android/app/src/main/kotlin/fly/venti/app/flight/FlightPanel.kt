@@ -33,6 +33,7 @@ import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.Metric
 import fly.venti.core.FlightView
+import fly.venti.core.FlightScore
 import fly.venti.core.TrackPoint
 
 /**
@@ -50,6 +51,8 @@ import fly.venti.core.TrackPoint
 @Composable
 fun FlightPanel(
     flight: FlightView,
+    /** How the flight scores, once that is worked out. */
+    score: FlightScore?,
     cursor: Int?,
     onCursor: (Int?) -> Unit,
     isPlaying: Boolean,
@@ -67,7 +70,7 @@ fun FlightPanel(
             Header(flight, cursor, onCursor, isPlaying, onPlaying, onDetails)
             Spacer(Modifier.height(10.dp))
             val moment = cursor?.let { flight.track.getOrNull(it) }
-            if (moment != null) Moment(flight, moment) else Totals(flight)
+            if (moment != null) Moment(flight, moment) else Totals(flight, score)
             Spacer(Modifier.height(14.dp))
             AltitudeChart(
                 flight = flight,
@@ -134,10 +137,17 @@ private fun subtitle(flight: FlightView): String {
 }
 
 @Composable
-private fun Totals(flight: FlightView) {
+private fun Totals(flight: FlightView, score: FlightScore?) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Metric("Airtime", Format.hoursMinutes(flight.durationS), Modifier.weight(1f), unit = "h")
-        Metric("Track", Format.kilometres(flight.trackLengthM), Modifier.weight(1f), unit = "km")
+        // The scored distance, as in the logbook's list. Until it is
+        // worked out, and for a flight too short to score, the length of
+        // the track.
+        if (score != null) {
+            Metric("Distance", Format.kilometres(score.distanceM), Modifier.weight(1f), unit = "km")
+        } else {
+            Metric("Track", Format.kilometres(flight.trackLengthM), Modifier.weight(1f), unit = "km")
+        }
         Metric("Highest", Format.metres(flight.maxAltitudeM), Modifier.weight(1f), unit = "m")
         Metric("Best climb", Format.climb(flight.maxClimbMs), Modifier.weight(1f), unit = "m/s")
     }

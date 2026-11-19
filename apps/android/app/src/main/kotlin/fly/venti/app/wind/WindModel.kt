@@ -155,13 +155,14 @@ class WindModel(
     val addressNote: String
         get() = when (server) {
             WindServer.None ->
-                "The address of a Venti server. The map shows the wind stations it collects. " +
-                    "Without one the map works, without wind."
+                "The address of a Venti server. The map shows the wind stations it collects, and the " +
+                    "assistant can look them up. Without one, the map has no wind."
             WindServer.Unusable -> "This is not an address the app can use. It should look like wind.example.org."
             WindServer.NeedsEncryption ->
                 "A server on the internet is asked over https only. An address that starts with " +
                     "http:// works for a server on your own network."
-            is WindServer.Usable -> problem ?: "The map shows the wind stations this server collects."
+            is WindServer.Usable ->
+                problem ?: "The map shows the wind stations this server collects, and the assistant can look them up."
         }
 
     /**

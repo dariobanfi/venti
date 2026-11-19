@@ -218,7 +218,7 @@ private fun DrawScope.hours(look: ChartLook, plot: Rect, start: Long, end: Long,
     for (time in Axis.clockTicks(start, end, most = 4)) {
         val at = x(time)
         drawLine(look.grid, Offset(at, plot.top), Offset(at, plot.bottom), 1.dp.toPx())
-        val text = look.measurer.measure(Format.timeOnAxis(time), look.labels)
+        val text = look.measurer.measure(Format.timeOnDayAxis(time), look.labels)
         val left = (at - text.size.width / 2f).coerceIn(plot.left, max(plot.left, plot.right - text.size.width))
         drawText(text, topLeft = Offset(left, plot.bottom + 3.dp.toPx()))
     }

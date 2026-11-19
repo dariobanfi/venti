@@ -41,6 +41,13 @@ object Format {
     fun timeOnAxis(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         at(unixSeconds, if (uses24HourClock) "HH:mm" else "h:mm", zone)
 
+    /**
+     * A time on an axis that spans a day, where a time needs its half of
+     * the day: "18:00", or "6 PM".
+     */
+    fun timeOnDayAxis(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        at(unixSeconds, if (uses24HourClock) "HH:mm" else "h a", zone)
+
     /** Hours and minutes the way pilots log airtime: "0:29", "5:42". */
     fun hoursMinutes(seconds: Long): String {
         val minutes = (seconds / 60.0).roundToLong()

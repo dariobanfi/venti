@@ -8,6 +8,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.AssistantRequest
 import fly.venti.core.HttpHeader
 import fly.venti.core.assistantModels
+import fly.venti.core.serverStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -123,6 +124,79 @@ class AssistantChatTest {
         assertNotNull(chat.problem)
         assertTrue(chat.entries.isEmpty())
         assertFalse(chat.isWorking)
+    }
+
+    @Test
+    fun liveWindIsFetchedFromThePilotsServerWithoutTheKey() = runBlocking {
+        val logbook = makeLogbook()
+        val fetched = Collections.synchronizedList(mutableListOf<String>())
+        val recorded = TestSupport.recordedAnswers
+        // The server's clock when its answers were recorded: 45 minutes
+        // after the Zugspitze's reading.
+        val recordedAt = serverStatus(200.toUShort(), recorded.resolve("health.json").readBytes()).timeUnixS
+        val chat = AssistantChat(
+            logbook::makeAssistant,
+            FixedKey("test-key"),
+            MemoryPreferences(),
+            scope,
+            ScriptedProvider::answer,
+            fetch = { url ->
+                fetched += url
+                HttpAnswer(200, recorded.resolve("stations.json").readBytes())
+            },
+            server = { "https://wind.example.org" },
+            now = { recordedAt },
+        )
+
+        chat.ask("How is the wind on the Zugspitze right now?").join()
+
+        assertNull(chat.problem)
+        assertEquals(2, chat.entries.size)
+        assertEquals(listOf("the wind stations around a place"), chat.entries[1].lookedUp)
+        assertEquals(
+            "Zugspitze: **54 km/h**, from W, gusts 93, measured 45 minutes ago. " +
+                "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+            chat.entries[1].text.substringBefore(";"),
+        )
+        // The server was asked for an area, and for nothing else.
+        assertEquals(1, fetched.size)
+        assertTrue(fetched[0], fetched[0].startsWith("https://wind.example.org/v1/stations?"))
+        assertFalse("test-key" in fetched[0])
+    }
+
+    @Test
+    fun aServerThatCannotBeReachedIsExplainedInTheReply() = runBlocking {
+        val chat = AssistantChat(
+            makeLogbook()::makeAssistant,
+            FixedKey("test-key"),
+            MemoryPreferences(),
+            scope,
+            ScriptedProvider::answer,
+            fetch = { throw IOException("no route to host") },
+            server = { "https://wind.example.org" },
+        )
+
+        chat.ask("How is the wind on the Zugspitze right now?").join()
+
+        // The conversation goes on: the model is told and says so.
+        assertNull(chat.problem)
+        assertTrue(chat.entries.last().text, "could not be looked up" in chat.entries.last().text)
+    }
+
+    @Test
+    fun withoutAServerTheWindToolIsNotOffered() = runBlocking {
+        val seen = Collections.synchronizedList(mutableListOf<AssistantRequest>())
+        val chat = makeChat(
+            transport = { request ->
+                seen += request
+                ScriptedProvider.answer(request)
+            },
+        )
+
+        chat.ask("How was 2026?").join()
+
+        assertTrue(seen.isNotEmpty())
+        assertFalse(seen.any { "wind_stations" in it.body })
     }
 
     @Test

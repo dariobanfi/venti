@@ -32,6 +32,7 @@ import fly.venti.app.logbook.StatisticsScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
 import fly.venti.app.settings.SettingsScreen
+import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -149,7 +150,9 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
                     )
                 }
             }
-            AppTab.Assistant -> kept.SaveableStateProvider("assistant") { AssistantScreen(session.chat, bars) }
+            AppTab.Assistant -> kept.SaveableStateProvider("assistant") {
+                AssistantScreen(session.chat, hasWind = session.wind.server is WindServer.Usable, bars = bars)
+            }
             AppTab.Settings -> if (navigation.isShowingCredits) {
                 CreditsScreen(session.wind, onBack = { navigation.back() })
             } else {

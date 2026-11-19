@@ -1,0 +1,26 @@
+{
+  "id": "msg_01Aq9w938a90dw8q",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-fable-5-2",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "The pilot asks about 2026. I should list that year's flights.",
+      "signature": "EuYBCkQYAiJAexample"
+    },
+    {
+      "type": "text",
+      "text": "I'll look at your 2026 flights."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "list_flights",
+      "input": {"year": 2026}
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {"input_tokens": 1840, "output_tokens": 96}
+}

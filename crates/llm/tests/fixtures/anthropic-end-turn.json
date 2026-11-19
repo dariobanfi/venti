@@ -1,0 +1,15 @@
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-fable-5-2",
+  "content": [
+    {
+      "type": "text",
+      "text": "You flew 14 flights in 2026, 31 hours in the air."
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {"input_tokens": 2105, "output_tokens": 24}
+}

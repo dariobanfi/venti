@@ -7,10 +7,11 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly):
+            case .ready(let logbook, let fly, let chat):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
+                    .environment(chat)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -27,13 +28,24 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession)
+    case ready(LogbookModel, FlySession, AssistantChat)
     case failed(String)
 
     static func start() -> Session {
         do {
             let folder = try LaunchOptions.dataFolder()
-            return .ready(try LogbookModel.open(folder: folder), FlySession(dataFolder: folder))
+            let logbook = try LogbookModel.open(folder: folder)
+            let chat =
+                if LaunchOptions.usesScriptedAssistant {
+                    AssistantChat(
+                        makeAssistant: { model in logbook.makeAssistant(model: model) },
+                        transport: ScriptedProvider.answer,
+                        readKey: { "scripted" }
+                    )
+                } else {
+                    AssistantChat { model in logbook.makeAssistant(model: model) }
+                }
+            return .ready(logbook, FlySession(dataFolder: folder), chat)
         } catch {
             return .failed(error.localizedDescription)
         }
@@ -56,6 +68,10 @@ enum LaunchOptions {
     /// Draw the map from the region bundled with the app instead of fetching
     /// tiles, so a screenshot does not depend on the network.
     static let usesBundledMap = arguments.contains("--bundled-map")
+
+    /// Answer the assistant's requests from a script instead of a provider,
+    /// so its screen can be tested without a key or a network.
+    static let usesScriptedAssistant = arguments.contains("--scripted-assistant")
 
     /// Dark appearance whatever the device is set to, for screenshots.
     /// Normally the app follows the device.

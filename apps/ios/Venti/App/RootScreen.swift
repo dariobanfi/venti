@@ -6,6 +6,7 @@ enum AppTab: Hashable {
     case map
     case fly
     case logbook
+    case assistant
     case settings
 }
 
@@ -47,6 +48,9 @@ struct RootScreen: View {
             }
             Tab("Logbook", systemImage: "book.closed", value: AppTab.logbook) {
                 LogbookScreen()
+            }
+            Tab("Assistant", systemImage: "sparkles", value: AppTab.assistant) {
+                AssistantScreen()
             }
             Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                 SettingsScreen()

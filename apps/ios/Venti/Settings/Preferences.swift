@@ -6,4 +6,6 @@ enum Preferences {
     static let glider = "VentiGliderName"
     /// Whether the vario is silent.
     static let varioMuted = "VentiVarioMuted"
+    /// The model the assistant uses.
+    static let assistantModel = "VentiAssistantModel"
 }

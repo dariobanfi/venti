@@ -1,0 +1,15 @@
+[package]
+name = "venti-llm"
+description = "Talks to the language model providers the pilot's own account pays for. Builds requests and reads replies; does no I/O."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

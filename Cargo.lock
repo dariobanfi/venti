@@ -2620,7 +2620,9 @@ dependencies = [
  "uniffi",
  "venti-domain",
  "venti-flight",
+ "venti-llm",
  "venti-sensors",
+ "venti-tools",
  "wasm-bindgen",
 ]
 
@@ -2653,6 +2655,14 @@ dependencies = [
  "chrono",
  "thiserror",
  "venti-domain",
+]
+
+[[package]]
+name = "venti-llm"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -2748,6 +2758,14 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "venti-domain",
+]
+
+[[package]]
+name = "venti-tools"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

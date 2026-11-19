@@ -73,11 +73,16 @@ fn crate_dependencies_point_inward() {
             "venti-sources" | "venti-flight" | "venti-sensors" | "venti-api-types"
             | "venti-store" => Some(&["venti-domain"]),
             "venti-regions" => Some(&["venti-domain", "venti-sources"]),
+            // The assistant's two crates stand alone: they know JSON and
+            // HTTP shapes, nothing about flying or about this app's data.
+            "venti-llm" | "venti-tools" => Some(&[]),
             "venti-core" => Some(&[
                 "venti-domain",
                 "venti-flight",
                 "venti-sensors",
                 "venti-api-types",
+                "venti-llm",
+                "venti-tools",
             ]),
             "venti-core-wasm" => Some(&["venti-core"]),
             provider if is_provider(provider) => Some(&["venti-domain", "venti-sources"]),

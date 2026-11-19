@@ -125,6 +125,12 @@ final class LogbookModel {
         }.value
     }
 
+    /// A new conversation with the assistant, which answers from this
+    /// logbook.
+    func makeAssistant(model: String) -> Assistant {
+        core.assistant(model: model)
+    }
+
     /// The logbook looked at as a whole: months, gliders, bests.
     func statistics() -> LogbookStatistics {
         core.statistics()

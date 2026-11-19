@@ -167,6 +167,30 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("settings-2-credits")
     }
 
+    /// The assistant, with the provider played by a script: the real tool
+    /// loop runs against the logbook, but no key and no network are used.
+    func testTheAssistantAnswersFromTheLogbook() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--bundled-map", "--scripted-assistant"]
+        app.launch()
+
+        app.tabBars.buttons["Logbook"].tap()
+        app.buttons["Add a sample flight"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
+
+        app.tabBars.buttons["Assistant"].tap()
+        let question = app.buttons["How was my flying this year?"]
+        XCTAssertTrue(question.waitForExistence(timeout: 15))
+        keepScreenshot("assistant-1-start")
+        question.tap()
+
+        XCTAssertTrue(labelled(containing: "Your logbook has one flight", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "Looked up your list of flights", in: app).exists)
+        sleep(1)
+        keepScreenshot("assistant-2-answer")
+    }
+
     /// The same screens with tiles fetched from the public servers, as a
     /// pilot's phone draws them. Only the screenshots matter here: the test
     /// does not fail when the network is slow.

@@ -20,9 +20,13 @@ const WINDOW_S: f64 = 40.0;
 const SECTORS: usize = 12;
 const SECTORS_NEEDED: usize = 10;
 
-/// The glider counts as still turning if its direction of travel has passed
-/// through two sectors within this many seconds.
-const STILL_TURNING_S: f64 = 6.0;
+/// The glider is turning while its direction of travel changes at least
+/// this fast, in degrees per second. A circle in a thermal turns at 12 to
+/// 24; straight flight wanders by one or two.
+const TURNING_DEG_PER_S: f64 = 4.0;
+
+/// This many samples in a row below that rate end a turn.
+const STRAIGHT_SAMPLES_END_TURN: u32 = 3;
 
 /// Estimates the wind while the glider circles.
 ///
@@ -33,11 +37,17 @@ const STILL_TURNING_S: f64 = 6.0;
 /// estimator fits that circle to the last 40 seconds of ground velocity.
 /// It needs no compass and no airspeed sensor.
 ///
-/// Straight flight tells it nothing, so the estimate stays as it was until
-/// the next circle.
+/// Straight flight tells it nothing, and fitted together with part of a
+/// circle it would give a wrong wind. So only one unbroken stretch of
+/// turning is ever fitted, and the estimate stays as it was from the moment
+/// the glider straightens out until it has nearly completed its next circle.
 #[derive(Debug, Clone, Default)]
 pub struct WindEstimator {
     samples: VecDeque<(f64, f64, f64)>,
+    /// The time span of the current stretch of turning: from its first
+    /// sample to its latest. `None` in straight flight.
+    turn: Option<(f64, f64)>,
+    straight_samples: u32,
     estimate: Option<Wind>,
 }
 
@@ -50,6 +60,23 @@ impl WindEstimator {
     /// Takes one ground velocity: its east and north parts in metres per
     /// second, and when it was measured.
     pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) {
+        if let Some(&(last_time, last_east, last_north)) = self.samples.back() {
+            let course = |east: f64, north: f64| east.atan2(north).to_degrees();
+            let turned = (course(east_ms, north_ms) - course(last_east, last_north) + 540.0)
+                .rem_euclid(360.0)
+                - 180.0;
+            let seconds = time_s - last_time;
+            let moving = east_ms.hypot(north_ms) > 1.0 && last_east.hypot(last_north) > 1.0;
+            if moving && seconds > 0.0 && turned.abs() / seconds >= TURNING_DEG_PER_S {
+                self.turn = Some((self.turn.map_or(last_time, |(since, _)| since), time_s));
+                self.straight_samples = 0;
+            } else {
+                self.straight_samples += 1;
+                if self.straight_samples >= STRAIGHT_SAMPLES_END_TURN {
+                    self.turn = None;
+                }
+            }
+        }
         self.samples.push_back((time_s, east_ms, north_ms));
         while self
             .samples
@@ -69,35 +96,34 @@ impl WindEstimator {
     }
 
     fn fit(&self) -> Option<Wind> {
-        let sector = |east: f64, north: f64| {
-            let course = east.atan2(north).to_degrees().rem_euclid(360.0);
-            (course / (360.0 / SECTORS as f64)) as usize % SECTORS
-        };
-        let latest = self.samples.back()?.0;
-        let (mut covered, mut recent) = ([false; SECTORS], [false; SECTORS]);
-        for &(time, east, north) in &self.samples {
+        // Only the current stretch of turning, up to its latest turning
+        // sample: nothing from before it began or after it faltered.
+        let (since, until) = self.turn?;
+        let samples: Vec<(f64, f64, f64)> = self
+            .samples
+            .iter()
+            .copied()
+            .filter(|&(time, _, _)| time >= since && time <= until)
+            .collect();
+
+        let mut covered = [false; SECTORS];
+        for &(_, east, north) in &samples {
             if east.hypot(north) > 1.0 {
-                covered[sector(east, north)] = true;
-                if time >= latest - STILL_TURNING_S {
-                    recent[sector(east, north)] = true;
-                }
+                let course = east.atan2(north).to_degrees().rem_euclid(360.0);
+                covered[(course / (360.0 / SECTORS as f64)) as usize % SECTORS] = true;
             }
         }
-        let count = |sectors: [bool; SECTORS]| sectors.iter().filter(|&&hit| hit).count();
-        // Nearly a full circle in view, and still turning now: once the
-        // glider straightens out, its straight flight would be fitted too
-        // and pull the estimate away.
-        if count(covered) < SECTORS_NEEDED || count(recent) < 2 {
+        if covered.iter().filter(|&&sector| sector).count() < SECTORS_NEEDED {
             return None;
         }
 
         // Least-squares circle through the velocity points: find D, E, F
         // minimising the sum of (x² + y² + Dx + Ey + F)². That is linear in
         // D, E and F, so it reduces to three equations.
-        let n = self.samples.len() as f64;
+        let n = samples.len() as f64;
         let (mut sx, mut sy, mut sxx, mut syy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
         let (mut sxz, mut syz, mut sz) = (0.0, 0.0, 0.0);
-        for &(_, x, y) in &self.samples {
+        for &(_, x, y) in &samples {
             let z = x * x + y * y;
             sx += x;
             sy += y;
@@ -120,8 +146,7 @@ impl WindEstimator {
         if !(4.0..=25.0).contains(&airspeed) {
             return None;
         }
-        let misfit = (self
-            .samples
+        let misfit = (samples
             .iter()
             .map(|&(_, x, y)| ((x - centre_east).hypot(y - centre_north) - airspeed).powi(2))
             .sum::<f64>()
@@ -232,15 +257,15 @@ mod tests {
             estimator.add(f64::from(second), 11.0, 4.0);
         }
         assert!((in_thermal.from_deg - 180.0).abs() < 1.0);
-        // The first seconds of straight flight still count as turning and
-        // nudge the estimate; after that it stays put.
+        // Only the sample on which the glider rolled out still counts as
+        // turning; after that nothing is fitted and the estimate holds.
         let on_glide = estimator.wind().unwrap();
         assert!(
-            (on_glide.from_deg - in_thermal.from_deg).abs() < 5.0,
+            (on_glide.from_deg - in_thermal.from_deg).abs() < 2.0,
             "{on_glide:?}"
         );
         assert!(
-            (on_glide.speed_ms - in_thermal.speed_ms).abs() < 0.4,
+            (on_glide.speed_ms - in_thermal.speed_ms).abs() < 0.1,
             "{on_glide:?}"
         );
     }

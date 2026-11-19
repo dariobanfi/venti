@@ -24,6 +24,7 @@ use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
 mod analysis;
+mod assistant;
 mod cockpit;
 mod export;
 mod logbook;
@@ -33,6 +34,7 @@ mod storage;
 mod testing;
 
 pub use analysis::*;
+pub use assistant::*;
 pub use cockpit::*;
 pub use export::*;
 pub use statistics::*;

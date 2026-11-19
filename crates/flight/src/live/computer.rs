@@ -732,7 +732,12 @@ mod tests {
         let after = &states[380];
         assert!(!after.circling);
         assert!(after.thermal.unwrap().gain_m > 550.0);
-        assert!(after.wind.is_some());
+        let later = after.wind.unwrap();
+        assert!((later.from_deg - 270.0).abs() < 8.0, "{later:?}");
+        assert!((later.speed_ms - 3.0).abs() < 0.5, "{later:?}");
+        // And it holds through the long glide, until the next thermal.
+        let before_next = states[700].wind.unwrap();
+        assert!((before_next.speed_ms - 3.0).abs() < 0.5, "{before_next:?}");
     }
 
     #[test]

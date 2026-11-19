@@ -35,6 +35,7 @@ Every push that touches the app also builds it for a real iPhone without a signa
 | `Venti/Flight/` | One flight: map, panel, altitude chart, details sheet. |
 | `Venti/Fly/` | The cockpit: the Fly tab, the cockpit screen and its map, and the sensors (position, pressure, Bluetooth vario, vario sound). |
 | `Venti/Map/` | The map tab, the shared map setup and the style preparation. |
+| `Venti/Assistant/` | The assistant: the chat screen, sending requests, the key in the Keychain. |
 | `Venti/Settings/` | The settings tab and the credits. |
 | `Venti/Assets.xcassets/` | The app icon, drawn by `tools/app-icon/make_icon.py`. |
 | `Venti/Info.plist` | Declares the flight-file type the app opens. Xcode generates the rest. |
@@ -55,6 +56,7 @@ Every push that touches the app also builds it for a real iPhone without a signa
 - **Map.** A terrain map with every logbook flight on it and, on request, your position.
 - **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment, with the screen off too, and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.
 
+- **Assistant.** Ask about your own flying ("how was my season?", "where were my strongest thermals?"). It runs on your own Anthropic API key, which you paste in once and which stays in the iPhone's Keychain; your questions and what it looks up in your logbook go from the phone to Anthropic and are billed to your account. It cannot see weather, sites or airspace yet. It has only ever talked to a scripted stand-in in tests: the first conversation with the real service is yours.
 - **Settings.** Your name and glider, which go into the flights you record; the vario sound; and the credits for the map data.
 
 To connect a vario, open Fly, tap "Vario" and choose it from the list while it is switched on. Once connected, the same sheet shows the last lines it sent and has "Share a report": if the cockpit shows no climb from your vario, that report says why.

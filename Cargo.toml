@@ -19,6 +19,8 @@ venti-sources-geosphere = { path = "crates/sources-geosphere" }
 venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
 venti-sensors = { path = "crates/sensors" }
+venti-llm = { path = "crates/llm" }
+venti-tools = { path = "crates/tools" }
 venti-core = { path = "crates/core" }
 
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }

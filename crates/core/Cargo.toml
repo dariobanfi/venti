@@ -19,7 +19,9 @@ wasm = ["dep:tsify", "dep:wasm-bindgen"]
 [dependencies]
 venti-domain.workspace = true
 venti-flight.workspace = true
+venti-llm.workspace = true
 venti-sensors.workspace = true
+venti-tools.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true

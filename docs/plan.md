@@ -89,7 +89,7 @@ Phases are ordered so that each one is useful to a single pilot before the commu
 | **2 Review** | Logbook, import, analysis, 3D replay, share pages. Started early, on the device only: the iOS app imports flight files into a logbook, shows a flight on the map with its altitude profile, and lists its thermals and glides, scores it by the World XContest's rules, and keeps statistics by month and glider with the pilot's bests. 3D replay, comparison and share pages are not built. | The owner's full flight history is in it |
 | **3 Fly** | Recorder and cockpit on iOS with offline maps, Bluetooth vario and live tracking. Started: the cockpit, recorder, vario sound and Bluetooth vario link are built and tested by replaying a flight; they have not flown, and offline maps, airspace, navigation and live tracking are not built. | Ten cross-country flights as primary instrument without a lost track |
 | **4 Community** | Profiles, feed, groups, flying-today board, events; closed beta | The owner's group plans a flying day in it |
-| **5 Assistant in flight** | In-app assistant, voice, proactive alerts, landing-plus-transit planner | Used for a real retrieve |
+| **5 Assistant in flight** | In-app assistant, voice, proactive alerts, landing-plus-transit planner. Started: the in-app assistant answers questions about the pilot's logbook on the pilot's own Anthropic key. It has been tested against a scripted provider only, never against the real service. | Used for a real retrieve |
 | **6 Breadth** | Android app, route and hike & fly planners, leagues, competition tasks, whole Alps | |
 
 Android follows iOS one phase behind once the shell patterns are settled. The cockpit must be testable on the ground by the time thermals return in March 2027.

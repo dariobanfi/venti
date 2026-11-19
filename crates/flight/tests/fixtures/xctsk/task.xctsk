@@ -1,0 +1,9 @@
+{"taskType":"CLASSIC","version":1,"earthModel":"WGS84","turnpoints":[
+{"type":"TAKEOFF","radius":400,"waypoint":{"name":"T01","description":"Launch","lat":47.0,"lon":11.0,"altSmoothed":1500}},
+{"type":"SSS","radius":3000,"waypoint":{"name":"B02","lat":47.05,"lon":11.1,"altSmoothed":900}},
+{"radius":1000,"waypoint":{"name":"B03","lat":47.2,"lon":11.3,"altSmoothed":1200}},
+{"type":"ESS","radius":2000,"waypoint":{"name":"A04","lat":47.1,"lon":11.5,"altSmoothed":600}},
+{"radius":400,"waypoint":{"name":"A04","lat":47.1,"lon":11.5,"altSmoothed":600}}],
+"takeoff":{"timeOpen":"09:00:00Z","timeClose":"11:30:00Z"},
+"sss":{"type":"RACE","direction":"EXIT","timeGates":["10:30:00Z","10:50:00Z"]},
+"goal":{"type":"LINE","deadline":"16:00:00Z"}}

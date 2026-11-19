@@ -2799,7 +2799,11 @@ dependencies = [
 name = "venti-flight"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
+ "flate2",
+ "serde",
+ "serde_json",
  "sha2",
  "thiserror",
  "venti-domain",

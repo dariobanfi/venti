@@ -1,0 +1,1 @@
+XCTSK:{"g":{"d":"16:00:00Z","t":1},"s":{"d":2,"g":["10:30:00Z","10:50:00Z"],"t":1},"t":[{"d":"Launch","n":"T01","z":"_mcbA_uz}Gw|A_X"},{"n":"B02","t":2,"z":"_~vbAomd~Ggw@ozD"},{"n":"B03","z":"_`~cA_wa_H_jAo}@"},{"n":"A04","t":3,"z":"_beeA_fn~God@_|B"},{"n":"A04","z":"_beeA_fn~God@_X"}],"taskType":"CLASSIC","tc":"11:30:00Z","to":"09:00:00Z","version":2}

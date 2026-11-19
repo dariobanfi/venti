@@ -29,6 +29,7 @@ venti-tools = { path = "crates/tools" }
 venti-core = { path = "crates/core" }
 
 argon2 = "0.6.0"
+base64 = "0.22.1"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
 deadpool-postgres = "0.14.2"

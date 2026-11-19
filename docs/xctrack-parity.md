@@ -133,8 +133,8 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 | Waypoint files: CompeGPS, UTM, GpsDump GEO, OziExplorer, SeeYou `.cup`, XCSoar/WinPilot `.dat` *(official)* | v1: `.cup` and GEO `.wpt`; others Later |
 | Live XContest scoring: free distance, flat triangle, FAI triangle, with configurable coefficients and closing distance | v1 |
 | Glide range marks on map and side view, from actual and configured glide ratio with wind | v1 |
-| Competition tasks: cylinders, start of speed section with race or elapsed-time start and time gates, end of speed section, goal cylinder or line, elevated goal, optimised route | Later |
-| Task exchange in the open `.xctsk` format: JSON file, compact QR form (`XCTSK:`), compressed form (`XCTSKZ:`) *(official)* | Later; we implement the published format so tasks are interchangeable with XCTrack, Flyskyhy and Naviter devices |
+| Competition tasks: cylinders, start of speed section with race or elapsed-time start and time gates, end of speed section, goal cylinder or line, elevated goal, optimised route | Later in the cockpit. The engine is built and tested (`venti-flight`, `task`): it measures a task along its shortest way, follows a flight through it by the rules of the FAI Sporting Code, Section 7F, and says where to fly next, how far it is to the end of the speed section and to goal, and what the start gate asks for. Going back for a later start and stopped tasks are not followed. No screen uses it yet |
+| Task exchange in the open `.xctsk` format: JSON file, compact QR form (`XCTSK:`), compressed form (`XCTSKZ:`) *(official)* | Built in the engine: all four forms are read and written, and checked against what XCTrack's own task tool writes for the same task. No screen reads a file or a QR code yet |
 | Navigate toward a chosen live pilot (1.0) | Later |
 
 ## Maps and terrain

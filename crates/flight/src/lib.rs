@@ -7,10 +7,12 @@
 //!
 //! So far it reads and writes IGC flight files, says what makes two of them
 //! the same flight, summarises and analyses a track, prepares it for
-//! drawing, and runs the live flight computer.
+//! drawing, runs the live flight computer, and reads, measures and follows
+//! competition tasks.
 
 pub mod analysis;
 pub mod fai;
+pub mod geodesy;
 mod identity;
 pub mod igc;
 mod summary;
@@ -23,3 +25,4 @@ pub use summary::{FlightSummary, summarise};
 pub mod live;
 pub mod scoring;
 pub mod sun;
+pub mod task;

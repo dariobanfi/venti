@@ -9,13 +9,27 @@
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
+		# Unless the server chose one itself. It does for the pages of
+		# shared flights: the link to an unlisted flight is the key to it
+		# and must not travel to other sites in the Referer header.
+		?Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
 
 	# The API. The server compresses its own answers and sets their cache
 	# headers, so nothing is added here.
+	#
+	# The server counts sign-in attempts by client address. Caddy tells it
+	# the address in X-Forwarded-For, which it writes itself and does not
+	# take over from the client; the server believes that header from this
+	# container's address only (VENTI_TRUSTED_PROXIES in docker-compose.yml).
 	handle /v1/* {
+		reverse_proxy server:8080
+	}
+
+	# The page a link to a flight shows, and its preview picture. The server
+	# renders both, with headers of its own.
+	handle /f/* {
 		reverse_proxy server:8080
 	}
 

@@ -68,6 +68,22 @@ jobs:
           curl --silent --fail http://127.0.0.1:8080/v1/health
           curl --silent --fail 'http://127.0.0.1:8080/v1/stations?bbox=9.4,46.3,17.2,48.5' | jq --exit-status '.stations | length == 6'
           curl --silent --fail http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations | jq --exit-status '.observations | length > 100'
+      - name: Ask for the demo account's flights, upload one and fetch its share page
+        run: |
+          token=venti_0000000000000000000000000000000000000000000000000000
+          curl --silent --fail --header "Authorization: Bearer $token" \
+            http://127.0.0.1:8080/v1/flights | jq --exit-status '.flights | length == 3'
+          # An upload is analysed by a child process of the server, as the
+          # user the image runs as. The bundled sample is one of the demo
+          # flights, so the answer is that it is already there.
+          curl --silent --fail --header "Authorization: Bearer $token" \
+            --data-binary @apps/ios/Venti/Resources/sample.igc \
+            http://127.0.0.1:8080/v1/flights \
+            | jq --exit-status '.created == false and .flight.identity == "6c55247b80a34b03fa0bb3bd38173c59"'
+          shared=$(curl --silent --fail http://127.0.0.1:8080/v1/pilots/demo | jq --raw-output '.flights[0].id')
+          curl --silent --fail "http://127.0.0.1:8080/f/$shared" | grep --quiet 'property="og:image"'
+          curl --silent --fail --output preview.png "http://127.0.0.1:8080/f/$shared/preview.png"
+          file preview.png | grep 'PNG image data, 1200 x 630'
       - name: Show the server's log
         if: always()
         run: docker logs venti

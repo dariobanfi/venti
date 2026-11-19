@@ -1,7 +1,8 @@
 # Venti on one Linux server.
 #
 #   caddy   TLS, the web app's static files, map tiles, and the way in to the API
-#   server  venti-server: collects the data sources, serves /v1
+#   server  venti-server: collects the data sources, keeps accounts and
+#           flights, serves /v1 and the share pages under /f
 #   db      PostgreSQL with PostGIS, the only database
 #
 # Only caddy is reachable from outside. Settings and the database password
@@ -22,6 +23,11 @@ services:
       - "443:443/udp" # HTTP/3
     environment:
       VENTI_SITE_ADDRESS: ${VENTI_SITE_ADDRESS:?set VENTI_SITE_ADDRESS in .env}
+    # A fixed address, so that the server can be told exactly whose word on
+    # a client's address to believe.
+    networks:
+      default:
+        ipv4_address: ${VENTI_NETWORK:-172.30.250}.2
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates and keys. Losing this volume means asking for new
@@ -49,6 +55,12 @@ services:
       VENTI_LOG_LEVEL: ${VENTI_LOG_LEVEL:-}
       VENTI_OBSERVATION_MONTHS: ${VENTI_OBSERVATION_MONTHS:-}
       VENTI_ARCHIVE_DAYS: ${VENTI_ARCHIVE_DAYS:-}
+      VENTI_REGISTRATION: ${VENTI_REGISTRATION:-}
+      VENTI_PUBLIC_URL: ${VENTI_PUBLIC_URL:-}
+      # Every request reaches the server through Caddy, so every connection
+      # comes from Caddy's address. Only from there is X-Forwarded-For
+      # believed; see the Caddyfile.
+      VENTI_TRUSTED_PROXIES: ${VENTI_NETWORK:-172.30.250}.2
     volumes:
       - archive:/var/lib/venti/archive
     # A run in flight is dropped on shutdown and repeated after the restart,
@@ -73,6 +85,16 @@ services:
       timeout: 5s
       retries: 20
     stop_grace_period: 60s
+
+# The services' own network. Caddy has the address that ends in .2 and
+# keeps it; the other two get theirs from the upper half of the range, so
+# that none of them can be handed Caddy's.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${VENTI_NETWORK:-172.30.250}.0/24
+          ip_range: ${VENTI_NETWORK:-172.30.250}.128/25
 
 volumes:
   db-data:

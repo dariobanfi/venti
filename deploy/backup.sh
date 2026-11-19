@@ -14,6 +14,11 @@
 #     VENTI_BACKUP_DIR        where dumps go        (default: ./backups)
 #     VENTI_BACKUP_KEEP_DAYS  days a dump is kept   (default: 14)
 #
+# The database is everything that cannot be made again: pilots' accounts and
+# their flight files are in it, beside the collected observations. So one
+# dump is a complete backup, and each dump holds personal data and password
+# hashes: the backup folder is readable by its owner only.
+#
 # The dumps are on the same machine as the database. That protects against a
 # bad migration or a mistaken delete, not against losing the machine: copy
 # the backup folder somewhere else as well.

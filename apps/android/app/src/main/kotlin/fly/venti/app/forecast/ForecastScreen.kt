@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -90,12 +91,18 @@ fun ForecastSheet(place: Coordinate, wind: WindModel, onDismiss: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        ForecastPage(
-            ForecastPlace(Format.place(place.lat, place.lon), place),
-            wind,
-            onBack = null,
-            onDone = onDismiss,
-        )
+        // As tall as the sheet can be from the start. A sheet stops at half
+        // height only when what it holds is taller than that, and it holds
+        // little while the forecast is being fetched: it would open at its
+        // full height then, and stay there once the table is in it.
+        Box(Modifier.fillMaxHeight()) {
+            ForecastPage(
+                ForecastPlace(Format.place(place.lat, place.lon), place),
+                wind,
+                onBack = null,
+                onDone = onDismiss,
+            )
+        }
     }
 }
 

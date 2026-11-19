@@ -1783,6 +1783,19 @@ mod tests {
         assert!(!view.circling);
         assert_eq!(view.lift, None);
         assert_eq!(view.thermals.len(), 1);
+        // The wind the circles gave still stands on the glide. A flight
+        // file's positions are rounded to two metres, which makes every
+        // second of straight flight look like a small change of velocity:
+        // none of that may be taken for circling and fitted.
+        for seconds in [345.0, 350.0, 360.0, 380.0, 450.0, 600.0] {
+            let folder = TempFolder::new();
+            let (session, replay) = fly(&folder, seconds, false);
+            let wind = session.view(replay.now()).wind.unwrap();
+            assert!(
+                (wind.from_deg - 270.0).abs() < 8.0 && (wind.speed_ms - 3.0).abs() < 0.5,
+                "{seconds} s: {wind:?}"
+            );
+        }
         let mark = &view.thermals[0];
         assert!(mark.gain_m > 500.0, "{mark:?}");
         assert!(mark.label.starts_with("+2."), "{mark:?}");

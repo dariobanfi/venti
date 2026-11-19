@@ -34,9 +34,19 @@ const SECTORS_NEEDED: usize = 10;
 /// and its track never points into the wind at all.
 const TURNING_MS2: f64 = 0.7;
 
-/// The change of velocity is taken over at least this long, seconds, so
-/// that a receiver reporting ten times a second is not judged by its noise.
-const TURN_STEP_S: f64 = 0.9;
+/// The change of velocity is taken over this long, seconds: each velocity
+/// is held against the one from four seconds before. From one second to
+/// the next a velocity worked out from a recorder's positions, which are
+/// rounded to two metres, changes by more than a metre per second with the
+/// glider flying dead straight, and every second of a glide would count as
+/// turning. Over four seconds that noise is a quarter as large, and a
+/// circle's change is as large as ever. A turn that goes all the way
+/// around in four seconds, which no glider flies in a thermal, is not seen.
+///
+/// What is found is known of the middle of those four seconds: a turn is
+/// dated from two seconds before it shows to two seconds before it stops
+/// showing, and the fit runs two seconds behind the glider.
+const TURN_BASELINE_S: f64 = 4.0;
 
 /// This many samples in a row below that rate end a turn.
 const STRAIGHT_SAMPLES_END_TURN: u32 = 3;
@@ -107,14 +117,15 @@ impl WindEstimator {
             .samples
             .iter()
             .rev()
-            .find(|&&(time, _, _)| time <= time_s - TURN_STEP_S)
-            .or(self.samples.front())
+            .find(|&&(time, _, _)| time <= time_s - TURN_BASELINE_S)
             .copied();
         if let Some((last_time, last_east, last_north)) = before {
             let seconds = time_s - last_time;
             let change = (east_ms - last_east).hypot(north_ms - last_north);
-            if seconds > 0.0 && change / seconds >= TURNING_MS2 {
-                self.turn = Some((self.turn.map_or(last_time, |(since, _)| since), time_s));
+            if change / seconds >= TURNING_MS2 {
+                // Known of the middle of the stretch looked at.
+                let middle = time_s - seconds / 2.0;
+                self.turn = Some((self.turn.map_or(middle, |(since, _)| since), middle));
                 self.straight_samples = 0;
             } else {
                 self.straight_samples += 1;
@@ -413,6 +424,46 @@ mod tests {
             );
         }
         assert_eq!(estimator.wind(), None);
+    }
+
+    #[test]
+    fn rough_velocities_on_the_glide_are_not_taken_for_more_circling() {
+        // Velocities worked out from a recorder's positions, which are
+        // rounded to two metres: off by up to a metre per second in each
+        // part, every second, in the circles and on the glide alike.
+        let mut estimator = WindEstimator::new();
+        let mut seed = 2026;
+        for second in 0..84 {
+            let heading = TAU * f64::from(second) / 28.0;
+            estimator.add(
+                f64::from(second),
+                9.5 * heading.sin() + 3.0 + noise(&mut seed),
+                9.5 * heading.cos() + noise(&mut seed),
+            );
+        }
+        let in_thermal = estimator.wind().unwrap();
+        assert!((in_thermal.from_deg - 270.0).abs() < 8.0, "{in_thermal:?}");
+        assert!((in_thermal.speed_ms - 3.0).abs() < 0.5, "{in_thermal:?}");
+
+        // The glide: faster through the air than the circles were, as a
+        // glide is. Fitted together with them it would give another wind.
+        let mut measured_late = 0;
+        for second in 84..400 {
+            let fix = estimator.add(
+                f64::from(second),
+                -9.5 + 3.0 + noise(&mut seed),
+                9.0 + noise(&mut seed),
+            );
+            if second > 90 && fix.is_some() {
+                measured_late += 1;
+            }
+            let wind = estimator.wind().unwrap();
+            assert!(
+                (wind.from_deg - 270.0).abs() < 10.0 && (wind.speed_ms - 3.0).abs() < 0.6,
+                "second {second}: {wind:?}"
+            );
+        }
+        assert_eq!(measured_late, 0);
     }
 
     #[test]

@@ -21,7 +21,7 @@ struct CockpitScreen: View {
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
-                CockpitMap(view: view, way: fly.way, airspace: fly.airspace())
+                CockpitMap(view: view, way: fly.way, airspace: fly.airspace(), route: fly.score?.route ?? [])
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
                     // labels made reading the screen by code or by VoiceOver
@@ -147,6 +147,12 @@ private struct StatusLine: View {
                 .accessibilityValue(
                     "\(Format.kilometres(metres: score.distanceM)) kilometres, \(Self.kindWords(score))"
                 )
+                // An open triangle: how far it is to where it began.
+                if let gap = score.closingM, !score.closed, gap >= 100 {
+                    Text("\(Format.kilometres(metres: gap)) to close")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             if positionIsLost {

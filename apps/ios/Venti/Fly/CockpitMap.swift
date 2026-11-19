@@ -13,6 +13,8 @@ struct CockpitMap: UIViewRepresentable {
     var way: WayToTarget?
     /// The pilot's airspace, to draw what lies around the glider.
     var airspace: AirspaceSet?
+    /// The route the flight scores along so far.
+    var route: [Coordinate] = []
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -33,6 +35,7 @@ struct CockpitMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.airspace = airspace
+        context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
 
@@ -43,6 +46,8 @@ struct CockpitMap: UIViewRepresentable {
 
         private var isStyleLoaded = false
         private var shown: CockpitView?
+        private var route: [Coordinate] = []
+        private var drawnRoute: [Coordinate]?
         /// The pilot's airspace, and where it was last drawn around.
         var airspace: AirspaceSet?
         private var airspaceDrawnAt: Coordinate?
@@ -53,6 +58,14 @@ struct CockpitMap: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
+
+            // The route the flight scores along: a thin line in the accent
+            // colour, under everything that moves.
+            let scored = MLNShapeSource(identifier: "cockpit-route", shape: nil, options: nil)
+            style.addSource(scored)
+            let legs = MapSetup.line("cockpit-route-line", from: scored, color: Palette.accentOnMap, width: 1.5)
+            legs.lineOpacity = NSExpression(forConstantValue: 0.7)
+            style.addLayer(legs)
 
             // The line to the place being flown to, added next so that it
             // lies under the trail and the glider.
@@ -98,10 +111,25 @@ struct CockpitMap: UIViewRepresentable {
             )
 
             isStyleLoaded = true
+            drawnRoute = nil
+            show(route, on: mapView)
             if let shown {
                 self.shown = nil
                 show(shown, way: nil, on: mapView)
             }
+        }
+
+        /// Draws the scored route when it has changed: every half minute.
+        func show(_ route: [Coordinate], on map: MLNMapView) {
+            self.route = route
+            guard isStyleLoaded, route != drawnRoute,
+                  let source = map.style?.source(withIdentifier: "cockpit-route") as? MLNShapeSource
+            else { return }
+            drawnRoute = route
+            let corners = route.map(\.location)
+            source.shape = corners.count >= 2
+                ? MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                : nil
         }
 
         /// Redraws when the glider has moved, about once a second, or when

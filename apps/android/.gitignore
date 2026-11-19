@@ -1,0 +1,12 @@
+# Gradle's working files and everything it builds, the generated Kotlin
+# interface of the Rust core and the compiled core included.
+.gradle/
+build/
+# Where the Android SDK is on this machine.
+local.properties
+# Android Studio's project files.
+.idea/
+*.iml
+# Never commit a signing key.
+*.jks
+*.keystore

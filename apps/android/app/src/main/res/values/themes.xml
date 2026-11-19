@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the window looks like before Compose has drawn anything: the app's
+  background colour and no title bar. Everything after that is the Material 3
+  theme in design/Theme.kt.
+-->
+<resources>
+    <color name="window_background">#FDFBFF</color>
+
+    <style name="Theme.Venti" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

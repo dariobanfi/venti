@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Map tiles are fetched until the app can keep a region on the phone. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The pilot's position, on the map and to record a flight. Android
+         wants the approximate one named beside the precise one. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Recording carries on with the screen off: a foreground service of
+         the location kind, its notification, and a processor kept awake. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- The Bluetooth vario. From Android 12 Bluetooth has permissions of
+         its own, and searching for devices is declared as not being used
+         to find out where the phone is. Before that it went by the older
+         pair and the position permission. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- None of these is needed to keep a logbook, so a phone or tablet
+         without them can still install the app. -->
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.sensor.barometer"
+        android:required="false" />
+
+    <!-- No backup to the cloud: the app tells the pilot that flights stay
+         on the phone. The two rule files say so, one for each way Android
+         has had of asking; from Android 12 a move straight to a new phone
+         takes the logbook along. -->
+    <application
+        android:name=".VentiApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Venti">
+
+        <!-- One screen-holder for the whole app, in portrait for now: the
+             flight screen and the cockpit are laid out for it. A file
+             opened from another app comes to the instance already open. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- "Open with Venti" for an IGC flight file. Android knows no
+                 type for them, so apps name one of these, or say "a file of
+                 some kind". -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.fai.igc" />
+                <data android:mimeType="application/x-igc" />
+                <data android:mimeType="application/igc" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- Apps that give no type but a name ending in .igc. The
+                 pattern is repeated because Android's matcher stops at the
+                 first dot of a path. -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.igc" />
+                <data android:pathPattern=".*\\.IGC" />
+                <data android:pathPattern=".*\\..*\\.igc" />
+                <data android:pathPattern=".*\\..*\\.IGC" />
+                <data android:pathPattern=".*\\..*\\..*\\.igc" />
+                <data android:pathPattern=".*\\..*\\..*\\.IGC" />
+            </intent-filter>
+
+            <!-- A flight file, or several, shared to Venti. -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.fai.igc" />
+                <data android:mimeType="application/x-igc" />
+                <data android:mimeType="application/igc" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
+        <!-- Keeps a flight being recorded with the screen off. -->
+        <service
+            android:name=".fly.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- Hands a flight's file to the app the pilot shares it with. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files" />
+        </provider>
+    </application>
+</manifest>

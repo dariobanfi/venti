@@ -1,0 +1,193 @@
+package fly.venti.app.fly
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import fly.venti.app.pilotMessage
+import fly.venti.app.settings.Preferences
+import fly.venti.core.CockpitView
+import fly.venti.core.FlightSession
+import fly.venti.core.PendingRecording
+import fly.venti.core.Replay
+import fly.venti.core.ToneView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import java.io.File
+
+/**
+ * The phone's sensors, as a flying session needs them: the position, the
+ * pressure sensor and the Bluetooth vario, each reporting straight into the
+ * core's session with the time of its reading.
+ */
+interface FlightSensors {
+    /** Switches the sensors on. `onProblem` is called with words for the pilot. */
+    fun start(session: FlightSession, onProblem: (String) -> Unit)
+
+    fun stop()
+}
+
+/** Whatever makes the vario's sound. */
+interface TonePlayer {
+    var isMuted: Boolean
+
+    fun start()
+
+    fun stop()
+
+    /** Sets what the vario sounds like from now on. `null` is silence. */
+    fun play(tone: ToneView?)
+}
+
+/**
+ * One flying session as the cockpit screen sees it.
+ *
+ * It passes what the phone's sensors report to the core's session; five
+ * times a second it asks the core what to show and what the vario should
+ * sound like. It contains no flying logic.
+ *
+ * A session is either live, fed by the sensors and recorded, or a replay of
+ * a recorded flight, fed by the core and not recorded.
+ */
+class FlySession(
+    private val dataFolder: File,
+    private val preferences: Preferences,
+    private val sensors: FlightSensors,
+    private val sound: TonePlayer,
+    /** Where the refresh runs: the main thread in the app. */
+    private val scope: CoroutineScope,
+) {
+    sealed interface Mode {
+        data object Live : Mode
+
+        /** Replaying a flight at this many times real speed. */
+        data class Replay(val speed: Double) : Mode
+    }
+
+    /** What is running, if anything. */
+    var mode: Mode? by mutableStateOf(null)
+        private set
+
+    /** What the cockpit shows. Present while a session runs. */
+    var view: CockpitView? by mutableStateOf(null)
+        private set
+
+    /** Something the pilot must be told, such as location being denied. */
+    var problem: String? by mutableStateOf(null)
+
+    private val muted = mutableStateOf(preferences.varioMuted)
+
+    /** Whether the vario is silent. Remembered between flights. */
+    var isMuted: Boolean
+        get() = muted.value
+        set(value) {
+            muted.value = value
+            sound.isMuted = value
+            preferences.varioMuted = value
+        }
+
+    private var session: FlightSession? = null
+    private var replay: Replay? = null
+    private var ticker: Job? = null
+
+    /** Switches the sensors on and starts recording. */
+    @Synchronized
+    fun startFlight() {
+        if (mode != null) return
+        val session = FlightSession(dataFolder.path)
+        try {
+            session.startRecording(
+                pilot = preferences.pilot.ifBlank { null },
+                glider = preferences.glider.ifBlank { null },
+            )
+        } catch (error: Exception) {
+            problem = error.pilotMessage
+            return
+        }
+        sensors.start(session) { problem = it }
+        begin(session, Mode.Live)
+    }
+
+    /** Plays a recorded flight through the cockpit, to try it on the ground. */
+    @Synchronized
+    fun startReplay(igcText: String, speed: Double) {
+        if (mode != null) return
+        replay = try {
+            Replay(igcText)
+        } catch (error: Exception) {
+            problem = error.pilotMessage
+            return
+        }
+        begin(FlightSession(dataFolder.path), Mode.Replay(speed))
+    }
+
+    /**
+     * Ends the session. For a live flight, returns the recording to put
+     * into the logbook, if any position was recorded.
+     */
+    @Synchronized
+    fun finish(): PendingRecording? {
+        val session = session ?: return null
+        ticker?.cancel()
+        ticker = null
+        if (mode == Mode.Live) {
+            sensors.stop()
+        }
+        sound.stop()
+
+        val recording = try {
+            session.stopRecording()
+        } catch (error: Exception) {
+            // The file is still in the data folder and is picked up at the
+            // next launch.
+            problem = error.pilotMessage
+            null
+        }
+        this.session = null
+        replay = null
+        mode = null
+        view = null
+        return recording
+    }
+
+    private fun begin(session: FlightSession, mode: Mode) {
+        this.session = session
+        this.mode = mode
+        sound.isMuted = isMuted
+        sound.start()
+        refresh(elapsed = 0.0)
+
+        ticker = scope.launch {
+            var last = System.nanoTime()
+            while (isActive) {
+                delay(REFRESH_MILLISECONDS)
+                val now = System.nanoTime()
+                refresh(elapsed = (now - last) / 1e9)
+                last = now
+            }
+        }
+    }
+
+    @Synchronized
+    private fun refresh(elapsed: Double) {
+        val session = session ?: return
+        val replay = replay
+        val mode = mode
+        val now = if (replay != null && mode is Mode.Replay) {
+            replay.advance(session, elapsed * mode.speed)
+            replay.now()
+        } else {
+            System.currentTimeMillis() / 1000.0
+        }
+        val view = session.view(now)
+        this.view = view
+        sound.play(view.tone)
+    }
+
+    private companion object {
+        /** How often the screen and the vario tone are refreshed. */
+        const val REFRESH_MILLISECONDS = 200L
+    }
+}

@@ -38,6 +38,16 @@ cargo run -p venti-ingest -- regions/alps-de-at/region.toml   # live run against
 
 The iOS app cannot be built in a Linux cloud session. The `iOS` workflow builds it on GitHub's Mac runners on every push that touches the app or the core, and runs the unit tests and the UI tests. The UI tests tap through every screen and their screenshots are uploaded as the `ios-screenshots` artifact: download them with `gh run download` and look at them after every change to a screen. Read the logs with `gh run view`. Swift cannot be compiled here, so check every Apple API name against its documentation before pushing. On a Mac: `apps/ios/scripts/open-in-xcode.sh`. After changing the sample flight generator, regenerate `apps/ios/Venti/Resources/sample.igc` with `cargo run -p venti-flight --example sample_flight`.
 
+The Android app builds in a cloud session once the Android SDK is there (`apps/android/README.md` lists what to install; keep it out of the repository). Gradle builds the Rust core and generates its Kotlin interface by itself:
+
+```bash
+cd apps/android
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug   # unit tests against the real core, lint, the app
+./gradlew :app:assembleDebugAndroidTest                              # compiles the UI tests; running them needs an emulator
+```
+
+The UI tests need an emulator, which a cloud session without hardware virtualisation cannot run. The `Android` workflow runs them on every push that touches the app or the core, and uploads their screenshots as the `android-screenshots` artifact and the app as `venti-debug-apk`: download the screenshots with `gh run download` and look at them after every change to a screen. A new kind of error in the core needs a line in `apps/android/uniffi.toml`, or the Kotlin interface does not compile.
+
 Cloud sessions for this repository use the `venti` environment, which has unrestricted network access. `.claude/settings.json` lists the commands that run without a permission prompt; add to it when a new tool joins the toolchain.
 
 ## Working practice

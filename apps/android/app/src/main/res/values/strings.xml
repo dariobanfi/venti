@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only what the manifest needs. All other text is English and written in the
+  code, as in the iPhone app; it moves here with the first translation.
+-->
+<resources>
+    <string name="app_name">Venti</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The one folder whose files the app hands to other apps: a flight's file is
+  written there when the pilot shares it.
+-->
+<paths>
+    <cache-path
+        name="export"
+        path="venti-export/" />
+</paths>

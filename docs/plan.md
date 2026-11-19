@@ -90,9 +90,9 @@ Phases are ordered so that each one is useful to a single pilot before the commu
 | **3 Fly** | Recorder and cockpit on iOS with offline maps, Bluetooth vario and live tracking. Started: the cockpit, recorder, vario sound and Bluetooth vario link are built and tested by replaying a flight; they have not flown, and offline maps, airspace, navigation and live tracking are not built. | Ten cross-country flights as primary instrument without a lost track |
 | **4 Community** | Profiles, feed, groups, flying-today board, events; closed beta | The owner's group plans a flying day in it |
 | **5 Assistant in flight** | In-app assistant, voice, proactive alerts, landing-plus-transit planner. Started: the in-app assistant answers questions about the pilot's logbook on the pilot's own Anthropic key. It has been tested against a scripted provider only, never against the real service. | Used for a real retrieve |
-| **6 Breadth** | Android app, route and hike & fly planners, leagues, competition tasks, whole Alps | |
+| **6 Breadth** | Android app, route and hike & fly planners, leagues, competition tasks, whole Alps. Started early with the Android app: it has the iPhone app's logbook, flight screen, statistics, map, cockpit and settings over the same core, built and tested on an emulator in CI. It has run on no phone, and nothing about its sensors, its recording with the screen off or its Bluetooth link is verified; the assistant is not on Android yet. | |
 
-Android follows iOS one phase behind once the shell patterns are settled. The cockpit must be testable on the ground by the time thermals return in March 2027.
+Android was planned to follow iOS one phase behind once the shell patterns were settled; its first version was built on 2026-11-19, beside the iPhone app. Whether it now keeps step with the iPhone app or follows it is the owner's to decide. The cockpit must be testable on the ground by the time thermals return in March 2027.
 
 ### Phase 0 spikes
 

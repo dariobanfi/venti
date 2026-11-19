@@ -1,0 +1,17 @@
+# How the Kotlin interface of the Rust core is generated. The Gradle task
+# `coreBindings` passes this file to tools/uniffi-bindgen.
+
+[defaults.bindings.kotlin]
+package_name = "fly.venti.core"
+# Use Android's own cleaner to release Rust objects where it exists.
+android = true
+
+# The core's errors carry their text in a field called `message`. A Kotlin
+# exception already has a property of that name, and the generated class
+# would declare it twice and not compile. The field is called `reason` on
+# this side; `CoreException.reason` in the app reads it. A new kind of error
+# in the core needs a line here.
+[defaults.bindings.kotlin.rename]
+"CoreError.InvalidFlight.message" = "reason"
+"CoreError.UnknownFlight.message" = "reason"
+"CoreError.Storage.message" = "reason"

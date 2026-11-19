@@ -1,0 +1,104 @@
+# Venti for Android
+
+A Kotlin and Jetpack Compose shell over the Rust core. The shell draws and talks to Android; everything else lives in `crates/core` and below. It has the same sections as the iPhone app and follows the same design, with Material 3 components.
+
+## Installing it without building
+
+Every push that touches the app builds it on GitHub. The run of the `Android` workflow has an artifact called `venti-debug-apk`: download it, unpack the zip, and open `app-debug.apk` on the phone. Android asks once whether the browser or file manager may install apps.
+
+From a computer with `gh` and `adb`:
+
+```bash
+gh run download --name venti-debug-apk --dir /tmp/venti   # the newest run
+adb install -r /tmp/venti/app-debug.apk
+```
+
+It is a debug build, signed with a throwaway key that each build machine makes for itself. Two consequences: a build from another machine will not install over it (remove the app first; the logbook goes with it), and it is not what a store release would be. It runs on 64-bit phones with Android 8 or later, and on the x86_64 emulator.
+
+## Building
+
+Needs:
+
+- Java 17 or later.
+- Rust from [rustup.rs](https://rustup.rs) (the toolchain in `rust-toolchain.toml` installs itself), with the Android targets: `rustup target add aarch64-linux-android x86_64-linux-android`.
+- `cargo install cargo-ndk --version 4.1.2 --locked`.
+- The Android SDK with platform 37, build tools 36.0.0 and NDK 29.0.14206865. Android Studio installs them when it opens the project. Without it: `sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "ndk;29.0.14206865"`, and `ANDROID_HOME` pointing at the SDK, or `sdk.dir=...` in `apps/android/local.properties`.
+
+Then, in `apps/android`:
+
+```bash
+./gradlew :app:assembleDebug          # the app: app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:installDebug           # onto a connected phone or a running emulator
+./gradlew :app:testDebugUnitTest      # unit tests, on this machine
+./gradlew :app:lintDebug              # Android's lint; warnings fail it
+./gradlew :app:connectedDebugAndroidTest   # UI tests, on a connected phone or emulator
+```
+
+Gradle builds the Rust core itself. Three tasks in `app/build.gradle.kts` do it, and run again only when something under `crates/` has changed:
+
+| Task | What it does |
+|---|---|
+| `coreForAndroid` | `cargo ndk` builds `libventi_core.so` for each ABI in `venti.abis` (`gradle.properties`): `arm64-v8a` and `x86_64`. |
+| `coreBindings` | Builds the core for the build machine and runs `tools/uniffi-bindgen` on that library to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
+| `sharedAssets` | Gathers the sample flight, the map style and the bundled map region from where the repository keeps them. |
+
+Nothing these produce is committed: no generated Kotlin, no compiled core, no second copy of a shared file.
+
+The Gradle wrapper pins Gradle 9.9.1 and checks the download against its published checksum. Library versions are in `gradle/libs.versions.toml`, with their licences.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `app/build.gradle.kts` | The app's build: Android settings, libraries, and the three tasks above. |
+| `uniffi.toml` | How the Kotlin interface of the core is generated. |
+| `app/src/main/AndroidManifest.xml` | Permissions, the one activity and the files it opens, the recording service. |
+| `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`). |
+| `.../design/` | Colours, the Material theme, number formatting, the metric component, the pieces of list-like screens, chart axes. The rules behind them are in `docs/design.md`. |
+| `.../logbook/` | The logbook screen, its model over the core, import, the statistics. |
+| `.../flight/` | One flight: map, panel, altitude chart, details sheet. |
+| `.../fly/` | The cockpit: the Fly tab, the cockpit screen and its map, and the sensors (position, pressure, Bluetooth vario, vario sound, the recording service). |
+| `.../map/` | The map tab, the shared map setup and the style preparation. |
+| `.../settings/` | The settings tab and the credits. |
+| `app/src/main/res/` | The app icon and the interface's icons as vector drawables, the window theme, backup rules. |
+| `app/src/test/` | Unit tests. They run on the build machine and call the real core through the generated interface. |
+| `app/src/androidTest/` | Tests that use the app like a pilot and keep a screenshot of every screen. |
+| `../../map/style.json` | The map style shared by all platforms. |
+| `../ios/Venti/Resources/` | The sample flight, the label fonts and the demo map region. The Android build reads them from there. |
+
+## What the app does today
+
+- **Logbook.** Import IGC flight files with the plus button (several at once), or open one from a file manager or a mail with "Open with Venti", or share one to Venti. Flights are listed by year with totals and each flight's scored distance. Tap the totals for statistics: the last twelve months, your gliders and your bests. Press and hold a flight to delete it. Everything is stored on the phone only; Android's cloud backup is switched off for the app.
+- **Flight.** The track on a terrain map, coloured by climb and sink, with the altitude profile below. Drag along the profile to move a marker along the track and read time, altitude and climb at that moment; the play button runs the marker along the flight. The details list every thermal and glide, and how the flight scores as a cross-country flight; choose a thermal or glide to mark it on the map. The menu shares the flight's file.
+- **Map.** A terrain map with every logbook flight on it and, on request, your position.
+- **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.
+- **Settings.** Your name and glider, which go into the flights you record; the vario sound; and the credits for the map data and the libraries.
+
+To connect a vario, open Fly, tap "Vario" and choose it from the list while it is switched on. Once connected, the same sheet shows the last lines it sent and has "Share a report": if the cockpit shows no climb from your vario, that report says why.
+
+A new logbook offers a sample flight. It is made up, generated by `venti-flight`, not a real pilot's.
+
+Map tiles are fetched from OpenFreeMap and Mapterhorn until the project has its own server; `docs/architecture.md` has the terms. Label fonts are inside the app.
+
+### Not verified
+
+The app has run on an emulator in CI, driven by the UI tests. Nobody has yet run it on a real phone. In particular, nothing below has been tried, because an emulator cannot:
+
+- **Flying with it.** The cockpit has only seen replayed flights. Fly it only beside the instrument you trust.
+- **Recording with the screen off.** The foreground service, its notification and the wake lock are written to Android's documentation. Whether a recording survives hours in a pocket, and what the battery savers of Samsung, Xiaomi and others do to it, is unknown.
+- **The satellite receiver.** Positions come from Android's own location manager, not from Google Play Services. Altitude is converted from the ellipsoid height Android reports to height above sea level by the system on Android 14 and later, and from the receiver's own text output before that; neither has been checked against a known altitude.
+- **The pressure sensor**, and whether twenty readings a second make a good vario.
+- **Bluetooth.** No vario has been connected: scanning, connecting, reconnecting after a loss, and listening to a device with no known serial service are untried.
+- **The vario tone** through a real loudspeaker, and whether it keeps sounding with the screen off on Android 15 and later.
+- **"Open with Venti"** from real file managers and mail apps. Flight files have no type Android knows, so each app describes them differently.
+- **Moving the logbook to a new phone**, which the backup rules allow from Android 12.
+
+## Screenshots without a phone
+
+Every push that touches the app runs the UI tests on an emulator on GitHub. They save a screenshot of each screen, in light and dark appearance, as the `android-screenshots` artifact of the `Android` workflow run:
+
+```bash
+gh run download --name android-screenshots --dir /tmp/venti-screens
+```
+
+The emulator is plain Android 16 without Google's services, which is also the check that the app needs none of them.

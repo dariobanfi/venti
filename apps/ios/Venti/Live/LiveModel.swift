@@ -31,6 +31,13 @@ final class LiveModel {
     private(set) var answeredAt = Date()
     /// Whether the server has more than it lists at once.
     private(set) var isTruncated = false
+    /// The flight being followed: the glider whose page is open, with its
+    /// track so far.
+    private(set) var followed: LiveFollowView?
+    /// When the answer came that it is from.
+    private(set) var followedAt = Date()
+    /// Why a flight cannot be followed, in words.
+    private(set) var followProblem: String?
 
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
@@ -99,9 +106,55 @@ final class LiveModel {
         }
     }
 
+    /// How often a followed flight is asked for again, seconds. The
+    /// server asks for five to ten.
+    static let followEvery = 10.0
+
+    /// Follows one glider's flight until the task that runs this is
+    /// cancelled: the whole track first, then what arrives.
+    func follow(_ id: String) async {
+        followed = nil
+        followProblem = nil
+        defer { followed = nil }
+        guard let server = server(), let flight = try? LiveFollow(id: id) else { return }
+        while !Task.isCancelled {
+            var more = false
+            do {
+                guard let url = URL(string: server.absoluteString + flight.path()) else { return }
+                let (status, body) = try await transport(url)
+                let view = try flight.receive(status: UInt16(clamping: status), body: body)
+                guard !Task.isCancelled else { return }
+                followed = view
+                followedAt = Date()
+                followProblem = nil
+                more = view.more
+            } catch {
+                // Gone from the server: said, and not asked for again. Any
+                // other failure leaves the track as it was.
+                if flight.isOver() {
+                    followProblem = error.words
+                    return
+                }
+            }
+            if !more {
+                try? await Task.sleep(for: .seconds(Self.followEvery))
+            }
+        }
+    }
+
+    /// A glider as the newest answer about it has it: the one that
+    /// follows its flight, if one does, or else the map's.
+    func glider(_ id: String) -> LiveGlider? {
+        if let followed, followed.glider.id == id {
+            return followed.glider
+        }
+        return gliders.first { $0.id == id }
+    }
+
     /// How old a glider's position is now, seconds.
     func age(of glider: LiveGlider, at now: Date = Date()) -> Double {
-        glider.ageS + max(now.timeIntervalSince(answeredAt), 0)
+        let since = followed?.glider == glider ? followedAt : answeredAt
+        return glider.ageS + max(now.timeIntervalSince(since), 0)
     }
 
     /// The same in words: "Now", "45 s ago", "Landed 9 min ago".

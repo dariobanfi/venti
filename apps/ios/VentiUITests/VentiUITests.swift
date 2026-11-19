@@ -438,14 +438,14 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(saying("Landed", in: app).exists)
         sleep(1)
         keepScreenshot("wind-1b-in-the-air")
+        // Choosing one closes the list and opens the glider's page over
+        // the map, which draws the flight so far and moves to show it.
         element("live-row", in: app).tap()
-        XCTAssertTrue(element("live-age", in: app).waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["Follow the flight in the browser"].exists
-            || app.links["Follow the flight in the browser"].exists)
-        sleep(1)
+        XCTAssertTrue(element("live-age", in: app).waitForExistence(timeout: 20))
+        sleep(5)
         keepScreenshot("wind-1c-glider")
-        app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].tap()
+        XCTAssertTrue(stations.waitForExistence(timeout: 15))
 
         stations.tap()
         XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))

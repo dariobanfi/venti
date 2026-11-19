@@ -16,6 +16,8 @@ struct OverviewMap: UIViewRepresentable {
     var sites: [SiteView] = []
     /// Other pilots in the air, to draw.
     var gliders: [LiveGlider] = []
+    /// The track of the pilot whose flight is being followed, to draw.
+    var followed: [TrailPointView] = []
     /// Whether the map keeps the pilot's position in its centre.
     @Binding var isFollowing: Bool
     /// Set when the position cannot be shown, with words for the pilot.
@@ -75,6 +77,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onPlace = onPlace
         coordinator.show(sites, on: map)
         coordinator.show(gliders, on: map)
+        coordinator.showFollowed(followed, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
@@ -94,6 +97,8 @@ struct OverviewMap: UIViewRepresentable {
 
         private var gliders: [LiveGlider] = []
         private var drawnGliders: [LiveGlider]?
+        private var followed: [TrailPointView] = []
+        private var drawnFollowed: [TrailPointView]?
         private var outlines: [[Coordinate]] = []
         private var drawnOutlines: [[Coordinate]]?
         private var stations: [WindStation] = []
@@ -109,10 +114,16 @@ struct OverviewMap: UIViewRepresentable {
         private static let wind = "wind-stations"
         private static let sites = "flying-sites"
         private static let live = "live-gliders"
+        private static let liveTrack = "live-track"
 
         func show(_ gliders: [LiveGlider], on map: MLNMapView) {
             self.gliders = gliders
             drawGliders(on: map)
+        }
+
+        func showFollowed(_ track: [TrailPointView], on map: MLNMapView) {
+            followed = track
+            drawFollowed(on: map)
         }
 
         func show(_ sites: [SiteView], on map: MLNMapView) {
@@ -154,6 +165,7 @@ struct OverviewMap: UIViewRepresentable {
             drawStations(on: mapView)
             drawSites(on: mapView)
             drawGliders(on: mapView)
+            drawFollowed(on: mapView)
             drawAirspace(on: mapView)
             tellRegion(of: mapView)
         }
@@ -245,6 +257,20 @@ struct OverviewMap: UIViewRepresentable {
                 MapSetup.line("logbook-tracks-line", from: tracks, color: Palette.accentOnMap, width: 2.5)
             )
 
+            // The flight of a pilot who is being followed: a line in the
+            // colours of climb, like a flight of the logbook when it is
+            // opened, over the logbook's own lines.
+            let flight = MLNShapeSource(identifier: Self.liveTrack, shape: empty, options: nil)
+            style.addSource(flight)
+            style.addLayer(MapSetup.line("live-track-edge", from: flight, color: .white, width: 5.5))
+            for band in ClimbBand.allCases {
+                let layer = MapSetup.line(
+                    "live-track-\(band.rawValue)", from: flight, color: band.uiColor, width: 3
+                )
+                layer.predicate = NSPredicate(format: "band == %d", band.rawValue)
+                style.addLayer(layer)
+            }
+
             // Flying sites, from the zoom at which they can be told apart;
             // a name where there is room for one.
             for picture in SiteSymbols.all {
@@ -327,6 +353,30 @@ struct OverviewMap: UIViewRepresentable {
             else { return }
             drawnGliders = gliders
             source.shape = MLNShapeCollectionFeature(shapes: gliders.map(Self.gliderFeature))
+        }
+
+        /// Draws the followed flight, and when it first appears moves the
+        /// map to show all of it above the page that lies over the lower
+        /// half.
+        private func drawFollowed(on map: MLNMapView) {
+            guard isStyleLoaded, followed != drawnFollowed,
+                  let source = map.style?.source(withIdentifier: Self.liveTrack) as? MLNShapeSource
+            else { return }
+            let isNew = (drawnFollowed ?? []).isEmpty && !followed.isEmpty
+            drawnFollowed = followed
+            source.shape = MLNShapeCollectionFeature(shapes: CockpitMap.Coordinator.trailFeatures(followed))
+            if isNew, let box = Self.box(around: [followed.map { Coordinate(lat: $0.lat, lon: $0.lon) }]) {
+                let margin = 0.002
+                map.setVisibleCoordinateBounds(
+                    MLNCoordinateBounds(
+                        sw: CLLocationCoordinate2D(latitude: box.south - margin, longitude: box.west - margin),
+                        ne: CLLocationCoordinate2D(latitude: box.north + margin, longitude: box.east + margin)
+                    ),
+                    edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: map.bounds.height / 2 + 24, right: 40),
+                    animated: true,
+                    completionHandler: nil
+                )
+            }
         }
 
         /// One glider as the map's symbol layer reads it. A glider on the

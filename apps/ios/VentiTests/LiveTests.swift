@@ -107,6 +107,54 @@ final class LiveTests: XCTestCase {
         XCTAssertEqual(live.answeredAt, first)
     }
 
+    func testAGlidersFlightIsFollowedWhileItsPageIsOpen() async throws {
+        let asked = Asked()
+        let live = LiveModel { url in
+            await asked.add(url)
+            return (200, Data(LiveAnswers.track.utf8))
+        }
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        live.server = { server }
+
+        let page = Task { await live.follow("11111111111111111111111111") }
+        for _ in 0..<200 where live.followed == nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let flight = try XCTUnwrap(live.followed)
+        XCTAssertEqual(flight.track.count, 3)
+        XCTAssertEqual(flight.durationS, 2)
+        XCTAssertEqual(flight.highestM, 1598)
+        // The glider of the flight is the newest there is of it.
+        XCTAssertEqual(live.glider("11111111111111111111111111")?.label, "Demo Pilot · 1596 m")
+        XCTAssertEqual(live.age(of: flight.glider, at: live.followedAt.addingTimeInterval(6)), 10, accuracy: 0.01)
+        let first = await asked.addresses.first
+        XCTAssertEqual(
+            first?.absoluteString, "http://127.0.0.1:8080/v1/live/11111111111111111111111111"
+        )
+        // A line for the map, in the colours of climb.
+        XCTAssertFalse(CockpitMap.Coordinator.trailFeatures(flight.track).isEmpty)
+
+        // The page closes: the following ends and the line goes.
+        page.cancel()
+        await page.value
+        XCTAssertNil(live.followed)
+    }
+
+    func testAFlightThatIsGoneIsSaidAndNotAskedForAgain() async throws {
+        let asked = Asked()
+        let live = LiveModel { url in
+            await asked.add(url)
+            return (404, Data(#"{"error": {"code": "live_track_not_found", "message": "x"}}"#.utf8))
+        }
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        live.server = { server }
+        await live.follow("11111111111111111111111111")
+        XCTAssertNil(live.followed)
+        XCTAssertEqual(live.followProblem?.contains("no longer shown"), true)
+        let count = await asked.addresses.count
+        XCTAssertEqual(count, 1)
+    }
+
     func testThereIsAPictureForEveryKindOfGlider() {
         XCTAssertEqual(
             Set(LiveSymbols.all.map(\.name)), [LiveSymbols.flying, LiveSymbols.quiet, LiveSymbols.landed]
@@ -147,5 +195,22 @@ private enum LiveAnswers {
            "latest": {"time": "2026-11-18T18:56:00Z", "position": {"lat": 47.6922, "lon": 11.7675},
                       "altitude_m": 786, "ground_speed_ms": 0.0, "climb_ms": 0.0},
            "fixes": 660, "expires_at": "2026-11-20T18:56:00Z"}]}
+        """
+
+    /// The flying one's track: its last three positions.
+    static let track = """
+        {"time": "2026-11-18T19:05:00Z", "cursor": "1201", "more": false, "reset": false,
+         "track": {"id": "11111111111111111111111111", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
+           "visibility": "public", "landed": false, "started_at": "2026-11-18T18:44:56Z",
+           "latest": {"time": "2026-11-18T19:04:56Z", "position": {"lat": 47.6638, "lon": 11.7432},
+                      "altitude_m": 1596, "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0},
+           "fixes": 1201, "expires_at": "2026-11-20T19:04:56Z"},
+         "fixes": [
+           {"time": "2026-11-18T19:04:54Z", "position": {"lat": 47.6636, "lon": 11.7431}, "altitude_m": 1598,
+            "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0},
+           {"time": "2026-11-18T19:04:55Z", "position": {"lat": 47.6637, "lon": 11.7431}, "altitude_m": 1597,
+            "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0},
+           {"time": "2026-11-18T19:04:56Z", "position": {"lat": 47.6638, "lon": 11.7432}, "altitude_m": 1596,
+            "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0}]}
         """
 }

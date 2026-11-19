@@ -19,6 +19,8 @@ struct MapScreen: View {
     @State private var showsSites = false
     @State private var chosenGlider: ChosenGlider?
     @State private var showsGliders = false
+    /// The glider chosen in the list, to open once the list has closed.
+    @State private var gliderFromList: String?
     /// A place the pilot pressed on, to show its forecast.
     @State private var pressed: ChosenPlace?
     /// The part of the map in view, as the map last reported it.
@@ -32,6 +34,7 @@ struct MapScreen: View {
                 airspace: airspaceInView,
                 sites: sites.sites,
                 gliders: live.gliders,
+                followed: live.followed?.track ?? [],
                 isFollowing: $isFollowing,
                 problem: $problem,
                 onRegion: { region in
@@ -145,8 +148,19 @@ struct MapScreen: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showsGliders) {
-            LiveList()
+        .sheet(
+            isPresented: $showsGliders,
+            onDismiss: {
+                // One sheet at a time: the glider's page follows the list.
+                if let id = gliderFromList {
+                    gliderFromList = nil
+                    chosenGlider = ChosenGlider(id: id)
+                }
+            }
+        ) {
+            LiveList { id in
+                gliderFromList = id
+            }
         }
         .sheet(item: $pressed) { chosen in
             NavigationStack {

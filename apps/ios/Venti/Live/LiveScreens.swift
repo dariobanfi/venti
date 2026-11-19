@@ -47,15 +47,22 @@ struct LiveGliderRow: View {
 struct LiveList: View {
     @Environment(LiveModel.self) private var live
     @Environment(\.dismiss) private var dismiss
+    /// Called with a track's identifier when the pilot chooses its glider:
+    /// the list closes, and the map shows the flight.
+    let choose: (String) -> Void
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     ForEach(live.gliders, id: \.id) { glider in
-                        NavigationLink(value: glider.id) {
+                        Button {
+                            choose(glider.id)
+                            dismiss()
+                        } label: {
                             LiveGliderRow(glider: glider)
                         }
+                        .foregroundStyle(.primary)
                         .accessibilityIdentifier("live-row")
                     }
                 } footer: {
@@ -79,9 +86,6 @@ struct LiveList: View {
             }
             .navigationTitle("In the air")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: String.self) { id in
-                LiveGliderScreen(id: id)
-            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -104,7 +108,12 @@ struct LiveGliderScreen: View {
         "Positions are as each pilot's app sent them. A glider nothing was heard of for a while has most likely no network: it is not known to have landed."
 
     private var glider: LiveGlider? {
-        live.gliders.first { $0.id == id }
+        live.glider(id)
+    }
+
+    /// The flight so far, once the server has handed its track out.
+    private var flight: LiveFollowView? {
+        live.followed.flatMap { $0.glider.id == id ? $0 : nil }
     }
 
     var body: some View {
@@ -128,6 +137,12 @@ struct LiveGliderScreen: View {
                             LabeledContent("Flying", value: Format.compassPoint(degrees: course))
                         }
                     }
+                    // The flight so far, whose line is on the map.
+                    if let flight {
+                        LabeledContent("Shown for", value: Format.stopwatch(seconds: flight.durationS))
+                            .accessibilityIdentifier("live-duration")
+                        LabeledContent("Highest", value: "\(Format.metres(Double(flight.highestM))) m")
+                    }
                 } footer: {
                     Text(Self.caution)
                 }
@@ -142,12 +157,20 @@ struct LiveGliderScreen: View {
                 }
             } else {
                 Section {
-                    Text("This glider is no longer on this part of the map: its pilot stopped showing the flight, or it has left the area.")
-                        .foregroundStyle(.secondary)
+                    Text(
+                        live.followProblem
+                            ?? "This glider is no longer on this part of the map: its pilot stopped showing the flight, or it has left the area."
+                    )
+                    .foregroundStyle(.secondary)
                 }
             }
         }
         .navigationTitle(glider.map { "@\($0.handle)" } ?? "Glider")
         .navigationBarTitleDisplayMode(.inline)
+        // The flight's track is asked for while its page is open, and
+        // drawn on the map behind it.
+        .task(id: id) {
+            await live.follow(id)
+        }
     }
 }

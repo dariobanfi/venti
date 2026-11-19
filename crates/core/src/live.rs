@@ -12,17 +12,18 @@
 //! nothing before take-off: where a pilot walks about on the ground is
 //! nobody's business.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::DateTime;
 use venti_api_types::v1::{
-    self as api, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrackId,
-    LiveTracksRequest, LiveTracksResponse, LiveVisibility,
+    self as api, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack, LiveTrackId,
+    LiveTrackRequest, LiveTrackResponse, LiveTracksRequest, LiveTracksResponse, LiveVisibility,
 };
-use venti_domain::{BoundingBox, GeoPoint};
+use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 
 use crate::server::{answer, code};
-use crate::{Coordinate, CoreError, ServerRequest};
+use crate::{Coordinate, CoreError, ServerRequest, TrailPointView};
 
 /// Who may see a flight while it is under way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
@@ -563,32 +564,172 @@ pub fn live_map(status: u16, body: Vec<u8>) -> Result<LiveMap, CoreError> {
         gliders: response
             .tracks
             .iter()
-            .map(|track| {
-                let name = one_line(&track.pilot.display_name, 40);
-                let latest = track.latest;
-                let age_s = (response.time - latest.time).num_seconds().max(0);
-                LiveGlider {
-                    id: track.id.to_string(),
-                    handle: track.pilot.handle.to_string(),
-                    label: format!("{name} · {} m", latest.altitude_m),
-                    name,
-                    position: Coordinate {
-                        lat: latest.position.lat(),
-                        lon: latest.position.lon(),
-                    },
-                    altitude_m: latest.altitude_m,
-                    ground_speed_ms: latest.ground_speed_ms,
-                    climb_ms: latest.climb_ms,
-                    course_deg: latest.course_deg,
-                    landed: track.landed,
-                    age_s: age_s as f64,
-                    quiet: !track.landed && age_s >= QUIET_AFTER_S,
-                    page_path: api::live_page_path(&track.id),
-                }
-            })
+            .map(|track| glider(track, response.time))
             .collect(),
         truncated: response.truncated,
     })
+}
+
+/// A track's glider as a map shows it, with its age at the server's `time`.
+fn glider(track: &LiveTrack, time: Timestamp) -> LiveGlider {
+    let name = one_line(&track.pilot.display_name, 40);
+    let latest = track.latest;
+    let age_s = (time - latest.time).num_seconds().max(0);
+    LiveGlider {
+        id: track.id.to_string(),
+        handle: track.pilot.handle.to_string(),
+        label: format!("{name} · {} m", latest.altitude_m),
+        name,
+        position: Coordinate {
+            lat: latest.position.lat(),
+            lon: latest.position.lon(),
+        },
+        altitude_m: latest.altitude_m,
+        ground_speed_ms: latest.ground_speed_ms,
+        climb_ms: latest.climb_ms,
+        course_deg: latest.course_deg,
+        landed: track.landed,
+        age_s: age_s as f64,
+        quiet: !track.landed && age_s >= QUIET_AFTER_S,
+        page_path: api::live_page_path(&track.id),
+    }
+}
+
+/// One flight being followed, as far as the server has handed it out.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct LiveFollowView {
+    /// The glider now, as on the map.
+    pub glider: LiveGlider,
+    /// The track so far, oldest first, each point with its climb, for a
+    /// line coloured like a flight's. At most a few thousand points: of a
+    /// long flight every second or third position.
+    pub track: Vec<TrailPointView>,
+    /// When the track began, seconds since 1970-01-01 UTC.
+    pub started_unix_s: i64,
+    /// Seconds from its first position to its newest.
+    pub duration_s: i64,
+    /// The highest altitude so far, metres above sea level.
+    pub highest_m: i32,
+    /// Whether the server has more of the track waiting: ask again at
+    /// once.
+    pub more: bool,
+}
+
+/// The most points handed to a map for one track.
+const POINTS_AT_MOST: usize = 4000;
+
+/// Follows one live track: says what to ask the server for, and puts the
+/// answers together. Ask once, then again every five to ten seconds, and
+/// at once while the answer says there is more.
+#[derive(Debug, uniffi::Object)]
+pub struct LiveFollow {
+    id: LiveTrackId,
+    held: Mutex<Held>,
+}
+
+#[derive(Debug, Default)]
+struct Held {
+    /// The positions by their second. Late ones find their place.
+    fixes: BTreeMap<i64, LiveFix>,
+    cursor: Option<String>,
+    over: bool,
+}
+
+#[uniffi::export]
+impl LiveFollow {
+    /// Begins to follow the track with this identifier.
+    #[uniffi::constructor]
+    pub fn new(id: String) -> Result<Arc<Self>, CoreError> {
+        let id = id.parse().map_err(|_| CoreError::Server {
+            message: "This is not the address of a live track.".to_owned(),
+        })?;
+        Ok(Arc::new(Self {
+            id,
+            held: Mutex::new(Held::default()),
+        }))
+    }
+
+    /// The path and query to `GET` from the server now: the whole track
+    /// the first time, afterwards what arrived since the last answer.
+    pub fn path(&self) -> String {
+        LiveTrackRequest {
+            id: self.id.clone(),
+            since: self.lock().cursor.clone(),
+            after: None,
+            limit: None,
+        }
+        .path_and_query()
+    }
+
+    /// Reads the server's answer to [`LiveFollow::path`] and returns the
+    /// flight as far as it is known. A track that is gone, because its
+    /// pilot deleted it or it ran out, is said in words, and
+    /// [`LiveFollow::is_over`] is true from then on.
+    pub fn receive(&self, status: u16, body: Vec<u8>) -> Result<LiveFollowView, CoreError> {
+        let mut held = self.lock();
+        if status == 404 {
+            held.over = true;
+            return Err(CoreError::Server {
+                message: "This flight is no longer shown: its pilot stopped sharing it, or it is more than two days old."
+                    .to_owned(),
+            });
+        }
+        let response: LiveTrackResponse = answer(status, &body)?;
+        if response.reset {
+            // The server began again from the first position.
+            held.fixes.clear();
+        }
+        for fix in &response.fixes {
+            held.fixes.entry(fix.time.timestamp()).or_insert(*fix);
+        }
+        held.cursor = Some(response.cursor.clone());
+
+        let step = held.fixes.len().div_ceil(POINTS_AT_MOST).max(1);
+        let newest = held.fixes.len().saturating_sub(1);
+        let track = held
+            .fixes
+            .values()
+            .enumerate()
+            // Every position of a short track, every few of a long one,
+            // and always the newest: the line ends where the glider is.
+            .filter(|(index, _)| index % step == 0 || *index == newest)
+            .map(|(_, fix)| TrailPointView {
+                lat: fix.position.lat(),
+                lon: fix.position.lon(),
+                climb_ms: fix.climb_ms.unwrap_or(0.0),
+            })
+            .collect();
+        let first = held.fixes.keys().next().copied();
+        let last = held.fixes.keys().next_back().copied();
+        Ok(LiveFollowView {
+            glider: glider(&response.track, response.time),
+            track,
+            started_unix_s: response.track.started_at.timestamp(),
+            duration_s: first.zip(last).map_or(0, |(first, last)| last - first),
+            highest_m: held
+                .fixes
+                .values()
+                .map(|fix| fix.altitude_m)
+                .max()
+                .unwrap_or(response.track.latest.altitude_m),
+            more: response.more,
+        })
+    }
+
+    /// Whether the track is gone from the server: stop asking.
+    pub fn is_over(&self) -> bool {
+        self.lock().over
+    }
+}
+
+impl LiveFollow {
+    fn lock(&self) -> MutexGuard<'_, Held> {
+        self.held
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 }
 
 /// A glider nothing was heard of for this many seconds has gone quiet.
@@ -1072,6 +1213,92 @@ mod tests {
 
         // A refusal comes in words.
         assert!(live_map(503, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn a_followed_flight_is_put_together_from_the_servers_answers() {
+        let follow = LiveFollow::new("11111111111111111111111111".to_owned()).unwrap();
+        assert_eq!(follow.path(), "/v1/live/11111111111111111111111111");
+
+        // The server's own example: the last three positions of a track.
+        let view = follow.receive(200, golden("live_track.json")).unwrap();
+        assert_eq!(view.glider.label, "Demo Pilot · 1596 m");
+        assert_eq!(view.glider.age_s, 4.0);
+        assert_eq!(view.track.len(), 3);
+        assert_eq!(view.duration_s, 2);
+        assert_eq!(view.highest_m, 1598);
+        assert!(!view.more);
+        assert!(!follow.is_over());
+        // From now on only what arrived since.
+        assert_eq!(
+            follow.path(),
+            "/v1/live/11111111111111111111111111?since=1201"
+        );
+
+        // Two positions arrive: one new, and one from a gap before the
+        // three, which finds its place at the front of the line.
+        let mut later: Value = serde_json::from_slice(&golden("live_track.json")).unwrap();
+        let fix = |time: &str, lat: f64, altitude: i32| json!({"time": time, "position": {"lat": lat, "lon": 11.7431}, "altitude_m": altitude, "climb_ms": 2.0});
+        later["fixes"] = json!([
+            fix("2026-11-18T19:04:57Z", 47.6639, 1700),
+            fix("2026-11-18T19:04:40Z", 47.6625, 1610),
+        ]);
+        later["cursor"] = json!("1203");
+        let view = follow.receive(200, later.to_string().into_bytes()).unwrap();
+        assert_eq!(view.track.len(), 5);
+        assert_eq!(view.track[0].lat, 47.6625);
+        assert_eq!(view.track[4].lat, 47.6639);
+        assert_eq!(view.track[4].climb_ms, 2.0);
+        assert_eq!((view.duration_s, view.highest_m), (17, 1700));
+        assert_eq!(
+            follow.path(),
+            "/v1/live/11111111111111111111111111?since=1203"
+        );
+
+        // The same answer again changes nothing: a position is held once.
+        let again = follow.receive(200, later.to_string().into_bytes()).unwrap();
+        assert_eq!(again.track.len(), 5);
+
+        // A server that lost its place begins again, and so does the app.
+        later["reset"] = json!(true);
+        later["fixes"] = json!([fix("2026-11-18T19:04:58Z", 47.664, 1702)]);
+        let view = follow.receive(200, later.to_string().into_bytes()).unwrap();
+        assert_eq!(view.track.len(), 1);
+
+        // A busy server is a refusal in words and nothing more.
+        assert!(follow.receive(503, Vec::new()).is_err());
+        assert!(!follow.is_over());
+        // A track that is gone ends the following.
+        let gone = json!({"error": {"code": "live_track_not_found", "message": "x"}}).to_string();
+        let error = follow.receive(404, gone.into_bytes()).unwrap_err();
+        assert!(error.to_string().contains("no longer shown"), "{error}");
+        assert!(follow.is_over());
+
+        assert!(LiveFollow::new("not a track".to_owned()).is_err());
+    }
+
+    #[test]
+    fn a_long_track_is_thinned_for_the_map_and_still_ends_at_the_glider() {
+        let follow = LiveFollow::new("11111111111111111111111111".to_owned()).unwrap();
+        let mut answer: Value = serde_json::from_slice(&golden("live_track.json")).unwrap();
+        let start = DateTime::parse_from_rfc3339("2026-11-18T16:00:00Z").unwrap();
+        let fixes: Vec<Value> = (0..9001)
+            .map(|second| {
+                json!({
+                    "time": (start + chrono::Duration::seconds(second)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                    "position": {"lat": 47.0 + f64::from(second as i32) * 0.00001, "lon": 11.7},
+                    "altitude_m": 1500
+                })
+            })
+            .collect();
+        answer["fixes"] = json!(fixes);
+        let view = follow
+            .receive(200, answer.to_string().into_bytes())
+            .unwrap();
+        // Nine thousand positions: every third, and the last.
+        assert_eq!(view.track.len(), 3001);
+        assert_eq!(view.duration_s, 9000);
+        assert!((view.track.last().unwrap().lat - 47.09).abs() < 1e-9);
     }
 
     #[test]

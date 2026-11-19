@@ -205,6 +205,8 @@ pub struct LiftView {
 
 /// One point of the track behind the glider.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TrailPointView {
     /// Latitude in degrees.
     pub lat: f64,

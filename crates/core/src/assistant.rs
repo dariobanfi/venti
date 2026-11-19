@@ -23,7 +23,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use venti_llm::{
     Anthropic, Block, Conversation, LlmError, Message, Provider, Role, Stop, ToolSpec,
@@ -233,7 +233,7 @@ impl Assistant {
             state.round.as_mut().and_then(|round| round.fetching.take())
         {
             let now = DateTime::from_timestamp(state.now_unix_s, 0).unwrap_or_default();
-            let result = venti_tools::wind::result(&name, &input, status, &body, now);
+            let result = server_result(&name, &input, status, &body, now);
             if let Some(round) = state.round.as_mut() {
                 round.results.push(tool_result(id, result));
             }
@@ -381,20 +381,19 @@ fn continue_round(core: &Core, state: &mut State, key: &str) -> AssistantStep {
             state.messages.push(Message::tool_results(results));
             return send(state, key);
         };
-        if !venti_tools::wind::needs_server(&name) {
+        if !needs_server(&name) {
             round
                 .results
                 .push(tool_result(id, venti_tools::run(core, &name, &input)));
             continue;
         }
-        let path = match (&state.server, venti_tools::wind::request(&name, &input)) {
+        let path = match (&state.server, server_request(&name, &input)) {
             (Some(server), Ok(path)) => format!("{server}{path}"),
             (None, _) => {
                 // The model is only offered these tools with a server set;
                 // one that asks anyway is told why it gets nothing.
                 let none = ToolError::Failed(
-                    "No Venti server is set in the app, so live wind cannot be looked up."
-                        .to_owned(),
+                    "No Venti server is set in the app, so this cannot be looked up.".to_owned(),
                 );
                 round.results.push(tool_result(id, Err(none)));
                 continue;
@@ -409,6 +408,36 @@ fn continue_round(core: &Core, state: &mut State, key: &str) -> AssistantStep {
     }
 }
 
+/// Whether a tool is answered from the pilot's Venti server: live wind and
+/// airspace.
+fn needs_server(name: &str) -> bool {
+    venti_tools::wind::needs_server(name) || venti_tools::airspace::needs_server(name)
+}
+
+/// What such a tool needs from the server: the path and query to `GET`.
+fn server_request(name: &str, input: &Value) -> Result<String, ToolError> {
+    if venti_tools::airspace::needs_server(name) {
+        venti_tools::airspace::request(name, input)
+    } else {
+        venti_tools::wind::request(name, input)
+    }
+}
+
+/// Such a tool's result, from the server's answer.
+fn server_result(
+    name: &str,
+    input: &Value,
+    status: u16,
+    body: &[u8],
+    now: DateTime<Utc>,
+) -> Result<String, ToolError> {
+    if venti_tools::airspace::needs_server(name) {
+        venti_tools::airspace::result(name, input, status, body, now)
+    } else {
+        venti_tools::wind::result(name, input, status, body, now)
+    }
+}
+
 /// A tool's result, or what went wrong, as the model is told.
 fn tool_result(call_id: String, result: Result<String, ToolError>) -> Block {
     Block::ToolResult {
@@ -420,15 +449,19 @@ fn tool_result(call_id: String, result: Result<String, ToolError>) -> Block {
 
 /// The request for the conversation as it stands.
 fn send(state: &State, key: &str) -> AssistantStep {
-    // Live wind is offered only when there is a server to ask.
-    let server_tools: &[venti_tools::Tool] = if state.server.is_some() {
-        &venti_tools::wind::SERVER_TOOLS
+    // Live wind and airspace are offered only when there is a server to ask.
+    let (wind, airspace): (&[venti_tools::Tool], &[venti_tools::Tool]) = if state.server.is_some() {
+        (
+            &venti_tools::wind::SERVER_TOOLS,
+            &venti_tools::airspace::AIRSPACE_TOOLS,
+        )
     } else {
-        &[]
+        (&[], &[])
     };
     let tools: Vec<ToolSpec> = venti_tools::TOOLS
         .iter()
-        .chain(server_tools)
+        .chain(wind)
+        .chain(airspace)
         .map(|tool| ToolSpec {
             name: tool.name.to_owned(),
             description: tool.description.to_owned(),
@@ -490,16 +523,18 @@ fn describe(tool: &str) -> String {
         "list_flights" => "your list of flights",
         "get_flight" => "a flight",
         "wind_stations" => "the wind stations around a place",
+        "airspace_at" => "the airspace over and near a place",
         "station_history" => "a wind station's last hours",
         other => other,
     }
     .to_owned()
 }
 
-/// The standing instructions for the model. `has_wind` says whether the
-/// wind tools are on offer.
-fn instructions(today: &str, has_wind: bool) -> String {
-    let wind = if has_wind {
+/// The standing instructions for the model. `has_server` says whether the
+/// tools that ask the pilot's Venti server, live wind and airspace, are on
+/// offer.
+fn instructions(today: &str, has_server: bool) -> String {
+    let wind = if has_server {
         "You can look up live wind with the wind tools: measurements from weather stations, a \
 few minutes to an hour old. A station measures the wind where it stands, which may be a valley \
 floor or a summit some kilometres from the place asked about: say which station a number is \
@@ -507,14 +542,21 @@ from, how high it stands, how far away it is and how old the reading is. Never p
 reading marked too_old as the wind now. Name the source of the data once, as the tool result \
 gives it.
 
-What you cannot see in this version: forecasts, airspace, flying sites and other pilots. If \
-asked about them, say plainly that this version of the app cannot look that up. Do not guess \
-at conditions, and do not turn measurements into a forecast."
+You can look up the airspace over and near a place with airspace_at. What it returns is advice \
+from data that is not certified, never a clearance: it does not know which areas are active \
+today, a limit above ground depends on terrain it does not know, and it holds some countries \
+only, so an empty result does not mean free airspace. Pass on the caveats the result carries, \
+name its source and say how old the data is. Whether a pilot may enter an airspace is for them \
+to establish from the official publications.
+
+What you cannot see in this version: forecasts, flying sites and other pilots. If asked about \
+them, say plainly that this version of the app cannot look that up. Do not guess at \
+conditions, and do not turn measurements into a forecast."
     } else {
         "What you cannot see in this version: live weather, wind stations, forecasts, airspace, \
 flying sites and other pilots. If asked about them, say plainly that this version of the app \
-cannot look that up. Do not guess at conditions. (Live wind becomes available when the pilot \
-sets a Venti server in the app's settings.)"
+cannot look that up. Do not guess at conditions. (Live wind and airspace become available when \
+the pilot sets a Venti server in the app's settings.)"
     };
     format!(
         "You are the assistant inside Venti, a free paragliding app. You are talking with the \
@@ -756,6 +798,70 @@ mod tests {
     }
 
     #[test]
+    fn airspace_is_looked_up_on_the_pilots_server_with_its_caveats() {
+        let folder = TempFolder::new();
+        let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
+        assistant.use_server(Some("https://venti.example.org".to_owned()));
+
+        let first = assistant.ask(
+            "Which airspace is over Hochfilzen?".to_owned(),
+            NOW,
+            "sk-secret".to_owned(),
+        );
+        // With a server the model is offered the airspace tool and told
+        // what its answers are worth.
+        let asked = body(&first);
+        let offered: Vec<&str> = asked["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect();
+        assert!(offered.contains(&"airspace_at"), "{offered:?}");
+        assert!(asked["system"].to_string().contains("never a clearance"));
+
+        let step = assistant.receive(
+            200,
+            tool_calls(&[(
+                "call_1",
+                "airspace_at",
+                json!({"latitude": 47.49, "longitude": 12.66}),
+            )]),
+            "sk-secret".to_owned(),
+        );
+        let AssistantStep::Fetch { url } = &step else {
+            panic!("{step:?}");
+        };
+        assert!(
+            url.starts_with("https://venti.example.org/v1/airspace?bbox=12."),
+            "{url}"
+        );
+        assert!(!url.contains("sk-secret"));
+
+        // The server's answer goes back to the model as the tool's result,
+        // with the airspace, where it is from and what it cannot say.
+        let step = assistant.receive(200, server_answer("airspace.json"), "sk-secret".to_owned());
+        let second = body(&step);
+        let result = &second["messages"][2]["content"][0];
+        assert_eq!(result["is_error"], false);
+        let text = result["content"].as_str().unwrap();
+        assert!(text.contains("HOCHFILZEN"), "{text}");
+        assert!(text.contains("openAIP"), "{text}");
+        assert!(text.contains("possibly active"), "{text}");
+
+        // Without a server it is not offered at all.
+        let alone = core_with_flights(&TempFolder::new()).assistant("claude-fable-5-2".to_owned());
+        let asked = body(&alone.ask("Hello".to_owned(), NOW, "sk-secret".to_owned()));
+        assert!(
+            asked["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|tool| tool["name"] != "airspace_at")
+        );
+    }
+
+    #[test]
     fn live_wind_is_fetched_from_the_pilots_server_and_nothing_but_an_address_goes_there() {
         let folder = TempFolder::new();
         let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
@@ -782,7 +888,8 @@ mod tests {
                 "list_flights",
                 "get_flight",
                 "wind_stations",
-                "station_history"
+                "station_history",
+                "airspace_at"
             ]
         );
         assert!(

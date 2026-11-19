@@ -9,6 +9,7 @@ use venti_domain::{
     Timestamp,
 };
 
+use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
@@ -467,9 +468,9 @@ impl Store for MemoryStore {
         Ok(self.lock().accounts.prune_sessions(idle_since))
     }
 
-    async fn save_flight(&self, new: &NewFlight) -> Result<(Flight, bool), StoreError> {
+    async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {
         let inner = &mut *self.lock();
-        inner.flights.save(new, &mut inner.accounts)
+        inner.flights.save(new, room, &mut inner.accounts)
     }
 
     async fn flight(&self, id: &str) -> Result<Option<Flight>, StoreError> {

@@ -3,8 +3,8 @@
 use chrono::Duration;
 use venti_domain::{GeoPoint, Timestamp};
 use venti_store::{
-    Account, Derived, Flight, Listing, NewFlight, Place, Score, ScoreKind, Store, StoreError,
-    Visibility,
+    Account, Derived, Flight, Kept, Listing, NewFlight, Place, Room, Saved, Score, ScoreKind,
+    Store, StoreError, Visibility,
 };
 
 use super::accounts::{create, id};
@@ -73,8 +73,15 @@ fn stored(new: &NewFlight, account: &Account, change: i64) -> Flight {
     }
 }
 
+/// Stores a flight for an account with room for anything, and says
+/// whether that created it.
+pub(crate) async fn put(store: &impl Store, new: &NewFlight) -> (Flight, bool) {
+    let saved = store.save_flight(new, &Room::UNLIMITED).await.unwrap();
+    saved.stored().expect("there is room for anything")
+}
+
 async fn save(store: &impl Store, new: &NewFlight) -> Flight {
-    let (flight, created) = store.save_flight(new).await.unwrap();
+    let (flight, created) = put(store, new).await;
     assert!(created, "{} was already there", new.id);
     flight
 }
@@ -115,7 +122,7 @@ pub(crate) async fn a_flight_is_stored_private_and_read_back_exactly(store: &imp
         ..new_flight(&dario, 1, at(10, 30))
     };
 
-    let (flight, created) = store.save_flight(&new).await.unwrap();
+    let (flight, created) = put(store, &new).await;
 
     assert!(created);
     let expected = stored(&new, &dario, micros(new.uploaded_at));
@@ -168,7 +175,7 @@ pub(crate) async fn storing_the_same_flight_again_changes_nothing(store: &impl S
         },
         ..first.clone()
     };
-    let (returned, created) = store.save_flight(&again).await.unwrap();
+    let (returned, created) = put(store, &again).await;
 
     assert!(!created);
     assert_eq!(returned, before);
@@ -207,13 +214,13 @@ pub(crate) async fn uploads_racing_for_one_flight_create_it_once(store: &impl St
     let new = new_flight(&dario, 1, at(10, 30));
 
     let (a, b, c, d) = tokio::join!(
-        store.save_flight(&new),
-        store.save_flight(&new),
-        store.save_flight(&new),
-        store.save_flight(&new),
+        put(store, &new),
+        put(store, &new),
+        put(store, &new),
+        put(store, &new),
     );
 
-    let results = [a.unwrap(), b.unwrap(), c.unwrap(), d.unwrap()];
+    let results = [a, b, c, d];
     let created = results.iter().filter(|(_, created)| *created).count();
     assert_eq!(created, 1);
     for (flight, _) in &results {
@@ -226,12 +233,121 @@ pub(crate) async fn uploads_racing_for_one_flight_create_it_once(store: &impl St
 
 pub(crate) async fn a_flight_for_an_unknown_account_is_refused(store: &impl Store) {
     let nobody = super::accounts::account("nobody");
-    let result = store.save_flight(&new_flight(&nobody, 1, at(10, 30))).await;
+    let flight = new_flight(&nobody, 1, at(10, 30));
+    let result = store.save_flight(&flight, &Room::UNLIMITED).await;
     assert!(
         matches!(result, Err(StoreError::Invalid(_))),
         "expected a refusal, got {result:?}"
     );
     assert_eq!(store.flight(&id("nobody1")).await.unwrap(), None);
+}
+
+pub(crate) async fn an_account_keeps_no_more_than_it_has_room_for(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    // `new_flight` gives flight n a file of 64,000 + n bytes.
+    let flight = |account: &Account, n: u8| new_flight(account, n, at(10, n.into()));
+    let three_flights = Room {
+        flights: 3,
+        file_bytes: u64::MAX,
+    };
+    let try_save =
+        |new: NewFlight, room: Room| async move { store.save_flight(&new, &room).await.unwrap() };
+
+    // Three flights fit; the fourth does not, and nothing of it is kept.
+    for n in 1..=3 {
+        let saved = try_save(flight(&dario, n), three_flights).await;
+        assert!(matches!(saved, Saved::Created(_)), "{saved:?}");
+    }
+    let kept = Kept {
+        flights: 3,
+        file_bytes: 3 * 64_000 + 1 + 2 + 3,
+    };
+    let fourth = flight(&dario, 4);
+    assert_eq!(
+        try_save(fourth.clone(), three_flights).await,
+        Saved::NoRoom(kept)
+    );
+    assert_eq!(store.flight(&fourth.id).await.unwrap(), None);
+    assert_eq!(store.flight_file(&fourth.id).await.unwrap(), None);
+    assert_eq!(list(store, &dario, Listing::All).await.len(), 3);
+    // Being refused is no change to the account's flights.
+    let changes = store.flight_changes(&dario.id, 0, 10).await.unwrap();
+    assert_eq!(changes.flights.len(), 3);
+    assert!(changes.deleted.is_empty());
+
+    // A flight the account already has is handed back, full or not.
+    let again = try_save(flight(&dario, 2), three_flights).await;
+    assert!(matches!(again, Saved::AlreadyThere(_)), "{again:?}");
+    // Another account has room of its own.
+    let annas = try_save(flight(&anna, 4), three_flights).await;
+    assert!(matches!(annas, Saved::Created(_)), "{annas:?}");
+
+    // Room is counted in bytes too, to the byte: the files that are there
+    // and the one that asks.
+    let exactly = Room {
+        flights: u64::MAX,
+        file_bytes: kept.file_bytes + 64_004,
+    };
+    let one_short = Room {
+        file_bytes: exactly.file_bytes - 1,
+        ..exactly
+    };
+    assert_eq!(
+        try_save(fourth.clone(), one_short).await,
+        Saved::NoRoom(kept)
+    );
+    let saved = try_save(fourth.clone(), exactly).await;
+    assert!(matches!(saved, Saved::Created(_)), "{saved:?}");
+
+    // Deleting a flight makes room.
+    let fifth = flight(&dario, 5);
+    let four_flights = Room {
+        flights: 4,
+        file_bytes: u64::MAX,
+    };
+    assert!(matches!(
+        try_save(fifth.clone(), four_flights).await,
+        Saved::NoRoom(_)
+    ));
+    assert!(
+        store
+            .delete_flight(&dario.id, &fourth.id, at(12, 0))
+            .await
+            .unwrap()
+    );
+    let saved = try_save(fifth, four_flights).await;
+    assert!(matches!(saved, Saved::Created(_)), "{saved:?}");
+}
+
+pub(crate) async fn uploads_racing_for_the_last_place_fill_it_once(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let one_flight = Room {
+        flights: 1,
+        file_bytes: u64::MAX,
+    };
+    let flights: Vec<NewFlight> = (1..=4)
+        .map(|n| new_flight(&dario, n, at(10, n.into())))
+        .collect();
+
+    let (a, b, c, d) = tokio::join!(
+        store.save_flight(&flights[0], &one_flight),
+        store.save_flight(&flights[1], &one_flight),
+        store.save_flight(&flights[2], &one_flight),
+        store.save_flight(&flights[3], &one_flight),
+    );
+
+    let results = [a.unwrap(), b.unwrap(), c.unwrap(), d.unwrap()];
+    let created = results
+        .iter()
+        .filter(|saved| matches!(saved, Saved::Created(_)))
+        .count();
+    let refused = results
+        .iter()
+        .filter(|saved| matches!(saved, Saved::NoRoom(_)))
+        .count();
+    assert_eq!((created, refused), (1, 3), "{results:?}");
+    assert_eq!(list(store, &dario, Listing::All).await.len(), 1);
 }
 
 pub(crate) async fn flights_are_listed_newest_first_page_by_page(store: &impl Store) {

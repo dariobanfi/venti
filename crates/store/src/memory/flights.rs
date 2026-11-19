@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::flight::cut;
+use crate::flight::{Kept, Room, Saved, cut};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     StoreError, Visibility,
@@ -41,8 +41,9 @@ impl Flights {
     pub(super) fn save(
         &mut self,
         new: &NewFlight,
+        room: &Room,
         accounts: &mut Accounts,
-    ) -> Result<(Flight, bool), StoreError> {
+    ) -> Result<Saved, StoreError> {
         if accounts.by_id(&new.account_id).is_none() {
             return Err(StoreError::Invalid(
                 "a flight for an account that does not exist".to_owned(),
@@ -52,7 +53,11 @@ impl Flights {
             entry.flight.account_id == new.account_id && entry.flight.identity == new.identity
         });
         if let Some(entry) = existing {
-            return Ok((Self::read(entry, accounts), false));
+            return Ok(Saved::AlreadyThere(Self::read(entry, accounts)));
+        }
+        let kept = self.kept(&new.account_id);
+        if !room.has_room_for(&kept, new.file_bytes) {
+            return Ok(Saved::NoRoom(kept));
         }
 
         let change = accounts
@@ -77,7 +82,20 @@ impl Flights {
         self.deleted
             .remove(&(new.account_id.clone(), new.id.clone()));
         self.flights.insert(new.id.clone(), entry);
-        Ok((flight, true))
+        Ok(Saved::Created(flight))
+    }
+
+    /// What an account keeps.
+    fn kept(&self, account_id: &str) -> Kept {
+        let files = self
+            .flights
+            .values()
+            .filter(|entry| entry.flight.account_id == account_id)
+            .map(|entry| u64::from(entry.flight.file_bytes));
+        Kept {
+            flights: files.clone().count() as u64,
+            file_bytes: files.sum(),
+        }
     }
 
     pub(super) fn get(&self, id: &str, accounts: &Accounts) -> Option<Flight> {

@@ -10,6 +10,7 @@ use venti_domain::{
     Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
 };
 
+use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
@@ -200,7 +201,7 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
-    async fn save_flight(&self, _: &NewFlight) -> Result<(Flight, bool), StoreError> {
+    async fn save_flight(&self, _: &NewFlight, _: &Room) -> Result<Saved, StoreError> {
         self.fail().await
     }
 

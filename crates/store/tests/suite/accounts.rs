@@ -436,7 +436,7 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
     let deleted = new_flight(&dario, 2, at(12, 0));
     let annas = new_flight(&anna, 1, at(11, 0));
     for flight in [&kept, &deleted, &annas] {
-        store.save_flight(flight).await.unwrap();
+        super::flights::put(store, flight).await;
     }
     store
         .delete_flight(&dario.id, &deleted.id, at(13, 0))

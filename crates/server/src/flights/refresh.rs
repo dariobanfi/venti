@@ -156,7 +156,10 @@ mod tests {
             uploaded,
         );
         for flight in [&stale, &broken, &fresh] {
-            store.save_flight(flight).await.unwrap();
+            store
+                .save_flight(flight, &venti_store::Room::UNLIMITED)
+                .await
+                .unwrap();
         }
         let before = store.flight(&fresh.id).await.unwrap();
 

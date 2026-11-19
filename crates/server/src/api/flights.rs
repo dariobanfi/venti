@@ -15,7 +15,7 @@ use venti_api_types::v1::{
     DeletedFlight, ErrorCode, FlightChangesResponse, FlightId, FlightResponse, FlightsResponse,
     MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UploadResponse,
 };
-use venti_store::{Flight, FlightKey, Listing, Store, Visibility};
+use venti_store::{Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility};
 
 use super::auth::{Signed, Viewer};
 use super::cache::Keeper;
@@ -32,6 +32,22 @@ pub(crate) fn no_such_flight() -> ApiError {
     ApiError::missing(
         ErrorCode::FlightNotFound,
         "there is no flight with this address that you may see",
+    )
+}
+
+/// The answer to an upload by an account that has no room for it.
+fn account_full(kept: &Kept, room: &Room) -> ApiError {
+    let megabytes = |bytes: u64| bytes.div_ceil(1024 * 1024);
+    ApiError::forbidden(
+        ErrorCode::AccountFull,
+        format!(
+            "the account keeps {} flights with {} MB of files, and this server gives an \
+             account room for {} flights and {} MB; delete flights to make room",
+            kept.flights,
+            megabytes(kept.file_bytes),
+            room.flights,
+            megabytes(room.file_bytes),
+        ),
     )
 }
 
@@ -230,7 +246,11 @@ pub(crate) async fn upload<S: Store>(
     let new = tokio::task::spawn_blocking(move || new_flight(&account, &file, derivation, now))
         .await
         .map_err(|_| ApiError::internal())?;
-    let (flight, created) = api.store.save_flight(&new).await?;
+    let (flight, created) = match api.store.save_flight(&new, &api.room).await? {
+        Saved::Created(flight) => (flight, true),
+        Saved::AlreadyThere(flight) => (flight, false),
+        Saved::NoRoom(kept) => return Err(account_full(&kept, &api.room)),
+    };
 
     let status = if created {
         StatusCode::CREATED

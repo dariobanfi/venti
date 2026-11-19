@@ -18,6 +18,7 @@ use venti_domain::{
     Airspace, BoundingBox, GeoPoint, Observation, Site, SourceId, Station, StationId, Timestamp,
 };
 
+use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
@@ -610,8 +611,8 @@ impl Store for PgStore {
         accounts::prune_sessions(&self.client().await?, idle_since).await
     }
 
-    async fn save_flight(&self, new: &NewFlight) -> Result<(Flight, bool), StoreError> {
-        flights::save(&mut self.client().await?, new).await
+    async fn save_flight(&self, new: &NewFlight, room: &Room) -> Result<Saved, StoreError> {
+        flights::save(&mut self.client().await?, new, room).await
     }
 
     async fn flight(&self, id: &str) -> Result<Option<Flight>, StoreError> {

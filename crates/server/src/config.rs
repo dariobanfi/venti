@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use tracing::Level;
+use venti_store::Room;
 
 use crate::accounts::Registration;
 use crate::accounts::client::TrustedProxies;
@@ -48,7 +49,22 @@ pub struct Config {
     pub trusted_proxies: TrustedProxies,
     /// Where the providers are that have no address of their own.
     pub providers: Providers,
+    /// The most one account may keep.
+    pub room: Room,
 }
+
+/// The most flights an account may keep unless the configuration says
+/// otherwise, and the most megabytes of flight files.
+///
+/// Meant never to be met by a pilot. Twenty years of flying a great deal:
+/// someone who flies tandems for a living makes a thousand short flights a
+/// year, 20,000 files of some 50 kB, a gigabyte; someone who flies 150
+/// long cross-country flights a year, four hours each at a fix a second
+/// (150 kB an hour), fills two. An account that reaches these numbers is
+/// not keeping a logbook.
+pub const DEFAULT_ACCOUNT_FLIGHTS: u32 = 25_000;
+/// See [`DEFAULT_ACCOUNT_FLIGHTS`].
+pub const DEFAULT_ACCOUNT_STORAGE_MB: u32 = 4096;
 
 /// How long data is kept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +142,15 @@ struct File {
     overpass_url: Option<String>,
     #[serde(default)]
     retention: FileRetention,
+    #[serde(default)]
+    accounts: FileAccounts,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileAccounts {
+    flights: Option<u32>,
+    storage_mb: Option<u32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -202,6 +227,14 @@ const OBSERVATION_MONTHS: Setting = Setting {
 const ARCHIVE_DAYS: Setting = Setting {
     key: "retention.archive_days",
     variable: "VENTI_ARCHIVE_DAYS",
+};
+const ACCOUNT_FLIGHTS: Setting = Setting {
+    key: "accounts.flights",
+    variable: "VENTI_ACCOUNT_FLIGHTS",
+};
+const ACCOUNT_STORAGE_MB: Setting = Setting {
+    key: "accounts.storage_mb",
+    variable: "VENTI_ACCOUNT_STORAGE_MB",
 };
 
 /// The `User-Agent` used when none is configured: the program and its
@@ -340,6 +373,20 @@ impl Config {
             observation_months: number(&OBSERVATION_MONTHS, file.retention.observation_months, 13)?,
             archive_days: number(&ARCHIVE_DAYS, file.retention.archive_days, 14)?,
         };
+        let room = Room {
+            flights: number(
+                &ACCOUNT_FLIGHTS,
+                file.accounts.flights,
+                DEFAULT_ACCOUNT_FLIGHTS,
+            )?
+            .into(),
+            file_bytes: u64::from(number(
+                &ACCOUNT_STORAGE_MB,
+                file.accounts.storage_mb,
+                DEFAULT_ACCOUNT_STORAGE_MB,
+            )?) * 1024
+                * 1024,
+        };
 
         Ok(Self {
             listen,
@@ -354,6 +401,7 @@ impl Config {
             public_url,
             trusted_proxies,
             providers,
+            room,
         })
     }
 }
@@ -433,6 +481,12 @@ mod tests {
             Some(PublicUrl::new("http://127.0.0.1:8080").unwrap())
         );
         assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        // The example names the defaults.
+        assert_eq!(config.room.flights, u64::from(DEFAULT_ACCOUNT_FLIGHTS));
+        assert_eq!(
+            config.room.file_bytes,
+            u64::from(DEFAULT_ACCOUNT_STORAGE_MB) * 1024 * 1024
+        );
     }
 
     #[test]
@@ -467,6 +521,43 @@ mod tests {
         assert_eq!(
             config.providers.overpass_url,
             "https://overpass-api.de/api/interpreter"
+        );
+        // An account has room for twenty years of flying, and an end.
+        assert_eq!(
+            config.room,
+            Room {
+                flights: 25_000,
+                file_bytes: 4096 * 1024 * 1024
+            }
+        );
+        // A thousand tandem flights a year for twenty years.
+        assert!(config.room.flights >= 20 * 1000);
+        // 150 flights a year of four hours each, at the 150 kB an hour
+        // that a position a second makes: twice that fits.
+        let twenty_years: u64 = 20 * 150 * 4 * 150 * 1024;
+        assert!(config.room.file_bytes >= 2 * twenty_years);
+        // One account is not the disk.
+        assert!(config.room.file_bytes <= 8 * 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn the_room_of_an_account_is_a_setting() {
+        let config = load(
+            None,
+            &[
+                ("VENTI_DATABASE_URL", "postgres://venti:pw@db/venti"),
+                ("VENTI_REGIONS", "a/region.toml"),
+                ("VENTI_ACCOUNT_FLIGHTS", "500"),
+                ("VENTI_ACCOUNT_STORAGE_MB", "64"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            config.room,
+            Room {
+                flights: 500,
+                file_bytes: 64 * 1024 * 1024
+            }
         );
     }
 
@@ -567,6 +658,8 @@ mod tests {
         assert!(with("VENTI_TRUSTED_PROXIES", "caddy").contains("trusted_proxies"));
         assert!(with("VENTI_OVERPASS_URL", "overpass-api.de").contains("overpass_url"));
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
+        assert!(with("VENTI_ACCOUNT_FLIGHTS", "0").contains("accounts.flights"));
+        assert!(with("VENTI_ACCOUNT_STORAGE_MB", "plenty").contains("accounts.storage_mb"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));
     }
 

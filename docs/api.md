@@ -89,6 +89,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 401 | `invalid_credentials` | Signing in: the handle or the password is wrong |
 | 403 | `wrong_password` | The password sent to confirm a change to the account is wrong |
 | 403 | `registration_closed`, `invalid_invite` | The server takes no new accounts, or takes them by invite and the code is not good |
+| 403 | `account_full` | An upload: the account keeps as many flights, or as many megabytes of flight files, as the server gives one account room for |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
@@ -973,7 +974,8 @@ The answer is `201` when the upload created the flight, and `200` when the accou
 | Status | Code | When |
 |---|---|---|
 | 413 | `payload_too_large` | The file is larger than 4 MB. Twelve hours at one fix a second are about 2 MB |
-| 422 | `invalid_flight` | The file is not an IGC flight file, holds no position, or could not be analysed. `message` says which |
+| 403 | `account_full` | The account has no room for the flight. A server gives an account room for 25,000 flights and 4,096 MB of flight files unless whoever runs it set other numbers; files count as they were uploaded. That is more than twenty years of flying a great deal, so a pilot does not meet it by keeping a logbook. `message` says what the account keeps and what the room is. The same file sent again gets the same answer until flights are deleted; a flight the account already has is answered `200` as always |
+| 422 | `invalid_flight` | The file is not an IGC flight file, holds no position, is mostly something other than positions, or could not be analysed. `message` says which. "Mostly something other" means: what is not a position line is larger than the position lines and 64 kB together. Headers, a task, comments and a recorder's signature are a few kilobytes |
 | 429 | `rate_limited` | The account is sending more than two files at the same time, or has uploaded 1000 within a day. `Retry-After` says when to try again |
 | 503 | `unavailable` | The server is taking in or analysing as many flights as it can right now. `Retry-After` says when to try again |
 

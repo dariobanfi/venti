@@ -56,6 +56,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
         public_url,
         trusted_proxies: config.trusted_proxies.clone(),
         limits,
+        room: config.room,
         password_cost: Cost::OWASP,
         analyser: analyser.clone(),
     };

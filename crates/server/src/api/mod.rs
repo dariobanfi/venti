@@ -61,7 +61,7 @@ use venti_api_types::v1::{
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
-use venti_store::Store;
+use venti_store::{Room, Store};
 
 use crate::accounts::client::TrustedProxies;
 use crate::accounts::password::{Cost, Hasher};
@@ -148,6 +148,8 @@ pub struct Settings {
     pub trusted_proxies: TrustedProxies,
     /// The limits on attempts.
     pub limits: Limits,
+    /// The most one account may keep.
+    pub room: Room,
     /// What hashing a password costs.
     pub password_cost: Cost,
     /// Where uploaded flight files are analysed.
@@ -163,6 +165,7 @@ pub struct Api<S> {
     public_url: PublicUrl,
     proxies: TrustedProxies,
     limits: Limits,
+    room: Room,
     hasher: Hasher,
     analyser: Analyser,
     /// Wrong passwords by handle and by client address.
@@ -207,6 +210,7 @@ impl<S: Store> Api<S> {
             registration: settings.registration,
             public_url: settings.public_url,
             proxies: settings.trusted_proxies,
+            room: settings.room,
             hasher: Hasher::new(settings.password_cost),
             analyser: settings.analyser,
             wrong_by_handle: Throttle::new(

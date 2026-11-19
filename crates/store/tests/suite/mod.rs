@@ -79,6 +79,8 @@ macro_rules! store_suite {
             storing_the_same_flight_again_changes_nothing,
             two_accounts_may_hold_the_same_flight,
             uploads_racing_for_one_flight_create_it_once,
+            an_account_keeps_no_more_than_it_has_room_for,
+            uploads_racing_for_the_last_place_fill_it_once,
             a_flight_for_an_unknown_account_is_refused,
             flights_are_listed_newest_first_page_by_page,
             visibility_changes_for_the_owner_only,

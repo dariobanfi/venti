@@ -70,6 +70,17 @@ public_url = "http://127.0.0.1:8080"
 # clients connect directly. As a variable: a comma-separated list.
 trusted_proxies = []
 
+[accounts]
+# The most flights one account may keep.                  VENTI_ACCOUNT_FLIGHTS
+# Twenty years of flying a great deal stay well below this; it is here so
+# that one account cannot fill the disk.
+flights = 25000
+
+# The most megabytes of flight files one account may     VENTI_ACCOUNT_STORAGE_MB
+# keep, counted as the files were uploaded. The database stores them
+# compressed, in about a third of that.
+storage_mb = 4096
+
 [retention]
 # Observations are kept for this many whole calendar     VENTI_OBSERVATION_MONTHS
 # months before the current one. Older months are dropped.

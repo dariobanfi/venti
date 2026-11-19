@@ -119,6 +119,68 @@ pub struct Derived {
     pub profile: Vec<[i32; 2]>,
 }
 
+/// The most one account may keep.
+///
+/// Sizes are those of the files as they were uploaded, before the
+/// compression the caller applies: a number a pilot can check against the
+/// files on their own device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Room {
+    /// Flights.
+    pub flights: u64,
+    /// Bytes of flight files, all flights together.
+    pub file_bytes: u64,
+}
+
+impl Room {
+    /// No bound: for the flights a server stores of its own accord, and for
+    /// tests that are not about room.
+    pub const UNLIMITED: Self = Self {
+        flights: u64::MAX,
+        file_bytes: u64::MAX,
+    };
+
+    /// Whether an account that keeps `kept` has room for one more flight
+    /// whose file is `file_bytes` long.
+    pub fn has_room_for(&self, kept: &Kept, file_bytes: u32) -> bool {
+        kept.flights < self.flights
+            && kept.file_bytes.saturating_add(u64::from(file_bytes)) <= self.file_bytes
+    }
+}
+
+/// What an account keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Kept {
+    /// How many flights.
+    pub flights: u64,
+    /// The size of their files together, before compression.
+    pub file_bytes: u64,
+}
+
+/// What became of a flight handed to [`Store::save_flight`](crate::Store::save_flight).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Saved {
+    /// It was stored.
+    Created(Flight),
+    /// The account had it already; this is the flight that was there.
+    AlreadyThere(Flight),
+    /// The account has no room for it. Nothing was stored; this is what
+    /// the account keeps.
+    NoRoom(Kept),
+}
+
+impl Saved {
+    /// The stored flight and whether this call created it; `None` when
+    /// there was no room.
+    pub fn stored(self) -> Option<(Flight, bool)> {
+        match self {
+            Self::Created(flight) => Some((flight, true)),
+            Self::AlreadyThere(flight) => Some((flight, false)),
+            Self::NoRoom(_) => None,
+        }
+    }
+}
+
 /// A flight to store.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewFlight {

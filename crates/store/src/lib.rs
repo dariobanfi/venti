@@ -46,8 +46,8 @@ pub use account::{
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, Score, ScoreKind, Visibility,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
+    OutdatedFlight, Place, Room, Saved, Score, ScoreKind, Visibility,
 };
 pub use forecast::ForecastModel;
 pub use memory::MemoryStore;
@@ -453,20 +453,27 @@ pub trait Store: Send + Sync + 'static {
     // --- Flights ----------------------------------------------------------
 
     /// Stores a flight, private, unless its account already has a flight
-    /// with the same identity. Returns the stored flight and whether this
-    /// call created it.
+    /// with the same identity or has no room for another. Says which of
+    /// the three it was, with the stored flight or with what the account
+    /// keeps.
     ///
     /// The flight that is already there is returned untouched: the first
     /// file received is the one that is kept. Two calls that race for the
     /// same flight create one. A flight the account deleted earlier can be
     /// stored again, and is then no longer listed as deleted.
     ///
+    /// `room` is the most the account may keep, this flight included.
+    /// Whether there is room is decided together with storing: of two
+    /// calls that race for the last place, one gets it. A flight the
+    /// account already has is always returned, also by a full account.
+    ///
     /// An account that does not exist is refused with
     /// [`StoreError::Invalid`].
     fn save_flight(
         &self,
         new: &NewFlight,
-    ) -> impl Future<Output = Result<(Flight, bool), StoreError>> + Send;
+        room: &Room,
+    ) -> impl Future<Output = Result<Saved, StoreError>> + Send;
 
     /// The flight with this address, whoever it belongs to and whoever may
     /// see it. Deciding that is the caller's job.

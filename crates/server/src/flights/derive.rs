@@ -30,6 +30,16 @@ pub const ANALYSIS_VERSION: u32 = 1;
 /// one staying as it is.
 pub const MAX_FIXES: usize = 100_000;
 
+/// What a file may hold beside its positions without question: headers, a
+/// declared task, comments, the recorder's signature. Real files hold a
+/// few kilobytes of these.
+pub const SPARE_BYTES: usize = 64 * 1024;
+
+/// The most one line with a position counts for. The format's own part of
+/// such a line is 35 characters, and what recorders add to it (accuracy,
+/// speeds, engine noise) is a few dozen more.
+const FIX_LINE_BYTES: usize = 128;
+
 /// The most points of an outline, as in the apps' logbooks.
 const OUTLINE_POINTS: usize = 96;
 
@@ -61,6 +71,12 @@ pub enum Unusable {
     /// It holds more fixes than [`MAX_FIXES`].
     #[error("it holds more than {MAX_FIXES} positions")]
     TooManyFixes,
+    /// Most of it is something other than positions.
+    #[error(
+        "most of it is not positions: a flight file is its positions, with a few kilobytes \
+         of headers, comments and signature beside them"
+    )]
+    MostlyNotFlight,
 }
 
 /// Reads a flight file and works out its identity and derived values.
@@ -71,6 +87,9 @@ pub fn derive(file: &[u8]) -> Result<Derivation, Unusable> {
     })?;
     if recording.fixes.len() > MAX_FIXES {
         return Err(Unusable::TooManyFixes);
+    }
+    if !is_mostly_positions(file, recording.fixes.len()) {
+        return Err(Unusable::MostlyNotFlight);
     }
 
     let analysis = analysis::analyse(&recording.fixes);
@@ -121,6 +140,35 @@ pub fn derive(file: &[u8]) -> Result<Derivation, Unusable> {
                 .collect(),
         },
     })
+}
+
+/// Whether a file with `fixes` readable positions is mostly those
+/// positions.
+///
+/// The server keeps a file byte for byte and hands it out to whoever may
+/// see the flight. The flight file reader skips every line it does not
+/// know, so without this a date, one position and four megabytes of
+/// anything at all were a flight, and an account a place to keep and hand
+/// out files. What is not a position may be as large as the positions,
+/// plus [`SPARE_BYTES`]: no real recording comes near that, and one line
+/// of random bytes does not get past it.
+///
+/// A line counts as a position if it begins like one, and all such lines
+/// together count for no more than [`FIX_LINE_BYTES`] per position the
+/// reader could read: lines that only begin like positions do not add up.
+///
+/// This does not stop anyone who writes their bytes into lines that read
+/// as positions. Nothing in the format can; what an account may keep in
+/// total is the bound on that.
+fn is_mostly_positions(file: &[u8], fixes: usize) -> bool {
+    let begin_like_positions: usize = file
+        .split(|byte| *byte == b'\n')
+        .filter(|line| line.first() == Some(&b'B'))
+        .map(|line| line.len() + 1)
+        .sum();
+    let positions = begin_like_positions.min(fixes.saturating_mul(FIX_LINE_BYTES));
+    let other = file.len().saturating_sub(positions);
+    other <= positions.saturating_add(SPARE_BYTES)
 }
 
 /// The file as text.
@@ -176,6 +224,86 @@ mod tests {
 
     fn sample() -> String {
         igc::write(&synthetic_flight())
+    }
+
+    /// Bytes that are no flight record of any kind: every one of 256
+    /// values, over and over, with a line end now and then.
+    fn noise(bytes: usize) -> Vec<u8> {
+        (0..bytes).map(|n| (n * 131 % 256) as u8).collect()
+    }
+
+    #[test]
+    fn a_file_that_is_mostly_something_else_is_not_a_flight() {
+        // What the security review of 2026-11-19 uploaded, and got back
+        // byte for byte: a date, one position, and four megabytes of
+        // anything.
+        let mut smuggled = b"HFDTEDATE:040726\r\nB1030004739852N01147802EA0162001620\r\n".to_vec();
+        smuggled.extend(noise(4 * 1024 * 1024 - smuggled.len()));
+        assert_eq!(derive(&smuggled), Err(Unusable::MostlyNotFlight));
+
+        // The same hidden behind a real flight: the positions do not make
+        // room for more than their own size again.
+        let mut behind_a_flight = sample().into_bytes();
+        let flight = behind_a_flight.len();
+        behind_a_flight.extend(noise(flight + SPARE_BYTES + 1));
+        assert_eq!(derive(&behind_a_flight), Err(Unusable::MostlyNotFlight));
+
+        // Lines that begin like positions and are none count for nothing.
+        let mut dressed_up = sample().into_bytes();
+        for _ in 0..40_000 {
+            dressed_up.extend(b"Bthis is not a position, it only begins like one\r\n");
+        }
+        assert_eq!(derive(&dressed_up), Err(Unusable::MostlyNotFlight));
+        // Nor does a position line of any length count for more than a
+        // real one could be.
+        let mut one_long_line = b"HFDTEDATE:040726\r\nB1030004739852N01147802EA0162001620".to_vec();
+        one_long_line.extend(std::iter::repeat_n(b'7', 500_000));
+        assert_eq!(derive(&one_long_line), Err(Unusable::MostlyNotFlight));
+    }
+
+    #[test]
+    fn what_real_recorders_write_beside_positions_is_no_reason_to_refuse() {
+        let flight = sample();
+        let identity = derive(flight.as_bytes()).unwrap().identity;
+
+        // A comment after every position, as long as the position itself,
+        // and a long signature at the end.
+        let mut chatty = String::new();
+        for line in flight.lines() {
+            chatty.push_str(line);
+            chatty.push_str("\r\n");
+            if line.starts_with('B') {
+                chatty.push_str("LXCTsat 11 hdop 0.9 baro 1013.2 note\r\n");
+            }
+        }
+        for _ in 0..60 {
+            chatty.push_str(&format!("G{}\r\n", "4F5A".repeat(18)));
+        }
+        assert_eq!(derive(chatty.as_bytes()).unwrap().identity, identity);
+
+        // A recording of a minute with everything a file can carry before
+        // its first position: sixty kilobytes of headers and task.
+        let mut short = String::from("AXVE000\r\nHFDTEDATE:040726,01\r\n");
+        for n in 0..1400 {
+            short.push_str(&format!("LXVEnote {n:04} about nothing in particular\r\n"));
+        }
+        for second in 0..60 {
+            short.push_str(&format!("B1030{second:02}4739852N01147802EA0162001620\r\n"));
+        }
+        assert!(short.len() > 60_000 && short.len() < SPARE_BYTES);
+        assert!(derive(short.as_bytes()).is_ok());
+
+        // Positions with every extension a recorder may add: lines of
+        // nearly a hundred characters.
+        let mut extended = String::from("AXVE000\r\nHFDTEDATE:040726,01\r\n");
+        for n in 0..1800 {
+            let (minute, second) = (n / 60, n % 60);
+            let more = "0".repeat(60);
+            extended.push_str(&format!(
+                "B10{minute:02}{second:02}4739852N01147802EA0162001620{more}\r\n"
+            ));
+        }
+        assert!(derive(extended.as_bytes()).is_ok());
     }
 
     #[test]

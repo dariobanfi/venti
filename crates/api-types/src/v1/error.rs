@@ -78,6 +78,10 @@ pub enum ErrorCode {
     PilotNotFound,
     /// The uploaded file is not a flight file the server can use.
     InvalidFlight,
+    /// The account keeps as many flights, or as many bytes of flight
+    /// files, as this server gives one account room for. Deleting flights
+    /// makes room; sending the same file again does not help.
+    AccountFull,
     /// Too many attempts. `Retry-After` says when to try again.
     RateLimited,
     /// The path is not part of the API.

@@ -21,6 +21,7 @@ use venti_server::api::Settings;
 use venti_server::dev::DEMO_TOKEN;
 use venti_server::flights::analyser::{Analyser, Where};
 use venti_sources::testing::assert_golden;
+use venti_store::Room;
 use venti_store::testing::TroubledStore;
 
 mod common;
@@ -285,6 +286,15 @@ async fn what_is_not_a_usable_flight_file_is_refused_and_nothing_is_kept() {
     );
     // JSON is not a flight file either.
     refuse(br#"{"visibility":"public"}"#.to_vec()).await;
+    // Nor is anything at all with a date and one position in front of it:
+    // the server is no place to keep files and hand them out.
+    let mut smuggled = b"HFDTEDATE:040726\r\nB1030004739852N01147802EA0162001620\r\n".to_vec();
+    smuggled.extend((0..3_000_000).map(|n| (n * 131 % 256) as u8));
+    assert!(
+        refuse(smuggled)
+            .await
+            .contains("most of it is not positions")
+    );
 
     let listed = my_flights(&router, &dario.token, &FlightsRequest::default()).await;
     assert!(listed.flights.is_empty());
@@ -301,8 +311,19 @@ async fn what_is_not_a_usable_flight_file_is_refused_and_nothing_is_kept() {
 async fn a_file_larger_than_any_flight_is_not_read() {
     let router = open_server();
     let dario = sign_up(&router, "dario").await;
-    // Up to the limit a body is taken, and judged by what it holds.
-    let mut large = sample_file();
+    // Up to the limit a body is taken, and judged by what it holds: six
+    // hours of positions with everything a recorder may add to each, and
+    // empty lines to the last byte.
+    let mut large = String::from("AXVE000\r\nHFDTEDATE:040726,01\r\n");
+    for n in 0..22_000 {
+        let (hour, minute, second) = (n / 3600, n / 60 % 60, n % 60);
+        let more = "0".repeat(65);
+        large.push_str(&format!(
+            "B{hour:02}{minute:02}{second:02}4739852N01147802EA0162001620{more}\r\n"
+        ));
+    }
+    let mut large = large.into_bytes();
+    assert!(large.len() > MAX_FLIGHT_FILE_BYTES / 2 && large.len() < MAX_FLIGHT_FILE_BYTES);
     large.resize(MAX_FLIGHT_FILE_BYTES, b'\n');
     let at_limit = upload(&router, &dario.token, &large).await;
     assert!(at_limit.created);
@@ -465,6 +486,72 @@ async fn an_account_uploads_a_limited_number_of_files_a_day() {
 
     clock.advance(Duration::hours(24));
     assert_eq!(attempt(sample_file_on("050726")).await, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn an_account_keeps_no_more_than_the_server_gives_it_room_for() {
+    let file_bytes = sample_file().len() as u64;
+    let attempt = |router: &Router, token: &str, file: Vec<u8>| {
+        let (router, token) = (router.clone(), token.to_owned());
+        async move {
+            ask(Method::POST, FLIGHTS_PATH)
+                .token(&token)
+                .bytes(file)
+                .send(&router)
+                .await
+        }
+    };
+
+    // Room for two flights.
+    let two_flights = Settings {
+        room: Room {
+            flights: 2,
+            file_bytes: u64::MAX,
+        },
+        ..settings()
+    };
+    let (router, _) = server(two_flights, &TestClock::new());
+    let dario = sign_up(&router, "dario").await;
+    let first = upload(&router, &dario.token, &sample_file()).await;
+    upload(&router, &dario.token, &sample_file_on("050726")).await;
+
+    let answer = attempt(&router, &dario.token, sample_file_on("060726")).await;
+    let message = answer.error(StatusCode::FORBIDDEN, ErrorCode::AccountFull);
+    assert!(message.contains("keeps 2 flights"), "{message}");
+    assert!(message.contains("room for 2 flights"), "{message}");
+    let listed = my_flights(&router, &dario.token, &FlightsRequest::default()).await;
+    assert_eq!(listed.flights.len(), 2);
+    // A flight the account has is still answered as such: a device that
+    // sends its logbook again learns what is there.
+    let answer = attempt(&router, &dario.token, sample_file()).await;
+    assert_eq!(answer.status, StatusCode::OK);
+    // Another account has room of its own.
+    let anna = sign_up(&router, "anna").await;
+    upload(&router, &anna.token, &sample_file_on("060726")).await;
+    // Deleting a flight makes room.
+    let deleted = ask(Method::DELETE, &flight_path(&first.flight.id))
+        .token(&dario.token)
+        .send(&router)
+        .await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    let answer = attempt(&router, &dario.token, sample_file_on("060726")).await;
+    assert_eq!(answer.status, StatusCode::CREATED);
+
+    // Room for the bytes of two files and one byte less than a third.
+    let nearly_three_files = Settings {
+        room: Room {
+            flights: u64::MAX,
+            file_bytes: 3 * file_bytes - 1,
+        },
+        ..settings()
+    };
+    let (router, _) = server(nearly_three_files, &TestClock::new());
+    let dario = sign_up(&router, "dario").await;
+    upload(&router, &dario.token, &sample_file()).await;
+    upload(&router, &dario.token, &sample_file_on("050726")).await;
+    let answer = attempt(&router, &dario.token, sample_file_on("060726")).await;
+    let message = answer.error(StatusCode::FORBIDDEN, ErrorCode::AccountFull);
+    assert!(message.contains("delete flights to make room"), "{message}");
 }
 
 // --- Lists ------------------------------------------------------------------

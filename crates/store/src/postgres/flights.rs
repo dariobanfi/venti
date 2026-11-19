@@ -12,7 +12,7 @@ use tokio_postgres::{IsolationLevel, Row};
 use venti_domain::{GeoPoint, Timestamp};
 
 use super::{corrupt, db_error};
-use crate::flight::{cut, next_change};
+use crate::flight::{Kept, Room, Saved, cut, next_change};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     Place, Score, ScoreKind, StoreError, Visibility,
@@ -230,7 +230,8 @@ async fn one(
 pub(super) async fn save(
     client: &mut Client,
     new: &NewFlight,
-) -> Result<(Flight, bool), StoreError> {
+    room: &Room,
+) -> Result<Saved, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
     let Some(latest) = lock_account(&tx, &new.account_id).await? else {
         return Err(StoreError::Invalid(
@@ -246,7 +247,25 @@ pub(super) async fn save(
     )
     .await?;
     if let Some(flight) = existing {
-        return Ok((flight, false));
+        return Ok(Saved::AlreadyThere(flight));
+    }
+    // Still under the account's lock: what it keeps cannot grow between
+    // this count and the insert below. The count reads the account's own
+    // rows through an index and no file.
+    let row = tx
+        .query_one(
+            "SELECT count(*), coalesce(sum(file_bytes), 0)::bigint
+             FROM flights WHERE account_id = $1",
+            &[&new.account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let kept = Kept {
+        flights: u64::try_from(row.get::<_, i64>(0)).unwrap_or(0),
+        file_bytes: u64::try_from(row.get::<_, i64>(1)).unwrap_or(0),
+    };
+    if !room.has_room_for(&kept, new.file_bytes) {
+        return Ok(Saved::NoRoom(kept));
     }
 
     let change = take_change(&tx, &new.account_id, latest, new.uploaded_at).await?;
@@ -314,7 +333,7 @@ pub(super) async fn save(
         .await?
         .ok_or_else(|| StoreError::Failure("a flight vanished while it was stored".to_owned()))?;
     tx.commit().await.map_err(db_error)?;
-    Ok((flight, true))
+    Ok(Saved::Created(flight))
 }
 
 pub(super) async fn get(client: &Client, id: &str) -> Result<Option<Flight>, StoreError> {

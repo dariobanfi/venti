@@ -25,7 +25,7 @@ use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
 use venti_store::{
-    Account, AccountCreation, MemoryStore, NewAccount, SecretHash, Session, Store, Visibility,
+    Account, AccountCreation, MemoryStore, NewAccount, Room, SecretHash, Session, Store, Visibility,
 };
 
 use crate::accounts::client::TrustedProxies;
@@ -35,6 +35,7 @@ use crate::accounts::{Limits, Registration};
 use crate::adapters::{self, Providers};
 use crate::api::{Api, Cors, Settings};
 use crate::clock::{Clock, FixedClock};
+use crate::config::{DEFAULT_ACCOUNT_FLIGHTS, DEFAULT_ACCOUNT_STORAGE_MB};
 use crate::flights::analyser::Analyser;
 use crate::flights::derive::derive;
 use crate::flights::new_flight;
@@ -75,6 +76,12 @@ pub fn settings(public_url: PublicUrl, analyser: Analyser, password_cost: Cost) 
         public_url,
         trusted_proxies: TrustedProxies::default(),
         limits: Limits::none(),
+        // As much as a real server gives: an app's handling of a full
+        // account is tested against the server's own tests, not here.
+        room: Room {
+            flights: DEFAULT_ACCOUNT_FLIGHTS.into(),
+            file_bytes: u64::from(DEFAULT_ACCOUNT_STORAGE_MB) * 1024 * 1024,
+        },
         password_cost,
         analyser,
     }
@@ -172,7 +179,10 @@ async fn add_demo_account(
         // These files are the server's own; they are analysed right here.
         let derivation = derive(&file).map_err(|e| format!("a demo flight is unusable: {e}"))?;
         let new = new_flight(&account.id, &file, derivation, now);
-        store.save_flight(&new).await.map_err(|e| e.to_string())?;
+        store
+            .save_flight(&new, &Room::UNLIMITED)
+            .await
+            .map_err(|e| e.to_string())?;
         store
             .set_visibility(&account.id, &new.id, visibility, now)
             .await

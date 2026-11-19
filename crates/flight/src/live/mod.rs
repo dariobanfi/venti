@@ -13,6 +13,7 @@ pub mod vario;
 pub mod wind;
 
 pub use computer::{
-    Config, FlightComputer, LiveState, Phase, PositionSample, Thermal, TrailPoint, VarioSource,
+    Config, FlightComputer, LiveState, Phase, PositionSample, Thermal, ThermalMark, TrailPoint,
+    VarioSource,
 };
 pub use wind::Wind;

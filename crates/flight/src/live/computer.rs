@@ -131,6 +131,31 @@ pub struct Thermal {
     pub climb_ms: f64,
 }
 
+/// A thermal the glider has left: where it circled and what it gave. For a
+/// map, so that the pilot can find the lift again.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ThermalMark {
+    /// The middle of the circles flown in it. The air drifts with the
+    /// wind while the glider climbs, so this lies downwind of where the
+    /// thermal leaves the ground.
+    pub centre: GeoPoint,
+    /// When the glider left it, seconds since 1970-01-01 UTC.
+    pub left_s: f64,
+    /// The altitude it was left at, metres.
+    pub top_altitude_m: f64,
+    /// Height gained in it, metres.
+    pub gain_m: f64,
+    /// Average climb in it, metres per second.
+    pub climb_ms: f64,
+}
+
+/// A thermal is marked when it gave at least this much height, in metres.
+/// Less is a bubble, or a turn in lift that led nowhere.
+const MARK_MIN_GAIN_M: f64 = 50.0;
+
+/// How many thermals stay marked: the latest ones.
+const MARKS_KEPT: usize = 12;
+
 /// Everything the cockpit shows. A value is `None` until the sensors have
 /// supplied what it needs.
 #[derive(Debug, Clone, PartialEq)]
@@ -168,6 +193,8 @@ pub struct LiveState {
     pub circling: bool,
     /// The thermal it is in, or the last one it left.
     pub thermal: Option<Thermal>,
+    /// The thermals it has left that were worth marking, oldest first.
+    pub thermals: Vec<ThermalMark>,
     /// Where the glider took off.
     pub takeoff: Option<GeoPoint>,
     /// Height above the take-off, metres.
@@ -220,6 +247,10 @@ pub struct FlightComputer {
     courses: VecDeque<(f64, f64)>,
     circling: bool,
     thermal: Option<Thermal>,
+    /// The sum of the positions flown while circling in the present
+    /// thermal, as latitude and longitude, and how many there were.
+    circled: (f64, f64, u32),
+    thermals: VecDeque<ThermalMark>,
     wind: WindEstimator,
     max_altitude_m: Option<f64>,
     trail: VecDeque<TrailPoint>,
@@ -268,6 +299,8 @@ impl FlightComputer {
             courses: VecDeque::new(),
             circling: false,
             thermal: None,
+            circled: (0.0, 0.0, 0),
+            thermals: VecDeque::new(),
             wind: WindEstimator::new(),
             max_altitude_m: None,
             trail: VecDeque::new(),
@@ -405,6 +438,7 @@ impl FlightComputer {
             wind: self.wind.wind(),
             circling: self.circling,
             thermal: self.thermal,
+            thermals: self.thermals.iter().copied().collect(),
             takeoff: takeoff_position,
             height_above_takeoff_m: altitude
                 .zip(self.takeoff)
@@ -529,6 +563,7 @@ impl FlightComputer {
     fn update_circling(&mut self, now: f64, altitude: Option<f64>) {
         let turned = self.turned_deg();
         let window = self.config.turn_window_s;
+        let was_circling = self.circling;
         if self.phase != Phase::Flying {
             self.circling = false;
         } else if !self.circling {
@@ -537,6 +572,7 @@ impl FlightComputer {
                 .is_some_and(|climb| climb >= self.config.circling_min_climb_ms);
             if turned >= self.config.circling_start_deg && climbing {
                 self.circling = true;
+                self.circled = (0.0, 0.0, 0);
                 if let Some(altitude) = altitude {
                     self.thermal = Some(Thermal {
                         entered_s: now,
@@ -564,6 +600,41 @@ impl FlightComputer {
                 thermal.climb_ms = thermal.gain_m / seconds;
             }
         }
+        if self.circling
+            && let Some(sample) = self.last_position
+        {
+            self.circled.0 += sample.position.lat();
+            self.circled.1 += sample.position.lon();
+            self.circled.2 += 1;
+        }
+        if was_circling && !self.circling {
+            self.mark_thermal(now, altitude);
+        }
+    }
+
+    /// Marks the thermal just left, if it was worth it.
+    fn mark_thermal(&mut self, now: f64, altitude: Option<f64>) {
+        let (lat, lon, positions) = self.circled;
+        let (Some(thermal), Some(altitude)) = (self.thermal, altitude) else {
+            return;
+        };
+        if thermal.gain_m < MARK_MIN_GAIN_M || positions == 0 {
+            return;
+        }
+        let count = f64::from(positions);
+        let Ok(centre) = GeoPoint::new(lat / count, lon / count) else {
+            return;
+        };
+        if self.thermals.len() == MARKS_KEPT {
+            self.thermals.pop_front();
+        }
+        self.thermals.push_back(ThermalMark {
+            centre,
+            left_s: now,
+            top_altitude_m: altitude,
+            gain_m: thermal.gain_m,
+            climb_ms: thermal.climb_ms,
+        });
     }
 
     fn update_phase(&mut self, now: f64, sample: &PositionSample, altitude: Option<f64>) {
@@ -728,6 +799,22 @@ mod tests {
         let later = after.wind.unwrap();
         assert!((later.from_deg - 270.0).abs() < 8.0, "{later:?}");
         assert!((later.speed_ms - 3.0).abs() < 0.5, "{later:?}");
+        // The thermal is marked where the glider circled, with what it gave.
+        assert_eq!(after.thermals.len(), 1);
+        let mark = after.thermals[0];
+        assert!(mark.gain_m > 550.0, "{mark:?}");
+        // Averaged to the moment the circling rule lets go, some seconds
+        // into the glide: a little under the 2.4 m/s of the climb itself.
+        assert!((1.9..2.5).contains(&mark.climb_ms), "{mark:?}");
+        let entered = states[125].position.unwrap();
+        let left = states[342].position.unwrap();
+        assert!(mark.centre.distance_m(entered) < entered.distance_m(left) + 150.0);
+        assert!(mark.centre.distance_m(after.position.unwrap()) < 1500.0);
+        assert!(
+            states[330].thermals.is_empty(),
+            "marked only once it is left"
+        );
+
         // And it holds through the long glide, until the next thermal.
         let before_next = states[700].wind.unwrap();
         assert!((before_next.speed_ms - 3.0).abs() < 0.5, "{before_next:?}");

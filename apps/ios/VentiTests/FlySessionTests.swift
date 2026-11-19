@@ -35,6 +35,10 @@ final class FlySessionTests: XCTestCase {
         XCTAssertNotNil(view.altitudeM)
         XCTAssertNotNil(view.climbMs)
         XCTAssertFalse(view.trail.isEmpty)
+        // The thermal it climbed in and left is marked for the map, with
+        // its climb.
+        XCTAssertEqual(view.thermals.count, 1)
+        XCTAssertTrue(view.thermals.first?.label.hasPrefix("+2.") ?? false, "\(view.thermals)")
 
         XCTAssertNil(fly.finish())
         XCTAssertNil(fly.mode)

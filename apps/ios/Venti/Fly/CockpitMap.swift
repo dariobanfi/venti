@@ -4,7 +4,8 @@ import SwiftUI
 import VentiCore
 
 /// The cockpit's map: the glider, the track behind it coloured by climb,
-/// the take-off, and a line to the place the cockpit is navigating to. It
+/// the thermals it has left, each with its climb, the take-off, and a line
+/// to the place the cockpit is navigating to. It
 /// keeps the glider in the middle by itself, north up, zooms in while the
 /// glider circles, and out again as far as it takes to show the airspace
 /// a warning is about.
@@ -61,6 +62,7 @@ struct CockpitMap: UIViewRepresentable {
         private var airspaceDrawnAt: Coordinate?
         private var shownTarget: Coordinate?
         private var target: Coordinate?
+        private var drawnThermals: [ThermalMarkView]?
         /// The zoom the map was last set to by itself.
         private var chosenZoom: Double?
 
@@ -95,6 +97,27 @@ struct CockpitMap: UIViewRepresentable {
                 style.addLayer(layer)
             }
 
+            // The thermals already used: a dot in the colour of climb with
+            // the climb beside it, over the trail, so that the lift can be
+            // found again. A number that has no room gives way; its dot stays.
+            let thermals = MLNShapeSource(identifier: "cockpit-thermals", shape: nil, options: nil)
+            style.addSource(thermals)
+            style.addLayer(
+                MapSetup.dot(
+                    "cockpit-thermal-dot", from: thermals, radius: 5, color: ClimbBand.climb.uiColor, ring: .white
+                )
+            )
+            let climbs = MLNSymbolStyleLayer(identifier: "cockpit-thermal-climb", source: thermals)
+            climbs.text = NSExpression(forKeyPath: "label")
+            climbs.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
+            climbs.textFontSize = NSExpression(forConstantValue: 13)
+            climbs.textAnchor = NSExpression(forConstantValue: "left")
+            climbs.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0.7, dy: 0)))
+            climbs.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
+            climbs.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            climbs.textHaloWidth = NSExpression(forConstantValue: 1.6)
+            style.addLayer(climbs)
+
             let place = MLNShapeSource(identifier: "cockpit-target", shape: nil, options: nil)
             style.addSource(place)
             style.addLayer(
@@ -120,6 +143,7 @@ struct CockpitMap: UIViewRepresentable {
             )
 
             isStyleLoaded = true
+            drawnThermals = nil
             drawnRoute = nil
             show(route, on: mapView)
             if let shown {
@@ -167,6 +191,12 @@ struct CockpitMap: UIViewRepresentable {
             }
             if let source = style.source(withIdentifier: "cockpit-trail") as? MLNShapeSource {
                 source.shape = MLNShapeCollectionFeature(shapes: Self.trailFeatures(view.trail))
+            }
+            if view.thermals != drawnThermals,
+               let source = style.source(withIdentifier: "cockpit-thermals") as? MLNShapeSource
+            {
+                drawnThermals = view.thermals
+                source.shape = MLNShapeCollectionFeature(shapes: view.thermals.map(Self.thermalFeature))
             }
 
             // Zoom only when the kind of flying changes or the airspace a
@@ -221,6 +251,14 @@ struct CockpitMap: UIViewRepresentable {
             let point = MLNPointFeature()
             point.coordinate = coordinate.location
             source.shape = point
+        }
+
+        /// A thermal the glider has left, as the map draws it.
+        static func thermalFeature(for mark: ThermalMarkView) -> MLNPointFeature {
+            let feature = MLNPointFeature()
+            feature.coordinate = mark.position.location
+            feature.attributes = ["label": mark.label]
+            return feature
         }
 
         /// The trail as one feature per climb band, like a finished flight's

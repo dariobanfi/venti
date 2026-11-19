@@ -106,6 +106,22 @@ pub struct ThermalView {
     pub climb_ms: f64,
 }
 
+/// A thermal the glider has left, for the map: where it circled and what
+/// it gave.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ThermalMarkView {
+    /// The middle of the circles flown in it.
+    pub position: Coordinate,
+    /// Average climb in it, metres per second.
+    pub climb_ms: f64,
+    /// Height gained in it, metres.
+    pub gain_m: f64,
+    /// The altitude it was left at, metres.
+    pub top_altitude_m: f64,
+    /// Its climb as a map writes it: "+2.4".
+    pub label: String,
+}
+
 /// One point of the track behind the glider.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct TrailPointView {
@@ -185,6 +201,9 @@ pub struct CockpitView {
     pub circling: bool,
     /// The thermal it is in, or the last one it left.
     pub thermal: Option<ThermalView>,
+    /// The thermals it has left that gave fifty metres or more, oldest
+    /// first, the last twelve: marks for the map.
+    pub thermals: Vec<ThermalMarkView>,
     /// Where the glider took off.
     pub takeoff: Option<Coordinate>,
     /// Distance back to the take-off, metres.
@@ -750,6 +769,17 @@ impl FlightSession {
                 gain_m: thermal.gain_m,
                 climb_ms: thermal.climb_ms,
             }),
+            thermals: state
+                .thermals
+                .iter()
+                .map(|mark| ThermalMarkView {
+                    position: coordinate(mark.centre),
+                    climb_ms: mark.climb_ms,
+                    gain_m: mark.gain_m,
+                    top_altitude_m: mark.top_altitude_m,
+                    label: format!("{:+.1}", mark.climb_ms),
+                })
+                .collect(),
             takeoff: state.takeoff.map(coordinate),
             distance_to_takeoff_m: state.distance_to_takeoff_m,
             bearing_to_takeoff_deg: state.bearing_to_takeoff_deg,
@@ -1155,6 +1185,20 @@ mod tests {
         // Climbing in the air: the vario beeps.
         let tone = view.tone.unwrap();
         assert!(tone.frequency_hz > 700.0 && tone.duty < 1.0);
+        // A thermal is marked once it is left, not while the glider is in it.
+        assert!(view.thermals.is_empty());
+
+        // Ten minutes in, on the glide after it: the thermal is on the map
+        // with its climb, to be found again.
+        let folder = TempFolder::new();
+        let (session, replay) = fly(&folder, 600.0, false);
+        let view = session.view(replay.now());
+        assert!(!view.circling);
+        assert_eq!(view.thermals.len(), 1);
+        let mark = &view.thermals[0];
+        assert!(mark.gain_m > 500.0, "{mark:?}");
+        assert!(mark.label.starts_with("+2."), "{mark:?}");
+        assert!(mark.top_altitude_m > mark.gain_m);
     }
 
     #[test]

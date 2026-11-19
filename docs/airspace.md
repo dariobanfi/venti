@@ -76,12 +76,14 @@ The format follows Naviter's specification, [SeeYou OpenAir file format](https:/
 | Kind | What happened | What the app must do |
 |---|---|---|
 | `AirspaceSkipped` | The shape could not be read: an unreadable corner, an arc without a centre, an unknown shape command, fewer than three corners, too many points. Half a shape is a wrong shape, so the airspace is left out | **Tell the pilot.** They will not be warned about that airspace |
-| `LimitAssumed` | A limit could not be read, was missing, or the floor lay above the ceiling. The floor became the ground or the ceiling "unlimited" | Nothing is lost: the airspace is larger than published |
+| `Assumed` | Something could not be read and the cautious reading was taken. A limit that could not be read or was missing, or a floor above its ceiling: the floor became the ground or the ceiling "unlimited". An airspace that begins with its name, its class line missing: it is kept apart from the one before and has no class, which warns | Nothing is lost: the airspace is larger, or more restricted, than published |
 | `LineIgnored` | A line the reader does not know, outside any shape | Nothing |
 
 A hostile file cannot make the reader panic, loop or eat memory: one airspace may have 50,000 points and one file 2,000,000, radii end at 500 nautical miles, and at most 1,000 problems are kept, the rest counted. The tests feed it the sample file cut off at every byte, with its lines shuffled 500 ways, with 3,000 random damages, with random bytes, and with a megabyte in one line.
 
 What the reader cannot notice: a file cut off between two corners of its last airspace. That airspace is closed where it stands and has a wrong shape.
+
+Checked against real files on 2026-11-19: openAIP's OpenAir exports for Germany and Austria, in both versions of the format, read without a single problem, 1,018 airspaces each. openAIP publishes the same airspace as GeoJSON, which the openAIP adapter reads with code of its own; the two readers agree on the name, class, type and both limits of every one of the 1,018. Those exports contain no circles and no arcs, so that part of the reader is tested on shapes built by hand from the definition, and on no real file yet. *To verify* on a file that has them, such as the DAeC's, once there is permission to use it.
 
 ## The questions
 

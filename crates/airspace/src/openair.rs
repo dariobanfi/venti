@@ -40,7 +40,9 @@
 //!
 //! - **A limit it cannot read** is replaced by the widest one: the floor by
 //!   the ground, the ceiling by "unlimited". The airspace is kept and is
-//!   larger than published, never smaller.
+//!   larger than published, never smaller. Likewise an airspace whose
+//!   class line is missing is kept, apart from the one before it, with no
+//!   class, which is the reading that warns.
 //! - **A shape it cannot read** costs the whole airspace, because half a
 //!   shape is a wrong shape. This is the dangerous case: the pilot will not
 //!   be warned about that airspace, and the app must say so.
@@ -126,9 +128,11 @@ impl Options {
 pub enum ProblemKind {
     /// An airspace was left out. The pilot will not be warned about it.
     AirspaceSkipped,
-    /// A limit could not be read and was replaced by the ground or by
-    /// "unlimited". The airspace is kept, larger than published.
-    LimitAssumed,
+    /// Something could not be read and the cautious reading was taken: a
+    /// limit became the ground or "unlimited", or an airspace whose class
+    /// line is missing got no class. The airspace is kept, and is larger or
+    /// more restricted than published, never less.
+    Assumed,
     /// A line was skipped. The airspace it belongs to is kept.
     LineIgnored,
 }
@@ -332,6 +336,21 @@ impl<'a> Reader<'a> {
             );
             return;
         }
+        // A name after the shape has begun: the class line of the next
+        // airspace is missing. Reading on would give the airspace above the
+        // name and limits of this one and the corners of both. A new
+        // airspace is begun instead, of no known class, which the warning
+        // table treats as one to avoid.
+        if command == "AN" && self.draft.as_ref().is_some_and(Draft::has_shape) {
+            self.close();
+            self.draft = Some(Draft::new(number, ""));
+            self.problem(
+                number,
+                ProblemKind::Assumed,
+                "an airspace begins with its name, without a class line (AC); \
+                 no class is assumed",
+            );
+        }
 
         match command.as_str() {
             "AN" => self
@@ -452,7 +471,7 @@ impl<'a> Reader<'a> {
             ),
         };
         if let Some(problem) = problem {
-            self.problem(line, ProblemKind::LimitAssumed, problem);
+            self.problem(line, ProblemKind::Assumed, problem);
         }
         self.with_draft(|draft| {
             if is_floor {
@@ -722,14 +741,14 @@ impl<'a> Reader<'a> {
 
         let lower = draft.lower.unwrap_or_else(|| {
             notes.push((
-                ProblemKind::LimitAssumed,
+                ProblemKind::Assumed,
                 "no floor (AL) is given; the ground is assumed".to_owned(),
             ));
             VerticalLimit::ground()
         });
         let upper = draft.upper.unwrap_or_else(|| {
             notes.push((
-                ProblemKind::LimitAssumed,
+                ProblemKind::Assumed,
                 "no ceiling (AH) is given; no upper limit is assumed".to_owned(),
             ));
             VerticalLimit::unlimited()
@@ -806,7 +825,7 @@ impl<'a> Reader<'a> {
                 | venti_domain::AirspaceError::LimitMisplaced)
         ) {
             notes.push((
-                ProblemKind::LimitAssumed,
+                ProblemKind::Assumed,
                 "the floor lies above the ceiling; ground to unlimited is assumed".to_owned(),
             ));
             airspace.lower = VerticalLimit::ground();
@@ -851,6 +870,11 @@ impl Draft {
             clockwise: true,
             broken: None,
         }
+    }
+
+    /// Whether any line of the shape has been read, usable or not.
+    fn has_shape(&self) -> bool {
+        !self.pieces.is_empty() || self.circle.is_some() || self.broken.is_some()
     }
 }
 
@@ -1377,7 +1401,7 @@ DP 53:47:06N 008:21:41E
         assert_eq!(file.airspaces[0].upper, VerticalLimit::unlimited());
         assert_eq!(file.problems.len(), 2);
         assert_eq!(file.problems[0].line, 3);
-        assert_eq!(file.problems[0].kind, ProblemKind::LimitAssumed);
+        assert_eq!(file.problems[0].kind, ProblemKind::Assumed);
         assert_eq!(file.problems[0].airspace.as_deref(), Some("ED-R 1"));
         assert_eq!(file.problems[1].line, 4);
 
@@ -1389,7 +1413,7 @@ DP 53:47:06N 008:21:41E
         assert!(
             file.problems
                 .iter()
-                .all(|p| p.kind == ProblemKind::LimitAssumed && p.line == 1)
+                .all(|p| p.kind == ProblemKind::Assumed && p.line == 1)
         );
 
         let file = read("AC R\nAL FL100\nAH FL65\nV X=47:00:00N 011:00:00E\nDC 2\n");
@@ -1644,6 +1668,39 @@ DB 47:33:00 N 011:20:00 E, 47:27:00 N 011:20:00 E
             "{}",
             file.problems[0].message
         );
+    }
+
+    #[test]
+    fn an_airspace_without_its_class_line_is_not_merged_into_the_one_before() {
+        // The second airspace has lost its AC line. Read naively, the first
+        // would end up with the second's name and limits and the corners of both.
+        let file = read(
+            "AC E\n\
+             AN OPEN ABOVE\n\
+             AL 1000ft AGL\n\
+             AH FL100\n\
+             V X=47:00:00N 011:00:00E\n\
+             DC 5\n\
+             AN ZONE BELOW\n\
+             AL GND\n\
+             AH 3500ft MSL\n\
+             V X=47:30:00N 011:30:00E\n\
+             DC 2\n",
+        );
+        assert_eq!(file.airspaces.len(), 2);
+        let (open, zone) = (&file.airspaces[0], &file.airspaces[1]);
+        assert_eq!(open.name, "OPEN ABOVE");
+        assert_eq!(open.class, AirspaceClass::E);
+        assert_eq!(open.upper, VerticalLimit::flight_level(100).unwrap());
+        assert_eq!(zone.name, "ZONE BELOW");
+        // Its class is not known, and it does not inherit "E" from above.
+        assert_eq!(zone.class, AirspaceClass::Unclassified);
+        assert_eq!(zone.airspace_type, AirspaceType::Unspecified);
+        assert_eq!(zone.lower, VerticalLimit::ground());
+        assert_eq!(zone.geometry.circle().unwrap().radius_m, 3704.0);
+        assert_eq!(file.problems.len(), 1);
+        assert_eq!(file.problems[0].line, 7);
+        assert_eq!(file.problems[0].kind, ProblemKind::Assumed);
     }
 
     #[test]

@@ -441,3 +441,114 @@ fn the_warning_engine_flies_through_the_recorded_airspace() {
         names(&warnings, Level::Inside)
     );
 }
+
+/// Reads whole country files, when a folder that holds them is named.
+///
+/// The recorded fixtures are a small part of two countries. To check the
+/// adapter against everything openAIP publishes for them, fetch
+/// `de_asp.geojson` and `at_asp.geojson` into a folder and run
+///
+/// ```text
+/// VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture
+/// ```
+///
+/// The files are not part of the repository.
+#[test]
+fn whole_country_files_are_read_when_given() {
+    let Some(folder) = std::env::var_os("VENTI_OPENAIP_DIR") else {
+        return;
+    };
+    let folder = PathBuf::from(folder);
+    let read = |name: &str| {
+        let path = folder.join(name);
+        std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    };
+    let fetch = FixtureFetch::new()
+        .with(GERMANY, read("de_asp.geojson"))
+        .with(AUSTRIA, read("at_asp.geojson"));
+    // Both countries whole, not only the first region's box.
+    let everywhere = PlanCtx {
+        now: fixtures::recorded_at(),
+        area: BoundingBox::new(45.0, 5.0, 56.0, 18.0).unwrap(),
+    };
+    let output = block_on(run_airspace(
+        &OpenAip::new(),
+        &fetch,
+        &MemoryArchive::default(),
+        &everywhere,
+        &RunOptions::default(),
+    ));
+
+    let report = &output.report;
+    println!(
+        "{} airspaces, {} skipped, {} rejected, {} duplicates, newest change {:?}",
+        report.airspaces,
+        report.skipped.len(),
+        report.rejected.len(),
+        report.duplicates,
+        report.newest_change
+    );
+    for skipped in &report.skipped {
+        println!("  skipped {}: {}", skipped.what, skipped.reason);
+    }
+    for rejected in &report.rejected {
+        println!("  rejected {}: {}", rejected.name, rejected.reason);
+    }
+    let table = PolicyTable::paraglider();
+    for policy in [Policy::Avoid, Policy::Caution, Policy::Free] {
+        let count = output
+            .airspaces
+            .iter()
+            .filter(|airspace| table.policy_for(airspace) == policy)
+            .count();
+        println!("  {policy:?}: {count}");
+    }
+    let unknown = output
+        .airspaces
+        .iter()
+        .filter(|airspace| matches!(airspace.airspace_type, AirspaceType::Other(_)))
+        .count();
+    println!("  of a type the adapter does not know: {unknown}");
+
+    // openAIP publishes the same airspace as OpenAir files. Where the
+    // folder holds them too (`de_asp_v2.txt`, `at_asp_v2.txt`), the two
+    // readers of this project must agree on every airspace: its class, its
+    // type and its two limits, taken by name.
+    let describe = |airspace: &Airspace| {
+        format!(
+            "{} | {:?} {:?} | {} to {}",
+            airspace.name,
+            airspace.class,
+            airspace.airspace_type,
+            limit_text(&airspace.lower),
+            limit_text(&airspace.upper)
+        )
+    };
+    let mut from_geojson: Vec<String> = output.airspaces.iter().map(describe).collect();
+    let mut from_openair = Vec::new();
+    for name in ["de_asp_v2.txt", "at_asp_v2.txt"] {
+        let Ok(bytes) = std::fs::read(folder.join(name)) else {
+            return;
+        };
+        let options = venti_airspace::openair::Options::new(OpenAip::new().manifest().id.clone());
+        let file = venti_airspace::openair::parse_bytes(&bytes, &options);
+        assert!(file.problems.is_empty(), "{name}: {:?}", file.problems);
+        from_openair.extend(file.airspaces.iter().map(describe));
+    }
+    from_geojson.sort();
+    from_openair.sort();
+    let differing = from_geojson
+        .iter()
+        .zip(&from_openair)
+        .filter(|(a, b)| a != b)
+        .inspect(|(a, b)| println!("  GeoJSON: {a}\n  OpenAir: {b}"))
+        .count();
+    println!(
+        "  {} airspaces as GeoJSON, {} as OpenAir, {differing} described differently",
+        from_geojson.len(),
+        from_openair.len()
+    );
+    assert_eq!(from_geojson.len(), from_openair.len());
+    assert_eq!(differing, 0);
+    assert!(report.is_healthy());
+}

@@ -73,7 +73,18 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Flight details"].waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("light-5-flight-details")
-        app.buttons["Done"].tap()
+
+        // Choosing a thermal from the list marks it on the map.
+        let thermal = element("thermal-row", in: app)
+        for _ in 0..<4 where !thermal.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(thermal.waitForExistence(timeout: 15))
+        keepScreenshot("light-5b-flight-thermals")
+        thermal.tap()
+        XCTAssertTrue(app.buttons["Show flight totals"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("In the air", in: app).exists)
+        app.buttons["Show flight totals"].tap()
 
         // Back to the logbook, where the flight is now listed.
         app.navigationBars.buttons.firstMatch.tap()

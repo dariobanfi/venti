@@ -23,9 +23,12 @@ on:
 permissions:
   contents: read
 
+# One run at a time. A run in progress is allowed to finish, because several
+# sessions push to main and a build that is always cancelled tells nobody
+# anything; of the runs waiting behind it only the newest is kept.
 concurrency:
   group: ios-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   ios:

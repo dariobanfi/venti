@@ -209,6 +209,42 @@ fn smoothed(points: &[(f64, f64)], seconds: &[i64], half_window_s: i64) -> Vec<(
         .collect()
 }
 
+/// The corners of the track: the positions, in the list of fixes, of at most
+/// `max_points` fixes between which the track runs nearly straight. The
+/// first and last fix are always among them.
+///
+/// Unlike [`outline`] nothing is smoothed and every point returned is a fix
+/// of the track, so distances between corners are distances the glider
+/// really covered.
+pub fn corners(fixes: &[Fix], max_points: usize) -> Vec<usize> {
+    let Some(first) = fixes.first() else {
+        return Vec::new();
+    };
+    if fixes.len() <= 2 {
+        return (0..fixes.len()).collect();
+    }
+    let (lat0, lon0) = (first.position.lat(), first.position.lon());
+    let m_per_deg_lon = M_PER_DEG_LAT * lat0.to_radians().cos();
+    let flat: Vec<(f64, f64)> = fixes
+        .iter()
+        .map(|fix| {
+            (
+                (fix.position.lon() - lon0) * m_per_deg_lon,
+                (fix.position.lat() - lat0) * M_PER_DEG_LAT,
+            )
+        })
+        .collect();
+
+    let mut tolerance = 20.0;
+    loop {
+        let kept = simplify(&flat, tolerance);
+        if kept.len() <= max_points.max(2) {
+            return kept;
+        }
+        tolerance *= 1.5;
+    }
+}
+
 /// The indices of the points Ramer-Douglas-Peucker keeps, in order.
 fn simplify(points: &[(f64, f64)], tolerance: f64) -> Vec<usize> {
     let mut keep = vec![false; points.len()];
@@ -391,6 +427,19 @@ mod tests {
             let north = (point.lat() - 47.0) * M_PER_DEG_LAT;
             assert!(north.abs() < 15.0, "{north}");
         }
+    }
+
+    #[test]
+    fn corners_are_fixes_of_the_track_in_order_with_both_ends() {
+        let flight = synthetic_flight();
+        let corners = corners(&flight.fixes, 400);
+
+        assert!(corners.len() <= 400);
+        assert_eq!(corners.first(), Some(&0));
+        assert_eq!(corners.last(), Some(&(flight.fixes.len() - 1)));
+        assert!(corners.windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(super::corners(&flight.fixes[..1], 400), [0]);
+        assert!(super::corners(&[], 400).is_empty());
     }
 
     #[test]

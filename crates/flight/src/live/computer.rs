@@ -200,7 +200,12 @@ pub struct FlightComputer {
     start_altitude_m: Option<f64>,
 
     last_position: Option<PositionSample>,
+    /// The sample before the latest, as a moment of the flight.
+    previous: Option<Mark>,
     velocity: Option<Velocity>,
+    /// Whether the latest velocity was worked out from two positions rather
+    /// than measured by the receiver.
+    velocity_is_derived: bool,
     satellite_altitude_m: Option<f64>,
 
     pressure_filter: VarioFilter,
@@ -251,7 +256,9 @@ impl FlightComputer {
             condition_since: None,
             start_altitude_m: None,
             last_position: None,
+            previous: None,
             velocity: None,
+            velocity_is_derived: false,
             satellite_altitude_m: None,
             // A pressure sensor is good to a few decimetres; satellite
             // altitude wanders by metres.
@@ -302,6 +309,7 @@ impl FlightComputer {
             return;
         }
 
+        self.velocity_is_derived = sample.ground_speed_ms.is_none() || sample.course_deg.is_none();
         self.velocity = self.velocity_at(&sample).or(self.velocity);
         if let Some(altitude) = sample.altitude_m {
             self.satellite_altitude_m = Some(altitude);
@@ -567,6 +575,13 @@ impl FlightComputer {
             position: sample.position,
             altitude_m: altitude.or(sample.altitude_m).unwrap_or(0.0),
         };
+        // A speed worked out from two positions describes the step that
+        // ended here, so a run it starts began at the position before.
+        let run_origin = match self.previous {
+            Some(previous) if self.velocity_is_derived => previous,
+            _ => here,
+        };
+        self.previous = Some(here);
         match self.phase {
             Phase::Ground => {
                 let fast = speed >= self.config.takeoff_speed_ms;
@@ -579,7 +594,7 @@ impl FlightComputer {
                         .is_some_and(|(altitude, start)| {
                             (altitude - start).abs() >= self.config.takeoff_height_m
                         });
-                let run_start = fast.then(|| *self.condition_since.get_or_insert(here));
+                let run_start = fast.then(|| *self.condition_since.get_or_insert(run_origin));
                 let held =
                     run_start.is_some_and(|start| now - start.time_s >= self.config.takeoff_hold_s);
                 if held || left_the_ground {
@@ -659,12 +674,8 @@ mod tests {
 
         assert_eq!(states[0].phase, Phase::Ground);
         assert_eq!(states[8].phase, Phase::Flying);
-        let takeoff = states[8].takeoff_time_s.unwrap();
-        assert!(
-            (0.0..=3.0).contains(&(takeoff - start)),
-            "{}",
-            takeoff - start
-        );
+        // The recording starts in flight: the take-off is its first fix.
+        assert_eq!(states[8].takeoff_time_s, Some(start));
         assert!(states.last().unwrap().landing_time_s.is_none());
         assert_eq!(states.last().unwrap().phase, Phase::Flying);
     }
@@ -839,7 +850,8 @@ mod tests {
         }
         let state = computer.state(300.0);
         assert_eq!(state.phase, Phase::Flying);
-        assert!((state.takeoff_time_s.unwrap() - 121.0).abs() <= 1.0);
+        // The first fast step is the one from second 119 to second 120.
+        assert!((state.takeoff_time_s.unwrap() - 120.0).abs() <= 1.0);
 
         // Standing in the landing field.
         for second in 300..340 {

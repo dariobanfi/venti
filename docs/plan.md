@@ -86,7 +86,7 @@ Phases are ordered so that each one is useful to a single pilot before the commu
 |---|---|---|
 | **0 Foundations** | Repository, CI, Rust workspace, the adapter framework with two real adapters, and the spikes listed below | Every spike has a yes or no |
 | **1 Map** | Today and Plan for Germany/Austria on iOS and web; MCP connector with read-only weather and site tools | The owner opens it before every flight |
-| **2 Review** | Logbook, import, analysis, 3D replay, share pages. Started early, on the device only: the iOS app imports flight files into a logbook and shows a flight on the map with its altitude profile. | The owner's full flight history is in it |
+| **2 Review** | Logbook, import, analysis, 3D replay, share pages. Started early, on the device only: the iOS app imports flight files into a logbook, shows a flight on the map with its altitude profile, and lists its thermals, glides and free distance. League scoring, 3D replay, comparison and share pages are not built. | The owner's full flight history is in it |
 | **3 Fly** | Recorder and cockpit on iOS with offline maps, Bluetooth vario and live tracking. Started: the cockpit, recorder, vario sound and Bluetooth vario link are built and tested by replaying a flight; they have not flown, and offline maps, airspace, navigation and live tracking are not built. | Ten cross-country flights as primary instrument without a lost track |
 | **4 Community** | Profiles, feed, groups, flying-today board, events; closed beta | The owner's group plans a flying day in it |
 | **5 Assistant in flight** | In-app assistant, voice, proactive alerts, landing-plus-transit planner | Used for a real retrieve |

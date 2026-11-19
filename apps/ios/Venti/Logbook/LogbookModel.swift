@@ -101,6 +101,15 @@ final class LogbookModel {
         }.value
     }
 
+    /// What happened in one flight: thermals, glides, distance. Runs off
+    /// the main thread.
+    func analysis(id: String) async throws -> FlightAnalysis {
+        let core = self.core
+        return try await Task.detached(priority: .userInitiated) {
+            try core.flightAnalysis(id: id)
+        }.value
+    }
+
     /// Removes a flight for good.
     func delete(id: String) throws {
         defer { view = core.logbook() }

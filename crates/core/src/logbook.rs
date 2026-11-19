@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use venti_flight::igc::{self, IgcFile};
-use venti_flight::{summarise, track};
+use venti_flight::{analysis, summarise, track};
 
 use crate::storage::Storage;
 
@@ -32,7 +32,7 @@ const FLIGHTS_FOLDER: &str = "flights";
 const INDEX_FILE: &str = "logbook-index.json";
 
 /// Bump when [`Summary`] changes shape or meaning; older indexes are rebuilt.
-const INDEX_VERSION: u32 = 2;
+const INDEX_VERSION: u32 = 3;
 
 /// The most points an outline keeps. Enough for a recognisable thumbnail and
 /// an overview map, small enough to hold thousands of flights in memory.
@@ -230,10 +230,13 @@ impl Logbook {
     }
 }
 
-/// Parses a flight file and works out its logbook summary.
+/// Parses a flight file and works out its logbook summary. The summary
+/// describes the part of the recording that was flown; the file is kept
+/// whole.
 fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
     let file = igc::parse(igc_text).map_err(LogbookError::Invalid)?;
-    let summary = summarise(&file.fixes).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
+    let flown = analysis::flown_part(&file.fixes);
+    let summary = summarise(flown).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
     let summary = Summary {
         start_unix_s: summary.start.timestamp(),
         duration_s: summary.duration_s(),
@@ -242,7 +245,7 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
         max_climb_ms: summary.max_climb_ms,
         pilot: file.pilot.clone(),
         glider: file.glider_type.clone(),
-        outline: track::outline(&file.fixes, OUTLINE_POINTS)
+        outline: track::outline(flown, OUTLINE_POINTS)
             .into_iter()
             .map(|point| [point.lat(), point.lon()])
             .collect(),

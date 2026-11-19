@@ -2,8 +2,16 @@ import SwiftUI
 import VentiCore
 
 /// Everything known about a flight, as a list. Opened from the flight panel.
+///
+/// Choosing a thermal or a glide closes the sheet and marks that moment on
+/// the map and the profile.
 struct FlightDetailsSheet: View {
     let flight: FlightView
+    /// What happened in the flight, once it has been worked out.
+    let analysis: FlightAnalysis?
+    /// Called with a position in the flight's track to mark.
+    let onSelect: (Int) -> Void
+
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -15,6 +23,47 @@ struct FlightDetailsSheet: View {
                     row("Landing", Format.time(unixSeconds: flight.startUnixS + flight.durationS))
                     row("Airtime", "\(Format.hoursMinutes(seconds: flight.durationS)) h")
                     row("Track length", "\(Format.kilometres(metres: flight.trackLengthM)) km")
+                    if let distance = analysis?.freeDistanceM {
+                        row("Free distance", "\(Format.kilometres(metres: distance)) km")
+                    }
+                }
+                if let analysis, analysis.takeoff != nil {
+                    Section {
+                        row("In thermals", share(of: analysis.thermallingS, in: analysis))
+                        row("On glides", share(of: analysis.glidingS, in: analysis))
+                        row("Gained in thermals", "\(Format.metres(analysis.heightGainedM)) m")
+                    } header: {
+                        Text("In the air")
+                    } footer: {
+                        if analysis.landing == nil {
+                            Text("The recording ends in the air. Free distance is the longest line through up to three turnpoints.")
+                        } else {
+                            Text("Free distance is the longest line through up to three turnpoints.")
+                        }
+                    }
+                    if !analysis.thermals.isEmpty {
+                        Section("Thermals") {
+                            ForEach(analysis.thermals, id: \.entry.trackIndex) { thermal in
+                                Button {
+                                    onSelect(Int(thermal.entry.trackIndex))
+                                } label: {
+                                    ThermalRow(thermal: thermal, flightStart: flight.startUnixS)
+                                }
+                                .accessibilityIdentifier("thermal-row")
+                            }
+                        }
+                    }
+                    if !analysis.glides.isEmpty {
+                        Section("Glides") {
+                            ForEach(analysis.glides, id: \.start.trackIndex) { glide in
+                                Button {
+                                    onSelect(Int(glide.start.trackIndex))
+                                } label: {
+                                    GlideRow(glide: glide, flightStart: flight.startUnixS)
+                                }
+                            }
+                        }
+                    }
                 }
                 Section("Altitude and climb") {
                     row("Highest", "\(Format.metres(flight.maxAltitudeM)) m")
@@ -66,5 +115,74 @@ struct FlightDetailsSheet: View {
 
     private func row(_ title: String, _ value: String) -> some View {
         LabeledContent(title, value: value)
+    }
+
+    /// A duration with its share of the airtime: "0:07 h, 24%".
+    private func share(of seconds: Int64, in analysis: FlightAnalysis) -> String {
+        let time = "\(Format.hoursMinutes(seconds: seconds)) h"
+        guard analysis.airtimeS > 0 else { return time }
+        let percent = (Double(seconds) / Double(analysis.airtimeS)).formatted(.percent.precision(.fractionLength(0)))
+        return "\(time), \(percent)"
+    }
+}
+
+/// One thermal: when, how much height, how fast, and the wind it showed.
+private struct ThermalRow: View {
+    let thermal: ThermalSummary
+    let flightStart: Int64
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Format.time(unixSeconds: flightStart + Int64(thermal.entry.seconds)))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Format.signedMetres(thermal.gainM)) m")
+                    .foregroundStyle(.primary)
+                Text("\(Format.climb(metresPerSecond: thermal.climbMs)) m/s")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detail: String {
+        let minutes = Format.minutesSeconds(seconds: Int64(thermal.exit.seconds) - Int64(thermal.entry.seconds))
+        guard let wind = thermal.wind else { return "\(minutes) min" }
+        let speed = Format.kilometresPerHour(metresPerSecond: wind.speedMs)
+        return "\(minutes) min · wind \(Format.compassPoint(degrees: wind.fromDeg)) \(speed) km/h"
+    }
+}
+
+/// One glide: when, how far, at what glide ratio and speed.
+private struct GlideRow: View {
+    let glide: GlideSummary
+    let flightStart: Int64
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Format.time(unixSeconds: flightStart + Int64(glide.start.seconds)))
+                    .foregroundStyle(.primary)
+                Text("\(Format.kilometresPerHour(metresPerSecond: glide.speedMs)) km/h")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Format.kilometres(metres: glide.distanceM)) km")
+                    .foregroundStyle(.primary)
+                Text(glide.glideRatio.map { "glide \(Format.glideRatio($0))" } ?? "no height lost")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }

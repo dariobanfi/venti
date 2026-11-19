@@ -29,6 +29,11 @@ enum Format {
         Duration.seconds(seconds).formatted(.time(pattern: .hourMinute))
     }
 
+    /// Minutes and seconds of a short stretch: "4:12".
+    static func minutesSeconds(seconds: Int64) -> String {
+        Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond))
+    }
+
     /// Kilometres with one decimal.
     static func kilometres(metres: Double) -> String {
         (metres / 1000).formatted(.number.precision(.fractionLength(1)))

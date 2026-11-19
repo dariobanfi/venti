@@ -23,12 +23,14 @@ use std::sync::Arc;
 use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
+mod analysis;
 mod cockpit;
 mod logbook;
 mod storage;
 #[cfg(test)]
 mod testing;
 
+pub use analysis::*;
 pub use cockpit::*;
 
 use logbook::{Logbook, LogbookError};
@@ -328,10 +330,12 @@ impl Core {
         view
     }
 
-    /// One flight from the logbook, prepared for display.
+    /// One flight from the logbook, prepared for display. What is shown is
+    /// the part of the recording that was flown.
     pub fn flight(&self, id: String) -> Result<FlightView, CoreError> {
         let text = self.logbook.flight_text(&id)?;
-        let file = igc::parse(&text).map_err(LogbookError::Invalid)?;
+        let mut file = igc::parse(&text).map_err(LogbookError::Invalid)?;
+        file.fixes = venti_flight::analysis::flown_part(&file.fixes).to_vec();
         let summary =
             summarise(&file.fixes).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
 

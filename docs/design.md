@@ -41,7 +41,7 @@ The map fills the screen. A panel floats over its lower part with, from top to b
 
 - The track is coloured by climb rate, with a white edge so it reads over any ground. A hollow dot marks the start and a solid dot the end.
 - Dragging along the profile moves a marker along the track, and the four numbers change to that moment: time, time in the air, altitude, climb. The marker **stays** when the finger lifts, so the pilot can look from the chart to the map. A button in the panel's corner returns to the totals.
-- Everything else known about the flight is in a sheet opened from the panel: both extremes of altitude and climb, the recorder, the exact meaning of each colour.
+- Everything else known about the flight is in a sheet opened from the panel: the free distance, the time spent in thermals and on glides, every thermal (when, height gained, average climb, the wind it showed) and every glide (distance, glide ratio, speed), both extremes of altitude and climb, the recorder, the exact meaning of each colour. Choosing a thermal or glide closes the sheet and marks that moment on the map and the profile.
 - The map is told how much of it the panel and bars cover, and fits the track into the rest.
 
 ### Map

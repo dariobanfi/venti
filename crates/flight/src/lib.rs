@@ -5,9 +5,10 @@
 //! in text, positions and times, which makes every calculation replayable
 //! from a recorded flight.
 //!
-//! So far it reads and writes IGC flight files, summarises a track and
-//! prepares it for drawing.
+//! So far it reads and writes IGC flight files, summarises and analyses a
+//! track, prepares it for drawing, and runs the live flight computer.
 
+pub mod analysis;
 pub mod igc;
 mod summary;
 pub mod testing;

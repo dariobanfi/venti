@@ -16,6 +16,9 @@ struct FlightScreen: View {
     }
 
     @State private var phase = Phase.loading
+    /// Arrives a moment after the flight itself; the screen does not wait
+    /// for it.
+    @State private var analysis: FlightAnalysis?
     @State private var isConfirmingDelete = false
 
     var body: some View {
@@ -30,7 +33,7 @@ struct FlightScreen: View {
                     description: Text(message)
                 )
             case .loaded(let flight):
-                FlightDetail(flight: flight)
+                FlightDetail(flight: flight, analysis: analysis)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -61,7 +64,10 @@ struct FlightScreen: View {
                 phase = .loaded(try await logbook.flight(id: id))
             } catch {
                 phase = .failed(error.localizedDescription)
+                return
             }
+            // Without the analysis the flight is still shown in full.
+            analysis = try? await logbook.analysis(id: id)
         }
     }
 }
@@ -71,6 +77,7 @@ struct FlightScreen: View {
 /// covers so the track is fitted into the part that shows.
 private struct FlightDetail: View {
     let flight: FlightView
+    let analysis: FlightAnalysis?
 
     /// The position in the track the pilot is inspecting, if any.
     @State private var cursor: Int?
@@ -111,8 +118,12 @@ private struct FlightDetail: View {
             }
         }
         .sheet(isPresented: $isShowingDetails) {
-            FlightDetailsSheet(flight: flight)
-                .presentationDetents([.medium, .large])
+            FlightDetailsSheet(flight: flight, analysis: analysis) { index in
+                // Show a thermal or glide the pilot picked from the list.
+                cursor = min(index, flight.track.count - 1)
+                isShowingDetails = false
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 

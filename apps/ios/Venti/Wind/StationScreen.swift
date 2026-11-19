@@ -196,9 +196,11 @@ struct StationScreen: View {
                 }
                 .chartForegroundStyleScale(["Wind": Palette.wind, "Gusts": Palette.gusts])
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
+                    // Over a whole day a time needs its half of the day, and
+                    // the labels at both ends stay inside the chart.
+                    AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
                         AxisGridLine()
-                        AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                        AxisValueLabel(format: .dateTime.hour())
                     }
                 }
                 .chartYAxis {
@@ -237,9 +239,11 @@ struct StationScreen: View {
                 }
                 .chartYScale(domain: 0...360)
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 6)) { _ in
+                    // Over a whole day a time needs its half of the day, and
+                    // the labels at both ends stay inside the chart.
+                    AxisMarks(preset: .aligned, values: .stride(by: .hour, count: 6)) { _ in
                         AxisGridLine()
-                        AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                        AxisValueLabel(format: .dateTime.hour())
                     }
                 }
                 .chartYAxis {

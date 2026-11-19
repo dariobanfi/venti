@@ -10,6 +10,8 @@ import VentiCore
 /// to the totals.
 struct FlightPanel: View {
     let flight: FlightView
+    /// How the flight scores, once that is worked out.
+    var score: FlightScore?
     @Binding var cursor: Int?
     @Binding var isPlaying: Bool
     @Binding var isShowingDetails: Bool
@@ -70,7 +72,14 @@ struct FlightPanel: View {
     private var totals: some View {
         HStack(alignment: .top, spacing: 8) {
             Metric(caption: "Airtime", value: Format.hoursMinutes(seconds: flight.durationS), unit: "h")
-            Metric(caption: "Track", value: Format.kilometres(metres: flight.trackLengthM), unit: "km")
+            // The scored distance, as in the logbook's list. Until it is
+            // worked out, and for a flight too short to score, the length
+            // of the track.
+            if let score {
+                Metric(caption: "Distance", value: Format.kilometres(metres: score.distanceM), unit: "km")
+            } else {
+                Metric(caption: "Track", value: Format.kilometres(metres: flight.trackLengthM), unit: "km")
+            }
             Metric(caption: "Highest", value: Format.metres(flight.maxAltitudeM), unit: "m")
             Metric(caption: "Best climb", value: Format.climb(metresPerSecond: flight.maxClimbMs), unit: "m/s")
         }

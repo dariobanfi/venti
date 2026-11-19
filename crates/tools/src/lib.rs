@@ -9,6 +9,9 @@
 //! implements [`Host`]: in the app, the client core answers from the
 //! logbook on the device.
 //!
+//! The tools in [`wind`] read from a Venti server instead, and are
+//! answered in two steps so that this crate stays free of I/O.
+//!
 //! Rules for tools:
 //!
 //! - A tool returns numbers with their units in the field names, and says
@@ -19,6 +22,8 @@
 //!   the pilot.
 
 use serde_json::{Value, json};
+
+pub mod wind;
 
 /// One tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +36,7 @@ pub struct Tool {
     /// so that the app can ask the pilot first.
     pub read_only: bool,
     /// A JSON Schema of its arguments, as JSON text.
-    schema: &'static str,
+    pub(crate) schema: &'static str,
 }
 
 impl Tool {
@@ -75,7 +80,7 @@ const DEFAULT_LIMIT: usize = 20;
 /// The most it returns whatever the model says.
 const MAX_LIMIT: usize = 100;
 
-/// Every tool.
+/// The tools that answer from the pilot's logbook, through a [`Host`].
 pub const TOOLS: [Tool; 3] = [
     Tool {
         name: "logbook_statistics",
@@ -204,7 +209,7 @@ mod tests {
     #[test]
     fn every_tool_has_a_schema_a_description_and_a_unique_name() {
         let mut names = Vec::new();
-        for tool in TOOLS {
+        for tool in TOOLS.iter().chain(&wind::SERVER_TOOLS) {
             let schema = tool.input_schema();
             assert_eq!(schema["type"], "object", "{}", tool.name);
             assert_eq!(schema["additionalProperties"], false, "{}", tool.name);

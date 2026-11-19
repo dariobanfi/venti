@@ -7,7 +7,9 @@ import VentiCore
 /// The conversation itself is the core's: what to send, which tools to run
 /// against the logbook, what the reply is. This class does the one thing
 /// the core cannot: it sends each request over the network and hands back
-/// the answer.
+/// the answer. Requests go to the pilot's model provider; when the model
+/// looks up live wind, the core names an address on the pilot's Venti
+/// server and this class fetches it, without the key or the question.
 @MainActor
 @Observable
 final class AssistantChat {
@@ -27,11 +29,22 @@ final class AssistantChat {
     @ObservationIgnored private var assistant: Assistant
     @ObservationIgnored private let transport: Transport
     @ObservationIgnored private let readKey: () -> String?
+    @ObservationIgnored private let fetch: WindModel.Transport
+    @ObservationIgnored private let server: () -> String?
+    @ObservationIgnored private let now: () -> Int64
 
+    /// - Parameters:
+    ///   - fetch: how an address on the Venti server is fetched.
+    ///   - server: the pilot's Venti server, if one is set. With one, the
+    ///     assistant can look up live wind.
+    ///   - now: the current time, by the server's clock where it is known.
     init(
         makeAssistant: @escaping (String) -> Assistant,
         transport: @escaping Transport = AssistantChat.send,
-        readKey: @escaping () -> String? = KeyStore.read
+        readKey: @escaping () -> String? = KeyStore.read,
+        fetch: @escaping WindModel.Transport = WindModel.fetch,
+        server: @escaping () -> String? = { nil },
+        now: @escaping () -> Int64 = { Int64(Date().timeIntervalSince1970) }
     ) {
         let model = UserDefaults.standard.string(forKey: Preferences.assistantModel)
             ?? assistantModels().first?.id
@@ -41,6 +54,9 @@ final class AssistantChat {
         assistant = makeAssistant(model)
         self.transport = transport
         self.readKey = readKey
+        self.fetch = fetch
+        self.server = server
+        self.now = now
         hasKey = readKey() != nil
     }
 
@@ -53,19 +69,33 @@ final class AssistantChat {
         pending = question
         defer { pending = nil }
 
-        var step = assistant.ask(question: question, nowUnixS: Int64(Date().timeIntervalSince1970), key: key)
-        while case .send(let request) = step {
-            do {
-                let (status, body) = try await transport(request)
-                step = assistant.receive(status: UInt16(clamping: status), body: body, key: key)
-            } catch {
-                assistant.abandon()
-                problem = "The provider could not be reached. \(error.localizedDescription)"
-                return
+        assistant.useServer(address: server())
+        var step = assistant.ask(question: question, nowUnixS: now(), key: key)
+        working: while true {
+            switch step {
+            case .send(let request):
+                do {
+                    let (status, body) = try await transport(request)
+                    step = assistant.receive(status: UInt16(clamping: status), body: body, key: key)
+                } catch {
+                    assistant.abandon()
+                    problem = "The provider could not be reached. \(error.localizedDescription)"
+                    return
+                }
+            case .fetch(let url):
+                // A Venti server that cannot be reached does not end the
+                // conversation: the model is told, and says so in its reply.
+                var answer: (Int, Data) = (0, Data())
+                if let address = URL(string: url), let fetched = try? await fetch(address) {
+                    answer = fetched
+                }
+                step = assistant.receive(status: UInt16(clamping: answer.0), body: answer.1, key: key)
+            case .failed(let message):
+                problem = message
+                break working
+            case .finished:
+                break working
             }
-        }
-        if case .failed(let message) = step {
-            problem = message
         }
         entries = assistant.transcript()
     }

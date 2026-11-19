@@ -125,13 +125,15 @@ struct MapScreen: View {
             Text("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(.thinMaterial, in: .capsule)
+                .background(.thinMaterial, in: .rect(cornerRadius: 10))
+                // Clear of the map's own credits button on the left and of
+                // the round buttons on the right.
                 .padding(.leading, 44)
-                .padding(.trailing, 80)
-                .padding(.bottom, 10)
+                .padding(.trailing, 96)
+                .padding(.bottom, 8)
                 .accessibilityIdentifier("wind-credits")
         }
     }

@@ -11,10 +11,16 @@
 //! says the reply is ready. The key is passed in with each step and kept
 //! nowhere.
 //!
+//! Live wind is not on the device. When the pilot has set a Venti server,
+//! the model may also ask for the wind tools, and the loop then hands the
+//! shell an address on that server to fetch. Only an address: the pilot's
+//! key and the conversation never go to the Venti server.
+//!
 //! What the pilot should know, and the app says where the key is entered:
 //! a question, and whatever the tools looked up to answer it, go to the
 //! provider.
 
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::DateTime;
@@ -99,6 +105,13 @@ pub enum AssistantStep {
         /// The request.
         request: AssistantRequest,
     },
+    /// Fetch this address on the pilot's Venti server with a plain HTTP
+    /// `GET`, without any of the provider's headers, and pass the answer
+    /// to `receive`. Only a shell that has called `use_server` gets this.
+    Fetch {
+        /// The address.
+        url: String,
+    },
     /// The reply is in the transcript.
     Finished,
     /// It did not work. The conversation is as it was before the question;
@@ -139,6 +152,28 @@ struct State {
     before_question: usize,
     /// Rounds of tool use in the current question.
     rounds: u32,
+    /// When the current question was asked, which the ages of wind
+    /// readings are measured against.
+    now_unix_s: i64,
+    /// The pilot's Venti server, without a slash at the end, if one is set.
+    server: Option<String>,
+    /// The tools the model asked for that are still to be answered, and
+    /// the results so far, while a round of tool use is under way.
+    round: Option<Round>,
+}
+
+/// One tool call of the model: its id, the tool's name and the arguments.
+type Call = (String, String, Value);
+
+/// A round of tool use in progress.
+#[derive(Debug)]
+struct Round {
+    /// The calls not answered yet, in the order the model made them.
+    waiting: VecDeque<Call>,
+    /// The call whose answer the shell is fetching from the server.
+    fetching: Option<Call>,
+    /// The results so far.
+    results: Vec<Block>,
 }
 
 #[uniffi::export]
@@ -154,6 +189,9 @@ impl Core {
                 today: String::new(),
                 before_question: 0,
                 rounds: 0,
+                now_unix_s: 0,
+                server: None,
+                round: None,
             }),
         })
     }
@@ -161,12 +199,23 @@ impl Core {
 
 #[uniffi::export]
 impl Assistant {
+    /// Tells the assistant which Venti server the pilot has set, or that
+    /// there is none. With a server the model can look up live wind, and
+    /// the shell must be ready for [`AssistantStep::Fetch`].
+    pub fn use_server(&self, address: Option<String>) {
+        self.lock().server = address
+            .map(|address| address.trim().trim_end_matches('/').to_owned())
+            .filter(|address| !address.is_empty());
+    }
+
     /// Asks a question. `now_unix_s` is the current time; `key` is the
     /// pilot's key for the provider.
     pub fn ask(&self, question: String, now_unix_s: i64, key: String) -> AssistantStep {
         let mut state = self.lock();
         state.before_question = state.messages.len();
         state.rounds = 0;
+        state.round = None;
+        state.now_unix_s = now_unix_s;
         state.today = DateTime::from_timestamp(now_unix_s, 0)
             .map(|now| now.format("%A, %-d %B %Y").to_string())
             .unwrap_or_default();
@@ -174,15 +223,29 @@ impl Assistant {
         send(&state, &key)
     }
 
-    /// Takes the provider's answer to the last request.
+    /// Takes the answer to the last request: the provider's, or the Venti
+    /// server's after an [`AssistantStep::Fetch`].
     pub fn receive(&self, status: u16, body: Vec<u8>, key: String) -> AssistantStep {
         let mut state = self.lock();
+
+        // The answer to a fetch belongs to the tool that is waiting for it.
+        if let Some((id, name, input)) =
+            state.round.as_mut().and_then(|round| round.fetching.take())
+        {
+            let now = DateTime::from_timestamp(state.now_unix_s, 0).unwrap_or_default();
+            let result = venti_tools::wind::result(&name, &input, status, &body, now);
+            if let Some(round) = state.round.as_mut() {
+                round.results.push(tool_result(id, result));
+            }
+            return continue_round(self.core.as_ref(), &mut state, &key);
+        }
+
         let reply = match Anthropic.parse(status, &body) {
             Ok(reply) => reply,
             Err(error) => return fail(&mut state, explain(&error)),
         };
 
-        let calls: Vec<(String, String, Value)> = reply
+        let calls: VecDeque<Call> = reply
             .message
             .blocks
             .iter()
@@ -205,19 +268,12 @@ impl Assistant {
                         "The assistant kept looking things up without answering. Try asking in another way.".to_owned(),
                     );
                 }
-                let results = calls
-                    .into_iter()
-                    .map(|(id, name, input)| {
-                        let result = venti_tools::run(self.core.as_ref(), &name, &input);
-                        Block::ToolResult {
-                            call_id: id,
-                            is_error: result.is_err(),
-                            content: result.unwrap_or_else(|error| venti_tools::failure(&error)),
-                        }
-                    })
-                    .collect();
-                state.messages.push(Message::tool_results(results));
-                send(&state, &key)
+                state.round = Some(Round {
+                    waiting: calls,
+                    fetching: None,
+                    results: Vec::new(),
+                });
+                continue_round(self.core.as_ref(), &mut state, &key)
             }
             Stop::Finished | Stop::TooLong | Stop::Refused if has_words => AssistantStep::Finished,
             Stop::Refused => fail(
@@ -289,6 +345,7 @@ impl Assistant {
         let mut state = self.lock();
         let keep = state.before_question;
         state.messages.truncate(keep);
+        state.round = None;
     }
 
     /// Forgets the conversation.
@@ -297,6 +354,7 @@ impl Assistant {
         state.messages.clear();
         state.before_question = 0;
         state.rounds = 0;
+        state.round = None;
     }
 }
 
@@ -308,10 +366,69 @@ impl Assistant {
     }
 }
 
+/// Answers the tools the model asked for, one after the other. A tool that
+/// reads from the Venti server interrupts the round: the shell fetches,
+/// and `receive` comes back here. When every call has its result the
+/// conversation goes back to the provider.
+fn continue_round(core: &Core, state: &mut State, key: &str) -> AssistantStep {
+    loop {
+        let Some(round) = state.round.as_mut() else {
+            return send(state, key);
+        };
+        let Some((id, name, input)) = round.waiting.pop_front() else {
+            let results = std::mem::take(&mut round.results);
+            state.round = None;
+            state.messages.push(Message::tool_results(results));
+            return send(state, key);
+        };
+        if !venti_tools::wind::needs_server(&name) {
+            round
+                .results
+                .push(tool_result(id, venti_tools::run(core, &name, &input)));
+            continue;
+        }
+        let path = match (&state.server, venti_tools::wind::request(&name, &input)) {
+            (Some(server), Ok(path)) => format!("{server}{path}"),
+            (None, _) => {
+                // The model is only offered these tools with a server set;
+                // one that asks anyway is told why it gets nothing.
+                let none = ToolError::Failed(
+                    "No Venti server is set in the app, so live wind cannot be looked up."
+                        .to_owned(),
+                );
+                round.results.push(tool_result(id, Err(none)));
+                continue;
+            }
+            (_, Err(error)) => {
+                round.results.push(tool_result(id, Err(error)));
+                continue;
+            }
+        };
+        round.fetching = Some((id, name, input));
+        return AssistantStep::Fetch { url: path };
+    }
+}
+
+/// A tool's result, or what went wrong, as the model is told.
+fn tool_result(call_id: String, result: Result<String, ToolError>) -> Block {
+    Block::ToolResult {
+        call_id,
+        is_error: result.is_err(),
+        content: result.unwrap_or_else(|error| venti_tools::failure(&error)),
+    }
+}
+
 /// The request for the conversation as it stands.
 fn send(state: &State, key: &str) -> AssistantStep {
+    // Live wind is offered only when there is a server to ask.
+    let server_tools: &[venti_tools::Tool] = if state.server.is_some() {
+        &venti_tools::wind::SERVER_TOOLS
+    } else {
+        &[]
+    };
     let tools: Vec<ToolSpec> = venti_tools::TOOLS
         .iter()
+        .chain(server_tools)
         .map(|tool| ToolSpec {
             name: tool.name.to_owned(),
             description: tool.description.to_owned(),
@@ -322,7 +439,7 @@ fn send(state: &State, key: &str) -> AssistantStep {
         key,
         &Conversation {
             model: &state.model,
-            system: &instructions(&state.today),
+            system: &instructions(&state.today, state.server.is_some()),
             tools: &tools,
             messages: &state.messages,
             max_tokens: MAX_TOKENS,
@@ -345,6 +462,7 @@ fn send(state: &State, key: &str) -> AssistantStep {
 fn fail(state: &mut State, message: String) -> AssistantStep {
     let keep = state.before_question;
     state.messages.truncate(keep);
+    state.round = None;
     AssistantStep::Failed { message }
 }
 
@@ -371,24 +489,43 @@ fn describe(tool: &str) -> String {
         "logbook_statistics" => "your logbook's statistics",
         "list_flights" => "your list of flights",
         "get_flight" => "a flight",
+        "wind_stations" => "the wind stations around a place",
+        "station_history" => "a wind station's last hours",
         other => other,
     }
     .to_owned()
 }
 
-/// The standing instructions for the model.
-fn instructions(today: &str) -> String {
+/// The standing instructions for the model. `has_wind` says whether the
+/// wind tools are on offer.
+fn instructions(today: &str, has_wind: bool) -> String {
+    let wind = if has_wind {
+        "You can look up live wind with the wind tools: measurements from weather stations, a \
+few minutes to an hour old. A station measures the wind where it stands, which may be a valley \
+floor or a summit some kilometres from the place asked about: say which station a number is \
+from, how high it stands, how far away it is and how old the reading is. Never present a \
+reading marked too_old as the wind now. Name the source of the data once, as the tool result \
+gives it.
+
+What you cannot see in this version: forecasts, airspace, flying sites and other pilots. If \
+asked about them, say plainly that this version of the app cannot look that up. Do not guess \
+at conditions, and do not turn measurements into a forecast."
+    } else {
+        "What you cannot see in this version: live weather, wind stations, forecasts, airspace, \
+flying sites and other pilots. If asked about them, say plainly that this version of the app \
+cannot look that up. Do not guess at conditions. (Live wind becomes available when the pilot \
+sets a Venti server in the app's settings.)"
+    };
     format!(
         "You are the assistant inside Venti, a free paragliding app. You are talking with the \
 pilot whose logbook is on this device.
 
 Use the tools to look up anything about the pilot's flights. Never state a number about their \
-flying that did not come from a tool. Units are metric: metres, kilometres, metres per second, \
-hours and minutes. Times in tool results are UTC; if you quote a time of day, say that it is UTC.
+flying that did not come from a tool. Units are metric: metres, kilometres, kilometres per \
+hour for wind, metres per second for climb, hours and minutes. Times in tool results are UTC; \
+if you quote a time of day, say that it is UTC.
 
-What you cannot see in this version: live weather, wind stations, forecasts, airspace, flying \
-sites and other pilots. If asked about them, say plainly that this version of the app cannot \
-look that up. Do not guess at conditions.
+{wind}
 
 You are not a substitute for the pilot's own judgement. Whether and where to fly is their \
 decision, and you say so when a question is really about that.
@@ -599,6 +736,233 @@ mod tests {
             AssistantStep::Send { request } => serde_json::from_str(&request.body).unwrap(),
             other => panic!("expected a request, got {other:?}"),
         }
+    }
+
+    /// A provider reply that asks for several tools at once.
+    fn tool_calls(calls: &[(&str, &str, Value)]) -> Vec<u8> {
+        let content: Vec<Value> = calls
+            .iter()
+            .map(|(id, name, input)| json!({"type": "tool_use", "id": id, "name": name, "input": input}))
+            .collect();
+        json!({"content": content, "stop_reason": "tool_use"})
+            .to_string()
+            .into_bytes()
+    }
+
+    /// The server's own recorded answers, which its tests keep current.
+    fn server_answer(name: &str) -> Vec<u8> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/tests/golden/");
+        std::fs::read(format!("{path}{name}")).unwrap()
+    }
+
+    #[test]
+    fn live_wind_is_fetched_from_the_pilots_server_and_nothing_but_an_address_goes_there() {
+        let folder = TempFolder::new();
+        let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
+        assistant.use_server(Some(" https://wind.example.org/ ".to_owned()));
+        // The server's recorded answers are from this moment.
+        let now = 1_795_028_700; // 18 November 2026, 19:05 UTC
+
+        let step = assistant.ask(
+            "Wind on the Zugspitze?".to_owned(),
+            now,
+            "sk-secret".to_owned(),
+        );
+        let first = body(&step);
+        let offered: Vec<&str> = first["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            offered,
+            [
+                "logbook_statistics",
+                "list_flights",
+                "get_flight",
+                "wind_stations",
+                "station_history"
+            ]
+        );
+        assert!(
+            first["system"]
+                .as_str()
+                .unwrap()
+                .contains("You can look up live wind")
+        );
+
+        // The model asks for the wind around the summit, for the logbook
+        // and for a station's history, all at once. The shell is handed an
+        // address on the pilot's server: no key, no question.
+        let step = assistant.receive(
+            200,
+            tool_calls(&[
+                (
+                    "call_1",
+                    "wind_stations",
+                    json!({"latitude": 47.42, "longitude": 10.99, "radius_km": 30}),
+                ),
+                ("call_2", "logbook_statistics", json!({})),
+                (
+                    "call_3",
+                    "station_history",
+                    json!({"station_id": "dwd-10min:05792", "hours": 3}),
+                ),
+            ]),
+            "sk-secret".to_owned(),
+        );
+        let AssistantStep::Fetch { url } = &step else {
+            panic!("{step:?}");
+        };
+        assert!(
+            url.starts_with("https://wind.example.org/v1/stations?bbox=10.5"),
+            "{url}"
+        );
+        assert!(!url.contains("sk-secret") && !url.contains("Zugspitze"));
+
+        // The logbook tool in between needs no fetch; the history does.
+        let step = assistant.receive(200, server_answer("stations.json"), "sk-secret".to_owned());
+        assert_eq!(
+            step,
+            AssistantStep::Fetch {
+                url: "https://wind.example.org/v1/stations/dwd-10min:05792/observations".to_owned()
+            }
+        );
+
+        // With every result in, the conversation goes back to the provider.
+        let step = assistant.receive(
+            200,
+            server_answer("observations.json"),
+            "sk-secret".to_owned(),
+        );
+        let second = body(&step);
+        let results = second["messages"][2]["content"].as_array().unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(
+            results
+                .iter()
+                .map(|result| result["tool_use_id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["call_1", "call_2", "call_3"]
+        );
+        assert!(results.iter().all(|result| result["is_error"] == false));
+
+        let wind: Value = serde_json::from_str(results[0]["content"].as_str().unwrap()).unwrap();
+        let summit = &wind["stations"][0];
+        assert_eq!(summit["name"], "Zugspitze");
+        assert_eq!(summit["wind_km_h"], 54.0);
+        assert_eq!(summit["gusts_km_h"], 93.0);
+        assert_eq!(summit["age_min"], 45);
+        assert!(summit.get("too_old").is_none());
+        assert_eq!(
+            wind["sources"][0],
+            "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+        );
+
+        let statistics: Value =
+            serde_json::from_str(results[1]["content"].as_str().unwrap()).unwrap();
+        assert_eq!(statistics["total"]["flights"], 2);
+
+        let history: Value = serde_json::from_str(results[2]["content"].as_str().unwrap()).unwrap();
+        assert_eq!(history["station"]["name"], "Zugspitze");
+        assert!(!history["hours"].as_array().unwrap().is_empty());
+
+        let step = assistant.receive(
+            200,
+            answer("54 km/h from the west on the Zugspitze, gusting 93, measured 45 minutes ago."),
+            "sk-secret".to_owned(),
+        );
+        assert_eq!(step, AssistantStep::Finished);
+        assert_eq!(
+            assistant.transcript()[1].looked_up,
+            [
+                "the wind stations around a place",
+                "your logbook's statistics",
+                "a wind station's last hours"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_server_that_fails_is_told_to_the_model_and_the_conversation_goes_on() {
+        let folder = TempFolder::new();
+        let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
+        assistant.use_server(Some("https://wind.example.org".to_owned()));
+
+        assistant.ask("Wind at Garmisch?".to_owned(), NOW, "sk-secret".to_owned());
+        let step = assistant.receive(
+            200,
+            tool_call(
+                "call_1",
+                "wind_stations",
+                json!({"latitude": 47.5, "longitude": 11.1}),
+            ),
+            "sk-secret".to_owned(),
+        );
+        assert!(matches!(step, AssistantStep::Fetch { .. }));
+
+        let step = assistant.receive(503, b"<html>down</html>".to_vec(), "sk-secret".to_owned());
+        let result = &body(&step)["messages"][2]["content"][0];
+        assert_eq!(result["is_error"], true);
+        assert!(
+            result["content"]
+                .as_str()
+                .unwrap()
+                .contains("could not answer")
+        );
+
+        // A request that could not be sent at all leaves no half-answered round behind.
+        let step = assistant.receive(
+            200,
+            tool_call(
+                "call_2",
+                "wind_stations",
+                json!({"latitude": 47.5, "longitude": 11.1}),
+            ),
+            "sk-secret".to_owned(),
+        );
+        assert!(matches!(step, AssistantStep::Fetch { .. }));
+        assistant.abandon();
+        assert!(assistant.transcript().is_empty());
+        let step = assistant.ask("And now?".to_owned(), NOW, "sk-secret".to_owned());
+        assert_eq!(body(&step)["messages"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn without_a_server_the_wind_tools_are_not_offered_and_a_call_is_refused() {
+        let folder = TempFolder::new();
+        let assistant = core_with_flights(&folder).assistant("claude-fable-5-2".to_owned());
+        assistant.use_server(Some("  ".to_owned()));
+
+        let step = assistant.ask("Wind at Garmisch?".to_owned(), NOW, "sk-secret".to_owned());
+        let first = body(&step);
+        assert_eq!(first["tools"].as_array().unwrap().len(), 3);
+        assert!(
+            first["system"]
+                .as_str()
+                .unwrap()
+                .contains("sets a Venti server")
+        );
+
+        // A model that asks anyway gets an explanation, not a fetch.
+        let step = assistant.receive(
+            200,
+            tool_call(
+                "call_1",
+                "wind_stations",
+                json!({"latitude": 47.5, "longitude": 11.1}),
+            ),
+            "sk-secret".to_owned(),
+        );
+        let result = &body(&step)["messages"][2]["content"][0];
+        assert_eq!(result["is_error"], true);
+        assert!(
+            result["content"]
+                .as_str()
+                .unwrap()
+                .contains("No Venti server is set")
+        );
     }
 
     #[test]

@@ -81,6 +81,56 @@ final class AssistantChatTests: XCTestCase {
         XCTAssertFalse(chat.isWorking)
     }
 
+    func testLiveWindIsFetchedFromThePilotsServerWithoutTheKey() async throws {
+        let logbook = try await makeLogbook()
+        let fetched = Fetched()
+        let chat = AssistantChat(
+            makeAssistant: { model in logbook.makeAssistant(model: model) },
+            transport: ScriptedProvider.answer,
+            readKey: { "test-key" },
+            fetch: { url in
+                await fetched.add(url)
+                return (200, Data(WindAnswers.stations.utf8))
+            },
+            server: { "https://wind.example.org" },
+            // 18 November 2026, 19:05 UTC: 45 minutes after the reading.
+            now: { 1_795_028_700 }
+        )
+
+        await chat.ask("How is the wind on the Zugspitze right now?")
+
+        XCTAssertNil(chat.problem)
+        XCTAssertEqual(chat.entries.count, 2)
+        XCTAssertEqual(chat.entries[1].lookedUp, ["the wind stations around a place"])
+        XCTAssertEqual(
+            chat.entries[1].text,
+            "Zugspitze: **54 km/h**, from W, gusts 93, measured 45 minutes ago. Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+        )
+        // The server was asked for an area, and for nothing else.
+        let urls = await fetched.urls
+        XCTAssertEqual(urls.count, 1)
+        XCTAssertEqual(urls.first?.host(), "wind.example.org")
+        XCTAssertEqual(urls.first?.path, "/v1/stations")
+        XCTAssertFalse(urls.first?.absoluteString.contains("test-key") ?? true)
+    }
+
+    func testAServerThatCannotBeReachedIsExplainedInTheReply() async throws {
+        let logbook = try await makeLogbook()
+        let chat = AssistantChat(
+            makeAssistant: { model in logbook.makeAssistant(model: model) },
+            transport: ScriptedProvider.answer,
+            readKey: { "test-key" },
+            fetch: { _ in throw URLError(.cannotConnectToHost) },
+            server: { "https://wind.example.org" }
+        )
+
+        await chat.ask("How is the wind on the Zugspitze right now?")
+
+        // The conversation goes on: the model is told and says so.
+        XCTAssertNil(chat.problem)
+        XCTAssertTrue(chat.entries.last?.text.contains("could not be looked up") ?? false)
+    }
+
     func testWithoutAKeyNothingIsAsked() async throws {
         let logbook = try await makeLogbook()
         let chat = AssistantChat(
@@ -104,4 +154,28 @@ private actor Seen {
     func add(_ request: AssistantRequest) {
         requests.append(request)
     }
+}
+
+/// Collects the addresses a test's fetch was given.
+private actor Fetched {
+    private(set) var urls: [URL] = []
+
+    func add(_ url: URL) {
+        urls.append(url)
+    }
+}
+
+/// An answer of the Venti server, in its own format.
+private enum WindAnswers {
+    static let stations = """
+        {"stations": [
+          {"id": "dwd-10min:05792", "source": "dwd-10min", "name": "Zugspitze",
+           "position": {"lat": 47.421, "lon": 10.9848}, "elevation_m": 2956.0,
+           "latest": {"time": "2026-11-18T18:20:00Z", "wind_speed_ms": 14.9, "wind_gust_ms": 25.7,
+                      "wind_direction_deg": 260.0, "temperature_c": -7.1}}
+        ], "truncated": false, "attributions": [
+          {"source": "dwd-10min", "provider": "Deutscher Wetterdienst", "licence": "CC BY 4.0",
+           "text": "Quelle: Deutscher Wetterdienst", "url": "https://www.dwd.de/"}
+        ]}
+        """
 }

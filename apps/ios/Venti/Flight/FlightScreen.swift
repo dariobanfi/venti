@@ -114,7 +114,8 @@ private struct FlightDetail: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     FlightPanel(
-                        flight: flight, cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
+                        flight: flight, score: analysis?.score,
+                        cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
                     )
                         .onGeometryChange(for: CGFloat.self) { panel in
                             panel.size.height

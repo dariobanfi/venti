@@ -166,6 +166,8 @@ private struct Bubble: View {
 
 /// Questions to start with.
 private struct Suggestions: View {
+    @Environment(WindModel.self) private var wind
+
     let ask: (String) -> Void
 
     private static let questions = [
@@ -174,13 +176,23 @@ private struct Suggestions: View {
         "Where did I find my strongest thermals?",
     ]
 
+    /// Offered as well when a Venti server is set: the assistant can then
+    /// look up live wind.
+    static let windQuestion = "How is the wind on the Zugspitze right now?"
+
+    private var hasWind: Bool { wind.server != nil }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Ask about your flying")
                 .font(.title2.weight(.semibold))
-            Text("The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet.")
-                .foregroundStyle(.secondary)
-            ForEach(Self.questions, id: \.self) { question in
+            Text(
+                hasWind
+                    ? "The assistant reads your logbook to answer, and the wind stations of your Venti server. It cannot see forecasts, airspace or other pilots yet."
+                    : "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet."
+            )
+            .foregroundStyle(.secondary)
+            ForEach(Self.questions + (hasWind ? [Self.windQuestion] : []), id: \.self) { question in
                 Button(question) {
                     ask(question)
                 }
@@ -216,7 +228,7 @@ private struct KeyEntry: View {
             } header: {
                 Text("Your key")
             } footer: {
-                Text("Kept in this iPhone's Keychain and sent only to Anthropic. Your questions, and what the assistant looks up in your logbook to answer them, go from this iPhone straight to Anthropic, which bills your account for them. Venti's server is not involved.")
+                Text("Kept in this iPhone's Keychain and sent only to Anthropic. Your questions, and what the assistant looks up to answer them, go from this iPhone straight to Anthropic, which bills your account for them. No Venti server sees your key or your questions. When the assistant looks up live wind, the app asks your Venti server for the stations around a place, as the map does.")
             }
             Section {
                 if let console = URL(string: "https://console.anthropic.com/settings/keys") {

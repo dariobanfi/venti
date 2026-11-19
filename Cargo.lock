@@ -2775,8 +2775,11 @@ dependencies = [
 name = "venti-tools"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde_json",
  "thiserror",
+ "venti-api-types",
+ "venti-domain",
 ]
 
 [[package]]

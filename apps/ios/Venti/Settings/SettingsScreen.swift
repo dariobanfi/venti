@@ -68,7 +68,7 @@ struct SettingsScreen: View {
     /// What the address field means, and whether what is in it is usable.
     private var serverNote: String {
         if wind.address.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "The address of a Venti server. The map shows the wind stations it collects. Without one the map works, without wind."
+            return "The address of a Venti server. The map shows the wind stations it collects, and the assistant can look them up. Without one, the map has no wind."
         }
         if wind.server == nil {
             return "This is not an address the app can use. It should look like wind.example.org."
@@ -76,7 +76,7 @@ struct SettingsScreen: View {
         if let problem = wind.problem {
             return problem
         }
-        return "The map shows the wind stations this server collects."
+        return "The map shows the wind stations this server collects, and the assistant can look them up."
     }
 
     private static var version: String {

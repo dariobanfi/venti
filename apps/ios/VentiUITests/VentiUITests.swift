@@ -205,7 +205,8 @@ final class VentiUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--server", server]
+        // The model provider is played by a script; the Venti server is real.
+        app.launchArguments = ["--ui-testing", "--server", server, "--scripted-assistant"]
         app.launch()
 
         let stations = app.buttons["Wind stations"]
@@ -229,6 +230,18 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Deutscher Wetterdienst", in: app).exists)
         sleep(2)
         keepScreenshot("wind-3-station")
+
+        // The assistant looks up the same wind on the same server.
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].tap()
+        app.tabBars.buttons["Assistant"].tap()
+        let question = app.buttons["How is the wind on the Zugspitze right now?"]
+        XCTAssertTrue(question.waitForExistence(timeout: 15))
+        question.tap()
+        XCTAssertTrue(labelled(containing: "Zugspitze: 54 km/h", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "the wind stations around a place", in: app).exists)
+        sleep(1)
+        keepScreenshot("wind-4-assistant")
     }
 
     /// The same screens with tiles fetched from the public servers, as a

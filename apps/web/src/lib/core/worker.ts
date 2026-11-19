@@ -6,6 +6,7 @@
 
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
+import { ForecastSource } from './forecast-source';
 import { IdbStore } from './idb-store';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
@@ -40,7 +41,8 @@ const starting: Promise<Answering> = (async () => {
 		wind,
 		account: new AccountSource(session),
 		airspace: new AirspaceSource(session, () => wind.present()),
-		sites: new SitesSource(() => wind.present())
+		sites: new SitesSource(() => wind.present()),
+		forecast: new ForecastSource(() => wind.present())
 	};
 })();
 

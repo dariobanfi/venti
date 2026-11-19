@@ -16,9 +16,11 @@
 		credit: Credit | undefined;
 		/** The date of the source's data, seconds since 1970-01-01 UTC. */
 		asOfUnixS: number | undefined;
+		/** Opens the forecast for the site's place. */
+		onforecast: () => void;
 	}
 
-	let { site, credit, asOfUnixS }: Props = $props();
+	let { site, credit, asOfUnixS, onforecast }: Props = $props();
 
 	const text = format();
 	const marked = $derived(marks(site));
@@ -59,6 +61,10 @@
 			{/each}
 		</ul>
 	{/if}
+
+	<div class="card">
+		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
+	</div>
 
 	<section>
 		{#if site.url}
@@ -146,7 +152,9 @@
 	}
 
 	.link {
+		width: 100%;
 		color: var(--accent);
+		text-align: left;
 	}
 
 	@media (hover: hover) {

@@ -176,6 +176,34 @@ export async function mapTabDrawn(page: Page, mapDrawn: () => Promise<void>): Pr
 	await mapDrawn();
 }
 
+/**
+ * Between the Wallberg and the Spitzingsee: two ramps on the one, a
+ * take-off and two landing fields at the other, all within an hour's walk.
+ */
+export const BETWEEN_THE_MOUNTAINS = { latitude: 47.679, longitude: 11.85 };
+
+/**
+ * Goes to where the pilot stands and then further out, with the keyboard:
+ * the position button zooms in to a hillside, and sites are spread over a
+ * valley.
+ */
+export async function showTheValley(
+	page: Page,
+	mapDrawn: () => Promise<void>,
+	steps: number
+): Promise<void> {
+	await page.getByRole('button', { name: 'Show my position' }).click();
+	await mapDrawn();
+	const map = page.locator('canvas.maplibregl-canvas');
+	await map.focus();
+	for (let step = 0; step < steps; step += 1) {
+		await page.keyboard.press('Minus');
+		await mapDrawn();
+	}
+	// The screenshots show the map, not the ring of the keyboard's focus.
+	await map.blur();
+}
+
 /** Adds the sample flight to an empty logbook and waits for its screen. */
 export async function addSampleFlight(page: Page): Promise<void> {
 	await page.goto('/logbook/');

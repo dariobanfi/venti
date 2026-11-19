@@ -171,7 +171,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind and flying sites, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind, flying sites and the forecast for a place, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -212,6 +212,15 @@ Where the web's flying sites differ from the iPhone's:
 - **The credit** on the map is a line of its own under the wind's and the airspace's: "Sites: OpenStreetMap contributors".
 - **The sign in a list** is the map's in both appearances, dark for a take-off and light for a landing, like the wind's arrow. It does not turn with the page's appearance, as the map does not.
 - **For a screen reader** the map says how many sites lie on the part in view. A map itself says nothing.
+
+Where the web's forecast differs from the iPhone's:
+
+- **Reached from a site's page and a station's page**, by "Forecast for this place". There is no long press on the map: a mouse has none, and the keyboard neither.
+- **A sheet over the map** in both layouts, titled "Forecast", with the place's name at its head. Closing it leaves the site's or the station's page where it was.
+- **A table to a screen reader too.** The hour stands over each column and the row's name before each value, a wind is read as "12 gusting 25 from W", and the keyboard can reach the table and scroll its hours.
+- **The arrow is the map's**: the same dart with its white edge, turned to where the air moves, in the wind scale's blue.
+- **The number in a cloud square** is set at the caption size, in a wider square: nothing on the web is smaller than a caption.
+- **The days are the browser's days**, as every time on the web is the browser's.
 
 Where the web's account and sharing differ from the iPhone's:
 

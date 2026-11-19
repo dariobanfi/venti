@@ -16,6 +16,7 @@
  *   a store is and has one that lives in memory.
  * - `wind-source.ts` asks the Venti server for the wind, from the worker.
  * - `sites-source.ts` asks it for the flying sites of a part of the map.
+ * - `forecast-source.ts` asks it what its weather models say about a place.
  * - `account-source.ts` talks to the Venti server about the pilot's account
  *   and keeps the logbook in step with it, also from the worker.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
@@ -44,6 +45,11 @@ export type {
 	FlightSharing,
 	FlightView,
 	FlightVisibility,
+	ForecastDay,
+	ForecastHourView,
+	ForecastLevel,
+	ForecastView,
+	ForecastWind,
 	GliderStatistics,
 	GlideSummary,
 	ImportedFlight,
@@ -52,6 +58,7 @@ export type {
 	LogbookStatistics,
 	LogbookView,
 	LogbookYear,
+	ModelForecast,
 	MonthStatistics,
 	ProfilePoint,
 	RouteKind,

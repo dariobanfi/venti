@@ -5,13 +5,7 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, test } from './helpers';
-
-/**
- * Between the Wallberg and the Spitzingsee: two ramps on the one, a
- * take-off and two landing fields at the other, all within an hour's walk.
- */
-const BETWEEN_THE_MOUNTAINS = { latitude: 47.679, longitude: 11.85 };
+import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, metric, showTheValley, test } from './helpers';
 
 /** Where OpenStreetMap has the take-off of the Jägerkamp. */
 const JAEGERKAMP = { latitude: 47.6791413, longitude: 11.9051032 };
@@ -26,28 +20,6 @@ function sitePanel(page: Page, wide: boolean, name: string): Locator {
 
 const closeButton = (panel: Locator, wide: boolean) =>
 	panel.getByRole('button', { name: wide ? 'Close' : 'Done' });
-
-/**
- * Goes to where the pilot stands and then further out, with the keyboard:
- * the position button zooms in to a hillside, and sites are spread over a
- * valley.
- */
-async function showTheValley(
-	page: Page,
-	mapDrawn: () => Promise<void>,
-	steps: number
-): Promise<void> {
-	await page.getByRole('button', { name: 'Show my position' }).click();
-	await mapDrawn();
-	const map = page.locator('canvas.maplibregl-canvas');
-	await map.focus();
-	for (let step = 0; step < steps; step += 1) {
-		await page.keyboard.press('Minus');
-		await mapDrawn();
-	}
-	// The screenshots show the map, not the ring of the keyboard's focus.
-	await map.blur();
-}
 
 test('the map draws the flying sites the server has, lists them and opens one', async ({
 	context,

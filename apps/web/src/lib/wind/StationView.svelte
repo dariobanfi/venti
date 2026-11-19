@@ -13,9 +13,11 @@
 	interface Props {
 		station: WindStation;
 		wind: WindModel;
+		/** Opens the forecast for the station's place. */
+		onforecast: () => void;
 	}
 
-	let { station, wind }: Props = $props();
+	let { station, wind, onforecast }: Props = $props();
 
 	const text = format();
 
@@ -126,6 +128,10 @@
 		</div>
 	</section>
 
+	<!-- What the station measures is the wind now; what the models compute
+	     for its place is another screen. -->
+	<button class="card forecast" type="button" onclick={onforecast}>Forecast for this place</button>
+
 	{#if credit}
 		<section>
 			<h3>Source</h3>
@@ -191,6 +197,13 @@
 		color: var(--accent);
 	}
 
+	.forecast {
+		min-height: var(--target);
+		padding: 0.5rem 1rem;
+		color: var(--accent);
+		text-align: left;
+	}
+
 	.source {
 		display: flex;
 		flex-direction: column;
@@ -215,6 +228,10 @@
 
 		.again:hover {
 			background: var(--fill);
+		}
+
+		.forecast:hover {
+			background: color-mix(in srgb, var(--surface), var(--text) 6%);
 		}
 	}
 </style>

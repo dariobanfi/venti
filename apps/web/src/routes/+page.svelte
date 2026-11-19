@@ -7,9 +7,11 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { Bounds, Credit, SiteView, WindStation } from '#lib/core/index.ts';
+	import type { Bounds, Coordinate, Credit, SiteView, WindStation } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Sheet from '#lib/design/Sheet.svelte';
+	import ForecastView from '#lib/forecast/ForecastView.svelte';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
@@ -85,6 +87,12 @@
 	}>();
 	let listingSites = $state(false);
 
+	/**
+	 * The place whose forecast is looked at, with what it is called: a
+	 * site's or a station's page leads there.
+	 */
+	let forecastFor = $state.raw<{ place: Coordinate; name: string }>();
+
 	/** One thing is open beside the map at a time: a station or a site. */
 	function openStation(picked: WindStation | undefined) {
 		if (!picked) return;
@@ -153,7 +161,11 @@
 				onclose={() => (chosen = undefined)}
 			>
 				{#if station}
-					<StationView {station} {wind} />
+					<StationView
+						{station}
+						{wind}
+						onforecast={() => (forecastFor = { place: station.position, name: station.name })}
+					/>
 				{/if}
 			</MapPanel>
 		{/if}
@@ -164,7 +176,11 @@
 			onclose={() => (chosenSite = undefined)}
 		>
 			{#if chosenSite}
-				<SitePage {...chosenSite} />
+				{@const { site } = chosenSite}
+				<SitePage
+					{...chosenSite}
+					onforecast={() => (forecastFor = { place: site.position, name: site.name })}
+				/>
 			{/if}
 		</MapPanel>
 		{#if said}
@@ -218,6 +234,13 @@
 	}}
 	onclose={() => (listing = false)}
 />
+
+<!-- What the weather models say about the place of a site or a station. -->
+<Sheet open={Boolean(forecastFor)} title="Forecast" onclose={() => (forecastFor = undefined)}>
+	{#if forecastFor}
+		<ForecastView {...forecastFor} ask={(place) => app.forecast(place)} />
+	{/if}
+</Sheet>
 
 <SiteList
 	open={listingSites}

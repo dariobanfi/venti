@@ -51,6 +51,10 @@ export interface Format {
 	temperature(celsius: number): string;
 	/** Names in a row: "A", "A and B", "A, B and C". */
 	list(items: readonly string[]): string;
+	/** A day by its weekday and its number in the month: "Fri 20". */
+	weekdayAndDay(unixSeconds: number): string;
+	/** The hour of the day where the reader is, for the head of a column: "9", "14". */
+	hourOfDay(unixSeconds: number): string;
 }
 
 /**
@@ -83,6 +87,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 
 	const day = date({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 	const time = date({ hour: 'numeric', minute: '2-digit' });
+	const weekdayAndDay = date({ weekday: 'short', day: 'numeric' });
 	const clock = date({ hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
 	const whole = number(0);
 	const tenths = number(1);
@@ -103,6 +108,12 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const midMonth = (year: number, month: number) => new Date(Date.UTC(year, month - 1, 15));
 	// Always the English "and": the app's words are English whatever the region.
 	const list = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+	const secondsIntoDay = (unixSeconds: number) => {
+		const parts = Object.fromEntries(
+			clock.formatToParts(at(unixSeconds)).map((part) => [part.type, Number(part.value)])
+		);
+		return parts.hour * 3600 + parts.minute * 60 + parts.second;
+	};
 
 	return {
 		day: (unixSeconds) => day.format(at(unixSeconds)),
@@ -131,12 +142,9 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		// Minus zero would read "-0".
 		temperature: (celsius) => whole.format(Math.round(celsius) || 0),
 		list: (items) => list.format(items),
-		secondsIntoDay: (unixSeconds) => {
-			const parts = Object.fromEntries(
-				clock.formatToParts(at(unixSeconds)).map((part) => [part.type, Number(part.value)])
-			);
-			return parts.hour * 3600 + parts.minute * 60 + parts.second;
-		}
+		weekdayAndDay: (unixSeconds) => weekdayAndDay.format(at(unixSeconds)),
+		hourOfDay: (unixSeconds) => String(Math.floor(secondsIntoDay(unixSeconds) / 3600)),
+		secondsIntoDay
 	};
 }
 

@@ -24,6 +24,7 @@ import type {
 	FlightSharing,
 	FlightView,
 	FlightVisibility,
+	ForecastView,
 	ImportedFlight,
 	KeptAirspace,
 	LogbookStatistics,
@@ -31,6 +32,7 @@ import type {
 	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
+import type { ForecastSource } from './forecast-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -61,6 +63,8 @@ export interface Calls {
 	stationHistory: { given: string; answer: StationHistory };
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites: { given: Bounds; answer: SitesMap | undefined };
+	/** What the server's weather models say about a place. Nothing if this site has no server. */
+	forecast: { given: Coordinate; answer: ForecastView | undefined };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** The account this browser is signed in to, if any. */
@@ -119,11 +123,12 @@ export interface Answering {
 	account: AccountSource;
 	airspace: AirspaceSource;
 	sites: SitesSource;
+	forecast: ForecastSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace, sites }: Answering,
+	{ session, wind, account, airspace, sites, forecast }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -139,6 +144,7 @@ export async function answer<Name extends CallName>(
 		wind: (box) => wind.windMap(box),
 		stationHistory: (id) => wind.stationHistory(id),
 		sites: (box) => sites.sites(box),
+		forecast: (place) => forecast.forecast(place),
 		hasServer: () => wind.present(),
 		account: () => account.account(),
 		signIn: ({ handle, password }) => account.signIn(handle, password),

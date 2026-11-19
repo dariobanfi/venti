@@ -11,7 +11,12 @@ import { createContext } from 'svelte';
 import { goto } from '$app/navigation';
 import { AccountModel } from '#lib/account/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
-import { askToKeepStorage, CoreClient } from '#lib/core/index.ts';
+import {
+	askToKeepStorage,
+	type Coordinate,
+	CoreClient,
+	type ForecastView
+} from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import {
 	flightToShow,
@@ -49,10 +54,14 @@ export class App {
 	/** Settles once the core has started, or has failed to. */
 	#started: Promise<void> | undefined;
 
+	/** The core, once it has started. */
+	#core: CoreClient | undefined;
+
 	/** Fetches and starts the Rust core and opens the logbook. Runs in the browser only. */
 	start(): Promise<void> {
 		this.#started ??= CoreClient.open()
 			.then(async (core) => {
+				this.#core = core;
 				this.wind = new WindModel(core);
 				this.sites = new SitesModel(core);
 				const logbook = await LogbookModel.open(core);
@@ -74,6 +83,16 @@ export class App {
 				this.failure = error instanceof Error ? error.message : String(error);
 			});
 		return this.#started;
+	}
+
+	/**
+	 * What the server's weather models say about a place. Nothing comes
+	 * back from a site without a server. Not kept: a forecast is asked for
+	 * when it is looked at.
+	 */
+	async forecast(place: Coordinate): Promise<ForecastView | undefined> {
+		await this.#started;
+		return this.#core?.forecast(place);
 	}
 
 	/**

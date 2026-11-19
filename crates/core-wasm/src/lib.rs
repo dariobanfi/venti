@@ -6,9 +6,9 @@
 //!
 //! [`Core`] has the interface the phones have. The view types it returns
 //! are the core's own; their TypeScript declarations are generated from the
-//! Rust definitions, so there is nothing to keep in step by hand. Live wind
-//! and flying sites are a handful of plain functions beside it, as they are
-//! in the core.
+//! Rust definitions, so there is nothing to keep in step by hand. Live wind,
+//! flying sites and forecasts are a handful of plain functions beside it, as
+//! they are in the core.
 //!
 //! The core never talks to a server. For the pilot's account it hands out a
 //! [`ServerRequest`] and reads the answer; the page sends the request in
@@ -42,8 +42,9 @@ use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ImportedFlight, KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus,
-    SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, WindMap,
+    ForecastView, ImportedFlight, KeptAirspace, LogbookStatistics, LogbookView, ServerRequest,
+    ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep,
+    SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -593,6 +594,27 @@ pub fn sites_map(
     body: Vec<u8>,
 ) -> Result<Ts<SitesMap>, JsValue> {
     to_js(&venti_core::sites_map(south, west, north, east, status, body).map_err(thrown)?)
+}
+
+// The forecast for a place, from the Venti server: what its weather models
+// compute, one beside the next. Asked for and read like the wind.
+
+/// The path and query to `GET` for the forecast of a place.
+#[wasm_bindgen(js_name = forecastPath)]
+pub fn forecast_path(lat: f64, lon: f64) -> Result<String, JsValue> {
+    venti_core::forecast_path(lat, lon).map_err(thrown)
+}
+
+/// Reads the server's answer to `forecastPath`. `utc_offset_s` is how far
+/// the clock at the place is ahead of UTC, in seconds: the days of the
+/// forecast are that clock's days.
+#[wasm_bindgen]
+pub fn forecast(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+) -> Result<Ts<ForecastView>, JsValue> {
+    to_js(&venti_core::forecast(status, body, utc_offset_s).map_err(thrown)?)
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

@@ -105,6 +105,11 @@ export class CoreClient {
 		return this.#call('sites', box);
 	}
 
+	/** What the server's weather models say about a place. Nothing if this site has no server. */
+	forecast(place: Coordinate) {
+		return this.#call('forecast', place);
+	}
+
 	/** Whether this site has a Venti server behind it. */
 	hasServer() {
 		return this.#call('hasServer', undefined);

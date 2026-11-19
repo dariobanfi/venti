@@ -243,19 +243,25 @@ An instance somewhere else works the same way: give its address as `VENTI_OPEN_M
 
 ## What the web app's pages may do
 
-Caddy sends two rules with every page of the web app (`Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'`, and `X-Frame-Options: DENY` for older browsers): the pages are shown in no frame, so no other site can lay its own picture over the app's buttons, and they take no `<base>` element. The pages of shared flights have a policy of their own from the server, which allows no script at all.
+Three lists bound what the web app can load, run and talk to. The browser enforces them. They are there because of the session token a signed-in browser keeps: a stranger's script that got into a page by a mistake could otherwise read it and send it away.
 
-A full policy for the app, one that says which scripts may run and where the pages may connect, is **not set**. It would bound what a script can do that got into a page by a mistake, and with it what such a script could do with the session token the browser keeps. It was left out because it cannot be written from reading: it has to be tried against the built site, served through this Caddy, with the app's browser tests (`apps/web`, `npm run test:e2e`), and that was not possible in the session that made this change. What it has to allow, as a list to start from *(to verify, every line)*:
+| List | Who sets it | What it says |
+|---|---|---|
+| The pages' policy | The web app's build writes it into every page (`apps/web/README.md` has each entry and its reason) | No script but the app's own files, no connection but to this site and the map's two tile services |
+| `Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'` and `X-Frame-Options: DENY` | Caddy, with everything of the web app | The pages are shown in no frame, so no other site can lay its own picture over the app's buttons. A policy inside a page cannot say this |
+| `Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://tiles.openfreemap.org https://tiles.mapterhorn.com` (and the two rules above) | Caddy, with the app's script files (`*.js`, `*.mjs`) | What a worker may do. A worker is held to the policy that arrives with its own script and to nothing a page says. The app has two: the core, which reads the session token and talks to the API, and the map engine |
 
-- `script-src 'self' 'wasm-unsafe-eval'`: the app's own scripts, and compiling its WebAssembly core. Whether the build inlines any script into the pages decides whether hashes are needed as well.
-- `worker-src 'self'`, and `blob:` if the map library starts its workers from one.
-- `connect-src 'self'` and the two tile services the map uses until the project hosts its own tiles, `https://tiles.openfreemap.org` and `https://tiles.mapterhorn.com`.
-- `img-src 'self' data: blob:` for the map's pictures and the wind symbols.
-- `style-src 'self'`, and `'unsafe-inline'` only if the map library or the framework sets styles from script in a way that needs it.
-- `font-src 'self'`; the label fonts are fetched by script and fall under `connect-src`.
-- `default-src 'none'`, `form-action 'self'`, `object-src 'none'`, and the two rules that are set today.
+The pages of shared flights have a policy of their own from the server, which allows no script at all.
 
-Set it first as `Content-Security-Policy-Report-Only`, run the browser tests and read the browser's console, and only then as the real header.
+Caddy sends the third list with every script file and not only with the two a worker starts from, because the build decides where those are and what they are called (today the core's under `/_app/immutable/workers/`, the map engine's under `/_app/immutable/assets/`). A browser reads the list only where a script is started as a worker.
+
+Tried on 2026-11-19 with the web app as built that day, served by this Caddyfile in Caddy 2.10 and opened in Chromium: the map, the logbook and the settings drew, both workers started, the core answered and the map fetched its tiles, and the browser refused nothing. With the two tile hosts taken out of the third list the map engine's worker fetched no tile, so that worker is held to the list.
+
+*To verify:* Safari and Firefox were not tried, here or by the web app's own tests. If the core does not start in one of them (the logbook stays empty and the settings name no airspace), the third list is the first thing to look at: take the line that starts `header @scripts` out of the `Caddyfile`, run `docker compose restart caddy`, and report it.
+
+**When the map's tile hosts change** (for instance when the project serves its own tiles from `/tiles`), the third list changes with them. The hosts are in `apps/web/src/lib/map/online.ts` and in the `Caddyfile`, and CI fails when the two disagree.
+
+Each page of the app is a file of its own (`/logbook/` is `logbook/index.html`), and Caddy answers an address with its page. An address that is no page gets the map's page. Until 2026-11-19 every address but `/` got the map's page: whoever opened or reloaded the logbook saw the map.
 
 ## What each service may do
 

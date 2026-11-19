@@ -63,8 +63,10 @@
 		file_server
 	}
 
-	# The web app: a static build. A path that is not a file belongs to the
-	# app's own router, so it gets the app's entry page.
+	# The web app: a static build in which every page is a folder with an
+	# index.html in it. An address gets its own page; one that is neither a
+	# file nor a page gets the entry page. (`try_files {path}` alone does
+	# not take a folder for a file, and gave every page the entry page.)
 	handle {
 		root * /srv/web
 		# The app's pages are shown in no frame, on this site or another:
@@ -74,14 +76,32 @@
 		# the page somewhere else. X-Frame-Options says the first again
 		# for browsers that predate the policy.
 		#
-		# This is not yet a policy for what the pages may load and run. A
-		# full one (scripts, the WebAssembly core, its worker, the map's
-		# tile hosts, the fonts) has to be tried against the built site
-		# with the browser tests first; README.md says what it needs.
-		header Content-Security-Policy "frame-ancestors 'none'; base-uri 'none'"
+		# What a page may load and run, the web app's build writes into
+		# each page itself (apps/web/README.md); a browser holds a page to
+		# both lists.
+		#
+		# A worker is held to neither. It is held to the policy that
+		# arrives with its own script, and the app has two workers: the
+		# core, which reads the pilot's session token and talks to the
+		# API, and the map engine. So the app's script files arrive with
+		# a list of their own: scripts and WebAssembly from this site,
+		# requests to this site and the map's two tile hosts, nothing
+		# else. A browser reads that list only where a script is started
+		# as a worker; for a script a page loads it means nothing. The
+		# two hosts are the ones in apps/web/src/lib/map/online.ts, and
+		# CI fails when the two files disagree.
+		#
+		# The two matchers leave no file out and none in both: Caddy
+		# runs one `header` after the other, and the second would write
+		# over the first. A path that is no file gets the entry page
+		# whatever it ends in, so the scripts' list forbids framing too.
+		@scripts path *.js *.mjs
+		@pages not path *.js *.mjs
+		header @pages Content-Security-Policy "frame-ancestors 'none'; base-uri 'none'"
+		header @scripts Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://tiles.openfreemap.org https://tiles.mapterhorn.com; frame-ancestors 'none'; base-uri 'none'"
 		header X-Frame-Options "DENY"
 		encode zstd gzip
-		try_files {path} /index.html
+		try_files {path} {path}/index.html /index.html
 		file_server
 	}
 }

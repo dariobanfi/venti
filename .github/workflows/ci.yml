@@ -137,9 +137,17 @@ jobs:
           docker run --rm --env VENTI_SITE_ADDRESS=:80 \
             --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile
-      - name: The web app's pages may not be framed
+      - name: Caddy sends the web app's pages, each with its policy
         run: |
-          mkdir -p web && echo '<!doctype html><title>Venti</title>' > web/index.html
+          # A site of the shape the web app is built in: every page a
+          # folder, the core's worker under workers/, the map engine's
+          # under assets/.
+          mkdir -p web/logbook web/_app/immutable/workers web/_app/immutable/assets
+          echo '<!doctype html><title>Map</title>' > web/index.html
+          echo '<!doctype html><title>Logbook</title>' > web/logbook/index.html
+          echo 'onmessage = () => {}' > web/_app/immutable/workers/worker-1.js
+          echo 'onmessage = () => {}' > web/_app/immutable/assets/maplibre-gl-worker.1.mjs
+          echo 'body {}' > web/_app/immutable/assets/0.css
           docker run --detach --name caddy-check --env VENTI_SITE_ADDRESS=:80 \
             --publish 127.0.0.1:8081:80 \
             --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
@@ -149,15 +157,46 @@ jobs:
             curl --silent --fail --output /dev/null http://127.0.0.1:8081/ && break
             sleep 1
           done
-          # The entry page, and a path of the app's own router, which gets
-          # the entry page too.
-          for path in / /logbook/; do
-            curl --silent --fail --head "http://127.0.0.1:8081$path" > headers.txt
-            grep --ignore-case --fixed-strings "content-security-policy: frame-ancestors 'none'; base-uri 'none'" headers.txt
+          site=http://127.0.0.1:8081
+
+          # An address gets its own page, with or without the last slash,
+          # and one that is no page gets the entry page.
+          curl --silent --fail "$site/" | grep --fixed-strings '<title>Map</title>'
+          curl --silent --fail "$site/logbook/" | grep --fixed-strings '<title>Logbook</title>'
+          curl --silent --fail "$site/logbook" | grep --fixed-strings '<title>Logbook</title>'
+          curl --silent --fail "$site/nowhere/" | grep --fixed-strings '<title>Map</title>'
+
+          # No page may be framed, and neither may a stylesheet's address
+          # or one that is no file.
+          for path in / /logbook/ /nowhere/ /_app/immutable/assets/0.css; do
+            curl --silent --fail --head "$site$path" > headers.txt
+            grep --ignore-case --fixed-strings --line-regexp \
+              "content-security-policy: frame-ancestors 'none'; base-uri 'none'" <(tr -d '\r' < headers.txt)
             grep --ignore-case --fixed-strings "x-frame-options: DENY" headers.txt
             grep --ignore-case --fixed-strings "x-content-type-options: nosniff" headers.txt
           done
+
+          # A script arrives with the list a worker is held to, wherever
+          # the build put it, and so does an address that only ends like
+          # one: it gets the entry page, which may not be framed either.
+          for path in /_app/immutable/workers/worker-1.js /_app/immutable/assets/maplibre-gl-worker.1.mjs /nowhere.js; do
+            curl --silent --fail --head "$site$path" | tr -d '\r' > headers.txt
+            grep --ignore-case "^content-security-policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://" headers.txt
+            grep --ignore-case "^content-security-policy: .*; frame-ancestors 'none'; base-uri 'none'$" headers.txt
+            test "$(grep --ignore-case --count '^content-security-policy:' headers.txt)" = 1
+            grep --ignore-case --fixed-strings "x-frame-options: DENY" headers.txt
+          done
           docker rm --force caddy-check
+
+          # The workers may talk to the hosts the map's tiles come from and
+          # to no others: the web app names them in one file, the Caddyfile
+          # in one line.
+          grep --extended-regexp "^\s*(basemap|terrainTiles): '" apps/web/src/lib/map/online.ts \
+            | grep --only-matching --extended-regexp "https://[^/']+" | sort --unique > hosts-app.txt
+          grep --fixed-strings 'header @scripts Content-Security-Policy' deploy/Caddyfile \
+            | grep --only-matching --extended-regexp "https://[^ ;\"]+" | sort --unique > hosts-caddy.txt
+          test -s hosts-app.txt
+          diff hosts-app.txt hosts-caddy.txt
 
   dependencies:
     name: Dependency licences and advisories

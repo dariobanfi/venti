@@ -14,6 +14,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use ipnet::IpNet;
 
+use super::throttle::Counted;
+
 /// The proxies whose `X-Forwarded-For` is believed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustedProxies(Vec<IpNet>);
@@ -84,15 +86,54 @@ fn plain(address: IpAddr) -> IpAddr {
 
 /// What attempts from an address are counted under.
 ///
-/// An IPv4 address counts for itself. An IPv6 client usually has a whole
-/// /64 network to pick addresses from, so the network is what is counted.
-pub fn counting_key(address: IpAddr) -> String {
+/// An IPv4 address counts for itself.
+///
+/// An IPv6 client usually has a whole /64 network to pick addresses from,
+/// so that network is what is counted in place of the address. And whoever
+/// holds a /64 often holds far more: a home connection is commonly given a
+/// /56 (256 such networks), a company or a rented server a /48 (65,536 of
+/// them). Counted by /64 alone, one customer of a hosting company would be
+/// 65,536 clients. So an IPv6 client is counted a second time under its
+/// /48, with a higher limit of its own: many real people can sit in one
+/// /48, on a mobile network for example.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientKeys {
+    /// The address, or for IPv6 its /64 network.
+    address: String,
+    /// For IPv6, the /48 network.
+    network: Option<String>,
+}
+
+/// The keys attempts from `address` are counted under.
+pub fn counting_keys(address: IpAddr) -> ClientKeys {
     match plain(address) {
-        IpAddr::V4(v4) => v4.to_string(),
+        IpAddr::V4(v4) => ClientKeys {
+            address: v4.to_string(),
+            network: None,
+        },
         IpAddr::V6(v6) => {
-            let network = u128::from(v6) & !u128::from(u64::MAX);
-            format!("{}/64", Ipv6Addr::from(network))
+            let bits = u128::from(v6);
+            let prefix = |length: u32| {
+                let network = bits & (u128::MAX << (128 - length));
+                format!("{}/{length}", Ipv6Addr::from(network))
+            };
+            ClientKeys {
+                address: prefix(64),
+                network: Some(prefix(48)),
+            }
         }
+    }
+}
+
+impl ClientKeys {
+    /// The keys with their limits: `per_address` attempts for the address
+    /// (or the /64), `per_network` for the /48 an IPv6 client is in.
+    pub fn counted(&self, per_address: u32, per_network: u32) -> Vec<Counted<'_>> {
+        let mut counted = vec![Counted::new(&self.address, per_address)];
+        if let Some(network) = &self.network {
+            counted.push(Counted::new(network, per_network));
+        }
+        counted
     }
 }
 
@@ -186,20 +227,46 @@ mod tests {
     }
 
     #[test]
-    fn ipv6_clients_are_counted_by_their_network() {
-        assert_eq!(counting_key(ip("198.51.100.1")), "198.51.100.1");
-        assert_eq!(counting_key(ip("::ffff:198.51.100.1")), "198.51.100.1");
+    fn ipv6_clients_are_counted_by_their_network_and_by_a_wider_one() {
+        let keys = |address: &str| {
+            let keys = counting_keys(ip(address));
+            let counted: Vec<(String, u32)> = keys
+                .counted(30, 120)
+                .into_iter()
+                .map(|counted| (counted.key.to_owned(), counted.limit))
+                .collect();
+            counted
+        };
+        let key = |text: &str, limit: u32| (text.to_owned(), limit);
+
+        // An IPv4 address counts for itself, however it arrives.
+        assert_eq!(keys("198.51.100.1"), [key("198.51.100.1", 30)]);
+        assert_eq!(keys("::ffff:198.51.100.1"), [key("198.51.100.1", 30)]);
+        // An IPv6 address counts as its /64 and, with a limit of its own,
+        // as its /48.
         assert_eq!(
-            counting_key(ip("2001:db8:1:2:aaaa:bbbb:cccc:dddd")),
-            "2001:db8:1:2::/64"
+            keys("2001:db8:1:2:aaaa:bbbb:cccc:dddd"),
+            [key("2001:db8:1:2::/64", 30), key("2001:db8:1::/48", 120)]
         );
         assert_eq!(
-            counting_key(ip("2001:db8:1:2::1")),
-            counting_key(ip("2001:db8:1:2:ffff:ffff:ffff:ffff"))
+            keys("2001:db8:1:2::1"),
+            keys("2001:db8:1:2:ffff:ffff:ffff:ffff")
         );
-        assert_ne!(
-            counting_key(ip("2001:db8:1:2::1")),
-            counting_key(ip("2001:db8:1:3::1"))
+        // The next /64 of the same customer: another first key, the same
+        // second one.
+        assert_eq!(
+            keys("2001:db8:1:3::1"),
+            [key("2001:db8:1:3::/64", 30), key("2001:db8:1::/48", 120)]
+        );
+        assert_eq!(
+            keys("2001:db8:2:3::1"),
+            [key("2001:db8:2:3::/64", 30), key("2001:db8:2::/48", 120)]
+        );
+        // No key is longer than what the table's size was measured with.
+        let longest = keys("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+        assert!(
+            longest.iter().all(|(key, _)| key.len() <= 24),
+            "{longest:?}"
         );
     }
 }

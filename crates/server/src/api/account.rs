@@ -17,7 +17,7 @@ use venti_store::{Account, AccountCreation, NewAccount, Session, Store};
 use super::auth::{Client, Signed};
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
-use crate::accounts::client::counting_key;
+use crate::accounts::client::counting_keys;
 use crate::accounts::secret::{InviteCode, Token, random_id};
 use crate::accounts::throttle::{self, Counted};
 use crate::accounts::{Registration, device_label, is_reserved, password};
@@ -69,11 +69,11 @@ impl<S: Store> Api<S> {
         client: IpAddr,
     ) -> Result<Option<Account>, ApiError> {
         let now = self.clock.now();
-        let address = counting_key(client);
-        let by_address = [Counted::new(
-            &address,
+        let address = counting_keys(client);
+        let by_address = address.counted(
             self.limits.wrong_passwords_per_address,
-        )];
+            self.limits.wrong_passwords_per_network,
+        );
         let by_handle = handle
             .map(|handle| Counted::new(handle.as_str(), self.limits.wrong_passwords_per_handle));
         let reserved = throttle::reserve_both(
@@ -145,8 +145,11 @@ pub(crate) async fn create<S: Store>(
     // Every attempt counts, whatever becomes of it, and before anything
     // else is done with it, the password's hashing above all: this is what
     // makes trying out invite codes or handles slow.
-    let address = counting_key(client);
-    let by_address = [Counted::new(&address, api.limits.registrations_per_address)];
+    let address = counting_keys(client);
+    let by_address = address.counted(
+        api.limits.registrations_per_address,
+        api.limits.registrations_per_network,
+    );
     api.registrations
         .attempt(&by_address, now)
         .map_err(|refused| {

@@ -197,6 +197,7 @@ mod tests {
             let refused = Refused {
                 retry_after: Duration::seconds(seconds),
                 first: false,
+                shared: false,
             };
             ApiError::rate_limited(refused, "too many attempts")
         };

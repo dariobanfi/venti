@@ -267,9 +267,10 @@ The endpoint is open to the internet without sign-in, so everything about a requ
 | The size of a request | 64 kB | `413` |
 | The time for an answer | 10 seconds | `503` with `Retry-After: 30` |
 | Requests from one address | 120 a minute | `429` with `Retry-After` |
+| Requests from one IPv6 /48 network | 480 a minute | `429` with `Retry-After` |
 | Tool calls in one request | 16, and each counts as a request. Only the oldest revision can send more than one | `400` |
 
-An address is the address of the connection, or the one the server's own proxy reports ([deploy/README.md](../deploy/README.md)). An assistant's provider sends the questions of many people from few addresses, which is why the bound is far above what one person asks. Each of these refusals has the shape of the protocol's own errors, so a client can show it.
+An address is the address of the connection, or the one the server's own proxy reports ([deploy/README.md](../deploy/README.md)). For an IPv6 client it is the client's /64 network, of which the holder of one /48 has 65,536: hence the second bound. An assistant's provider sends the questions of many people from few addresses, which is why the bound is far above what one person asks. The server counts 100,000 addresses at a time. Should more than that ask within one minute, the ones it has no room to count by themselves are counted together and share 12,000 requests a minute; nobody is refused merely for being new. Each of these refusals has the shape of the protocol's own errors, so a client can show it.
 
 **A tool call cannot make the server fetch anything.** The tools take numbers and a station's identifier and read the server's own database. No argument is ever used as an address. The two crates the connector is made of, the protocol and the tools, have no way to open a connection at all, which a test of the dependency rules holds them to, and the part of the server that answers requests never names the part that asks providers.
 

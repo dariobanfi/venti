@@ -169,6 +169,7 @@ pub(crate) async fn upload<S: Store>(
             Refused {
                 retry_after: chrono::Duration::seconds(5),
                 first: false,
+                shared: false,
             },
             "this account is already sending two flight files; send them one after another",
         ),

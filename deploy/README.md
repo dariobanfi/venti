@@ -324,7 +324,15 @@ All settings are described in `env.example`. The ones that deserve a second thou
 - **`VENTI_REGISTRATION`** is who may create an account; see [Accounts](#accounts).
 - **`VENTI_NETWORK`** moves the services' private network; see [The visitor's address](#the-visitors-address).
 
-Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
+Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
+
+**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, or accounts), 11 MB when full; there are five. A server with a few hundred pilots uses a few hundred places. If the log says
+
+```
+the table of addresses that asked the connector is full: 100000 are being counted
+```
+
+someone is sending requests from a very large number of addresses. The server keeps counting the ones it knows, counts all further ones together under one generous shared limit, and refuses nobody merely for being new; when even the shared limit is used up, newcomers get `429` until the window (a minute for the connector, an hour for sign-in and new accounts) is over. That is the point at which the machine needs protection from outside the server: the hosting company's, or a firewall rule for the networks the requests come from.
 
 The server can also read a TOML file instead of variables; see `crates/server/config.example.toml`. The Compose setup does not use it.
 

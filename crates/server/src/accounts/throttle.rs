@@ -21,9 +21,14 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use chrono::Duration;
 use venti_domain::Timestamp;
 
-/// How many keys a throttle watches at most. Each takes about a hundred
-/// bytes, so a full table is a few megabytes.
-const CAPACITY: usize = 50_000;
+/// How many attempts the keys without a place share, as a multiple of each
+/// one's own limit, while a table is full. See [`Throttle`].
+const SHARED_FACTOR: u32 = 100;
+
+/// How long a full table is left alone before it is searched again for
+/// windows that have closed. The search reads every key with the lock
+/// held; done for every newcomer it would be a burden of its own.
+const SWEEP_PAUSE: Duration = Duration::seconds(1);
 
 /// One thing an attempt is counted under, and how many attempts it allows
 /// within the throttle's window.
@@ -47,6 +52,24 @@ impl<'a> Counted<'a> {
 /// The window of a key opens with its first counted attempt and closes
 /// `window` later, when the key is forgotten. A key that has used up its
 /// attempts is refused until then.
+///
+/// **The table has a size**, so that whoever sends attempts under ever new
+/// keys cannot take the server's memory. Measured on 2026-11-19: a key
+/// costs about 110 bytes, so a table of 100,000 keys, the size the server
+/// uses, is 11 MB when full.
+///
+/// **When the table is full**, a key that has no place in it is counted
+/// in one count that all such keys share, and is allowed a hundred times
+/// its own limit there, together with all the others. Keys that have a
+/// place carry on as before. Two simpler rules were worse. Refusing every
+/// newcomer, which this did until the review of 2026-11-19, lets whoever
+/// fills the table lock out everyone the server has not seen: 50,000
+/// addresses did it in 13 seconds. Letting newcomers pass uncounted lets
+/// whoever fills the table switch the limits off. With the shared count,
+/// filling the table buys an attacker a hundred keys' worth of attempts
+/// per window and no more, and costs everyone else nothing until those
+/// are used up as well; from then on newcomers are refused until the
+/// shared window closes. The table says so in the log, once per window.
 #[derive(Debug)]
 pub struct Throttle {
     table: Mutex<Table>,
@@ -62,6 +85,10 @@ pub struct Refused {
     /// client that keeps asking after it was refused must not be able to
     /// fill the disk with lines that say so.
     pub first: bool,
+    /// Whether it was refused for what others did: the table is full, the
+    /// key has no place in it, and the attempts such keys share are used
+    /// up.
+    pub shared: bool,
 }
 
 /// An attempt that was counted before its outcome was known. Hand it to
@@ -70,23 +97,34 @@ pub struct Refused {
 #[derive(Debug)]
 #[must_use = "a reserved attempt stays counted unless it is given back"]
 pub struct Reserved {
-    /// The keys it was counted under, each with the end of the window it
-    /// was counted in.
-    slots: Vec<(String, Timestamp)>,
+    /// Where it was counted, each with the end of the window it was
+    /// counted in.
+    slots: Vec<(Slot, Timestamp)>,
+}
+
+/// Where an attempt was counted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Slot {
+    /// Under a key of its own.
+    Key(String),
+    /// In the count that keys without a place share.
+    Shared,
 }
 
 impl Throttle {
-    /// A throttle whose windows are `window` long.
-    pub fn new(window: Duration) -> Self {
-        Self::with_capacity(window, CAPACITY)
-    }
-
-    fn with_capacity(window: Duration, capacity: usize) -> Self {
+    /// A throttle for `what` (the word the log uses for its keys, such as
+    /// "addresses that ask the connector"), whose windows are `window`
+    /// long and which watches `capacity` keys at most.
+    pub fn new(what: &'static str, window: Duration, capacity: usize) -> Self {
         Self {
             table: Mutex::new(Table {
+                what,
                 window,
                 capacity,
                 watched: HashMap::new(),
+                shared: None,
+                swept_at: None,
+                tidied_at: None,
             }),
         }
     }
@@ -159,12 +197,13 @@ pub fn reserve_both(
 }
 
 impl Refused {
-    /// Two refusals of one attempt as one: wait for the longer, and it is
-    /// the first if either is.
+    /// Two refusals of one attempt as one: wait for the longer; it is the
+    /// first if either is, and the doing of others only if both are.
     fn and(self, other: Self) -> Self {
         Self {
             retry_after: self.retry_after.max(other.retry_after),
             first: self.first || other.first,
+            shared: self.shared && other.shared,
         }
     }
 }
@@ -178,108 +217,207 @@ struct Watched {
     told: bool,
 }
 
+impl Watched {
+    /// What an attempt with the limit `limit` hears from this count.
+    fn refusal(&mut self, limit: u32, shared: bool, now: Timestamp) -> Option<Refused> {
+        if self.count < limit {
+            return None;
+        }
+        let first = !self.told;
+        self.told = true;
+        Some(Refused {
+            retry_after: self.until - now,
+            first,
+            shared,
+        })
+    }
+}
+
 /// The keys a throttle watches. Whoever holds it holds the lock.
 #[derive(Debug)]
 struct Table {
+    what: &'static str,
     window: Duration,
     capacity: usize,
     watched: HashMap<String, Watched>,
+    /// What the keys without a place have used together, while the table
+    /// is full.
+    shared: Option<Watched>,
+    /// When the full table was last searched for closed windows.
+    swept_at: Option<Timestamp>,
+    /// When closed windows were last forgotten as a matter of routine.
+    tidied_at: Option<Timestamp>,
+}
+
+/// Where a key is counted at this moment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Place {
+    /// Under itself: it is watched, or there is room to watch it.
+    Own,
+    /// With the others that found the table full.
+    Shared,
 }
 
 impl Table {
     /// Whether every one of `keys` has an attempt left.
-    ///
-    /// When the table is full of keys whose windows are open, a key that is
-    /// not in it is refused: counting it is impossible, and letting it pass
-    /// uncounted would let anyone switch the limits off by flooding the
-    /// table. That costs new sign-ins during a large attack and nothing
-    /// else.
     fn check(&mut self, keys: &[Counted], now: Timestamp) -> Result<(), Refused> {
+        self.tidy(now);
         let mut refused: Option<Refused> = None;
         for counted in keys {
-            let open = self
-                .watched
-                .get_mut(counted.key)
-                .filter(|entry| entry.until > now);
-            let this = if let Some(entry) = open {
-                if entry.count < counted.limit {
-                    continue;
+            let this = match self.place(counted.key, now) {
+                Place::Own => self
+                    .open(counted.key, now)
+                    .and_then(|entry| entry.refusal(counted.limit, false, now)),
+                Place::Shared => {
+                    let limit = counted.limit.saturating_mul(SHARED_FACTOR);
+                    self.shared
+                        .as_mut()
+                        .filter(|shared| shared.until > now)
+                        .and_then(|shared| shared.refusal(limit, true, now))
                 }
-                let first = !entry.told;
-                entry.told = true;
-                Refused {
-                    retry_after: entry.until - now,
-                    first,
-                }
-            } else if self.is_full(now) {
-                // A key that has no place has no window to remember having
-                // been refused in: none of its refusals is the first.
-                Refused {
-                    retry_after: self.window,
-                    first: false,
-                }
-            } else {
-                continue;
             };
-            refused = Some(refused.map_or(this, |earlier| earlier.and(this)));
+            if let Some(this) = this {
+                refused = Some(refused.map_or(this, |earlier| earlier.and(this)));
+            }
         }
         refused.map_or(Ok(()), Err)
     }
 
-    /// Counts `weight` under each of `keys`, and says where.
+    /// Counts `weight` under each of `keys`, and says where. Keys that have
+    /// no place are counted together, once.
     fn add(&mut self, keys: &[Counted], weight: u32, now: Timestamp) -> Reserved {
+        self.tidy(now);
         let mut slots = Vec::with_capacity(keys.len());
         for counted in keys {
-            if let Some(entry) = self
-                .watched
-                .get_mut(counted.key)
-                .filter(|entry| entry.until > now)
-            {
-                entry.count = entry.count.saturating_add(weight);
-                slots.push((counted.key.to_owned(), entry.until));
-                continue;
+            match self.place(counted.key, now) {
+                Place::Own => {
+                    let until = match self.open(counted.key, now) {
+                        Some(entry) => {
+                            entry.count = entry.count.saturating_add(weight);
+                            entry.until
+                        }
+                        None => {
+                            let until = now + self.window;
+                            let entry = Watched {
+                                until,
+                                count: weight,
+                                told: false,
+                            };
+                            self.watched.insert(counted.key.to_owned(), entry);
+                            until
+                        }
+                    };
+                    slots.push((Slot::Key(counted.key.to_owned()), until));
+                }
+                Place::Shared => {
+                    if slots.iter().any(|(slot, _)| *slot == Slot::Shared) {
+                        continue;
+                    }
+                    let until = self.add_to_shared(weight, now);
+                    slots.push((Slot::Shared, until));
+                }
             }
-            if self.is_full(now) {
-                continue;
-            }
-            let until = now + self.window;
-            let entry = Watched {
-                until,
-                count: weight,
-                told: false,
-            };
-            self.watched.insert(counted.key.to_owned(), entry);
-            slots.push((counted.key.to_owned(), until));
         }
         Reserved { slots }
     }
 
-    /// Takes one attempt back from each key it was counted under, where the
+    /// Counts `weight` in the count that keys without a place share, and
+    /// returns when its window closes.
+    fn add_to_shared(&mut self, weight: u32, now: Timestamp) -> Timestamp {
+        if let Some(shared) = self.shared.as_mut().filter(|shared| shared.until > now) {
+            shared.count = shared.count.saturating_add(weight);
+            return shared.until;
+        }
+        // The first that found no place in this window: worth a line, and
+        // one line only until the window closes.
+        tracing::warn!(
+            "the table of {} is full: {} are being counted. Until some of their windows \
+             close, every further one is counted together with the others that have no \
+             place, and they share {SHARED_FACTOR} times what one is allowed",
+            self.what,
+            self.capacity,
+        );
+        let until = now + self.window;
+        self.shared = Some(Watched {
+            until,
+            count: weight,
+            told: false,
+        });
+        until
+    }
+
+    /// Takes one attempt back from wherever it was counted, where the
     /// window it was counted in is still the open one. A key that is left
     /// with none is forgotten: nothing has happened under it.
     fn remove(&mut self, reserved: &Reserved) {
-        for (key, until) in &reserved.slots {
-            let Some(entry) = self.watched.get_mut(key) else {
-                continue;
-            };
-            if entry.until != *until {
-                continue;
-            }
-            entry.count = entry.count.saturating_sub(1);
-            if entry.count == 0 {
-                self.watched.remove(key);
+        for (slot, until) in &reserved.slots {
+            match slot {
+                Slot::Key(key) => {
+                    let Some(entry) = self.watched.get_mut(key) else {
+                        continue;
+                    };
+                    if entry.until != *until {
+                        continue;
+                    }
+                    entry.count = entry.count.saturating_sub(1);
+                    if entry.count == 0 {
+                        self.watched.remove(key);
+                    }
+                }
+                Slot::Shared => {
+                    if let Some(shared) = self.shared.as_mut().filter(|s| s.until == *until) {
+                        shared.count = shared.count.saturating_sub(1);
+                    }
+                }
             }
         }
     }
 
-    /// Whether there is no room for another key, after forgetting every key
-    /// whose window has closed.
-    fn is_full(&mut self, now: Timestamp) -> bool {
-        if self.watched.len() < self.capacity {
-            return false;
+    /// The count of `key`, if its window is open.
+    fn open(&mut self, key: &str, now: Timestamp) -> Option<&mut Watched> {
+        self.watched.get_mut(key).filter(|entry| entry.until > now)
+    }
+
+    /// Where `key` is counted at `now`.
+    fn place(&mut self, key: &str, now: Timestamp) -> Place {
+        // A key that is in the table keeps its place, also when its window
+        // has closed: the next count opens a new one there.
+        if self.watched.contains_key(key) || self.watched.len() < self.capacity {
+            return Place::Own;
         }
+        // Full. Forget the keys whose windows have closed, but look for
+        // them only now and then.
+        let due = self
+            .swept_at
+            .is_none_or(|at| now < at || now - at >= SWEEP_PAUSE);
+        if due {
+            self.swept_at = Some(now);
+            self.watched.retain(|_, entry| entry.until > now);
+        }
+        if self.watched.len() < self.capacity {
+            Place::Own
+        } else {
+            Place::Shared
+        }
+    }
+
+    /// Once per window, forgets what has closed and gives memory back, so
+    /// that a table that was full once does not stay large for ever.
+    fn tidy(&mut self, now: Timestamp) {
+        let due = self
+            .tidied_at
+            .is_none_or(|at| now < at || now - at >= self.window);
+        if !due {
+            return;
+        }
+        self.tidied_at = Some(now);
         self.watched.retain(|_, entry| entry.until > now);
-        self.watched.len() >= self.capacity
+        if self.watched.capacity() > 4 * self.watched.len().max(256) {
+            self.watched.shrink_to(2 * self.watched.len());
+        }
+        if self.shared.is_some_and(|shared| shared.until <= now) {
+            self.shared = None;
+        }
     }
 }
 
@@ -293,6 +431,15 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 11, 19, 12, 0, 0).unwrap() + Duration::minutes(minute)
     }
 
+    /// A throttle with room for more keys than a test uses.
+    fn roomy(window: Duration) -> Throttle {
+        Throttle::new("test keys", window, 1000)
+    }
+
+    fn watched(throttle: &Throttle) -> usize {
+        throttle.lock().watched.len()
+    }
+
     /// One key with a limit, as most callers count.
     fn one(key: &str, limit: u32) -> [Counted<'_>; 1] {
         [Counted::new(key, limit)]
@@ -300,7 +447,7 @@ mod tests {
 
     #[test]
     fn a_key_gets_its_attempts_and_then_waits_for_the_window_to_close() {
-        let throttle = Throttle::new(Duration::minutes(15));
+        let throttle = roomy(Duration::minutes(15));
         let dario = one("dario", 3);
 
         for minute in [0, 1, 2] {
@@ -312,6 +459,7 @@ mod tests {
             Err(Refused {
                 retry_after: Duration::minutes(12),
                 first: true,
+                shared: false,
             })
         );
         assert_eq!(
@@ -319,6 +467,7 @@ mod tests {
             Err(Refused {
                 retry_after: Duration::minutes(1),
                 first: false,
+                shared: false,
             })
         );
         // Being refused does not push the window out.
@@ -328,7 +477,7 @@ mod tests {
 
     #[test]
     fn keys_are_counted_apart_and_checking_counts_nothing() {
-        let throttle = Throttle::new(Duration::minutes(15));
+        let throttle = roomy(Duration::minutes(15));
         for _ in 0..10 {
             assert_eq!(throttle.check(&one("dario", 1), at(0)), Ok(()));
         }
@@ -339,7 +488,7 @@ mod tests {
 
     #[test]
     fn a_heavy_attempt_counts_for_many() {
-        let throttle = Throttle::new(Duration::hours(24));
+        let throttle = roomy(Duration::hours(24));
         let dario = one("dario", 100);
         throttle.count(&dario, 50, at(0));
         assert_eq!(throttle.check(&dario, at(1)), Ok(()));
@@ -352,7 +501,7 @@ mod tests {
 
     #[test]
     fn only_the_first_refusal_of_a_window_is_marked_as_the_first() {
-        let throttle = Throttle::new(Duration::minutes(1));
+        let throttle = roomy(Duration::minutes(1));
         let firsts = |key: &str, minute: i64, times: usize| {
             (0..times)
                 .filter_map(|_| throttle.attempt(&one(key, 2), at(minute)).err())
@@ -372,7 +521,7 @@ mod tests {
 
     #[test]
     fn an_attempt_is_counted_under_all_of_its_keys_or_under_none() {
-        let throttle = Throttle::new(Duration::hours(1));
+        let throttle = roomy(Duration::hours(1));
         let both = |address: &'static str| [Counted::new("dario", 2), Counted::new(address, 5)];
 
         assert_eq!(throttle.attempt(&both("203.0.113.9"), at(0)), Ok(()));
@@ -383,12 +532,12 @@ mod tests {
             assert!(throttle.attempt(&both("192.0.2.1"), at(1)).is_err());
         }
         assert_eq!(throttle.check(&one("192.0.2.1", 1), at(1)), Ok(()));
-        assert_eq!(throttle.lock().watched.len(), 3);
+        assert_eq!(watched(&throttle), 3);
     }
 
     #[test]
     fn a_reserved_attempt_counts_until_it_is_given_back() {
-        let throttle = Throttle::new(Duration::hours(1));
+        let throttle = roomy(Duration::hours(1));
         let dario = one("dario", 3);
 
         // Three are being looked at; a fourth has to wait for their outcome.
@@ -409,9 +558,9 @@ mod tests {
 
     #[test]
     fn a_key_whose_attempts_were_all_given_back_is_forgotten() {
-        let throttle = Throttle::new(Duration::hours(1));
+        let throttle = roomy(Duration::hours(1));
         let reserved = throttle.reserve(&one("dario", 3), at(0)).unwrap();
-        assert_eq!(throttle.lock().watched.len(), 1);
+        assert_eq!(watched(&throttle), 1);
 
         throttle.give_back(reserved);
 
@@ -421,7 +570,7 @@ mod tests {
 
     #[test]
     fn an_attempt_is_given_back_to_the_window_it_was_counted_in_only() {
-        let throttle = Throttle::new(Duration::minutes(15));
+        let throttle = roomy(Duration::minutes(15));
         let dario = one("dario", 2);
         let old = throttle.reserve(&dario, at(0)).unwrap();
 
@@ -435,8 +584,8 @@ mod tests {
 
     #[test]
     fn two_throttles_take_an_attempt_together_or_not_at_all() {
-        let handles = Throttle::new(Duration::hours(1));
-        let addresses = Throttle::new(Duration::hours(1));
+        let handles = roomy(Duration::hours(1));
+        let addresses = roomy(Duration::hours(1));
         let attempt = |handle: &'static str, address: &'static str| {
             reserve_both(
                 (&handles, &one(handle, 2)),
@@ -453,7 +602,7 @@ mod tests {
         // The address is used up: the handle is not charged.
         assert!(attempt("carla", "203.0.113.9").is_err());
         assert_eq!(handles.check(&one("carla", 1), at(0)), Ok(()));
-        assert_eq!(handles.lock().watched.len(), 2);
+        assert_eq!(watched(&handles), 2);
 
         // What is given back is given back in both.
         handles.give_back(first.0);
@@ -480,24 +629,115 @@ mod tests {
     }
 
     #[test]
-    fn a_full_table_refuses_new_keys_until_windows_close() {
-        let throttle = Throttle::with_capacity(Duration::minutes(15), 3);
+    fn a_full_table_counts_newcomers_together_instead_of_refusing_them() {
+        let throttle = Throttle::new("test keys", Duration::minutes(15), 3);
         for key in ["a", "b", "c"] {
-            assert_eq!(throttle.attempt(&one(key, 5), at(0)), Ok(()));
+            assert_eq!(throttle.attempt(&one(key, 2), at(0)), Ok(()));
         }
 
-        // No room to count a fourth key, so it may not try.
+        // No room to count a fourth key by itself. It is not refused for
+        // that, and neither is the fifth, or the five hundredth.
+        for n in 0..199 {
+            let key = format!("newcomer {n}");
+            assert_eq!(throttle.attempt(&one(&key, 2), at(1)), Ok(()), "{key}");
+        }
+        assert_eq!(watched(&throttle), 3);
+        // Keys that have a place carry on under their own limit.
+        assert_eq!(throttle.attempt(&one("a", 2), at(1)), Ok(()));
+        assert!(throttle.attempt(&one("a", 2), at(1)).is_err());
+
+        // What the newcomers share is a hundred times what one may: 200
+        // here. Then they are refused, and told that it is not their doing.
+        assert_eq!(throttle.attempt(&one("the 200th", 2), at(2)), Ok(()));
         assert_eq!(
-            throttle.attempt(&one("d", 5), at(1)),
+            throttle.attempt(&one("the 201st", 2), at(2)),
             Err(Refused {
-                retry_after: Duration::minutes(15),
-                first: false,
+                retry_after: Duration::minutes(14),
+                first: true,
+                shared: true,
             })
         );
-        // Keys that are watched carry on.
-        assert_eq!(throttle.attempt(&one("a", 5), at(1)), Ok(()));
-        // When the windows have closed there is room again.
-        assert_eq!(throttle.attempt(&one("d", 5), at(15)), Ok(()));
-        assert_eq!(throttle.lock().watched.len(), 1);
+        assert_eq!(
+            throttle.attempt(&one("the 202nd", 2), at(3)),
+            Err(Refused {
+                retry_after: Duration::minutes(13),
+                first: false,
+                shared: true,
+            })
+        );
+        // A key that is allowed more is allowed more of the shared count.
+        assert_eq!(throttle.attempt(&one("patient", 3), at(3)), Ok(()));
+
+        // When windows have closed there is room again, and the newcomer is
+        // counted by itself.
+        assert_eq!(throttle.attempt(&one("d", 2), at(15)), Ok(()));
+        assert_eq!(throttle.attempt(&one("d", 2), at(15)), Ok(()));
+        assert!(throttle.attempt(&one("d", 2), at(15)).is_err());
+        assert_eq!(watched(&throttle), 1);
+    }
+
+    #[test]
+    fn an_attempt_without_a_place_is_counted_once_and_can_be_given_back() {
+        let throttle = Throttle::new("test keys", Duration::minutes(15), 2);
+        assert_eq!(throttle.attempt(&one("a", 1), at(0)), Ok(()));
+        assert_eq!(throttle.attempt(&one("b", 1), at(0)), Ok(()));
+        let shared = |throttle: &Throttle| throttle.lock().shared.map(|shared| shared.count);
+
+        // An address and its network, neither with a place: one attempt.
+        let both = [Counted::new("address", 1), Counted::new("network", 4)];
+        let reserved = throttle.reserve(&both, at(1)).unwrap();
+        assert_eq!(shared(&throttle), Some(1));
+        throttle.count(&both, 5, at(1));
+        assert_eq!(shared(&throttle), Some(6));
+
+        throttle.give_back(reserved);
+        assert_eq!(shared(&throttle), Some(5));
+
+        // One key with a place and one without: each is counted where it is.
+        let mixed = [Counted::new("a", 9), Counted::new("network", 4)];
+        assert_eq!(throttle.attempt(&mixed, at(2)), Ok(()));
+        assert_eq!(shared(&throttle), Some(6));
+        assert_eq!(throttle.lock().watched["a"].count, 2);
+    }
+
+    #[test]
+    fn a_full_table_is_searched_for_closed_windows_only_now_and_then() {
+        let throttle = Throttle::new("test keys", Duration::seconds(10), 2);
+        let second = |tenths: i64| at(0) + Duration::milliseconds(tenths * 100);
+        let has = |key: &str| throttle.lock().watched.contains_key(key);
+        assert_eq!(throttle.attempt(&one("a", 1), second(0)), Ok(()));
+        assert_eq!(throttle.attempt(&one("b", 1), second(50)), Ok(()));
+        // The routine tidying, once per window, takes "a" away.
+        assert_eq!(throttle.attempt(&one("c", 1), second(105)), Ok(()));
+        assert!(has("b") && has("c") && !has("a"));
+
+        // The first newcomer that finds the table full has it searched.
+        // Nothing has closed.
+        assert_eq!(throttle.attempt(&one("d", 1), second(145)), Ok(()));
+        assert_eq!(throttle.lock().swept_at, Some(second(145)));
+        // The window of "b" closes at 15 seconds. A newcomer just after it
+        // does not have the table searched again: it was, within the second.
+        assert_eq!(throttle.attempt(&one("e", 1), second(152)), Ok(()));
+        assert_eq!(throttle.lock().swept_at, Some(second(145)));
+        assert!(has("b") && !has("e"));
+        // A second after the search the next one does, and gets a place.
+        assert_eq!(throttle.attempt(&one("f", 1), second(155)), Ok(()));
+        assert!(has("f") && has("c") && !has("b"));
+    }
+
+    #[test]
+    fn a_table_that_was_full_gives_its_memory_back() {
+        let throttle = Throttle::new("test keys", Duration::minutes(1), 50_000);
+        for n in 0..50_000 {
+            let key = format!("2001:db8:{:x}:{:x}::/64", n >> 16, n & 0xffff);
+            assert_eq!(throttle.attempt(&one(&key, 1), at(0)), Ok(()));
+        }
+        assert!(throttle.lock().watched.capacity() >= 50_000);
+
+        // The next visitor after the windows have closed tidies up.
+        assert_eq!(throttle.attempt(&one("198.51.100.7", 1), at(2)), Ok(()));
+
+        assert_eq!(watched(&throttle), 1);
+        assert!(throttle.lock().watched.capacity() < 1024);
     }
 }

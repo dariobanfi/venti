@@ -59,13 +59,23 @@ pub struct Limits {
     /// Wrong passwords accepted from one address within the window,
     /// whatever handles they were for.
     pub wrong_passwords_per_address: u32,
+    /// Wrong passwords accepted from one IPv6 /48 network within the
+    /// window. An IPv6 client is counted under its /64 as "one address"
+    /// and under its /48 as well; see
+    /// [`ClientKeys`](client::ClientKeys). Four times what one address
+    /// may, here and for the two limits like it below: enough for the
+    /// several real people one /48 can hold, and little enough that the
+    /// 65,536 networks of one /48 are of no use to whoever has them all.
+    pub wrong_passwords_per_network: u32,
     /// The window for both.
     pub sign_in_window: Duration,
     /// Attempts to create an account from one address within
     /// [`registration_window`](Self::registration_window), successful or
     /// not.
     pub registrations_per_address: u32,
-    /// The window for that.
+    /// The same, from one IPv6 /48 network.
+    pub registrations_per_network: u32,
+    /// The window for both.
     pub registration_window: Duration,
     /// Flight files one account may upload within a day. A file the
     /// account already has counts too: the server has to read it to find
@@ -81,8 +91,20 @@ pub struct Limits {
     /// than one person asks, and far less than would be a burden: every
     /// request is a read of the server's own database.
     pub connector_requests_per_address: u32,
-    /// The window for that.
+    /// The same, from one IPv6 /48 network.
+    pub connector_requests_per_network: u32,
+    /// The window for both.
     pub connector_window: Duration,
+    /// How many keys (addresses, handles, accounts) each of the tables
+    /// that count attempts watches at most. A key costs about 110 bytes
+    /// (measured 2026-11-19), so each full table is 11 MB, and the server
+    /// has five. The size is not what the server expects to need, which is
+    /// some hundreds: it is what someone who wants to fill a table has to
+    /// bring. With IPv6 counted at two levels that is 100,000 IPv4
+    /// addresses within a window, or some hundreds to thousands of IPv6
+    /// /48 networks. What happens when a table is full all the same is
+    /// said at [`Throttle`](throttle::Throttle).
+    pub watched_keys: usize,
     /// Devices that can be signed in to one account. The one used longest
     /// ago makes room for a new one.
     pub sessions_per_account: usize,
@@ -95,13 +117,17 @@ impl Default for Limits {
         Self {
             wrong_passwords_per_handle: 10,
             wrong_passwords_per_address: 30,
+            wrong_passwords_per_network: 120,
             sign_in_window: Duration::hours(1),
             registrations_per_address: 10,
+            registrations_per_network: 40,
             registration_window: Duration::hours(1),
             uploads_per_day: 1000,
             slow_upload_weight: 50,
             connector_requests_per_address: 120,
+            connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
+            watched_keys: 100_000,
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
             // still be signed in when spring comes, because a forgotten
@@ -119,9 +145,12 @@ impl Limits {
         Self {
             wrong_passwords_per_handle: u32::MAX,
             wrong_passwords_per_address: u32::MAX,
+            wrong_passwords_per_network: u32::MAX,
             registrations_per_address: u32::MAX,
+            registrations_per_network: u32::MAX,
             uploads_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
+            connector_requests_per_network: u32::MAX,
             ..Self::default()
         }
     }

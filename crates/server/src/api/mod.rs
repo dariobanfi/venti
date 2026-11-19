@@ -206,14 +206,34 @@ impl<S: Store> Api<S> {
             proxies: settings.trusted_proxies,
             hasher: Hasher::new(settings.password_cost),
             analyser: settings.analyser,
-            wrong_by_handle: Throttle::new(limits.sign_in_window),
-            wrong_by_address: Throttle::new(limits.sign_in_window),
-            registrations: Throttle::new(limits.registration_window),
-            uploads: Throttle::new(chrono::Duration::days(1)),
+            wrong_by_handle: Throttle::new(
+                "handles with wrong passwords",
+                limits.sign_in_window,
+                limits.watched_keys,
+            ),
+            wrong_by_address: Throttle::new(
+                "addresses that sent wrong passwords",
+                limits.sign_in_window,
+                limits.watched_keys,
+            ),
+            registrations: Throttle::new(
+                "addresses that asked for accounts",
+                limits.registration_window,
+                limits.watched_keys,
+            ),
+            uploads: Throttle::new(
+                "accounts that uploaded flights",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
             uploading: flights::Uploading::new(),
             pictures: Semaphore::new(PICTURES_AT_ONCE),
             mcp,
-            connector_requests: Throttle::new(limits.connector_window),
+            connector_requests: Throttle::new(
+                "addresses that asked the connector",
+                limits.connector_window,
+                limits.watched_keys,
+            ),
             limits,
         }
     }

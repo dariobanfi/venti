@@ -49,8 +49,7 @@ use venti_tools::{Tool, ToolError};
 use super::auth::Client;
 use super::error::ApiError;
 use super::{Api, Cors, ServedSource};
-use crate::accounts::client::counting_key;
-use crate::accounts::throttle::Counted;
+use crate::accounts::client::counting_keys;
 use crate::flights::share::PublicUrl;
 
 /// The path of the connector.
@@ -161,19 +160,20 @@ pub(crate) async fn endpoint<S: Store>(
     // Counted before anything is read: a request over the limit costs a
     // look into a table and nothing else.
     let now = api.clock.now();
-    let address = counting_key(client);
-    let by_address = [Counted::new(
-        &address,
+    let address = counting_keys(client);
+    let by_address = address.counted(
         api.limits.connector_requests_per_address,
-    )];
+        api.limits.connector_requests_per_network,
+    );
     if let Err(refused) = api.connector_requests.attempt(&by_address, now) {
         // One line for the address and the window, however often it asks
         // again: a line per refusal is a megabyte of log a second from one
-        // client that does not stop.
-        if refused.first {
+        // client that does not stop. A client refused because the table of
+        // addresses is full did nothing itself; the table has said so.
+        if refused.first && !refused.shared {
             tracing::warn!(
                 client = %client,
-                "connector: too many requests from this address; \
+                "connector: too many requests from this address or its network; \
                  it is refused until its minute is over, without a further line"
             );
         }

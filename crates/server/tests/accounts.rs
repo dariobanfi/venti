@@ -18,7 +18,7 @@ use venti_server::accounts::client::TrustedProxies;
 use venti_server::accounts::invite;
 use venti_server::accounts::password::Cost;
 use venti_server::accounts::{Limits, Registration};
-use venti_server::api::{Api, Cors, Settings};
+use venti_server::api::{Api, Cors, MCP_PATH, Settings};
 use venti_server::clock::Clock;
 use venti_server::dev::{DEMO_HANDLE, DEMO_PASSWORD, DEMO_TOKEN};
 use venti_sources::testing::assert_golden;
@@ -743,6 +743,143 @@ async fn attempts_to_create_accounts_are_counted_per_address() {
     assert_eq!(
         attempt("198.51.100.7", "dora").await.status,
         StatusCode::CREATED
+    );
+}
+
+/// One request to the connector from `peer`, and the status of the answer.
+async fn ask_connector(router: &Router, peer: &str) -> StatusCode {
+    ask(Method::POST, MCP_PATH)
+        .from(peer)
+        .header(header::CONTENT_TYPE, "application/json")
+        .bytes(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
+        .send(router)
+        .await
+        .status
+}
+
+async fn register_from(router: &Router, peer: &str, handle: &str) -> StatusCode {
+    ask(Method::POST, ACCOUNTS_PATH)
+        .from(peer)
+        .json(&create(handle, "Pilot", PASSWORD))
+        .send(router)
+        .await
+        .status
+}
+
+#[tokio::test]
+async fn whoever_holds_many_ipv6_networks_is_still_one_client() {
+    let clock = TestClock::new();
+    let settings = Settings {
+        limits: Limits {
+            wrong_passwords_per_address: 5,
+            wrong_passwords_per_network: 8,
+            registrations_per_address: 4,
+            registrations_per_network: 6,
+            connector_requests_per_address: 5,
+            connector_requests_per_network: 8,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let router = server(settings, &clock).0;
+    assert_eq!(
+        register_from(&router, "198.51.100.1", "dario").await,
+        StatusCode::CREATED
+    );
+    // A rented server has a /48: 65,536 networks of the size a client is
+    // counted by. Each request below comes from another of them.
+    let from = |n: usize| format!("2001:db8:1:{n:x}::1");
+    let elsewhere = "2001:db8:2:1::1";
+
+    // Wrong passwords: eight from the /48 and no more, wherever in it they
+    // come from, and whatever the password.
+    for n in 0..8 {
+        let (peer, handle) = (from(n), format!("pilot{n}"));
+        let answer = sign_in_from(&router, &peer, &handle, "Sommer2026Sommer").await;
+        assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
+    }
+    let answer = sign_in_from(&router, &from(100), "dario", PASSWORD).await;
+    answer.error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    let answer = sign_in_from(&router, elsewhere, "dario", PASSWORD).await;
+    assert_eq!(answer.status, StatusCode::CREATED);
+
+    // Asking for accounts: six.
+    for n in 0..6 {
+        let status = register_from(&router, &from(n), &format!("pilot{n}")).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    let status = register_from(&router, &from(100), "late").await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        register_from(&router, elsewhere, "late").await,
+        StatusCode::CREATED
+    );
+
+    // The connector: eight.
+    for n in 0..8 {
+        assert_eq!(ask_connector(&router, &from(n)).await, StatusCode::OK);
+    }
+    assert_eq!(
+        ask_connector(&router, &from(100)).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(ask_connector(&router, elsewhere).await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_full_table_does_not_refuse_whoever_the_server_has_not_seen() {
+    let clock = TestClock::new();
+    // The limits of a real server, and tables small enough to fill here.
+    let settings = Settings {
+        limits: Limits {
+            watched_keys: 40,
+            ..Limits::default()
+        },
+        ..settings()
+    };
+    let router = server(settings, &clock).0;
+    assert_eq!(
+        register_from(&router, "198.51.100.1", "dario").await,
+        StatusCode::CREATED
+    );
+    // Many addresses, each seen once: that is all it takes to fill a table.
+    let stranger = |n: usize| format!("10.0.{}.{}", n / 250, n % 250 + 1);
+
+    for n in 0..60 {
+        assert_eq!(ask_connector(&router, &stranger(n)).await, StatusCode::OK);
+    }
+    // Someone new asks the connector for the first time.
+    assert_eq!(ask_connector(&router, "203.0.113.50").await, StatusCode::OK);
+
+    for n in 0..60 {
+        // Not a handle: refused, and counted all the same.
+        let status = register_from(&router, &stranger(n), "x").await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+    // Someone new asks for an account.
+    assert_eq!(
+        register_from(&router, "203.0.113.50", "anna").await,
+        StatusCode::CREATED
+    );
+
+    for n in 0..60 {
+        let (peer, handle) = (stranger(n), format!("pilot{n}"));
+        let answer = sign_in_from(&router, &peer, &handle, "Sommer2026Sommer").await;
+        assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
+    }
+    // A pilot signs in from an address the server has not seen, to an
+    // account nobody has guessed at.
+    let answer = sign_in_from(&router, "203.0.113.51", "dario", PASSWORD).await;
+    assert_eq!(answer.status, StatusCode::CREATED);
+    // What the server does know is still held to its own limit: the first
+    // address has asked for one account and may ask for nine more.
+    for n in 0..9 {
+        let status = register_from(&router, "198.51.100.1", &format!("more{n}")).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    assert_eq!(
+        register_from(&router, "198.51.100.1", "toomany").await,
+        StatusCode::TOO_MANY_REQUESTS
     );
 }
 

@@ -11,9 +11,11 @@ commercial = true
 redistribution = true
 share_alike = false
 attribution = "Quelle: Deutscher Wetterdienst"
+link = "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
 constraints = [
     "Place the credit directly at the DWD information shown.",
     "When values are altered, say so, for example: Datenbasis: Deutscher Wetterdienst, Einzelwerte gemittelt.",
+    "The credit may link to a DWD web page; a link is not required.",
 ]
 verified_on = "2026-11-18"
 verified_from = [

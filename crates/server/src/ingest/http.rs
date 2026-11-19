@@ -3,20 +3,17 @@ use std::time::Duration;
 use venti_sources::{Fetch, FetchError, Request};
 
 /// Fetches over HTTPS.
-pub(crate) struct HttpFetch {
+pub struct HttpFetch {
     client: reqwest::Client,
 }
 
 impl HttpFetch {
     /// Creates the client.
     ///
-    /// The `User-Agent` comes from the `VENTI_USER_AGENT` environment variable
-    /// when it is set. Some providers ask clients to name a contact there;
-    /// what to put in it is the operator's decision, so the default names only
-    /// the program and its version.
-    pub(crate) fn new() -> Result<Self, String> {
-        let user_agent = std::env::var("VENTI_USER_AGENT")
-            .unwrap_or_else(|_| concat!("venti-ingest/", env!("CARGO_PKG_VERSION")).to_owned());
+    /// `user_agent` is sent with every request. Some providers ask clients
+    /// to name a contact there; what to put in it is the operator's
+    /// decision, so the default names only the program and its version.
+    pub fn new(user_agent: &str) -> Result<Self, String> {
         let client = reqwest::Client::builder()
             .user_agent(user_agent)
             .timeout(Duration::from_secs(60))

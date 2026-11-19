@@ -22,7 +22,7 @@ mod source;
 pub mod testing;
 mod validate;
 
-pub use archive::{Archive, ArchiveEntry, ArchiveError, NoArchive};
+pub use archive::{Archive, ArchiveEntry, ArchiveError};
 pub use fetch::{Fetch, FetchError};
 pub use manifest::{Auth, Kind, Licence, LicenceFamily, Manifest, ManifestError, RateLimit};
 pub use registry::{Registry, RegistryError};

@@ -26,12 +26,12 @@ pub trait Archive: Sync {
     fn store(&self, entry: ArchiveEntry<'_>) -> Result<(), ArchiveError>;
 }
 
-/// An archive that keeps nothing, for runs where replay is not needed.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoArchive;
-
-impl Archive for NoArchive {
-    fn store(&self, _entry: ArchiveEntry<'_>) -> Result<(), ArchiveError> {
-        Ok(())
+/// An archive that may be switched off: `None` keeps nothing.
+impl<A: Archive> Archive for Option<A> {
+    fn store(&self, entry: ArchiveEntry<'_>) -> Result<(), ArchiveError> {
+        match self {
+            Some(archive) => archive.store(entry),
+            None => Ok(()),
+        }
     }
 }

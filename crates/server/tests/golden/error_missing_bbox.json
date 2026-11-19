@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "invalid_bbox",
+    "message": "the bbox parameter is missing; give bbox as west,south,east,north in degrees, for example bbox=10.5,47.2,11.9,47.8"
+  }
+}

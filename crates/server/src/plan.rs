@@ -1,0 +1,227 @@
+//! What the server collects: the sources of the configured regions.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use venti_domain::{BoundingBox, SourceId};
+use venti_regions::{RegionError, RegionPack};
+use venti_sources::Registry;
+
+/// One source to collect, and the area to collect it for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Job {
+    /// The source.
+    pub source: SourceId,
+    /// The smallest box that covers every configured region listing the
+    /// source.
+    pub area: BoundingBox,
+}
+
+/// Why the configured regions cannot be served.
+#[derive(Debug, thiserror::Error)]
+pub enum PlanError {
+    /// A region pack could not be read.
+    #[error("cannot read {}: {error}", path.display())]
+    Read {
+        /// The file.
+        path: PathBuf,
+        /// What went wrong.
+        error: std::io::Error,
+    },
+    /// A region pack is invalid, or names a source this build has no adapter
+    /// for.
+    #[error("{}: {error}", path.display())]
+    Region {
+        /// The file.
+        path: PathBuf,
+        /// What is wrong with it.
+        error: RegionError,
+    },
+    /// No region lists any source.
+    #[error("the configured regions list no source to collect")]
+    Empty,
+    /// A source's licence does not allow serving its data onward, which is
+    /// all this server does with data.
+    #[error(
+        "source {0} may not be redistributed under its licence; the API cannot keep it back yet"
+    )]
+    NotRedistributable(SourceId),
+}
+
+/// Reads the region packs at `paths` and plans their sources.
+pub fn load(paths: &[PathBuf], registry: &Registry) -> Result<Vec<Job>, PlanError> {
+    let mut packs = Vec::new();
+    for path in paths {
+        packs.push(read_pack(path, registry)?);
+    }
+    plan(&packs, registry)
+}
+
+fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> {
+    let text = std::fs::read_to_string(path).map_err(|error| PlanError::Read {
+        path: path.to_owned(),
+        error,
+    })?;
+    let region = |error| PlanError::Region {
+        path: path.to_owned(),
+        error,
+    };
+    let pack = RegionPack::from_toml(&text).map_err(region)?;
+    pack.check_against(registry).map_err(region)?;
+    Ok(pack)
+}
+
+/// Plans the sources of region packs that were already checked against the
+/// registry: one job per source, sorted by identifier.
+///
+/// A source is collected once however many regions list it, because a
+/// provider's request limits apply to the source, not to a region. Its area
+/// is one box around all those regions.
+pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanError> {
+    let mut areas: BTreeMap<SourceId, BoundingBox> = BTreeMap::new();
+    for pack in packs {
+        for source in &pack.observations.sources {
+            areas
+                .entry(source.clone())
+                .and_modify(|area| *area = area.cover(&pack.bounds))
+                .or_insert(pack.bounds);
+        }
+    }
+    if areas.is_empty() {
+        return Err(PlanError::Empty);
+    }
+    for source in areas.keys() {
+        let redistributable = registry
+            .observations(source)
+            .is_some_and(|adapter| adapter.manifest().licence.redistribution);
+        if !redistributable {
+            return Err(PlanError::NotRedistributable(source.clone()));
+        }
+    }
+    Ok(areas
+        .into_iter()
+        .map(|(source, area)| Job { source, area })
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use venti_sources::{Manifest, ObservationSource, Parsed, PlanCtx, Request, SourceError};
+
+    use super::*;
+    use crate::adapters;
+
+    fn pack(id: &str, bounds: [f64; 4], sources: &[&str]) -> RegionPack {
+        let [south, west, north, east] = bounds;
+        let sources: Vec<String> = sources.iter().map(|s| format!("{s:?}")).collect();
+        let text = format!(
+            "id = {id:?}\nname = {id:?}\nlanguages = [\"de\"]\n\
+             [bounds]\nsouth = {south}\nwest = {west}\nnorth = {north}\neast = {east}\n\
+             [observations]\nsources = [{}]\n",
+            sources.join(", ")
+        );
+        RegionPack::from_toml(&text).unwrap()
+    }
+
+    #[test]
+    fn a_source_listed_by_two_regions_runs_once_over_both() {
+        let packs = [
+            pack(
+                "alps",
+                [46.3, 9.4, 48.5, 17.2],
+                &["dwd-10min", "geosphere-tawes"],
+            ),
+            pack("north", [52.0, 8.0, 54.0, 12.0], &["dwd-10min"]),
+        ];
+
+        let jobs = plan(&packs, &adapters::registry()).unwrap();
+
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[0].source.as_str(), "dwd-10min");
+        assert_eq!(
+            jobs[0].area,
+            BoundingBox::new(46.3, 8.0, 54.0, 17.2).unwrap()
+        );
+        assert_eq!(jobs[1].source.as_str(), "geosphere-tawes");
+        assert_eq!(jobs[1].area, packs[0].bounds);
+    }
+
+    /// An adapter for a source that may be used but not served onward.
+    struct Closed(Manifest);
+
+    impl ObservationSource for Closed {
+        fn manifest(&self) -> &Manifest {
+            &self.0
+        }
+        fn plan(&self, _: &PlanCtx) -> Vec<Request> {
+            Vec::new()
+        }
+        fn parse(&self, request: &Request, _: &[u8], _: &PlanCtx) -> Result<Parsed, SourceError> {
+            Err(SourceError::UnknownRequest(request.tag.clone()))
+        }
+    }
+
+    #[test]
+    fn a_source_that_may_not_be_served_onward_is_refused() {
+        let manifest = r#"
+            id = "closed"
+            provider = "Closed Weather"
+            kinds = ["observations"]
+            countries = ["DE"]
+            cadence_seconds = 600
+            auth = "api-key"
+            [licence]
+            name = "Custom"
+            commercial = false
+            redistribution = false
+            share_alike = false
+            attribution = "Closed Weather"
+            link = "https://example.org"
+            verified_on = "2026-11-19"
+            verified_from = ["https://example.org/terms"]
+        "#;
+        let mut registry = adapters::registry();
+        let closed = Closed(Manifest::from_toml(manifest).unwrap());
+        registry.register_observations(Box::new(closed)).unwrap();
+        let packs = [pack(
+            "alps",
+            [46.3, 9.4, 48.5, 17.2],
+            &["dwd-10min", "closed"],
+        )];
+
+        let refused = plan(&packs, &registry).unwrap_err();
+
+        assert!(
+            matches!(refused, PlanError::NotRedistributable(source) if source.as_str() == "closed")
+        );
+    }
+
+    #[test]
+    fn regions_without_sources_are_refused() {
+        let packs = [pack("empty", [46.3, 9.4, 48.5, 17.2], &[])];
+        assert!(matches!(
+            plan(&packs, &adapters::registry()),
+            Err(PlanError::Empty)
+        ));
+        assert!(matches!(
+            plan(&[], &adapters::registry()),
+            Err(PlanError::Empty)
+        ));
+    }
+
+    #[test]
+    fn the_first_region_loads_from_its_file() {
+        let path = PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../regions/alps-de-at/region.toml"
+        ));
+        let jobs = load(&[path], &adapters::registry()).unwrap();
+        assert_eq!(jobs.len(), 2);
+
+        let missing = PathBuf::from("regions/nowhere/region.toml");
+        assert!(matches!(
+            load(&[missing], &adapters::registry()),
+            Err(PlanError::Read { .. })
+        ));
+    }
+}

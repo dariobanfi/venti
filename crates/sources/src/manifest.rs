@@ -71,6 +71,9 @@ pub struct Licence {
     pub share_alike: bool,
     /// The credit line the provider asks for.
     pub attribution: String,
+    /// Where the credit line links to: the provider's page for the data or
+    /// for its terms.
+    pub link: String,
     /// Further conditions, in plain words.
     #[serde(default)]
     pub constraints: Vec<String>,
@@ -157,6 +160,9 @@ impl Manifest {
             return Err(invalid("licence name and attribution are required"));
         }
         let is_https = |url: &String| url.starts_with("https://");
+        if !is_https(&self.licence.link) {
+            return Err(invalid("licence.link must be an https URL"));
+        }
         if self.licence.verified_from.is_empty() || !self.licence.verified_from.iter().all(is_https)
         {
             return Err(invalid(
@@ -198,6 +204,7 @@ mod tests {
         redistribution = true
         share_alike = false
         attribution = "Data source: Example"
+        link = "https://example.org/data"
         verified_on = "2026-11-18"
         verified_from = ["https://example.org/legal"]
     "#;
@@ -222,6 +229,15 @@ mod tests {
     #[test]
     fn rejects_a_licence_without_a_verification_url() {
         let text = GOOD.replace("https://example.org/legal", "somewhere");
+        assert!(matches!(
+            Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_a_credit_link_that_is_not_https() {
+        let text = GOOD.replace("https://example.org/data", "example.org/data");
         assert!(matches!(
             Manifest::from_toml(&text),
             Err(ManifestError::Invalid { .. })

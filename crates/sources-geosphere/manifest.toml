@@ -15,6 +15,7 @@ commercial = true
 redistribution = true
 share_alike = false
 attribution = "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+link = "https://data.hub.geosphere.at"
 constraints = [
     "Users must accept GeoSphere Austria's general terms and the Data Hub terms of use.",
 ]

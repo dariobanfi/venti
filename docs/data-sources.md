@@ -1,6 +1,6 @@
 # Data sources
 
-Last revised: 2026-11-18
+Last revised: 2026-11-19
 
 The app depends on dozens of external data providers, and the set differs by country. This document defines how they plug in, and lists what is available for the first region.
 
@@ -83,6 +83,7 @@ commercial = true
 redistribution = true
 share_alike = false
 attribution = "Data source: GeoSphere Austria - https://data.hub.geosphere.at"
+link = "https://data.hub.geosphere.at"
 constraints = ["Users must accept GeoSphere Austria's general terms and the Data Hub terms of use."]
 verified_on = "2026-11-18"
 verified_from = [
@@ -95,8 +96,9 @@ Each adapter crate has its manifest in `manifest.toml`, compiled into the crate.
 
 The manifest is data, not comments. The server reads it to:
 
-- build the attribution screen and the map credit line;
+- send the credit of every source with the data it serves: the credit line, the licence's name and the link (`attribution`, `name`, `link`);
 - enforce rate limits and schedules;
+- refuse to start with a source whose licence does not allow serving its data onward;
 - apply licence constraints automatically (see below);
 - exclude non-commercial sources from a build with one switch, should the project ever take money.
 
@@ -124,12 +126,12 @@ Region packs live in `regions/<id>/region.toml`. The area is a bounding box for 
 
 Every payload goes through the same stages, in the `sources` crate:
 
-1. **Fetch.** The scheduler calls the adapter within its rate limit and cadence.
+1. **Fetch.** The server's scheduler runs each source at its cadence and within its rate limit; see [architecture.md](architecture.md#what-the-server-does-today).
 2. **Archive.** The raw payload is written to disk and kept for a rolling window. A bug report can be replayed exactly.
 3. **Normalise.** The adapter converts to canonical types: SI units, UTC, WGS84, heights above mean sea level.
 4. **Merge and validate.** Partial observations for the same station and time are merged (some providers publish wind, gusts and temperature in separate files). Implausible values are removed and counted, so one faulty humidity sensor does not cost a good wind reading. An observation with nothing left is dropped. Nothing unvalidated reaches the store.
 5. **Resolve.** The same real-world object from two providers is matched (by position, name and type) and linked in a mapping table. The region pack's priority decides which fields win. Every stored field records its source.
-6. **Store and publish.** Canonical records go to the database; changes are published to the live channel and to the region-bundle builder.
+6. **Store and publish.** Canonical records go to the database; changes are published to the live channel and to the region-bundle builder. Storing is built; publishing changes is not.
 
 ### Licence rules built into the pipeline
 
@@ -139,15 +141,15 @@ Every payload goes through the same stages, in the `sources` crate:
 
 ### Health
 
-Each adapter reports last success, record counts, quarantine counts and data age. The server exposes a health page. Every data point shown to a pilot carries its age, and a stale source is shown as stale. One failing adapter is isolated by a circuit breaker and does not affect the others.
+Each adapter reports last success, record counts, quarantine counts and data age. The server keeps the outcome of every run and exposes the summary per source at `/v1/health` ([api.md](api.md)). Every data point shown to a pilot carries its age, and a stale source is shown as stale. One failing adapter does not affect the others: each source runs in a task of its own, a failure or even a crash inside an adapter ends that run only, and a source that keeps failing is tried less and less often, down to once an hour.
 
 ### Testing
 
 Every adapter crate contains:
 
-- **Fixtures:** real recorded payloads, including at least one malformed one.
+- **Fixtures:** real recorded payloads, including at least one malformed one. The healthy ones are also compiled into the crate (`fixtures::recorded()`), where the server's development mode finds them.
 - **Golden files:** the expected canonical output for each fixture. CI fails if normalisation changes.
-- **A canary:** the `Source canary` workflow runs every region's sources against the live providers once a day and fails when a source delivers nothing or reports problems. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
+- **A canary:** the `Source canary` workflow runs every region's sources against the live providers once a day (`venti-server ingest`) and fails when a source delivers nothing or reports problems. Providers change formats without notice; two such changes are already dated in [Known changes](#known-changes).
 
 Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, and the change is reviewed like any other diff.
 
@@ -156,7 +158,7 @@ Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, an
 1. Confirm the licence on the provider's own page and record it in the manifest with the date and URL.
 2. Create `crates/sources-<provider>` implementing the relevant traits.
 3. Record fixtures and golden files.
-4. Add the adapter to the registry and to the region packs that should use it.
+4. Add the adapter and its recorded payloads to the registry in `crates/server/src/adapters.rs`, and the source to the region packs that should use it.
 5. Add the canary.
 
 ### Adding a region
@@ -168,7 +170,7 @@ Golden files are rewritten by running the tests with `VENTI_UPDATE_GOLDEN=1`, an
 
 ## What is built
 
-As of 2026-11-18:
+As of 2026-11-19:
 
 | Part | State |
 |---|---|
@@ -176,13 +178,17 @@ As of 2026-11-18:
 | Manifest, adapter trait, registry, pipeline stages 1 to 4 (`venti-sources`) | Built for observations |
 | Adapters: `dwd-10min`, `geosphere-tawes` | Built, with fixtures recorded 2026-11-18 and golden files |
 | Region pack loader and the `alps-de-at` pack (`venti-regions`) | Built for observations |
-| `venti-ingest`, which runs a region's sources live and writes the raw-payload archive | Built as a development tool; it moves into the server |
+| Store for stations, observations and run history (`venti-store`): PostgreSQL with PostGIS, and in memory | Built |
+| Server (`venti-server`): scheduler, raw-payload archive with a rolling window, HTTP API with attributions, health per source, development mode over the recorded fixtures | Built for observations; installed on no machine yet |
+| `venti-server ingest`, which runs a region's sources live once and stores nothing (formerly the separate tool `venti-ingest`) | Built |
 | Daily canary | Built as a CI workflow |
-| Request limits | The per-run budget from the hourly limit and a concurrency cap at the per-second limit are enforced. Spacing runs by cadence belongs to the scheduler. |
-| Resolve stage, store, change events, scheduler, health page | Designed, not built |
+| Request limits | The per-run budget from the hourly limit and a concurrency cap at the per-second limit are enforced by the pipeline. The scheduler spaces runs by the cadence, also after failures and restarts. A true per-second rate limit is not built; no source that makes many requests publishes one. |
+| Resolve stage, change events | Designed, not built. Until resolve exists, a station reported by two sources is two stations. |
 | Every kind other than observations | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
+
+On 2026-11-19 the server ran against the live providers and a real database for 22 minutes: three scheduled runs per source, all healthy, the same 50 and 267 stations, 1638 observations stored. The newest German values were 25 to 44 minutes old when fetched, the Austrian ones under ten. Of the 1939 observations the second and third runs delivered, 1272 were already stored; one of them had changed and was rewritten. The raw payloads of those six runs were 318 files and 5 MB, which makes about 240 MB a day.
 
 ## Catalogue: Germany and Austria
 

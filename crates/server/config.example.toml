@@ -1,0 +1,50 @@
+# Example configuration of venti-server.
+#
+# Copy it to a place outside version control (the folder `var/` is ignored
+# by git), put in your own values and start the server with
+#
+#     venti-server serve --config var/venti-server.toml
+#
+# Every setting can also be given as an environment variable, named beside
+# it; a variable wins over this file. The container deployment in `deploy/`
+# uses variables only.
+
+# Address the HTTP API listens on.                       VENTI_LISTEN
+# Keep it on the loopback address unless a reverse proxy on another machine
+# has to reach it.
+listen = "127.0.0.1:8080"
+
+# The PostgreSQL database, which must have PostGIS.       VENTI_DATABASE_URL
+# This URL holds a password: never commit a file that contains a real one.
+database_url = "postgres://venti:change-me@127.0.0.1:5432/venti"
+
+# Region packs to collect and serve.                      VENTI_REGIONS
+# Paths are relative to the folder the server is started in. As a variable:
+# a comma-separated list.
+regions = ["regions/alps-de-at/region.toml"]
+
+# Folder for raw provider payloads, kept so that a      VENTI_ARCHIVE_DIR
+# parsing bug can be replayed. Leave it out to keep none.
+archive_dir = "var/archive"
+
+# The User-Agent sent to data providers.                  VENTI_USER_AGENT
+# Some providers ask operators to name a contact here, for example
+# "venti-server/0.1 (+https://your-site.example/contact)". What to put in
+# it is the operator's decision; the default names only the program.
+user_agent = "venti-server/0.1"
+
+# Web origins that may call the API from a browser.      VENTI_CORS_ORIGINS
+# List the origin of the web app. An empty list allows none; apps that are
+# not browsers are never restricted. As a variable: a comma-separated list.
+cors_origins = ["http://localhost:5173"]
+
+# One of error, warn, info, debug, trace.                 VENTI_LOG_LEVEL
+log_level = "info"
+
+[retention]
+# Observations are kept for this many whole calendar     VENTI_OBSERVATION_MONTHS
+# months before the current one. Older months are dropped.
+observation_months = 13
+
+# Raw provider payloads are kept for this many days.      VENTI_ARCHIVE_DAYS
+archive_days = 14

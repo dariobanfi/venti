@@ -15,6 +15,7 @@
 //! inside the run's area, that station's file from each dataset. The pipeline
 //! merges the three partial observations per station and time.
 
+pub mod fixtures;
 mod stations;
 mod table;
 

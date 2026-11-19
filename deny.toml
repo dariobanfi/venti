@@ -28,6 +28,13 @@ ignore = true
 multiple-versions = "allow"
 wildcards = "deny"
 allow-wildcard-paths = true
+# TLS is rustls everywhere. OpenSSL would tie the server image and the apps
+# to a system library and its release schedule.
+deny = [
+    { crate = "openssl" },
+    { crate = "openssl-sys" },
+    { crate = "native-tls" },
+]
 
 [sources]
 unknown-registry = "deny"

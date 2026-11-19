@@ -3,13 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
-use chrono::{TimeZone, Utc};
 use venti_domain::BoundingBox;
 use venti_sources::testing::{FixtureFetch, MemoryArchive, assert_golden, block_on};
 use venti_sources::{
     LicenceFamily, ObservationSource, PlanCtx, RunOptions, RunOutput, run_observations,
 };
-use venti_sources_geosphere::Tawes10Min;
+use venti_sources_geosphere::{Tawes10Min, fixtures};
 
 const METADATA: &str =
     "https://dataset.api.hub.geosphere.at/v1/station/current/tawes-v1-10min/metadata";
@@ -34,7 +33,7 @@ fn golden(name: &str) -> PathBuf {
 /// Shortly after the fixtures were recorded, over the first region's area.
 fn ctx() -> PlanCtx {
     PlanCtx {
-        now: Utc.with_ymd_and_hms(2026, 11, 18, 19, 5, 0).unwrap(),
+        now: fixtures::recorded_at(),
         area: BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap(),
     }
 }
@@ -52,9 +51,7 @@ fn run(fetch: &FixtureFetch, archive: &MemoryArchive) -> RunOutput {
 
 #[test]
 fn a_recorded_run_matches_the_golden_file() {
-    let fetch = FixtureFetch::new()
-        .with(METADATA, fixture("metadata.json"))
-        .with(CURRENT, fixture("current.json"));
+    let fetch = FixtureFetch::new().with_all(fixtures::recorded());
     let archive = MemoryArchive::default();
 
     let output = run(&fetch, &archive);

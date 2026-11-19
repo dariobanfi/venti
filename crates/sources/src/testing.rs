@@ -31,6 +31,18 @@ impl FixtureFetch {
         self.responses.insert(url.into(), body.into());
         self
     }
+
+    /// Records a response for each URL in a list, such as an adapter crate's
+    /// `fixtures::recorded()`.
+    pub fn with_all<U, B>(self, responses: impl IntoIterator<Item = (U, B)>) -> Self
+    where
+        U: Into<String>,
+        B: Into<Vec<u8>>,
+    {
+        responses
+            .into_iter()
+            .fold(self, |fetch, (url, body)| fetch.with(url, body))
+    }
 }
 
 impl Fetch for FixtureFetch {

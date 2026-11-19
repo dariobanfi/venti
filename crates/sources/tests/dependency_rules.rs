@@ -3,8 +3,8 @@
 //! - `venti-domain` depends on no other workspace crate.
 //! - `venti-sources` depends only on `venti-domain`.
 //! - A provider crate (`venti-sources-*`) depends only on those two.
-//! - Only binaries that assemble the registry depend on provider crates, so
-//!   no other code can name a provider-specific type.
+//! - Only the server, which assembles the registry, depends on provider
+//!   crates, so no other code can name a provider-specific type.
 //! - `venti-flight` and `venti-sensors` depend only on `venti-domain`.
 //! - `venti-api-types`, the wire format shared by server and clients, and
 //!   `venti-store`, the server's persistence, depend only on `venti-domain`.
@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
 /// Crates that assemble the registry and may therefore depend on provider crates.
-const ASSEMBLERS: [&str; 1] = ["venti-ingest"];
+const ASSEMBLERS: [&str; 1] = ["venti-server"];
 
 fn workspace_dependencies() -> BTreeMap<String, Vec<String>> {
     let output = Command::new(env!("CARGO"))

@@ -85,7 +85,7 @@ Phases are ordered so that each one is useful to a single pilot before the commu
 | Phase | Ships | Done when |
 |---|---|---|
 | **0 Foundations** | Repository, CI, Rust workspace, the adapter framework with two real adapters, and the spikes listed below | Every spike has a yes or no |
-| **1 Map** | Today and Plan for Germany/Austria on iOS and web; MCP connector with read-only weather and site tools | The owner opens it before every flight |
+| **1 Map** | Today and Plan for Germany/Austria on iOS and web; MCP connector with read-only weather and site tools. Started on the server side: it collects the live wind stations of the first region and serves them over an HTTP API ([api.md](api.md)). No app shows them yet, and the server runs on no machine yet. | The owner opens it before every flight |
 | **2 Review** | Logbook, import, analysis, 3D replay, share pages. Started early, on the device only: the iOS app imports flight files into a logbook, shows a flight on the map with its altitude profile, and lists its thermals and glides, scores it by the World XContest's rules, and keeps statistics by month and glider with the pilot's bests. 3D replay, comparison and share pages are not built. | The owner's full flight history is in it |
 | **3 Fly** | Recorder and cockpit on iOS with offline maps, Bluetooth vario and live tracking. Started: the cockpit, recorder, vario sound and Bluetooth vario link are built and tested by replaying a flight; they have not flown, and offline maps, airspace, navigation and live tracking are not built. | Ten cross-country flights as primary instrument without a lost track |
 | **4 Community** | Profiles, feed, groups, flying-today board, events; closed beta | The owner's group plans a flying day in it |
@@ -103,7 +103,7 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 | Background recording | Does a six-hour recording survive backgrounding, a phone call and low-power mode on iOS? |
 | Bluetooth vario | Can we connect to the owner's vario, parse its stream and drive vario audio in the background? |
 | 3D terrain | Is a small Rust terrain renderer on wgpu good enough on iPhone and in the browser? |
-| Adapters | Do DWD and GeoSphere Austria observations flow end to end through the framework, with fixtures and health reporting? **Yes, 2026-11-18**, up to validated canonical records; see [data-sources.md](data-sources.md#what-is-built). Storing them waits for the server. |
+| Adapters | Do DWD and GeoSphere Austria observations flow end to end through the framework, with fixtures and health reporting? **Yes, 2026-11-18**, up to validated canonical records; see [data-sources.md](data-sources.md#what-is-built). Since 2026-11-19 the server stores them and serves them, with a health report per source. |
 | Transit | How much memory and import time does the transit router need for Germany, Austria, Switzerland and northern Italy on the owner's server? |
 
 ## Needed from the owner
@@ -115,6 +115,7 @@ Android follows iOS one phase behind once the shell patterns are settled. The co
 | Vario | MipFly MipBip, with XC Tracer as the other first-class target. All popular Bluetooth varios should follow. |
 | GitHub repository | **Done**, 2026-11-18: `dariobanfi/venti`. One stale branch, `phase-0/foundations`, is left for the owner to delete; AI sessions cannot delete branches. |
 | Server | **Open.** None yet. The recommended specification is in [architecture.md](architecture.md#sizing). |
+| Contact line for data providers | **Open.** The server names itself to the providers as `venti-server/<version>` and nothing else. Some providers ask operators to name a contact in that line; whether to, and which, is the owner's decision (`VENTI_USER_AGENT`). |
 | Apple Developer Program membership | **Not for now**, owner decision 2026-11-18. The owner tests on their own Mac and iPhone with their own signing settings, which stay out of the repository (`apps/ios/Config/Local.xcconfig`). Builds and tests run on GitHub's macOS runners, which are free for public repositories. Membership is needed later for TestFlight and the App Store. |
 | Permission emails | **Open.** AI sessions draft them, the owner sends them. The list is in [data-sources.md](data-sources.md#outreach). |
 | Feature input | **Open.** The owner has said more will follow on the draft list above. |

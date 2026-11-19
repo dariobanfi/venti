@@ -9,7 +9,7 @@ use venti_sources::testing::{FixtureFetch, MemoryArchive, assert_golden, block_o
 use venti_sources::{
     LicenceFamily, ObservationSource, PlanCtx, RunOptions, RunOutput, run_observations,
 };
-use venti_sources_dwd::Dwd10Min;
+use venti_sources_dwd::{Dwd10Min, fixtures};
 
 const BASE: &str =
     "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes";
@@ -30,7 +30,7 @@ fn golden(name: &str) -> PathBuf {
 /// Shortly after the fixtures were recorded, over the first region's area.
 fn ctx() -> PlanCtx {
     PlanCtx {
-        now: Utc.with_ymd_and_hms(2026, 11, 18, 19, 5, 0).unwrap(),
+        now: fixtures::recorded_at(),
         area: BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap(),
     }
 }
@@ -72,27 +72,9 @@ fn run(fetch: &FixtureFetch, archive: &MemoryArchive, ctx: &PlanCtx) -> RunOutpu
 
 #[test]
 fn a_recorded_run_matches_the_golden_file() {
-    let mut fetch = with_station_lists(FixtureFetch::new());
     // Zugspitze and Hohenpeißenberg have all three files. Garmisch-Partenkirchen
     // has no temperature file here, as happens when a station's file is late.
-    for station in ["05792", "02290", "01550"] {
-        for (dir, file) in [
-            ("wind", format!("10minutenwerte_wind_{station}_now.zip")),
-            (
-                "extreme_wind",
-                format!("10minutenwerte_extrema_wind_{station}_now.zip"),
-            ),
-            (
-                "air_temperature",
-                format!("10minutenwerte_TU_{station}_now.zip"),
-            ),
-        ] {
-            if station == "01550" && dir == "air_temperature" {
-                continue;
-            }
-            fetch = with_data(fetch, dir, &file, &file);
-        }
-    }
+    let fetch = FixtureFetch::new().with_all(fixtures::recorded());
     let archive = MemoryArchive::default();
 
     let output = run(&fetch, &archive, &ctx());

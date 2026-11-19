@@ -1,0 +1,138 @@
+{
+  "stations": [
+    {
+      "id": "dwd-10min:01550",
+      "source": "dwd-10min",
+      "name": "Garmisch-Partenkirchen",
+      "position": {
+        "lat": 47.483,
+        "lon": 11.0621
+      },
+      "elevation_m": 719.0,
+      "latest": {
+        "time": "2026-11-18T18:20:00Z",
+        "wind_speed_ms": 1.3,
+        "wind_gust_ms": 2.3,
+        "wind_direction_deg": 350.0,
+        "gust_direction_deg": 340.0
+      }
+    },
+    {
+      "id": "dwd-10min:02290",
+      "source": "dwd-10min",
+      "name": "Hohenpeißenberg",
+      "position": {
+        "lat": 47.8009,
+        "lon": 11.0108
+      },
+      "elevation_m": 977.0,
+      "latest": {
+        "time": "2026-11-18T18:20:00Z",
+        "wind_speed_ms": 12.2,
+        "wind_gust_ms": 21.3,
+        "wind_direction_deg": 240.0,
+        "gust_direction_deg": 250.0,
+        "temperature_c": 4.5,
+        "humidity_pct": 97.8,
+        "pressure_hpa": 887.5
+      }
+    },
+    {
+      "id": "dwd-10min:05792",
+      "source": "dwd-10min",
+      "name": "Zugspitze",
+      "position": {
+        "lat": 47.421,
+        "lon": 10.9848
+      },
+      "elevation_m": 2956.0,
+      "latest": {
+        "time": "2026-11-18T18:20:00Z",
+        "wind_speed_ms": 14.9,
+        "wind_gust_ms": 25.7,
+        "wind_direction_deg": 260.0,
+        "gust_direction_deg": 260.0,
+        "temperature_c": -7.1,
+        "humidity_pct": 91.8,
+        "pressure_hpa": 693.4
+      }
+    },
+    {
+      "id": "geosphere-tawes:11126",
+      "source": "geosphere-tawes",
+      "name": "PATSCHERKOFEL",
+      "position": {
+        "lat": 47.20888888888889,
+        "lon": 11.462222222222222
+      },
+      "elevation_m": 2251.0,
+      "latest": {
+        "time": "2026-11-18T19:00:00Z",
+        "wind_speed_ms": 5.2,
+        "wind_gust_ms": 7.3,
+        "wind_direction_deg": 195.0,
+        "gust_direction_deg": 184.0,
+        "temperature_c": -2.6,
+        "humidity_pct": 97.0,
+        "pressure_hpa": 760.4
+      }
+    },
+    {
+      "id": "geosphere-tawes:11320",
+      "source": "geosphere-tawes",
+      "name": "INNSBRUCK/UNIVERSITAET",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.384166666666664
+      },
+      "elevation_m": 578.0,
+      "latest": {
+        "time": "2026-11-18T19:00:00Z",
+        "wind_speed_ms": 0.2,
+        "wind_gust_ms": 1.4,
+        "wind_direction_deg": 281.0,
+        "gust_direction_deg": 244.0,
+        "temperature_c": 7.8,
+        "humidity_pct": 84.0,
+        "pressure_hpa": 930.9
+      }
+    },
+    {
+      "id": "geosphere-tawes:11343",
+      "source": "geosphere-tawes",
+      "name": "SONNBLICK - AUTOM.",
+      "position": {
+        "lat": 47.05416666666667,
+        "lon": 12.9575
+      },
+      "elevation_m": 3109.0,
+      "latest": {
+        "time": "2026-11-18T19:00:00Z",
+        "wind_speed_ms": 5.0,
+        "wind_gust_ms": 9.8,
+        "wind_direction_deg": 290.0,
+        "gust_direction_deg": 270.0,
+        "temperature_c": -7.7,
+        "humidity_pct": 92.0,
+        "pressure_hpa": 681.6
+      }
+    }
+  ],
+  "truncated": false,
+  "attributions": [
+    {
+      "source": "dwd-10min",
+      "provider": "Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Quelle: Deutscher Wetterdienst",
+      "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
+    },
+    {
+      "source": "geosphere-tawes",
+      "provider": "GeoSphere Austria",
+      "licence": "CC BY 4.0",
+      "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
+      "url": "https://data.hub.geosphere.at"
+    }
+  ]
+}

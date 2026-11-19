@@ -14,6 +14,8 @@
 //! not stated in the pages read on 2026-11-18. It is treated as the end, as
 //! for the other sources. To verify.
 
+pub mod fixtures;
+
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};

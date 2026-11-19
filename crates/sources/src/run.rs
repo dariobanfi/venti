@@ -69,6 +69,21 @@ pub struct RunReport {
     pub newest_observation: Option<Timestamp>,
 }
 
+impl RunReport {
+    /// Whether the run did its job: it delivered observations, nearly every
+    /// request worked, and it did not run out of request budget.
+    ///
+    /// A few stations are always briefly offline, so up to a tenth of the
+    /// requests may fail. A provider-wide problem shows as many failures or
+    /// as nothing delivered at all. The scheduler backs off after an
+    /// unhealthy run, the health endpoint counts it as a failure, and the
+    /// canary fails on it.
+    pub fn is_healthy(&self) -> bool {
+        let tolerated_failures = self.requests / 10;
+        self.observations > 0 && self.failures.len() <= tolerated_failures && !self.budget_exhausted
+    }
+}
+
 /// The canonical records a run produced, and its report.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunOutput {

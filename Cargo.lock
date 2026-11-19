@@ -2876,6 +2876,7 @@ dependencies = [
  "venti-sources-dwd",
  "venti-sources-geosphere",
  "venti-sources-openaip",
+ "venti-sources-openmeteo",
  "venti-sources-osm",
  "venti-store",
  "venti-tools",

@@ -197,6 +197,48 @@ The server answers a pilot's own Claude or ChatGPT at `https://<domain>/mcp`: wi
 - **No sign-in.** An assistant that looks for a sign-in service at `/.well-known/oauth-...` gets `404` from the server, which is the answer that there is none.
 - **Taking it off the internet:** remove the `handle /mcp` block from the `Caddyfile` and restart Caddy. The API and the apps do not use it.
 
+## Forecasts
+
+The server has forecasts only if it is told where to get them: from an [Open-Meteo](https://open-meteo.com/) instance that you run yourself. Without one everything else works, `/v1/health` says `"forecasts": "not_configured"` and `/v1/forecast` answers `501`. The server never asks Open-Meteo's public service, whose terms are for non-commercial use within daily limits per address.
+
+The Compose file holds such an instance, switched off. To switch it on:
+
+1. In `.env`, set
+
+   ```
+   VENTI_OPEN_METEO_URL=http://open-meteo:8080
+   ```
+
+2. Start it with the rest:
+
+   ```bash
+   docker compose --profile forecasts up -d
+   ```
+
+   From then on every `docker compose` command for the stack needs `--profile forecasts`, or put `COMPOSE_PROFILES=forecasts` in `.env`.
+
+3. Look at `/v1/health` after a minute: `"forecasts": "available"`, and the source `open-meteo` lists its `models` with the run each is at. Then ask for a place:
+
+   ```bash
+   curl 'https://your-site.example/v1/forecast?lat=47.7&lon=11.8'
+   ```
+
+**What the instance is.** Open-Meteo's own container image, unchanged, under the AGPL-3.0-or-later. It keeps no forecasts of its own to begin with: when a place is asked for it reads the parts it needs of Open-Meteo's open data on AWS (`https://openmeteo.s3.amazonaws.com/data/`, no key, Deutscher Wetterdienst's models under CC BY 4.0) and keeps what it read in a cache on disk. So the machine needs outbound HTTPS to that address, and the first forecast for a place takes longer than the following ones. Nothing but the server can reach the instance: it publishes no port.
+
+**What it needs.** Open-Meteo's documentation asks for 8 to 16 GB of memory and fast disk for an instance. The cache is 8 GB unless `OPEN_METEO_CACHE_SIZE` says otherwise. Tried on 2026-11-19 with a cache of 256 MB and five places, which says nothing about a busy server: *to verify* on the first installation, with the size of the machine.
+
+**The one setting that is easy to miss** is already made in the Compose file: `API_SYNC_APIKEYS`. Without it an instance does not tell which run of a model it holds, the server cannot date a forecast, and it serves none. The value guards nothing here, since the instance is reachable only from inside the stack.
+
+**How much the server asks.** A forecast for a place is four requests to the instance and is then kept for half an hour for everyone who asks within about a kilometre. The server asks the instance at most 400 times an hour, a tenth of which is held back for its own look every ten minutes; when the hour is used up, places that are not at hand get `503` with `Retry-After`. What a forecast holds, and what it does not, is in [data-sources.md](../docs/data-sources.md#forecasts).
+
+**Still to verify on a real machine:**
+
+- The instance as the Compose file starts it. What was tried is the same image with the same settings, fed through a local relay to the same data, because the machine that tried it had no direct way out.
+- How long a first forecast takes with a direct connection. Through that relay it was 25 to 60 seconds, which is longer than a request waits (8 seconds): the app is told to ask again in a few seconds, and the forecast is there when it does. If it stays slow, Open-Meteo's other arrangement copies the data to disk ahead of time ([sync](https://github.com/open-meteo/open-meteo/blob/main/docs/sync-command.md), with `--bounding-box 46.3,9.4,48.5,17.2` for the first region and the models `dwd_icon_d2_native,dwd_icon_eu_native`); it was not tried.
+- Whether the model names the server asks for (`dwd_icon_d2_native`, `dwd_icon_eu_native`) stay as they are after Deutscher Wetterdienst's change of 30 November 2026.
+
+An instance somewhere else works the same way: give its address as `VENTI_OPEN_METEO_URL`, and leave the profile off.
+
 ## Backup
 
 `backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything.
@@ -343,6 +385,7 @@ All settings are described in `env.example`. The ones that deserve a second thou
 
 - **`VENTI_USER_AGENT`** is sent to the data providers with every request. Some providers ask operators to name a contact there. What to put in it is the owner's decision; the default names only the program and its version.
 - **`VENTI_OVERPASS_URL`** is the Overpass API instance asked for OpenStreetMap's flying sites. The default is the main public one, whose operator asks for few requests (the server sends one a day), a User-Agent that names the application, and an e-mail address of the operator that is easy to find on the application's website.
+- **`VENTI_OPEN_METEO_URL`** is the Open-Meteo instance asked for forecasts. It has no default: without it the server has no forecasts and says so. See [Forecasts](#forecasts).
 - **`VENTI_OBSERVATION_MONTHS`** is how many whole calendar months of observations are kept. Older months are dropped once a day. Lowering it deletes data at the next cleanup.
 - **`VENTI_CORS_ORIGINS`** is only needed when a web app on a *different* origin calls the API from a browser. The same origins may call the connector from a browser.
 - **`VENTI_PUBLIC_URL`** is the address people reach the site at. The page of a shared flight names itself and its preview picture with it, and a chat app can only fetch a preview from a complete, correct address. Without it the server falls back to the address it listens on and says so in its log at start. It is also the one address whose pages may call the connector from a browser without being named in `VENTI_CORS_ORIGINS`.

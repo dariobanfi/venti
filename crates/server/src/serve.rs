@@ -17,6 +17,7 @@ use crate::config::Config;
 use crate::flights::analyser::Analyser;
 use crate::flights::refresh;
 use crate::flights::share::PublicUrl;
+use crate::forecast::{self, Asking};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::{adapters, maintenance, plan};
 
@@ -60,8 +61,28 @@ pub async fn serve(config: Config) -> Result<(), String> {
         password_cost: Cost::OWASP,
         analyser: analyser.clone(),
     };
+    // Forecasts are fetched when they are asked for, by a service of their
+    // own with a fetcher like the collector's. It exists only if the server
+    // was told where its Open-Meteo instance is.
+    let forecasts = forecast::service_for(
+        &jobs,
+        adapters::forecast_sources(&config.providers)?,
+        HttpFetch::new(&config.user_agent)?,
+        archive.clone(),
+        clock.clone(),
+        Asking::Live,
+    );
+    if forecasts.is_none() {
+        tracing::info!(
+            "no forecasts: the server was not told where its forecast service is (open_meteo_url)"
+        );
+    }
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
-    let api = Api::new(store.clone(), clock.clone(), manifests, settings);
+    let mut api = Api::new(store.clone(), clock.clone(), manifests, settings);
+    if let Some(forecasts) = &forecasts {
+        api = api.with_forecasts(forecasts.clone());
+    }
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
     tracing::info!("accounts: registration is {:?}", config.registration);
     tracing::info!("client addresses: {}", config.trusted_proxies.in_words());
@@ -71,14 +92,18 @@ pub async fn serve(config: Config) -> Result<(), String> {
 
     let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
     tracing::info!("collecting {}", sources.join(", "));
-    let collector = Arc::new(Collector::new(
+    let mut collector = Collector::new(
         registry,
         store.clone(),
         fetch,
         archive.clone(),
         clock.clone(),
         Some(LOOKBACK),
-    ));
+    );
+    if let Some(forecasts) = forecasts {
+        collector = collector.with_forecasts(forecasts);
+    }
+    let collector = Arc::new(collector);
     let schedule = tokio::spawn(scheduler::run(
         collector,
         jobs,

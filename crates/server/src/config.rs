@@ -140,6 +140,7 @@ struct File {
     public_url: Option<String>,
     trusted_proxies: Option<Vec<String>>,
     overpass_url: Option<String>,
+    open_meteo_url: Option<String>,
     #[serde(default)]
     retention: FileRetention,
     #[serde(default)]
@@ -220,6 +221,10 @@ const OVERPASS_URL: Setting = Setting {
     key: "overpass_url",
     variable: "VENTI_OVERPASS_URL",
 };
+const OPEN_METEO_URL: Setting = Setting {
+    key: "open_meteo_url",
+    variable: "VENTI_OPEN_METEO_URL",
+};
 const OBSERVATION_MONTHS: Setting = Setting {
     key: "retention.observation_months",
     variable: "VENTI_OBSERVATION_MONTHS",
@@ -248,15 +253,25 @@ pub fn default_user_agent() -> String {
 /// configuration file, reads them with this.
 pub fn providers_from_env(env: impl Fn(&str) -> Option<String>) -> Result<Providers, ConfigError> {
     let env = |setting: &Setting| env(setting.variable).filter(|value| !value.is_empty());
-    providers(env(&OVERPASS_URL))
+    providers(env(&OVERPASS_URL), env(&OPEN_METEO_URL))
 }
 
 /// Checks the addresses that were configured and fills in the others.
-fn providers(overpass_url: Option<String>) -> Result<Providers, ConfigError> {
+///
+/// The address of the forecast service has no default: a server that is
+/// not told one has no forecasts.
+fn providers(
+    overpass_url: Option<String>,
+    open_meteo_url: Option<String>,
+) -> Result<Providers, ConfigError> {
     let mut providers = Providers::default();
     if let Some(url) = overpass_url {
         adapters::check_overpass_url(&url).map_err(|problem| OVERPASS_URL.invalid(problem))?;
         providers.overpass_url = url;
+    }
+    if let Some(url) = open_meteo_url {
+        adapters::check_open_meteo_url(&url).map_err(|problem| OPEN_METEO_URL.invalid(problem))?;
+        providers.open_meteo_url = Some(url);
     }
     Ok(providers)
 }
@@ -355,7 +370,10 @@ impl Config {
         let trusted_proxies = TrustedProxies::parse(&trusted_proxies)
             .map_err(|problem| TRUSTED_PROXIES.invalid(problem))?;
 
-        let providers = providers(env(&OVERPASS_URL).or(file.overpass_url))?;
+        let providers = providers(
+            env(&OVERPASS_URL).or(file.overpass_url),
+            env(&OPEN_METEO_URL).or(file.open_meteo_url),
+        )?;
 
         let number = |setting: &Setting, from_file: Option<u32>, default: u32| {
             let value = match env(setting) {
@@ -522,6 +540,8 @@ mod tests {
             config.providers.overpass_url,
             "https://overpass-api.de/api/interpreter"
         );
+        // A server that is not told where its forecast service is has none.
+        assert_eq!(config.providers.open_meteo_url, None);
         // An account has room for twenty years of flying, and an end.
         assert_eq!(
             config.room,
@@ -559,6 +579,25 @@ mod tests {
                 file_bytes: 64 * 1024 * 1024
             }
         );
+    }
+
+    #[test]
+    fn the_forecast_service_is_where_the_operator_says_and_nowhere_else() {
+        let own = "http://open-meteo:8080";
+        let config = load(Some(&example()), &[("VENTI_OPEN_METEO_URL", own)]).unwrap();
+        assert_eq!(config.providers.open_meteo_url.as_deref(), Some(own));
+
+        // The one-shot run reads the same variable.
+        let env = |name: &str| (name == "VENTI_OPEN_METEO_URL").then(|| own.to_owned());
+        let providers = providers_from_env(env).unwrap();
+        assert_eq!(providers.open_meteo_url.as_deref(), Some(own));
+
+        let refused = load(
+            Some(&example()),
+            &[("VENTI_OPEN_METEO_URL", "open-meteo:8080")],
+        );
+        let problem = refused.unwrap_err().to_string();
+        assert!(problem.contains("VENTI_OPEN_METEO_URL"), "{problem}");
     }
 
     #[test]

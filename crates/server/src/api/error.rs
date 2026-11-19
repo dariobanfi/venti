@@ -30,6 +30,13 @@ impl ApiError {
         }
     }
 
+    /// The same error, telling the client after how many seconds trying
+    /// again makes sense.
+    pub(crate) fn retry_after(mut self, seconds: u64) -> Self {
+        self.retry_after = Some(seconds.max(1));
+        self
+    }
+
     /// Whether this says that the thing asked for does not exist.
     pub(crate) fn is_missing(&self) -> bool {
         self.status == StatusCode::NOT_FOUND

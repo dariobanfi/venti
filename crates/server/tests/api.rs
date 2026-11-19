@@ -64,6 +64,7 @@ async fn health_reports_every_source_fresh() {
         [
             ("dwd-10min", 3),
             ("geosphere-tawes", 3),
+            ("open-meteo", 0),
             ("openaip", 0),
             ("osm-free-flying", 0)
         ]
@@ -71,15 +72,36 @@ async fn health_reports_every_source_fresh() {
     // The airspace source says how much airspace the server holds, and
     // the sources of everything else say nothing about airspace.
     let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
-    assert_eq!(airspaces, [None, None, Some(192), None]);
+    assert_eq!(airspaces, [None, None, None, Some(192), None]);
     // The same for the flying sites.
     let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
-    assert_eq!(sites, [None, None, None, Some(502)]);
-    // The development mode has no forecast service, and says so.
+    assert_eq!(sites, [None, None, None, None, Some(502)]);
+    // The forecast source says which run each of its models is at. The
+    // development mode's forecasts were recorded a day after its wind, so
+    // here the runs are dated after the look that found them.
     assert_eq!(
         health.forecasts,
-        Some(venti_api_types::v1::ForecastsHealth::NotConfigured)
+        Some(venti_api_types::v1::ForecastsHealth::Available)
     );
+    let models: Vec<(&str, String)> = health.sources[2]
+        .models
+        .iter()
+        .map(|model| (model.model.as_str(), model.run.to_rfc3339()))
+        .collect();
+    assert_eq!(
+        models,
+        [
+            ("icon-d2", "2026-11-19T18:00:00+00:00".to_owned()),
+            ("icon-eu", "2026-11-19T15:00:00+00:00".to_owned())
+        ]
+    );
+    assert!(
+        health.sources[2]
+            .models
+            .iter()
+            .all(|m| m.checked_at == health.time)
+    );
+    assert!(health.sources[3].models.is_empty());
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }
@@ -206,6 +228,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "airspace.json",
         "airspace_none.json",
         "sites.json",
+        "forecast.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

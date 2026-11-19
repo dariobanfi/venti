@@ -3,32 +3,39 @@
 //! This module is the only place in the workspace that names a provider
 //! crate. Adding a provider means adding its crate and two lines here.
 
-use venti_domain::Timestamp;
-use venti_sources::Registry;
+use venti_domain::{GeoPoint, Timestamp};
 use venti_sources::testing::FixtureFetch;
+use venti_sources::{ForecastSource, Registry};
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_openaip::OpenAip;
+use venti_sources_openmeteo::OpenMeteo;
 use venti_sources_osm::OsmFreeFlying;
 
 /// What whoever runs the server tells it about the services behind some of
 /// its sources.
 ///
-/// Most providers are at an address the adapter knows. Two are not: an
+/// Most providers are at an address the adapter knows. Two are not. An
 /// Overpass API instance is one of several, and its operators ask that the
-/// choice be left to whoever runs an application.
+/// choice be left to whoever runs an application. And forecasts come from
+/// an Open-Meteo instance that whoever runs the server runs themself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Providers {
     /// The interpreter of the Overpass API instance that is asked for the
     /// flying sites of OpenStreetMap.
     pub overpass_url: String,
+    /// The address of the Open-Meteo instance that is asked for forecasts.
+    /// `None` means the server has no forecasts. There is no default, and
+    /// in particular it is never Open-Meteo's own public service.
+    pub open_meteo_url: Option<String>,
 }
 
 impl Default for Providers {
-    /// The main public Overpass instance.
+    /// The main public Overpass instance, and no forecasts.
     fn default() -> Self {
         Self {
             overpass_url: venti_sources_osm::DEFAULT_INTERPRETER.to_owned(),
+            open_meteo_url: None,
         }
     }
 }
@@ -39,6 +46,7 @@ impl Providers {
     pub fn recorded() -> Self {
         Self {
             overpass_url: venti_sources_osm::fixtures::INTERPRETER.to_owned(),
+            open_meteo_url: Some(venti_sources_openmeteo::fixtures::BASE.to_owned()),
         }
     }
 }
@@ -47,6 +55,27 @@ impl Providers {
 /// anything is.
 pub fn check_overpass_url(url: &str) -> Result<(), String> {
     OsmFreeFlying::new(url).map(|_| ())
+}
+
+/// What is wrong with an address given for the Open-Meteo instance, if
+/// anything is.
+pub fn check_open_meteo_url(url: &str) -> Result<(), String> {
+    OpenMeteo::new(url).map(|_| ())
+}
+
+/// The adapters for point forecasts, made for the addresses in `providers`:
+/// none when the server was not told where its forecast service is.
+///
+/// The forecast service asks these when a place is asked for. The registry
+/// holds adapters of its own for the same sources, made by
+/// [`registry_for`].
+pub fn forecast_sources(providers: &Providers) -> Result<Vec<Box<dyn ForecastSource>>, String> {
+    let Some(url) = &providers.open_meteo_url else {
+        return Ok(Vec::new());
+    };
+    let open_meteo = OpenMeteo::new(url)
+        .map_err(|problem| format!("the address of the Open-Meteo instance: {problem}"))?;
+    Ok(vec![Box::new(open_meteo)])
 }
 
 /// The registry of every adapter, for a server that was told nothing about
@@ -85,6 +114,11 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
     registry
         .register_sites(Box::new(sites))
         .expect("osm-free-flying registers once");
+    for forecasts in forecast_sources(providers)? {
+        registry
+            .register_forecasts(forecasts)
+            .expect("open-meteo registers once");
+    }
     Ok(registry)
 }
 
@@ -97,6 +131,22 @@ pub fn recorded_payloads() -> FixtureFetch {
         .with_all(venti_sources_geosphere::fixtures::recorded())
         .with_all(venti_sources_openaip::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::recorded())
+        .with_all(venti_sources_openmeteo::fixtures::recorded())
+}
+
+/// The places the recorded forecasts are for. The development mode has a
+/// forecast for these and no others.
+pub fn recorded_forecast_places() -> Vec<GeoPoint> {
+    venti_sources_openmeteo::fixtures::places()
+}
+
+/// The moment the development mode's clock stands at for forecasts: when
+/// they were recorded, a day after the observations.
+///
+/// A forecast cannot be served as fetched before its model ran, so the
+/// forecasts do not share the clock of [`recorded_at`].
+pub fn forecasts_recorded_at() -> Timestamp {
+    venti_sources_openmeteo::fixtures::recorded_at()
 }
 
 /// The moment the development mode's clock stands at: the latest recording
@@ -148,18 +198,45 @@ mod tests {
                 assert!(registered, "{} is not registered for {kind:?}", manifest.id);
             }
         }
+        // A server that was told nothing has no forecast source.
         assert_eq!(registry.manifests().count(), 4);
+        assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn forecasts_are_there_only_when_the_server_is_told_where_from() {
+        let told = registry_for(&Providers::recorded()).unwrap();
+        assert_eq!(told.manifests().count(), 5);
+        let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
+        let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
+        assert_eq!(manifest.kinds, [Kind::Forecasts]);
+        assert_eq!(forecast_sources(&Providers::recorded()).unwrap().len(), 1);
+        // No adapter knows an address of its own, least of all that of
+        // Open-Meteo's public service.
+        assert!(!registry().manifests().any(|m| m.id == open_meteo));
     }
 
     #[test]
     fn an_address_that_cannot_be_one_is_refused_by_name() {
         let providers = Providers {
             overpass_url: "overpass-api.de".to_owned(),
+            ..Providers::default()
         };
         let Err(problem) = registry_for(&providers) else {
             panic!("an address without a scheme was accepted");
         };
         assert!(problem.contains("Overpass"), "{problem}");
+
+        let providers = Providers {
+            open_meteo_url: Some("open-meteo:8080".to_owned()),
+            ..Providers::default()
+        };
+        let Err(problem) = registry_for(&providers) else {
+            panic!("an address without a scheme was accepted");
+        };
+        assert!(problem.contains("Open-Meteo"), "{problem}");
+        assert!(check_open_meteo_url("http://open-meteo:8080").is_ok());
+
         // The recorded payloads answer for the addresses they were made for.
         assert!(registry_for(&Providers::recorded()).is_ok());
     }

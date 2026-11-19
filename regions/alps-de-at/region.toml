@@ -31,3 +31,9 @@ sources = ["openaip"]
 # fraction of the sites there are; docs/data-sources.md has the count.
 [sites]
 sources = ["osm-free-flying"]
+
+# Point forecasts, from an Open-Meteo instance that whoever runs the server
+# runs themself. A server that is not told where it is (open_meteo_url) has
+# no forecasts and says so.
+[forecasts]
+sources = ["open-meteo"]

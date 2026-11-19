@@ -1,0 +1,184 @@
+{
+  "point": {
+    "lat": 47.7,
+    "lon": 11.8
+  },
+  "fetched_at": "2026-11-19T19:30:00Z",
+  "layers": [
+    {
+      "source": "open-meteo",
+      "series": [
+        {
+          "source": "open-meteo",
+          "model": "icon-d2",
+          "run": "2026-11-19T18:00:00Z",
+          "available_at": "2026-11-19T19:10:09Z",
+          "point": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "cell": {
+            "lat": 47.70034,
+            "lon": 11.799969
+          },
+          "cell_elevation_m": 1069.0,
+          "hours": [
+            {
+              "time": "2026-11-19T19:00:00Z",
+              "wind_speed_ms": 2.4,
+              "wind_direction_deg": 225.0,
+              "wind_gust_ms": 13.1,
+              "temperature_c": 3.2,
+              "dew_point_c": -0.1,
+              "cloud_cover_pct": 99.0,
+              "cloud_cover_low_pct": 83.0,
+              "cloud_cover_mid_pct": 98.0,
+              "cloud_cover_high_pct": 0.0,
+              "precipitation_mm": 0.0,
+              "cape_j_kg": 0.0,
+              "freezing_level_m": 1800.0,
+              "updraft_ms": 1.45,
+              "winds_aloft": [
+                {
+                  "above_ground_m": 80.0,
+                  "wind_speed_ms": 5.49,
+                  "wind_direction_deg": 237.0,
+                  "temperature_c": 4.7
+                },
+                {
+                  "above_ground_m": 120.0,
+                  "wind_speed_ms": 6.62,
+                  "wind_direction_deg": 241.0,
+                  "temperature_c": 4.5
+                },
+                {
+                  "above_ground_m": 180.0,
+                  "wind_speed_ms": 7.88,
+                  "wind_direction_deg": 246.0,
+                  "temperature_c": 4.2
+                },
+                {
+                  "pressure_hpa": 850.0,
+                  "altitude_m": 1340.0,
+                  "wind_speed_ms": 11.51,
+                  "wind_direction_deg": 255.0,
+                  "temperature_c": 3.6
+                },
+                {
+                  "pressure_hpa": 700.0,
+                  "altitude_m": 2883.0,
+                  "wind_speed_ms": 24.66,
+                  "wind_direction_deg": 277.0,
+                  "temperature_c": -7.6
+                },
+                {
+                  "pressure_hpa": 600.0,
+                  "altitude_m": 4066.0,
+                  "wind_speed_ms": 21.99,
+                  "wind_direction_deg": 288.0,
+                  "temperature_c": -15.3
+                },
+                {
+                  "pressure_hpa": 500.0,
+                  "altitude_m": 5417.0,
+                  "wind_speed_ms": 19.92,
+                  "wind_direction_deg": 288.0,
+                  "temperature_c": -24.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "source": "open-meteo",
+          "model": "icon-eu",
+          "run": "2026-11-19T15:00:00Z",
+          "available_at": "2026-11-19T17:49:54Z",
+          "point": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "cell": {
+            "lat": 47.68324,
+            "lon": 11.818885
+          },
+          "cell_elevation_m": 1100.0,
+          "hours": [
+            {
+              "time": "2026-11-19T16:00:00Z",
+              "wind_speed_ms": 4.98,
+              "wind_direction_deg": 260.0,
+              "wind_gust_ms": 25.2,
+              "temperature_c": 3.9,
+              "dew_point_c": 0.9,
+              "cloud_cover_pct": 60.0,
+              "cloud_cover_low_pct": 53.0,
+              "cloud_cover_mid_pct": 13.0,
+              "cloud_cover_high_pct": 4.0,
+              "precipitation_mm": 0.0,
+              "cape_j_kg": 0.0,
+              "freezing_level_m": 1710.0,
+              "winds_aloft": [
+                {
+                  "above_ground_m": 80.0,
+                  "wind_speed_ms": 9.72,
+                  "wind_direction_deg": 261.0,
+                  "temperature_c": 3.9
+                },
+                {
+                  "above_ground_m": 120.0,
+                  "wind_speed_ms": 11.4,
+                  "wind_direction_deg": 262.0,
+                  "temperature_c": 3.5
+                },
+                {
+                  "above_ground_m": 180.0,
+                  "wind_speed_ms": 13.19,
+                  "wind_direction_deg": 263.0,
+                  "temperature_c": 2.9
+                },
+                {
+                  "pressure_hpa": 850.0,
+                  "altitude_m": 1324.0,
+                  "wind_speed_ms": 13.9,
+                  "wind_direction_deg": 263.0,
+                  "temperature_c": 2.8
+                },
+                {
+                  "pressure_hpa": 700.0,
+                  "altitude_m": 2864.0,
+                  "wind_speed_ms": 23.17,
+                  "wind_direction_deg": 285.0,
+                  "temperature_c": -8.1
+                },
+                {
+                  "pressure_hpa": 600.0,
+                  "altitude_m": 4047.0,
+                  "wind_speed_ms": 19.85,
+                  "wind_direction_deg": 294.0,
+                  "temperature_c": -14.7
+                },
+                {
+                  "pressure_hpa": 500.0,
+                  "altitude_m": 5401.0,
+                  "wind_speed_ms": 18.41,
+                  "wind_direction_deg": 305.0,
+                  "temperature_c": -24.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}

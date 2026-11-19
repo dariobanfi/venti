@@ -2,11 +2,11 @@
 
 Last revised: 2026-11-19
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has two parts:
 
-- **Weather stations, airspace and flying sites**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth).
+- **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), and [the page a shared flight has](#the-page-a-shared-flight-has).
 
 ## Try it
@@ -16,7 +16,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, a day after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -42,7 +42,7 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 **Missing values.** A value that is not known is left out of the answer. It is never `null` and never a placeholder number. A station without a temperature sensor has readings without `temperature_c`.
 
-**Sources and credit.** Every station, every airspace and every flying site comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
+**Sources and credit.** Every station, every airspace, every flying site and every forecast series comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
 
 | Field | Meaning |
 |---|---|
@@ -55,9 +55,9 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB.
 
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
@@ -78,6 +78,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 |---|---|---|
 | 400 | `invalid_bbox` | `bbox` is missing, is not four numbers, or the numbers do not form a box |
 | 400 | `box_too_large` | The box holds more airspaces, or more flying sites, than one answer carries. Ask for smaller boxes |
+| 400 | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window is longer than seven days |
@@ -93,13 +94,15 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
+| 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, or a flight file of more than 4 MB |
 | 422 | `invalid_flight` | The uploaded file is not a flight file the server can use |
 | 429 | `rate_limited` | Too many attempts. `Retry-After` says when to try again |
-| 503 | `unavailable` | The server cannot reach its database, or is too busy for this request. `Retry-After` says when to try again |
+| 501 | `no_forecasts` | The server has no forecast service. Asking again does not help |
+| 503 | `unavailable` | The server cannot reach its database, is too busy for this request, or has no forecast for a place at hand and cannot fetch one now. `Retry-After` says when to try again |
 | 503 | `timeout` | The server could not answer within ten seconds |
 | 500 | `internal` | The server failed in a way it did not expect; the cause is in its log |
 
@@ -114,7 +117,7 @@ How the server and each of its data sources are doing.
   "status": "ok",
   "version": "0.1.0",
   "time": "2026-11-18T19:05:00Z",
-  "forecasts": "not_configured",
+  "forecasts": "available",
   "sources": [
     {
       "source": "dwd-10min",
@@ -133,6 +136,28 @@ How the server and each of its data sources are doing.
       "newest_observation": "2026-11-18T19:00:00Z",
       "stale": false,
       "stations": 3
+    },
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "cadence_seconds": 600,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0,
+      "models": [
+        {
+          "model": "icon-d2",
+          "run": "2026-11-19T18:00:00Z",
+          "available_at": "2026-11-19T19:10:09Z",
+          "checked_at": "2026-11-18T19:05:00Z"
+        },
+        {
+          "model": "icon-eu",
+          "run": "2026-11-19T15:00:00Z",
+          "available_at": "2026-11-19T17:49:54Z",
+          "checked_at": "2026-11-18T19:05:00Z"
+        }
+      ]
     },
     {
       "source": "openaip",
@@ -163,8 +188,8 @@ How the server and each of its data sources are doing.
 | `status` | `ok` when no source is stale, otherwise `degraded` |
 | `version` | The server's version |
 | `time` | The server's clock. Compute the age of an observation against this, not against the device's clock, which may be wrong |
-| `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server without a forecast service. Left out by a server older than forecasts, which has none. No server answers forecasts yet |
 | `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
+| `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
 | `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
 | `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. Left out if none ever did |
@@ -175,6 +200,7 @@ How the server and each of its data sources are doing.
 | `sources[].file_date` | The date of the oldest file that set was read from. Left out for a source that delivers no airspace |
 | `sources[].sites` | How many flying sites the server holds from the source: the set of its last successful run. Left out for a source that delivers no sites |
 | `sources[].sites_as_of` | The date the source's own data is of. Left out for a source that delivers no sites, and before its first set |
+| `sources[].models` | For a source of forecasts: the weather models it serves, each with the `run` it was at when the server last looked, when the source had that run ready (`available_at`) and when the server looked (`checked_at`). The server looks every ten minutes, by asking for one forecast. A run older than six hours means the forecast service has stopped fetching new ones. Left out for a source of anything else, and before the first look that worked. In the development mode the runs are dated after `checked_at`: its forecasts were recorded a day after its wind |
 
 The status code is `200` whenever the server can read its database, also when sources are stale: a monitor that only looks at the code learns whether the server works, and the body says whether its data is fresh. When the database cannot be reached the answer is `503` with the error body.
 
@@ -724,6 +750,277 @@ A record is the canonical site of the project, `venti_domain::Site`:
 **Size.** One answer carries the whole box; there are no pages. The first region whole is 502 sites, 110 kB plain and 17 kB with gzip (measured 2026-11-19). A box that holds more than 5000 sites is refused with `400` and `box_too_large`, as for airspace.
 
 **When a source fails.** A run that could not fetch everything changes nothing: the server keeps serving the set of its last whole run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
+
+## `GET /v1/forecast?lat=&lon=`
+
+What the weather models say about one place, hour by hour: wind and gusts, wind higher up, temperature, cloud, precipitation and what the models have about convection. Today there is one source, the server's own Open-Meteo instance, with two models of Deutscher Wetterdienst, ICON-D2 and ICON-EU.
+
+`lat` and `lon` are required, in degrees. The answer is for the nearest point of a grid of 0.02° (about 2 km), which `point` names: everyone who asks inside the same cell of that grid gets the same answer.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
+```
+
+```json
+{
+  "point": {
+    "lat": 47.7,
+    "lon": 11.8
+  },
+  "fetched_at": "2026-11-19T19:30:00Z",
+  "layers": [
+    {
+      "source": "open-meteo",
+      "series": [
+        {
+          "source": "open-meteo",
+          "model": "icon-d2",
+          "run": "2026-11-19T18:00:00Z",
+          "available_at": "2026-11-19T19:10:09Z",
+          "point": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "cell": {
+            "lat": 47.70034,
+            "lon": 11.799969
+          },
+          "cell_elevation_m": 1069.0,
+          "hours": [
+            {
+              "time": "2026-11-19T19:00:00Z",
+              "wind_speed_ms": 2.4,
+              "wind_direction_deg": 225.0,
+              "wind_gust_ms": 13.1,
+              "temperature_c": 3.2,
+              "dew_point_c": -0.1,
+              "cloud_cover_pct": 99.0,
+              "cloud_cover_low_pct": 83.0,
+              "cloud_cover_mid_pct": 98.0,
+              "cloud_cover_high_pct": 0.0,
+              "precipitation_mm": 0.0,
+              "cape_j_kg": 0.0,
+              "freezing_level_m": 1800.0,
+              "updraft_ms": 1.45,
+              "winds_aloft": [
+                {
+                  "above_ground_m": 80.0,
+                  "wind_speed_ms": 5.49,
+                  "wind_direction_deg": 237.0,
+                  "temperature_c": 4.7
+                },
+                {
+                  "above_ground_m": 120.0,
+                  "wind_speed_ms": 6.62,
+                  "wind_direction_deg": 241.0,
+                  "temperature_c": 4.5
+                },
+                {
+                  "above_ground_m": 180.0,
+                  "wind_speed_ms": 7.88,
+                  "wind_direction_deg": 246.0,
+                  "temperature_c": 4.2
+                },
+                {
+                  "pressure_hpa": 850.0,
+                  "altitude_m": 1340.0,
+                  "wind_speed_ms": 11.51,
+                  "wind_direction_deg": 255.0,
+                  "temperature_c": 3.6
+                },
+                {
+                  "pressure_hpa": 700.0,
+                  "altitude_m": 2883.0,
+                  "wind_speed_ms": 24.66,
+                  "wind_direction_deg": 277.0,
+                  "temperature_c": -7.6
+                },
+                {
+                  "pressure_hpa": 600.0,
+                  "altitude_m": 4066.0,
+                  "wind_speed_ms": 21.99,
+                  "wind_direction_deg": 288.0,
+                  "temperature_c": -15.3
+                },
+                {
+                  "pressure_hpa": 500.0,
+                  "altitude_m": 5417.0,
+                  "wind_speed_ms": 19.92,
+                  "wind_direction_deg": 288.0,
+                  "temperature_c": -24.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "source": "open-meteo",
+          "model": "icon-eu",
+          "run": "2026-11-19T15:00:00Z",
+          "available_at": "2026-11-19T17:49:54Z",
+          "point": {
+            "lat": 47.7,
+            "lon": 11.8
+          },
+          "cell": {
+            "lat": 47.68324,
+            "lon": 11.818885
+          },
+          "cell_elevation_m": 1100.0,
+          "hours": [
+            {
+              "time": "2026-11-19T16:00:00Z",
+              "wind_speed_ms": 4.98,
+              "wind_direction_deg": 260.0,
+              "wind_gust_ms": 25.2,
+              "temperature_c": 3.9,
+              "dew_point_c": 0.9,
+              "cloud_cover_pct": 60.0,
+              "cloud_cover_low_pct": 53.0,
+              "cloud_cover_mid_pct": 13.0,
+              "cloud_cover_high_pct": 4.0,
+              "precipitation_mm": 0.0,
+              "cape_j_kg": 0.0,
+              "freezing_level_m": 1710.0,
+              "winds_aloft": [
+                {
+                  "above_ground_m": 80.0,
+                  "wind_speed_ms": 9.72,
+                  "wind_direction_deg": 261.0,
+                  "temperature_c": 3.9
+                },
+                {
+                  "above_ground_m": 120.0,
+                  "wind_speed_ms": 11.4,
+                  "wind_direction_deg": 262.0,
+                  "temperature_c": 3.5
+                },
+                {
+                  "above_ground_m": 180.0,
+                  "wind_speed_ms": 13.19,
+                  "wind_direction_deg": 263.0,
+                  "temperature_c": 2.9
+                },
+                {
+                  "pressure_hpa": 850.0,
+                  "altitude_m": 1324.0,
+                  "wind_speed_ms": 13.9,
+                  "wind_direction_deg": 263.0,
+                  "temperature_c": 2.8
+                },
+                {
+                  "pressure_hpa": 700.0,
+                  "altitude_m": 2864.0,
+                  "wind_speed_ms": 23.17,
+                  "wind_direction_deg": 285.0,
+                  "temperature_c": -8.1
+                },
+                {
+                  "pressure_hpa": 600.0,
+                  "altitude_m": 4047.0,
+                  "wind_speed_ms": 19.85,
+                  "wind_direction_deg": 294.0,
+                  "temperature_c": -14.7
+                },
+                {
+                  "pressure_hpa": 500.0,
+                  "altitude_m": 5401.0,
+                  "wind_speed_ms": 18.41,
+                  "wind_direction_deg": 305.0,
+                  "temperature_c": -24.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}
+```
+
+The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 48 hours and ICON-EU 30.
+
+**The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none.
+
+**Layers and series.** One layer for each source that has something for the place, and in a layer one series for each weather model, sorted by model. Nothing is blended: two models are two series, and a client that draws one line for the day chooses a series and says which. A model that does not reach the place, or whose run the source could not tell, is not listed.
+
+| Field | Meaning |
+|---|---|
+| `point` | The place the forecast is for: the point of the grid nearest to what was asked |
+| `fetched_at` | When the server asked its source. An answer is reused for up to half an hour |
+| `layers[].source` | The source of the layer. Its credit and licence are the entry of `attributions` with the same `source` |
+| `layers[].series` | One series per model |
+
+A series is the canonical forecast of the project, `venti_domain::ForecastSeries`:
+
+| Field | Meaning |
+|---|---|
+| `source`, `model` | Where the values are from: `open-meteo`, and `icon-d2` or `icon-eu`. A client expects models it does not know |
+| `run` | When the run of the model that computed these hours began. **Show the pilot the run**: the age of a forecast is the age of its run |
+| `available_at` | When the source had that run ready. Left out if the source does not say |
+| `point` | The same as the answer's |
+| `cell` | The centre of the model's grid cell the values are for. It can lie some kilometres from `point` |
+| `cell_elevation_m` | The height of the model's ground in that cell. **Show it beside the values.** A model's ground is smoothed: east of the Tegernsee, whose shore lies at 725 m, ICON-D2's ground is at 1069 m, and "10 m above ground" is 10 m above that |
+| `hours` | One record per hour, oldest first |
+
+**Only the hours the run computed.** A series holds the hours after its run began, as far as the run reaches: 48 hours for ICON-D2; for ICON-EU 78 hours after a run of 00, 06, 12 or 18 UTC and 30 hours after one in between. The source has older runs' values for other hours and does not say which run they are from, so they are left out. A series therefore never holds the hours of today that are over, and it can end before the day after tomorrow does: ICON-EU covers that day for about three hours out of every six. A client shows the hours it has and does not fill the rest.
+
+An hour:
+
+| Field | Meaning |
+|---|---|
+| `time` | The moment the values are for, in UTC |
+| `wind_speed_ms`, `wind_direction_deg` | The wind 10 m above the model's ground: m/s, and the direction it comes from |
+| `wind_gust_ms` | The strongest gust at 10 m in the hour before `time` |
+| `temperature_c`, `dew_point_c` | At 2 m above the model's ground |
+| `cloud_cover_pct` | Share of the sky covered, and `cloud_cover_low_pct`, `_mid_pct`, `_high_pct` by layer |
+| `precipitation_mm` | Rain, showers and snow in the hour before `time`, as water |
+| `cape_j_kg` | Convective available potential energy. High values mean showers and storms can grow, **not that thermals are good** |
+| `freezing_level_m` | Height of the 0 °C level above sea level. A value at or near `cell_elevation_m` means the air is below freezing down to the ground |
+| `updraft_ms` | The strongest rising air the model has anywhere above the cell up to 10 km. ICON-D2 only. **It is not thermal strength**: it is what a model with 2 km cells resolves, which is showers, storms and flow over mountains |
+| `convective_cloud_base_m`, `convective_cloud_top_m` | Above sea level. Left out when the model has no convective cloud over the cell at that hour, which is most hours. The two models do not mean the same convection by it; [data-sources.md](data-sources.md#the-values) says what each means |
+| `winds_aloft` | The wind higher up, lowest first: see below |
+
+A level of `winds_aloft` is given in one of two ways:
+
+| Field | Meaning |
+|---|---|
+| `above_ground_m` | A height above the model's ground: 80, 120 and 180 m. These are nominal heights of the model's own levels |
+| `pressure_hpa`, `altitude_m` | A surface of equal pressure, 950, 850, 700, 600 or 500 hPa, with the height above sea level the model gives it at this hour. A surface that lies under the model's ground is left out: at Tegernsee that is the one of 950 hPa |
+| `wind_speed_ms`, `wind_direction_deg`, `temperature_c` | At the level |
+
+Every value but `time` may be missing, and a missing value is left out, never written as `null` or zero. Between 180 m above the ground and the pressure surfaces, which lie 1.5 km apart, the answer has nothing.
+
+**What it does not have.** No boundary-layer height, no thermal strength, no cloud base for ordinary cumulus. No model the server has computes a climb rate a glider sees, and nothing here is made up to stand in for one. [data-sources.md](data-sources.md#forecasts) says what the source lacks and where it could come from.
+
+**Credit.** Show the credit of the layer's source next to the forecast, with its link: Open-Meteo asks for that wherever its data is shown.
+
+**Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like the stations. The server itself keeps an answer for up to half an hour, so asking more often than that brings the same answer and a `304`.
+
+**Size.** A whole answer for Tegernsee, two models and 78 hours, is 85 kB plain and 9 kB with gzip (measured 2026-11-19).
+
+**When there is no forecast.**
+
+| Status | `error.code` | When |
+|---|---|---|
+| `400` | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
+| `404` | `outside_region` | The place lies outside the area the server has forecasts for: its regions |
+| `501` | `no_forecasts` | The server was not told where its forecast service is. `/v1/health` says the same with `"forecasts": "not_configured"`. Asking again does not help, and the server asks nobody else |
+| `503` | `unavailable` | No forecast for the place is at hand and none could be fetched: the forecast service did not answer, the forecast is still being fetched (the first one for a place can take longer than a request waits), or the server has asked its service as often as it may in an hour. `Retry-After` says when to ask again |
+
+An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
+
+**In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-19 at 19:30 UTC, a day after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 19:00 UTC on 19 November to 18:00 UTC on the 21st, ICON-EU's from 16:00 UTC on the 19th to 21:00 UTC on the 20th. The first day with daylight hours is 20 November.
 
 ## Accounts and sessions
 
@@ -1318,4 +1615,4 @@ The links inside the page start with the address the server was configured with 
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, pages about a site with its rules and webcams, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecast maps, pages about a site with its rules and webcams, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

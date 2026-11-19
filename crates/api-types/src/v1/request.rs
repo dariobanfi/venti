@@ -124,7 +124,7 @@ pub enum PositionError {
     /// One of the two is missing.
     #[error("the {0} parameter is missing")]
     Missing(&'static str),
-    /// One of the two is not a number.
+    /// One of the two is not a number. Holds the start of what was sent.
     #[error("{0:?} is not a number of degrees")]
     NotANumber(String),
     /// The numbers are not a place on the globe.
@@ -136,8 +136,10 @@ pub enum PositionError {
 pub fn parse_position(lat: Option<&str>, lon: Option<&str>) -> Result<GeoPoint, PositionError> {
     let number = |name: &'static str, text: Option<&str>| {
         let text = text.ok_or(PositionError::Missing(name))?.trim();
+        // Whatever was sent in place of a number is not repeated back at
+        // length: the longest number of degrees anyone writes is shorter.
         text.parse::<f64>()
-            .map_err(|_| PositionError::NotANumber(text.to_owned()))
+            .map_err(|_| PositionError::NotANumber(text.chars().take(24).collect()))
     };
     Ok(GeoPoint::new(number("lat", lat)?, number("lon", lon)?)?)
 }

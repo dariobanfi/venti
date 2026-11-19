@@ -1,6 +1,7 @@
 //! The `ingest` subcommand: runs the sources of a region once against the
 //! live providers, the sources of observations, of airspace and of flying
-//! sites alike.
+//! sites alike. A source of forecasts, if the server was told where it is,
+//! is asked for the forecast of the middle of the region.
 //!
 //! ```text
 //! venti-server ingest <region.toml> [--source ID] [--archive DIR] [--json]
@@ -18,14 +19,14 @@ use std::process::ExitCode;
 
 use chrono::Duration;
 use serde::Serialize;
-use venti_domain::SourceId;
+use venti_domain::{GeoPoint, SourceId};
 use venti_regions::RegionPack;
 use venti_sources::{
-    AirspaceRunOutput, Failure, PlanCtx, RunOptions, RunOutput, SiteRunOutput, Skipped,
-    run_airspace, run_observations, run_sites,
+    AirspaceRunOutput, Failure, ForecastRunOutput, PlanCtx, RunOptions, RunOutput, SiteRunOutput,
+    Skipped, run_airspace, run_forecast, run_observations, run_sites,
 };
 
-use super::{DirArchive, HttpFetch, airspace_summary, sites_summary, summary};
+use super::{DirArchive, HttpFetch, airspace_summary, forecast_summary, sites_summary, summary};
 use crate::adapters::{self, Providers};
 use crate::clock::{Clock, SystemClock};
 
@@ -48,6 +49,7 @@ struct Outputs {
     observations: Vec<RunOutput>,
     airspace: Vec<AirspaceRunOutput>,
     sites: Vec<SiteRunOutput>,
+    forecasts: Vec<ForecastRunOutput>,
 }
 
 /// Prints the health line of one source, and its first problems below it.
@@ -160,6 +162,37 @@ pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCod
         }
         outputs.sites.push(output);
     }
+    // A forecast source the server was not told the address of is not in
+    // the registry: it is said and passed over, as the server does.
+    for id in pack.forecasts_without_adapter(&registry) {
+        if wanted(id) {
+            eprintln!("skip {id}: no address for its service (VENTI_OPEN_METEO_URL)");
+        }
+    }
+    for id in pack.forecasts.sources.iter().filter(|id| wanted(id)) {
+        let Some(source) = registry.forecasts(id) else {
+            continue;
+        };
+        let bounds = &pack.bounds;
+        let middle = GeoPoint::new(
+            f64::midpoint(bounds.south(), bounds.north()),
+            f64::midpoint(bounds.west(), bounds.east()),
+        )
+        .expect("the middle of a region is a place");
+        let output = run_forecast(source, middle, &fetch, &archive, &ctx, &options).await;
+
+        let run = &output.report;
+        let ok = run.is_healthy();
+        all_healthy &= ok;
+        report(id, ok, &forecast_summary(run), &run.failures, &run.skipped);
+        for rejected in run.rejected.iter().take(5) {
+            eprintln!(
+                "     rejected {} of {}: {}",
+                rejected.field, rejected.model, rejected.reason
+            );
+        }
+        outputs.forecasts.push(output);
+    }
 
     if args.json {
         match serde_json::to_string_pretty(&outputs) {
@@ -171,7 +204,10 @@ pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCod
         }
     }
 
-    let ran = outputs.observations.len() + outputs.airspace.len() + outputs.sites.len();
+    let ran = outputs.observations.len()
+        + outputs.airspace.len()
+        + outputs.sites.len()
+        + outputs.forecasts.len();
     if ran == 0 {
         eprintln!("no source ran");
         return ExitCode::from(2);

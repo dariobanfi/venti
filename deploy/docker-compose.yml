@@ -70,6 +70,7 @@ services:
       VENTI_DATABASE_URL: postgres://venti:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/venti
       VENTI_USER_AGENT: ${VENTI_USER_AGENT:-}
       VENTI_OVERPASS_URL: ${VENTI_OVERPASS_URL:-}
+      VENTI_OPEN_METEO_URL: ${VENTI_OPEN_METEO_URL:-}
       VENTI_CORS_ORIGINS: ${VENTI_CORS_ORIGINS:-}
       VENTI_LOG_LEVEL: ${VENTI_LOG_LEVEL:-}
       VENTI_OBSERVATION_MONTHS: ${VENTI_OBSERVATION_MONTHS:-}
@@ -108,6 +109,31 @@ services:
       retries: 20
     stop_grace_period: 60s
 
+  # Optional: an Open-Meteo instance of your own, for forecasts. It is not
+  # started unless asked for,
+  #   docker compose --profile forecasts up -d
+  # and the server uses it once .env says
+  #   VENTI_OPEN_METEO_URL=http://open-meteo:8080
+  # It reads Open-Meteo's open data on AWS when a place is asked for and
+  # keeps what it read in a cache on disk. It publishes no port: only the
+  # server reaches it. README.md says what it needs and what is still to
+  # verify.
+  open-meteo:
+    image: ghcr.io/open-meteo/open-meteo:latest
+    profiles: ["forecasts"]
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      REMOTE_DATA_DIRECTORY: https://openmeteo.s3.amazonaws.com/data/
+      CACHE_SIZE: ${OPEN_METEO_CACHE_SIZE:-8GB}
+      # Without a key for syncing set, an instance does not tell which run
+      # of a model it holds, and the server then serves no forecast. The
+      # key guards nothing here: the instance is reachable only from
+      # inside this network, and the data behind it is public.
+      API_SYNC_APIKEYS: ${OPEN_METEO_SYNC_KEY:-venti}
+    volumes:
+      - open-meteo-data:/app/data
+
 # The services' own network. Caddy has the address that ends in .2 and
 # keeps it; the other two get theirs from the upper half of the range, so
 # that none of them can be handed Caddy's.
@@ -120,6 +146,7 @@ networks:
 
 volumes:
   db-data:
+  open-meteo-data:
   archive:
   caddy-data:
   caddy-config:

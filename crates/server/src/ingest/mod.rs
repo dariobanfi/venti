@@ -16,7 +16,7 @@ mod schedule;
 pub mod scheduler;
 
 use venti_domain::Timestamp;
-use venti_sources::{AirspaceRunReport, RunReport, SiteRunReport};
+use venti_sources::{AirspaceRunReport, ForecastRunReport, RunReport, SiteRunReport};
 
 pub use archive::DirArchive;
 pub use collect::Collector;
@@ -34,6 +34,24 @@ fn sites_summary(report: &SiteRunReport, as_of: Timestamp) -> String {
         report.skipped.len(),
         report.rejected.len(),
         report.duplicates,
+    )
+}
+
+/// What a look at a forecast source found, in one line for a person.
+fn forecast_summary(report: &ForecastRunReport) -> String {
+    let newest = report.newest_run.map_or_else(
+        || "none".to_owned(),
+        |run| run.format("%Y-%m-%d %H:%M UTC").to_string(),
+    );
+    format!(
+        "{} models, {} hours (newest run {newest}), {} requests, {} failed, {} left out, \
+         {} rejected",
+        report.series,
+        report.hours,
+        report.requests,
+        report.failures.len(),
+        report.skipped.len(),
+        report.rejected.len(),
     )
 }
 

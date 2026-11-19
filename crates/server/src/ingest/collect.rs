@@ -6,13 +6,14 @@ use chrono::Duration;
 use futures::FutureExt;
 use venti_domain::{Airspace, Observation, Site, SourceId, Station, Timestamp};
 use venti_sources::{
-    AirspaceRunReport, Archive, Fetch, Kind, PlanCtx, Registry, RunOptions, RunReport,
-    SiteRunReport, run_airspace, run_observations, run_sites,
+    AirspaceRunReport, Archive, Fetch, ForecastRunReport, Kind, PlanCtx, Registry, RunOptions,
+    RunReport, SiteRunReport, run_airspace, run_observations, run_sites,
 };
-use venti_store::{Coverage, RunRecord, SiteDelivery, Store};
+use venti_store::{Coverage, ForecastModel, RunRecord, SiteDelivery, Store};
 
-use super::{airspace_summary, sites_summary, summary};
+use super::{airspace_summary, forecast_summary, sites_summary, summary};
 use crate::clock::Clock;
+use crate::forecast::Forecasts;
 use crate::plan::Job;
 
 /// How many of a run's problems are written to the log one by one. The run
@@ -31,6 +32,8 @@ pub struct Collector<S, F, A> {
     archive: A,
     clock: Arc<dyn Clock>,
     lookback: Option<Duration>,
+    /// The forecast service, which does the looking at forecast sources.
+    forecasts: Option<Arc<dyn Forecasts>>,
 }
 
 impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
@@ -58,7 +61,22 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             archive,
             clock,
             lookback,
+            forecasts: None,
         }
+    }
+
+    /// The same collector, with the forecast service it looks at forecast
+    /// sources through.
+    ///
+    /// Forecasts are not collected: they are fetched when a pilot asks, by
+    /// the forecast service. What the collector does for a forecast source
+    /// is the regular look that the health report is made from, and it
+    /// asks the service to do it, so that every request to the source goes
+    /// one way and is counted in one place.
+    #[must_use]
+    pub fn with_forecasts(mut self, forecasts: Arc<dyn Forecasts>) -> Self {
+        self.forecasts = Some(forecasts);
+        self
     }
 
     /// The store runs are written to.
@@ -93,13 +111,58 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             Kind::Observations => self.collect_observations(job).await,
             Kind::Airspace => self.collect_airspace(job).await,
             Kind::Sites => self.collect_sites(job).await,
-            Kind::Forecasts => {
-                // The framework knows forecasts; the server does not look
-                // at a forecast service yet, and no plan names such a job.
-                tracing::error!(source = %job.source, "forecasts are not collected yet");
-                false
-            }
+            Kind::Forecasts => self.look_at_forecasts(job).await,
         }
+    }
+
+    /// Looks at a forecast source once: asks the forecast service for the
+    /// forecast of the middle of the source's area and writes down whether
+    /// that worked and which run each model is at.
+    async fn look_at_forecasts(&self, job: &Job) -> bool {
+        let Some(forecasts) = &self.forecasts else {
+            tracing::error!(
+                source = %job.source,
+                "no forecast service to look at the source through"
+            );
+            return false;
+        };
+        let started_at = self.clock.now();
+        let look = forecasts.look(&job.source);
+        let Some(Some(output)) = unless_it_panics(&job.source, look).await else {
+            let failed = self.record(&job.source, started_at, &Outcome::default());
+            self.save_forecast_check(&failed, &[]).await;
+            return false;
+        };
+
+        let report = &output.report;
+        let healthy = report.is_healthy();
+        if healthy {
+            tracing::info!(source = %job.source, "{}", forecast_summary(report));
+        } else {
+            tracing::warn!(source = %job.source, "unhealthy look: {}", forecast_summary(report));
+        }
+        for failure in report.failures.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(source = %job.source, "failed {}: {}", failure.tag, failure.error);
+        }
+        // A value the source does not have is a gap in every pilot's
+        // forecast. The look stays healthy, so the log is where it shows.
+        for skipped in report.skipped.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(source = %job.source, "left out {:?}: {}", skipped.what, skipped.reason);
+        }
+
+        let models: Vec<ForecastModel> = output
+            .series
+            .iter()
+            .map(|series| ForecastModel {
+                source: job.source.clone(),
+                model: series.model.clone(),
+                run: series.run,
+                available_at: series.available_at,
+                checked_at: started_at,
+            })
+            .collect();
+        let record = self.record(&job.source, started_at, &Outcome::of_forecasts(report));
+        self.save_forecast_check(&record, &models).await && healthy
     }
 
     async fn collect_observations(&self, job: &Job) -> bool {
@@ -308,6 +371,11 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         let saved = self.store.save_site_run(record, delivery, sites).await;
         stored(record, saved)
     }
+
+    async fn save_forecast_check(&self, record: &RunRecord, models: &[ForecastModel]) -> bool {
+        let saved = self.store.save_forecast_check(record, models).await;
+        stored(record, saved)
+    }
 }
 
 /// Lets a run finish, unless it panics.
@@ -365,6 +433,19 @@ impl Outcome {
     /// How many sites a run delivered is not in the run history: the set
     /// the store holds says how many there are.
     fn of_sites(report: &SiteRunReport) -> Self {
+        Self {
+            healthy: report.is_healthy(),
+            requests: report.requests,
+            failed_requests: report.failures.len(),
+            skipped: report.skipped.len(),
+            rejected: report.rejected.len(),
+            ..Self::default()
+        }
+    }
+
+    /// Which run each model is at is not in the run history: what the
+    /// store holds about the source's models says so.
+    fn of_forecasts(report: &ForecastRunReport) -> Self {
         Self {
             healthy: report.is_healthy(),
             requests: report.requests,

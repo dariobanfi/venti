@@ -11,8 +11,14 @@
 //! the sources it came from and carries their credit lines. A station or an
 //! airspace whose source this server is not configured to serve is never
 //! returned, even when the store still holds it: without a manifest there
-//! is no licence to serve it under. Airspace and flying sites go out in
-//! layers, one per source, and are never merged across sources.
+//! is no licence to serve it under. Airspace, flying sites and forecasts go
+//! out in layers, one per source, and are never merged across sources.
+//!
+//! Everything but a forecast is read from the store. A forecast is asked of
+//! the forecast service ([`crate::forecast`]), which asks the server's own
+//! Open-Meteo instance when it has no answer at hand: the one way a request
+//! can make the server ask a provider, at an address that comes from the
+//! server's configuration and never from the request.
 //!
 //! **What pilots keep here.** An account is acted for with a session token
 //! in the `Authorization` header ([`auth`]). A flight is shown to its pilot
@@ -31,6 +37,7 @@ mod cache;
 mod clients;
 mod error;
 mod flights;
+mod forecast;
 mod health;
 mod log;
 mod mcp;
@@ -57,7 +64,8 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, HEALTH_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, SESSIONS_PATH, SITES_PATH,
+    STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -70,6 +78,7 @@ use crate::accounts::{Limits, Registration};
 use crate::clock::Clock;
 use crate::flights::analyser::Analyser;
 use crate::flights::share::PublicUrl;
+use crate::forecast::Forecasts;
 
 pub use mcp::MCP_PATH;
 
@@ -184,6 +193,9 @@ pub struct Api<S> {
     connector_requests: Throttle,
     /// Where requests come from, to notice a setup that hides it.
     clients: clients::ClientWatch,
+    /// Where forecasts come from, on a server that was told where its
+    /// forecast service is.
+    forecasts: Option<Arc<dyn Forecasts>>,
 }
 
 impl<S: Store> Api<S> {
@@ -243,7 +255,18 @@ impl<S: Store> Api<S> {
             ),
             clients: clients::ClientWatch::default(),
             limits,
+            forecasts: None,
         }
+    }
+
+    /// The same API, answering forecasts from `forecasts`.
+    ///
+    /// Without this, or when none of the served sources is a source of
+    /// forecasts, `/v1/forecast` says that the server has no forecasts.
+    #[must_use]
+    pub fn with_forecasts(mut self, forecasts: Arc<dyn Forecasts>) -> Self {
+        self.forecasts = Some(forecasts);
+        self
     }
 
     /// Whether data of this source may go out.
@@ -298,6 +321,7 @@ impl<S: Store> Api<S> {
             )
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
             .route(SITES_PATH, get(sites::sites::<S>))
+            .route(FORECAST_PATH, get(forecast::forecast::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

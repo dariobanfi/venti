@@ -3,7 +3,10 @@
 //! No network and no database. The real adapters run once over the payloads
 //! recorded in their crates (wind stations, a sample of the first region's
 //! airspace, and the flying sites OpenStreetMap has for the first region),
-//! the result goes into an in-memory store, and the real router serves it. One account is already there, with three
+//! the result goes into an in-memory store, and the real router serves it.
+//! Forecasts are answered from recorded answers as well: there are five
+//! places with one, and a place anywhere in the region gets the forecast of
+//! the nearest of them, which the answer names. One account is already there, with three
 //! flights made from the sample flight; its handle, password and a session
 //! token are fixed and written down in `docs/api.md`. Client work and UI
 //! tests run against this.
@@ -40,6 +43,7 @@ use crate::flights::analyser::Analyser;
 use crate::flights::derive::derive;
 use crate::flights::new_flight;
 use crate::flights::share::PublicUrl;
+use crate::forecast::{self, Asking};
 use crate::ingest::{Collector, DirArchive};
 use crate::{plan, serve};
 
@@ -212,8 +216,24 @@ pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String
     let clock: Arc<dyn Clock> = Arc::new(FixedClock(now));
     add_demo_account(&store, now, settings.password_cost).await?;
 
+    // Forecasts are answered from the recorded answers too, by the service
+    // a real server has. Its clock stands at the moment those were
+    // recorded, a day after the observations: a forecast cannot have been
+    // fetched before its model ran.
+    let forecast_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::forecasts_recorded_at()));
+    let forecasts = forecast::service_for(
+        &jobs,
+        adapters::forecast_sources(&Providers::recorded())?,
+        adapters::recorded_payloads(),
+        None::<DirArchive>,
+        forecast_clock,
+        Asking::Recorded(adapters::recorded_forecast_places()),
+    )
+    .ok_or("the first region lists no forecast source")?;
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
-    let api = Api::new(store.clone(), clock.clone(), manifests, settings);
+    let api = Api::new(store.clone(), clock.clone(), manifests, settings)
+        .with_forecasts(forecasts.clone());
 
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(
@@ -223,7 +243,8 @@ pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String
         None::<DirArchive>,
         clock,
         None,
-    );
+    )
+    .with_forecasts(forecasts);
     for job in &jobs {
         if !collector.collect(job).await {
             return Err(format!(

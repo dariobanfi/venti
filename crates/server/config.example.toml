@@ -41,6 +41,14 @@ user_agent = "venti-server/0.1"
 # instance, or your own, if this one refuses the server.
 overpass_url = "https://overpass-api.de/api/interpreter"
 
+# The Open-Meteo instance that is asked for forecasts:  VENTI_OPEN_METEO_URL
+# one that you run yourself, by its address. There is no default. Without
+# it the server runs and has no forecasts, which /v1/health and
+# /v1/forecast say; it never asks Open-Meteo's public service. The instance
+# must have API_SYNC_APIKEYS set, or it does not tell which model runs it
+# holds. deploy/README.md says how to run one beside the server.
+# open_meteo_url = "http://open-meteo:8080"
+
 # Web origins that may call the API from a browser.      VENTI_CORS_ORIGINS
 # List the origin of the web app. An empty list allows none; apps that are
 # not browsers are never restricted. As a variable: a comma-separated list.

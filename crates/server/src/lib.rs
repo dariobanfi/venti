@@ -36,6 +36,7 @@ pub mod clock;
 pub mod config;
 pub mod dev;
 pub mod flights;
+pub mod forecast;
 pub mod ingest;
 pub mod maintenance;
 pub mod plan;

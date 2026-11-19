@@ -5,9 +5,10 @@ use super::Attribution;
 
 /// The answer of `GET /v1/forecast`.
 ///
-/// What the weather models say about one place for today and the next two
-/// days, hour by hour. The answer holds magnitudes and no judgement: it
-/// does not say whether a day can be flown.
+/// What the weather models say about one place, hour by hour, for the
+/// hours of today and the next two days that the newest run of each model
+/// computed. The answer holds magnitudes and no judgement: it does not say
+/// whether a day can be flown.
 ///
 /// Forecasts come in layers, one per data source, and within a layer in
 /// series, one per weather model. Neither is ever blended: a client that
@@ -16,7 +17,10 @@ use super::Attribution;
 pub struct ForecastResponse {
     /// The place the forecast is for: the place that was asked for, moved
     /// to the nearest point of a grid of 0.02°. Two requests for places in
-    /// the same cell of that grid get the same answer.
+    /// the same cell of that grid get the same answer. A server's
+    /// development mode has recorded forecasts for a few places and answers
+    /// with the nearest of them; this field says which, so a client shows
+    /// the forecast as being for this place and not for the one it asked.
     pub point: GeoPoint,
     /// When the server fetched this answer from its forecast service. An
     /// answer is reused for up to half an hour. Show the pilot the run of

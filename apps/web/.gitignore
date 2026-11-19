@@ -1,0 +1,9 @@
+node_modules/
+.svelte-kit/
+build/
+# Built from the Rust core by scripts/build-core.sh.
+src/lib/core/pkg/
+# Written by the end-to-end tests.
+screenshots/
+test-results/
+playwright-report/

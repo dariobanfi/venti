@@ -1,0 +1,48 @@
+/*
+ * How MapLibre's own parts sit in the app. Loaded after the engine's
+ * stylesheet, which it adjusts.
+ */
+
+/* The keyboard can move the map; show when it has the focus. */
+.maplibregl-canvas:focus-visible {
+	outline: 0.1875rem solid var(--accent);
+	outline-offset: -0.1875rem;
+}
+
+/* The credits stay clear of whatever a screen lays over the map's edges.
+   A screen says how far that reaches with these properties. */
+.maplibregl-ctrl-bottom-left {
+	left: calc(var(--map-covered-left, 0px) + var(--safe-left));
+	bottom: var(--map-covered-bottom, 0px);
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+	margin: 0 0 0.75rem 0.75rem;
+}
+
+/* The credits in the app's type, on glass like the other things that float
+   on a map. The map is light in both appearances, and so are they. */
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+	font: var(--caption) / 1.3 var(--font);
+	color: #3a3a3c;
+	background: rgb(255 255 255 / 0.78);
+	-webkit-backdrop-filter: blur(0.75rem);
+	backdrop-filter: blur(0.75rem);
+}
+
+.maplibregl-ctrl-attrib a {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-color: rgb(0 0 0 / 0.3);
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+	min-height: 1.75rem;
+	border-radius: 0.875rem;
+}
+
+.maplibregl-ctrl-attrib-button:focus-visible {
+	outline: 0.1875rem solid var(--accent);
+	outline-offset: 0.125rem;
+	box-shadow: none;
+}

@@ -1,8 +1,8 @@
 # Design
 
-Last revised: 2026-11-18
+Last revised: 2026-11-19
 
-How Venti looks and behaves, on every platform. The iOS app is the first place these rules are built; Android and the web follow the same structure, colours and wording with their own platform's components.
+How Venti looks and behaves, on every platform. The iOS app is the first place these rules are built; Android and the web follow the same structure, colours and wording with their own platform's components. The web app is the second; what is particular to it is under [Web](#web).
 
 A change to a screen that contradicts this document updates it in the same commit.
 
@@ -95,9 +95,49 @@ System text styles only, so the pilot's text-size setting applies everywhere. Ti
 - Touch targets are at least 44 by 44 points, including the two icon buttons in the flight panel.
 - Every custom element has an accessibility label; the chart and legend describe themselves in words.
 
+## Web
+
+The web app is the same product in a browser: the same screens, the same words. It has the Map and the Logbook; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+
+Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
+
+- **Narrow** is the iPhone app. The navigation is a bar of glass floating at the bottom, and steps aside on the flight screen. The flight panel floats over the lower part of the map; the details open as a sheet from the bottom edge.
+- **Wide** uses the room, it does not stretch the phone:
+  - The navigation is a rail down the left side, part of the page and not floating on it.
+  - **Flight:** the panel stands beside the map as a column, and everything the sheet holds on a phone is in that column under the profile, on screen without a tap. The map has the rest of the window, with buttons for zoom, because a mouse cannot pinch. Choosing a thermal or glide scrolls the column back to the profile, where the mark is.
+  - **Logbook:** one column of readable width, with the import button spelled out. The statistics are a narrower column of their own. Each row has room for two more numbers the core already gives, highest point and best climb, under column headings, and a delete button that appears with the mouse over the row.
+  - **Map:** the map fills the window beside the rail, with zoom buttons above the position button.
+
+What the web adds:
+
+- **Dropping files.** Flight files dragged onto any screen are imported; while they hover, the page says so.
+- **Terrain in 3D.** A button on the flight map tilts it into the terrain and lets it be turned; the same button lays it flat and north up again.
+- **Downloading** a flight's file, from the flight screen's menu, where the iPhone has "Share flight file".
+
+What stands in for the system:
+
+| On the iPhone | In the browser |
+|---|---|
+| System colours | The same roles as values in `apps/web/src/app.css`. Text and its background keep a contrast of at least 4.5 to 1 in both appearances (calculated, 2026-11-19). |
+| Liquid Glass | A translucent, blurred surface, in the same three places and no others: navigation bar, flight panel, map buttons. Dark glass is denser than light, because the map under it stays light. Text on glass has stronger colours of its own, which hold 4.5 to 1 over the lightest and darkest ground the map draws. |
+| The selected tab in the accent colour | An accent icon on a filled shape; the tab's name stays in the text colour, because accent text on that shape falls short of 4.5 to 1. |
+| System text styles | The system's own typeface at the sizes of those styles, in rem, so the reader's text size scales everything. Numbers use the rounded face where the system has one (Apple's), and digits of equal width everywhere. |
+| SF Symbols | A small set of outline icons drawn for the app (`apps/web/src/lib/design/Icon.svelte`). |
+| Alerts, sheets, menus | The browser's dialog and popover, which bring focus handling, Escape and the dimmed background with them. |
+| Swipe to delete | The flight screen's menu, and on a wide screen a button on the row. |
+| Accessibility settings | "Reduce motion" stops the animations; "reduce transparency" and "increase contrast" turn glass into a solid surface. |
+
+Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.
+
+Times are shown in the time zone of the browser, as the iPhone shows them in the phone's. The words are English; dates and numbers follow the reader's region, so a pilot in Germany gets a 24-hour clock.
+
+To verify, none of it has been seen outside Chromium on a test machine: Safari and Firefox, a real phone (touch on the profile, the bar's distance from the home indicator, glass over a moving map), a screen reader, and the rounded number face on Apple devices.
+
 ## How a design change is checked
 
 Nobody on the project can open Xcode in a cloud session, so the interface is checked by tests that use it. `apps/ios/VentiUITests` starts the app with an empty logbook, taps through every screen as a pilot would, asserts what should be there, and keeps a screenshot of each screen in light and dark appearance. The iOS workflow publishes them as the `ios-screenshots` artifact. Look at them after every change to a screen.
+
+The web app is checked the same way by `apps/web/e2e`, in a real browser, at a phone's width and a desktop's, in light and dark. A cloud session can run these itself (`npm run test:e2e` in `apps/web`) and look at `apps/web/screenshots`; the Web workflow publishes them as the `web-screenshots` artifact.
 
 ## The cockpit
 
@@ -126,6 +166,7 @@ Still to design: a high-contrast theme for sun, layouts the pilot can change, an
 ## Open
 
 - A dark map style. The map is light in dark mode today.
+- On the web: a layout between the two, for a tablet held upright, where the phone's panel is wider than it needs to be; and the track at flown height in the 3D view.
 - Landscape and iPad layouts for the flight screen.
 - German. All text is English and written in the code; it moves to a string catalogue with the first translation.
 - Units other than metric.

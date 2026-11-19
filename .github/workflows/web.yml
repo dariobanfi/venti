@@ -1,0 +1,108 @@
+name: Web
+
+# Builds the Rust core as WebAssembly and the web app as static files, runs
+# the unit tests, then uses the built site in a real browser. Those tests
+# take a screenshot of every screen at a phone's width and at a desktop's,
+# in light and in dark appearance; they are published as the
+# `web-screenshots` artifact, and the site itself as `web-site`.
+#
+# Nothing is deployed from here. Publishing the site is the owner's decision.
+
+on:
+  push:
+    paths:
+      - "apps/web/**"
+      - "map/**"
+      - "crates/core/**"
+      - "crates/core-wasm/**"
+      - "crates/flight/**"
+      - "crates/sensors/**"
+      - "crates/domain/**"
+      # The sample flight, the label fonts and the map region the tests draw
+      # are shared with the iOS app and live in its folder.
+      - "apps/ios/Venti/Resources/sample.igc"
+      - "apps/ios/Venti/Resources/MapDemo/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time, and every push gets its own finished run.
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  web:
+    name: Core for the browser, site and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup show
+
+      # Also keeps the wasm-bindgen tool that the next step installs.
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install the web app's dependencies
+        run: npm ci
+
+      - name: Build the Rust core for the browser
+        run: scripts/build-core.sh
+
+      - name: Licences of the npm packages
+        run: npm run licences
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Types
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build the site
+        run: npm run build
+
+      - name: Install the browser the tests drive
+        run: npx playwright install --with-deps chromium
+
+      - name: Use the site as a pilot would, and keep a screenshot of every screen
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-screenshots
+          path: apps/web/screenshots
+          if-no-files-found: warn
+
+      - name: Keep what the browser tests left behind when they fail
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-test-results
+          path: apps/web/test-results
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-site
+          path: apps/web/build
+          if-no-files-found: error

@@ -1,0 +1,10 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"strict": true,
+		"noImplicitOverride": true,
+		"noFallthroughCasesInSwitch": true
+	},
+	"include": ["src", "e2e", "*.ts"],
+	"exclude": ["src/lib/core/pkg/*.js"]
+}

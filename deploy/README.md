@@ -88,7 +88,7 @@ All commands run on the server.
 | Settings | `deploy/.env` | Write them again; the database password must match the one the database was created with |
 | Database dumps | `deploy/backups` (or `VENTI_BACKUP_DIR`) | There is nothing to restore from |
 
-Flight files are in the database, not in a folder: one dump holds everything. Map tiles do not exist yet, and the web app is not published. Until they are, the site's front page is empty and only `/v1` and the pages of shared flights under `/f/` answer. Files put into `data/tiles` are served under `/tiles/` with HTTP range requests, which is what PMTiles archives need.
+Flight files are in the database, not in a folder: one dump holds everything. Map tiles do not exist yet, and the web app is not published. Until they are, the site's front page is empty and only `/v1`, the pages of shared flights under `/f/` and the pages of live tracks under `/live/` answer. Files put into `data/tiles` are served under `/tiles/` with HTTP range requests, which is what PMTiles archives need.
 
 ## Update
 
@@ -295,6 +295,8 @@ The optional forecast service (`open-meteo`, profile `forecasts`) is not confine
 `backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything. It takes the dump as the database's superuser, from inside the database's container, and the dump says which role owns each table.
 
 The dump holds everything the server knows: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
+
+One thing is left out of the dump on purpose: **live tracks**, the positions pilots share while they fly. The server removes each one 48 hours after its flight (`VENTI_LIVE_HOURS`), and a dump that held them would keep them for as long as dumps are kept. The dump has the two tables and none of their rows; it does keep the list of identifiers that live tracks have used, which holds no position. After a restore, nobody's live track is there; a flight that is under way begins its track anew with the next positions its app sends. Tried on 2026-11-19 on a development database with a track of 43,200 positions: the dump shrank from 698 kB to 74 kB, restored without complaint into an empty database, and the restored tables took a new track. *(To verify on the first real install, with `backup.sh` itself: that test ran `pg_dump` by hand with the script's two `--exclude-table-data` options.)*
 
 ```bash
 /opt/venti/deploy/backup.sh

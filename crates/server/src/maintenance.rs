@@ -15,9 +15,16 @@ use crate::ingest::DirArchive;
 /// payloads by the day, so once a day is as often as anything can change.
 const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 
-/// Cleans up when the server starts and once a day after that, until
-/// `shutdown` is cancelled. A session that was not used for `session_idle`
-/// has stopped working already; this removes it.
+/// How often live tracks that ended long enough ago are looked for. A live
+/// track is where a person was. The API stops showing one the moment its
+/// time is up; this is how soon after that it is gone from the database
+/// too, and a day would be half as long again as a track is kept.
+const LIVE_INTERVAL: Duration = Duration::from_secs(3600);
+
+/// Cleans up when the server starts and once a day after that, and removes
+/// ended live tracks once an hour, until `shutdown` is cancelled. A session
+/// that was not used for `session_idle` has stopped working already; this
+/// removes it.
 pub async fn run<S: Store>(
     store: Arc<S>,
     archive: Option<DirArchive>,
@@ -26,18 +33,40 @@ pub async fn run<S: Store>(
     clock: Arc<dyn Clock>,
     shutdown: CancellationToken,
 ) {
+    let rounds_a_day = INTERVAL.as_secs() / LIVE_INTERVAL.as_secs();
+    let mut round = 0_u64;
     loop {
         let now = clock.now();
-        clean(&*store, archive.as_ref(), retention, now).await;
-        match store.prune_sessions(now - session_idle).await {
-            Ok(0) => {}
-            Ok(sessions) => tracing::info!("removed {sessions} sessions that had expired"),
-            Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
+        if round.is_multiple_of(rounds_a_day) {
+            clean(&*store, archive.as_ref(), retention, now).await;
+            match store.prune_sessions(now - session_idle).await {
+                Ok(0) => {}
+                Ok(sessions) => tracing::info!("removed {sessions} sessions that had expired"),
+                Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
+            }
         }
+        remove_live_tracks(&*store, retention, now).await;
+        round += 1;
         tokio::select! {
             () = shutdown.cancelled() => return,
-            () = tokio::time::sleep(INTERVAL) => {}
+            () = tokio::time::sleep(LIVE_INTERVAL) => {}
         }
+    }
+}
+
+/// Removes the live tracks whose newest fix is older than the retention's
+/// hours, counted back from `now`, with their fixes.
+///
+/// The log line says how many, and nothing about which or whose.
+async fn remove_live_tracks<S: Store>(store: &S, retention: Retention, now: Timestamp) {
+    let ended_before = now - chrono::Duration::hours(i64::from(retention.live_hours));
+    match store.prune_live_tracks(ended_before, now).await {
+        Ok(0) => {}
+        Ok(tracks) => tracing::info!(
+            "removed {tracks} live tracks that had ended more than {} hours ago",
+            retention.live_hours
+        ),
+        Err(error) => tracing::warn!("ended live tracks could not be removed: {error}"),
     }
 }
 
@@ -142,6 +171,7 @@ mod tests {
         let retention = Retention {
             observation_months: 2,
             archive_days: 2,
+            live_hours: 48,
         };
         clean(&store, Some(&archive), retention, now).await;
 
@@ -162,5 +192,78 @@ mod tests {
         days.sort();
         assert_eq!(days, ["2026-11-16", "2026-11-17", "2026-11-18"]);
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_tracks_are_removed_when_their_hours_are_up() {
+        use venti_store::{
+            Account, LiveBatch, LiveFix, LiveRoom, LiveSaved, LiveVisibility, NewAccount,
+        };
+
+        let now = noon(2026, 11, 18);
+        let store = MemoryStore::new();
+        let account = Account {
+            id: "00000000000000000000000001".to_owned(),
+            handle: "dario".to_owned(),
+            display_name: "Dario B.".to_owned(),
+            created_at: now,
+        };
+        let new = NewAccount {
+            account: account.clone(),
+            password_hash: "$argon2id$hash".to_owned(),
+            invite: None,
+        };
+        store.create_account(&new).await.unwrap();
+        // Tracks whose newest fix is 47 hours, exactly 48 hours and 49
+        // hours old.
+        let room = LiveRoom {
+            fixes_per_track: 10,
+            may_create: true,
+            expired_before: noon(2026, 1, 1),
+            now,
+        };
+        let track = |hours: i64| LiveBatch {
+            id: format!("{hours:0>26}"),
+            account_id: account.id.clone(),
+            visibility: LiveVisibility::Public,
+            landed: true,
+            fixes: vec![LiveFix {
+                time: now - chrono::Duration::hours(hours),
+                position: GeoPoint::new(47.66, 11.8).unwrap(),
+                altitude_m: 800,
+                ground_speed_ms: None,
+                climb_ms: None,
+                course_deg: None,
+            }],
+        };
+        for hours in [47, 48, 49] {
+            let saved = store.save_live_fixes(&track(hours), &room).await.unwrap();
+            assert!(matches!(saved, LiveSaved::Kept(_)));
+        }
+        let retention = Retention {
+            observation_months: 13,
+            archive_days: 14,
+            live_hours: 48,
+        };
+
+        remove_live_tracks(&store, retention, now).await;
+
+        let left = |hours: i64| {
+            let store = &store;
+            async move {
+                let id = format!("{hours:0>26}");
+                store.live_track(&id).await.unwrap().is_some()
+            }
+        };
+        assert!(left(47).await);
+        assert!(left(48).await, "48 hours are kept in full");
+        assert!(!left(49).await);
+        // An hour later the next one has had its time.
+        remove_live_tracks(&store, retention, now + chrono::Duration::hours(1)).await;
+        assert!(left(47).await);
+        assert!(!left(48).await);
+        // What was removed takes nothing more.
+        let saved = store.save_live_fixes(&track(49), &room).await.unwrap();
+        assert_eq!(saved, LiveSaved::Gone);
     }
 }

@@ -20,6 +20,7 @@ use crate::accounts::Registration;
 use crate::accounts::client::TrustedProxies;
 use crate::adapters::{self, Providers};
 use crate::flights::share::PublicUrl;
+use crate::live::DEFAULT_RETENTION_HOURS;
 
 /// Everything the server needs to be told.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +75,8 @@ pub struct Retention {
     pub observation_months: u32,
     /// Raw provider payloads are kept for this many days.
     pub archive_days: u32,
+    /// A live track is kept for this many hours after its newest fix.
+    pub live_hours: u32,
 }
 
 /// A database URL. It contains a password, so it does not print itself.
@@ -159,6 +162,7 @@ struct FileAccounts {
 struct FileRetention {
     observation_months: Option<u32>,
     archive_days: Option<u32>,
+    live_hours: Option<u32>,
 }
 
 /// One setting: its name in the file and the variable that overrides it.
@@ -232,6 +236,10 @@ const OBSERVATION_MONTHS: Setting = Setting {
 const ARCHIVE_DAYS: Setting = Setting {
     key: "retention.archive_days",
     variable: "VENTI_ARCHIVE_DAYS",
+};
+const LIVE_HOURS: Setting = Setting {
+    key: "retention.live_hours",
+    variable: "VENTI_LIVE_HOURS",
 };
 const ACCOUNT_FLIGHTS: Setting = Setting {
     key: "accounts.flights",
@@ -390,6 +398,11 @@ impl Config {
         let retention = Retention {
             observation_months: number(&OBSERVATION_MONTHS, file.retention.observation_months, 13)?,
             archive_days: number(&ARCHIVE_DAYS, file.retention.archive_days, 14)?,
+            live_hours: number(
+                &LIVE_HOURS,
+                file.retention.live_hours,
+                DEFAULT_RETENTION_HOURS,
+            )?,
         };
         let room = Room {
             flights: number(
@@ -490,7 +503,8 @@ mod tests {
             config.retention,
             Retention {
                 observation_months: 13,
-                archive_days: 14
+                archive_days: 14,
+                live_hours: 48,
             }
         );
         assert_eq!(config.registration, Registration::Invite);
@@ -632,6 +646,7 @@ mod tests {
                 ),
                 ("VENTI_LOG_LEVEL", "debug"),
                 ("VENTI_OBSERVATION_MONTHS", "24"),
+                ("VENTI_LIVE_HOURS", "24"),
                 ("VENTI_REGISTRATION", "open"),
                 ("VENTI_PUBLIC_URL", "https://venti.example"),
                 ("VENTI_TRUSTED_PROXIES", "172.18.0.0/16, ::1"),
@@ -656,6 +671,7 @@ mod tests {
         assert_eq!(config.log_level, Level::DEBUG);
         assert_eq!(config.retention.observation_months, 24);
         assert_eq!(config.retention.archive_days, 14);
+        assert_eq!(config.retention.live_hours, 24);
     }
 
     #[test]
@@ -697,6 +713,7 @@ mod tests {
         assert!(with("VENTI_TRUSTED_PROXIES", "caddy").contains("trusted_proxies"));
         assert!(with("VENTI_OVERPASS_URL", "overpass-api.de").contains("overpass_url"));
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
+        assert!(with("VENTI_LIVE_HOURS", "0").contains("retention.live_hours"));
         assert!(with("VENTI_ACCOUNT_FLIGHTS", "0").contains("accounts.flights"));
         assert!(with("VENTI_ACCOUNT_STORAGE_MB", "plenty").contains("accounts.storage_mb"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));

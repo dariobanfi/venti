@@ -96,3 +96,8 @@ observation_months = 13
 
 # Raw provider payloads are kept for this many days.      VENTI_ARCHIVE_DAYS
 archive_days = 14
+
+# A live track is kept for this many hours after its      VENTI_LIVE_HOURS
+# newest position and then removed, with its positions. Answers of the API
+# say when (`expires_at`), and the page a link opens names this number.
+live_hours = 48

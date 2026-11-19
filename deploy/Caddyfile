@@ -10,8 +10,9 @@
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		# Unless the server chose one itself. It does for the pages of
-		# shared flights: the link to an unlisted flight is the key to it
-		# and must not travel to other sites in the Referer header.
+		# shared flights and of live tracks: the link to an unlisted
+		# flight, or to a live track, is the key to it and must not travel
+		# to other sites in the Referer header.
 		?Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
@@ -30,6 +31,18 @@
 	# The page a link to a flight shows, and its preview picture. The server
 	# renders both, with headers of its own.
 	handle /f/* {
+		reverse_proxy server:8080
+	}
+
+	# The page a link to a live track shows. Its address holds the track's
+	# identifier, and so does the address of a track under /v1/live/ above:
+	# whoever has the identifier sees where its pilot is. The server keeps
+	# both out of its own log. This file asks Caddy for no access log, and
+	# Caddy writes one only where a `log` directive says so (its
+	# documentation, read 2026-11-19). Should one ever be added to this
+	# site, these two kinds of address have to be left out of it
+	# (`log_skip`).
+	handle /live/* {
 		reverse_proxy server:8080
 	}
 

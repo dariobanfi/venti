@@ -19,7 +19,8 @@
 //!   ([`ForecastModel`]): the forecasts stay with the service that
 //!   computes them;
 //! - what pilots entrust to the server: their [`Account`], the [`Session`]s
-//!   of their devices, and their [`Flight`]s with the files they came from.
+//!   of their devices, their [`Flight`]s with the files they came from, and
+//!   for a short time the [`LiveTrack`]s of flights under way.
 //!
 //! It knows nothing about providers, about HTTP or about how a password or
 //! a flight file is read: it is handed hashes and finished records.
@@ -29,6 +30,7 @@ mod airspace;
 mod batch;
 mod flight;
 mod forecast;
+mod live;
 mod memory;
 mod month;
 mod postgres;
@@ -50,6 +52,10 @@ pub use flight::{
     OutdatedFlight, Place, Room, Saved, Score, ScoreKind, Visibility,
 };
 pub use forecast::ForecastModel;
+pub use live::{
+    LiveBatch, LiveFix, LiveFixAt, LiveKept, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
+    LiveVisibility,
+};
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use postgres::PgStore;
@@ -383,8 +389,9 @@ pub trait Store: Send + Sync + 'static {
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// Removes an account and everything that belongs to it: its password,
-    /// its sessions, its flights and their files, and the record of the
-    /// flights it deleted. Nothing is kept. Its handle is free again.
+    /// its sessions, its flights and their files, the record of the
+    /// flights it deleted, its live tracks and the identifiers they used.
+    /// Nothing is kept. Its handle is free again.
     fn delete_account(
         &self,
         account_id: &str,
@@ -551,4 +558,99 @@ pub trait Store: Send + Sync + 'static {
         derived: &Derived,
         now: Timestamp,
     ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    // --- Live tracks ------------------------------------------------------
+
+    /// Adds fixes to a live track, and begins the track if nothing is
+    /// known under the batch's identifier and `room` allows it. Says what
+    /// became of the batch; see [`LiveSaved`].
+    ///
+    /// - A track holds one fix for a second. A fix for a second it already
+    ///   has changes nothing, so the same batch handed in twice changes
+    ///   nothing the second time.
+    /// - Fixes may arrive in any order. Each one the track takes in gets
+    ///   the track's next number, by which [`Store::live_fixes`] hands
+    ///   them out.
+    /// - New fixes are taken oldest first while the track has room.
+    /// - Who may see the track and whether it landed is what the batch
+    ///   with the newest fix says. A batch whose newest fix is the track's
+    ///   newest can only narrow who sees it and only say that it landed; a
+    ///   batch of older fixes changes neither. Batches therefore give the
+    ///   same track in whatever order they arrive.
+    /// - An identifier is used once. One whose track was deleted or
+    ///   pruned, or was taken out of use, takes nothing more. A track
+    ///   whose newest fix is older than `room.expired_before` is removed
+    ///   by this call as [`Store::prune_live_tracks`] would.
+    /// - Two calls that race to begin the same track begin one.
+    ///
+    /// A batch without a fix, with fixes that are not in order or not at
+    /// whole seconds, or for an account that does not exist is refused
+    /// with [`StoreError::Invalid`].
+    fn save_live_fixes(
+        &self,
+        batch: &LiveBatch,
+        room: &LiveRoom,
+    ) -> impl Future<Output = Result<LiveSaved, StoreError>> + Send;
+
+    /// The live track with this identifier, whoever may see it and
+    /// however long ago it ended. Deciding either is the caller's job.
+    fn live_track(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<LiveTrack>, StoreError>> + Send;
+
+    /// The fixes of a live track that arrived after the fix numbered
+    /// `since`, in the order of arrival, at most `limit`. With `after`,
+    /// only those whose time is later than it.
+    fn live_fixes(
+        &self,
+        id: &str,
+        since: i64,
+        after: Option<Timestamp>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<LiveFixAt>, StoreError>> + Send;
+
+    /// The newest `limit` fixes of a live track by their time, oldest
+    /// first.
+    fn live_tail(
+        &self,
+        id: &str,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<LiveFix>, StoreError>> + Send;
+
+    /// The public live tracks whose newest fix lies inside `area`, edges
+    /// included, and is not older than `newest_since`, sorted by
+    /// identifier. At most `limit` are returned.
+    ///
+    /// A track that only those with its link may see is never among them.
+    fn live_tracks_in(
+        &self,
+        area: &BoundingBox,
+        newest_since: Timestamp,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<LiveTrack>, StoreError>> + Send;
+
+    /// Removes a live track of an account with its fixes, and takes its
+    /// identifier out of use; see [`LiveRemoval`].
+    ///
+    /// When nothing is known under the identifier and `may_retire` is
+    /// set, the identifier is taken out of use for the account all the
+    /// same: fixes that were sent before the deletion and arrive after it
+    /// must not begin a track.
+    fn delete_live_track(
+        &self,
+        account_id: &str,
+        id: &str,
+        now: Timestamp,
+        may_retire: bool,
+    ) -> impl Future<Output = Result<LiveRemoval, StoreError>> + Send;
+
+    /// Removes every live track whose newest fix is older than
+    /// `ended_before`, with its fixes, and returns how many there were.
+    /// Their identifiers stay out of use.
+    fn prune_live_tracks(
+        &self,
+        ended_before: Timestamp,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 }

@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[tokio::test]
@@ -302,6 +302,137 @@ async fn the_box_query_for_airspace_uses_the_spatial_index() {
         plan.iter().any(|line| line.contains("airspaces_box_idx")),
         "{plan:#?}"
     );
+}
+
+#[tokio::test]
+async fn a_database_from_before_live_tracks_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_6").await else {
+        return;
+    };
+    // A database as the server left it before live tracks, with an account.
+    let old = look(&url).await;
+    for migration in [
+        include_str!("../migrations/0001_stations_observations_runs.sql"),
+        include_str!("../migrations/0002_accounts_sessions_flights.sql"),
+        include_str!("../migrations/0003_airspace.sql"),
+        include_str!("../migrations/0004_airspace_coverage.sql"),
+        include_str!("../migrations/0005_sites.sql"),
+        include_str!("../migrations/0006_forecast_models.sql"),
+    ] {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f');
+         INSERT INTO accounts (id, handle, display_name, created_at)
+             VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let dario = store.account("dario").await.unwrap().unwrap();
+    assert_eq!(
+        dario.display_name, "Dario B.",
+        "what was there is still there"
+    );
+    // The account can share a live track at once.
+    let time = chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap();
+    let batch = venti_store::LiveBatch {
+        id: "0000000000000000000000live".to_owned(),
+        account_id: dario.id,
+        visibility: venti_store::LiveVisibility::Public,
+        landed: false,
+        fixes: vec![venti_store::LiveFix {
+            time,
+            position: venti_domain::GeoPoint::new(47.66, 11.8).unwrap(),
+            altitude_m: 1600,
+            ground_speed_ms: None,
+            climb_ms: None,
+            course_deg: None,
+        }],
+    };
+    let room = venti_store::LiveRoom {
+        fixes_per_track: 10,
+        may_create: true,
+        expired_before: time,
+        now: time,
+    };
+    let saved = store.save_live_fixes(&batch, &room).await.unwrap();
+    assert!(matches!(saved, venti_store::LiveSaved::Kept(kept) if kept.created));
+}
+
+#[tokio::test]
+async fn the_questions_about_live_tracks_use_their_indexes() {
+    let Some(url) = fresh_schema("live_indexes").await else {
+        return;
+    };
+    PgStore::connect(&url).await.unwrap();
+    let tables = look(&url).await;
+    // As for airspace: with empty tables the planner would read them from
+    // end to end; forbidding that shows whether an index can answer.
+    tables
+        .batch_execute("SET enable_seqscan = off")
+        .await
+        .unwrap();
+    let plan_of = |query: &'static str| {
+        let tables = &tables;
+        async move {
+            let plan = tables.query(query, &[]).await.unwrap();
+            let plan: Vec<String> = plan.iter().map(|row| row.get(0)).collect();
+            plan.join("\n")
+        }
+    };
+
+    // The store's own questions, with their parameters written in. The
+    // public tracks that had a fix lately, which are few and are sorted
+    // once found:
+    let plan = plan_of(
+        "EXPLAIN SELECT t.id FROM live_tracks t JOIN accounts a ON a.id = t.account_id
+         WHERE t.visibility = 'public' AND t.last_at >= '2026-11-18 18:35+00'
+           AND t.last_lon BETWEEN 11.0 AND 12.0 AND t.last_lat BETWEEN 47.0 AND 48.0
+         ORDER BY t.id LIMIT 1001",
+    )
+    .await;
+    assert!(plan.contains("live_tracks_public_idx"), "{plan}");
+    // The tracks that ended long ago:
+    let plan =
+        plan_of("EXPLAIN DELETE FROM live_tracks WHERE last_at < '2026-11-16 19:05+00'").await;
+    assert!(plan.contains("live_tracks_last_idx"), "{plan}");
+
+    // A track has tens of thousands of fixes, and its questions ask for a
+    // few of them in an order. With nothing to sort the planner would as
+    // soon sort as read in order; forbidding that too shows whether an
+    // index hands the fixes out in the order asked for.
+    tables
+        .batch_execute("SET enable_sort = off; SET enable_bitmapscan = off")
+        .await
+        .unwrap();
+    // What arrived for a track after a number:
+    let plan = plan_of(
+        "EXPLAIN SELECT f.seq FROM live_fixes f
+         WHERE f.track = (SELECT key FROM live_tracks WHERE id = '0000000000000000000000live')
+           AND f.seq > 1200 AND (NULL::timestamptz IS NULL OR f.time > NULL)
+         ORDER BY f.seq LIMIT 5001",
+    )
+    .await;
+    assert!(plan.contains("live_fixes_seq_idx"), "{plan}");
+    assert!(!plan.contains("Sort"), "{plan}");
+    // The end of a track:
+    let plan = plan_of(
+        "EXPLAIN SELECT f.seq FROM live_fixes f
+         WHERE f.track = (SELECT key FROM live_tracks WHERE id = '0000000000000000000000live')
+         ORDER BY f.time DESC LIMIT 2000",
+    )
+    .await;
+    assert!(plan.contains("live_fixes_pkey"), "{plan}");
+    assert!(!plan.contains("Sort"), "{plan}");
 }
 
 #[tokio::test]

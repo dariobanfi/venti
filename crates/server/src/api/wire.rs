@@ -1,7 +1,9 @@
 //! From the store's records to the API's wire format.
 
 use venti_api_types::v1;
-use venti_store::{Account, Flight, Place, ScoreKind, Session, Visibility};
+use venti_store::{
+    Account, Flight, LiveFix, LiveTrack, LiveVisibility, Place, ScoreKind, Session, Visibility,
+};
 
 use super::error::ApiError;
 use super::log::Sparse;
@@ -110,4 +112,53 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
 
 pub(crate) fn flights(flights: &[Flight]) -> Result<Vec<v1::Flight>, ApiError> {
     flights.iter().map(flight).collect()
+}
+
+pub(crate) fn live_visibility(visibility: LiveVisibility) -> v1::LiveVisibility {
+    match visibility {
+        LiveVisibility::Link => v1::LiveVisibility::Link,
+        LiveVisibility::Public => v1::LiveVisibility::Public,
+    }
+}
+
+/// The store's setting for one a client sent. `None` for a setting this
+/// server does not know.
+pub(crate) fn stored_live_visibility(visibility: v1::LiveVisibility) -> Option<LiveVisibility> {
+    match visibility {
+        v1::LiveVisibility::Link => Some(LiveVisibility::Link),
+        v1::LiveVisibility::Public => Some(LiveVisibility::Public),
+        v1::LiveVisibility::Unknown => None,
+    }
+}
+
+pub(crate) fn live_fix(fix: &LiveFix) -> v1::LiveFix {
+    v1::LiveFix {
+        time: fix.time,
+        position: fix.position,
+        altitude_m: fix.altitude_m,
+        ground_speed_ms: fix.ground_speed_ms,
+        climb_ms: fix.climb_ms,
+        course_deg: fix.course_deg,
+    }
+}
+
+/// A live track as the API shows it, on a server that keeps one for
+/// `retention` after its newest fix.
+pub(crate) fn live_track(
+    track: &LiveTrack,
+    retention: chrono::Duration,
+) -> Result<v1::LiveTrack, ApiError> {
+    Ok(v1::LiveTrack {
+        id: track
+            .id
+            .parse()
+            .map_err(|e| damaged("live track identifier", e))?,
+        pilot: pilot(&track.pilot_handle, &track.pilot_name)?,
+        visibility: live_visibility(track.visibility),
+        landed: track.landed,
+        started_at: track.started_at,
+        latest: live_fix(&track.latest),
+        fixes: track.fixes,
+        expires_at: track.latest.time + retention,
+    })
 }

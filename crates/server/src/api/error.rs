@@ -181,13 +181,17 @@ impl From<NoRandomness> for ApiError {
 }
 
 /// Answers every path the API does not have.
+///
+/// The path is repeated as the log would hold it: a path under a live
+/// track is repeated without the track's identifier, because an error
+/// message travels further than the request that caused it.
 pub(crate) async fn not_found(uri: Uri) -> ApiError {
     ApiError::missing(
         ErrorCode::NotFound,
         format!(
             "{} is not part of the API; docs/api.md lists the endpoints, \
              which all start with /v1",
-            uri.path()
+            super::log::logged_path(uri.path())
         ),
     )
 }

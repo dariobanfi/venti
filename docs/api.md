@@ -2,12 +2,13 @@
 
 Last revised: 2026-11-19
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, and for live tracks. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
-Everything here is version 1. It has two parts:
+Everything here is version 1. It has three parts:
 
 - **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), and [the page a shared flight has](#the-page-a-shared-flight-has).
+- **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 
 ## Try it
 
@@ -26,13 +27,32 @@ It also starts with one account, so that an app can be built and tested against 
 | Password | `demo-pilot-password` |
 | A session token that always works | `venti_0000000000000000000000000000000000000000000000000000` |
 | Flights | Three made-up ones: one public (2026-08-15, it lands), one unlisted (2026-07-04, the sample file the apps bundle; its recording ends in the air), one private (2025-06-21, a short one) |
+| Live tracks | Three, made from the sample flight and dated by this mode's clock; see the table below |
 
 ```bash
 curl http://127.0.0.1:8080/v1/flights \
   -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
 ```
 
-None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. Whatever a client changes is forgotten when the program stops. The addresses of the demo flights are the same on every start.
+The demo account's [live tracks](#live-tracks) are over the Tegernsee valley, where the sample flight is. Their times are fixed against this mode's clock, which stands at 19:05:00 UTC on 2026-11-18, so an app that works out "how old is this position" against the server's clock always gets the same answer:
+
+| Identifier | Who sees it | What it is |
+|---|---|---|
+| `11111111111111111111111111` | `public` | A glider in the air: the first twenty minutes of the sample flight, 1,201 fixes, one a second from 18:44:56 to 19:04:56 UTC. The newest position is 4 seconds old: 47.6638° N, 11.7432° E at 1,596 m, on a glide towards north-north-east |
+| `22222222222222222222222222` | `public` | A glider that landed 9 minutes ago: the last ten minutes of the sample flight and a minute standing on the ground, 660 fixes from 18:45:01 to 18:56:00 UTC, `landed`. It stands at 47.6922° N, 11.7675° E at 786 m |
+| `33333333333333333333333333` | `link` | A glider in the air that only those with the link see: the first seven minutes of the sample flight, 421 fixes from 18:57:40 to 19:04:40 UTC. The newest position is 20 seconds old. It is in no list |
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live?bbox=11.6,47.55,12.0,47.85'      # the two public ones
+curl http://127.0.0.1:8080/v1/live/33333333333333333333333333          # the one shared by link
+curl http://127.0.0.1:8080/live/11111111111111111111111111             # the page a link shows; better in a browser
+```
+
+Every fix of these tracks but the first of each says how fast the glider moved, how fast it climbed and where it was heading; the first says only where it was, and a glider that stands still has no heading. That is what a real app sends too.
+
+None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. Whatever a client changes is forgotten when the program stops. The addresses of the demo flights and the identifiers of the demo live tracks are the same on every start.
+
+Because its clock stands still, this mode takes live fixes of **any time**, where a real server refuses those from the future and those more than 12 hours old, and it never treats a track as too old to read or to add to. An app under test can therefore send the fixes of a replayed flight of last summer, or of its own clock. Two things stay as on a real server: an answer says when a track would be removed (`expires_at`), and the list of public tracks holds a track only while its newest fix is no older than half an hour by this mode's clock. A track sent with the times of a replayed flight is thus read by its identifier and is not on the list.
 
 ## Rules that hold for every endpoint
 
@@ -55,11 +75,11 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB. A live track of twenty minutes at a fix a second is 204 kB and 28 kB.
 
-**Bodies.** A request that carries JSON says so: `Content-Type: application/json`, with or without a character set. Anything else, and no type at all, is answered `415` with `unsupported_media_type` before the body is looked at. The one request whose body is not JSON is the upload of a flight file, which takes any type. The rule is what keeps a page on another site from sending sign-in or registration attempts through a visitor's browser: a browser sends a body typed `text/plain` anywhere without asking, and asks the server first before it sends one typed `application/json`.
+**Bodies.** A request that carries JSON says so: `Content-Type: application/json`, with or without a character set. Anything else, and no type at all, is answered `415` with `unsupported_media_type` before the body is looked at. The one request whose body is not JSON is the upload of a flight file, which takes any type. A JSON body may be 16 kB, and one that carries the fixes of a live track 32 kB; a larger one is answered `413` and not read. The rule is what keeps a page on another site from sending sign-in or registration attempts through a visitor's browser: a browser sends a body typed `text/plain` anywhere without asking, and asks the server first before it sends one typed `application/json`.
 
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
@@ -82,28 +102,35 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `box_too_large` | The box holds more airspaces, or more flying sites, than one answer carries. Ask for smaller boxes |
 | 400 | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
-| 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time |
+| 400 | `invalid_time` | `from`, `to` or `after` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window is longer than seven days |
 | 400 | `invalid_request` | The request could not be read at all: a path that is not valid UTF-8, a body that is not the JSON the endpoint expects. For a body, `message` says where it stops making sense and never repeats what stands there |
 | 400 | `invalid_handle`, `invalid_display_name`, `invalid_password` | A new account's handle, name or password is not as [described](#accounts-and-sessions) |
-| 400 | `invalid_visibility` | `visibility` is not `private`, `unlisted` or `public` |
-| 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100 |
+| 400 | `invalid_visibility` | `visibility` is not `private`, `unlisted` or `public`; for a live track, not `link` or `public` |
+| 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
+| 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
+| 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
 | 401 | `unauthorized` | The request needs an account and carries no valid session token. The answer has `WWW-Authenticate: Bearer` |
 | 401 | `invalid_credentials` | Signing in: the handle or the password is wrong |
 | 403 | `wrong_password` | The password sent to confirm a change to the account is wrong |
 | 403 | `registration_closed`, `invalid_invite` | The server takes no new accounts, or takes them by invite and the code is not good |
 | 403 | `account_full` | An upload: the account keeps as many flights, or as many megabytes of flight files, as the server gives one account room for |
+| 403 | `live_track_full` | The live track holds as many fixes as one track may. Begin a new track with a new identifier |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
+| 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
-| 413 | `payload_too_large` | The request carried a body of more than 16 kB, or a flight file of more than 4 MB |
+| 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
+| 410 | `live_track_gone` | Fixes were sent under an identifier whose live track was deleted or removed, or that was taken out of use. An identifier is used once: begin a new track with a new one |
+| 413 | `payload_too_large` | The request carried a body of more than 16 kB, a batch of live fixes of more than 32 kB, or a flight file of more than 4 MB |
 | 415 | `unsupported_media_type` | A request whose body is JSON did not say so with `Content-Type: application/json` |
 | 422 | `invalid_flight` | The uploaded file is not a flight file the server can use |
+| 422 | `fixes_out_of_time` | None of the live fixes sent has a time the server takes: all lie in the future, or are too old. The device's clock is probably wrong; `message` says what the server's shows |
 | 429 | `rate_limited` | Too many attempts. `Retry-After` says when to try again |
 | 501 | `no_forecasts` | The server has no forecast service. Asking again does not help |
 | 503 | `unavailable` | The server cannot reach its database, is too busy for this request, or has no forecast for a place at hand and cannot fetch one now. `Retry-After` says when to try again |
@@ -1193,11 +1220,11 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
-Deletes the account with everything that belongs to it: its sessions, its flights and their files. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
+Deletes the account with everything that belongs to it: its sessions, its flights and their files, and its live tracks with their positions. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
 
-Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup).
+Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup.
 
 ## Flights
 
@@ -1614,6 +1641,384 @@ Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`,
 
 A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart.
 
+## Live tracks
+
+A signed-in pilot can let other people see where the glider is while it flies: the people who were given a link, or everyone who looks at this server's map. Nothing is shared unless the pilot's app sends it, and an app sends it only for a flight the pilot switched it on for. The app sends the glider's positions in small batches; the server keeps them as a **live track**, hands them to whoever may see it, and removes the track 48 hours after its newest position.
+
+A live track is not a flight. It never reaches the logbook by itself: the logbook's flight is the file the recorder wrote, which the app uploads with `POST /v1/flights` when the pilot wants it kept.
+
+**The identifier.** A live track is known by an `id` that the app makes itself, before it sends the first fix: 26 characters, each drawn at random from `0123456789abcdefghjkmnpqrstvwxyz` with the system's source of random numbers for secrets, which is 130 random bits (`LiveTrackId::from_random` in `venti-api-types` turns 26 random bytes into one). The app makes it, and not the server, for two reasons: a batch sent again after a lost answer adds nothing twice, and the pilot can hand the link on before the first answer has come back through a bad network. Three things follow.
+
+- **Whoever has the identifier can see the track**, with or without an account. For a track shared by link it is the only key. Treat it like one: it belongs in no log, no crash report and no analytics. The server keeps it out of its own log and out of every error message.
+- **An identifier is used once.** One account begins a track under it; nobody else can send under it (`409` with `live_track_taken`). Once the track is deleted or removed, the identifier takes nothing more, from anyone (`410` with `live_track_gone`). A new flight gets a new identifier.
+- The link to share is the server's public address followed by `/live/` and the identifier; `venti_api_types::v1::live_page_path` builds the path, and the answer to every batch carries the whole address as `page`.
+
+**Who sees a track** is its `visibility`:
+
+| Value | Meaning |
+|---|---|
+| `link` | Whoever has the identifier, which is to say the link. The track is in no list |
+| `public` | Everyone. The track is listed by [`GET /v1/live`](#get-v1livebboxwestsoutheastnorth) for the part of the map it is in, with its pilot's handle and display name |
+
+There is no value for "nobody": a track nobody may see is one the app does not send. A client must expect further values in answers; one for followers is planned. Both kinds show the pilot's handle and display name, as a shared flight does.
+
+Making a public track `link` takes it off the list at once. It does not take it away from someone who copied its identifier while it was listed: the identifier is the key. To cut everyone off, delete the track and begin a new one.
+
+**A fix** is where the glider was at one moment:
+
+| Field | Meaning |
+|---|---|
+| `time` | When, in whole seconds: the server drops the fraction of a second. A track holds one fix for a second; of two for the same second the first one received stays |
+| `position` | Latitude and longitude |
+| `altitude_m` | Metres above mean sea level, as the cockpit shows it. A whole number, from -1000 to 20000 |
+| `ground_speed_ms` | Speed over the ground, m/s, from 0 to 150. May be left out |
+| `climb_ms` | Climb rate, m/s, negative when sinking, from -100 to 100. May be left out |
+| `course_deg` | The direction the glider moves in over the ground, degrees clockwise from true north, from 0 to 360. May be left out; a glider that stands still has none |
+
+**When a track ends.** The server never decides that a glider has landed.
+
+- The app says so: `landed` is `true`. A track that says landed and then gets a newer fix that says otherwise is under way again: a pilot who top-lands and flies on is flying.
+- Nothing arrives. A track whose newest fix is more than 30 minutes old has gone quiet: it leaves the list of public tracks, and by its identifier it is still there, with the age of its last position for everyone to see. That is all the server knows. Quiet means no network or an empty battery far more often than anything else, and a client must never show it as a landing. `venti_api_types::v1::LIVE_LISTED_MINUTES` is the 30.
+- Either way the track goes on when newer fixes arrive.
+- **48 hours after its newest fix a track is removed**, with every fix. From that moment it answers as if it had never been, whether or not the server has got round to deleting the rows, which it does within the hour. `expires_at` in every answer says when that moment is; each newer fix moves it. Whoever runs a server can set another number of hours (`retention.live_hours`), which `expires_at` and the page then follow.
+- The pilot can delete a track at any time, and deleting the account deletes its tracks.
+- Live tracks are not in the server's nightly backups ([deploy/README.md](../deploy/README.md#backup)): what is gone from the server after 48 hours is gone.
+
+**How an app sends.** What the server takes is in the reference below; this is what it is built for.
+
+1. When the pilot switches live tracking on for a flight, make an identifier and keep it with the flight.
+2. Record one fix a second at most, and send what has gathered every ten to fifteen seconds in one request. A track holds 43,200 fixes, which is twelve hours at one a second.
+3. Keep every fix until a request that carried it was answered `200` or `201`. Then drop it, whatever the counts in the answer say: what the server refused it will refuse again.
+4. After a gap in the network, send the **newest** fixes first, so that those who watch see where the glider is, and then the fixes of the gap, in requests of at most 120 fixes. Fixes may arrive in any order.
+5. When the glider has landed, say so with the last fixes, or by sending the newest fix once more with `landed: true`.
+6. To change who sees the track, send the new `visibility` with the next fixes. To narrow it without waiting for a fix, send the newest fix once more with `visibility: link`.
+7. `429` and `503` name a time to wait in `Retry-After`; a request that got no answer at all, or a `500`, is sent again as it was. `401` means that the device is signed out. Every other error is final for that request: `400`, `413` and `415` are faults in the app, `422` with `fixes_out_of_time` means that the device's clock is wrong, and `403`, `409` and `410` mean that this identifier takes no more. The flight then goes on under a new identifier, unless the `410` is the answer to the pilot's own deletion.
+
+**How an app follows a track.** Ask for it once, and then for what arrived since:
+
+1. `GET /v1/live/{id}`. While `more` is `true`, ask again at once with `since` set to the `cursor` of the answer before.
+2. From then on ask every five to ten seconds with `since` set to the last `cursor`, and with `If-None-Match` set to the `ETag` of the last answer to that same address. While nothing changes the answer is `304` with no body, which costs the server one small read.
+3. Put the fixes of every answer together with the ones held and sort them by `time`: fixes that arrived late lie before others in time, and they are handed out all the same, because `since` goes by arrival and not by time.
+4. `track.latest` is the newest position, in every answer. Work out its age against the `time` of the answer, which is the server's clock, and let the device's own clock run on from there until the next answer that is not a `304`.
+5. `404` means that the track is gone. Stop asking.
+
+**Who may keep an answer.** The list and a public track carry `Cache-Control: public, no-cache`, a track shared by link `private, no-cache`: an answer may be kept, and must be checked with the server before every reuse, so that a track its pilot deletes or closes is gone at once. The answer to a batch was asked with a token and is `no-store`. The page a link opens is `no-store` as well.
+
+**What one account may do.** The limits are counted in the server's memory, per account, like the uploads of flights.
+
+| Limit | Why this number |
+|---|---|
+| 300 fixes a minute, sent in whatever becomes of them. A request is taken whole while the account is under 300, so a minute can end up to one request over | Five times one fix a second: ten minutes of fixes that waited for the network are sent in two and a half minutes beside the new ones. Then `429` with `rate_limited`; `Retry-After` is at most 60 |
+| 30 live tracks a day, counting identifiers taken out of use without a track | More flights than a day of flying holds, tandem flights included (an estimate), and what bounds how many gliders one account can put on everyone's map. Then `429`; tracks that exist go on |
+| 43,200 fixes in one track | Twelve hours at one a second. Then `403` with `live_track_full`; the flight goes on under a new identifier |
+| 120 fixes and 32 kB in one request | Two minutes at one a second. More fixes are `400` with `invalid_fixes`, a larger body `413` |
+| Fixes no more than 2 minutes ahead of the server's clock and no more than 12 hours old | A phone that takes its time from the network is seconds off; a flight is not longer than twelve hours. Others are left out and counted in the answer |
+
+An answer about one track carries at most 5,000 fixes and the list at most 1,000 tracks. A fix costs the server 165 bytes in its database, both indexes included (measured on 2026-11-19 with PostgreSQL 16): a full track is 7 MB, and what one account can send in a day is 71 MB at 300 fixes a minute and at most 100 MB with every minute one request over, gone again two days later.
+
+### `POST /v1/live/positions`
+
+Needs a token. Adds fixes to a live track of the account, and begins the track if this is the first request for its identifier. The same request sent twice changes nothing the second time.
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/live/positions \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000' \
+  -H 'Content-Type: application/json' \
+  --data @positions.json
+```
+
+```json
+{
+  "id": "44444444444444444444444444",
+  "visibility": "link",
+  "landed": false,
+  "fixes": [
+    {
+      "time": "2026-11-18T19:04:40Z",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "altitude_m": 1620
+    },
+    {
+      "time": "2026-11-18T19:04:50Z",
+      "position": {
+        "lat": 47.6649,
+        "lon": 11.7958
+      },
+      "altitude_m": 1608,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.2,
+      "course_deg": 320.0
+    },
+    {
+      "time": "2026-11-18T19:05:00Z",
+      "position": {
+        "lat": 47.6656,
+        "lon": 11.7949
+      },
+      "altitude_m": 1596,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.2,
+      "course_deg": 320.0
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | The track's identifier, which the app made; see above |
+| `visibility` | Who may see the track: `link` or `public` |
+| `landed` | Whether the glider has landed. Left out means `false` |
+| `fixes` | The fixes, oldest first: at least one, at most 120. A request whose fixes are not in that order is refused whole; fixes with the same second are not an error |
+
+`visibility` and `landed` describe the track as of the newest fix of the request, and the track is what the request with the newest fix says. A request that brings a newer fix than the track had sets both. A request whose newest fix is the one the track already has can only narrow who sees the track (`public` to `link`) and can only say that the glider landed. A request of older fixes, such as one that fills a gap, changes neither. So requests may arrive in any order, and a request that was on its way for a minute does not undo what the pilot chose since.
+
+The answer is `201` when the request began the track and `200` when the track was there; `created` says which. This is the development mode's answer to the request above. Its `page` starts with the address the server was configured with (`public_url`), which here is the one the tests use; without that setting it is the address the server listens on, which nobody else can follow.
+
+```json
+{
+  "track": {
+    "id": "44444444444444444444444444",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "visibility": "link",
+    "landed": false,
+    "started_at": "2026-11-18T19:04:40Z",
+    "latest": {
+      "time": "2026-11-18T19:05:00Z",
+      "position": {
+        "lat": 47.6656,
+        "lon": 11.7949
+      },
+      "altitude_m": 1596,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.2,
+      "course_deg": 320.0
+    },
+    "fixes": 3,
+    "expires_at": "2026-11-20T19:05:00Z"
+  },
+  "page": "https://venti.example/live/44444444444444444444444444",
+  "created": true,
+  "stored": 3,
+  "known": 0,
+  "refused_future": 0,
+  "refused_old": 0,
+  "refused_full": 0
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `track` | The track as it now is; see [`GET /v1/live/{id}`](#get-v1liveidsinceafterlimit) |
+| `page` | The address of [the page to share](#the-page-a-live-track-has) |
+| `created` | `true` when this request began the track |
+| `stored` | Fixes this request added |
+| `known` | Fixes the track already held, or that had the same second as an earlier fix of the request. Nothing changed for them. A request that is sent twice gets all of its fixes back as `known` |
+| `refused_future` | Fixes left out because their time lies more than two minutes ahead of the server's clock |
+| `refused_old` | Fixes left out because they are more than twelve hours old |
+| `refused_full` | Fixes left out because the track holds as many as a track may. The oldest new fixes are taken while there is room |
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_live_track_id` | `id` is not 26 characters of the alphabet above |
+| 400 | `invalid_visibility` | `visibility` is not `link` or `public` |
+| 400 | `invalid_fixes` | No fix, more than 120, a fix older than the one before it, or a value outside what the table of a fix allows. `message` says which fix by its place in the request, counted from one, and which value, and never the value |
+| 400 | `invalid_request` | The body is not JSON of this shape. A position that is not a place on the globe, an altitude with a fraction and a time that is not a time end here |
+| 403 | `live_track_full` | The track holds 43,200 fixes and none of the request's new ones fits |
+| 409 | `live_track_taken` | The identifier is that of another account's track |
+| 410 | `live_track_gone` | The identifier's track was deleted, was removed 48 hours after its newest fix, or the identifier was taken out of use before a track began |
+| 413 | `payload_too_large` | The body is larger than 32 kB |
+| 422 | `fixes_out_of_time` | Every fix of the request was left out for its time. `message` says how many lie in the future and how many are too old, and what the server's clock shows |
+| 429 | `rate_limited` | The account has sent 300 fixes within a minute, or has begun 30 live tracks within a day. `Retry-After` says when to try again |
+
+### `GET /v1/live?bbox=west,south,east,north`
+
+Who is in the air: the public tracks whose newest fix lies inside a box and is no older than 30 minutes. Anyone may ask, and the answer is the same for everyone. A track shared by link is never in it.
+
+`bbox` is required, as for [stations](#get-v1stationsbboxwestsoutheastnorth). A track is listed by where its newest fix is, not by where it has been.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live?bbox=11.6,47.55,12.0,47.85'
+```
+
+```json
+{
+  "time": "2026-11-18T19:05:00Z",
+  "tracks": [
+    {
+      "id": "11111111111111111111111111",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "landed": false,
+      "started_at": "2026-11-18T18:44:56Z",
+      "latest": {
+        "time": "2026-11-18T19:04:56Z",
+        "position": {
+          "lat": 47.663773253525605,
+          "lon": 11.743167672151715
+        },
+        "altitude_m": 1596,
+        "ground_speed_ms": 10.5,
+        "climb_ms": -1.0,
+        "course_deg": 20.0
+      },
+      "fixes": 1201,
+      "expires_at": "2026-11-20T19:04:56Z"
+    },
+    {
+      "id": "22222222222222222222222222",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "landed": true,
+      "started_at": "2026-11-18T18:45:01Z",
+      "latest": {
+        "time": "2026-11-18T18:56:00Z",
+        "position": {
+          "lat": 47.692168145789914,
+          "lon": 11.767486837376403
+        },
+        "altitude_m": 786,
+        "ground_speed_ms": 0.0,
+        "climb_ms": 0.0
+      },
+      "fixes": 660,
+      "expires_at": "2026-11-20T18:56:00Z"
+    }
+  ],
+  "truncated": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's clock when it wrote the answer. Work out the age of a position against this, not against the device's clock. An answer of `304` does not renew it |
+| `tracks` | The tracks, sorted by identifier; each as [`GET /v1/live/{id}`](#get-v1liveidsinceafterlimit) shows it. A track that has landed stays on the list until its newest fix is 30 minutes old, with `landed` set |
+| `truncated` | `true` when the box holds more than 1,000 tracks. The answer then lists the first 1,000 by identifier, which is a chance selection; ask for a smaller box |
+
+An app that draws the list asks again every ten to fifteen seconds for the part of the map in view, with `If-None-Match`. The answer's `ETag` covers the tracks and not `time`: while no track in the box has changed, the answer is `304`.
+
+### `GET /v1/live/{id}?since=&after=&limit=`
+
+One track and its fixes, for whoever knows its identifier: no token is needed, and the answer is the same with one. It makes no difference whether the track is `public` or `link`.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `since` | The `cursor` of an earlier answer about this track: only fixes that **arrived** after that answer are returned | Every fix |
+| `after` | An RFC 3339 time: only fixes whose **time** is later are returned. For an app that draws only the last minutes of each glider on a map | No bound |
+| `limit` | How many fixes to return, 1 to 5000 | 5000 |
+
+The two differ when fixes arrive late. `since` never misses a fix, whatever its time; `after` leaves out everything before a moment, also what arrives later for the time before it. They can be used together.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live/11111111111111111111111111?after=2026-11-18T19:04:53Z'
+```
+
+```json
+{
+  "time": "2026-11-18T19:05:00Z",
+  "track": {
+    "id": "11111111111111111111111111",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "visibility": "public",
+    "landed": false,
+    "started_at": "2026-11-18T18:44:56Z",
+    "latest": {
+      "time": "2026-11-18T19:04:56Z",
+      "position": {
+        "lat": 47.663773253525605,
+        "lon": 11.743167672151715
+      },
+      "altitude_m": 1596,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.0,
+      "course_deg": 20.0
+    },
+    "fixes": 1201,
+    "expires_at": "2026-11-20T19:04:56Z"
+  },
+  "fixes": [
+    {
+      "time": "2026-11-18T19:04:54Z",
+      "position": {
+        "lat": 47.663595785448955,
+        "lon": 11.743071761920355
+      },
+      "altitude_m": 1598,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.0,
+      "course_deg": 20.0
+    },
+    {
+      "time": "2026-11-18T19:04:55Z",
+      "position": {
+        "lat": 47.66368451948728,
+        "lon": 11.743119717036036
+      },
+      "altitude_m": 1597,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.0,
+      "course_deg": 20.0
+    },
+    {
+      "time": "2026-11-18T19:04:56Z",
+      "position": {
+        "lat": 47.663773253525605,
+        "lon": 11.743167672151715
+      },
+      "altitude_m": 1596,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.0,
+      "course_deg": 20.0
+    }
+  ],
+  "cursor": "1201",
+  "more": false,
+  "reset": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's clock when it wrote the answer; see the list above |
+| `track.id` | The track's identifier |
+| `track.pilot` | Handle and display name of the pilot |
+| `track.visibility` | Who may see the track |
+| `track.landed` | Whether the app has said that the glider landed |
+| `track.started_at` | When the track began: the time of its oldest fix. It moves back when older fixes arrive late |
+| `track.latest` | The newest fix: where the glider is, or was last heard of |
+| `track.fixes` | How many fixes the track holds |
+| `track.expires_at` | When the server removes the track, unless a newer fix arrives first: 48 hours after `latest.time` |
+| `fixes` | The fixes asked for, in the order in which the server received them. That is the order of their times except where fixes arrived late: sort by `time` before drawing |
+| `cursor` | Pass this as `since` next time. Treat it as an opaque value |
+| `more` | `true` when more fixes are waiting than `limit` allowed: ask again with `cursor` at once |
+| `reset` | `true` when the server did not know the `since` it was given and started again from the track's first fix. Drop the fixes held for the track and keep the ones of this answer |
+
+A track that does not exist, one its pilot deleted and one that was removed for its age all get `404` with `live_track_not_found`, the same in every detail; so does text that has not the form of an identifier. A `since` that is not a whole number from zero up gives `400` with `invalid_cursor`, an `after` that is not a time `invalid_time`, a `limit` outside 1 to 5000 `invalid_limit`.
+
+### `DELETE /v1/live/{id}`
+
+Needs a token. Deletes a live track of the account with all its fixes, at once and for good, and takes its identifier out of use. The answer is `204` with no body.
+
+- Deleting again is `204` again: an app whose first answer was lost can ask twice.
+- Fixes that arrive afterwards under the identifier are refused with `410`, also fixes that were sent before the deletion and were held up on the way. A deleted track does not come back.
+- That holds for a track that never began as well. An app that deletes an identifier whose first fixes have not arrived yet, because the pilot switched live tracking off again at once, gets `204`, and the fixes begin nothing when they arrive. The server has to remember such an identifier, so this counts as one of the account's 30 live tracks a day, and is answered `429` when those are used up.
+- A track of another pilot is no track of this account, whoever may see it: `404` with `live_track_not_found`.
+
 ## The page a shared flight has
 
 These two addresses are not part of `/v1`. They answer browsers and the preview fetchers of chat apps, which send no token, so they show public and unlisted flights only. A private flight and an address that belongs to no flight get the same `404` page.
@@ -1627,6 +2032,29 @@ A share link is the server's public address followed by `/f/` and the flight's `
 
 The links inside the page start with the address the server was configured with (`public_url`). On a server where that is not set they point at the address it listens on, which a chat app cannot follow.
 
+## The page a live track has
+
+`/live/{id}` is what a link to a live track opens, for people without the app: someone at home, or whoever drives out to fetch the pilot. Like the page of a shared flight it is not part of `/v1`, it asks for no token, and it answers HTML also when something is wrong. It shows any track whose identifier is in its address, `public` or `link`. An identifier that leads to no track, text that is no identifier, a deleted track and one removed for its age all get the same `404` page.
+
+The page says in words, with no script:
+
+- whose track it is: the pilot's display name and handle;
+- how the track stands. "… is under way" while fixes arrive and no landing was reported; "… has landed" once the app has said so; "… was last heard of 40 minutes ago" when no landing was reported and the newest position is more than 30 minutes old, with a sentence that says that this is what a phone without a network or with an empty battery looks like, and that it does not say what happened. Silence is never called a landing;
+- where the glider is: latitude and longitude, and the time of that position;
+- how old that position is, as of the moment the page was made, which the page states;
+- the altitude above sea level, and the speed over the ground, the climb and the heading where the app sent them;
+- when the track began, how many positions it holds, who can see it, and for how long the server keeps a track.
+
+Below the numbers it draws the end of the track as a line seen from above, north up: the newest 1,800 fixes, which is half an hour at one a second, with a filled dot at the newest position. There is no map under the line.
+
+**It loads itself again.** A page without a script cannot fetch the next position, so it asks the browser to load it again: every 15 seconds while the track is under way, every 60 once it has landed or gone quiet. A link on the page stops that (`/live/{id}?renew=off`), for readers whom a page that reloads disturbs, and another starts it again.
+
+**What a chat app keeps of the link** is the title "Live track of" and the pilot's name, and one sentence that says what the page is. No position, no altitude, no time and no "in the air": a chat keeps its preview for good, and none of those would be true a minute later. For the same reason the page has no preview picture.
+
+**Headers.** `Cache-Control: no-store`: the page says how old a position is, and no copy of it may be handed out later. `X-Robots-Tag: noindex` and the same in the page, also for a public track: where a person is right now is nothing for a search engine. `Referrer-Policy: same-origin`, because the address is the key to the track. A content security policy that allows the page its own style and nothing else: no script, no frame, no form, no request to anywhere.
+
+What is left to build: a map under the line, and one that moves without the page being loaded again. Both need a script and map tiles, and belong to the web app, which the page will link to once the web app shows live tracks.
+
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecast maps, pages about a site with its rules and webcams, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)), and a way to report a track or to take one down, which a server that lets strangers register needs before it lets them put gliders on everyone's map. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

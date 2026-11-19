@@ -504,7 +504,7 @@ No webcam network in the region has an open licence. Webcams are **link only**: 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
 | Open Glider Network | One feed carrying FLARM, FANET, SafeSky, PureTrack, satellite trackers and others | ODbL; honour opt-outs; nothing older than 24 hours | Open |
-| Our own apps | Positions from pilots flying with the app | Ours | |
+| Our own apps | Positions from pilots flying with the app | Ours | The server takes and serves them since 2026-11-19 ([api.md](api.md#live-tracks)); no app sends them yet. They are a pilot's own data and no source: no adapter, no manifest, and they are never stored or served mixed with the positions of the sources in this table |
 | SPOT, Garmin inReach | Per-pilot share feeds that the pilot links to their account | Per pilot | Open |
 | FlyXC | Open-source tracker aggregator (MIT) | | Reference implementation |
 | XContest Live, SafeSky direct, PureTrack direct | | Closed or per-user | Skip |

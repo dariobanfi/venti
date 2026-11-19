@@ -13,9 +13,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Visibility,
+    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
+    StoreError, Visibility,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -251,6 +252,51 @@ impl Store for TroubledStore {
     }
 
     async fn set_derived(&self, _: &str, _: &Derived, _: Timestamp) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_live_fixes(&self, _: &LiveBatch, _: &LiveRoom) -> Result<LiveSaved, StoreError> {
+        self.fail().await
+    }
+
+    async fn live_track(&self, _: &str) -> Result<Option<LiveTrack>, StoreError> {
+        self.fail().await
+    }
+
+    async fn live_fixes(
+        &self,
+        _: &str,
+        _: i64,
+        _: Option<Timestamp>,
+        _: usize,
+    ) -> Result<Vec<LiveFixAt>, StoreError> {
+        self.fail().await
+    }
+
+    async fn live_tail(&self, _: &str, _: usize) -> Result<Vec<LiveFix>, StoreError> {
+        self.fail().await
+    }
+
+    async fn live_tracks_in(
+        &self,
+        _: &BoundingBox,
+        _: Timestamp,
+        _: usize,
+    ) -> Result<Vec<LiveTrack>, StoreError> {
+        self.fail().await
+    }
+
+    async fn delete_live_track(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+        _: bool,
+    ) -> Result<LiveRemoval, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_live_tracks(&self, _: Timestamp, _: Timestamp) -> Result<u64, StoreError> {
         self.fail().await
     }
 }

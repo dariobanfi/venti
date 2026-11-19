@@ -22,6 +22,10 @@
 //! | [`flight_path`] | PATCH | [`UpdateFlightRequest`] | [`FlightResponse`] |
 //! | [`flight_file_path`] | GET | | the flight file |
 //! | [`pilot_path`] | GET | [`PilotRequest`] | [`PilotResponse`] |
+//! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
+//! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
+//! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
+//! | [`live_track_path`] | DELETE | | nothing |
 //!
 //! A request that cannot be answered gets an [`ErrorResponse`] with a 4xx or
 //! 5xx status.
@@ -31,7 +35,8 @@
 //! none.
 //!
 //! Beside the API the server answers [`share_path`], a page about one
-//! flight for people and for the previews that chat apps make of a link.
+//! flight for people and for the previews that chat apps make of a link,
+//! and [`live_page_path`], a page about one live track.
 //!
 //! Units and conventions are those of `venti-domain`: UTC, WGS84 degrees,
 //! metres above mean sea level, metres per second, and wind direction as the
@@ -44,6 +49,7 @@ mod error;
 mod flights;
 mod forecast;
 mod health;
+mod live;
 mod observations;
 mod request;
 mod sites;
@@ -68,14 +74,20 @@ pub use health::{
     ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
     RegistrationMode, SourceHealth,
 };
+pub use live::{
+    LIVE_LISTED_MINUTES, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack,
+    LiveTrackId, LiveTrackIdError, LiveTrackResponse, LiveTracksResponse, LiveVisibility,
+    MAX_LIVE_BATCH_FIXES, MAX_LIVE_BODY_BYTES, MAX_LIVE_FIXES, MAX_LIVE_TRACKS,
+};
 pub use observations::{ObservationsResponse, Reading};
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightsRequest,
-    ForecastRequest, HEALTH_PATH, ObservationsRequest, PilotRequest, PositionError, SESSIONS_PATH,
-    SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError, flight_file_path,
-    flight_path, format_bbox, format_time, observations_path, parse_bbox, parse_position,
-    parse_time, pilot_path, session_path, share_image_path, share_path,
+    ForecastRequest, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest,
+    LiveTracksRequest, ObservationsRequest, PilotRequest, PositionError, SESSIONS_PATH, SITES_PATH,
+    STATIONS_PATH, SitesRequest, StationsRequest, TimeError, flight_file_path, flight_path,
+    format_bbox, format_time, live_page_path, live_track_path, observations_path, parse_bbox,
+    parse_position, parse_time, pilot_path, session_path, share_image_path, share_path,
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};

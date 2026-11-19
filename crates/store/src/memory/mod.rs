@@ -1,5 +1,6 @@
 mod accounts;
 mod flights;
+mod live;
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
@@ -12,9 +13,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Visibility, airspace, batch, forecast, site,
+    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
+    StoreError, Visibility, airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -42,6 +44,7 @@ struct Inner {
     forecast_models: BTreeMap<SourceId, Vec<ForecastModel>>,
     accounts: accounts::Accounts,
     flights: flights::Flights,
+    live: live::Live,
 }
 
 #[derive(Debug)]
@@ -424,6 +427,7 @@ impl Store for MemoryStore {
         let mut inner = self.lock();
         inner.accounts.delete(account_id);
         inner.flights.delete_account(account_id);
+        inner.live.delete_account(account_id);
         Ok(())
     }
 
@@ -551,5 +555,66 @@ impl Store for MemoryStore {
         Ok(inner
             .flights
             .set_derived(id, derived, now, &mut inner.accounts))
+    }
+
+    async fn save_live_fixes(
+        &self,
+        batch: &LiveBatch,
+        room: &LiveRoom,
+    ) -> Result<LiveSaved, StoreError> {
+        let inner = &mut *self.lock();
+        inner.live.save(batch, room, &inner.accounts)
+    }
+
+    async fn live_track(&self, id: &str) -> Result<Option<LiveTrack>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.live.get(id, &inner.accounts))
+    }
+
+    async fn live_fixes(
+        &self,
+        id: &str,
+        since: i64,
+        after: Option<Timestamp>,
+        limit: usize,
+    ) -> Result<Vec<LiveFixAt>, StoreError> {
+        Ok(self.lock().live.fixes(id, since, after, limit))
+    }
+
+    async fn live_tail(&self, id: &str, limit: usize) -> Result<Vec<LiveFix>, StoreError> {
+        Ok(self.lock().live.tail(id, limit))
+    }
+
+    async fn live_tracks_in(
+        &self,
+        area: &BoundingBox,
+        newest_since: Timestamp,
+        limit: usize,
+    ) -> Result<Vec<LiveTrack>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .live
+            .in_box(area, newest_since, limit, &inner.accounts))
+    }
+
+    async fn delete_live_track(
+        &self,
+        account_id: &str,
+        id: &str,
+        _now: Timestamp,
+        may_retire: bool,
+    ) -> Result<LiveRemoval, StoreError> {
+        let inner = &mut *self.lock();
+        inner
+            .live
+            .delete(account_id, id, may_retire, &inner.accounts)
+    }
+
+    async fn prune_live_tracks(
+        &self,
+        ended_before: Timestamp,
+        _now: Timestamp,
+    ) -> Result<u64, StoreError> {
+        Ok(self.lock().live.prune(ended_before))
     }
 }

@@ -39,6 +39,7 @@ mod error;
 mod flights;
 mod forecast;
 mod health;
+mod live;
 mod log;
 mod mcp;
 mod observations;
@@ -63,8 +64,8 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, SESSIONS_PATH, SITES_PATH,
-    STATIONS_PATH,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
+    MAX_LIVE_BODY_BYTES, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -160,6 +161,8 @@ pub struct Settings {
     pub password_cost: Cost,
     /// Where uploaded flight files are analysed.
     pub analyser: Analyser,
+    /// What bounds live tracking, and for how long a live track is kept.
+    pub live: crate::live::Limits,
 }
 
 /// What the request handlers work with.
@@ -199,6 +202,8 @@ pub struct Api<S> {
     /// Where forecasts come from, on a server that was told where its
     /// forecast service is.
     forecasts: Option<Arc<dyn Forecasts>>,
+    /// Live tracking: its limits, and what each account has used of them.
+    live: live::Live,
 }
 
 impl<S: Store> Api<S> {
@@ -269,6 +274,7 @@ impl<S: Store> Api<S> {
             clients: clients::ClientWatch::default(),
             limits,
             forecasts: None,
+            live: live::Live::new(settings.live, limits.watched_keys),
         }
     }
 
@@ -304,21 +310,25 @@ impl<S: Store> Api<S> {
     ///
     /// From the outside in, a request passes: the request log, response
     /// compression, CORS, a note of the address it came from ([`clients`]),
-    /// and then one of four groups of routes.
+    /// and then one of five groups of routes.
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
     ///   handler.
+    /// - The fixes of a live track: the same, with a body limit that fits
+    ///   a batch of them.
     /// - The upload of a flight file: the same, with a deadline and a body
     ///   limit that fit a file.
-    /// - The share pages: they answer people, in HTML, errors included.
+    /// - The share pages, of a flight and of a live track: they answer
+    ///   people, in HTML, errors included.
     /// - The connector: it answers assistants, in the protocol's own shape,
     ///   errors included, with a deadline and a body limit of its own.
     ///
     /// The request log names the method and the path and never a header,
     /// so no token reaches it; a password travels in a body, which is not
-    /// logged either. How much is written about requests that fail is said
-    /// in [`log`].
+    /// logged either. Of a path that names a live track it leaves the
+    /// track's identifier out. How much is written about requests that
+    /// fail is said in [`log`].
     pub fn router(mut self, cors: &Cors) -> Router {
         self.mcp = mcp::protocol(self.sources.values(), cors, &self.public_url);
         let deadline = |limit: Duration| {
@@ -358,7 +368,19 @@ impl<S: Store> Api<S> {
             )
             .route("/v1/flights/{id}/igc", get(flights::file::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
+            .route(LIVE_PATH, get(live::list::<S>))
+            .route(
+                "/v1/live/{id}",
+                get(live::show::<S>).delete(live::delete::<S>),
+            )
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
+            .layer(deadline(DEADLINE));
+
+        // The fixes of a live track: a batch is larger than the other JSON
+        // bodies may be, and far smaller than a file.
+        let positions = Router::new()
+            .route(LIVE_POSITIONS_PATH, post(live::send::<S>))
+            .layer(RequestBodyLimitLayer::new(MAX_LIVE_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
         let upload = Router::new()
@@ -372,6 +394,7 @@ impl<S: Store> Api<S> {
         let share = Router::new()
             .route("/f/{id}", get(share::page::<S>))
             .route("/f/{id}/preview.png", get(share::preview::<S>))
+            .route("/live/{id}", get(live::page::<S>))
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
@@ -389,6 +412,7 @@ impl<S: Store> Api<S> {
         let api = Arc::new(self);
         Router::new()
             .merge(ordinary)
+            .merge(positions)
             .merge(upload)
             .fallback(error::not_found)
             .layer(axum::middleware::from_fn(shape::uniform_errors))

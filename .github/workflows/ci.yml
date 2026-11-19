@@ -112,6 +112,37 @@ jobs:
           curl --silent --fail "http://127.0.0.1:8080/f/$shared" | grep --quiet 'property="og:image"'
           curl --silent --fail --output preview.png "http://127.0.0.1:8080/f/$shared/preview.png"
           file preview.png | grep 'PNG image data, 1200 x 630'
+      - name: Ask who is in the air, send a position and open a live track's page
+        run: |
+          token=venti_0000000000000000000000000000000000000000000000000000
+          live=http://127.0.0.1:8080/v1/live
+          # The demo account's live tracks: two that everyone may see, one
+          # of them landed, and one shared by link, which no list holds.
+          curl --silent --fail "$live?bbox=9.4,46.3,17.2,48.5" \
+            | jq --exit-status '[.tracks[].id] == ["11111111111111111111111111", "22222222222222222222222222"] and .tracks[1].landed'
+          curl --silent --fail "$live/33333333333333333333333333" \
+            | jq --exit-status '.track.visibility == "link" and (.fixes | length) == 421'
+          curl --silent --fail http://127.0.0.1:8080/live/11111111111111111111111111 \
+            | grep --quiet '<h1>Demo Pilot is under way</h1>'
+          # A track of our own, sent twice: the second time adds nothing.
+          track=44444444444444444444444444
+          send() {
+            curl --silent --fail --header "Authorization: Bearer $token" \
+              --header 'Content-Type: application/json' "$live/positions" \
+              --data "{\"id\":\"$track\",\"visibility\":\"link\",\"fixes\":[{\"time\":\"2026-11-18T19:05:00Z\",\"position\":{\"lat\":47.6642,\"lon\":11.7967},\"altitude_m\":1620}]}"
+          }
+          send | jq --exit-status --arg track "$track" '.created and .stored == 1 and (.page | endswith("/live/" + $track))'
+          send | jq --exit-status '(.created | not) and .stored == 0 and .known == 1'
+          # Deleted by its pilot, it is gone for everyone, and its
+          # identifier never reached the server's log.
+          status() { curl --silent --output /dev/null --write-out '%{http_code}' "$@"; }
+          test "$(status --request DELETE --header "Authorization: Bearer $token" "$live/$track")" = 204
+          test "$(status "$live/$track")" = 404
+          test "$(status "http://127.0.0.1:8080/live/$track")" = 404
+          if docker logs venti 2>&1 | grep --fixed-strings "$track"; then
+            echo "the identifier of a live track is in the server's log"
+            exit 1
+          fi
       - name: Show the server's log
         if: always()
         run: docker logs venti

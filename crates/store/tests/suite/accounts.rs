@@ -9,6 +9,9 @@ use venti_store::{
 
 use super::at;
 use super::flights::new_flight;
+use super::live::{
+    begin_live_tracks_for, has_its_live_tracks, nothing_is_left_of_the_live_tracks_of,
+};
 
 // --- Helpers -------------------------------------------------------------
 
@@ -478,6 +481,9 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
         .delete_flight(&dario.id, &deleted.id, at(13, 0))
         .await
         .unwrap();
+    // Each has a live track, and an identifier that takes nothing more.
+    begin_live_tracks_for(store, &dario).await;
+    begin_live_tracks_for(store, &anna).await;
 
     store.delete_account(&dario.id).await.unwrap();
 
@@ -504,6 +510,10 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
     assert_eq!(store.account("anna").await.unwrap(), Some(anna.clone()));
     assert_eq!(session_names(store, &anna).await, ["annas"]);
     assert!(store.flight(&annas.id).await.unwrap().is_some());
+    assert!(has_its_live_tracks(store, &anna).await);
+    // Of the deleted account's live tracks nothing is left, not even that
+    // their identifiers were used.
+    assert!(nothing_is_left_of_the_live_tracks_of(store, &dario, &anna).await);
 
     // The handle is free, the invite stays used, and deleting again is
     // harmless.

@@ -73,6 +73,23 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 
 To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
 
+### The page of a live track
+
+A pilot who shares a live track sends a link. Whoever opens it, someone at home or the driver who comes to fetch the pilot, has no app and no account, and may be worried. The page is made by the server for that reader, with no script, and reads from top to bottom as the answer to "is everything all right, and where?".
+
+- **The headline is the state, in words:** "Dario B. is under way", "Dario B. has landed", or "Dario B. was last heard of 40 minutes ago". Under it one sentence says what is known: whether a landing was reported, and how old the last position is.
+- **Silence is never a landing, and never an alarm.** A track without a position for more than half an hour says exactly that, and adds that this is what a phone without a network or with an empty battery looks like, and that it does not say what happened. "Landed" stands on the page only when the pilot's app said so.
+- **Then four numbers, set large** as on the flight page: altitude, the age of the position, speed over the ground, climb. The last two only where the app sent them.
+- **Then the line of the track**, the last half hour of it at most, north up on the tinted panel of the flight page, with a hollow dot where the line begins and a larger filled dot at the newest position. There is no map under it. Its caption says in words what it shows.
+- **Then everything else as a plain list:** the position in degrees, to copy into any map; the time of the position; the altitude above sea level; the heading in degrees and as one of eight words; whether a landing was reported; when the track began; how many positions it holds; who can see it.
+- **The age of a position is said as of the moment the page was made**, and the page says when that was, in UTC. A page cannot count on by itself without a script, so it never says "now".
+- **It loads itself again**, every 15 seconds while the track is under way and every 60 once it has landed or gone quiet, and says so, with a link that stops it. A page that reloads under a screen reader or a magnifier is a nuisance; the reader decides.
+- It follows light and dark from the visitor's system and uses the flight page's style, so the two look like one product.
+- **The preview in a chat names the pilot and nothing else:** "Live track of Dario B." A chat keeps a preview for good, and a position or "in the air" in it would be untrue a minute later. There is no preview picture for the same reason.
+- The footer says where the positions come from (the pilot's own app), and that the server keeps a live track for 48 hours after its last position and then removes it.
+
+To verify: the page is checked by tests and was looked at on 2026-11-19 in headless Chrome, at a phone's width and a desktop's, light and dark, as the development mode serves it. It has not been seen on a phone, in Safari or Firefox, or under a screen reader. Whether browsers go on loading a page again while a phone's screen is off, and how the link looks in the chat apps pilots use, is not known. It has no map under the line and no map that moves; that is for the web app.
+
 ### Account and sharing
 
 The account lives under Settings, beside the server's address, because it is optional and belongs to the server. Signing in is one form with a switch between "Sign in" and "New account"; the form says what an account does before it asks for anything, and where a password is chosen it says that a forgotten one cannot be recovered. Signed in, the screen shows how the logbook and the server stand (flights there, flights still to send, in step since when), one button to sync now, and sign out and delete.

@@ -1,0 +1,32 @@
+{
+  "track": {
+    "id": "44444444444444444444444444",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "visibility": "link",
+    "landed": false,
+    "started_at": "2026-11-18T19:04:40Z",
+    "latest": {
+      "time": "2026-11-18T19:05:00Z",
+      "position": {
+        "lat": 47.6656,
+        "lon": 11.7949
+      },
+      "altitude_m": 1596,
+      "ground_speed_ms": 10.5,
+      "climb_ms": -1.2,
+      "course_deg": 320.0
+    },
+    "fixes": 3,
+    "expires_at": "2026-11-20T19:05:00Z"
+  },
+  "page": "https://venti.example/live/44444444444444444444444444",
+  "created": true,
+  "stored": 3,
+  "known": 0,
+  "refused_future": 0,
+  "refused_old": 0,
+  "refused_full": 0
+}

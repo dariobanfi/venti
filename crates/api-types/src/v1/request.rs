@@ -6,7 +6,7 @@
 use chrono::{DateTime, SecondsFormat, Utc};
 use venti_domain::{BoundingBox, GeoError, GeoPoint, StationId, Timestamp};
 
-use super::{FlightId, Handle};
+use super::{FlightId, Handle, LiveTrackId};
 
 /// Path of the health endpoint.
 pub const HEALTH_PATH: &str = "/v1/health";
@@ -193,6 +193,69 @@ pub fn share_path(flight: &FlightId) -> String {
 /// Path of the picture that goes with a flight's share page.
 pub fn share_image_path(flight: &FlightId) -> String {
     format!("/f/{flight}/preview.png")
+}
+
+/// Path of the public live tracks in a box.
+pub const LIVE_PATH: &str = "/v1/live";
+
+/// Path that takes the fixes of a live track.
+pub const LIVE_POSITIONS_PATH: &str = "/v1/live/positions";
+
+/// Path of one live track: reading it, and deleting it.
+pub fn live_track_path(track: &LiveTrackId) -> String {
+    format!("{LIVE_PATH}/{track}")
+}
+
+/// Path of the page about one live track that is meant for sharing. Like
+/// [`share_path`] it is not part of the versioned API: it answers HTML, for
+/// people without the app.
+pub fn live_page_path(track: &LiveTrackId) -> String {
+    format!("/live/{track}")
+}
+
+/// A request for the public live tracks whose newest fix lies in a box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LiveTracksRequest {
+    /// The box to list.
+    pub bbox: BoundingBox,
+}
+
+impl LiveTracksRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        format!("{LIVE_PATH}?bbox={}", format_bbox(&self.bbox))
+    }
+}
+
+/// A request for one live track and its fixes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveTrackRequest {
+    /// The track.
+    pub id: LiveTrackId,
+    /// The `cursor` of the answer before: only fixes that arrived after
+    /// that answer are returned. `None` asks for every fix.
+    pub since: Option<String>,
+    /// Only fixes later than this moment are returned. `None` sets no
+    /// bound.
+    pub after: Option<Timestamp>,
+    /// How many fixes to return, at most
+    /// [`MAX_LIVE_FIXES`](super::MAX_LIVE_FIXES), which is also the
+    /// server's default.
+    pub limit: Option<usize>,
+}
+
+impl LiveTrackRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            live_track_path(&self.id),
+            [
+                ("since", self.since.clone()),
+                ("after", self.after.map(format_time)),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
 }
 
 /// A request for one page of the signed-in account's flights, newest first.
@@ -558,6 +621,37 @@ mod tests {
             limit: Some(5),
         };
         assert_eq!(pilot.path_and_query(), "/v1/pilots/demo?limit=5");
+    }
+
+    #[test]
+    fn live_requests_build_their_paths() {
+        let track: LiveTrackId = "0123456789abcdefghjkmnpqrs".parse().unwrap();
+        assert_eq!(
+            live_track_path(&track),
+            "/v1/live/0123456789abcdefghjkmnpqrs"
+        );
+        assert_eq!(live_page_path(&track), "/live/0123456789abcdefghjkmnpqrs");
+
+        let list = LiveTracksRequest {
+            bbox: BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap(),
+        };
+        assert_eq!(list.path_and_query(), "/v1/live?bbox=11.6,47.55,12,47.85");
+
+        let mut one = LiveTrackRequest {
+            id: track,
+            since: None,
+            after: None,
+            limit: None,
+        };
+        assert_eq!(one.path_and_query(), "/v1/live/0123456789abcdefghjkmnpqrs");
+        one.since = Some("1200".to_owned());
+        one.after = Some(evening());
+        one.limit = Some(500);
+        assert_eq!(
+            one.path_and_query(),
+            "/v1/live/0123456789abcdefghjkmnpqrs\
+             ?since=1200&after=2026-11-18T18:00:00Z&limit=500"
+        );
     }
 
     #[test]

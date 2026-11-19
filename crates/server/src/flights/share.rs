@@ -30,7 +30,7 @@ pub(super) const ACCENT_LIGHT: &str = "#6250D6";
 
 /// Text made safe to put into HTML, as content or inside a quoted
 /// attribute.
-struct Esc<'a>(&'a str);
+pub(crate) struct Esc<'a>(pub(crate) &'a str);
 
 impl fmt::Display for Esc<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -171,7 +171,7 @@ const MONTHS: [&str; 12] = [
 
 /// `4 July 2026`. The day is the day in UTC: the server does not know what
 /// time zone a flight was flown in.
-fn date(time: Timestamp) -> String {
+pub(crate) fn date(time: Timestamp) -> String {
     format!(
         "{} {} {}",
         time.day(),
@@ -199,7 +199,7 @@ fn coordinates(place: &Place) -> String {
 
 /// The page's style. There is no other style on the page: the policy below
 /// allows exactly this text and nothing a visitor or a pilot could add.
-const STYLE: &str = "
+pub(crate) const STYLE: &str = "
 :root { color-scheme: light dark; --accent: #6250D6; --quiet: #6b6b70; --line: #d9d9de; --tint: #f3f1fb; }
 @media (prefers-color-scheme: dark) {
   :root { --accent: #9085E9; --quiet: #a1a1a8; --line: #3a3a3f; --tint: #1f1d2b; }
@@ -244,13 +244,17 @@ footer { padding-top: 0.5rem; padding-bottom: 2.5rem; color: var(--quiet); font-
 /// What the page allows a browser to load and run: nothing but its own
 /// style, and pictures from this server. No script of any origin, no
 /// frames, no forms.
-pub static CONTENT_SECURITY_POLICY: LazyLock<String> = LazyLock::new(|| {
+pub static CONTENT_SECURITY_POLICY: LazyLock<String> = LazyLock::new(|| policy_for(STYLE));
+
+/// The policy of a page whose only style is `style`: that text, pictures
+/// from this server, and nothing else.
+pub(crate) fn policy_for(style: &str) -> String {
     format!(
         "default-src 'none'; style-src 'sha256-{}'; img-src 'self'; \
          base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-        base64(&Sha256::digest(STYLE.as_bytes()))
+        base64(&Sha256::digest(style.as_bytes()))
     )
-});
+}
 
 /// Standard base64, with padding.
 fn base64(bytes: &[u8]) -> String {
@@ -283,7 +287,7 @@ const PROFILE_BOX: (f64, f64) = (640.0, 180.0);
 /// Where the points of an outline fall inside a box of `width` by `height`
 /// with `margin` free on every side: the track as large as fits, centred,
 /// north up, with east and north to the same scale.
-pub(super) fn fit(outline: &[[f64; 2]], width: f64, height: f64, margin: f64) -> Vec<(f64, f64)> {
+pub(crate) fn fit(outline: &[[f64; 2]], width: f64, height: f64, margin: f64) -> Vec<(f64, f64)> {
     let Some(first) = outline.first() else {
         return Vec::new();
     };
@@ -318,7 +322,7 @@ pub(super) fn fit(outline: &[[f64; 2]], width: f64, height: f64, margin: f64) ->
         .collect()
 }
 
-fn points_attribute(points: &[(f64, f64)]) -> String {
+pub(crate) fn points_attribute(points: &[(f64, f64)]) -> String {
     let mut text = String::with_capacity(points.len() * 12);
     for (x, y) in points {
         let _ = write!(text, "{x:.1},{y:.1} ");

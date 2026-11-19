@@ -4,6 +4,7 @@ mod accounts;
 mod airspace;
 mod flights;
 mod forecasts;
+mod live;
 mod migrate;
 mod partitions;
 mod sites;
@@ -21,9 +22,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Visibility, batch,
+    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
+    StoreError, Visibility, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -678,5 +680,58 @@ impl Store for PgStore {
         now: Timestamp,
     ) -> Result<bool, StoreError> {
         flights::set_derived(&mut self.client().await?, id, derived, now).await
+    }
+
+    async fn save_live_fixes(
+        &self,
+        batch: &LiveBatch,
+        room: &LiveRoom,
+    ) -> Result<LiveSaved, StoreError> {
+        live::save(&mut self.client().await?, batch, room).await
+    }
+
+    async fn live_track(&self, id: &str) -> Result<Option<LiveTrack>, StoreError> {
+        live::get(&self.client().await?, id).await
+    }
+
+    async fn live_fixes(
+        &self,
+        id: &str,
+        since: i64,
+        after: Option<Timestamp>,
+        limit: usize,
+    ) -> Result<Vec<LiveFixAt>, StoreError> {
+        live::fixes(&self.client().await?, id, since, after, limit).await
+    }
+
+    async fn live_tail(&self, id: &str, limit: usize) -> Result<Vec<LiveFix>, StoreError> {
+        live::tail(&self.client().await?, id, limit).await
+    }
+
+    async fn live_tracks_in(
+        &self,
+        area: &BoundingBox,
+        newest_since: Timestamp,
+        limit: usize,
+    ) -> Result<Vec<LiveTrack>, StoreError> {
+        live::in_box(&self.client().await?, area, newest_since, limit).await
+    }
+
+    async fn delete_live_track(
+        &self,
+        account_id: &str,
+        id: &str,
+        now: Timestamp,
+        may_retire: bool,
+    ) -> Result<LiveRemoval, StoreError> {
+        live::delete(&mut self.client().await?, account_id, id, now, may_retire).await
+    }
+
+    async fn prune_live_tracks(
+        &self,
+        ended_before: Timestamp,
+        now: Timestamp,
+    ) -> Result<u64, StoreError> {
+        live::prune(&self.client().await?, ended_before, now).await
     }
 }

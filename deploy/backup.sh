@@ -19,6 +19,12 @@
 # dump is a complete backup, and each dump holds personal data and password
 # hashes: the backup folder is readable by its owner only.
 #
+# One thing is left out on purpose: live tracks. They are where pilots were
+# in the last two days, and the server removes each one 48 hours after its
+# flight. A dump that held them would keep them for as long as dumps are
+# kept. After a restore the tables are there and empty; a flight that is
+# under way then begins its live track anew.
+#
 # The dumps are on the same machine as the database. That protects against a
 # bad migration or a mistaken delete, not against losing the machine: copy
 # the backup folder somewhere else as well.
@@ -62,8 +68,15 @@ trap 'rm -f "$partial"' EXIT
 # needs no password: it reads everything, also what PostGIS keeps beside
 # the server's tables. The dump says who owns what, so that a restore hands
 # the server's tables back to the server's role (README.md, "Restore").
+#
+# The rows of the two tables that hold live positions are not dumped; the
+# tables themselves are, and so are the identifiers that live tracks have
+# used, which hold no position. The patterns name the tables in whatever
+# schema they are: without the `*.` a table is found only on the dumping
+# user's search path.
 docker compose exec -T db \
     pg_dump --username postgres --dbname venti --format custom \
+    --exclude-table-data='*.live_tracks' --exclude-table-data='*.live_fixes' \
     > "$partial"
 
 # A dump that pg_restore cannot list is not a backup.

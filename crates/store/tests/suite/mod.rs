@@ -4,18 +4,20 @@
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
 //! Stations and observations are below; airspace, flying sites, forecasts,
-//! accounts and flights have files of their own.
+//! accounts, flights and live tracks have files of their own.
 
 mod accounts;
 mod airspace;
 mod flights;
 mod forecasts;
+mod live;
 mod sites;
 
 pub(crate) use accounts::*;
 pub(crate) use airspace::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
+pub(crate) use live::*;
 pub(crate) use sites::*;
 
 use chrono::{Duration, TimeZone, Utc};
@@ -90,6 +92,21 @@ macro_rules! store_suite {
             change_numbers_follow_the_clock_and_never_go_back,
             a_deleted_flight_can_be_uploaded_again,
             derived_values_can_be_worked_out_again,
+            a_live_track_begins_with_its_first_fixes,
+            the_same_live_fixes_again_change_nothing,
+            live_fixes_that_arrive_late_reach_those_who_wait,
+            the_newest_fix_says_who_sees_a_live_track,
+            a_live_track_takes_no_more_fixes_than_it_has_room_for,
+            only_recent_public_live_tracks_in_the_box_are_listed,
+            a_live_track_belongs_to_the_account_that_began_it,
+            a_deleted_live_track_takes_nothing_more,
+            an_identifier_can_be_retired_before_anything_arrived,
+            a_live_track_is_begun_only_where_that_is_allowed,
+            live_tracks_that_ended_long_ago_are_removed,
+            requests_racing_for_one_live_track_begin_it_once,
+            a_deletion_and_a_first_batch_never_both_win,
+            a_bad_live_batch_is_refused_and_nothing_is_stored,
+            no_live_track_has_an_identifier_that_cannot_be_one,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

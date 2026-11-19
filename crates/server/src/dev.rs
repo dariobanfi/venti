@@ -8,8 +8,11 @@
 //! places with one, and a place anywhere in the region gets the forecast of
 //! the nearest of them, which the answer names. One account is already there, with three
 //! flights made from the sample flight; its handle, password and a session
-//! token are fixed and written down in `docs/api.md`. Client work and UI
-//! tests run against this.
+//! token are fixed and written down in `docs/api.md`. It also has three
+//! live tracks, made from the same flight and dated by this mode's clock:
+//! two that everyone may see, of a glider in the air and of one that has
+//! landed, and one for those with its link. Client work and UI tests run
+//! against this.
 //!
 //! The clock stands still at the moment of the recording, so the data never
 //! ages: `/v1/health` reports fresh sources, and "the last 24 hours" is
@@ -28,7 +31,8 @@ use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
 use venti_store::{
-    Account, AccountCreation, MemoryStore, NewAccount, Room, SecretHash, Session, Store, Visibility,
+    Account, AccountCreation, LiveBatch, LiveFix, LiveRoom, LiveSaved, LiveVisibility, MemoryStore,
+    NewAccount, Room, SecretHash, Session, Store, Visibility,
 };
 
 use crate::accounts::client::TrustedProxies;
@@ -88,7 +92,117 @@ pub fn settings(public_url: PublicUrl, analyser: Analyser, password_cost: Cost) 
         },
         password_cost,
         analyser,
+        live: crate::live::Limits::none(),
     }
+}
+
+/// The identifiers of the live tracks the demo account starts with. They
+/// are fixed, so that a client or a test can ask for a track without
+/// sending one first. Not secrets: the tracks exist only in this mode.
+///
+/// This one everyone may see, and its glider is in the air: the newest
+/// position is four seconds old by this mode's clock.
+pub const DEMO_LIVE_FLYING: &str = "11111111111111111111111111";
+
+/// A track everyone may see, of a glider that landed nine minutes ago.
+pub const DEMO_LIVE_LANDED: &str = "22222222222222222222222222";
+
+/// A track for those with its link only, of a glider in the air. It is in
+/// no list.
+pub const DEMO_LIVE_LINK: &str = "33333333333333333333333333";
+
+/// A part of the sample flight as the fixes of a live track: the fixes
+/// numbered `from` to `to` and then `standing_s` seconds without moving,
+/// moved in time so that the last of them is `age_s` seconds old at `now`.
+/// Each fix but the first says how the glider moved since the one before.
+fn sample_fixes(
+    (from, to): (usize, usize),
+    standing_s: i64,
+    age_s: i64,
+    now: Timestamp,
+) -> Vec<LiveFix> {
+    let flight = synthetic_flight().fixes;
+    let mut part: Vec<igc::Fix> = flight[from..=to.min(flight.len() - 1)].to_vec();
+    if let Some(last) = part.last().copied() {
+        for second in 1..=standing_s {
+            let mut standing = last;
+            standing.time += Duration::seconds(second);
+            part.push(standing);
+        }
+    }
+    let Some(last) = part.last() else {
+        return Vec::new();
+    };
+    let moved_by = now - Duration::seconds(age_s) - last.time;
+    let tenth = |value: f64| (value * 10.0).round() / 10.0;
+
+    let mut fixes = Vec::with_capacity(part.len());
+    for (index, fix) in part.iter().enumerate() {
+        let mut live = LiveFix {
+            time: fix.time + moved_by,
+            position: fix.position,
+            altitude_m: fix.gps_altitude_m,
+            ground_speed_ms: None,
+            climb_ms: None,
+            course_deg: None,
+        };
+        if let Some(before) = index.checked_sub(1).map(|index| &part[index]) {
+            let seconds = (fix.time - before.time).num_seconds().max(1) as f64;
+            let metres = before.position.distance_m(fix.position);
+            let speed = tenth(metres / seconds);
+            live.ground_speed_ms = Some(speed);
+            live.climb_ms = Some(tenth(
+                f64::from(fix.gps_altitude_m - before.gps_altitude_m) / seconds,
+            ));
+            // A glider that stands still moves in no direction.
+            if speed > 0.0 {
+                let north = fix.position.lat() - before.position.lat();
+                let east = (fix.position.lon() - before.position.lon())
+                    * fix.position.lat().to_radians().cos();
+                live.course_deg = Some(east.atan2(north).to_degrees().rem_euclid(360.0).round());
+            }
+        }
+        fixes.push(live);
+    }
+    fixes
+}
+
+/// The demo account's live tracks, as they stand at `now`:
+///
+/// - the first twenty minutes of the sample flight, public, the glider in
+///   the air above the Tegernsee valley and heard of four seconds ago;
+/// - the last ten minutes of the sample flight and a minute on the ground
+///   after them, public, landed nine minutes ago;
+/// - the first seven minutes of the sample flight, for those with the link
+///   only, heard of twenty seconds ago.
+fn demo_live_tracks(account_id: &str, now: Timestamp) -> Vec<LiveBatch> {
+    let track = |id: &str, visibility, landed, fixes| LiveBatch {
+        id: id.to_owned(),
+        account_id: account_id.to_owned(),
+        visibility,
+        landed,
+        fixes,
+    };
+    vec![
+        track(
+            DEMO_LIVE_FLYING,
+            LiveVisibility::Public,
+            false,
+            sample_fixes((0, 1200), 0, 4, now),
+        ),
+        track(
+            DEMO_LIVE_LANDED,
+            LiveVisibility::Public,
+            true,
+            sample_fixes((1145, 1744), 60, 9 * 60, now),
+        ),
+        track(
+            DEMO_LIVE_LINK,
+            LiveVisibility::Link,
+            false,
+            sample_fixes((0, 420), 0, 20, now),
+        ),
+    ]
 }
 
 /// The sample flight moved to another day, cut to its first `seconds` if
@@ -191,6 +305,24 @@ async fn add_demo_account(
             .set_visibility(&account.id, &new.id, visibility, now)
             .await
             .map_err(|e| e.to_string())?;
+    }
+
+    // The live tracks are the server's own too: every fix is taken,
+    // whatever its time.
+    let room = LiveRoom {
+        fixes_per_track: u32::MAX,
+        may_create: true,
+        expired_before: Timestamp::MIN_UTC,
+        now,
+    };
+    for track in demo_live_tracks(&account.id, now) {
+        let saved = store
+            .save_live_fixes(&track, &room)
+            .await
+            .map_err(|e| e.to_string())?;
+        if !matches!(saved, LiveSaved::Kept(kept) if kept.created && kept.full == 0) {
+            return Err("a demo live track could not be begun".to_owned());
+        }
     }
     Ok(())
 }

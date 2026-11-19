@@ -82,6 +82,27 @@ pub enum ErrorCode {
     /// files, as this server gives one account room for. Deleting flights
     /// makes room; sending the same file again does not help.
     AccountFull,
+    /// The identifier of a live track is not 26 characters of its
+    /// alphabet.
+    InvalidLiveTrackId,
+    /// The fixes sent for a live track cannot be used: none or too many,
+    /// not oldest first, or a value that cannot be a glider's.
+    InvalidFixes,
+    /// None of the fixes sent has a time the server takes: all lie in the
+    /// future or too far in the past. The device's clock is probably
+    /// wrong.
+    FixesOutOfTime,
+    /// No live track has this identifier, or none any more.
+    LiveTrackNotFound,
+    /// The identifier belongs to a live track of another account.
+    LiveTrackTaken,
+    /// The live track with this identifier was deleted or has been
+    /// removed. An identifier is used once: begin a new track with a new
+    /// one.
+    LiveTrackGone,
+    /// The live track holds as many fixes as a track may. Begin a new
+    /// track with a new identifier.
+    LiveTrackFull,
     /// Too many attempts. `Retry-After` says when to try again.
     RateLimited,
     /// The path is not part of the API.

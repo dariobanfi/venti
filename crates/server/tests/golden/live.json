@@ -1,0 +1,51 @@
+{
+  "time": "2026-11-18T19:05:00Z",
+  "tracks": [
+    {
+      "id": "11111111111111111111111111",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "landed": false,
+      "started_at": "2026-11-18T18:44:56Z",
+      "latest": {
+        "time": "2026-11-18T19:04:56Z",
+        "position": {
+          "lat": 47.663773253525605,
+          "lon": 11.743167672151715
+        },
+        "altitude_m": 1596,
+        "ground_speed_ms": 10.5,
+        "climb_ms": -1.0,
+        "course_deg": 20.0
+      },
+      "fixes": 1201,
+      "expires_at": "2026-11-20T19:04:56Z"
+    },
+    {
+      "id": "22222222222222222222222222",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "landed": true,
+      "started_at": "2026-11-18T18:45:01Z",
+      "latest": {
+        "time": "2026-11-18T18:56:00Z",
+        "position": {
+          "lat": 47.692168145789914,
+          "lon": 11.767486837376403
+        },
+        "altitude_m": 786,
+        "ground_speed_ms": 0.0,
+        "climb_ms": 0.0
+      },
+      "fixes": 660,
+      "expires_at": "2026-11-20T18:56:00Z"
+    }
+  ],
+  "truncated": false
+}

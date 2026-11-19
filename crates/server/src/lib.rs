@@ -10,6 +10,9 @@
 //!    with a handle and a password ([`accounts`]). A pilot's flight files
 //!    are kept as they were uploaded, and what the apps show about a flight
 //!    is worked out from its file with the flight engine ([`flights`]).
+//!    While a flight is under way, the positions its pilot's app sends are
+//!    kept as a live track for those the pilot lets see it, and removed a
+//!    short while after ([`live`]).
 //! 3. **Serves.** A small versioned HTTP API reads and writes the store
 //!    ([`api`]). Its wire format is the `venti-api-types` crate, which the
 //!    clients share. Beside it, a flight that its pilot shares has a page
@@ -38,6 +41,7 @@ pub mod dev;
 pub mod flights;
 pub mod forecast;
 pub mod ingest;
+pub mod live;
 pub mod maintenance;
 pub mod plan;
 pub mod serve;

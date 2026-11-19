@@ -20,7 +20,11 @@
 //! every reuse (`no-cache`), so that a flight made private is gone at once
 //! and not when a cache gets round to it. A public one may be kept by
 //! shared caches; an unlisted one, known only to whoever has its link, only
-//! by the browser that asked.
+//! by the browser that asked. A live track is of this kind too, and is
+//! asked for again every few seconds: its validator is worked out from
+//! what the track is, before any of its fixes is read, so that an answer
+//! of "nothing changed" costs one small read ([`unchanged`],
+//! [`tagged_json`]).
 //!
 //! Every answer that depends on who asks says so with `Vary:
 //! Authorization`.
@@ -134,6 +138,47 @@ pub(crate) fn shared(
     let mut response = validated(request, content_type, body, keeper.cache_control());
     depends_on_who_asks(&mut response);
     response
+}
+
+/// The bodiless `304` for a request whose `If-None-Match` names `tag`, the
+/// validator of what the answer would be now. `None` when the client has
+/// to be sent the answer.
+///
+/// For answers whose validator is known before their body is: the caller
+/// works the tag out from little, and builds the body only when this says
+/// that it is wanted.
+pub(crate) fn unchanged(request: &HeaderMap, tag: &str, keeper: Keeper) -> Option<Response> {
+    client_has(request, tag).then(|| {
+        let mut response = StatusCode::NOT_MODIFIED.into_response();
+        validators(&mut response, tag, keeper);
+        response
+    })
+}
+
+/// Serialises `value` as the JSON body of an answer whose validator is
+/// `tag`: kept by `keeper`, checked before every reuse. The answer is the
+/// same whoever asks.
+pub(crate) fn tagged_json(tag: &str, keeper: Keeper, value: &impl Serialize) -> Response {
+    match to_json(value) {
+        Ok(body) => {
+            let json = HeaderValue::from_static("application/json");
+            let mut response = ([(header::CONTENT_TYPE, json)], body).into_response();
+            validators(&mut response, tag, keeper);
+            response
+        }
+        Err(error) => error.into_response(),
+    }
+}
+
+fn validators(response: &mut Response, tag: &str, keeper: Keeper) {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(keeper.cache_control()),
+    );
+    if let Ok(value) = HeaderValue::from_str(tag) {
+        headers.insert(header::ETAG, value);
+    }
 }
 
 /// Serialises `value` as the JSON body of an answer made for one account.
@@ -262,6 +307,27 @@ mod tests {
         let answer = private(shared);
         assert_eq!(answer.headers()[header::CACHE_CONTROL], "no-store");
         assert!(!answer.headers().contains_key(header::ETAG));
+    }
+
+    #[test]
+    fn a_validator_known_before_the_body_saves_building_the_body() {
+        let tag = etag(b"what the track is");
+        // Nothing to compare with, or something else: the answer is wanted.
+        assert!(unchanged(&HeaderMap::new(), &tag, Keeper::Anyone).is_none());
+        assert!(unchanged(&asking_with("\"old\""), &tag, Keeper::Anyone).is_none());
+
+        let same = unchanged(&asking_with(&tag), &tag, Keeper::OnlyTheAsker).unwrap();
+        assert_eq!(same.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(same.headers()[header::ETAG], tag.as_str());
+        assert_eq!(same.headers()[header::CACHE_CONTROL], "private, no-cache");
+
+        let fresh = tagged_json(&tag, Keeper::Anyone, &[1, 2, 3]);
+        assert_eq!(fresh.status(), StatusCode::OK);
+        assert_eq!(fresh.headers()[header::ETAG], tag.as_str());
+        assert_eq!(fresh.headers()[header::CACHE_CONTROL], "public, no-cache");
+        assert_eq!(fresh.headers()[header::CONTENT_TYPE], "application/json");
+        // The same for everyone: nothing varies with who asks.
+        assert!(!fresh.headers().contains_key(header::VARY));
     }
 
     #[test]

@@ -95,13 +95,36 @@ impl Sparse {
 ///
 /// Not its headers, which carry tokens, and not its query string either:
 /// nothing secret belongs there, but a client that puts a token there by
-/// mistake should not find it in the server's log.
+/// mistake should not find it in the server's log. And of a path that
+/// names a live track, not the track's identifier; see [`logged_path`].
 pub(crate) fn request_span<B>(request: &Request<B>) -> Span {
     tracing::debug_span!(
         "request",
         method = %request.method(),
-        path = %request.uri().path(),
+        path = %logged_path(request.uri().path()),
     )
+}
+
+/// What stands in the log for the identifier of a live track.
+const LEFT_OUT: &str = "…";
+
+/// A request's path as the log may hold it.
+///
+/// Whoever has the identifier of a live track can see where its pilot is,
+/// and for a track shared by link nothing else is needed. So what follows
+/// `/v1/live/` or `/live/` in a path is left out of the log, whatever it
+/// is: an identifier, or something a client sent in its place. The one
+/// path under them that names no track stays as it is.
+pub(crate) fn logged_path(path: &str) -> std::borrow::Cow<'_, str> {
+    for under in ["/v1/live/", "/live/"] {
+        if let Some(rest) = path.strip_prefix(under) {
+            if rest.is_empty() || (under == "/v1/live/" && rest == "positions") {
+                break;
+            }
+            return format!("{under}{LEFT_OUT}").into();
+        }
+    }
+    path.into()
 }
 
 /// Writes down that a request was answered with a server error, or broke
@@ -137,6 +160,41 @@ pub(crate) fn failure(class: ServerErrorsFailureClass, latency: Duration, span: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_identifier_of_a_live_track_is_left_out_of_a_logged_path() {
+        let id = "0123456789abcdefghjkmnpqrs";
+        for (path, logged) in [
+            (format!("/v1/live/{id}"), "/v1/live/…"),
+            (format!("/live/{id}"), "/live/…"),
+            // Whatever follows, and whatever stands in an identifier's
+            // place.
+            (format!("/v1/live/{id}/fixes"), "/v1/live/…"),
+            (format!("/live/{id}/preview.png"), "/live/…"),
+            (format!("/v1/live/positions/{id}"), "/v1/live/…"),
+            (format!("/live/positions/{id}"), "/live/…"),
+            ("/v1/live/x".to_owned(), "/v1/live/…"),
+            ("/live/positions".to_owned(), "/live/…"),
+        ] {
+            let said = logged_path(&path);
+            assert_eq!(said, logged, "{path}");
+            assert!(!said.contains(id));
+        }
+        // Everything else is logged as it came.
+        for path in [
+            "/v1/live",
+            "/v1/live/",
+            "/v1/live/positions",
+            "/live/",
+            "/v1/health",
+            "/v1/flights/0123456789abcdefghjkmnpqrs",
+            "/f/0123456789abcdefghjkmnpqrs",
+            "/v1/lively/0123456789abcdefghjkmnpqrs",
+            "/",
+        ] {
+            assert_eq!(logged_path(path), path);
+        }
+    }
 
     #[test]
     fn a_gate_lets_one_line_through_per_interval_and_counts_the_rest() {

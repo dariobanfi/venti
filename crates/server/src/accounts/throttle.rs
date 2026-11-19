@@ -148,6 +148,20 @@ impl Throttle {
         self.reserve(keys, now).map(drop)
     }
 
+    /// Like [`attempt`](Self::attempt), for an attempt that counts for
+    /// `weight`: a request that brings several of what is counted, such as
+    /// a batch of live fixes. It is let through whole while every key has
+    /// an attempt left, and then counted whole, in one step. A key can so
+    /// end its window up to `weight` less one over its limit, and no
+    /// further, however many such requests arrive at the same moment.
+    pub fn spend(&self, keys: &[Counted], weight: u32, now: Timestamp) -> Result<(), Refused> {
+        let mut table = self.lock();
+        table.check(keys, now)?;
+        // Nothing of this is ever given back.
+        let _ = table.add(keys, weight, now);
+        Ok(())
+    }
+
     /// Like [`attempt`](Self::attempt), for an attempt whose outcome is not
     /// known yet: it can be given back.
     pub fn reserve(&self, keys: &[Counted], now: Timestamp) -> Result<Reserved, Refused> {
@@ -497,6 +511,26 @@ mod tests {
         // A count that overflows stays at the top instead of starting again.
         throttle.count(&dario, u32::MAX, at(2));
         assert!(throttle.check(&dario, at(3)).is_err());
+    }
+
+    #[test]
+    fn a_request_that_brings_many_is_let_through_whole_or_not_at_all() {
+        let throttle = roomy(Duration::minutes(1));
+        let dario = one("dario", 300);
+
+        // Batches of 120: the third is still let through, at 240 of 300,
+        // and takes the minute to 360.
+        for _ in 0..3 {
+            assert_eq!(throttle.spend(&dario, 120, at(0)), Ok(()));
+        }
+        // From then on nothing is, not even a single one.
+        let refused = throttle.spend(&dario, 1, at(0)).unwrap_err();
+        assert_eq!(refused.retry_after, Duration::minutes(1));
+        assert!(refused.first);
+        assert!(throttle.spend(&dario, 120, at(0)).is_err());
+        // Another key is not affected, and the next minute is a new one.
+        assert_eq!(throttle.spend(&one("anna", 300), 120, at(0)), Ok(()));
+        assert_eq!(throttle.spend(&dario, 120, at(1)), Ok(()));
     }
 
     #[test]

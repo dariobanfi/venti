@@ -65,7 +65,7 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 - The preview picture (1200 by 630) shows the same track on the same panel and three numbers beside it: distance with what it was scored as, airtime, points. It is always light, because a picture cannot follow the reader's appearance. Its numbers are set in Nunito, the open typeface closest to the rounded system face. A pilot's name is not on it: the link's title carries it.
 - Points are called "scored by Venti" on the picture and explained in the page's footer: they follow the World XContest's rules as we read them and are not the league's result.
 
-To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only.
+To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
 
 ## Colour
 

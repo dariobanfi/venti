@@ -760,6 +760,13 @@ async fn a_shared_flight_is_seen_by_others_and_changed_by_its_pilot_only() {
         assert!(file.body.starts_with(b"AXVE000"));
     }
 
+    // A token that is not good is told so even here, where no token is
+    // needed: the device that sent it believes to be signed in.
+    let never_issued = format!("venti_{}", "1".repeat(52));
+    flight_as(&router, &never_issued, &public.id)
+        .await
+        .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+
     // Only the public one is listed on the pilot's page.
     let page: PilotResponse = get(&router, "/v1/pilots/dario").await.ok(StatusCode::OK);
     assert_eq!(ids(&page.flights), [&public.id]);

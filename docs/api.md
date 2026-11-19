@@ -698,7 +698,7 @@ Asking before uploading matters: a device that uploads first brings back flights
 
 ### `GET /v1/flights/{id}`
 
-One flight. Its pilot sees it always and needs a token for it. A public or unlisted flight is answered to anyone, with or without a token.
+One flight. Its pilot sees it always and needs a token for it. A public or unlisted flight is answered to anyone, with or without a token. A token that is no longer valid gets `401` here as everywhere, not the answer for nobody: a device should learn that it is signed out.
 
 ```bash
 curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg

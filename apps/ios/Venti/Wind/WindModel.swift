@@ -157,13 +157,29 @@ final class WindModel {
         return try stationHistory(status: status, body: body, nowUnixS: now)
     }
 
+    /// How long to wait before asking again for a forecast the server is
+    /// still fetching, and how often to ask at most.
+    @ObservationIgnored var forecastPause = Duration.seconds(5)
+    static let forecastTries = 7
+
     /// What the weather models say about a place for today and the next
     /// days. The days are those of this iPhone's clock.
+    ///
+    /// The first forecast of a place is one the server has to fetch, and
+    /// until it has it the server answers "not yet": it is asked again
+    /// every few seconds, for about half a minute.
     func forecast(at place: Coordinate) async throws -> ForecastView {
         guard let server else {
             throw URLError(.badURL)
         }
-        let (status, body) = try await get(forecastPath(lat: place.lat, lon: place.lon), from: server)
+        let path = try forecastPath(lat: place.lat, lon: place.lon)
+        var (status, body) = try await get(path, from: server)
+        var tries = 1
+        while status == 503, tries < Self.forecastTries {
+            try await Task.sleep(for: forecastPause)
+            (status, body) = try await get(path, from: server)
+            tries += 1
+        }
         return try VentiCore.forecast(
             status: status, body: body, utcOffsetS: Int32(TimeZone.current.secondsFromGMT())
         )

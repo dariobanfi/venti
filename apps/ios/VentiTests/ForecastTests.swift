@@ -72,15 +72,47 @@ final class ForecastTests: XCTestCase {
 
     func testAServerWithoutForecastsIsSaidInWords() async {
         let wind = WindModel(address: "http://127.0.0.1:8080") { _ in
-            (503, Data(#"{"error": {"code": "forecast_unavailable", "message": "x"}}"#.utf8))
+            (501, Data(#"{"error": {"code": "no_forecasts", "message": "x"}}"#.utf8))
         }
         do {
             _ = try await wind.forecast(at: Coordinate(lat: 47.7, lon: 11.8))
             XCTFail("A refusal was read as a forecast")
         } catch {
             XCTAssertTrue(error is CoreError)
-            XCTAssertFalse(error.words.isEmpty)
+            XCTAssertEqual(error.words, "This server has no forecasts.")
         }
+    }
+
+    func testAForecastTheServerIsStillFetchingIsAskedForAgain() async throws {
+        // "Not yet" twice, then the forecast.
+        let asked = Asked()
+        let wind = WindModel(address: "http://127.0.0.1:8080") { url in
+            await asked.add(url)
+            if await asked.urls.count < 3 {
+                return (503, Data(#"{"error": {"code": "unavailable", "message": "x"}}"#.utf8))
+            }
+            return (200, Data(CannedForecast.answer.utf8))
+        }
+        wind.forecastPause = .milliseconds(10)
+        let forecast = try await wind.forecast(at: Coordinate(lat: 47.7, lon: 11.8))
+        XCTAssertEqual(forecast.models.count, 2)
+        let count = await asked.urls.count
+        XCTAssertEqual(count, 3)
+
+        // A server that never has it is given up on, in words.
+        let never = WindModel(address: "http://127.0.0.1:8080") { url in
+            await asked.add(url)
+            return (503, Data(#"{"error": {"code": "unavailable", "message": "x"}}"#.utf8))
+        }
+        never.forecastPause = .milliseconds(1)
+        do {
+            _ = try await never.forecast(at: Coordinate(lat: 47.7, lon: 11.8))
+            XCTFail("A server that is never ready was read as a forecast")
+        } catch {
+            XCTAssertEqual(error.words, "The server is busy or being restarted. Try again in a moment.")
+        }
+        let total = await asked.urls.count
+        XCTAssertEqual(total, 3 + WindModel.forecastTries)
     }
 
     func testTheTableHasTheWindFromTheHighestLevelDownAndThenTheSky() async throws {

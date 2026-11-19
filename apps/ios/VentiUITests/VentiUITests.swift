@@ -203,6 +203,15 @@ final class VentiUITests: XCTestCase {
         sleep(2)
         keepScreenshot("fly-5-to-landing")
 
+        // The wind of every band of height the glider circled in, from a
+        // tap on the wind over the map.
+        element("wind-badge", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Wind by height"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("wind-by-height-row", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("fly-5b-wind-by-height")
+        app.buttons["Done"].tap()
+
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))

@@ -16,6 +16,7 @@ struct CockpitScreen: View {
     @State private var isConfirmingFinish = false
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
+    @State private var isShowingWinds = false
 
     var body: some View {
         @Bindable var fly = fly
@@ -34,7 +35,16 @@ struct CockpitScreen: View {
                     .accessibilityHidden(true)
                     .overlay(alignment: .topTrailing) {
                         if let wind = view.wind {
+                            // A tap lists the wind of every band of height
+                            // the glider has circled in.
                             WindBadge(wind: wind)
+                                .contentShape(.capsule)
+                                .onTapGesture {
+                                    isShowingWinds = true
+                                }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityHint("Shows the wind by height")
+                                .accessibilityIdentifier("wind-badge")
                                 .padding(10)
                         }
                     }
@@ -94,6 +104,10 @@ struct CockpitScreen: View {
             }
             .sheet(isPresented: $isShowingAirspace) {
                 AirspaceWarningsSheet()
+                    .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $isShowingWinds) {
+                WindByHeightSheet()
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $isChoosingTarget) {

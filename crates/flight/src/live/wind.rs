@@ -58,8 +58,10 @@ impl WindEstimator {
     }
 
     /// Takes one ground velocity: its east and north parts in metres per
-    /// second, and when it was measured.
-    pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) {
+    /// second, and when it was measured. Returns the wind if this sample
+    /// gave a new measurement of it: `None` in straight flight, where the
+    /// estimate stays as it was.
+    pub fn add(&mut self, time_s: f64, east_ms: f64, north_ms: f64) -> Option<Wind> {
         if let Some(&(last_time, last_east, last_north)) = self.samples.back() {
             let course = |east: f64, north: f64| east.atan2(north).to_degrees();
             let turned = (course(east_ms, north_ms) - course(last_east, last_north) + 540.0)
@@ -85,9 +87,11 @@ impl WindEstimator {
         {
             self.samples.pop_front();
         }
-        if let Some(wind) = self.fit() {
+        let measured = self.fit();
+        if let Some(wind) = measured {
             self.estimate = Some(wind);
         }
+        measured
     }
 
     /// The latest estimate, if the glider has circled yet.

@@ -149,6 +149,54 @@ pub struct ThermalMark {
     pub climb_ms: f64,
 }
 
+/// The wind as last measured in one band of height. The wind in a valley
+/// and the wind above the ridges are two winds; a pilot wants both.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeightWind {
+    /// The band's floor, metres above sea level. It reaches
+    /// [`WIND_BAND_M`] higher.
+    pub floor_m: f64,
+    /// The wind measured there.
+    pub wind: Wind,
+    /// When, seconds since 1970-01-01 UTC.
+    pub measured_s: f64,
+}
+
+/// The height of one band of [`HeightWind`], metres.
+pub const WIND_BAND_M: f64 = 200.0;
+
+/// A band's wind is the mean of the measurements of one visit to it. A
+/// measurement that comes this many seconds after the last begins a new
+/// visit, and the old mean is dropped: the wind has had time to change.
+const WIND_VISIT_GAP_S: f64 = 300.0;
+
+/// The measurements of the wind in one band of height during one visit.
+#[derive(Debug, Clone, Copy)]
+struct WindBand {
+    floor_m: f64,
+    /// The sums of where the air moved to, east and north, metres per
+    /// second, and how many measurements went into them.
+    east_ms: f64,
+    north_ms: f64,
+    count: f64,
+    measured_s: f64,
+}
+
+impl WindBand {
+    fn wind(&self) -> HeightWind {
+        let (east, north) = (self.east_ms / self.count, self.north_ms / self.count);
+        HeightWind {
+            floor_m: self.floor_m,
+            wind: Wind {
+                // The wind is named by where it comes from.
+                from_deg: (-east).atan2(-north).to_degrees().rem_euclid(360.0),
+                speed_ms: east.hypot(north),
+            },
+            measured_s: self.measured_s,
+        }
+    }
+}
+
 /// A thermal is marked when it gave at least this much height, in metres.
 /// Less is a bubble, or a turn in lift that led nowhere.
 const MARK_MIN_GAIN_M: f64 = 50.0;
@@ -191,6 +239,9 @@ pub struct LiveState {
     pub wind: Option<Wind>,
     /// Whether the glider is circling in lift.
     pub circling: bool,
+    /// The wind in each band of height the glider has circled in, the
+    /// highest band first, each as last measured there.
+    pub winds: Vec<HeightWind>,
     /// The thermal it is in, or the last one it left.
     pub thermal: Option<Thermal>,
     /// The thermals it has left that were worth marking, oldest first.
@@ -252,6 +303,8 @@ pub struct FlightComputer {
     circled: (f64, f64, u32),
     thermals: VecDeque<ThermalMark>,
     wind: WindEstimator,
+    /// The wind by band of height, the highest band first.
+    winds: Vec<WindBand>,
     max_altitude_m: Option<f64>,
     trail: VecDeque<TrailPoint>,
 }
@@ -301,6 +354,7 @@ impl FlightComputer {
             thermal: None,
             circled: (0.0, 0.0, 0),
             thermals: VecDeque::new(),
+            winds: Vec::new(),
             wind: WindEstimator::new(),
             max_altitude_m: None,
             trail: VecDeque::new(),
@@ -384,8 +438,12 @@ impl FlightComputer {
             }
             // The sine of a course is its east part, the cosine its north part.
             let (east, north) = velocity.course_deg.to_radians().sin_cos();
-            self.wind
+            let measured = self
+                .wind
                 .add(now, velocity.speed_ms * east, velocity.speed_ms * north);
+            if let (Some(wind), Some(altitude)) = (measured, altitude) {
+                self.note_wind(now, altitude, wind);
+            }
         }
 
         self.update_phase(now, &sample, altitude);
@@ -436,6 +494,7 @@ impl FlightComputer {
             course_deg: self.velocity.map(|velocity| velocity.course_deg),
             glide_ratio: self.glide_ratio(),
             wind: self.wind.wind(),
+            winds: self.winds.iter().map(WindBand::wind).collect(),
             circling: self.circling,
             thermal: self.thermal,
             thermals: self.thermals.iter().copied().collect(),
@@ -609,6 +668,38 @@ impl FlightComputer {
         }
         if was_circling && !self.circling {
             self.mark_thermal(now, altitude);
+        }
+    }
+
+    /// Takes a fresh measurement of the wind into the mean of the band of
+    /// height the glider is in. One measurement is a fit to the last
+    /// circle, and the first and the last of a climb are fits to a circle
+    /// that is only just one: the mean over the visit is steadier than any
+    /// of them.
+    fn note_wind(&mut self, now: f64, altitude: f64, wind: Wind) {
+        let floor_m = (altitude / WIND_BAND_M).floor() * WIND_BAND_M;
+        let (sin, cos) = wind.from_deg.to_radians().sin_cos();
+        let (east, north) = (-wind.speed_ms * sin, -wind.speed_ms * cos);
+        let fresh = WindBand {
+            floor_m,
+            east_ms: east,
+            north_ms: north,
+            count: 1.0,
+            measured_s: now,
+        };
+        match self
+            .winds
+            .binary_search_by(|kept| floor_m.total_cmp(&kept.floor_m))
+        {
+            Ok(index) if now - self.winds[index].measured_s <= WIND_VISIT_GAP_S => {
+                let band = &mut self.winds[index];
+                band.east_ms += east;
+                band.north_ms += north;
+                band.count += 1.0;
+                band.measured_s = now;
+            }
+            Ok(index) => self.winds[index] = fresh,
+            Err(index) => self.winds.insert(index, fresh),
         }
     }
 
@@ -799,6 +890,24 @@ mod tests {
         let later = after.wind.unwrap();
         assert!((later.from_deg - 270.0).abs() < 8.0, "{later:?}");
         assert!((later.speed_ms - 3.0).abs() < 0.5, "{later:?}");
+        // The wind was measured in every band of height the climb went
+        // through, the highest first, and each says the same westerly.
+        assert!(after.winds.len() >= 3, "{:?}", after.winds);
+        assert!(
+            after
+                .winds
+                .windows(2)
+                .all(|pair| pair[0].floor_m > pair[1].floor_m)
+        );
+        let top = after.winds[0];
+        assert!(top.floor_m <= after.max_altitude_m.unwrap());
+        assert!(top.floor_m + WIND_BAND_M > after.max_altitude_m.unwrap() - 60.0);
+        for band in &after.winds {
+            assert!((band.wind.from_deg - 270.0).abs() < 12.0, "{band:?}");
+            assert!((band.wind.speed_ms - 3.0).abs() < 0.8, "{band:?}");
+            assert_eq!(band.floor_m % WIND_BAND_M, 0.0);
+        }
+
         // The thermal is marked where the glider circled, with what it gave.
         assert_eq!(after.thermals.len(), 1);
         let mark = after.thermals[0];

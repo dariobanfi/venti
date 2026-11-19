@@ -97,6 +97,24 @@ pub struct WindView {
     pub speed_ms: f64,
 }
 
+/// The wind as last measured in one band of height: the wind in the
+/// valley and the wind above the ridges are two winds.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct WindAtHeightView {
+    /// The band's floor, metres above sea level.
+    pub floor_m: f64,
+    /// The band's ceiling, metres above sea level.
+    pub ceiling_m: f64,
+    /// The direction the wind came from, degrees clockwise from north.
+    pub from_deg: f64,
+    /// Its speed in metres per second.
+    pub speed_ms: f64,
+    /// How long ago it was measured, seconds.
+    pub age_s: f64,
+    /// Whether the glider is in this band now.
+    pub is_here: bool,
+}
+
 /// The thermal the glider is circling in, or the last one it left.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct ThermalView {
@@ -196,6 +214,9 @@ pub struct CockpitView {
     pub glide_ratio: Option<f64>,
     /// The wind, from the last time the glider circled.
     pub wind: Option<WindView>,
+    /// The wind in each band of 200 m the glider has circled in, the
+    /// highest first, each as last measured there.
+    pub winds_by_height: Vec<WindAtHeightView>,
     /// Whether the glider is circling in lift. The shell shows its thermal
     /// page while this is true.
     pub circling: bool,
@@ -764,6 +785,20 @@ impl FlightSession {
                 from_deg: wind.from_deg,
                 speed_ms: wind.speed_ms,
             }),
+            winds_by_height: state
+                .winds
+                .iter()
+                .map(|band| WindAtHeightView {
+                    floor_m: band.floor_m,
+                    ceiling_m: band.floor_m + live::WIND_BAND_M,
+                    from_deg: band.wind.from_deg,
+                    speed_ms: band.wind.speed_ms,
+                    age_s: (now_unix_s - band.measured_s).max(0.0),
+                    is_here: state.altitude_m.is_some_and(|altitude| {
+                        (band.floor_m..band.floor_m + live::WIND_BAND_M).contains(&altitude)
+                    }),
+                })
+                .collect(),
             circling: state.circling,
             thermal: state.thermal.map(|thermal| ThermalView {
                 gain_m: thermal.gain_m,
@@ -1199,6 +1234,27 @@ mod tests {
         assert!(mark.gain_m > 500.0, "{mark:?}");
         assert!(mark.label.starts_with("+2."), "{mark:?}");
         assert!(mark.top_altitude_m > mark.gain_m);
+
+        // The wind of every band of height the climb went through, the
+        // highest first; the glider has since sunk out of the top band.
+        assert!(view.winds_by_height.len() >= 3);
+        let top = view.winds_by_height[0];
+        assert_eq!(top.ceiling_m - top.floor_m, 200.0);
+        assert!(
+            (top.from_deg - 270.0).abs() < 12.0 && (top.speed_ms - 3.0).abs() < 0.8,
+            "{:?}",
+            view.winds_by_height
+        );
+        assert!(top.age_s > 60.0, "{top:?}");
+        assert!(
+            view.winds_by_height
+                .iter()
+                .filter(|band| band.is_here)
+                .count()
+                <= 1,
+            "{:?}",
+            view.winds_by_height
+        );
     }
 
     #[test]

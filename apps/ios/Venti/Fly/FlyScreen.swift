@@ -9,6 +9,7 @@ struct FlyScreen: View {
     @Environment(WaypointsModel.self) private var waypoints
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
+    @Environment(AccountModel.self) private var account
 
     @AppStorage(Preferences.liveAudience) private var liveAudience = ""
     @State private var isChoosingVario = false
@@ -56,7 +57,7 @@ struct FlyScreen: View {
                         LiveScreen()
                     } label: {
                         LabeledContent {
-                            Text((LiveChoice(rawValue: liveAudience) ?? .nobody).short)
+                            Text(liveSummary)
                         } label: {
                             Label("Live tracking", systemImage: "antenna.radiowaves.left.and.right")
                         }
@@ -140,6 +141,14 @@ struct FlyScreen: View {
         case .unavailable: "Bluetooth unavailable"
         case .idle, .scanning: fly.vario.hasRememberedVario ? "Not in range" : "Phone"
         }
+    }
+
+    /// Who will watch the next flight. A choice that cannot be kept,
+    /// because this iPhone is signed in nowhere, is not shown as if it
+    /// could.
+    private var liveSummary: String {
+        let choice = LiveChoice(rawValue: liveAudience) ?? .nobody
+        return choice == .nobody || account.isSignedIn ? choice.short : "Not signed in"
     }
 
     private func startReplay(speed: Double) {

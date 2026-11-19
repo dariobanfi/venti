@@ -37,22 +37,6 @@ final class LiveTests: XCTestCase {
         XCTAssertEqual(LiveButton.symbol(for: .sharing), "antenna.radiowaves.left.and.right")
     }
 
-    /// The server's answer about a part of the map with two gliders, one
-    /// flying and one landed, as its development mode gives it.
-    private static let inTheAir = """
-        {"time": "2026-11-18T19:05:00Z", "truncated": false, "tracks": [
-          {"id": "11111111111111111111111111", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
-           "visibility": "public", "landed": false, "started_at": "2026-11-18T18:44:56Z",
-           "latest": {"time": "2026-11-18T19:04:56Z", "position": {"lat": 47.6638, "lon": 11.7432},
-                      "altitude_m": 1596, "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0},
-           "fixes": 1201, "expires_at": "2026-11-20T19:04:56Z"},
-          {"id": "22222222222222222222222222", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
-           "visibility": "public", "landed": true, "started_at": "2026-11-18T18:45:01Z",
-           "latest": {"time": "2026-11-18T18:56:00Z", "position": {"lat": 47.6922, "lon": 11.7675},
-                      "altitude_m": 786, "ground_speed_ms": 0.0, "climb_ms": 0.0},
-           "fixes": 660, "expires_at": "2026-11-20T18:56:00Z"}]}
-        """
-
     private actor Asked {
         var addresses: [URL] = []
         func add(_ url: URL) { addresses.append(url) }
@@ -62,13 +46,14 @@ final class LiveTests: XCTestCase {
         let asked = Asked()
         let live = LiveModel { url in
             await asked.add(url)
-            return (200, Data(Self.inTheAir.utf8))
+            return (200, Data(LiveAnswers.inTheAir.utf8))
         }
         let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
         live.server = { server }
 
         await live.load(Bounds(south: 47.55, west: 11.6, north: 47.85, east: 12.0), from: server)
-        let address = try XCTUnwrap(await asked.addresses.first)
+        let first = await asked.addresses.first
+        let address = try XCTUnwrap(first)
         XCTAssertEqual(address.absoluteString, "http://127.0.0.1:8080/v1/live?bbox=11.6,47.55,12,47.85")
         XCTAssertEqual(live.gliders.count, 2)
         XCTAssertFalse(live.isTruncated)
@@ -109,7 +94,7 @@ final class LiveTests: XCTestCase {
             if await answers.addresses.count > 1 {
                 throw URLError(.notConnectedToInternet)
             }
-            return (200, Data(Self.inTheAir.utf8))
+            return (200, Data(LiveAnswers.inTheAir.utf8))
         }
         let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
         live.server = { server }
@@ -143,4 +128,24 @@ final class LiveTests: XCTestCase {
         )
         XCTAssertNil(session.liveShare(nowUnixS: 0))
     }
+}
+
+/// What a server says. Outside the test class, so that the stand-in for the
+/// network may read it from wherever it runs.
+private enum LiveAnswers {
+    /// A part of the map with two gliders, one flying and one landed, as
+    /// the server's development mode gives it.
+    static let inTheAir = """
+        {"time": "2026-11-18T19:05:00Z", "truncated": false, "tracks": [
+          {"id": "11111111111111111111111111", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
+           "visibility": "public", "landed": false, "started_at": "2026-11-18T18:44:56Z",
+           "latest": {"time": "2026-11-18T19:04:56Z", "position": {"lat": 47.6638, "lon": 11.7432},
+                      "altitude_m": 1596, "ground_speed_ms": 10.5, "climb_ms": -1.0, "course_deg": 20.0},
+           "fixes": 1201, "expires_at": "2026-11-20T19:04:56Z"},
+          {"id": "22222222222222222222222222", "pilot": {"handle": "demo", "display_name": "Demo Pilot"},
+           "visibility": "public", "landed": true, "started_at": "2026-11-18T18:45:01Z",
+           "latest": {"time": "2026-11-18T18:56:00Z", "position": {"lat": 47.6922, "lon": 11.7675},
+                      "altitude_m": 786, "ground_speed_ms": 0.0, "climb_ms": 0.0},
+           "fixes": 660, "expires_at": "2026-11-20T18:56:00Z"}]}
+        """
 }

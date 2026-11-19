@@ -84,8 +84,10 @@ final class AccountModelTests: XCTestCase {
 
         let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
         await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
-        let answer = try XCTUnwrap(await account.carry(positions))
-        let carried = try XCTUnwrap(await sent.requests.last)
+        let came = await account.carry(positions)
+        let answer = try XCTUnwrap(came)
+        let last = await sent.requests.last
+        let carried = try XCTUnwrap(last)
         XCTAssertEqual(carried.url?.absoluteString, "https://venti.example.org/v1/live/positions")
         XCTAssertEqual(carried.httpMethod, "POST")
         XCTAssertEqual(carried.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
@@ -106,7 +108,8 @@ final class AccountModelTests: XCTestCase {
 
         // Signed out again, the request is answered as a server would.
         box.token = nil
-        let refused = try XCTUnwrap(await account.carry(positions))
+        let without = await account.carry(positions)
+        let refused = try XCTUnwrap(without)
         XCTAssertEqual(refused.status, 401)
     }
 

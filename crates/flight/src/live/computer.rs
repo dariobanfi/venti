@@ -250,6 +250,8 @@ pub struct LiveState {
     pub glide_ratio: Option<f64>,
     /// The wind, from the last time the glider circled.
     pub wind: Option<Wind>,
+    /// When that was, seconds since 1970-01-01 UTC.
+    pub wind_measured_s: Option<f64>,
     /// Whether the glider is circling in lift.
     pub circling: bool,
     /// The wind in each band of height the glider has circled in, the
@@ -320,6 +322,8 @@ pub struct FlightComputer {
     circled: (f64, f64, u32),
     thermals: VecDeque<ThermalMark>,
     wind: WindEstimator,
+    /// When the wind was last measured.
+    wind_measured_s: Option<f64>,
     /// The wind by band of height, the highest band first.
     winds: Vec<WindBand>,
     max_altitude_m: Option<f64>,
@@ -373,6 +377,7 @@ impl FlightComputer {
             thermals: VecDeque::new(),
             winds: Vec::new(),
             wind: WindEstimator::new(),
+            wind_measured_s: None,
             max_altitude_m: None,
             trail: VecDeque::new(),
         }
@@ -455,6 +460,9 @@ impl FlightComputer {
                 self.velocities.pop_front();
             }
             let measured = self.wind.add(now, east, north);
+            if measured.is_some() {
+                self.wind_measured_s = Some(now);
+            }
             if let (Some(fix), Some(altitude)) = (measured, altitude) {
                 self.note_wind(now, altitude, fix);
             }
@@ -508,6 +516,7 @@ impl FlightComputer {
             course_deg: self.velocity.map(|velocity| velocity.course_deg),
             glide_ratio: self.glide_ratio(),
             wind: self.wind.wind(),
+            wind_measured_s: self.wind_measured_s,
             winds: self.winds.iter().map(WindBand::wind).collect(),
             circling: self.circling,
             thermal: self.thermal,
@@ -938,6 +947,13 @@ mod tests {
         let later = after.wind.unwrap();
         assert!((later.from_deg - 270.0).abs() < 8.0, "{later:?}");
         assert!((later.speed_ms - 3.0).abs() < 0.5, "{later:?}");
+        // Measured while circling, the last time a few seconds after the
+        // circles ended at second 342, which is how long it takes to see
+        // that they have.
+        let start = synthetic_flight().fixes[0].time.timestamp() as f64;
+        let measured = after.wind_measured_s.unwrap() - start;
+        assert!((336.0..=350.0).contains(&measured), "{measured}");
+        assert!(states[300].wind_measured_s.unwrap() - start > 290.0);
         // The wind was measured in every band of height the climb went
         // through, the highest first, and each says the same westerly.
         assert!(after.winds.len() >= 3, "{:?}", after.winds);

@@ -279,6 +279,15 @@ pub struct CockpitView {
     pub glide_ratio: Option<f64>,
     /// The wind, from the last time the glider circled.
     pub wind: Option<WindView>,
+    /// How long ago that was, seconds. A wind from half an hour ago and
+    /// another height is a memory, not a measurement: the shell says its
+    /// age once it is more than a few minutes.
+    pub wind_age_s: Option<f64>,
+    /// Said while the wind last measured, if it is not older than twenty
+    /// minutes, leaves the glider less than 10 km/h of way into it at its
+    /// trim speed: "Into the wind 4 km/h", or that the wind is as strong
+    /// as the glider is fast. Absent otherwise.
+    pub strong_wind: Option<String>,
     /// The wind in each band of 200 m the glider has circled in, the
     /// highest first, each as last measured there.
     pub winds_by_height: Vec<WindAtHeightView>,
@@ -1092,6 +1101,19 @@ impl FlightSession {
                 from_deg: wind.from_deg,
                 speed_ms: wind.speed_ms,
             }),
+            wind_age_s: state
+                .wind_measured_s
+                .map(|measured| (now_unix_s - measured).max(0.0)),
+            strong_wind: state
+                .wind
+                .zip(state.wind_measured_s)
+                .and_then(|(wind, measured)| {
+                    strong_wind_in_words(
+                        inner.glider.trim_speed_ms,
+                        wind.speed_ms,
+                        now_unix_s - measured,
+                    )
+                }),
             winds_by_height: state
                 .winds
                 .iter()
@@ -1459,6 +1481,30 @@ impl Replay {
     }
 }
 
+/// A wind older than this, seconds, is not warned from: it was measured
+/// somewhere else by now.
+const STRONG_WIND_FRESH_S: f64 = 20.0 * 60.0;
+
+/// The wind is called strong while the glider's trim speed leaves less
+/// than this much way into it, metres per second: 10 km/h.
+const STRONG_WIND_MARGIN_MS: f64 = 10.0 / 3.6;
+
+/// What to say about a wind that leaves the glider little way into it, if
+/// anything. The trim speed is the pilot's setting; with the speed bar a
+/// glider makes more, which is what the words leave room for.
+fn strong_wind_in_words(trim_speed_ms: f64, wind_speed_ms: f64, age_s: f64) -> Option<String> {
+    let into_wind_ms = trim_speed_ms - wind_speed_ms;
+    if !(0.0..=STRONG_WIND_FRESH_S).contains(&age_s) || into_wind_ms >= STRONG_WIND_MARGIN_MS {
+        return None;
+    }
+    let into_wind_kmh = (into_wind_ms * 3.6).round();
+    Some(if into_wind_kmh < 1.0 {
+        "Wind as strong as the glider is fast".to_owned()
+    } else {
+        format!("Into the wind {into_wind_kmh:.0} km/h")
+    })
+}
+
 /// A place whose climb is this far above the mean of the thermal's
 /// picture, metres per second, is drawn at full size, and one as far
 /// below at the smallest. A fixed measure, so that the dots of an even
@@ -1657,6 +1703,28 @@ mod tests {
     }
 
     #[test]
+    fn a_wind_that_leaves_little_way_into_it_is_said() {
+        // A glider that trims at 38 km/h.
+        let trim = 38.0 / 3.6;
+        assert_eq!(strong_wind_in_words(trim, 3.0, 10.0), None);
+        // 27 km/h of wind leave 11: not said. 30 leave 8: said.
+        assert_eq!(strong_wind_in_words(trim, 27.0 / 3.6, 10.0), None);
+        assert_eq!(
+            strong_wind_in_words(trim, 30.0 / 3.6, 10.0).as_deref(),
+            Some("Into the wind 8 km/h")
+        );
+        // As strong as the glider is fast, or stronger.
+        for wind_kmh in [38.0, 45.0] {
+            assert_eq!(
+                strong_wind_in_words(trim, wind_kmh / 3.6, 10.0).as_deref(),
+                Some("Wind as strong as the glider is fast")
+            );
+        }
+        // Measured half an hour ago, somewhere else: not warned from.
+        assert_eq!(strong_wind_in_words(trim, 45.0 / 3.6, 1800.0), None);
+    }
+
+    #[test]
     fn the_thermals_picture_says_where_the_lift_is_stronger() {
         let at = |east: f64, north: f64| {
             GeoPoint::new(47.5 + north / 111_195.0, 11.0 + east / 75_123.0).unwrap()
@@ -1751,6 +1819,10 @@ mod tests {
         assert!(view.thermal.unwrap().gain_m > 350.0);
         let wind = view.wind.unwrap();
         assert!((wind.from_deg - 270.0).abs() < 8.0 && (wind.speed_ms - 3.0).abs() < 0.5);
+        // Measured this very moment, give or take the two seconds the fit
+        // runs behind; and 11 km/h is no strong wind.
+        assert!(view.wind_age_s.unwrap() < 5.0, "{:?}", view.wind_age_s);
+        assert_eq!(view.strong_wind, None);
         assert_eq!(view.trail.len(), 181);
         assert!(view.position_age_s.unwrap() < 1.0);
         // Climbing in the air: the vario beeps.
@@ -1783,6 +1855,9 @@ mod tests {
         assert!(!view.circling);
         assert_eq!(view.lift, None);
         assert_eq!(view.thermals.len(), 1);
+        // The wind is from the thermal left more than four minutes ago.
+        let age = view.wind_age_s.unwrap();
+        assert!((240.0..=275.0).contains(&age), "{age}");
         // The wind the circles gave still stands on the glide. A flight
         // file's positions are rounded to two metres, which makes every
         // second of straight flight look like a small change of velocity:

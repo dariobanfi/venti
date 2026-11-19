@@ -48,7 +48,7 @@ struct CockpitScreen: View {
                             if let wind = view.wind {
                                 // A tap lists the wind of every band of
                                 // height the glider has circled in.
-                                WindBadge(wind: wind)
+                                WindBadge(wind: wind, ageS: view.windAgeS)
                                     .contentShape(.capsule)
                                     .onTapGesture {
                                         isShowingWinds = true
@@ -56,6 +56,11 @@ struct CockpitScreen: View {
                                     .accessibilityAddTraits(.isButton)
                                     .accessibilityHint("Shows the wind by height")
                                     .accessibilityIdentifier("wind-badge")
+                            }
+                            // A wind that leaves the glider little way
+                            // into it, said where the wind is read.
+                            if let words = view.strongWind {
+                                StrongWindBadge(words: words)
                             }
                             // While circling: which way the lift is
                             // stronger, in words beside the picture on the
@@ -556,8 +561,10 @@ private struct LiftBadge: View {
 
 /// The wind over the map: an arrow pointing the way the air moves, and its
 /// speed.
-private struct WindBadge: View {
+struct WindBadge: View {
     let wind: WindView
+    /// Seconds since it was measured, if known.
+    var ageS: Double?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -568,6 +575,14 @@ private struct WindBadge: View {
             Text("\(Format.kilometresPerHour(metresPerSecond: wind.speedMs)) km/h")
                 .font(.system(.headline, design: .rounded))
                 .monospacedDigit()
+            // A wind from a while ago is a memory of another place and
+            // height: its age stands beside it.
+            if let age = Self.age(ageS) {
+                Text(age)
+                    .font(.system(.subheadline, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -576,6 +591,35 @@ private struct WindBadge: View {
         .accessibilityLabel("Wind")
         .accessibilityValue(
             "\(Format.spokenKilometresPerHour(metresPerSecond: wind.speedMs)) from \(Format.compassPoint(degrees: wind.fromDeg))"
+                + (Self.age(ageS).map { ", measured \($0) ago" } ?? "")
         )
+    }
+
+    /// The age of a wind once it is five minutes old or more: "12 min",
+    /// "1 h". A fresh wind has none to show.
+    static func age(_ seconds: Double?) -> String? {
+        guard let seconds, seconds >= 300 else { return nil }
+        let minutes = Int(seconds / 60)
+        return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h"
+    }
+}
+
+/// A wind that leaves the glider little way into it, in the core's words:
+/// "Into the wind 4 km/h".
+private struct StrongWindBadge: View {
+    let words: String
+
+    var body: some View {
+        Label(words, systemImage: "exclamationmark.triangle.fill")
+            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: .capsule)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Strong wind")
+            .accessibilityValue(words)
+            .accessibilityIdentifier("strong-wind-badge")
     }
 }

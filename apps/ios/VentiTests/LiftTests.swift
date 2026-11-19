@@ -43,6 +43,32 @@ final class LiftTests: XCTestCase {
         XCTAssertTrue(CockpitMap.Coordinator.liftFeatures(nil).isEmpty)
     }
 
+    func testAWindsAgeIsShownOnceItIsFiveMinutesOld() {
+        XCTAssertNil(WindBadge.age(nil))
+        XCTAssertNil(WindBadge.age(40))
+        XCTAssertNil(WindBadge.age(299))
+        XCTAssertEqual(WindBadge.age(300), "5 min")
+        XCTAssertEqual(WindBadge.age(59 * 60 + 59), "59 min")
+        XCTAssertEqual(WindBadge.age(2 * 3600 + 100), "2 h")
+    }
+
+    func testTheSampleFlightsWindIsNoStrongWindAndAgesOnTheGlide() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-lift-test-\(UUID().uuidString)", isDirectory: true)
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let session = FlightSession(dataFolder: folder.path)
+        let replay = try Replay(igcText: try String(contentsOf: url, encoding: .utf8))
+        // Ten minutes in: on the glide, four minutes after the thermal
+        // that gave the wind, which still stands at 11 km/h from the west.
+        _ = replay.advance(session: session, seconds: 600)
+        let view = session.view(nowUnixS: replay.now())
+        let wind = try XCTUnwrap(view.wind)
+        XCTAssertEqual(wind.speedMs, 3, accuracy: 0.5)
+        XCTAssertEqual(wind.fromDeg, 270, accuracy: 8)
+        XCTAssertEqual(try XCTUnwrap(view.windAgeS), 257, accuracy: 20)
+        XCTAssertNil(view.strongWind)
+    }
+
     func testADotGrowsWithTheLift() {
         XCTAssertEqual(CockpitMap.Coordinator.liftDotRadius(strength: 0), 2)
         XCTAssertEqual(CockpitMap.Coordinator.liftDotRadius(strength: 1), 5)

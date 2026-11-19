@@ -79,14 +79,15 @@ data class ForecastPlace(val name: String, val position: Coordinate)
 
 /**
  * The forecast for a place the pilot pressed on, on the map: a sheet of its
- * own, at full height, named by where the place is.
+ * own, named by where the place is. At half height first, like a site's and
+ * a station's page: the place that was pressed stays in view above it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForecastSheet(place: Coordinate, wind: WindModel, onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         ForecastPage(

@@ -19,6 +19,7 @@ struct CockpitScreen: View {
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
+    @State private var isShowingLive = false
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
@@ -141,6 +142,13 @@ struct CockpitScreen: View {
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
 
+                    // Who watches the flight, and whether it is going
+                    // out. Not in a replay: what is replayed is not shared.
+                    if !isReplay {
+                        LiveButton(live: fly.live) {
+                            isShowingLive = true
+                        }
+                    }
                     Toggle(isOn: $fly.isMuted) {
                         Label("Mute the vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                             .labelStyle(.iconOnly)
@@ -172,6 +180,19 @@ struct CockpitScreen: View {
             .sheet(isPresented: $isShowingTask) {
                 TaskProgressSheet()
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $isShowingLive) {
+                NavigationStack {
+                    LiveScreen()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    isShowingLive = false
+                                }
+                            }
+                        }
+                }
+                .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $isChoosingTarget) {
                 TargetPicker(

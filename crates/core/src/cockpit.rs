@@ -35,9 +35,11 @@ use venti_flight::sun;
 use venti_sensors::{Battery, SentenceReader};
 
 use crate::airspace::{AirspaceWatch, compass};
+use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
+    ServerRequest,
 };
 
 /// How long an external instrument may be silent, in seconds, before it
@@ -459,6 +461,12 @@ struct Inner {
     longest: Option<(GeoPoint, GeoPoint, f64)>,
     /// The task being flown, if the pilot set one.
     task: Option<TaskFlown>,
+    /// The flight as others may watch it, if the pilot shares it.
+    live: Option<LiveShare>,
+    /// Whether a recorded flight was played into this session. What is
+    /// replayed is never shared: it would put a glider on other people's
+    /// maps that is not there.
+    replayed: bool,
 }
 
 /// Which sensor is supplying pressure.
@@ -518,8 +526,98 @@ impl FlightSession {
                 score: None,
                 longest: None,
                 task: None,
+                live: None,
+                replayed: false,
             }),
         })
+    }
+
+    /// Begins to share this flight with others while it is under way.
+    /// Nothing is sent before take-off, and nothing by this call: ask
+    /// [`FlightSession::live_request`] once a second for what to send.
+    ///
+    /// `server` is the address of the pilot's Venti server, as the account
+    /// has it. `random` is 26 bytes from the system's source of random
+    /// numbers for secrets (`SecRandomCopyBytes`, `SecureRandom`): the
+    /// link is made of them, and whoever has the link sees the flight.
+    /// Sharing again begins a new track with a new link.
+    pub fn share_live(
+        &self,
+        server: String,
+        random: Vec<u8>,
+        audience: LiveAudience,
+    ) -> Result<LiveShareView, CoreError> {
+        let mut inner = self.lock();
+        if inner.replayed {
+            return Err(CoreError::Server {
+                message: "A replayed flight is not shared.".to_owned(),
+            });
+        }
+        let share = LiveShare::begin(&server, &random, audience)?;
+        let view = share.view(inner.last_position_s.unwrap_or(0.0));
+        inner.live = Some(share);
+        Ok(view)
+    }
+
+    /// Where the sharing of this flight stands, if it is shared.
+    pub fn live_share(&self, now_unix_s: f64) -> Option<LiveShareView> {
+        self.lock()
+            .live
+            .as_ref()
+            .map(|share| share.view(now_unix_s))
+    }
+
+    /// Changes who may see the flight. Fewer people is said to the server
+    /// at once, more people with the next positions.
+    pub fn set_live_audience(&self, audience: LiveAudience) {
+        if let Some(share) = self.lock().live.as_mut() {
+            share.set_audience(audience);
+        }
+    }
+
+    /// The request to send to the server now for the shared flight, if one
+    /// is due. Ask once a second. Send it with the pilot's token, then
+    /// hand the answer to [`FlightSession::live_answer`], or say with
+    /// [`FlightSession::live_no_answer`] that there was none: until one of
+    /// the two is called, nothing further is handed out.
+    pub fn live_request(&self, now_unix_s: f64) -> Option<ServerRequest> {
+        self.lock().live.as_mut()?.request(now_unix_s)
+    }
+
+    /// Takes the server's answer to the request [`FlightSession::live_request`]
+    /// handed out. `retry_after_s` is the answer's `Retry-After`.
+    pub fn live_answer(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+        retry_after_s: Option<u32>,
+        now_unix_s: f64,
+    ) {
+        if let Some(share) = self.lock().live.as_mut() {
+            share.answer(status, &body, retry_after_s, now_unix_s);
+        }
+    }
+
+    /// Says that the request got no answer: no network, or a time-out.
+    pub fn live_no_answer(&self, now_unix_s: f64) {
+        if let Some(share) = self.lock().live.as_mut() {
+            share.no_answer(now_unix_s);
+        }
+    }
+
+    /// The pilot ends the flight: the server is told that the glider has
+    /// landed, with the next request, which is due at once.
+    pub fn end_live(&self) {
+        if let Some(share) = self.lock().live.as_mut() {
+            share.set_landed(true);
+        }
+    }
+
+    /// The request that removes the shared flight from the server, for the
+    /// pilot who wants it gone now and not after two days. Nothing more is
+    /// sent for this flight afterwards.
+    pub fn delete_live(&self) -> Option<ServerRequest> {
+        self.lock().live.as_mut().map(LiveShare::deletion)
     }
 
     /// How much of the day is left at the glider's position: sunset and
@@ -825,6 +923,25 @@ impl FlightSession {
         }
         if let Some(task) = inner.task.as_mut() {
             task.feed(sample.time_unix_s, position);
+        }
+        // What others may watch: from take-off, and the place the glider
+        // came to rest at.
+        let replayed = inner.replayed;
+        if let Some(share) = inner.live.as_mut().filter(|_| !replayed)
+            && state.phase != Phase::Ground
+        {
+            let altitude = state.altitude_m.or(sample.altitude_m).unwrap_or(0.0);
+            if let Some(fix) = sharing::fix(
+                sample.time_unix_s,
+                position,
+                altitude,
+                state.ground_speed_ms,
+                state.climb_ms,
+                state.course_deg,
+            ) {
+                share.add(fix);
+            }
+            share.set_landed(state.phase == Phase::Landed);
         }
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
@@ -1299,6 +1416,12 @@ impl Replay {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         progress.now_s += seconds.max(0.0);
+        {
+            // What is replayed is not shared with anyone.
+            let mut inner = session.lock();
+            inner.replayed = true;
+            inner.live = None;
+        }
         while let Some(fix) = self.fixes.get(progress.next) {
             let time = fix.time.timestamp() as f64;
             if time > progress.now_s {
@@ -1435,6 +1558,100 @@ mod tests {
                 .iter()
                 .any(|service| service.service.starts_with("6E400001"))
         );
+    }
+
+    #[test]
+    fn a_shared_flight_sends_its_positions_from_take_off_and_a_replay_sends_none() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let random: Vec<u8> = (0..26).collect();
+        let view = session
+            .share_live(
+                "https://venti.example".to_owned(),
+                random.clone(),
+                LiveAudience::Public,
+            )
+            .unwrap();
+        assert_eq!(view.words, "Begins at take-off");
+        assert!(view.link.starts_with("https://venti.example/live/"));
+
+        // Standing at the take-off for a minute: nothing to send.
+        let flight = synthetic_flight();
+        let start = flight.fixes[0].time.timestamp() as f64 - 60.0;
+        let feed = |time: f64, fix: &Fix| {
+            session.on_location(LocationSample {
+                time_unix_s: time,
+                lat: fix.position.lat(),
+                lon: fix.position.lon(),
+                altitude_m: Some(f64::from(fix.gps_altitude_m)),
+                ground_speed_ms: None,
+                course_deg: None,
+            });
+        };
+        for second in 0..60 {
+            feed(start + f64::from(second), &flight.fixes[0]);
+            assert_eq!(session.live_request(start + f64::from(second)), None);
+        }
+
+        // In the air the first position goes out as soon as the take-off
+        // is noticed, and the server's answer is taken.
+        let mut first = None;
+        for (index, fix) in flight.fixes.iter().enumerate().take(30) {
+            let now = start + 60.0 + index as f64;
+            feed(now, fix);
+            if let Some(request) = session.live_request(now) {
+                first = Some((index, request));
+                break;
+            }
+        }
+        let (index, request) = first.expect("a request within half a minute of flying");
+        assert!(index <= 10, "{index}");
+        assert_eq!(request.path, "/v1/live/positions");
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(body["visibility"], "public");
+        assert_eq!(body["landed"], false);
+        assert_eq!(body["fixes"].as_array().unwrap().len(), 1);
+        let now = start + 60.0 + index as f64;
+        session.live_answer(201, b"{}".to_vec(), None, now);
+        let view = session.live_share(now + 5.0).unwrap();
+        assert_eq!(
+            (view.taken, view.state),
+            (1, crate::LiveShareState::Sharing)
+        );
+        assert_eq!(view.words, "Sent 5 s ago");
+
+        // The pilot ends the flight: said to the server at once.
+        session.end_live();
+        let last = session.live_request(now + 6.0).unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&last.body.unwrap()).unwrap();
+        assert_eq!(body["landed"], true);
+
+        // A replay is not shared, and sharing that was on is dropped when
+        // a replay begins.
+        let (replayed, _) = fly(&folder, 300.0, false);
+        assert!(
+            replayed
+                .share_live(
+                    "https://venti.example".to_owned(),
+                    random.clone(),
+                    LiveAudience::Link
+                )
+                .is_err()
+        );
+        assert_eq!(replayed.live_share(0.0), None);
+        let session = FlightSession::new(folder_text(&folder));
+        session
+            .share_live(
+                "https://venti.example".to_owned(),
+                random,
+                LiveAudience::Link,
+            )
+            .unwrap();
+        Replay::new(sample())
+            .unwrap()
+            .advance(session.clone(), 300.0);
+        assert_eq!(session.live_share(0.0), None);
+        assert_eq!(session.live_request(1e10), None);
     }
 
     #[test]

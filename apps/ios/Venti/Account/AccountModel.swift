@@ -235,17 +235,45 @@ final class AccountModel {
         }
     }
 
+    // MARK: The cockpit's requests
+
+    /// The server's answer to a request of the cockpit's.
+    struct Answer: Sendable {
+        let status: UInt16
+        let body: Data
+        let retryAfter: UInt32?
+    }
+
+    /// Carries a request of the cockpit's to the pilot's server: the
+    /// positions of a flight shared while it is under way. `nil` when no
+    /// answer came. It waits twenty seconds for one and no longer: the
+    /// next positions are due by then.
+    func carry(_ request: ServerRequest) async -> Answer? {
+        guard let account else { return nil }
+        do {
+            let (status, body, retryAfter) = try await ask(request, of: account.server, timeout: 20)
+            return Answer(status: status, body: body, retryAfter: retryAfter)
+        } catch let error as URLError where error.code == .userAuthenticationRequired {
+            // No token to send it with: as good as the server's refusal.
+            return Answer(status: 401, body: Data(), retryAfter: nil)
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: Requests
 
     /// Sends one of the core's requests to the server, with the session
     /// token where the request needs it and nowhere else.
-    private func ask(_ request: ServerRequest, of server: String) async throws -> (UInt16, Data, UInt32?) {
+    private func ask(
+        _ request: ServerRequest, of server: String, timeout: TimeInterval = 120
+    ) async throws -> (UInt16, Data, UInt32?) {
         guard let url = URL(string: server + request.path) else {
             throw URLError(.badURL)
         }
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method
-        urlRequest.timeoutInterval = 120
+        urlRequest.timeoutInterval = timeout
         urlRequest.httpBody = request.body
         if let contentType = request.contentType {
             urlRequest.setValue(contentType, forHTTPHeaderField: "Content-Type")

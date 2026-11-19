@@ -22,7 +22,7 @@ A change to a screen that contradicts this document updates it in the same commi
 |---|---|---|
 | **Map** | Terrain map with every logbook flight drawn on it; the pilot's position on request | Live wind, sites, forecasts, airspace: the Today and Plan modes |
 | **Logbook** | Flights by year with totals; import; one flight on the map with its profile | Analysis, comparison, 3D replay: the Review mode |
-| **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view. Not yet flown. | Airspace, navigation, live tracking, and the rest of the XCTrack checklist |
+| **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view with the thermal's picture, live tracking to the pilot's server. Not yet flown. | Seeing other pilots, and the rest of the XCTrack checklist |
 | Community | Not built | Feed, groups, events |
 | **Assistant** | Questions about the pilot's own flying, answered from the logbook by a model on the pilot's own account; with a Venti server set, also the live wind around a place and the airspace over it, with the caveats the data needs. Under each answer it says what was looked up. | Weather, sites, airspace and transit once the server has them; voice; alerts in flight |
 | **Settings** | The pilot's name and glider (written into recorded flights), the vario sound, and the credits the map data's licences ask for | Units, account |
@@ -72,6 +72,12 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 - Points are called "scored by Venti" on the picture and explained in the page's footer: they follow the World XContest's rules as we read them and are not the league's result.
 
 To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
+
+### Live tracking in the app
+
+Sharing a flight while it is under way is a choice between three audiences, on one page that is reached from the Fly tab before take-off ("Live tracking: Off") and from a round button in the cockpit: **Nobody**, **People I give the link**, **Everyone**. Under the choice stands what it means in a sentence, and at the foot of the page what is sent, where to, and when the server removes it. Nobody is the choice until the pilot makes another, and it cannot be changed without an account to send the positions to; the page says so first. The choice is kept for the next flights, which is why the Fly tab shows it before every start.
+
+In the air the page has a second section, "This flight": how the sharing stands in a line ("Sent 8 s ago", "No network: 40 positions wait", "Begins at take-off", "Landed. The last position is sent."), how many positions the server has, the link to send with the system's share sheet, and "Delete the track". The cockpit's button says the same by its colour: green while positions go out, amber while they wait, plain when nothing is shared. Choosing Nobody in the air asks first, because it deletes the track: nobody can watch any more, with or without the link. A replay has no button: what is replayed is not shared.
 
 ### The page of a live track
 

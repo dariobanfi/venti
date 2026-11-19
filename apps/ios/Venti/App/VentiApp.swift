@@ -101,6 +101,10 @@ enum Session {
             }
             let account = AccountModel(core: core)
             account.onLogbookChanged = { logbook.refresh() }
+            // A flight shared while it is under way goes to the pilot's
+            // server, with the account's token.
+            fly.server = { account.isSignedIn ? account.account?.server : nil }
+            fly.carry = { request in await account.carry(request) }
             return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks)
         } catch {
             return .failed(error.words)

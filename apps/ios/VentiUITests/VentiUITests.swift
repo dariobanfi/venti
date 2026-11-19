@@ -173,6 +173,17 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
         keepScreenshot("fly-1-ready")
 
+        // Who may watch a flight while it is under way: nobody, until the
+        // pilot says otherwise, and nobody can be chosen without an
+        // account to send the positions to.
+        element("live-before-takeoff", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Live tracking"].waitForExistence(timeout: 10))
+        XCTAssertTrue(saying("Nothing is sent", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("fly-1b-live")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 10))
+
         app.buttons["Replay the sample flight"].tap()
         app.buttons["20 times faster"].tap()
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))

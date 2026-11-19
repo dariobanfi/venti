@@ -26,6 +26,10 @@ enum Preferences {
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 
     /// What the core assumes of a glider until the pilot says otherwise.
+    /// Whom flights are shown to while they are under way: "link",
+    /// "public", or nothing for nobody.
+    static let liveAudience = "VentiLiveAudience"
+
     static let defaultTrimSpeed = 38.0
     static let defaultGlideRatio = 8.0
 }

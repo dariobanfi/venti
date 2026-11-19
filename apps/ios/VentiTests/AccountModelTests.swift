@@ -51,6 +51,65 @@ final class AccountModelTests: XCTestCase {
         }
     }
 
+    func testAFlightSharedLiveGoesToTheServerWithTheToken() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let account = AccountModel(
+            core: core, transport: server(noting: sent),
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+
+        // A flight shared with a link, twenty seconds into the air.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-live-test-\(UUID().uuidString)", isDirectory: true)
+        let session = FlightSession(dataFolder: folder.path)
+        let shared = try session.shareLive(
+            server: "https://venti.example.org", random: Data(0..<26), audience: .link
+        )
+        XCTAssertEqual(shared.link, "https://venti.example.org/live/0123456789abcdefghjkmnpqrs")
+        XCTAssertEqual(shared.words, "Begins at take-off")
+        var request: ServerRequest?
+        for second in 0..<20 where request == nil {
+            session.onLocation(sample: LocationSample(
+                timeUnixS: 1_795_028_700 + Double(second), lat: 47.66 + Double(second) * 0.0001, lon: 11.80,
+                altitudeM: 1600 - Double(second), groundSpeedMs: 11, courseDeg: 0
+            ))
+            request = session.liveRequest(nowUnixS: 1_795_028_700 + Double(second))
+        }
+        let positions = try XCTUnwrap(request)
+
+        // Without an account there is nobody to carry it to.
+        let none = await account.carry(positions)
+        XCTAssertNil(none)
+
+        let address = try XCTUnwrap(URL(string: "https://venti.example.org"))
+        await account.signIn(server: address, handle: "demo", password: "demo-pilot-password")
+        let answer = try XCTUnwrap(await account.carry(positions))
+        let carried = try XCTUnwrap(await sent.requests.last)
+        XCTAssertEqual(carried.url?.absoluteString, "https://venti.example.org/v1/live/positions")
+        XCTAssertEqual(carried.httpMethod, "POST")
+        XCTAssertEqual(carried.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+        XCTAssertEqual(carried.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(carried.timeoutInterval, 20)
+        XCTAssertNotNil(carried.httpBody)
+
+        // This made-up server is one from before live tracks: the core
+        // puts its answer into words and sends nothing more.
+        XCTAssertEqual(answer.status, 404)
+        session.liveAnswer(
+            status: answer.status, body: answer.body, retryAfterS: answer.retryAfter, nowUnixS: 1_795_028_730
+        )
+        let stopped = try XCTUnwrap(session.liveShare(nowUnixS: 1_795_028_730))
+        XCTAssertEqual(stopped.state, .stopped)
+        XCTAssertEqual(stopped.words, "This server has no live tracking.")
+        XCTAssertNil(session.liveRequest(nowUnixS: 1_795_028_800))
+
+        // Signed out again, the request is answered as a server would.
+        box.token = nil
+        let refused = try XCTUnwrap(await account.carry(positions))
+        XCTAssertEqual(refused.status, 401)
+    }
+
     func testSigningInKeepsTheTokenAndSendsTheLogbook() async throws {
         let core = try makeCore()
         let flight = try core.importFlight(igcText: try sampleText()).id

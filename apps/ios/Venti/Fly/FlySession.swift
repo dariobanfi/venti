@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Security
 import UIKit
 import VentiCore
 
@@ -51,6 +52,15 @@ final class FlySession {
     private(set) var task: TaskStatusView?
     /// The name of the place the pilot chose to fly to, if any.
     private(set) var chosenPlace: String?
+    /// How the flight is shared with others while it is under way. Absent
+    /// while it is not.
+    private(set) var live: LiveShareView?
+    /// The address of the pilot's Venti server, if this iPhone is signed
+    /// in to one. The app sets this.
+    @ObservationIgnored var server: () -> String? = { nil }
+    /// Carries a request to that server and brings back its answer, or
+    /// `nil` if none came. The app sets this.
+    @ObservationIgnored var carry: @MainActor (ServerRequest) async -> AccountModel.Answer? = { _ in nil }
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
     /// Whether the vario is silent. Remembered between flights.
@@ -109,6 +119,104 @@ final class FlySession {
         vario.reconnectToRememberedVario()
 
         begin(session, mode: .live)
+        // Shown to others from take-off, if the pilot chose so.
+        share(with: LiveChoice.stored.audience)
+    }
+
+    // MARK: Live tracking
+
+    /// Whether the flight in the air is going out to others.
+    var isSharingLive: Bool {
+        live.map { $0.state != .stopped } ?? false
+    }
+
+    /// Shows the flight in the air to these people, or to others than
+    /// before. Does nothing without a flight, in a replay, without an
+    /// account, and for nobody: taking a flight away from everyone is
+    /// `deleteLiveTrack`.
+    func share(with audience: LiveAudience?) {
+        guard let session, mode == .live, let audience else { return }
+        if isSharingLive {
+            session.setLiveAudience(audience: audience)
+        } else if let server = server() {
+            // The link is made of these: from the system's source of
+            // random numbers for secrets.
+            var random = [UInt8](repeating: 0, count: 26)
+            guard SecRandomCopyBytes(kSecRandomDefault, random.count, &random) == errSecSuccess else {
+                problem = "The iPhone could not make a link for this flight."
+                return
+            }
+            do {
+                live = try session.shareLive(server: server, random: Data(random), audience: audience)
+            } catch {
+                problem = error.words
+            }
+        }
+        live = session.liveShare(nowUnixS: Date().timeIntervalSince1970)
+    }
+
+    /// Takes the flight away from everyone who could watch it: the track
+    /// is removed from the server and nothing more is sent.
+    func deleteLiveTrack() {
+        guard let session, let request = session.deleteLive() else { return }
+        live = session.liveShare(nowUnixS: Date().timeIntervalSince1970)
+        Task { [carry] in
+            // Twice, in case the network was away the first time. The
+            // server removes the track by itself after two days.
+            for _ in 0..<2 {
+                if await carry(request) != nil {
+                    break
+                }
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+    }
+
+    /// Sends what the core says is due for the shared flight, and hands
+    /// the answer back. The core hands out nothing further until it has
+    /// one of the two.
+    private func sendLive(from session: FlightSession, now: Double) {
+        guard let request = session.liveRequest(nowUnixS: now) else { return }
+        Task { [carry] in
+            let answer = await carry(request)
+            let now = Date().timeIntervalSince1970
+            if let answer {
+                session.liveAnswer(
+                    status: answer.status, body: answer.body, retryAfterS: answer.retryAfter, nowUnixS: now
+                )
+            } else {
+                session.liveNoAnswer(nowUnixS: now)
+            }
+        }
+    }
+
+    /// Tells the server that the flight is over, with what is still
+    /// waiting, after the cockpit has closed: for a minute and a half at
+    /// most, then the track simply goes quiet.
+    private func sayLanded(_ session: FlightSession) {
+        guard session.liveShare(nowUnixS: Date().timeIntervalSince1970) != nil else { return }
+        session.endLive()
+        Task { [carry] in
+            let clock = ContinuousClock()
+            let deadline = clock.now + .seconds(90)
+            while clock.now < deadline {
+                let now = Date().timeIntervalSince1970
+                if let request = session.liveRequest(nowUnixS: now) {
+                    if let answer = await carry(request) {
+                        session.liveAnswer(
+                            status: answer.status, body: answer.body, retryAfterS: answer.retryAfter,
+                            nowUnixS: Date().timeIntervalSince1970
+                        )
+                    } else {
+                        session.liveNoAnswer(nowUnixS: Date().timeIntervalSince1970)
+                    }
+                } else if session.liveShare(nowUnixS: now)?.state == .waiting {
+                    try? await Task.sleep(for: .seconds(2))
+                } else {
+                    break
+                }
+            }
+        }
     }
 
     /// Plays a recorded flight through the cockpit, to try it on the ground.
@@ -178,9 +286,13 @@ final class FlySession {
             // next launch.
             problem = error.words
         }
+        if mode == .live {
+            sayLanded(session)
+        }
         self.session = nil
         replay = nil
         mode = nil
+        live = nil
         view = nil
         way = nil
         score = nil
@@ -253,6 +365,15 @@ final class FlySession {
         let status = session.taskStatus(nowUnixS: now)
         if status != task {
             task = status
+        }
+        // A flight shared with others: what is due goes out, and the
+        // cockpit shows how it stands.
+        if mode == .live {
+            sendLive(from: session, now: now)
+            let shared = session.liveShare(nowUnixS: now)
+            if shared != live {
+                live = shared
+            }
         }
         // What happens in the task is said once: the start taken, a
         // turnpoint reached, the goal. Tests have nobody listening.

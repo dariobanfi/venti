@@ -10,6 +10,7 @@ struct FlyScreen: View {
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
 
+    @AppStorage(Preferences.liveAudience) private var liveAudience = ""
     @State private var isChoosingVario = false
 
     var body: some View {
@@ -50,6 +51,17 @@ struct FlyScreen: View {
                         }
                     }
                     .accessibilityIdentifier("task-before-takeoff")
+                    // Who may watch the flight while it is under way.
+                    NavigationLink {
+                        LiveScreen()
+                    } label: {
+                        LabeledContent {
+                            Text((LiveChoice(rawValue: liveAudience) ?? .nobody).short)
+                        } label: {
+                            Label("Live tracking", systemImage: "antenna.radiowaves.left.and.right")
+                        }
+                    }
+                    .accessibilityIdentifier("live-before-takeoff")
                 } footer: {
                     Text(
                         airspace.isEmpty

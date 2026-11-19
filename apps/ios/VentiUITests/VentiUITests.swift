@@ -93,6 +93,14 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("light-6-logbook")
 
+        // The totals lead to the statistics.
+        element("logbook-totals", in: app).tap()
+        XCTAssertTrue(app.staticTexts["Your bests"].waitForExistence(timeout: 15) || element("Longest flight", in: app).exists)
+        sleep(1)
+        keepScreenshot("light-6b-statistics")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+
         // The map tab now shows the flight too.
         app.tabBars.buttons["Map"].tap()
         sleep(4)

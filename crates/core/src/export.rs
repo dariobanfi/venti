@@ -6,6 +6,8 @@ use crate::{Core, CoreError, LogbookError};
 
 /// A flight file ready to be shared or saved elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightFile {
     /// A file name in the form flight recorders use:
     /// `2026-07-04-XVE-001-01.igc`.

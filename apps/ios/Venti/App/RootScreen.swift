@@ -14,17 +14,20 @@ struct FlightRoute: Hashable {
     let id: String
 }
 
+/// The statistics screen, as a step in the logbook's navigation stack.
+struct StatisticsRoute: Hashable {}
+
 /// Where the pilot is in the app. Held in one place so that a file opened
 /// from outside can bring its flight to the front.
 @MainActor
 @Observable
 final class AppNavigation {
     var tab: AppTab = .map
-    var logbookPath: [FlightRoute] = []
+    var logbookPath = NavigationPath()
 
     func show(flight id: String) {
         tab = .logbook
-        logbookPath = [FlightRoute(id: id)]
+        logbookPath = NavigationPath([FlightRoute(id: id)])
     }
 }
 

@@ -82,6 +82,8 @@ pub enum VarioSourceKind {
 
 /// A wind.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct WindView {
     /// The direction it comes from, degrees clockwise from north.
     pub from_deg: f64,

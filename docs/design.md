@@ -30,7 +30,7 @@ A tab appears when there is something real behind it. An empty section explains 
 
 ### Logbook
 
-A system list grouped by year, newest first. The first row holds the totals: flights, airtime, track distance. Each year's header repeats that year's count and airtime. A row shows the track's shape as a thumbnail, the date, the take-off time and glider, and on the right the airtime and track distance.
+A system list grouped by year, newest first. The first row holds the totals: flights, airtime, cross-country distance. It leads to the statistics: a bar chart of the last twelve months (airtime, distance or number of flights), the gliders flown, and the pilot's bests, each leading to its flight. Each year's header repeats that year's count and airtime. A row shows the track's shape as a thumbnail, the date, the take-off time and glider, and on the right the airtime and the scored distance, with a small triangle if the flight scored as one.
 
 With no flights the screen says so and offers two buttons: import flights (the main action) and add a sample flight.
 
@@ -41,7 +41,7 @@ Deleting asks first. A flight's file exists only on the device, so it cannot be 
 The map fills the screen. A panel floats over its lower part with, from top to bottom: date, times and glider; four numbers (airtime, track distance, highest point, best climb); the altitude profile; the legend for the track colours.
 
 - The track is coloured by climb rate, with a white edge so it reads over any ground. A hollow dot marks the start and a solid dot the end. Under it, a thin dashed line shows the scored route through its turnpoints.
-- Dragging along the profile moves a marker along the track, and the four numbers change to that moment: time, time in the air, altitude, climb. The marker **stays** when the finger lifts, so the pilot can look from the chart to the map. A button in the panel's corner returns to the totals.
+- Dragging along the profile moves a marker along the track, and the four numbers change to that moment: time, time in the air, altitude, climb. The marker **stays** when the finger lifts, so the pilot can look from the chart to the map. A button in the panel's corner returns to the totals. The play button beside it runs the marker along the whole flight in about half a minute.
 - Everything else known about the flight is in a sheet opened from the panel: how the flight scores as a cross-country flight (free flight, free triangle or FAI triangle, with distance and points), the time spent in thermals and on glides, every thermal (when, height gained, average climb, the wind it showed) and every glide (distance, glide ratio, speed), both extremes of altitude and climb, the recorder, the exact meaning of each colour. Choosing a thermal or glide closes the sheet and marks that moment on the map and the profile.
 - The map is told how much of it the panel and bars cover, and fits the track into the rest.
 

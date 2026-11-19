@@ -125,6 +125,11 @@ final class LogbookModel {
         }.value
     }
 
+    /// The logbook looked at as a whole: months, gliders, bests.
+    func statistics() -> LogbookStatistics {
+        core.statistics()
+    }
+
     /// Removes a flight for good.
     func delete(id: String) throws {
         defer { view = core.logbook() }

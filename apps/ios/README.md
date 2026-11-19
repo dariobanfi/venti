@@ -50,7 +50,7 @@ Every push that touches the app also builds it for a real iPhone without a signa
 
 ## What the app does today
 
-- **Logbook.** Import IGC flight files with the plus button, or open one from Files or Mail with "Open in Venti". Flights are listed by year with totals. They are stored on the iPhone only.
+- **Logbook.** Import IGC flight files with the plus button, or open one from Files or Mail with "Open in Venti". Flights are listed by year with totals and each flight's scored distance. Tap the totals for statistics: the last twelve months, your gliders and your bests. Everything is stored on the iPhone only.
 - **Flight.** The track on a terrain map, coloured by climb and sink, with the altitude profile below. Drag along the profile to move a marker along the track and read time, altitude and climb at that moment. The details list every thermal and glide, and how the flight scores as a cross-country flight; choose a thermal or glide to mark it on the map. Time on the ground before take-off and after landing is left out.
 - **Map.** A terrain map with every logbook flight on it and, on request, your position.
 - **Fly.** The cockpit. "Start flight" switches on the position, the pressure sensor and, if you have chosen one, your Bluetooth vario; it records from that moment, with the screen off too, and saves the flight to the logbook when you finish. It shows altitude, climb with a vario tone, speed, glide ratio and distance to the take-off; when you circle in lift it changes to height gained, the thermal's average and the wind. "Replay the sample flight" runs a recorded flight through the same screen.

@@ -27,6 +27,7 @@ mod analysis;
 mod cockpit;
 mod export;
 mod logbook;
+mod statistics;
 mod storage;
 #[cfg(test)]
 mod testing;
@@ -34,6 +35,7 @@ mod testing;
 pub use analysis::*;
 pub use cockpit::*;
 pub use export::*;
+pub use statistics::*;
 
 use logbook::{Logbook, LogbookError};
 pub use storage::{DiskStorage, StagedFile, StagedStorage, Storage};
@@ -208,6 +210,10 @@ pub struct Totals {
     pub airtime_s: i64,
     /// Distance along the tracks, metres.
     pub track_length_m: f64,
+    /// Scored cross-country distance, metres.
+    pub distance_m: f64,
+    /// Cross-country points.
+    pub points: f64,
 }
 
 /// One line of the logbook.
@@ -234,6 +240,24 @@ pub struct LogbookEntry {
     /// The shape of the track in a few dozen points, for a thumbnail or an
     /// overview map.
     pub outline: Vec<Coordinate>,
+    /// How the flight scores as a cross-country flight.
+    pub score: Option<EntryScore>,
+}
+
+/// A flight's cross-country score, in short. `Core::flight_analysis` has
+/// the route.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct EntryScore {
+    /// What the flight is scored as.
+    pub kind: RouteKind,
+    /// For a triangle, whether it is closed to within 5%.
+    pub closed: bool,
+    /// The scoring distance, metres.
+    pub distance_m: f64,
+    /// The points.
+    pub points: f64,
 }
 
 /// The flights of one calendar year (UTC), newest first.
@@ -312,6 +336,10 @@ impl Core {
                 totals.flights += 1;
                 totals.airtime_s += summary.duration_s;
                 totals.track_length_m += summary.track_length_m;
+                if let Some(score) = summary.score {
+                    totals.distance_m += score.distance_m;
+                    totals.points += score.points;
+                }
             }
             section.flights.push(LogbookEntry {
                 id,
@@ -327,6 +355,7 @@ impl Core {
                     .into_iter()
                     .map(|[lat, lon]| Coordinate { lat, lon })
                     .collect(),
+                score: summary.score.map(entry_score),
             });
         }
         view
@@ -408,6 +437,20 @@ impl Core {
         Ok(Arc::new(Self {
             logbook: Logbook::open(storage)?,
         }))
+    }
+}
+
+/// A stored score as the shells see it.
+fn entry_score(score: logbook::StoredScore) -> EntryScore {
+    EntryScore {
+        kind: match score.kind {
+            logbook::StoredKind::FreeFlight => RouteKind::FreeFlight,
+            logbook::StoredKind::FreeTriangle => RouteKind::FreeTriangle,
+            logbook::StoredKind::FaiTriangle => RouteKind::FaiTriangle,
+        },
+        closed: score.closed,
+        distance_m: score.distance_m,
+        points: score.points,
     }
 }
 

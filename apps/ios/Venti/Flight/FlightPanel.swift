@@ -11,6 +11,7 @@ import VentiCore
 struct FlightPanel: View {
     let flight: FlightView
     @Binding var cursor: Int?
+    @Binding var isPlaying: Bool
     @Binding var isShowingDetails: Bool
 
     var body: some View {
@@ -42,9 +43,16 @@ struct FlightPanel: View {
             Spacer(minLength: 8)
             if cursor != nil {
                 PanelButton(title: "Show flight totals", systemImage: "xmark.circle.fill") {
+                    isPlaying = false
                     cursor = nil
                 }
                 .foregroundStyle(.secondary)
+            }
+            PanelButton(
+                title: isPlaying ? "Pause" : "Play the flight",
+                systemImage: isPlaying ? "pause.circle" : "play.circle"
+            ) {
+                isPlaying.toggle()
             }
             PanelButton(title: "Flight details", systemImage: "info.circle") {
                 isShowingDetails = true

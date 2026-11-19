@@ -87,6 +87,8 @@ private struct FlightDetail: View {
 
     /// The position in the track the pilot is inspecting, if any.
     @State private var cursor: Int?
+    /// Whether the marker is running along the track by itself.
+    @State private var isPlaying = false
     @State private var panelHeight: CGFloat = 0
     @State private var isShowingDetails = false
 
@@ -111,7 +113,9 @@ private struct FlightDetail: View {
 
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    FlightPanel(flight: flight, cursor: $cursor, isShowingDetails: $isShowingDetails)
+                    FlightPanel(
+                        flight: flight, cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
+                    )
                         .onGeometryChange(for: CGFloat.self) { panel in
                             panel.size.height
                         } action: { height in
@@ -124,9 +128,26 @@ private struct FlightDetail: View {
                 .ignoresSafeArea(.container, edges: .bottom)
             }
         }
+        // Playing moves the marker from where it is to the end of the
+        // flight in about half a minute, whatever the flight's length.
+        .task(id: isPlaying) {
+            guard isPlaying, flight.track.count > 1 else { return }
+            let step = max(1, flight.track.count / 450)
+            var index = cursor ?? 0
+            if index >= flight.track.count - 1 {
+                index = 0
+            }
+            while !Task.isCancelled, index < flight.track.count - 1 {
+                index = min(index + step, flight.track.count - 1)
+                cursor = index
+                try? await Task.sleep(for: .milliseconds(66))
+            }
+            isPlaying = false
+        }
         .sheet(isPresented: $isShowingDetails) {
             FlightDetailsSheet(flight: flight, analysis: analysis) { index in
                 // Show a thermal or glide the pilot picked from the list.
+                isPlaying = false
                 cursor = min(index, flight.track.count - 1)
                 isShowingDetails = false
             }

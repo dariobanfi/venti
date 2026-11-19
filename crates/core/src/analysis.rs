@@ -6,6 +6,8 @@ use crate::{Coordinate, Core, CoreError, LogbookError, WindView};
 
 /// A moment of a flight.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightMoment {
     /// Its position in the flight's track, to move a cursor there.
     pub track_index: u32,
@@ -19,6 +21,8 @@ pub struct FlightMoment {
 
 /// One thermal of a flight.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ThermalSummary {
     /// Where circling began.
     pub entry: FlightMoment,
@@ -34,6 +38,8 @@ pub struct ThermalSummary {
 
 /// One glide of a flight.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct GlideSummary {
     /// Where it began.
     pub start: FlightMoment,
@@ -51,6 +57,8 @@ pub struct GlideSummary {
 
 /// What a flight is scored as under cross-country league rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum RouteKind {
     /// The longest distance through up to three turnpoints.
     FreeFlight,
@@ -63,6 +71,8 @@ pub enum RouteKind {
 /// How a flight scores under the World XContest's rules. The points are
 /// this app's own calculation, not the league's.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightScore {
     /// What the flight is scored as.
     pub kind: RouteKind,
@@ -85,6 +95,8 @@ pub struct FlightScore {
 
 /// What happened in a flight.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightAnalysis {
     /// Where the glider took off. Absent if the recording never shows it
     /// flying; then everything else is empty too.

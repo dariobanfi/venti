@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use venti_flight::igc::{self, IgcFile};
-use venti_flight::{analysis, summarise, track};
+use venti_flight::{analysis, scoring, summarise, track};
 
 use crate::storage::Storage;
 
@@ -32,7 +32,7 @@ const FLIGHTS_FOLDER: &str = "flights";
 const INDEX_FILE: &str = "logbook-index.json";
 
 /// Bump when [`Summary`] changes shape or meaning; older indexes are rebuilt.
-const INDEX_VERSION: u32 = 3;
+const INDEX_VERSION: u32 = 4;
 
 /// The most points an outline keeps. Enough for a recognisable thumbnail and
 /// an overview map, small enough to hold thousands of flights in memory.
@@ -67,6 +67,25 @@ pub(crate) struct Summary {
     pub glider: Option<String>,
     /// The simplified track as latitude and longitude pairs.
     pub outline: Vec<[f64; 2]>,
+    /// How the flight scores as a cross-country flight.
+    pub score: Option<StoredScore>,
+}
+
+/// A flight's score as the index keeps it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub(crate) struct StoredScore {
+    pub kind: StoredKind,
+    pub closed: bool,
+    pub distance_m: f64,
+    pub points: f64,
+}
+
+/// What a flight is scored as, as the index keeps it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum StoredKind {
+    FreeFlight,
+    FreeTriangle,
+    FaiTriangle,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -249,6 +268,16 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
             .into_iter()
             .map(|point| [point.lat(), point.lon()])
             .collect(),
+        score: scoring::score(flown).map(|score| StoredScore {
+            kind: match score.kind {
+                scoring::RouteKind::FreeFlight => StoredKind::FreeFlight,
+                scoring::RouteKind::FreeTriangle => StoredKind::FreeTriangle,
+                scoring::RouteKind::FaiTriangle => StoredKind::FaiTriangle,
+            },
+            closed: score.closed,
+            distance_m: score.distance_m,
+            points: score.points,
+        }),
     };
     Ok((file, summary))
 }

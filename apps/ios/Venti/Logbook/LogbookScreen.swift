@@ -32,6 +32,9 @@ struct LogbookScreen: View {
             .navigationDestination(for: FlightRoute.self) { route in
                 FlightScreen(id: route.id)
             }
+            .navigationDestination(for: StatisticsRoute.self) { _ in
+                StatisticsScreen()
+            }
         }
         // Flight files have no type the system knows, so any file can be
         // picked; the core says which ones are flights.
@@ -90,7 +93,10 @@ struct LogbookScreen: View {
     private var list: some View {
         List {
             Section {
-                TotalsRow(totals: logbook.view.totals)
+                NavigationLink(value: StatisticsRoute()) {
+                    TotalsRow(totals: logbook.view.totals)
+                }
+                .accessibilityIdentifier("logbook-totals")
             }
             ForEach(logbook.view.years, id: \.year) { year in
                 Section {
@@ -144,7 +150,7 @@ private struct TotalsRow: View {
         HStack(alignment: .top, spacing: 12) {
             Metric(caption: totals.flights == 1 ? "Flight" : "Flights", value: totals.flights.formatted())
             Metric(caption: "Airtime", value: Format.hoursMinutes(seconds: totals.airtimeS), unit: "h")
-            Metric(caption: "Track", value: Format.wholeKilometres(metres: totals.trackLengthM), unit: "km")
+            Metric(caption: "Distance", value: Format.wholeKilometres(metres: totals.distanceM), unit: "km")
         }
         .padding(.vertical, 4)
     }
@@ -186,9 +192,17 @@ private struct LogbookRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(Format.hoursMinutes(seconds: entry.durationS)) h")
                     .font(.system(.headline, design: .rounded))
-                Text("\(Format.kilometres(metres: entry.trackLengthM)) km")
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundStyle(.secondary)
+                // The scored cross-country distance; a triangle is marked.
+                HStack(spacing: 3) {
+                    if let score = entry.score, score.kind != .freeFlight {
+                        Image(systemName: "triangle")
+                            .font(.caption2.weight(.semibold))
+                            .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
+                    }
+                    Text("\(Format.kilometres(metres: entry.score?.distanceM ?? entry.trackLengthM)) km")
+                        .font(.system(.subheadline, design: .rounded))
+                }
+                .foregroundStyle(.secondary)
             }
             .monospacedDigit()
         }

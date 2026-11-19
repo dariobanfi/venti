@@ -7,7 +7,8 @@
 //! [`Core`] has the interface the phones have. The view types it returns
 //! are the core's own; their TypeScript declarations are generated from the
 //! Rust definitions, so there is nothing to keep in step by hand. Live wind
-//! is a handful of plain functions beside it, as it is in the core.
+//! and flying sites are a handful of plain functions beside it, as they are
+//! in the core.
 //!
 //! The core never talks to a server. For the pilot's account it hands out a
 //! [`ServerRequest`] and reads the answer; the page sends the request in
@@ -41,7 +42,7 @@ use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility, ImportedFlight,
-    KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus, SignedIn,
+    KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus, SignedIn, SitesMap,
     StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
@@ -555,6 +556,29 @@ pub fn station_history(
 #[wasm_bindgen(js_name = serverAirspacePath)]
 pub fn server_airspace_path(lat: f64, lon: f64) -> Result<String, JsValue> {
     venti_core::server_airspace_path(lat, lon).map_err(thrown)
+}
+
+// Flying sites from the Venti server: take-offs, landings, winch sites and
+// training slopes for the map. Like the wind, they are asked for and read,
+// and nothing of them is kept among the core's files.
+
+/// The path and query to `GET` for the flying sites of a box.
+#[wasm_bindgen(js_name = sitesPath)]
+pub fn sites_path(south: f64, west: f64, north: f64, east: f64) -> Result<String, JsValue> {
+    venti_core::sites_path(south, west, north, east).map_err(thrown)
+}
+
+/// Reads the server's answer to `sitesPath` for the same box.
+#[wasm_bindgen(js_name = sitesMap)]
+pub fn sites_map(
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<Ts<SitesMap>, JsValue> {
+    to_js(&venti_core::sites_map(south, west, north, east, status, body).map_err(thrown)?)
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

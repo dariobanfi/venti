@@ -11,6 +11,7 @@ import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
+import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
 import { WindSource } from './wind-source';
 
@@ -38,7 +39,8 @@ const starting: Promise<Answering> = (async () => {
 		session,
 		wind,
 		account: new AccountSource(session),
-		airspace: new AirspaceSource(session, () => wind.present())
+		airspace: new AirspaceSource(session, () => wind.present()),
+		sites: new SitesSource(() => wind.present())
 	};
 })();
 

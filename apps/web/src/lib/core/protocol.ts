@@ -27,9 +27,11 @@ import type {
 	KeptAirspace,
 	LogbookStatistics,
 	LogbookView,
+	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
 import type { CoreSession } from './session';
+import type { SitesSource } from './sites-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
@@ -56,6 +58,8 @@ export interface Calls {
 	wind: { given: Bounds; answer: WindAnswer | undefined };
 	/** Given a station's identifier: what it measured over the last 24 hours. */
 	stationHistory: { given: string; answer: StationHistory };
+	/** The flying sites in a box of the map. Nothing if this site has no server. */
+	sites: { given: Bounds; answer: SitesMap | undefined };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** The account this browser is signed in to, if any. */
@@ -111,11 +115,12 @@ export interface Answering {
 	wind: WindSource;
 	account: AccountSource;
 	airspace: AirspaceSource;
+	sites: SitesSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace }: Answering,
+	{ session, wind, account, airspace, sites }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -130,6 +135,7 @@ export async function answer<Name extends CallName>(
 		deleteFlight: (id) => session.deleteFlight(id),
 		wind: (box) => wind.windMap(box),
 		stationHistory: (id) => wind.stationHistory(id),
+		sites: (box) => sites.sites(box),
 		hasServer: () => wind.present(),
 		account: () => account.account(),
 		signIn: ({ handle, password }) => account.signIn(handle, password),

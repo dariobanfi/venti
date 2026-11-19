@@ -1,12 +1,15 @@
 <!--
-	The map of the map tab: terrain, airspace, live wind, every flight in the
-	logbook as a line, and the pilot's own position when asked for.
+	The map of the map tab: terrain, airspace, flying sites, live wind, every
+	flight in the logbook as a line, and the pilot's own position when asked
+	for.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
-	import type { Bounds, Coordinate, WindStation } from '#lib/core/index.ts';
+	import type { Bounds, Coordinate, SiteView, WindStation } from '#lib/core/index.ts';
 	import { ACCENT_ON_MAP, LABEL_ON_MAP } from '#lib/design/palette.ts';
+	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
+	import { sitePictures } from '#lib/sites/symbols.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
 	import { windPictures } from '#lib/wind/symbols.ts';
 	import { type Fix, type PositionProblem, watchPosition } from './position';
@@ -18,6 +21,8 @@
 		outlines: Coordinate[][];
 		/** The wind stations to draw. */
 		stations: WindStation[];
+		/** The flying sites to draw. */
+		sites: SiteView[];
 		/** Where the airspace to draw comes from, once the app has it. */
 		airspace: AirspaceForMaps | undefined;
 		/** Whether the map keeps the pilot's position in its middle. */
@@ -26,10 +31,12 @@
 		coveredBottom: number;
 		/** Called when the position cannot be shown. */
 		onproblem: (problem: PositionProblem) => void;
-		/** Called with the part of the map in view whenever the map has come to rest. */
-		onregion: (region: Bounds) => void;
+		/** Called with the part of the map in view, and its zoom, whenever the map has come to rest. */
+		onregion: (region: Bounds, zoom: number) => void;
 		/** Called with a station's identifier when the pilot chooses its arrow. */
 		onstation: (id: string) => void;
+		/** Called with a site's identifier when the pilot chooses its sign. */
+		onsite: (id: string) => void;
 		/**
 		 * Called with how many airspaces are drawn around what the map shows,
 		 * or with nothing while the map is zoomed too far out to draw any.
@@ -40,12 +47,14 @@
 	let {
 		outlines,
 		stations,
+		sites,
 		airspace,
 		following = $bindable(),
 		coveredBottom,
 		onproblem,
 		onregion,
 		onstation,
+		onsite,
 		onairspace
 	}: Props = $props();
 
@@ -54,8 +63,8 @@
 	/** How close the map goes to a position it is asked to show. */
 	const POSITION_ZOOM = 12.5;
 	/**
-	 * How far from an arrow a tap still chooses its station, in pixels. A
-	 * finger is wider than an arrow.
+	 * How far from an arrow or a sign a tap still chooses it, in pixels. A
+	 * finger is wider than either.
 	 */
 	const REACH = 22;
 
@@ -95,7 +104,7 @@
 
 	/**
 	 * What this map draws on top of the base map: airspace lowest, the
-	 * flights over it, the wind above them.
+	 * flights over it, then the flying sites, the wind above them.
 	 */
 	function addLayers(module: typeof import('./setup'), map: Map) {
 		airspaceOnMap = drawAirspace(
@@ -109,6 +118,14 @@
 		// A white edge keeps the lines readable over any ground colour.
 		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', '#ffffff', 5));
 		map.addLayer(module.line('logbook-tracks-line', 'logbook-tracks', ACCENT_ON_MAP, 2.5));
+
+		// Flying sites are a layer of their own, with their own source and
+		// their own credit: their licence asks that they stay apart.
+		for (const picture of sitePictures()) {
+			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
+		}
+		map.addSource(SITES_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(sitesLayer(module.LABEL_FONT));
 
 		for (const picture of windPictures()) {
 			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
@@ -143,8 +160,10 @@
 			}
 		});
 		map.on('click', (event) => choose(map, event.point));
-		map.on('mouseenter', WIND, () => (map.getCanvas().style.cursor = 'pointer'));
-		map.on('mouseleave', WIND, () => (map.getCanvas().style.cursor = ''));
+		for (const layer of [WIND, SITES_SOURCE]) {
+			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
+			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
+		}
 
 		map.addSource('position', { type: 'geojson', data: NOTHING });
 		map.addLayer({
@@ -158,29 +177,44 @@
 
 	function tellRegion(map: Map) {
 		const visible = map.getBounds();
-		onregion({
-			south: visible.getSouth(),
-			west: visible.getWest(),
-			north: visible.getNorth(),
-			east: visible.getEast()
-		});
+		onregion(
+			{
+				south: visible.getSouth(),
+				west: visible.getWest(),
+				north: visible.getNorth(),
+				east: visible.getEast()
+			},
+			map.getZoom()
+		);
 	}
 
-	/** A tap on a station's arrow, or close to it, opens the nearest station. */
+	/**
+	 * A tap on a station's arrow or a site's sign, or close to it, opens the
+	 * nearest. Wind lies over the sites, and wins where both are under the
+	 * finger.
+	 */
 	function choose(map: Map, point: { x: number; y: number }) {
-		const hits = map.queryRenderedFeatures(
-			[
-				[point.x - REACH, point.y - REACH],
-				[point.x + REACH, point.y + REACH]
-			],
-			{ layers: [WIND] }
-		);
-		const distance = (feature: (typeof hits)[number]) => {
-			const at = map.project((feature.geometry as GeoJSON.Point).coordinates as [number, number]);
-			return Math.hypot(at.x - point.x, at.y - point.y);
-		};
-		const nearest = hits.toSorted((first, second) => distance(first) - distance(second))[0];
-		if (typeof nearest?.properties.id === 'string') onstation(nearest.properties.id);
+		for (const [layer, open] of [
+			[WIND, onstation],
+			[SITES_SOURCE, onsite]
+		] as const) {
+			const hits = map.queryRenderedFeatures(
+				[
+					[point.x - REACH, point.y - REACH],
+					[point.x + REACH, point.y + REACH]
+				],
+				{ layers: [layer] }
+			);
+			const distance = (feature: (typeof hits)[number]) => {
+				const at = map.project((feature.geometry as GeoJSON.Point).coordinates as [number, number]);
+				return Math.hypot(at.x - point.x, at.y - point.y);
+			};
+			const nearest = hits.toSorted((first, second) => distance(first) - distance(second))[0];
+			if (typeof nearest?.properties.id === 'string') {
+				open(nearest.properties.id);
+				return;
+			}
+		}
 	}
 
 	// Draws the airspace again when the app gets it, and when it changes:
@@ -188,6 +222,12 @@
 	$effect(() => {
 		if (!map || airspace?.revision === undefined) return;
 		airspaceOnMap?.look();
+	});
+
+	// Draws the flying sites when they change.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, SITES_SOURCE)?.setData(siteFeatures(sites));
 	});
 
 	// Draws the stations when they change.

@@ -15,6 +15,7 @@
  * - `idb-store.ts` keeps the core's files in IndexedDB; `store.ts` says what
  *   a store is and has one that lives in memory.
  * - `wind-source.ts` asks the Venti server for the wind, from the worker.
+ * - `sites-source.ts` asks it for the flying sites of a part of the map.
  * - `account-source.ts` talks to the Venti server about the pilot's account
  *   and keeps the logbook in step with it, also from the worker.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
@@ -51,6 +52,9 @@ export type {
 	MonthStatistics,
 	ProfilePoint,
 	RouteKind,
+	SiteKind,
+	SitesMap,
+	SiteView,
 	StationHistory,
 	SyncSummary,
 	ThermalSummary,
@@ -60,6 +64,7 @@ export type {
 	WindMap,
 	WindMark,
 	WindReading,
+	WindSpan,
 	WindStation,
 	WindSymbol,
 	WindView

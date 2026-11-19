@@ -184,7 +184,7 @@ test('a server in trouble is reported with what it answered', async ({ context, 
 	await expect(page.getByRole('status')).toHaveText('The server could not answer (status 502).');
 });
 
-test('a site without a server has a map without wind, and says nothing', async ({
+test('a site without a server has a map without wind and without sites, and says nothing', async ({
 	context,
 	page,
 	mapDrawn
@@ -196,6 +196,7 @@ test('a site without a server has a map without wind, and says nothing', async (
 
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Wind stations' })).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Flying sites' })).toBeHidden();
 	await expect(page.getByRole('status')).toBeHidden();
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
 });

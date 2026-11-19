@@ -167,7 +167,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind and flying sites, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -176,7 +176,7 @@ Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual tex
   - The navigation is a rail down the left side, part of the page and not floating on it.
   - **Flight:** the panel stands beside the map as a column, and everything the sheet holds on a phone is in that column under the profile, on screen without a tap. The map has the rest of the window, with buttons for zoom, because a mouse cannot pinch. Choosing a thermal or glide scrolls the column back to the profile, where the mark is.
   - **Logbook:** one column of readable width, with the import button spelled out. The statistics are a narrower column of their own. Each row has room for two more numbers the core already gives, highest point and best climb, under column headings, and a delete button that appears with the mouse over the row.
-  - **Map:** the map fills the window beside the rail, with zoom buttons above the wind and position buttons. A chosen wind station is a card at the map's side, not a sheet over it: the map stays in reach, and choosing another arrow fills the same card.
+  - **Map:** the map fills the window beside the rail, with zoom buttons above the wind and position buttons. A chosen wind station or flying site is a card at the map's side, not a sheet over it: the map stays in reach, and choosing another arrow or sign fills the same card.
 
 What the web adds:
 
@@ -197,6 +197,17 @@ Where the web's wind differs from the iPhone's:
 - **The credit** of the wind's providers is a line of its own directly above the map's credits. It wraps onto a second line rather than being cut short, because it is owed to each of them.
 - **A station's chart** is read by a mouse passing over it, by a finger dragged along it, and by the arrow keys one reading at a time.
 - **The arrow in the list** has the white edge it has on the map. Without it the darkest blue is lost on a dark surface.
+
+Where the web's flying sites differ from the iPhone's:
+
+- **By zoom, not by width.** Sites are asked for and drawn from zoom 9. The iPhone goes by how many degrees its map shows, which on a phone comes to the same; a browser's window can be any width.
+- **The button for the list is there whenever the site has a server**, also while the map shows too much for signs. The list then says how to get them ("Zoom the map in on an area, and the sites its source knows there are listed."), which is how a pilot on the keyboard learns that there are sites at all. An empty list always says why: the map shows too much, the server is being asked, it could not answer, the source knows no site on this part of the map, or the server does not hold this part.
+- **No waypoints.** A browser has no cockpit to navigate with, so a site's page has no button to keep it.
+- **How old the data is** stands under the list and on a site's page ("As of Wed, 18 Nov 2026."), as the server's API asks of a client.
+- **The source's notice** has its addresses as links: the text of the licence and where to correct the data. The credit links to the source's copyright page, and "See or correct it at the source" opens the site's own record there.
+- **The credit** on the map is a line of its own under the wind's and the airspace's: "Sites: OpenStreetMap contributors".
+- **The sign in a list** is the map's in both appearances, dark for a take-off and light for a landing, like the wind's arrow. It does not turn with the page's appearance, as the map does not.
+- **For a screen reader** the map says how many sites lie on the part in view. A map itself says nothing.
 
 Where the web's account and sharing differ from the iPhone's:
 

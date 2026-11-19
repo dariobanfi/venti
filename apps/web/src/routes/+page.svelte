@@ -1,19 +1,26 @@
 <!--
 	The map tab: terrain, live wind from the stations of this site's Venti
-	server, and the pilot's own flights. Sites and forecasts arrive later.
+	server, the flying sites it knows, the pilot's airspace and the pilot's
+	own flights. Forecasts arrive later.
 -->
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { Bounds, WindStation } from '#lib/core/index.ts';
+	import type { Bounds, Credit, SiteView, WindStation } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import MapButton from '#lib/map/MapButton.svelte';
+	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
 	import { problemText } from '#lib/map/position.ts';
+	import { countIn } from '#lib/sites/mark.ts';
+	import SiteList from '#lib/sites/SiteList.svelte';
+	import SitePage from '#lib/sites/SiteView.svelte';
+	import { NO_SITES } from '#lib/sites/watch.ts';
+	import { creditLine as sitesCreditLine } from '#lib/sites/words.ts';
 	import StationList from '#lib/wind/StationList.svelte';
-	import StationPanel from '#lib/wind/StationPanel.svelte';
+	import StationView from '#lib/wind/StationView.svelte';
 	import { notice, NO_WIND } from '#lib/wind/watch.ts';
 
 	const app = getApp();
@@ -27,16 +34,24 @@
 
 	const wind = $derived(app.wind);
 	const current = $derived(wind?.state ?? NO_WIND);
+	const sites = $derived(app.sites);
+	const places = $derived(sites?.state ?? NO_SITES);
 
-	/** The part of the map in view. The map may be there before the core is. */
-	let region = $state.raw<Bounds>();
+	/** The part of the map in view, and its zoom. The map may be there before the core is. */
+	let view = $state.raw<{ region: Bounds; zoom: number }>();
 	$effect(() => {
-		if (region) wind?.show(region);
+		if (view) wind?.show(view.region);
+	});
+	// The flying sites of what the pilot is looking at, once that is a
+	// valley and not a country.
+	$effect(() => {
+		if (view) sites?.show(view.region, view.zoom);
 	});
 	// The airspace around what the pilot is looking at is fetched from the
 	// server when the core says it is time, and kept.
 	$effect(() => {
-		if (!region) return;
+		if (!view) return;
+		const { region } = view;
 		void app.airspace?.refresh({
 			lat: (region.south + region.north) / 2,
 			lon: (region.west + region.east) / 2
@@ -58,8 +73,41 @@
 	const station = $derived(chosen && (wind?.station(chosen.id) ?? chosen));
 	let listing = $state(false);
 
+	/**
+	 * The flying site the pilot chose, with whose data it is and of when:
+	 * all three as they were then, because the map lets go of its sites when
+	 * it is zoomed out.
+	 */
+	let chosenSite = $state.raw<{
+		site: SiteView;
+		credit: Credit | undefined;
+		asOfUnixS: number | undefined;
+	}>();
+	let listingSites = $state(false);
+
+	/** One thing is open beside the map at a time: a station or a site. */
+	function openStation(picked: WindStation | undefined) {
+		if (!picked) return;
+		chosenSite = undefined;
+		chosen = picked;
+	}
+
+	function openSite(picked: SiteView | undefined) {
+		if (!picked) return;
+		chosen = undefined;
+		chosenSite = {
+			site: picked,
+			credit: places.credits.find((credit) => credit.source === picked.source),
+			asOfUnixS: places.asOfUnixS
+		};
+	}
+
 	const said = $derived(notice(current, text.list));
 	const credits = $derived(text.list(current.credits.map((credit) => credit.provider)));
+	/** Whose sites are on the map. Their licence asks for this wherever they are shown. */
+	const sitesCredit = $derived(
+		places.sites.length === 0 ? '' : sitesCreditLine(places.credits, text)
+	);
 </script>
 
 <svelte:head>
@@ -73,12 +121,14 @@
 		bind:following
 		outlines={app.logbook?.outlines ?? []}
 		stations={current.stations}
+		sites={places.sites}
 		airspace={app.airspace}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
 			(app.notice = { title: 'Position unavailable', lines: [problemText(problem)] })}
-		onregion={(shown) => (region = shown)}
-		onstation={(id) => (chosen = wind?.station(id))}
+		onregion={(region, zoom) => (view = { region, zoom })}
+		onstation={(id) => openStation(wind?.station(id))}
+		onsite={(id) => openSite(sites?.site(id))}
 		onairspace={(count) => (airspaceDrawn = count)}
 	/>
 	<!-- A map says nothing to a screen reader: this much it can be told. -->
@@ -87,12 +137,36 @@
 			Airspace on this part of the map: {text.count(airspaceDrawn)}.
 		</p>
 	{/if}
+	{#if view && places.known}
+		<p class="visually-hidden">
+			Flying sites on this part of the map: {text.count(countIn(places.sites, view.region))}.
+		</p>
+	{/if}
 	<div class="navigation-height" bind:clientHeight={navigationHeight}></div>
 
 	<div class="over">
 		{#if wind}
-			<StationPanel {station} {wind} wide={wide.current} onclose={() => (chosen = undefined)} />
+			<MapPanel
+				shown={station?.id}
+				title={station?.name ?? ''}
+				wide={wide.current}
+				onclose={() => (chosen = undefined)}
+			>
+				{#if station}
+					<StationView {station} {wind} />
+				{/if}
+			</MapPanel>
 		{/if}
+		<MapPanel
+			shown={chosenSite?.site.id}
+			title={chosenSite?.site.name ?? ''}
+			wide={wide.current}
+			onclose={() => (chosenSite = undefined)}
+		>
+			{#if chosenSite}
+				<SitePage {...chosenSite} />
+			{/if}
+		</MapPanel>
 		{#if said}
 			<p class="notice" role="status">
 				<Icon name="warning" />
@@ -101,13 +175,14 @@
 		{/if}
 	</div>
 
-	<!-- Whose wind and airspace are on the map. Their licences ask for the
-	     credit next to the data; the full wording is on each station's page
-	     and on the airspace screen. -->
-	{#if credits || airspaceCredit}
+	<!-- Whose wind, airspace and flying sites are on the map. Their licences
+	     ask for the credit next to the data; the full wording is on each
+	     station's page, on the airspace screen and on each site's page. -->
+	{#if credits || airspaceCredit || sitesCredit}
 		<p class="credits">
 			{#if credits}<span>Wind: {credits}</span>{/if}
 			{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
+			{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 		</p>
 	{/if}
 
@@ -120,6 +195,10 @@
 			<!-- Everything the arrows say, as a list: for reading the numbers
 			     side by side, and for the keyboard and screen readers. -->
 			<MapButton label="Wind stations" icon="wind" onclick={() => (listing = true)} />
+			<!-- The signs on the map, as a list. The button is there before
+			     the map is close enough for signs: the list then says how to
+			     get them. -->
+			<MapButton label="Flying sites" icon="pin" onclick={() => (listingSites = true)} />
 		{/if}
 		<MapButton
 			label="Show my position"
@@ -135,9 +214,19 @@
 	wind={current}
 	onchoose={(picked) => {
 		listing = false;
-		chosen = picked;
+		openStation(picked);
 	}}
 	onclose={() => (listing = false)}
+/>
+
+<SiteList
+	open={listingSites}
+	sites={places}
+	onchoose={(picked) => {
+		listingSites = false;
+		openSite(picked);
+	}}
+	onclose={() => (listingSites = false)}
 />
 
 <style>
@@ -210,7 +299,7 @@
 		text-wrap: pretty;
 	}
 
-	/* Wind and airspace each have a line of their own. */
+	/* Wind, airspace and sites each have a line of their own. */
 	.credits span {
 		display: block;
 	}

@@ -5,6 +5,7 @@ import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
+import { SitesSource } from './sites-source';
 import { MemoryStore } from './store';
 import { sampleFlight, startCore } from './testing';
 import { WindSource } from './wind-source';
@@ -38,7 +39,9 @@ class SameProcess implements Channel {
 						session,
 						wind: this.#wind,
 						account: account(session),
-						airspace: airspace(session)
+						airspace: airspace(session),
+						// Flying sites from a site that has no server.
+						sites: new SitesSource(async () => false)
 					},
 					call,
 					given

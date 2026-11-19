@@ -100,6 +100,11 @@ export class CoreClient {
 		return this.#call('stationHistory', stationId);
 	}
 
+	/** The flying sites in a box of the map. Nothing if this site has no server. */
+	sites(box: Bounds) {
+		return this.#call('sites', box);
+	}
+
 	/** Whether this site has a Venti server behind it. */
 	hasServer() {
 		return this.#call('hasServer', undefined);

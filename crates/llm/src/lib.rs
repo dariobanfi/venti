@@ -14,11 +14,15 @@
 //! the assistant's next message. The loop that runs the tools between the
 //! two lives with the tools, in the client core.
 //!
-//! Providers so far: Anthropic's Messages API.
+//! Providers so far: Anthropic's Messages API, and the chat completions
+//! format that OpenAI defined and many other services and local model
+//! servers speak.
 
 mod anthropic;
+mod chat_completions;
 
 pub use anthropic::Anthropic;
+pub use chat_completions::ChatCompletions;
 use serde_json::Value;
 
 /// An HTTP request for whoever does the I/O to send as a `POST`.

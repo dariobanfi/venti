@@ -26,11 +26,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use venti_llm::{
-    Anthropic, Block, Conversation, LlmError, Message, Provider, Role, Stop, ToolSpec,
+    Anthropic, Block, ChatCompletions, Conversation, LlmError, Message, Provider, Role, Stop,
+    ToolSpec,
 };
 use venti_tools::{Host, ToolError};
 
-use crate::{Core, FlightMoment};
+use crate::{Core, CoreError, FlightMoment};
 
 /// How many times in a row the model may ask for tools before the app
 /// stops it. A question about a logbook needs two or three.
@@ -141,8 +142,107 @@ pub struct Assistant {
     state: Mutex<State>,
 }
 
+/// Where a conversation's model runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Service {
+    /// Anthropic, by its own API.
+    Anthropic,
+    /// Any other service, by the chat completions format.
+    Other(ChatCompletions),
+}
+
+impl Service {
+    fn provider(&self) -> &dyn Provider {
+        match self {
+            Service::Anthropic => &Anthropic,
+            Service::Other(service) => service,
+        }
+    }
+}
+
+/// The address of a service the pilot wants to use for the assistant, as
+/// people write it, made into the address its API lives under.
+///
+/// The pilot's key goes to this address with every question. It is
+/// therefore sent over an encrypted connection only; without encryption
+/// only a computer on the pilot's own network can be reached, which is
+/// where people run models of their own.
+#[uniffi::export]
+pub fn assistant_service_address(text: String) -> Result<String, CoreError> {
+    let invalid = |message: &str| CoreError::InvalidFile {
+        message: message.to_owned(),
+    };
+    let text = text.trim();
+    let (scheme, rest) = match text.split_once("://") {
+        Some((scheme, rest)) => (scheme.to_ascii_lowercase(), rest),
+        None => ("https".to_owned(), text),
+    };
+    let rest = rest.trim_end_matches('/');
+    let host_and_port = rest.split('/').next().unwrap_or_default();
+    // An address with a name and password in it, a question mark or a
+    // hash is not an address of an API.
+    if host_and_port.is_empty()
+        || rest.contains(['?', '#', '@', ' '])
+        || !rest.chars().all(|c| c.is_ascii_graphic())
+    {
+        return Err(invalid(
+            "This is not the address of a service. It looks like https://api.example.org/v1.",
+        ));
+    }
+    let host = match host_and_port.strip_prefix('[') {
+        // An IPv6 address stands in brackets, its port after them.
+        Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
+        None => host_and_port.split(':').next().unwrap_or_default(),
+    }
+    .to_ascii_lowercase();
+    // A name on the internet has a dot in it; without one only this
+    // device's own name and an address in brackets are hosts.
+    if !(host.contains('.') || host == "localhost" || host_and_port.starts_with('[')) {
+        return Err(invalid(
+            "This is not the address of a service. It looks like https://api.example.org/v1.",
+        ));
+    }
+    match scheme.as_str() {
+        "https" => {}
+        "http" if is_on_own_network(&host) => {}
+        "http" => {
+            return Err(invalid(
+                "Your key is only sent over an encrypted connection: the address has to begin \
+                 with https://. Without encryption only a computer on your own network can be \
+                 reached.",
+            ));
+        }
+        _ => {
+            return Err(invalid(
+                "This is not the address of a service. It looks like https://api.example.org/v1.",
+            ));
+        }
+    }
+    Ok(format!("{scheme}://{rest}"))
+}
+
+/// Whether a host is this device or one on the same private network: the
+/// names and addresses that cannot be reached from the internet.
+fn is_on_own_network(host: &str) -> bool {
+    if host == "localhost" || host == "::1" || host.ends_with(".local") {
+        return true;
+    }
+    let parts: Vec<u8> = host
+        .split('.')
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    if parts.len() != 4 || host.split('.').count() != 4 {
+        return false;
+    }
+    matches!(
+        (parts[0], parts[1]),
+        (127, _) | (10, _) | (192, 168) | (172, 16..=31) | (169, 254)
+    )
+}
+
 #[derive(Debug)]
 struct State {
+    service: Service,
     model: String,
     messages: Vec<Message>,
     /// The date the current question was asked, for the instructions.
@@ -181,9 +281,37 @@ impl Core {
     /// Starts a conversation with the assistant, using the given model: one
     /// of the identifiers from [`assistant_models`].
     pub fn assistant(self: Arc<Self>, model: String) -> Arc<Assistant> {
+        self.converse(Service::Anthropic, model)
+    }
+
+    /// Starts a conversation with a model at another service than
+    /// Anthropic: any that speaks the chat completions format OpenAI
+    /// defined, which many services and the servers for local models do.
+    /// `address` is where its API lives, such as
+    /// `https://api.openai.com/v1`, and `model` the service's own name for
+    /// the model. The pilot's key and questions go to that address.
+    pub fn assistant_at(
+        self: Arc<Self>,
+        address: String,
+        model: String,
+    ) -> Result<Arc<Assistant>, CoreError> {
+        let address = assistant_service_address(address)?;
+        let model = model.trim().to_owned();
+        if model.is_empty() {
+            return Err(CoreError::InvalidFile {
+                message: "The service needs to be told which model to use.".to_owned(),
+            });
+        }
+        Ok(self.converse(Service::Other(ChatCompletions::at(&address)), model))
+    }
+}
+
+impl Core {
+    fn converse(self: Arc<Self>, service: Service, model: String) -> Arc<Assistant> {
         Arc::new(Assistant {
             core: self,
             state: Mutex::new(State {
+                service,
                 model,
                 messages: Vec::new(),
                 today: String::new(),
@@ -240,7 +368,7 @@ impl Assistant {
             return continue_round(self.core.as_ref(), &mut state, &key);
         }
 
-        let reply = match Anthropic.parse(status, &body) {
+        let reply = match state.service.provider().parse(status, &body) {
             Ok(reply) => reply,
             Err(error) => return fail(&mut state, explain(&error)),
         };
@@ -481,7 +609,7 @@ fn send(state: &State, key: &str) -> AssistantStep {
             input_schema: tool.input_schema(),
         })
         .collect();
-    let request = Anthropic.request(
+    let request = state.service.provider().request(
         key,
         &Conversation {
             model: &state.model,
@@ -889,6 +1017,148 @@ mod tests {
                 .iter()
                 .all(|tool| tool["name"] != "airspace_at")
         );
+    }
+
+    #[test]
+    fn the_address_of_another_service_is_read_and_a_key_goes_out_encrypted_only() {
+        let read = |text: &str| assistant_service_address(text.to_owned());
+        assert_eq!(
+            read(" https://api.openai.com/v1/ ").unwrap(),
+            "https://api.openai.com/v1"
+        );
+        // Without a scheme it is taken as encrypted.
+        assert_eq!(
+            read("openrouter.ai/api/v1").unwrap(),
+            "https://openrouter.ai/api/v1"
+        );
+        assert_eq!(
+            read("HTTPS://Api.Example.org").unwrap(),
+            "https://Api.Example.org"
+        );
+        // Unencrypted only to this device or the pilot's own network,
+        // where people run models of their own.
+        for own in [
+            "http://localhost:11434/v1",
+            "http://127.0.0.1:8080/v1",
+            "http://192.168.1.20:1234/v1",
+            "http://10.0.0.5/v1",
+            "http://172.20.1.1/v1",
+            "http://mac-mini.local:11434/v1",
+            "http://[::1]:11434/v1",
+        ] {
+            assert_eq!(read(own).unwrap(), own, "{own}");
+        }
+        for open in [
+            "http://api.example.org/v1",
+            "http://8.8.8.8/v1",
+            "http://172.32.0.1/v1",
+            "http://192.168.1.20.example.org/v1",
+        ] {
+            let refused = read(open).unwrap_err().to_string();
+            assert!(
+                refused.contains("encrypted connection"),
+                "{open}: {refused}"
+            );
+        }
+        for nothing in [
+            "",
+            "https://",
+            "ftp://example.org",
+            "https://user:secret@example.org/v1",
+            "https://example.org/v1?key=1",
+            "https://example.org/a b",
+        ] {
+            assert!(read(nothing).is_err(), "{nothing}");
+        }
+    }
+
+    #[test]
+    fn a_conversation_can_run_at_another_service_in_its_own_format() {
+        let folder = TempFolder::new();
+        let core = core_with_flights(&folder);
+        assert!(
+            Arc::clone(&core)
+                .assistant_at("http://example.org/v1".to_owned(), "m".to_owned())
+                .is_err()
+        );
+        assert!(
+            Arc::clone(&core)
+                .assistant_at("https://example.org/v1".to_owned(), "  ".to_owned())
+                .is_err()
+        );
+        let assistant = core
+            .assistant_at(
+                "https://api.example.org/v1/".to_owned(),
+                " some-model ".to_owned(),
+            )
+            .unwrap();
+
+        // The question goes to that service, in its format, with the key
+        // in the header that format uses and nowhere else.
+        let step = assistant.ask(
+            "How many flights have I got?".to_owned(),
+            NOW,
+            "sk-other".to_owned(),
+        );
+        let AssistantStep::Send { request } = &step else {
+            panic!("{step:?}");
+        };
+        assert_eq!(request.url, "https://api.example.org/v1/chat/completions");
+        assert!(request.headers.contains(&HttpHeader {
+            name: "authorization".to_owned(),
+            value: "Bearer sk-other".to_owned(),
+        }));
+        assert!(!request.body.contains("sk-other"));
+        let first = body(&step);
+        assert_eq!(first["model"], "some-model");
+        assert_eq!(first["messages"][0]["role"], "system");
+        assert_eq!(
+            first["messages"][1],
+            json!({"role": "user", "content": "How many flights have I got?"})
+        );
+        assert_eq!(first["tools"][0]["type"], "function");
+        assert_eq!(first["tools"][0]["function"]["name"], "logbook_statistics");
+
+        // The service asks for a tool the way it does; the tool runs on
+        // the device and its result goes back as that format's message.
+        let asks = json!({"choices": [{"finish_reason": "tool_calls", "message": {
+            "role": "assistant", "content": null,
+            "tool_calls": [{"id": "call_1", "type": "function",
+                            "function": {"name": "logbook_statistics", "arguments": "{}"}}]
+        }}]});
+        let step = assistant.receive(200, asks.to_string().into_bytes(), "sk-other".to_owned());
+        let second = body(&step);
+        let sent = second["messages"].as_array().unwrap();
+        assert_eq!(sent.len(), 4);
+        assert_eq!(sent[2]["tool_calls"][0]["id"], "call_1");
+        assert_eq!(sent[3]["role"], "tool");
+        assert_eq!(sent[3]["tool_call_id"], "call_1");
+        assert!(sent[3]["content"].as_str().unwrap().contains("flights"));
+
+        let says = json!({"choices": [{"finish_reason": "stop", "message": {
+            "role": "assistant", "content": "You have two flights."}}]});
+        let step = assistant.receive(200, says.to_string().into_bytes(), "sk-other".to_owned());
+        assert_eq!(step, AssistantStep::Finished);
+        let transcript = assistant.transcript();
+        assert_eq!(transcript.last().unwrap().text, "You have two flights.");
+        assert_eq!(
+            transcript.last().unwrap().looked_up,
+            ["your logbook's statistics"]
+        );
+
+        // A key the service does not take is said in the same words as
+        // for any provider.
+        let step = assistant.ask("And hours?".to_owned(), NOW, "sk-wrong".to_owned());
+        assert!(matches!(step, AssistantStep::Send { .. }));
+        let step = assistant.receive(
+            401,
+            br#"{"error": {"message": "Incorrect API key provided", "type": "invalid_request_error"}}"#.to_vec(),
+            "sk-wrong".to_owned(),
+        );
+        let AssistantStep::Failed { message } = step else {
+            panic!("{step:?}");
+        };
+        assert!(message.contains("did not accept your key"), "{message}");
     }
 
     #[test]

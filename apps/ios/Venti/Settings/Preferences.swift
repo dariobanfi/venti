@@ -8,6 +8,12 @@ enum Preferences {
     static let varioMuted = "VentiVarioMuted"
     /// The model the assistant uses.
     static let assistantModel = "VentiAssistantModel"
+    /// Where the assistant's model runs: "anthropic", or "other" for a
+    /// service the pilot set by its address.
+    static let assistantService = "VentiAssistantService"
+    /// That other service's address, and its name for the model to use.
+    static let assistantAddress = "VentiAssistantAddress"
+    static let assistantOtherModel = "VentiAssistantOtherModel"
     /// The address of the Venti server that live wind comes from.
     static let server = "VentiServerAddress"
     /// The glider's speed with the brakes up, km/h.

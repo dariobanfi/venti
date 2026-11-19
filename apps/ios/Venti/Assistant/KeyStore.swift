@@ -60,6 +60,23 @@ enum KeyStore {
     static func remove() {
         Keychain.remove(service: service, account: account)
     }
+
+    /// The key for another service the pilot set by its address. It is
+    /// kept apart from Anthropic's, and sent only to that address.
+    private static let otherAccount = "other"
+
+    static func readOther() -> String? {
+        Keychain.read(service: service, account: otherAccount)
+    }
+
+    @discardableResult
+    static func saveOther(_ key: String) -> Bool {
+        Keychain.save(key, service: service, account: otherAccount)
+    }
+
+    static func removeOther() {
+        Keychain.remove(service: service, account: otherAccount)
+    }
 }
 
 /// The token of the session with the pilot's Venti server. It is sent only

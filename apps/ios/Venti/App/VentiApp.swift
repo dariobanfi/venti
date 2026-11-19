@@ -79,8 +79,11 @@ enum Session {
             let readKey: () -> String? = scripted ? { "scripted" } : { KeyStore.read() }
             let chat = AssistantChat(
                 makeAssistant: { model in logbook.makeAssistant(model: model) },
+                makeAssistantAt: { address, model in try logbook.makeAssistant(at: address, model: model) },
                 transport: transport,
                 readKey: readKey,
+                // A test starts at Anthropic, whatever a pilot has set.
+                remembersService: !LaunchOptions.isUnderTest,
                 server: { wind.server?.absoluteString },
                 now: { wind.now }
             )

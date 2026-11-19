@@ -213,6 +213,13 @@ final class LogbookModel {
         core.assistant(model: model)
     }
 
+    /// The same at another service than Anthropic, by its address and its
+    /// own name for a model. Throws when the address is not one a key may
+    /// be sent to.
+    func makeAssistant(at address: String, model: String) throws -> Assistant {
+        try core.assistantAt(address: address, model: model)
+    }
+
     /// The logbook looked at as a whole: months, gliders, bests.
     func statistics() -> LogbookStatistics {
         core.statistics()

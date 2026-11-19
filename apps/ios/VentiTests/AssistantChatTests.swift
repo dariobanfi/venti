@@ -41,6 +41,81 @@ final class AssistantChatTests: XCTestCase {
         XCTAssertTrue(chat.entries.isEmpty)
     }
 
+    func testTheAssistantCanRunAtAnotherService() async throws {
+        /// The other service's key, kept in memory instead of the Keychain.
+        final class Kept {
+            var key: String?
+        }
+
+        let logbook = try await makeLogbook()
+        let seen = Seen()
+        let kept = Kept()
+        let chat = AssistantChat(
+            makeAssistant: { model in logbook.makeAssistant(model: model) },
+            makeAssistantAt: { address, model in try logbook.makeAssistant(at: address, model: model) },
+            transport: { request in
+                await seen.add(request)
+                let reply = #"{"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "Two flights."}}]}"#
+                return (200, Data(reply.utf8))
+            },
+            readKey: { nil },
+            otherKey: AssistantChat.OtherKey(
+                read: { kept.key },
+                save: { key in
+                    kept.key = key
+                    return true
+                },
+                remove: { kept.key = nil }
+            ),
+            remembersService: false
+        )
+        XCTAssertFalse(chat.hasKey)
+        XCTAssertEqual(chat.service, .anthropic)
+
+        // An address a key must not be sent to is refused in the core's
+        // words, and nothing is kept.
+        XCTAssertFalse(chat.useOtherService(address: "http://api.example.org/v1", model: "some-model", key: "sk-other"))
+        XCTAssertTrue(chat.problem?.contains("encrypted connection") ?? false, chat.problem ?? "")
+        XCTAssertNil(kept.key)
+        chat.problem = nil
+        // So is a service without a key typed or kept.
+        XCTAssertFalse(chat.useOtherService(address: "api.example.org/v1", model: "some-model", key: " "))
+        XCTAssertEqual(chat.service, .anthropic)
+        chat.problem = nil
+
+        XCTAssertTrue(chat.useOtherService(address: "api.example.org/v1/", model: " some-model ", key: " sk-other "))
+        XCTAssertEqual(chat.service, .other)
+        XCTAssertEqual(chat.otherAddress, "https://api.example.org/v1")
+        XCTAssertEqual(chat.otherModel, "some-model")
+        XCTAssertEqual(kept.key, "sk-other")
+        XCTAssertTrue(chat.hasKey)
+        XCTAssertEqual(AssistantScreen.host(of: chat.otherAddress), "api.example.org")
+
+        // A question goes to that service, in its format, with its key.
+        await chat.ask("How many flights?")
+        XCTAssertNil(chat.problem)
+        XCTAssertEqual(chat.entries.last?.text, "Two flights.")
+        let requests = await seen.requests
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.url, "https://api.example.org/v1/chat/completions")
+        XCTAssertTrue(
+            requests.first?.headers.contains(HttpHeader(name: "authorization", value: "Bearer sk-other")) ?? false
+        )
+        XCTAssertFalse(requests.first?.body.contains("sk-other") ?? true)
+
+        // Back to Anthropic, where there is no key; the other service's
+        // stays kept for changing back, until it is removed.
+        chat.useAnthropic()
+        XCTAssertEqual(chat.service, .anthropic)
+        XCTAssertFalse(chat.hasKey)
+        XCTAssertTrue(chat.hasOtherKey)
+        XCTAssertTrue(chat.useOtherService(address: chat.otherAddress, model: chat.otherModel, key: ""))
+        XCTAssertEqual(chat.service, .other)
+        chat.removeKey()
+        XCTAssertNil(kept.key)
+        XCTAssertEqual(chat.service, .anthropic)
+    }
+
     func testTheKeyGoesToTheProviderInAHeaderAndTheLogbookInTheBody() async throws {
         let logbook = try await makeLogbook()
         let seen = Seen()

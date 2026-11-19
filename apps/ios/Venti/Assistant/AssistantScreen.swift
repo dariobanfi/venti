@@ -7,6 +7,7 @@ struct AssistantScreen: View {
     @Environment(AssistantChat.self) private var chat
 
     @State private var draft = ""
+    @State private var isSettingService = false
     @FocusState private var isTyping: Bool
 
     var body: some View {
@@ -20,20 +21,35 @@ struct AssistantScreen: View {
             }
             .navigationTitle("Assistant")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $isSettingService) {
+                OtherServiceForm()
+            }
             .toolbar {
                 if chat.hasKey {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("Assistant options", systemImage: "ellipsis") {
-                            Picker(
-                                "Model",
-                                selection: Binding(
-                                    get: { chat.model },
-                                    set: { model in chat.use(model: model) }
-                                )
-                            ) {
-                                ForEach(assistantModels(), id: \.id) { model in
-                                    Text(model.name).tag(model.id)
+                            if chat.service == .anthropic {
+                                Picker(
+                                    "Model",
+                                    selection: Binding(
+                                        get: { chat.model },
+                                        set: { model in chat.use(model: model) }
+                                    )
+                                ) {
+                                    ForEach(assistantModels(), id: \.id) { model in
+                                        Text(model.name).tag(model.id)
+                                    }
                                 }
+                            } else {
+                                // Which model answers, and where.
+                                Section("\(chat.otherModel) at \(Self.host(of: chat.otherAddress))") {
+                                    Button("Use Anthropic again", systemImage: "arrow.uturn.backward") {
+                                        chat.useAnthropic()
+                                    }
+                                }
+                            }
+                            Button("Another service", systemImage: "server.rack") {
+                                isSettingService = true
                             }
                             Button("New conversation", systemImage: "square.and.pencil") {
                                 chat.startAgain()
@@ -125,6 +141,11 @@ struct AssistantScreen: View {
             await chat.ask(question)
         }
     }
+
+    /// The name of the computer an address points to: "api.example.org".
+    static func host(of address: String) -> String {
+        URL(string: address)?.host() ?? address
+    }
 }
 
 /// What the pilot or the assistant said.
@@ -188,8 +209,8 @@ private struct Suggestions: View {
                 .font(.title2.weight(.semibold))
             Text(
                 hasWind
-                    ? "The assistant reads your logbook to answer, and the wind stations of your Venti server. It cannot see forecasts, airspace or other pilots yet."
-                    : "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet."
+                    ? "The assistant reads your logbook to answer, and on your Venti server the wind stations, the airspace, the forecast and the flying sites. It does not say whether a day can be flown, and it cannot see other pilots."
+                    : "The assistant reads your logbook to answer. With a Venti server set it can also look up wind, airspace, forecasts and flying sites."
             )
             .foregroundStyle(.secondary)
             ForEach(Self.questions + (hasWind ? [Self.windQuestion] : []), id: \.self) { question in
@@ -235,6 +256,79 @@ private struct KeyEntry: View {
                     Link("Get a key from Anthropic", destination: console)
                 }
             }
+            Section {
+                NavigationLink("Use another service instead") {
+                    OtherServiceForm()
+                }
+            } footer: {
+                Text("OpenAI, OpenRouter and others, or a model you run yourself.")
+            }
+        }
+    }
+}
+
+/// Where the pilot sets another service than Anthropic for the assistant:
+/// its address, its name for a model, and a key.
+private struct OtherServiceForm: View {
+    @Environment(AssistantChat.self) private var chat
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var address = ""
+    @State private var model = ""
+    @State private var key = ""
+    @State private var problem: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Text("The assistant can run at any service that speaks the chat completions format: OpenAI, OpenRouter and others, or a model you run on a computer of your own. You need the address of its API, its name for the model, and a key for your account there.")
+            }
+            Section {
+                TextField("https://api.example.org/v1", text: $address)
+                    .keyboardType(.URL)
+                    .textContentType(.URL)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityLabel("Address")
+                TextField("Model", text: $model)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                SecureField(chat.hasOtherKey ? "API key (one is kept)" : "API key", text: $key)
+                    .textContentType(.password)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+            } header: {
+                Text("The service")
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let problem {
+                        Label(problem, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                    }
+                    Text("Your key and your questions, with what the assistant looks up to answer them, go from this iPhone to that address and nowhere else. The key is kept in the Keychain and sent over an encrypted connection only; without encryption only a computer on your own network is reached. Venti has not been tried with every service: if one answers oddly, tell the project.")
+                }
+            }
+            Section {
+                Button("Use this service") {
+                    if chat.useOtherService(address: address, model: model, key: key) {
+                        dismiss()
+                    } else {
+                        // Said here, beside the fields, not in an alert.
+                        problem = chat.problem
+                        chat.problem = nil
+                    }
+                }
+                .disabled(
+                    address.trimmingCharacters(in: .whitespaces).isEmpty
+                        || model.trimmingCharacters(in: .whitespaces).isEmpty
+                )
+            }
+        }
+        .navigationTitle("Another service")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            address = chat.otherAddress
+            model = chat.otherModel
         }
     }
 }

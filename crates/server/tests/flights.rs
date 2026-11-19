@@ -28,6 +28,8 @@ use venti_store::testing::TroubledStore;
 
 mod common;
 
+#[cfg(unix)]
+use common::stalling_analyser;
 use common::{
     Answer, TestClock, ask, get, get_with, golden, recorded, sample_file, sample_file_on, server,
     set_visibility, settings, sign_up, upload,
@@ -68,34 +70,6 @@ async fn changes(router: &Router, token: &str, since: Option<&str>) -> FlightCha
 
 fn ids(flights: &[Flight]) -> Vec<&FlightId> {
     flights.iter().map(|flight| &flight.id).collect()
-}
-
-/// A program that stands in for the server's own when it analyses a file:
-/// it hands every file on to the real program, except a file made by
-/// [`hostile_file`], over which it never finishes.
-///
-/// A file that was truly slow to analyse existed until the flight engine
-/// bounded its track simplification. The server's patience is its second
-/// line of defence, and is tested with a stand-in so that it does not
-/// depend on the engine having a slow path.
-#[cfg(unix)]
-fn stalling_analyser(folder: &std::path::Path) -> PathBuf {
-    use std::os::unix::fs::PermissionsExt;
-
-    let real = env!("CARGO_BIN_EXE_venti-server");
-    let script = folder.join("analyser.sh");
-    std::fs::create_dir_all(folder).unwrap();
-    std::fs::write(
-        &script,
-        format!(
-            "#!/bin/sh\nfile=\"$0.$$\"\ncat > \"$file\"\n\
-             if grep -q EA0100001000 \"$file\"; then rm -f \"$file\"; exec sleep 60; fi\n\
-             \"{real}\" \"$@\" < \"$file\"\nstatus=$?\nrm -f \"$file\"\nexit $status\n"
-        ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    script
 }
 
 /// A flight file with a mark the stalling analyser knows: a few thousand

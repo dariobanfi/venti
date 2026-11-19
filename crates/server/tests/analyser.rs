@@ -11,6 +11,8 @@ use venti_flight::testing::synthetic_flight;
 use venti_server::flights::analyser::{Analyser, Failure, Where};
 use venti_server::flights::derive::{Unusable, derive};
 
+mod common;
+
 fn program() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_venti-server"))
 }
@@ -23,8 +25,11 @@ fn sample() -> Arc<[u8]> {
     igc::write(&synthetic_flight()).into_bytes().into()
 }
 
-/// A flight file whose fixes jump from one side of the globe to the other,
-/// which the analysis takes minutes to get through.
+/// A flight file whose fixes jump from one side of the globe to the other.
+/// The analysis used to take minutes to get through such a track, and
+/// since the flight engine bounds that work it takes about a second, more
+/// or less with the machine. Every line of it ends in what the stalling
+/// stand-in never finishes over.
 fn hostile(fixes: usize) -> Arc<[u8]> {
     let mut text = String::from("AXVE000\r\nHFDTEDATE:040726,01\r\n");
     for n in 0..fixes {
@@ -67,32 +72,55 @@ async fn a_file_that_is_no_flight_is_an_answer_not_a_failure() {
     }
 }
 
+// The file that takes too long is played by a stand-in that never finishes
+// over it, so that the test is about the server's time limit and not about
+// how fast this machine analyses a track. With the real analysis the same
+// file was done within the second allowed here on some machines and not
+// on others, and the test failed where it was.
+#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_takes_too_long_costs_the_time_allowed_and_no_more() {
+    let folder = std::env::temp_dir().join(format!("venti-analyser-{}", std::process::id()));
+    let program = common::stalling_analyser(&folder);
+    assert!(
+        hostile(20_000)
+            .windows(common::STALLS_ON.len())
+            .any(|bytes| bytes == common::STALLS_ON.as_bytes())
+    );
     let allowed = Duration::from_secs(1);
-    let analyser = child(allowed);
+    let analyser = Analyser::with_time_allowed(Where::Child(program.clone()), allowed);
+    // What "and no more" is held to. Left alone the stand-in takes ten
+    // minutes, so a limit that did not hold would be past this many times
+    // over; a machine that is merely slow is not.
+    let slack = Duration::from_secs(20);
     let began = Instant::now();
 
-    let result = analyser.analyse(hostile(20_000)).await;
+    let (result, analysis_took) = analyser.analyse_timed(hostile(20_000)).await;
 
     let took = began.elapsed();
     assert_eq!(result, Err(Failure::TooSlow));
     assert!(took >= allowed, "{took:?}");
-    assert!(took < allowed + Duration::from_secs(3), "{took:?}");
+    assert!(took < allowed + slack, "{took:?}");
+    // What the account is charged for is the time allowed, exactly.
+    assert_eq!(analysis_took, allowed);
 
-    // The child was killed, so its turn is free: three more of the same go
-    // through one after another, each in the time allowed, where children
-    // left running would make the third wait for a turn.
+    // The child was killed, so its turn is free: five more of the same go
+    // through one after another, each in the time allowed. Two are
+    // analysed at a time, so children left running would have kept every
+    // turn from the third on, and the third would have been told "busy".
     let began = Instant::now();
-    for n in 1..=3 {
+    for n in 1..=5 {
         let result = analyser.analyse(hostile(20_000 + n)).await;
         assert_eq!(result, Err(Failure::TooSlow));
     }
     let took = began.elapsed();
-    assert!(took < 3 * allowed + Duration::from_secs(6), "{took:?}");
-    // And an honest file is analysed as if nothing had happened.
-    let honest = child(Duration::from_secs(30)).analyse(sample()).await;
-    assert!(honest.is_ok());
+    assert!(took >= 5 * allowed, "{took:?}");
+    assert!(took < 5 * allowed + slack, "{took:?}");
+    // And an honest file is analysed as if nothing had happened, by the
+    // real program, which the stand-in hands it to.
+    let patient = Analyser::with_time_allowed(Where::Child(program), Duration::from_secs(60));
+    let honest = patient.analyse(sample()).await;
+    assert_eq!(honest, Ok(derive(&sample()).unwrap()));
 
     // A killed child must also be collected, or a server that runs for
     // months fills the process table with the dead.
@@ -104,6 +132,7 @@ async fn a_file_that_takes_too_long_costs_the_time_allowed_and_no_more() {
         }
         assert_eq!(dead_children(), 0, "killed children were left uncollected");
     }
+    let _ = std::fs::remove_dir_all(&folder);
 }
 
 /// How many children of this process have ended and were not collected.

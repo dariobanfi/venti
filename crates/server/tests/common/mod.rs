@@ -363,3 +363,44 @@ pub async fn set_visibility(
     let updated: FlightResponse = answer.ok(StatusCode::OK);
     assert_eq!(updated.flight.visibility, visibility);
 }
+
+// --- An analysis that never ends ------------------------------------------------
+
+/// A stand-in for the analysis of a flight file, as a program: it never
+/// finishes over a file that holds [`STALLS_ON`], and hands every other
+/// file to the real `venti-server derive`.
+///
+/// The server gives the analysis of an uploaded file a time limit and
+/// kills what is not done by then. What is tested about that limit must
+/// not depend on a file that happens to be slow to analyse: how slow is a
+/// matter of the flight engine and of the machine. On 2026-11-19 the file
+/// these tests used, 20,000 fixes that zigzag across the globe, took 1.4
+/// seconds on one machine and under the one second a test allowed it on
+/// another, since the engine had bounded the work such a track costs it.
+/// The stand-in takes for ever on any machine.
+#[cfg(unix)]
+pub fn stalling_analyser(folder: &std::path::Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real = env!("CARGO_BIN_EXE_venti-server");
+    let script = folder.join("analyser.sh");
+    std::fs::create_dir_all(folder).unwrap();
+    // `exec`, so that the process the server kills is the one that sleeps
+    // and none is left behind.
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\nfile=\"$0.$$\"\ncat > \"$file\"\n\
+             if grep -q {STALLS_ON} \"$file\"; then rm -f \"$file\"; exec sleep 600; fi\n\
+             \"{real}\" \"$@\" < \"$file\"\nstatus=$?\nrm -f \"$file\"\nexit $status\n"
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+/// What a file holds that [`stalling_analyser`] never finishes over: the
+/// end of a fix at a pressure altitude and a height of exactly 1000 m, as
+/// the made-up hostile files of these tests have in every line.
+pub const STALLS_ON: &str = "EA0100001000";

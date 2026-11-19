@@ -9,6 +9,7 @@ use venti_domain::GeoPoint;
 use crate::igc::Fix;
 use crate::live::wind::{Wind, WindEstimator};
 use crate::live::{Config, FlightComputer, PositionSample};
+use crate::scoring::{self, RouteKind};
 use crate::track;
 
 /// Metres per degree of latitude on the FAI sphere.
@@ -30,9 +31,6 @@ const MIN_THERMAL_S: i64 = 40;
 const MIN_THERMAL_CLIMB_MS: f64 = -0.5;
 /// A glide shorter than this, in seconds, is not listed.
 const MIN_GLIDE_S: i64 = 30;
-
-/// The most points the distance search looks at. See [`free_distance`].
-const DISTANCE_POINTS: usize = 400;
 
 /// A moment of the flight.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -82,13 +80,23 @@ pub struct Glide {
     pub speed_ms: f64,
 }
 
-/// The longest distance through up to three turnpoints.
+/// How the flight scores under cross-country league rules; see
+/// [`crate::scoring`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct FreeDistance {
-    /// The total distance, metres.
+pub struct ScoredRoute {
+    /// What the flight is scored as.
+    pub kind: RouteKind,
+    /// For a triangle, whether it is closed to within 5%.
+    pub closed: bool,
+    /// The scoring distance, metres.
     pub distance_m: f64,
-    /// The points it runs through, in flight order: start, turnpoints, end.
-    pub points: Vec<Moment>,
+    /// The points.
+    pub points: f64,
+    /// The points the route runs through, in flight order: start,
+    /// turnpoints, finish.
+    pub points_on_track: Vec<Moment>,
+    /// For a triangle, the gap between start and finish, metres.
+    pub closing_m: Option<f64>,
 }
 
 /// What happened in a flight.
@@ -111,9 +119,8 @@ pub struct Analysis {
     pub gliding_s: i64,
     /// Height gained in thermals, metres.
     pub height_gained_m: i32,
-    /// The longest distance through up to three turnpoints, the "free
-    /// distance" of cross-country leagues.
-    pub free_distance: Option<FreeDistance>,
+    /// How the flight scores under cross-country league rules.
+    pub score: Option<ScoredRoute>,
 }
 
 /// The part of a recording in which the glider flew: from take-off to
@@ -163,7 +170,7 @@ pub fn analyse(recording: &[Fix]) -> Analysis {
             thermalling_s: 0,
             gliding_s: 0,
             height_gained_m: 0,
-            free_distance: None,
+            score: None,
         };
     }
 
@@ -234,11 +241,13 @@ pub fn analyse(recording: &[Fix]) -> Analysis {
             .map(|glide| glide.end.seconds - glide.start.seconds)
             .sum(),
         height_gained_m: thermals.iter().map(|thermal| thermal.gain_m.max(0)).sum(),
-        free_distance: free_distance(fixes, first, last).map(|(distance_m, indices)| {
-            FreeDistance {
-                distance_m,
-                points: indices.into_iter().map(moment).collect(),
-            }
+        score: scoring::score(fixes).map(|score| ScoredRoute {
+            kind: score.kind,
+            closed: score.closed,
+            distance_m: score.distance_m,
+            points: score.points,
+            points_on_track: score.route.into_iter().map(moment).collect(),
+            closing_m: score.closing_m,
         }),
         thermals,
         glides,
@@ -346,61 +355,6 @@ fn circling_stretches(
         }
     }
     stretches
-}
-
-/// The longest path start, up to three turnpoints, end, with the points in
-/// flight order. Returns its length and the fixes it runs through.
-///
-/// Trying every combination of five fixes is far too slow, so the search
-/// runs on the track reduced to its corners, a few hundred points: the best
-/// turnpoints of a path are always at corners of the track. On those, the
-/// best path with one more leg ending at each point is built from the best
-/// paths with one leg fewer, four times over.
-fn free_distance(fixes: &[Fix], first: usize, last: usize) -> Option<(f64, Vec<usize>)> {
-    if last <= first {
-        return None;
-    }
-    let corners: Vec<usize> = track::corners(&fixes[first..=last], DISTANCE_POINTS)
-        .into_iter()
-        .map(|index| index + first)
-        .collect();
-    let n = corners.len();
-    let distance = |a: usize, b: usize| {
-        fixes[corners[a]]
-            .position
-            .distance_m(fixes[corners[b]].position)
-    };
-
-    // best[i]: the longest path with the current number of legs that ends
-    // at corner i; back[leg][i]: where its last leg came from.
-    let mut best = vec![0.0_f64; n];
-    let mut back: Vec<Vec<usize>> = Vec::new();
-    for _leg in 0..4 {
-        let mut next = vec![0.0_f64; n];
-        let mut from = vec![0_usize; n];
-        for end in 0..n {
-            for (start, &so_far) in best.iter().enumerate().take(end + 1) {
-                let length = so_far + distance(start, end);
-                if length > next[end] {
-                    next[end] = length;
-                    from[end] = start;
-                }
-            }
-        }
-        best = next;
-        back.push(from);
-    }
-
-    let (mut at, &length) = best.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1))?;
-    let mut path = vec![corners[at]];
-    for from in back.iter().rev() {
-        at = from[at];
-        path.push(corners[at]);
-    }
-    path.reverse();
-    // Legs of no length are turnpoints the path did not need.
-    path.dedup();
-    Some((length, path))
 }
 
 #[cfg(test)]
@@ -520,45 +474,29 @@ mod tests {
     }
 
     #[test]
-    fn free_distance_beats_the_straight_line_and_keeps_flight_order() {
+    fn the_flight_is_scored_and_its_route_is_made_of_moments_on_the_track() {
         let flight = synthetic_flight();
         let analysis = analyse(&flight.fixes);
-        let free = analysis.free_distance.unwrap();
+        let score = analysis.score.unwrap();
 
         let straight = flight.fixes[0]
             .position
             .distance_m(flight.fixes.last().unwrap().position);
         assert!(
-            free.distance_m > straight,
+            score.distance_m > straight,
             "{} <= {straight}",
-            free.distance_m
+            score.distance_m
         );
-        // The flight goes out, across, up the valley and back: about 14 km
-        // through its corners, and never more than the track itself.
-        let track_length: f64 = flight
-            .fixes
-            .windows(2)
-            .map(|pair| pair[0].position.distance_m(pair[1].position))
-            .sum();
-        assert!(free.distance_m <= track_length);
+        assert!(score.points >= score.distance_m / 1000.0);
+        assert!((2..=5).contains(&score.points_on_track.len()));
         assert!(
-            (10_000.0..16_000.0).contains(&free.distance_m),
-            "{}",
-            free.distance_m
-        );
-        assert!((2..=5).contains(&free.points.len()));
-        assert!(
-            free.points
+            score
+                .points_on_track
                 .windows(2)
-                .all(|pair| pair[0].index < pair[1].index)
+                .all(|pair| pair[0].index <= pair[1].index)
         );
-        // The sum of its legs is the distance it claims.
-        let legs: f64 = free
-            .points
-            .windows(2)
-            .map(|pair| pair[0].position.distance_m(pair[1].position))
-            .sum();
-        assert!((legs - free.distance_m).abs() < 1.0);
+        let last = score.points_on_track.last().unwrap();
+        assert_eq!(last.position, flight.fixes[last.index].position);
     }
 
     #[test]
@@ -574,7 +512,7 @@ mod tests {
         let analysis = analyse(&standing);
         assert_eq!(analysis.takeoff, None);
         assert!(analysis.thermals.is_empty() && analysis.glides.is_empty());
-        assert_eq!(analysis.free_distance, None);
+        assert_eq!(analysis.score, None);
         assert_eq!(analyse(&[]).airtime_s, 0);
     }
 }

@@ -16,3 +16,4 @@ pub mod track;
 
 pub use summary::{FlightSummary, summarise};
 pub mod live;
+pub mod scoring;

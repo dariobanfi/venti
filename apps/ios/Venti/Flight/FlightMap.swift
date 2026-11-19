@@ -9,6 +9,8 @@ struct FlightMap: UIViewRepresentable {
     let flight: FlightView
     /// The moment to mark, if any.
     var cursor: TrackPoint?
+    /// The scored route to draw, once the flight has been analysed.
+    var score: FlightScore?
     /// How much of the map the bars and the panel cover, from each edge.
     var covered: UIEdgeInsets
 
@@ -26,13 +28,14 @@ struct FlightMap: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
-        context.coordinator.update(map, cursor: cursor, covered: covered)
+        context.coordinator.update(map, cursor: cursor, covered: covered, score: score)
     }
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
         private let flight: FlightView
         private var cursor: TrackPoint?
+        private var score: FlightScore?
         private var covered = UIEdgeInsets.zero
         private var isStyleLoaded = false
 
@@ -40,7 +43,11 @@ struct FlightMap: UIViewRepresentable {
             self.flight = flight
         }
 
-        func update(_ map: MLNMapView, cursor: TrackPoint?, covered: UIEdgeInsets) {
+        func update(_ map: MLNMapView, cursor: TrackPoint?, covered: UIEdgeInsets, score: FlightScore?) {
+            if score != self.score {
+                self.score = score
+                drawRoute(on: map)
+            }
             if covered != self.covered {
                 self.covered = covered
                 frame(map)
@@ -52,11 +59,13 @@ struct FlightMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            addRoute(to: style)
             addTrack(to: style)
             addEnds(to: style)
             addCursor(to: style)
             isStyleLoaded = true
             frame(mapView)
+            drawRoute(on: mapView)
             markCursor(on: mapView)
         }
 
@@ -99,6 +108,39 @@ struct FlightMap: UIViewRepresentable {
                 layer.predicate = NSPredicate(format: "band == %d", band.rawValue)
                 style.addLayer(layer)
             }
+        }
+
+        /// The scored route goes under the track: a thin dashed line.
+        private func addRoute(to style: MLNStyle) {
+            let source = MLNShapeSource(identifier: "flight-route", shape: nil, options: nil)
+            style.addSource(source)
+            let line = MapSetup.line(
+                "flight-route-line", from: source, color: UIColor(hex: 0x1F1F1D).withAlphaComponent(0.7), width: 1.5
+            )
+            line.lineDashPattern = NSExpression(forConstantValue: [4, 3])
+            style.addLayer(line)
+        }
+
+        private func drawRoute(on map: MLNMapView) {
+            guard isStyleLoaded,
+                  let source = map.style?.source(withIdentifier: "flight-route") as? MLNShapeSource
+            else { return }
+            guard let score else {
+                source.shape = nil
+                return
+            }
+            let points = score.route.map(\.position.location)
+            // A triangle's route is start, three turnpoints, finish: draw
+            // the triangle itself closed, and the way to and from it.
+            let pieces: [[CLLocationCoordinate2D]] =
+                if score.kind != .freeFlight, points.count == 5 {
+                    [[points[0], points[1]], [points[1], points[2], points[3], points[1]], [points[3], points[4]]]
+                } else {
+                    [points]
+                }
+            source.shape = MLNMultiPolylineFeature(
+                polylines: pieces.map { MLNPolyline(coordinates: $0, count: UInt($0.count)) }
+            )
         }
 
         /// A hollow dot where the recording starts and a solid one where it ends.

@@ -23,8 +23,19 @@ struct FlightDetailsSheet: View {
                     row("Landing", Format.time(unixSeconds: flight.startUnixS + flight.durationS))
                     row("Airtime", "\(Format.hoursMinutes(seconds: flight.durationS)) h")
                     row("Track length", "\(Format.kilometres(metres: flight.trackLengthM)) km")
-                    if let distance = analysis?.freeDistanceM {
-                        row("Free distance", "\(Format.kilometres(metres: distance)) km")
+                }
+                if let score = analysis?.score {
+                    Section {
+                        row("Scored as", Self.name(of: score))
+                        row("Distance", "\(Format.kilometres(metres: score.distanceM)) km")
+                        row("Points", score.points.formatted(.number.precision(.fractionLength(2))))
+                        if let closing = score.closingM {
+                            row("Start to finish", "\(Format.kilometres(metres: closing)) km")
+                        }
+                    } header: {
+                        Text("Cross-country")
+                    } footer: {
+                        Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm.formatted()) points per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
                     }
                 }
                 if let analysis, analysis.takeoff != nil {
@@ -36,9 +47,7 @@ struct FlightDetailsSheet: View {
                         Text("In the air")
                     } footer: {
                         if analysis.landing == nil {
-                            Text("The recording ends in the air. Free distance is the longest line through up to three turnpoints.")
-                        } else {
-                            Text("Free distance is the longest line through up to three turnpoints.")
+                            Text("The recording ends in the air.")
                         }
                     }
                     if !analysis.thermals.isEmpty {
@@ -48,7 +57,11 @@ struct FlightDetailsSheet: View {
                                     onSelect(Int(thermal.entry.trackIndex))
                                 } label: {
                                     ThermalRow(thermal: thermal, flightStart: flight.startUnixS)
+                                        .contentShape(.rect)
                                 }
+                                // Plain, so the row keeps its own text
+                                // colours instead of the button tint.
+                                .buttonStyle(.plain)
                                 .accessibilityIdentifier("thermal-row")
                             }
                         }
@@ -60,7 +73,9 @@ struct FlightDetailsSheet: View {
                                     onSelect(Int(glide.start.trackIndex))
                                 } label: {
                                     GlideRow(glide: glide, flightStart: flight.startUnixS)
+                                        .contentShape(.rect)
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -111,6 +126,17 @@ struct FlightDetailsSheet: View {
                 }
             }
         }
+    }
+
+    /// "FAI triangle, closed", "Free flight".
+    private static func name(of score: FlightScore) -> String {
+        let kind =
+            switch score.kind {
+            case .freeFlight: "Free flight"
+            case .freeTriangle: "Free triangle"
+            case .faiTriangle: "FAI triangle"
+            }
+        return score.closed ? "\(kind), closed" : kind
     }
 
     private func row(_ title: String, _ value: String) -> some View {

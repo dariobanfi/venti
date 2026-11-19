@@ -20,9 +20,11 @@ struct CockpitScreen: View {
             VStack(spacing: 0) {
                 StatusLine(view: view, mode: fly.mode, varioName: fly.vario.connectedName)
                 CockpitMap(view: view)
-                    // Labelled before the badges are laid over it, or the
-                    // label would swallow them for VoiceOver and for tests.
-                    .accessibilityLabel("Map")
+                    // The map is left out of the accessibility tree: what it
+                    // shows is in the instruments, and its hundreds of map
+                    // labels made reading the screen by code or by VoiceOver
+                    // time out. The badges laid over it stay in.
+                    .accessibilityHidden(true)
                     .overlay(alignment: .topTrailing) {
                         if let wind = view.wind {
                             WindBadge(wind: wind)

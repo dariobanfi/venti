@@ -1,6 +1,6 @@
 //! The analysis of one flight, as the shells show it.
 
-use venti_flight::{analysis, igc};
+use venti_flight::{analysis, igc, scoring};
 
 use crate::{Coordinate, Core, CoreError, LogbookError, WindView};
 
@@ -49,6 +49,40 @@ pub struct GlideSummary {
     pub speed_ms: f64,
 }
 
+/// What a flight is scored as under cross-country league rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum RouteKind {
+    /// The longest distance through up to three turnpoints.
+    FreeFlight,
+    /// A triangle that is not an FAI triangle.
+    FreeTriangle,
+    /// A triangle whose shortest leg is at least 28% of its perimeter.
+    FaiTriangle,
+}
+
+/// How a flight scores under the World XContest's rules. The points are
+/// this app's own calculation, not the league's.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct FlightScore {
+    /// What the flight is scored as.
+    pub kind: RouteKind,
+    /// For a triangle, whether start and finish lie within 5% of its
+    /// perimeter of each other.
+    pub closed: bool,
+    /// The scoring distance, metres. For a triangle, its perimeter minus
+    /// the gap between start and finish.
+    pub distance_m: f64,
+    /// The points: kilometres times the points per kilometre.
+    pub points: f64,
+    /// Points per kilometre for this kind of route.
+    pub points_per_km: f64,
+    /// The points the route runs through, in flight order: start,
+    /// turnpoints, finish.
+    pub route: Vec<FlightMoment>,
+    /// For a triangle, the gap between start and finish, metres.
+    pub closing_m: Option<f64>,
+}
+
 /// What happened in a flight.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct FlightAnalysis {
@@ -69,10 +103,8 @@ pub struct FlightAnalysis {
     pub thermals: Vec<ThermalSummary>,
     /// Every glide, in order.
     pub glides: Vec<GlideSummary>,
-    /// The longest distance through up to three turnpoints, metres.
-    pub free_distance_m: Option<f64>,
-    /// The points that distance runs through, in flight order.
-    pub free_distance_points: Vec<FlightMoment>,
+    /// How the flight scores as a cross-country flight.
+    pub score: Option<FlightScore>,
 }
 
 #[uniffi::export]
@@ -94,7 +126,6 @@ impl Core {
             },
             altitude_m: f64::from(moment.altitude_m),
         };
-        let free_distance = analysis.free_distance;
 
         Ok(FlightAnalysis {
             takeoff: analysis.takeoff.map(moment),
@@ -129,10 +160,22 @@ impl Core {
                     speed_ms: glide.speed_ms,
                 })
                 .collect(),
-            free_distance_m: free_distance.as_ref().map(|free| free.distance_m),
-            free_distance_points: free_distance
-                .map(|free| free.points.into_iter().map(moment).collect())
-                .unwrap_or_default(),
+            score: analysis.score.map(|score| {
+                let kind = match score.kind {
+                    scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
+                    scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
+                    scoring::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
+                };
+                FlightScore {
+                    kind,
+                    closed: score.closed,
+                    distance_m: score.distance_m,
+                    points: score.points,
+                    points_per_km: score.kind.points_per_km(score.closed),
+                    route: score.points_on_track.into_iter().map(moment).collect(),
+                    closing_m: score.closing_m,
+                }
+            }),
         })
     }
 }
@@ -208,8 +251,10 @@ mod tests {
         assert_eq!(analysis.thermals.len(), 2);
         assert_eq!(analysis.glides.len(), 3);
         assert!(analysis.thermals[0].wind.is_some());
-        assert!(analysis.free_distance_m.unwrap() > 10_000.0);
-        assert!(analysis.free_distance_points.len() >= 2);
+        let score = analysis.score.unwrap();
+        assert!(score.distance_m > 10_000.0);
+        assert!((score.points - score.distance_m / 1000.0 * score.points_per_km).abs() < 1e-6);
+        assert!(score.route.len() >= 2);
         // A moment's index points into the flight's track.
         let track = core.flight(id).unwrap().track;
         let exit = analysis.thermals[0].exit;

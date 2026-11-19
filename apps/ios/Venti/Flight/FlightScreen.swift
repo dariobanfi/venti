@@ -96,6 +96,7 @@ private struct FlightDetail: View {
                 FlightMap(
                     flight: flight,
                     cursor: cursor.map { flight.track[$0] },
+                    score: analysis?.score,
                     covered: UIEdgeInsets(
                         top: proxy.safeAreaInsets.top,
                         left: 0,

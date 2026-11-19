@@ -114,6 +114,9 @@ jobs:
           cp deploy/env.example deploy/.env
           sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci/' deploy/.env
           docker compose --file deploy/docker-compose.yml config --quiet
+          # Every service's log is rotated: none can fill the disk.
+          docker compose --file deploy/docker-compose.yml config --format json \
+            | jq --exit-status '[.services[] | .logging | .driver == "json-file" and (.options["max-size"] | type == "string") and (.options["max-file"] | type == "string")] | length == 3 and all'
           docker run --rm --env VENTI_SITE_ADDRESS=:80 \
             --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile

@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use venti_api_types::v1::{ErrorCode, ErrorResponse};
 use venti_store::StoreError;
 
+use super::log::Sparse;
 use crate::accounts::password::HashError;
 use crate::accounts::secret::NoRandomness;
 use crate::accounts::throttle::Refused;
@@ -128,8 +129,16 @@ impl IntoResponse for ApiError {
 
 impl From<StoreError> for ApiError {
     fn from(error: StoreError) -> Self {
-        // The details are for the operator's log, not for whoever calls the API.
-        tracing::error!("store: {error}");
+        // The details are for the operator's log, not for whoever calls the
+        // API. While the database is away every request ends here, so the
+        // log gets a line now and then, not one per request.
+        static UNAVAILABLE: Sparse = Sparse::new();
+        static FAILED: Sparse = Sparse::new();
+        let gate = match error {
+            StoreError::Unavailable(_) => &UNAVAILABLE,
+            StoreError::Invalid(_) | StoreError::Failure(_) => &FAILED,
+        };
+        gate.error(format_args!("store: {error}"));
         match error {
             StoreError::Unavailable(_) => Self::new(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -148,7 +157,8 @@ impl From<HashError> for ApiError {
                 Self::busy("the server is busy checking passwords; try again shortly")
             }
             HashError::Failed => {
-                tracing::error!("a password could not be hashed");
+                static GATE: Sparse = Sparse::new();
+                GATE.error("a password could not be hashed");
                 Self::internal()
             }
         }
@@ -157,7 +167,8 @@ impl From<HashError> for ApiError {
 
 impl From<NoRandomness> for ApiError {
     fn from(error: NoRandomness) -> Self {
-        tracing::error!("{error}");
+        static GATE: Sparse = Sparse::new();
+        GATE.error(error);
         Self::internal()
     }
 }
@@ -185,6 +196,7 @@ mod tests {
         let refused = |seconds: i64| {
             let refused = Refused {
                 retry_after: Duration::seconds(seconds),
+                first: false,
             };
             ApiError::rate_limited(refused, "too many attempts")
         };

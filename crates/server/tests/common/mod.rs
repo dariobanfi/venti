@@ -224,6 +224,13 @@ impl Ask {
         self
     }
 
+    /// Gives the request a body of the test's own making, such as one that
+    /// arrives slowly.
+    pub fn body(mut self, body: Body) -> Self {
+        self.body = body;
+        self
+    }
+
     /// Makes the request arrive over a connection from the address `peer`.
     pub fn from(mut self, peer: &str) -> Self {
         let address: SocketAddr = format!("{peer}:50000")

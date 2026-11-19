@@ -160,7 +160,7 @@ The server answers a pilot's own Claude or ChatGPT at `https://<domain>/mcp`: wi
   ```
 
   Then add the address in Claude as [docs/mcp.md](../docs/mcp.md#adding-it-to-an-assistant) describes and ask it for the wind somewhere. Nobody has done that yet.
-- **What it writes to the log.** Nothing for an ordinary request. One line when an address has sent more than 120 requests in a minute, and is refused until the minute is over:
+- **What it writes to the log.** Nothing for an ordinary request. One line when an address has sent more than 120 requests in a minute; it is then refused until the minute is over, and however often it asks again in that minute, there is no second line:
 
   ```bash
   docker compose logs --since 1d server | grep 'connector: too many requests'
@@ -298,6 +298,8 @@ FROM invites;
 ```
 
 The log also has a line when an account is created or deleted, when a password is changed, for every wrong password, and when an uploaded file had to be given up on. No line holds a password or a session token.
+
+**How much log there is.** Docker keeps five files of ten megabytes for each of the three services and drops the oldest (`logging:` in `docker-compose.yml`), so the logs take 150 MB at most and `docker compose logs` reaches back as far as that goes. The server itself writes nothing per request. A refusal for too many requests is one line per address and window. A failure that repeats with every request (the database is away, the server is busy, requests run out of time) is written once, and then as one line every ten seconds that says how many more there were. The server's tests hold it to that: 2,500 refused requests and 40 that time out may leave 4 kB of log, and leave a handful of lines. Caddy's own log holds no line per request either, because the `Caddyfile` has no `log` directive; if you add one, the rotation above still bounds it.
 
 When a source stays stale: run it by hand, outside the schedule and without touching the database, and read what it reports.
 

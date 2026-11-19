@@ -31,6 +31,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use super::error::ApiError;
+use super::log::Sparse;
 
 /// How long an answer that is the same for everyone may be reused without
 /// asking again.
@@ -61,7 +62,10 @@ impl Keeper {
 
 fn to_json(value: &impl Serialize) -> Result<Vec<u8>, ApiError> {
     serde_json::to_vec(value).map_err(|error| {
-        tracing::error!("a response could not be written as JSON: {error}");
+        static GATE: Sparse = Sparse::new();
+        GATE.error(format_args!(
+            "a response could not be written as JSON: {error}"
+        ));
         ApiError::internal()
     })
 }

@@ -4,10 +4,14 @@ use venti_api_types::v1;
 use venti_store::{Account, Flight, Place, ScoreKind, Session, Visibility};
 
 use super::error::ApiError;
+use super::log::Sparse;
 
 /// A stored value that no longer has the form it was stored in.
 fn damaged(what: &str, problem: impl std::fmt::Display) -> ApiError {
-    tracing::error!("the store holds an unusable {what}: {problem}");
+    static GATE: Sparse = Sparse::new();
+    GATE.error(format_args!(
+        "the store holds an unusable {what}: {problem}"
+    ));
     ApiError::internal()
 }
 

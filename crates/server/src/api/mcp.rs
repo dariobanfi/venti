@@ -162,7 +162,16 @@ pub(crate) async fn endpoint<S: Store>(
     let now = api.clock.now();
     let address = counting_key(client);
     if let Err(refused) = api.connector_requests.attempt(&address, now) {
-        tracing::warn!(client = %client, "connector: too many requests from this address");
+        // One line for the address and the window, however often it asks
+        // again: a line per refusal is a megabyte of log a second from one
+        // client that does not stop.
+        if refused.first {
+            tracing::warn!(
+                client = %client,
+                "connector: too many requests from this address; \
+                 it is refused until its minute is over, without a further line"
+            );
+        }
         let seconds = u64::try_from(refused.retry_after.num_seconds())
             .unwrap_or(0)
             .max(1);

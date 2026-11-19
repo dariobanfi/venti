@@ -15,6 +15,7 @@ use venti_store::{Flight, Store, Visibility};
 use super::Api;
 use super::auth::Viewer;
 use super::cache::{self, Keeper};
+use super::log::Sparse;
 use crate::flights::{picture, share};
 
 const HTML: &str = "text/html; charset=utf-8";
@@ -126,7 +127,10 @@ pub(crate) async fn preview<S: Store>(
         match drawn {
             Ok(Ok(png)) => ([(header::CONTENT_TYPE, "image/png")], png).into_response(),
             failed => {
-                tracing::error!("the preview picture of a flight could not be drawn: {failed:?}");
+                static GATE: Sparse = Sparse::new();
+                GATE.error(format_args!(
+                    "the preview picture of a flight could not be drawn: {failed:?}"
+                ));
                 let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 cache::set(&mut response, header::CACHE_CONTROL, "no-store");
                 return response;

@@ -32,6 +32,8 @@ struct Watched {
     /// When the window closes.
     until: Timestamp,
     count: u32,
+    /// Whether a refusal in this window has been reported as the first.
+    told: bool,
 }
 
 /// A key that may not try again yet.
@@ -39,6 +41,11 @@ struct Watched {
 pub struct Refused {
     /// How long until it may.
     pub retry_after: Duration,
+    /// Whether this is the first time the key is refused in its window.
+    /// Whoever writes refusals to the log writes this one and no other: a
+    /// client that keeps asking after it was refused must not be able to
+    /// fill the disk with lines that say so.
+    pub first: bool,
 }
 
 impl Throttle {
@@ -64,32 +71,59 @@ impl Throttle {
     /// table. That costs new sign-ins during a large attack and nothing
     /// else.
     pub fn check(&self, key: &str, now: Timestamp) -> Result<(), Refused> {
-        let mut watched = self.lock();
-        let open = watched.get(key).copied().filter(|entry| entry.until > now);
-        match open {
-            Some(entry) if entry.count >= self.limit => Err(Refused {
+        self.check_in(&mut self.lock(), key, now)
+    }
+
+    fn check_in(
+        &self,
+        watched: &mut HashMap<String, Watched>,
+        key: &str,
+        now: Timestamp,
+    ) -> Result<(), Refused> {
+        if let Some(entry) = watched.get_mut(key).filter(|entry| entry.until > now) {
+            if entry.count < self.limit {
+                return Ok(());
+            }
+            let first = !entry.told;
+            entry.told = true;
+            return Err(Refused {
                 retry_after: entry.until - now,
-            }),
-            Some(_) => Ok(()),
-            None if Self::is_full(&mut watched, self.capacity, now) => Err(Refused {
-                retry_after: self.window,
-            }),
-            None => Ok(()),
+                first,
+            });
         }
+        if Self::is_full(watched, self.capacity, now) {
+            // A key that has no place has no window to remember having
+            // been refused in, so none of its refusals is the first.
+            return Err(Refused {
+                retry_after: self.window,
+                first: false,
+            });
+        }
+        Ok(())
     }
 
     /// Counts `weight` attempts by `key` at `now`.
     pub fn count(&self, key: &str, weight: u32, now: Timestamp) {
-        let mut watched = self.lock();
+        self.count_in(&mut self.lock(), key, weight, now);
+    }
+
+    fn count_in(
+        &self,
+        watched: &mut HashMap<String, Watched>,
+        key: &str,
+        weight: u32,
+        now: Timestamp,
+    ) {
         match watched.get_mut(key).filter(|entry| entry.until > now) {
             Some(entry) => entry.count = entry.count.saturating_add(weight),
             None => {
-                if Self::is_full(&mut watched, self.capacity, now) {
+                if Self::is_full(watched, self.capacity, now) {
                     return;
                 }
                 let entry = Watched {
                     until: now + self.window,
                     count: weight,
+                    told: false,
                 };
                 watched.insert(key.to_owned(), entry);
             }
@@ -97,9 +131,13 @@ impl Throttle {
     }
 
     /// Counts one attempt by `key` if it may try, and says whether it may.
+    ///
+    /// Asking and counting are one step: of any number of attempts that
+    /// arrive at the same moment, no more than the limit get through.
     pub fn attempt(&self, key: &str, now: Timestamp) -> Result<(), Refused> {
-        self.check(key, now)?;
-        self.count(key, 1, now);
+        let mut watched = self.lock();
+        self.check_in(&mut watched, key, now)?;
+        self.count_in(&mut watched, key, 1, now);
         Ok(())
     }
 
@@ -141,13 +179,15 @@ mod tests {
         assert_eq!(
             throttle.attempt("dario", at(3)),
             Err(Refused {
-                retry_after: Duration::minutes(12)
+                retry_after: Duration::minutes(12),
+                first: true,
             })
         );
         assert_eq!(
             throttle.check("dario", at(14)),
             Err(Refused {
-                retry_after: Duration::minutes(1)
+                retry_after: Duration::minutes(1),
+                first: false,
             })
         );
         // Being refused does not push the window out.
@@ -179,6 +219,26 @@ mod tests {
     }
 
     #[test]
+    fn only_the_first_refusal_of_a_window_is_marked_as_the_first() {
+        let throttle = Throttle::new(2, Duration::minutes(1));
+        let firsts = |key: &str, minute: i64, times: usize| {
+            (0..times)
+                .filter_map(|_| throttle.attempt(key, at(minute)).err())
+                .filter(|refused| refused.first)
+                .count()
+        };
+
+        // Two get through; of the thousand refusals after them, one is
+        // the first.
+        assert_eq!(firsts("203.0.113.9", 0, 1002), 1);
+        // Another key has a first refusal of its own.
+        assert_eq!(firsts("198.51.100.7", 0, 50), 1);
+        assert_eq!(firsts("203.0.113.9", 0, 50), 0);
+        // And so has the next window.
+        assert_eq!(firsts("203.0.113.9", 1, 1002), 1);
+    }
+
+    #[test]
     fn a_full_table_refuses_new_keys_until_windows_close() {
         let throttle = Throttle::with_capacity(5, Duration::minutes(15), 3);
         for key in ["a", "b", "c"] {
@@ -189,7 +249,8 @@ mod tests {
         assert_eq!(
             throttle.attempt("d", at(1)),
             Err(Refused {
-                retry_after: Duration::minutes(15)
+                retry_after: Duration::minutes(15),
+                first: false,
             })
         );
         // Keys that are watched carry on.

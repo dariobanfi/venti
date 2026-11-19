@@ -250,7 +250,7 @@ Nothing about the person. There is no account behind a request, no token and no 
 
 What is kept of it:
 
-- At the usual log level, nothing per request. One line is written when an address has sent too many requests, with that address.
+- At the usual log level, nothing per request. One line is written when an address has sent too many requests, with that address: one for the minute it is refused in, however often it asks again.
 - At the `debug` level, a line with the method and the path of each request and the name of the tool. Never a header, never the arguments.
 - In memory, for a minute: how many requests each address has sent.
 

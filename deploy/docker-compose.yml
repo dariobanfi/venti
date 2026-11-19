@@ -11,10 +11,20 @@
 
 name: venti
 
+# What every service does with its log: Docker keeps five files of ten
+# megabytes each and drops the oldest. Without this Docker keeps every line
+# for ever, and a client that makes a service talk fills the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - server
     ports:
@@ -45,6 +55,7 @@ services:
       dockerfile: deploy/Dockerfile
     image: venti-server:local
     restart: unless-stopped
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
@@ -71,6 +82,7 @@ services:
   db:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: venti
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}

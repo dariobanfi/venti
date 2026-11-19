@@ -20,6 +20,7 @@ use venti_store::{Flight, FlightKey, Listing, Store, Visibility};
 use super::auth::{Signed, Viewer};
 use super::cache::Keeper;
 use super::error::ApiError;
+use super::log::Sparse;
 use super::{Api, body, cache, wire};
 use crate::accounts::throttle::Refused;
 use crate::flights::analyser::Failure;
@@ -167,6 +168,7 @@ pub(crate) async fn upload<S: Store>(
         NoPlace::Account => ApiError::rate_limited(
             Refused {
                 retry_after: chrono::Duration::seconds(5),
+                first: false,
             },
             "this account is already sending two flight files; send them one after another",
         ),
@@ -411,7 +413,11 @@ pub(crate) async fn file<S: Store>(
         .ok()
         .flatten()
         .ok_or_else(|| {
-            tracing::error!("the stored file of flight {} cannot be unpacked", flight.id);
+            static GATE: Sparse = Sparse::new();
+            GATE.error(format_args!(
+                "the stored file of flight {} cannot be unpacked",
+                flight.id
+            ));
             ApiError::internal()
         })?;
 

@@ -31,6 +31,7 @@ mod cache;
 mod error;
 mod flights;
 mod health;
+mod log;
 mod mcp;
 mod observations;
 mod pilots;
@@ -46,7 +47,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::http::{HeaderValue, Method, Request, header};
+use axum::http::{HeaderValue, Method, header};
 use axum::routing::{any, delete, get, post, put};
 use tokio::sync::Semaphore;
 use tower_http::compression::CompressionLayer;
@@ -263,7 +264,8 @@ impl<S: Store> Api<S> {
     ///
     /// The request log names the method and the path and never a header,
     /// so no token reaches it; a password travels in a body, which is not
-    /// logged either.
+    /// logged either. How much is written about requests that fail is said
+    /// in [`log`].
     pub fn router(mut self, cors: &Cors) -> Router {
         self.mcp = mcp::protocol(self.sources.values(), cors, &self.public_url);
         let deadline = |limit: Duration| {
@@ -340,21 +342,12 @@ impl<S: Store> Api<S> {
             .with_state(Arc::new(self))
             .layer(cors_layer(cors))
             .layer(CompressionLayer::new())
-            .layer(TraceLayer::new_for_http().make_span_with(request_span))
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(log::request_span)
+                    .on_failure(log::failure),
+            )
     }
-}
-
-/// What the request log says about a request: its method and its path.
-///
-/// Not its headers, which carry tokens, and not its query string either:
-/// nothing secret belongs there, but a client that puts a token there by
-/// mistake should not find it in the server's log.
-fn request_span<B>(request: &Request<B>) -> tracing::Span {
-    tracing::debug_span!(
-        "request",
-        method = %request.method(),
-        path = %request.uri().path(),
-    )
 }
 
 fn cors_layer(cors: &Cors) -> CorsLayer {

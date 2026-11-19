@@ -52,10 +52,24 @@ export default defineConfig({
 		project('desktop-light', DESKTOP, false),
 		project('desktop-dark', DESKTOP, true)
 	],
-	webServer: {
-		command: 'npm run preview -- --port 4173 --strictPort',
-		url: 'http://localhost:4173',
-		// A server left running from before would serve the build it started with.
-		reuseExistingServer: false
-	}
+	webServer: [
+		{
+			command: 'npm run preview -- --port 4173 --strictPort',
+			url: 'http://localhost:4173',
+			// A server left running from before would serve the build it started with.
+			reuseExistingServer: false
+		},
+		{
+			// The Venti server over its recorded data, for the wind on the map.
+			// The preview above passes the app's questions on to it, as the web
+			// server in front of both will. One that is running already serves
+			// the same data, so it is used.
+			command: 'cargo run --locked -p venti-server -- dev',
+			cwd: '../..',
+			url: 'http://127.0.0.1:8080/v1/health',
+			reuseExistingServer: true,
+			// The first start compiles the server.
+			timeout: 900_000
+		}
+	]
 });

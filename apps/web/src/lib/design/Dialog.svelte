@@ -69,6 +69,9 @@
 		border-radius: var(--radius-card);
 		box-shadow: var(--shadow-float);
 		overflow: hidden;
+		/* Wherever it is written in the page, also inside something that lets
+		   clicks through to a map: a dialog is there to be used. */
+		pointer-events: auto;
 	}
 
 	.content {

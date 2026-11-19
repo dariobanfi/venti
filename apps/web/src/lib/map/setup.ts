@@ -25,6 +25,7 @@ import { fontLoader } from './fonts';
 import { FONT_SCHEME, mapStyle, terrain3dSource, TERRAIN_3D_SOURCE } from './style';
 
 export type { Map } from 'maplibre-gl';
+export { LABEL_FONT } from './style';
 
 let prepared = false;
 

@@ -10,14 +10,17 @@
 
 import { flightFileText } from './flight-text';
 import type {
+	Bounds,
 	FlightAnalysis,
 	FlightFile,
 	FlightView,
 	ImportedFlight,
 	LogbookStatistics,
-	LogbookView
+	LogbookView,
+	StationHistory
 } from './pkg/venti_core_wasm.js';
 import type { CoreSession } from './session';
+import type { WindAnswer, WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
 export interface Started {
@@ -39,6 +42,10 @@ export interface Calls {
 	flightAnalysis: { given: string; answer: FlightAnalysis };
 	flightFile: { given: string; answer: FlightFile };
 	deleteFlight: { given: string; answer: undefined };
+	/** The wind stations in a box of the map. Nothing if this site has no server. */
+	wind: { given: Bounds; answer: WindAnswer | undefined };
+	/** Given a station's identifier: what it measured over the last 24 hours. */
+	stationHistory: { given: string; answer: StationHistory };
 }
 
 export type CallName = keyof Calls;
@@ -58,9 +65,15 @@ export type Reply =
 	/** Not an answer: another tab changed the logbook, and the core has caught up. */
 	| { changedElsewhere: true };
 
+/** What answers the calls: the logbook's core, and the way to the wind server. */
+export interface Answering {
+	session: CoreSession;
+	wind: WindSource;
+}
+
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	session: CoreSession,
+	{ session, wind }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -72,10 +85,18 @@ export async function answer<Name extends CallName>(
 		flight: (id) => session.flight(id),
 		flightAnalysis: (id) => session.flightAnalysis(id),
 		flightFile: (id) => session.flightFile(id),
-		deleteFlight: (id) => session.deleteFlight(id)
+		deleteFlight: (id) => session.deleteFlight(id),
+		wind: (box) => wind.windMap(box),
+		stationHistory: (id) => wind.stationHistory(id)
 	};
 	return (await answers[call](given)) as Calls[Name]['answer'];
 }
+
+/**
+ * The name of the error for a wind server that gave no answer at all. Like
+ * the core's own errors, its message is written for the pilot.
+ */
+export const UNREACHABLE = 'Unreachable';
 
 /** An error as it is sent to the page. */
 export function describeFailure(error: unknown): { name: string; message: string } {

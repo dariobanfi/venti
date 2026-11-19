@@ -8,7 +8,7 @@
  */
 
 import {
-	CoreClient,
+	type CoreClient,
 	type FlightAnalysis,
 	type FlightFile,
 	type FlightView,
@@ -35,9 +35,8 @@ export class LogbookModel {
 		core.onChangedElsewhere = () => void this.#refresh();
 	}
 
-	/** Starts the core and opens the logbook the browser holds for this site. */
-	static async open(): Promise<LogbookModel> {
-		const core = await CoreClient.open();
+	/** Opens the logbook the browser holds for this site. */
+	static async open(core: CoreClient): Promise<LogbookModel> {
 		return new LogbookModel(core, await core.logbook());
 	}
 

@@ -14,6 +14,7 @@
  *   storage, which always makes a page wait.
  * - `idb-store.ts` keeps the core's files in IndexedDB; `store.ts` says what
  *   a store is and has one that lives in memory.
+ * - `wind-source.ts` asks the Venti server for the wind, from the worker.
  */
 
 export type {
@@ -21,6 +22,7 @@ export type {
 	Bounds,
 	Coordinate,
 	CoreErrorKind,
+	Credit,
 	EntryScore,
 	FlightAnalysis,
 	FlightFile,
@@ -37,19 +39,34 @@ export type {
 	MonthStatistics,
 	ProfilePoint,
 	RouteKind,
+	StationHistory,
 	ThermalSummary,
 	Totals,
 	TrackPoint,
+	WindMap,
+	WindReading,
+	WindStation,
 	WindView
 } from './pkg/venti_core_wasm.js';
+import { UNREACHABLE } from './protocol';
+
 export { CoreClient } from './client';
+export type { WindAnswer } from './wind-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */
-const CORE_ERRORS = ['InvalidFlight', 'UnknownFlight', 'Storage'];
+const CORE_ERRORS = ['InvalidFlight', 'UnknownFlight', 'Storage', 'Server'];
 
 /** Whether an error came from the core, rather than from the browser around it. */
 export function isCoreError(error: unknown): boolean {
 	return error instanceof Error && CORE_ERRORS.includes(error.name);
+}
+
+/**
+ * Whether an error's message was written for the pilot and can be shown as
+ * it is: the core's own errors, and a wind server out of reach.
+ */
+export function isInWords(error: unknown): boolean {
+	return isCoreError(error) || (error instanceof Error && error.name === UNREACHABLE);
 }
 
 /**

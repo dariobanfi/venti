@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compassPoint, createFormat, displayLocale } from './format';
+import { age, compassPoint, createFormat, displayLocale } from './format';
 
 /** The sample flight's take-off: 4 July 2026, 10:30:00 UTC. */
 const TAKE_OFF = 1783161000;
@@ -138,5 +138,39 @@ describe('the locale the app writes in', () => {
 		expect(createFormat(displayLocale('de-DE'), 'Europe/Berlin').time(TAKE_OFF + 4 * 3600)).toBe(
 			'16:30'
 		);
+	});
+});
+
+describe('what the wind screens write', () => {
+	const text = createFormat('en-GB', 'Europe/Berlin');
+
+	it('says how long ago something was measured', () => {
+		expect([0, 1, 25, 89].map(age)).toEqual([
+			'just now',
+			'1 minute ago',
+			'25 minutes ago',
+			'89 minutes ago'
+		]);
+	});
+
+	it('counts in hours from an hour and a half, and in days from a day and a half', () => {
+		expect([90, 185, 36 * 60 - 1].map(age)).toEqual(['2 hours ago', '3 hours ago', '36 hours ago']);
+		expect([36 * 60, 3 * 1440].map(age)).toEqual(['2 days ago', '3 days ago']);
+	});
+
+	it('writes temperatures in whole degrees, and never minus zero', () => {
+		expect(text.temperature(-7.1)).toBe('-7');
+		expect(text.temperature(3.5)).toBe('4');
+		expect(text.temperature(-0.2)).toBe('0');
+	});
+
+	it('joins names with an English “and”, whatever the reader’s region', () => {
+		const german = createFormat('en-DE', 'Europe/Berlin');
+
+		expect(german.list(['Deutscher Wetterdienst'])).toBe('Deutscher Wetterdienst');
+		expect(german.list(['Deutscher Wetterdienst', 'GeoSphere Austria'])).toBe(
+			'Deutscher Wetterdienst and GeoSphere Austria'
+		);
+		expect(german.list(['A', 'B', 'C'])).toBe('A, B and C');
 	});
 });

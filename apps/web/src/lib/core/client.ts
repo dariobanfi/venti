@@ -4,6 +4,7 @@
  * nothing the core does can hold up the page.
  */
 
+import type { Bounds } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
 	type Calls,
@@ -86,6 +87,16 @@ export class CoreClient {
 
 	deleteFlight(id: string) {
 		return this.#call('deleteFlight', id);
+	}
+
+	/** The wind stations in a box of the map. Nothing if this site has no server. */
+	wind(box: Bounds) {
+		return this.#call('wind', box);
+	}
+
+	/** What a wind station measured over the last 24 hours. */
+	stationHistory(stationId: string) {
+		return this.#call('stationHistory', stationId);
 	}
 
 	#call<Name extends CallName>(

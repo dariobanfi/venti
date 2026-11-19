@@ -1,6 +1,6 @@
 /**
- * What the app holds for as long as the page is open: the logbook, once the
- * core has started, and whatever the pilot has to be told.
+ * What the app holds for as long as the page is open: the logbook and the
+ * wind, once the core has started, and whatever the pilot has to be told.
  *
  * It is created once, in the root layout, and reached from every screen
  * through {@link getApp}.
@@ -8,7 +8,7 @@
 
 import { createContext } from 'svelte';
 import { goto } from '$app/navigation';
-import { askToKeepStorage } from '#lib/core/index.ts';
+import { askToKeepStorage, CoreClient } from '#lib/core/index.ts';
 import {
 	flightToShow,
 	importNotice,
@@ -16,11 +16,15 @@ import {
 	type Notice
 } from '#lib/logbook/import-report.ts';
 import { LogbookModel } from '#lib/logbook/model.svelte.ts';
+import { WindModel } from '#lib/wind/model.svelte.ts';
 import { flightHref } from './routes';
 
 export class App {
 	/** The logbook. Nothing until the core has started. */
 	logbook = $state.raw<LogbookModel>();
+
+	/** Live wind for the map. Nothing until the core has started. */
+	wind = $state.raw<WindModel>();
 
 	/** Why the core could not start, if it could not. */
 	failure = $state.raw<string>();
@@ -33,14 +37,14 @@ export class App {
 
 	/** Fetches and starts the Rust core and opens the logbook. Runs in the browser only. */
 	start(): Promise<void> {
-		this.#started ??= LogbookModel.open().then(
-			(logbook) => {
-				this.logbook = logbook;
-			},
-			(error) => {
+		this.#started ??= CoreClient.open()
+			.then(async (core) => {
+				this.wind = new WindModel(core);
+				this.logbook = await LogbookModel.open(core);
+			})
+			.catch((error) => {
 				this.failure = error instanceof Error ? error.message : String(error);
-			}
-		);
+			});
 		return this.#started;
 	}
 

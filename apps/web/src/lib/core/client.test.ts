@@ -5,6 +5,7 @@ import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
 import { MemoryStore } from './store';
 import { sampleFlight, startCore } from './testing';
+import { WindSource } from './wind-source';
 
 beforeAll(startCore);
 
@@ -19,15 +20,17 @@ class SameProcess implements Channel {
 	/** What was handed over with each request instead of copied. */
 	transferred: Transferable[] = [];
 	#session: Promise<CoreSession>;
+	#wind: WindSource;
 
-	constructor(session: Promise<CoreSession>) {
+	constructor(session: Promise<CoreSession>, wind = new WindSource()) {
 		this.#session = session;
+		this.#wind = wind;
 	}
 
 	postMessage({ id, call, given }: Request, transfer: Transferable[] = []): void {
 		this.transferred.push(...transfer);
 		void this.#session
-			.then((session) => answer(session, call, given))
+			.then((session) => answer({ session, wind: this.#wind }, call, given))
 			.then(
 				(result): Reply => ({ id, answer: result }),
 				(error): Reply => ({ id, failure: describeFailure(error) })

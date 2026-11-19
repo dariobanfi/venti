@@ -130,6 +130,17 @@ export function flightDetails(page: Page): Locator {
 	return page.getByRole('group', { name: 'Flight details' });
 }
 
+/**
+ * Waits for the map tab to be complete: its map drawn, with the app's own
+ * layers on it and the wind for what it shows. Map tiles alone can be there
+ * a moment before the flights and the arrows; the wind button appears with
+ * the first answer of the wind server, which comes after both.
+ */
+export async function mapTabDrawn(page: Page, mapDrawn: () => Promise<void>): Promise<void> {
+	await expect(page.getByRole('button', { name: 'Wind stations' })).toBeVisible();
+	await mapDrawn();
+}
+
 /** Adds the sample flight to an empty logbook and waits for its screen. */
 export async function addSampleFlight(page: Page): Promise<void> {
 	await page.goto('/logbook/');

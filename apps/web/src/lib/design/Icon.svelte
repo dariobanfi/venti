@@ -23,7 +23,8 @@
 		location: 'M20 4 4.5 10.3l6.6 2.6 2.6 6.6L20 4Z',
 		mountain: 'm2.5 19 7-12 3.8 6.5 2.4-3.4L21.5 19h-19Z',
 		triangle: 'M12 5 3.5 19h17L12 5Z',
-		warning: 'M12 4.5 2.8 19.5h18.4L12 4.5ZM12 10.5v4M12 17v.2'
+		warning: 'M12 4.5 2.8 19.5h18.4L12 4.5ZM12 10.5v4M12 17v.2',
+		wind: 'M3 8h8.5a2.25 2.25 0 1 0-2.25-2.25M3 12h14.5a2.5 2.5 0 1 1-2.5 2.5M3 16h6.5a2 2 0 1 1-2 2'
 	} as const;
 
 	export type IconName = keyof typeof shapes;

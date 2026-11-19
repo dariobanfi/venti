@@ -47,6 +47,10 @@ export interface Format {
 	monthLetter(year: number, month: number): string;
 	/** A calendar month in words: "July 2026". */
 	monthName(year: number, month: number): string;
+	/** Whole degrees Celsius. */
+	temperature(celsius: number): string;
+	/** Names in a row: "A", "A and B", "A, B and C". */
+	list(items: readonly string[]): string;
 }
 
 /**
@@ -97,6 +101,8 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		timeZone: 'UTC'
 	});
 	const midMonth = (year: number, month: number) => new Date(Date.UTC(year, month - 1, 15));
+	// Always the English "and": the app's words are English whatever the region.
+	const list = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 
 	return {
 		day: (unixSeconds) => day.format(at(unixSeconds)),
@@ -122,6 +128,9 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		flights: (count) => (count === 1 ? '1 flight' : `${whole.format(count)} flights`),
 		monthLetter: (year, month) => monthLetter.format(midMonth(year, month)),
 		monthName: (year, month) => monthName.format(midMonth(year, month)),
+		// Minus zero would read "-0".
+		temperature: (celsius) => whole.format(Math.round(celsius) || 0),
+		list: (items) => list.format(items),
 		secondsIntoDay: (unixSeconds) => {
 			const parts = Object.fromEntries(
 				clock.formatToParts(at(unixSeconds)).map((part) => [part.type, Number(part.value)])
@@ -151,6 +160,18 @@ function withoutYear(parts: Intl.DateTimeFormatPart[]): string {
 export function compassPoint(degrees: number): string {
 	const points = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 	return points[Math.floor((((degrees % 360) + 360 + 22.5) % 360) / 45)];
+}
+
+/**
+ * How long ago something was measured: "just now", "25 minutes ago",
+ * "3 hours ago", "2 days ago".
+ */
+export function age(minutes: number): string {
+	if (minutes < 1) return 'just now';
+	if (minutes === 1) return '1 minute ago';
+	if (minutes < 90) return `${minutes} minutes ago`;
+	if (minutes < 36 * 60) return `${Math.floor((minutes + 30) / 60)} hours ago`;
+	return `${Math.floor((minutes + 720) / 1440)} days ago`;
 }
 
 let shared: Format | undefined;

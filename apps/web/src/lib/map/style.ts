@@ -33,6 +33,9 @@ export const ONLINE = {
  */
 export const FONT_SCHEME = 'venti-font';
 
+/** The font the style sets its labels in, for layers the app adds itself. */
+export const LABEL_FONT = 'noto-sans-regular';
+
 /** The name of the second elevation source, the one the 3D terrain is built from. */
 export const TERRAIN_3D_SOURCE = 'terrain-3d';
 

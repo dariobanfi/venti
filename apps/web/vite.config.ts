@@ -6,6 +6,11 @@ import { defineConfig } from 'vitest/config';
 // example "/venti". Empty at the root.
 const base = (process.env.VENTI_BASE_PATH ?? '') as '' | `/${string}`;
 
+// The app asks the origin it is served from for the Venti server's API, as
+// it will when one web server hands out both. While developing, that is this
+// machine's `cargo run -p venti-server -- dev`.
+const api = { '/v1': process.env.VENTI_DEV_SERVER ?? 'http://127.0.0.1:8080' };
+
 export default defineConfig({
 	plugins: [
 		sveltekit({
@@ -20,8 +25,10 @@ export default defineConfig({
 			// The map style, the label fonts and the sample flight are shared with
 			// the other apps and live elsewhere in the repository.
 			allow: ['../..']
-		}
+		},
+		proxy: api
 	},
+	preview: { proxy: api },
 	test: {
 		include: ['src/**/*.test.ts']
 	}

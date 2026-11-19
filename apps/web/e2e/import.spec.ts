@@ -4,7 +4,15 @@
  * or are there already.
  */
 
-import { dropFiles, expect, metric, SAMPLE_FLIGHT, sampleFlightOn, test } from './helpers';
+import {
+	dropFiles,
+	expect,
+	mapTabDrawn,
+	metric,
+	SAMPLE_FLIGHT,
+	sampleFlightOn,
+	test
+} from './helpers';
 
 /** The files a pilot might select together: three flights of July 2026 and a text file. */
 const mixed = [
@@ -73,7 +81,7 @@ test('flights are imported by dropping files on the page', async ({ page, keep, 
 	// On the map, with nothing in the logbook yet.
 	await page.goto('/');
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
-	await mapDrawn();
+	await mapTabDrawn(page, mapDrawn);
 
 	// While files hover over the page, it says what dropping them does.
 	const transfer = await page.evaluateHandle(() => {

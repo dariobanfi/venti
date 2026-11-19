@@ -12,9 +12,9 @@
 	import { untrack } from 'svelte';
 	import { logbookHref } from '#lib/app/routes.ts';
 	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
-	import Dialog from '#lib/design/Dialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
+	import Sheet from '#lib/design/Sheet.svelte';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import FlightDetails from './FlightDetails.svelte';
 	import FlightMap from './FlightMap.svelte';
@@ -150,20 +150,9 @@
 </div>
 
 {#if !wide}
-	<Dialog
-		open={showingDetails}
-		presentation="sheet"
-		labelledby="details-title"
-		onclose={() => (showingDetails = false)}
-	>
-		<header class="sheet-bar">
-			<h2 id="details-title">Flight details</h2>
-			<button class="done" type="button" onclick={() => (showingDetails = false)}>Done</button>
-		</header>
-		<div class="sheet-body">
-			<FlightDetails {flight} {analysis} onselect={mark} />
-		</div>
-	</Dialog>
+	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
+		<FlightDetails {flight} {analysis} onselect={mark} />
+	</Sheet>
 {/if}
 
 <style>
@@ -234,35 +223,6 @@
 		display: none;
 	}
 
-	.sheet-bar {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 3.5rem;
-		padding: 0 1rem;
-	}
-
-	.sheet-bar h2 {
-		font-size: var(--body);
-		font-weight: 600;
-	}
-
-	.done {
-		position: absolute;
-		right: 0.5rem;
-		min-height: var(--target);
-		padding: 0 0.75rem;
-		border-radius: var(--radius-control);
-		color: var(--accent);
-		font-weight: 600;
-	}
-
-	.sheet-body {
-		overflow-y: auto;
-		padding: 0.5rem 1rem 1.5rem;
-	}
-
 	/* Wide: the panel is a column beside the map, with the details under it. */
 	.screen.wide {
 		display: grid;
@@ -329,8 +289,7 @@
 	}
 
 	@media (hover: hover) {
-		.back:hover,
-		.done:hover {
+		.back:hover {
 			background: var(--fill);
 		}
 	}

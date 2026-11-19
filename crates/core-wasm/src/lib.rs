@@ -6,7 +6,8 @@
 //!
 //! [`Core`] has the interface the phones have. The view types it returns
 //! are the core's own; their TypeScript declarations are generated from the
-//! Rust definitions, so there is nothing to keep in step by hand.
+//! Rust definitions, so there is nothing to keep in step by hand. Live wind
+//! is a handful of plain functions beside it, as it is in the core.
 //!
 //! What differs in a browser is storage. A page cannot read or write
 //! anything without waiting, and the core's interface does not wait. So the
@@ -34,7 +35,7 @@ use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
     CoreError, FlightAnalysis, FlightFile, FlightView, ImportedFlight, LogbookStatistics,
-    LogbookView, StagedStorage, Storage,
+    LogbookView, ServerStatus, StagedStorage, StationHistory, Storage, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -173,6 +174,61 @@ impl Core {
     pub fn refresh(&self) -> Result<(), JsValue> {
         self.session.refresh().map_err(thrown)
     }
+}
+
+// Live wind from the Venti server. The core says what to ask the server for
+// and reads its answers; the page sends the request in between. None of it
+// touches the logbook, so these are plain functions and not calls on `Core`.
+
+/// The path to `GET` to learn how the server is doing.
+#[wasm_bindgen(js_name = serverStatusPath)]
+pub fn server_status_path() -> String {
+    venti_core::server_status_path()
+}
+
+/// Reads the server's answer to `serverStatusPath`.
+#[wasm_bindgen(js_name = serverStatus)]
+pub fn server_status(status: u16, body: Vec<u8>) -> Result<Ts<ServerStatus>, JsValue> {
+    to_js(&venti_core::server_status(status, body).map_err(thrown)?)
+}
+
+/// The path and query to `GET` for the wind map of a box.
+#[wasm_bindgen(js_name = windMapPath)]
+pub fn wind_map_path(south: f64, west: f64, north: f64, east: f64) -> Result<String, JsValue> {
+    venti_core::wind_map_path(south, west, north, east).map_err(thrown)
+}
+
+/// Reads the server's answer to `windMapPath`. `now_unix_s` is the current
+/// time by the server's clock, in whole seconds.
+#[wasm_bindgen(js_name = windMap)]
+pub fn wind_map(status: u16, body: Vec<u8>, now_unix_s: f64) -> Result<Ts<WindMap>, JsValue> {
+    to_js(&venti_core::wind_map(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// The path and query to `GET` for a station's readings of the last 24
+/// hours.
+#[wasm_bindgen(js_name = stationHistoryPath)]
+pub fn station_history_path(station_id: String) -> Result<String, JsValue> {
+    venti_core::station_history_path(station_id).map_err(thrown)
+}
+
+/// Reads the server's answer to `stationHistoryPath`.
+#[wasm_bindgen(js_name = stationHistory)]
+pub fn station_history(
+    status: u16,
+    body: Vec<u8>,
+    now_unix_s: f64,
+) -> Result<Ts<StationHistory>, JsValue> {
+    to_js(&venti_core::station_history(status, body, whole_seconds(now_unix_s)).map_err(thrown)?)
+}
+
+/// A moment as the core counts it. JavaScript has one kind of number, and a
+/// 64-bit integer would reach the page as a `BigInt` that nothing else in
+/// the app uses.
+fn whole_seconds(unix_s: f64) -> i64 {
+    // The cast stops at the ends of the range and turns "not a number" into
+    // zero; it cannot go wrong.
+    unix_s.round() as i64
 }
 
 /// The `name` of the `Error` a failed call throws. Its `message` is fit to
@@ -461,8 +517,17 @@ mod tests {
             CoreErrorKind::InvalidFlight,
             CoreErrorKind::UnknownFlight,
             CoreErrorKind::Storage,
+            CoreErrorKind::Server,
         ] {
             assert_eq!(kind.name(), format!("{kind:?}"));
         }
+    }
+
+    #[test]
+    fn a_moment_given_as_a_javascript_number_is_whole_seconds() {
+        assert_eq!(whole_seconds(1_795_028_700.4), 1_795_028_700);
+        assert_eq!(whole_seconds(1_795_028_700.5), 1_795_028_701);
+        assert_eq!(whole_seconds(f64::NAN), 0);
+        assert_eq!(whole_seconds(f64::INFINITY), i64::MAX);
     }
 }

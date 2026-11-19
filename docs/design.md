@@ -166,13 +166,20 @@ Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual tex
   - The navigation is a rail down the left side, part of the page and not floating on it.
   - **Flight:** the panel stands beside the map as a column, and everything the sheet holds on a phone is in that column under the profile, on screen without a tap. The map has the rest of the window, with buttons for zoom, because a mouse cannot pinch. Choosing a thermal or glide scrolls the column back to the profile, where the mark is.
   - **Logbook:** one column of readable width, with the import button spelled out. The statistics are a narrower column of their own. Each row has room for two more numbers the core already gives, highest point and best climb, under column headings, and a delete button that appears with the mouse over the row.
-  - **Map:** the map fills the window beside the rail, with zoom buttons above the position button.
+  - **Map:** the map fills the window beside the rail, with zoom buttons above the wind and position buttons. A chosen wind station is a card at the map's side, not a sheet over it: the map stays in reach, and choosing another arrow fills the same card.
 
 What the web adds:
 
 - **Dropping files.** Flight files dragged onto any screen are imported; while they hover, the page says so.
 - **Terrain in 3D.** A button on the flight map tilts it into the terrain and lets it be turned; the same button lays it flat and north up again.
 - **Downloading** a flight's file, from the flight screen's menu, where the iPhone has "Share flight file".
+
+Where the web's wind differs from the iPhone's:
+
+- **No server address.** The wind is that of the server the site is served from. A site without one has a map without wind and without the wind button, and says nothing about it.
+- **The credit** of the wind's providers is a line of its own directly above the map's credits. It wraps onto a second line rather than being cut short, because it is owed to each of them.
+- **A station's chart** is read by a mouse passing over it, by a finger dragged along it, and by the arrow keys one reading at a time.
+- **The arrow in the list** has the white edge it has on the map. Without it the darkest blue is lost on a dark surface.
 
 What stands in for the system:
 
@@ -191,7 +198,7 @@ Keyboard and screen reader: everything can be reached and used from the keyboard
 
 Times are shown in the time zone of the browser, as the iPhone shows them in the phone's. The words are English; dates and numbers follow the reader's region, so a pilot in Germany gets a 24-hour clock.
 
-To verify, none of it has been seen outside Chromium on a test machine: Safari and Firefox, a real phone (touch on the profile, the bar's distance from the home indicator, glass over a moving map), a screen reader, and the rounded number face on Apple devices.
+To verify, none of it has been seen outside Chromium on a test machine: Safari and Firefox, a real phone (touch on the profile and on a station's chart, tapping an arrow with a finger, the bar's distance from the home indicator, glass over a moving map), a screen reader, and the rounded number face on Apple devices.
 
 ## How a design change is checked
 

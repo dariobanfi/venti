@@ -14,6 +14,7 @@ import {
 	addSampleFlight,
 	expect,
 	flightDetails,
+	mapTabDrawn,
 	metric,
 	panel,
 	SAMPLE_FLIGHT,
@@ -36,7 +37,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await page.goto('/');
 	await expect(page).toHaveTitle('Map · Venti');
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
-	await mapDrawn();
+	await mapTabDrawn(page, mapDrawn);
 	await keep('01-map');
 
 	// A new logbook says what to do next.
@@ -213,7 +214,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 
 	// The map tab now shows the flight too.
 	await page.getByRole('link', { name: 'Map', exact: true }).click();
-	await mapDrawn();
+	await mapTabDrawn(page, mapDrawn);
 	await keep('10-map-with-flight');
 
 	// Deleting asks first, and "Cancel" keeps the flight.

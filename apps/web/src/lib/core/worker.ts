@@ -7,9 +7,10 @@
 import { IdbStore } from './idb-store';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
-import { answer, describeFailure, type Reply, type Request } from './protocol';
+import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
 import { type FileStore, MemoryStore } from './store';
+import { WindSource } from './wind-source';
 
 const send = (reply: Reply) => postMessage(reply);
 
@@ -26,11 +27,11 @@ async function openStore(): Promise<FileStore> {
 	}
 }
 
-const starting: Promise<CoreSession> = (async () => {
+const starting: Promise<Answering> = (async () => {
 	await init({ module_or_path: wasmUrl });
 	const session = await CoreSession.open(await openStore());
 	session.onChangedElsewhere = () => send({ changedElsewhere: true });
-	return session;
+	return { session, wind: new WindSource() };
 })();
 
 addEventListener('message', async (event: MessageEvent<Request>) => {

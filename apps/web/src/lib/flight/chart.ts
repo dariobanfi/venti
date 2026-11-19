@@ -1,7 +1,8 @@
 /**
  * The arithmetic of the altitude chart: its extent, where its grid lines
  * go, and which moment of the flight a place on it stands for. Drawing is
- * in `AltitudeChart.svelte`.
+ * in `AltitudeChart.svelte`. A wind station's charts take their scale and
+ * their grid lines from here too.
  */
 
 import type { FlightView, TrackPoint } from '#lib/core/index.ts';

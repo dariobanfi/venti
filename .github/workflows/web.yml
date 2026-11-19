@@ -1,10 +1,11 @@
 name: Web
 
 # Builds the Rust core as WebAssembly and the web app as static files, runs
-# the unit tests, then uses the built site in a real browser. Those tests
-# take a screenshot of every screen at a phone's width and at a desktop's,
-# in light and in dark appearance; they are published as the
-# `web-screenshots` artifact, and the site itself as `web-site`.
+# the unit tests, then uses the built site in a real browser, with the Venti
+# server in its development mode behind it for the wind. Those tests take a
+# screenshot of every screen at a phone's width and at a desktop's, in light
+# and in dark appearance; they are published as the `web-screenshots`
+# artifact, and the site itself as `web-site`.
 #
 # Nothing is deployed from here. Publishing the site is the owner's decision.
 
@@ -13,11 +14,9 @@ on:
     paths:
       - "apps/web/**"
       - "map/**"
-      - "crates/core/**"
-      - "crates/core-wasm/**"
-      - "crates/flight/**"
-      - "crates/sensors/**"
-      - "crates/domain/**"
+      # The core for the browser, and the server the browser tests ask for
+      # the wind: between them they build on most of the workspace.
+      - "crates/**"
       # The sample flight, the label fonts and the map region the tests draw
       # are shared with the iOS app and live in its folder.
       - "apps/ios/Venti/Resources/sample.igc"
@@ -40,7 +39,7 @@ jobs:
   web:
     name: Core for the browser, site and tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/web
@@ -79,6 +78,12 @@ jobs:
 
       - name: Build the site
         run: npm run build
+
+      # The browser tests start it in its development mode, which answers
+      # from recorded data. Built here so that its compiler output has a
+      # step of its own.
+      - name: Build the Venti server for the wind
+        run: cargo build --locked -p venti-server
 
       - name: Install the browser the tests drive
         run: npx playwright install --with-deps chromium

@@ -3,7 +3,7 @@
  * position when asked for.
  */
 
-import { addSampleFlight, expect, IN_THE_VALLEY, test } from './helpers';
+import { addSampleFlight, expect, IN_THE_VALLEY, mapTabDrawn, test } from './helpers';
 
 test('the map shows where the pilot is, on request', async ({
 	context,
@@ -20,7 +20,7 @@ test('the map shows where the pilot is, on request', async ({
 	await page.getByRole('link', { name: 'Map', exact: true }).click();
 	await expect(page).toHaveTitle('Map · Venti');
 	await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
-	await mapDrawn();
+	await mapTabDrawn(page, mapDrawn);
 
 	// The button switches following on, and says so.
 	const locate = page.getByRole('button', { name: 'Show my position' });

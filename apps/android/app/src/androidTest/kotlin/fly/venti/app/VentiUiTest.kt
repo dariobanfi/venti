@@ -3,6 +3,8 @@ package fly.venti.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
@@ -88,6 +90,11 @@ class VentiUiTest {
     private fun tab(name: String) = hasText(name) and isSelectable()
 
     private fun described(text: String) = hasContentDescription(text)
+
+    /** Something whose state, as a screen reader says it, contains this text. */
+    private fun saying(text: String) = SemanticsMatcher("says \"$text\"") { node ->
+        node.config.getOrNull(SemanticsProperties.StateDescription)?.contains(text) == true
+    }
 
     /** Lets the map finish drawing: it draws on its own thread and tells nobody. */
     private fun letTheMapDraw(seconds: Int = 4) {
@@ -187,11 +194,12 @@ class VentiUiTest {
     /**
      * The cockpit, fed by a replay of the sample flight at twenty times its
      * speed: about ninety seconds into the flight the glider starts to
-     * circle in lift, and four minutes later it glides on. Then the
-     * settings and the credits.
+     * circle in lift, and four minutes later it glides on. There the pilot
+     * chooses a place to fly to. Then the settings, the waypoints and the
+     * credits.
      */
     private fun flyAReplayAndVisitTheSettings(prefix: String, dark: Boolean) {
-        launch(dark = dark)
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_WAYPOINTS, true) }
         waitFor(described("Show my position"), seconds = 90)
         tap(tab("Fly"))
         waitFor(hasText("Start flight"), seconds = 30)
@@ -217,9 +225,24 @@ class VentiUiTest {
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
+        // The cockpit shows the way back to the take-off until the pilot
+        // chooses a place; the waypoints are listed nearest first.
+        val strip = hasTestTag("target-strip")
+        assertTrue(exists(strip and saying("Take-off")))
+        tap(strip)
+        waitFor(hasText("Fly to"))
+        waitFor(described("Sample landing field"))
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-fly-4-fly-to")
+        tap(described("Sample landing field"))
+        waitFor(strip and saying("Sample landing field"), seconds = 10)
+        assertTrue(exists(described("Needs")))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-fly-5-to-landing")
+
         tap(hasText("End replay"))
         waitFor(hasText("Close the cockpit"))
-        keepScreenshot("$prefix-fly-4-end")
+        keepScreenshot("$prefix-fly-6-end")
         tap(hasText("Close the cockpit"))
         waitFor(hasText("Start flight"))
 
@@ -227,6 +250,15 @@ class VentiUiTest {
         tap(tab("Settings"))
         waitFor(hasText("Vario sound"))
         keepScreenshot("$prefix-settings-1")
+
+        // The pilot's waypoints.
+        tap(hasText("Waypoints"))
+        waitFor(described("Sample turnpoint"))
+        keepScreenshot("$prefix-settings-3-waypoints")
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+
+        screen.onNode(hasText("Data and licences")).performScrollTo()
         tap(hasText("Data and licences"))
         waitFor(hasText("Base map"))
         keepScreenshot("$prefix-settings-2-credits")

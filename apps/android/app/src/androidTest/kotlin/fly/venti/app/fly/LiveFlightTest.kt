@@ -164,7 +164,7 @@ class LiveFlightTest {
         val altitude = checkNotNull(reading("Altitude")).filter { it.isDigit() }.toInt()
         assertTrue("altitude $altitude", altitude in 1440..1470)
         screen.waitForIdle()
-        TestDevice.keepScreenshot("light-fly-5-recording")
+        TestDevice.keepScreenshot("light-fly-7-recording")
 
         tap(hasText("Finish flight"))
         waitFor(hasText("Save flight"))

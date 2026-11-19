@@ -32,6 +32,7 @@ import fly.venti.app.logbook.StatisticsScreen
 import fly.venti.app.map.MapScreen
 import fly.venti.app.settings.CreditsScreen
 import fly.venti.app.settings.SettingsScreen
+import fly.venti.app.waypoints.WaypointsScreen
 import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -74,6 +75,7 @@ fun RootScreen(
         // accident in the air.
         CockpitScreen(
             fly = fly,
+            waypoints = session.waypoints,
             varioName = session.vario.connectedName,
             onFinish = {
                 // Ends the session, and for a real flight saves it and shows it.
@@ -153,15 +155,17 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
             AppTab.Assistant -> kept.SaveableStateProvider("assistant") {
                 AssistantScreen(session.chat, hasWind = session.wind.server is WindServer.Usable, bars = bars)
             }
-            AppTab.Settings -> if (navigation.isShowingCredits) {
-                CreditsScreen(session.wind, onBack = { navigation.back() })
-            } else {
-                kept.SaveableStateProvider("settings") {
+            AppTab.Settings -> when (navigation.settingsRoute) {
+                SettingsRoute.Credits -> CreditsScreen(session.wind, onBack = { navigation.back() })
+                SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
+                    WaypointsScreen(session.waypoints, onBack = { navigation.back() })
+                }
+                null -> kept.SaveableStateProvider("settings") {
                     SettingsScreen(
                         session.preferences,
                         session.fly,
                         session.wind,
-                        onCredits = { navigation.isShowingCredits = true },
+                        onOpen = { navigation.settingsRoute = it },
                         bars = bars,
                     )
                 }

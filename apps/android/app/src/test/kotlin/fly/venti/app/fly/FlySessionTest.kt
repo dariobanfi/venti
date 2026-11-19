@@ -3,10 +3,12 @@ package fly.venti.app.fly
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
+import fly.venti.core.Coordinate
 import fly.venti.core.FlightPhase
 import fly.venti.core.FlightSession
 import fly.venti.core.LocationSample
 import fly.venti.core.Replay
+import fly.venti.core.TargetPlace
 import fly.venti.core.ToneView
 import fly.venti.core.pendingRecordings
 import kotlinx.coroutines.CoroutineScope
@@ -102,6 +104,60 @@ class FlySessionTest {
         assertNull(fly.view)
         assertFalse(sound.isStarted)
         assertTrue(pendingRecordings(folder.path).isEmpty())
+    }
+
+    @Test
+    fun theCockpitNavigatesBackToTheTakeoffUntilAPlaceIsChosen() {
+        val fly = makeSession(TestSupport.newFolder("fly"))
+        assertNull(fly.way)
+
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        Thread.sleep(1200)
+
+        // In the air with nothing chosen: the way back to where it took off.
+        val home = checkNotNull(fly.way)
+        assertTrue(home.isTakeoff)
+        assertTrue(home.distanceM > 0)
+        assertTrue(home.bearingDeg in 0.0..360.0)
+
+        // A place the pilot chooses takes its place at once.
+        val field = TargetPlace(
+            name = "Sample landing field",
+            position = Coordinate(lat = 47.6833, lon = 11.755),
+            elevationM = 735.0,
+        )
+        fly.goTo(field)
+        val way = checkNotNull(fly.way)
+        assertFalse(way.isTakeoff)
+        assertEquals("Sample landing field", way.name)
+        assertEquals(field.position, way.position)
+        // The glider is above the field, so there is a glide that would reach it.
+        assertNotNull(way.heightAboveM)
+        assertTrue(TargetWords.spoken(way).startsWith("Sample landing field, "))
+
+        // Choosing nothing goes back to the take-off.
+        fly.goTo(null)
+        assertTrue(checkNotNull(fly.way).isTakeoff)
+
+        fly.finish()
+        assertNull(fly.way)
+        assertNull(fly.score)
+        assertEquals("Nothing chosen", TargetWords.spoken(null))
+    }
+
+    @Test
+    fun theFlightIsScoredWhileItIsFlown() {
+        val fly = makeSession(TestSupport.newFolder("fly"))
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        assertNull(fly.score)
+
+        // Ten minutes of the flight, and the look at the score that follows.
+        Thread.sleep(2600)
+
+        val score = checkNotNull(fly.score)
+        assertTrue(score.distanceM > 1000)
+        assertTrue(score.route.size >= 2)
+        fly.finish()
     }
 
     @Test

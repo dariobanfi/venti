@@ -28,6 +28,15 @@ sealed interface LogbookRoute {
     data object Statistics : LogbookRoute
 }
 
+/** A screen reached from the settings. */
+enum class SettingsRoute {
+    /** Whose data and software the app uses. */
+    Credits,
+
+    /** The pilot's waypoints. */
+    Waypoints,
+}
+
 /**
  * Where the pilot is in the app. Held in one place so that a file opened
  * from outside can bring its flight to the front.
@@ -38,14 +47,14 @@ class AppNavigation {
     /** The screens opened on top of the logbook's list, the newest last. */
     val logbookPath = mutableStateListOf<LogbookRoute>()
 
-    /** Whether the settings show the credits. */
-    var isShowingCredits: Boolean by mutableStateOf(false)
+    /** The screen opened on top of the settings, if any. */
+    var settingsRoute: SettingsRoute? by mutableStateOf(null)
 
     /** Whether the pilot is on one of the four sections' first screens, where the tab bar shows. */
     val isAtTopLevel: Boolean
         get() = when (tab) {
             AppTab.Logbook -> logbookPath.isEmpty()
-            AppTab.Settings -> !isShowingCredits
+            AppTab.Settings -> settingsRoute == null
             else -> true
         }
 
@@ -65,8 +74,8 @@ class AppNavigation {
             logbookPath.removeAt(logbookPath.lastIndex)
             true
         }
-        tab == AppTab.Settings && isShowingCredits -> {
-            isShowingCredits = false
+        tab == AppTab.Settings && settingsRoute != null -> {
+            settingsRoute = null
             true
         }
         else -> false
@@ -79,7 +88,7 @@ class AppNavigation {
         /** Keeps the pilot's place when Android rebuilds the screen. */
         val Saver = listSaver<AppNavigation, String>(
             save = { navigation ->
-                listOf(navigation.tab.name, navigation.isShowingCredits.toString()) +
+                listOf(navigation.tab.name, navigation.settingsRoute?.name.orEmpty()) +
                     navigation.logbookPath.map { route ->
                         when (route) {
                             is LogbookRoute.Flight -> FLIGHT + route.id
@@ -90,7 +99,7 @@ class AppNavigation {
             restore = { saved ->
                 AppNavigation().apply {
                     tab = AppTab.valueOf(saved[0])
-                    isShowingCredits = saved[1].toBoolean()
+                    settingsRoute = SettingsRoute.entries.firstOrNull { it.name == saved[1] }
                     saved.drop(2).forEach { route ->
                         logbookPath += if (route == STATISTICS) {
                             LogbookRoute.Statistics

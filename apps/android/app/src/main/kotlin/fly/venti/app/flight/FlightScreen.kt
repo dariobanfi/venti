@@ -1,8 +1,5 @@
 package fly.venti.app.flight
 
-import android.content.ClipData
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,8 +43,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import fly.venti.app.R
+import fly.venti.app.SharedFiles
 import fly.venti.app.logbook.DeleteFlightDialog
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.Covered
@@ -59,7 +56,6 @@ import fly.venti.core.FlightView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 
@@ -110,7 +106,7 @@ fun FlightScreen(id: String, logbook: LogbookModel, onBack: () -> Unit) {
             onShare = {
                 scope.launch {
                     try {
-                        share(context, logbook.exportFile(id, exportFolder(context)))
+                        SharedFiles.share(context, logbook.exportFile(id, SharedFiles.folder(context)), "Share flight file")
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
@@ -289,19 +285,3 @@ private val PANEL_MARGIN = 8.dp
 
 /** The height the back and "more" buttons take below the status bar. */
 private val TOP_BUTTONS = 56.dp
-
-private fun exportFolder(context: Context): File = context.cacheDir.resolve("venti-export")
-
-/** Offers the flight's file to other apps: mail, a file manager, a league's uploader. */
-private fun share(context: Context, file: File) {
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-    val send = Intent(Intent.ACTION_SEND).apply {
-        // Flight files have no type of their own that Android knows.
-        type = "application/octet-stream"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_TITLE, file.name)
-        clipData = ClipData.newRawUri(file.name, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(Intent.createChooser(send, "Share flight file"))
-}

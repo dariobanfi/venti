@@ -19,6 +19,7 @@ import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
+import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import kotlinx.coroutines.MainScope
@@ -42,6 +43,7 @@ sealed interface Session {
         val vario: VarioLink,
         val chat: AssistantChat,
         val wind: WindModel,
+        val waypoints: WaypointsModel,
         val preferences: Preferences,
         val files: AppFiles,
     ) : Session
@@ -63,6 +65,7 @@ sealed interface Session {
             isUnderTest: Boolean = false,
             scriptedAssistant: Boolean = false,
             server: String? = null,
+            sampleWaypoints: Boolean = false,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -111,7 +114,11 @@ sealed interface Session {
                 server = { (wind.server as? WindServer.Usable)?.url },
                 now = { wind.now },
             )
-            return Ready(logbook, fly, vario, chat, wind, preferences, files)
+            val waypoints = logbook.makeWaypoints()
+            if (sampleWaypoints) {
+                waypoints.importText(LaunchOptions.SAMPLE_WAYPOINT_FILE)
+            }
+            return Ready(logbook, fly, vario, chat, wind, waypoints, preferences, files)
         }
     }
 }
@@ -140,6 +147,7 @@ class VentiApplication : Application() {
             isUnderTest = true,
             scriptedAssistant = options.usesScriptedAssistant,
             server = options.server,
+            sampleWaypoints = options.usesSampleWaypoints,
         ).also { testSession = it }
     }
 }
@@ -166,6 +174,11 @@ data class LaunchOptions(
     val forcedDark: Boolean? = null,
     /** The Venti server a test's map takes its wind from. `null` for none. */
     val server: String? = null,
+    /**
+     * Start with a few made-up waypoints around the sample flight, so the
+     * cockpit's navigation can be tested without picking a file.
+     */
+    val usesSampleWaypoints: Boolean = false,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -173,6 +186,15 @@ data class LaunchOptions(
         const val SCRIPTED_ASSISTANT = "scripted-assistant"
         const val DARK = "dark"
         const val SERVER = "server"
+        const val SAMPLE_WAYPOINTS = "sample-waypoints"
+
+        /** The made-up waypoints. Their names say that they are not real places to land. */
+        val SAMPLE_WAYPOINT_FILE = """
+            name,code,country,lat,lon,elev,style
+            "Sample landing field",SLF,DE,4741.000N,01145.300E,735m,21
+            "Sample turnpoint",STP,DE,4737.200N,01152.000E,1700m,1
+            "Sample summit far away",SSF,DE,4725.260N,01059.090E,2962m,7
+        """.trimIndent()
 
         fun from(intent: Intent?): LaunchOptions {
             if (!BuildConfig.DEBUG || intent == null) return LaunchOptions()
@@ -182,6 +204,7 @@ data class LaunchOptions(
                 usesScriptedAssistant = intent.getBooleanExtra(SCRIPTED_ASSISTANT, false),
                 forcedDark = if (intent.hasExtra(DARK)) intent.getBooleanExtra(DARK, false) else null,
                 server = intent.getStringExtra(SERVER),
+                usesSampleWaypoints = intent.getBooleanExtra(SAMPLE_WAYPOINTS, false),
             )
         }
     }

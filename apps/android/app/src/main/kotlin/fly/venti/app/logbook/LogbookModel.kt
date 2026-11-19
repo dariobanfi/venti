@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.AppFiles
 import fly.venti.app.pilotMessage
+import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
 import fly.venti.core.Core
 import fly.venti.core.FlightAnalysis
@@ -120,6 +121,9 @@ class LogbookModel(
 
     /** A new conversation with the assistant, which answers from this logbook. */
     fun makeAssistant(model: String): Assistant = core.assistant(model)
+
+    /** The pilot's waypoints, which the core keeps beside the logbook. */
+    fun makeWaypoints(): WaypointsModel = WaypointsModel(core, background)
 
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()

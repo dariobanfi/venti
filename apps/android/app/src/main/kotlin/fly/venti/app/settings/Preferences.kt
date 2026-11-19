@@ -28,6 +28,18 @@ interface Preferences {
 
     /** The address of the Venti server that live wind comes from. */
     var server: String
+
+    /** The glider's speed with the brakes up, km/h. */
+    var trimSpeed: Double
+
+    /** The glider's glide ratio at that speed. */
+    var glideRatio: Double
+
+    companion object {
+        // What the core assumes of a glider until the pilot says otherwise.
+        const val DEFAULT_TRIM_SPEED = 38.0
+        const val DEFAULT_GLIDE_RATIO = 8.0
+    }
 }
 
 /** The settings in the phone's own store. */
@@ -58,6 +70,14 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString(SERVER, null).orEmpty()
         set(value) = store.edit { putString(SERVER, value) }
 
+    override var trimSpeed: Double
+        get() = store.getFloat(TRIM_SPEED, Preferences.DEFAULT_TRIM_SPEED.toFloat()).toDouble()
+        set(value) = store.edit { putFloat(TRIM_SPEED, value.toFloat()) }
+
+    override var glideRatio: Double
+        get() = store.getFloat(GLIDE_RATIO, Preferences.DEFAULT_GLIDE_RATIO.toFloat()).toDouble()
+        set(value) = store.edit { putFloat(GLIDE_RATIO, value.toFloat()) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -66,6 +86,8 @@ class StoredPreferences(context: Context) : Preferences {
         const val VARIO = "VentiVarioIdentifier"
         const val ASSISTANT_MODEL = "VentiAssistantModel"
         const val SERVER = "VentiServerAddress"
+        const val TRIM_SPEED = "VentiGliderTrimSpeed"
+        const val GLIDE_RATIO = "VentiGliderGlideRatio"
     }
 }
 
@@ -77,4 +99,6 @@ class MemoryPreferences : Preferences {
     override var rememberedVario: String? = null
     override var assistantModel: String? = null
     override var server = ""
+    override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
+    override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
 }

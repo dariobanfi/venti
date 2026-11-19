@@ -5,24 +5,28 @@ import android.os.SystemClock
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.latLng
+import fly.venti.app.map.lineString
 import fly.venti.app.map.point
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
+import fly.venti.core.WayToTarget
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
 /**
- * The cockpit's map: the glider, the track behind it coloured by climb, and
- * the take-off. It keeps the glider in the middle by itself, north up, and
- * zooms in while the glider circles.
+ * The cockpit's map: the glider, the track behind it coloured by climb, the
+ * take-off, and a line to the place the cockpit is navigating to. It keeps
+ * the glider in the middle by itself, north up, and zooms in while the
+ * glider circles.
  *
  * The glider and its track are handed to the map as one piece, so the map
  * can never draw one without the other: a glider ahead of its track, or a
@@ -44,6 +48,10 @@ class CockpitMap : MapContent {
     private var wasCircling: Boolean? = null
     private var drawnTakeoff: Coordinate? = null
 
+    /** The place being navigated to, if any, and the line last drawn to it. */
+    private var target: Coordinate? = null
+    private var drawnCourse: Pair<Coordinate, Coordinate>? = null
+
     override fun prepare(map: MapLibreMap, view: MapView) {
         // The map follows the glider; dragging it away would only have to
         // be undone with a gloved hand. Zooming stays, and zooms about the
@@ -64,6 +72,15 @@ class CockpitMap : MapContent {
         this.style = style
         this.mapView = view
 
+        // The line to the place being flown to, added first so that it
+        // lies under the track and the glider.
+        style.addSource(GeoJsonSource(COURSE))
+        val course = MapSetup.line("cockpit-course-line", COURSE, MapSetup.ink, 2f)
+        course.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
+        style.addLayer(course)
+        style.addSource(GeoJsonSource(TARGET))
+        style.addLayer(MapSetup.dot("cockpit-target-dot", TARGET, 6f, MapSetup.ink, MapSetup.WHITE))
+
         style.addSource(GeoJsonSource(FLIGHT))
         MapSetup.addBandLayers(style, FLIGHT, edgeWidth = 6f)
         style.addSource(GeoJsonSource(TAKEOFF))
@@ -77,9 +94,15 @@ class CockpitMap : MapContent {
         update()
     }
 
-    /** Called with every refresh of the cockpit; the map follows in its own steps. */
-    fun show(view: CockpitView) {
+    /**
+     * Called with every refresh of the cockpit, with the way to the place
+     * being navigated to, if any; the map follows in its own steps.
+     */
+    fun show(view: CockpitView, way: WayToTarget?) {
         wanted = view
+        if (way != null) {
+            target = way.position
+        }
         update()
     }
 
@@ -150,11 +173,23 @@ class CockpitMap : MapContent {
         style.getSourceAs<GeoJsonSource>(FLIGHT)?.setGeoJson(
             FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
         )
+
+        val target = target ?: return
+        val course = position to target
+        if (course != drawnCourse) {
+            if (target != drawnCourse?.second) {
+                style.getSourceAs<GeoJsonSource>(TARGET)?.setGeoJson(target.point)
+            }
+            style.getSourceAs<GeoJsonSource>(COURSE)?.setGeoJson(listOf(position, target).lineString())
+            drawnCourse = course
+        }
     }
 
     private companion object {
         const val FLIGHT = "cockpit-flight"
         const val TAKEOFF = "cockpit-takeoff"
+        const val COURSE = "cockpit-course"
+        const val TARGET = "cockpit-target"
         const val CRUISE_ZOOM = 13.0
         const val THERMAL_ZOOM = 15.5
 

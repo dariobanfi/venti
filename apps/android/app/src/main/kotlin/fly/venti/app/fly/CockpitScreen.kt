@@ -56,8 +56,13 @@ import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
+import fly.venti.app.waypoints.WaypointsModel
+import fly.venti.app.waypoints.place
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightPhase
+import fly.venti.core.LiveScore
+import fly.venti.core.RouteKind
+import fly.venti.core.WayToTarget
 import fly.venti.core.VarioSourceKind
 import fly.venti.core.WindView
 import kotlin.math.abs
@@ -75,6 +80,8 @@ import kotlin.math.min
 @Composable
 fun CockpitScreen(
     fly: FlySession,
+    /** The pilot's waypoints, to choose a place to fly to. */
+    waypoints: WaypointsModel,
     /** The connected vario's name, if one is connected. */
     varioName: String?,
     /** Called when the pilot has confirmed the end of the session. */
@@ -83,7 +90,9 @@ fun CockpitScreen(
     val view = fly.view ?: return
     val isReplay = fly.mode is FlySession.Mode.Replay
     var isConfirmingFinish by remember { mutableStateOf(false) }
+    var isChoosingTarget by remember { mutableStateOf(false) }
     val map = remember { CockpitMap() }
+    val way = fly.way
 
     KeepScreenOn()
     // The cockpit covers the whole app; the back button ends it like the
@@ -93,9 +102,9 @@ fun CockpitScreen(
     // A surface, so that text without a colour of its own takes the theme's.
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.systemBarsPadding()) {
-            StatusLine(view, fly.mode, varioName)
+            StatusLine(view, fly.score, fly.mode, varioName)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view) })
+                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view, way) })
                 view.wind?.let { wind ->
                     WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
                 }
@@ -108,7 +117,9 @@ fun CockpitScreen(
                     }
                 }
             }
-            Instruments(view)
+            HorizontalDivider()
+            TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
+            Instruments(view, way)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -132,6 +143,16 @@ fun CockpitScreen(
                 }
             }
         }
+    }
+
+    if (isChoosingTarget) {
+        TargetPicker(
+            waypoints = waypoints,
+            position = view.position,
+            chosen = way?.takeUnless { it.isTakeoff }?.name,
+            onChoose = { waypoint -> fly.goTo(waypoint?.place) },
+            onDismiss = { isChoosingTarget = false },
+        )
     }
 
     if (isConfirmingFinish) {
@@ -158,6 +179,10 @@ fun CockpitScreen(
     }
 }
 
+/** The direction of travel, once the glider moves fast enough for it to mean something. */
+private fun course(view: CockpitView): Double? =
+    if ((view.groundSpeedMs ?: 0.0) >= 2) view.courseDeg else null
+
 /** A cockpit that dims and locks is no use: the screen stays on while it shows. */
 @Composable
 private fun KeepScreenOn() {
@@ -170,7 +195,7 @@ private fun KeepScreenOn() {
 
 /** The line at the top: is it recording, how long, and are the sensors there. */
 @Composable
-private fun StatusLine(view: CockpitView, mode: FlySession.Mode?, varioName: String?) {
+private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mode?, varioName: String?) {
     val style = MaterialTheme.typography.labelLarge
     val missing = MaterialTheme.colorScheme.error
     Row(
@@ -194,6 +219,31 @@ private fun StatusLine(view: CockpitView, mode: FlySession.Mode?, varioName: Str
         view.flightTimeS?.let { seconds ->
             Spacer(Modifier.width(8.dp))
             Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1)
+        }
+        // The cross-country distance so far, once there is a kilometre of
+        // it, with a triangle when it scores as one.
+        if (score != null && score.distanceM >= 1000) {
+            val distance = Format.kilometres(score.distanceM)
+            val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(Modifier.width(10.dp))
+            Row(
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription = "Cross-country distance"
+                    stateDescription = "$distance kilometres, ${scoreWords(score)}"
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(
+                        if (score.kind == RouteKind.FREE_FLIGHT) R.drawable.ic_arrow_outward else R.drawable.ic_triangle,
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = quiet,
+                )
+                Spacer(Modifier.width(3.dp))
+                Text("$distance km", style = style.numbers, color = quiet, maxLines = 1)
+            }
         }
         Spacer(Modifier.weight(1f))
         // No position for five seconds means the fix is gone.
@@ -220,6 +270,12 @@ private fun StatusLine(view: CockpitView, mode: FlySession.Mode?, varioName: Str
     }
 }
 
+private fun scoreWords(score: LiveScore): String = when (score.kind) {
+    RouteKind.FREE_FLIGHT -> "free flight"
+    RouteKind.FREE_TRIANGLE -> if (score.closed) "closed triangle" else "triangle"
+    RouteKind.FAI_TRIANGLE -> if (score.closed) "closed FAI triangle" else "FAI triangle"
+}
+
 private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: String?): String {
     view.instrument?.let { instrument ->
         val name = varioName ?: "Vario"
@@ -240,7 +296,7 @@ private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: Stri
  * or for thermalling.
  */
 @Composable
-private fun Instruments(view: CockpitView) {
+private fun Instruments(view: CockpitView, way: WayToTarget?) {
     Column {
         HorizontalDivider()
         Row(Modifier.height(LARGE_ROW)) {
@@ -285,9 +341,9 @@ private fun Instruments(view: CockpitView) {
                 VerticalDivider()
                 Instrument("Glide", view.glideRatio?.let(Format::glideRatio), "", Modifier.weight(1f))
                 VerticalDivider()
-                Instrument(
-                    "Take-off", view.distanceToTakeoffM?.let(Format::kilometres), "km", Modifier.weight(1f),
-                )
+                // Next to the glide the glider is making: the glide it
+                // needs to reach the place it is flying to.
+                Instrument("Needs", way?.requiredGlide?.let(Format::glideRatio), "", Modifier.weight(1f))
             }
         }
         HorizontalDivider()

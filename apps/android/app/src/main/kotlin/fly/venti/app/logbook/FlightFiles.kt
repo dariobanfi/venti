@@ -16,8 +16,11 @@ object FlightFiles {
      */
     private const val LARGEST_BYTES = 32 * 1024 * 1024
 
-    /** A file the pilot picked or another app sent, ready to be imported. */
-    fun source(context: Context, uri: Uri): FlightFileSource =
+    /**
+     * A file the pilot picked or another app sent, ready to be imported.
+     * `what` says what it was picked as, for the words about a problem.
+     */
+    fun source(context: Context, uri: Uri, what: String = "a flight file"): FlightFileSource =
         FlightFileSource(name(context, uri)) {
             val stream = try {
                 context.contentResolver.openInputStream(uri)
@@ -26,7 +29,7 @@ object FlightFiles {
             } ?: throw IOException("The file could not be opened.")
             stream.use { input ->
                 val bytes = input.readAtMost(LARGEST_BYTES + 1)
-                if (bytes.size > LARGEST_BYTES) throw IOException("This file is too large to be a flight file.")
+                if (bytes.size > LARGEST_BYTES) throw IOException("This file is too large to be $what.")
                 LogbookModel.decode(bytes)
             }
         }

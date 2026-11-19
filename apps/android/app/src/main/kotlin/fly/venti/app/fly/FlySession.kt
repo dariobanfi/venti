@@ -7,9 +7,12 @@ import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightSession
+import fly.venti.core.LiveScore
 import fly.venti.core.PendingRecording
 import fly.venti.core.Replay
+import fly.venti.core.TargetPlace
 import fly.venti.core.ToneView
+import fly.venti.core.WayToTarget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,6 +77,17 @@ class FlySession(
     var view: CockpitView? by mutableStateOf(null)
         private set
 
+    /**
+     * The way to the place the cockpit navigates to: the one the pilot
+     * chose, or the take-off. Absent until there is one to go to.
+     */
+    var way: WayToTarget? by mutableStateOf(null)
+        private set
+
+    /** How the flight scores as a cross-country flight so far. */
+    var score: LiveScore? by mutableStateOf(null)
+        private set
+
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
 
@@ -91,6 +105,17 @@ class FlySession(
     private var session: FlightSession? = null
     private var replay: Replay? = null
     private var ticker: Job? = null
+
+    /** Refreshes of the screen since the score was last asked for. */
+    private var refreshesSinceScore = 0
+
+    /** Chooses the place to navigate to; `null` goes back to the take-off. */
+    @Synchronized
+    fun goTo(place: TargetPlace?) {
+        val session = session ?: return
+        session.goTo(place)
+        refresh(elapsed = 0.0)
+    }
 
     /** Switches the sensors on and starts recording. */
     @Synchronized
@@ -149,12 +174,17 @@ class FlySession(
         replay = null
         mode = null
         view = null
+        way = null
+        score = null
         return recording
     }
 
     private fun begin(session: FlightSession, mode: Mode) {
         this.session = session
         this.mode = mode
+        // How the pilot's glider glides, for predicting arrival heights.
+        session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
+        refreshesSinceScore = 0
         sound.isMuted = isMuted
         sound.start()
         refresh(elapsed = 0.0)
@@ -183,11 +213,25 @@ class FlySession(
         }
         val view = session.view(now)
         this.view = view
+        way = session.navigation(now)
+        // The core works the score out anew every half minute of flight;
+        // asking once a second is often enough to show it promptly.
+        refreshesSinceScore += 1
+        if (refreshesSinceScore >= REFRESHES_PER_SCORE) {
+            refreshesSinceScore = 0
+            val latest = session.liveScore()
+            if (latest != score) {
+                score = latest
+            }
+        }
         sound.play(view.tone)
     }
 
     private companion object {
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L
+
+        /** How many refreshes pass between two looks at the score. */
+        const val REFRESHES_PER_SCORE = 5
     }
 }

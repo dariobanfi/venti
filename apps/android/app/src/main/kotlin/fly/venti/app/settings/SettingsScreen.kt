@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -36,9 +38,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import fly.venti.app.BuildConfig
 import fly.venti.app.R
+import fly.venti.app.SettingsRoute
+import fly.venti.app.design.Format
+import fly.venti.app.design.numbers
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
@@ -53,12 +59,15 @@ fun SettingsScreen(
     preferences: Preferences,
     fly: FlySession,
     wind: WindModel,
-    onCredits: () -> Unit,
+    /** Opens a screen on top of the settings. */
+    onOpen: (SettingsRoute) -> Unit,
     bars: PaddingValues,
 ) {
     val links = LocalUriHandler.current
     var pilot by remember { mutableStateOf(preferences.pilot) }
     var glider by remember { mutableStateOf(preferences.glider) }
+    var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
+    var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
     val names = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false)
 
     Scaffold(
@@ -104,7 +113,33 @@ fun SettingsScreen(
                 row {
                     SwitchRow("Vario sound", isOn = !fly.isMuted) { fly.isMuted = !it }
                 }
+                row {
+                    LinkRow("Waypoints", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Waypoints) }
+                }
+                row {
+                    StepperRow(
+                        "Trim speed",
+                        value = "${Format.whole(trimSpeed)} km/h",
+                        onLess = { trimSpeed = (trimSpeed - 1).coerceIn(TRIM_SPEEDS) },
+                        onMore = { trimSpeed = (trimSpeed + 1).coerceIn(TRIM_SPEEDS) },
+                        onChanged = { preferences.trimSpeed = trimSpeed },
+                    )
+                }
+                row {
+                    StepperRow(
+                        "Glide ratio",
+                        value = Format.glideRatio(glideRatio),
+                        onLess = { glideRatio = (glideRatio - 0.5).coerceIn(GLIDE_RATIOS) },
+                        onMore = { glideRatio = (glideRatio + 0.5).coerceIn(GLIDE_RATIOS) },
+                        onChanged = { preferences.glideRatio = glideRatio },
+                    )
+                }
             }
+            SectionFooter(
+                "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the " +
+                    "cockpit predicts how high you arrive at the place you fly to. The prediction assumes " +
+                    "air that neither rises nor sinks on the way.",
+            )
 
             SectionHeader("Live wind")
             OutlinedTextField(
@@ -124,7 +159,7 @@ fun SettingsScreen(
             SectionHeader("About")
             Group {
                 row { ValueRow("Version", BuildConfig.VERSION_NAME) }
-                row { LinkRow("Data and licences", R.drawable.ic_chevron_right, onClick = onCredits) }
+                row { LinkRow("Data and licences", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Credits) } }
                 row {
                     LinkRow("Source code", R.drawable.ic_open_in_new) {
                         links.openUri("https://github.com/dariobanfi/venti")
@@ -148,6 +183,43 @@ private fun SwitchRow(title: String, isOn: Boolean, onChange: (Boolean) -> Unit)
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = isOn, onCheckedChange = null)
+    }
+}
+
+/** What a glider's trim speed can be set to, km/h, and its glide ratio. */
+private val TRIM_SPEEDS = 25.0..60.0
+private val GLIDE_RATIOS = 4.0..14.0
+
+/** A row with a number and a button either side of it to make it less or more. */
+@Composable
+private fun StepperRow(title: String, value: String, onLess: () -> Unit, onMore: () -> Unit, onChanged: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = {
+                onLess()
+                onChanged()
+            },
+        ) {
+            Icon(painterResource(R.drawable.ic_remove), contentDescription = "Less: $title")
+        }
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge.numbers,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 72.dp),
+        )
+        IconButton(
+            onClick = {
+                onMore()
+                onChanged()
+            },
+        ) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = "More: $title")
+        }
     }
 }
 

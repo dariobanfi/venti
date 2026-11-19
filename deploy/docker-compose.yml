@@ -20,11 +20,28 @@ x-logging: &logging
     max-size: "10m"
     max-file: "5"
 
+# What every service is held to, whatever it was broken into with: none of
+# the powers of the machine's root user beyond those it is given back by
+# name below, and no way to gain any by running a program that carries
+# them.
+x-confined: &confined
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
 services:
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
     logging: *logging
+    <<: *confined
+    # Caddy listens on ports 80 and 443, which takes this one power.
+    cap_add: [NET_BIND_SERVICE]
+    # It writes certificates to /data and its settings to /config, which
+    # are volumes, and nowhere else.
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: ${VENTI_CADDY_MEMORY:-256m}
+    pids_limit: 256
     depends_on:
       - server
     # Published on the machine's IPv4 addresses and on no other. Without
@@ -63,6 +80,17 @@ services:
     image: venti-server:local
     restart: unless-stopped
     logging: *logging
+    <<: *confined
+    # The server runs as a user of its own (the Dockerfile's) and writes
+    # the archive of raw payloads, a volume, and nothing else.
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    # What it holds at most is a few hundred megabytes: eight flight files
+    # at a time, four password hashes of 19 MB, its tables of attempts.
+    mem_limit: ${VENTI_SERVER_MEMORY:-1g}
+    # Threads count too: it starts up to 512 for work that may block, and a
+    # program of its own for every flight file it analyses.
+    pids_limit: 1024
     depends_on:
       db:
         condition: service_healthy
@@ -93,12 +121,31 @@ services:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
     logging: *logging
+    <<: *confined
+    # The image starts as root, hands the data folder to the user
+    # "postgres" and becomes that user: these five powers are what that
+    # takes.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    read_only: true
+    tmpfs: [/tmp, /var/run/postgresql]
+    mem_limit: ${VENTI_DB_MEMORY:-2g}
+    pids_limit: 512
     environment:
-      POSTGRES_USER: venti
+      # The database's superuser, "postgres", is for whoever keeps the
+      # machine: it is reached from inside this container only (docker
+      # compose exec db psql --username postgres), and db-init.sh takes its
+      # password away so that nothing can sign in as it over the network.
+      # The server signs in as "venti", which db-init.sh makes: it owns the
+      # database and is no superuser. POSTGRES_PASSWORD becomes its
+      # password.
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: venti
     volumes:
       - db-data:/var/lib/postgresql/data
+      # Run once, when the database is first created on an empty volume,
+      # after the image's own script has put PostGIS into the database.
+      - ./db-init.sh:/docker-entrypoint-initdb.d/20-venti-role.sh:ro
     # PostgreSQL uses shared memory for parallel queries; Docker's default
     # of 64 MB is too little for anything but small tables.
     shm_size: 1g

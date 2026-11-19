@@ -10,6 +10,7 @@ This folder holds everything needed to run Venti on one Linux machine with Docke
 | `Dockerfile` | Builds the `venti-server` image from this repository |
 | `Caddyfile` | TLS, the web app's static files, map tiles, and the way in to the API, to the pages of shared flights and to the connector for assistants |
 | `env.example` | Every setting, with comments. Copy it to `.env` |
+| `db-init.sh` | Run once by the database when it is first created: makes the role the server signs in as |
 | `backup.sh` | Dumps the database and removes old dumps |
 
 Since 2026-11-19 the server keeps pilots' accounts and flights, beside the weather it collects. That changes what the machine is: the database now holds what cannot be made again, and what belongs to other people. The backup is no longer a convenience.
@@ -240,9 +241,52 @@ The Compose file holds such an instance, switched off. To switch it on:
 
 An instance somewhere else works the same way: give its address as `VENTI_OPEN_METEO_URL`, and leave the profile off.
 
+## What the web app's pages may do
+
+Caddy sends two rules with every page of the web app (`Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'`, and `X-Frame-Options: DENY` for older browsers): the pages are shown in no frame, so no other site can lay its own picture over the app's buttons, and they take no `<base>` element. The pages of shared flights have a policy of their own from the server, which allows no script at all.
+
+A full policy for the app, one that says which scripts may run and where the pages may connect, is **not set**. It would bound what a script can do that got into a page by a mistake, and with it what such a script could do with the session token the browser keeps. It was left out because it cannot be written from reading: it has to be tried against the built site, served through this Caddy, with the app's browser tests (`apps/web`, `npm run test:e2e`), and that was not possible in the session that made this change. What it has to allow, as a list to start from *(to verify, every line)*:
+
+- `script-src 'self' 'wasm-unsafe-eval'`: the app's own scripts, and compiling its WebAssembly core. Whether the build inlines any script into the pages decides whether hashes are needed as well.
+- `worker-src 'self'`, and `blob:` if the map library starts its workers from one.
+- `connect-src 'self'` and the two tile services the map uses until the project hosts its own tiles, `https://tiles.openfreemap.org` and `https://tiles.mapterhorn.com`.
+- `img-src 'self' data: blob:` for the map's pictures and the wind symbols.
+- `style-src 'self'`, and `'unsafe-inline'` only if the map library or the framework sets styles from script in a way that needs it.
+- `font-src 'self'`; the label fonts are fetched by script and fall under `connect-src`.
+- `default-src 'none'`, `form-action 'self'`, `object-src 'none'`, and the two rules that are set today.
+
+Set it first as `Content-Security-Policy-Report-Only`, run the browser tests and read the browser's console, and only then as the real header.
+
+## What each service may do
+
+Since 2026-11-19 the three services are held to less than Docker gives a container by default, so that whoever gets into one of them through a mistake in its software finds little there. Tried on a development machine that day with the server's debug build in a plain container: start, an invite, an account, a flight and its analysis, the share page and its picture through Caddy, `backup.sh`, and a restore over the live database. The image the Dockerfile builds was not run under these settings there; CI starts it with the same ones. *(To verify on the first real install.)*
+
+| | Caddy | Server | Database |
+|---|---|---|---|
+| Powers of the machine's root user (`cap_drop`, `cap_add`) | one: listening on ports 80 and 443 | none | five, for the image's start: it hands the data folder to the user `postgres` and becomes that user |
+| Gaining powers from a program that carries them (`no-new-privileges`) | no | no | no |
+| Writing outside its volumes (`read_only`) | no | no | no |
+| Memory (`mem_limit`) | 256 MB | 1 GB | 2 GB |
+| Processes and threads (`pids_limit`) | 256 | 1024 | 512 |
+
+The memory limits fit the smallest machine this runbook names. On a larger one give the database more, in `.env`: `VENTI_DB_MEMORY=16g` (and `VENTI_SERVER_MEMORY`, `VENTI_CADDY_MEMORY` likewise). A service that reaches its limit is restarted by Docker and says so in `docker compose ps` and in `dmesg`.
+
+**The server is not the database's superuser.** The database has two roles. `postgres` is its superuser, for you: it has no password, so nothing signs in as it over the network, and from inside the container it needs none (`docker compose exec db psql --username postgres venti`). `venti` is the server's: it owns the database and the tables and is no superuser, so someone who got into the server can read and change what the server keeps, and cannot read files on the database's machine or run programs there, which a superuser can. `db-init.sh` makes both so, once, when the database is first created on an empty volume. `POSTGRES_PASSWORD` in `.env` is the password of `venti`.
+
+A database that was created before 2026-11-19 has `venti` as its superuser, and that cannot be taken from the role a database was created with. Move it: take a dump with the old setup, start the new setup on an empty volume (`docker compose down`, then `docker volume rm venti_db-data`, then `docker compose up -d db`), and restore the dump with the commands under [Restore](#restore). A dump made by the old `backup.sh` does not say who owns its tables; after restoring one, hand them to the server's role before starting the server:
+
+```bash
+docker compose exec -T db psql --username postgres --dbname venti --command \
+  "DO \$\$ DECLARE t record; BEGIN FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'spatial_ref_sys' LOOP EXECUTE format('ALTER TABLE public.%I OWNER TO venti', t.tablename); END LOOP; END \$\$"
+```
+
+*(To verify: nobody has such a database but developers; the command was not run against one.)*
+
+The optional forecast service (`open-meteo`, profile `forecasts`) is not confined in these ways: it is someone else's image and was not tried under them.
+
 ## Backup
 
-`backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything.
+`backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything. It takes the dump as the database's superuser, from inside the database's container, and the dump says which role owns each table.
 
 The dump holds everything the server knows: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
 
@@ -301,9 +345,9 @@ ls -lh backups                                   # choose a dump
 dump=backups/venti-20261119T031000Z.dump
 
 docker compose stop server
-docker compose exec -T db dropdb --username venti --force venti
-docker compose exec -T db createdb --username venti venti
-docker compose exec -T db pg_restore --username venti --dbname venti --no-owner --exit-on-error < "$dump"
+docker compose exec -T db dropdb --username postgres --force venti
+docker compose exec -T db createdb --username postgres --owner venti venti
+docker compose exec -T db pg_restore --username postgres --dbname venti --exit-on-error < "$dump"
 docker compose start server
 curl -s http://localhost/v1/health
 ```
@@ -312,16 +356,16 @@ The restored database lacks everything after the dump. The server refills the la
 
 For accounts and flights: accounts created after the dump are gone, and so are flights uploaded after it. A flight is still on the phone it was uploaded from. The apps are meant to notice that the server has gone back in time (the server tells a device whose bookmark lies in the future to compare its whole logbook) and to upload what is missing; that is built on the server and in no app yet. Sessions made after the dump stop working, and those pilots sign in again. Passwords changed after the dump are the old ones again.
 
-On a new machine: do the first install up to step 3 with the old database password in `.env`, copy the dump over, run `docker compose up -d db`, then the restore commands above from `createdb` on (the fresh database is empty, so drop it first all the same), then `docker compose up -d`.
+On a new machine: do the first install up to step 3 with the old database password in `.env`, copy the dump over, run `docker compose up -d db` (which creates the two roles), then the restore commands above from `createdb` on (the fresh database is empty, so drop it first all the same), then `docker compose up -d`.
 
 Try a restore before it is needed. A dump can be restored into a scratch database on the same server without touching the live one:
 
 ```bash
-docker compose exec -T db createdb --username venti restore_test
-docker compose exec -T db pg_restore --username venti --dbname restore_test --no-owner --exit-on-error < "$dump"
-docker compose exec -T db psql --username venti --dbname restore_test --command \
+docker compose exec -T db createdb --username postgres --owner venti restore_test
+docker compose exec -T db pg_restore --username postgres --dbname restore_test --exit-on-error < "$dump"
+docker compose exec -T db psql --username postgres --dbname restore_test --command \
   'SELECT (SELECT count(*) FROM observations) AS observations, (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM flights) AS flights, (SELECT pg_size_pretty(sum(octet_length(file))) FROM flights) AS flight_files'
-docker compose exec -T db dropdb --username venti restore_test
+docker compose exec -T db dropdb --username postgres restore_test
 ```
 
 ## Looking inside

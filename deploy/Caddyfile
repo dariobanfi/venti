@@ -67,6 +67,19 @@
 	# app's own router, so it gets the app's entry page.
 	handle {
 		root * /srv/web
+		# The app's pages are shown in no frame, on this site or another:
+		# a page that frames them could put its own picture over the
+		# button that deletes a pilot's account and have the pilot click
+		# it. And they take no <base>, which would send the addresses in
+		# the page somewhere else. X-Frame-Options says the first again
+		# for browsers that predate the policy.
+		#
+		# This is not yet a policy for what the pages may load and run. A
+		# full one (scripts, the WebAssembly core, its worker, the map's
+		# tile hosts, the fonts) has to be tried against the built site
+		# with the browser tests first; README.md says what it needs.
+		header Content-Security-Policy "frame-ancestors 'none'; base-uri 'none'"
+		header X-Frame-Options "DENY"
 		encode zstd gzip
 		try_files {path} /index.html
 		file_server

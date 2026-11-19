@@ -57,9 +57,13 @@ name="venti-$(date -u +%Y%m%dT%H%M%SZ).dump"
 partial="$backup_dir/.$name.partial"
 trap 'rm -f "$partial"' EXIT
 
-# -T: no terminal, so the dump arrives byte for byte.
+# -T: no terminal, so the dump arrives byte for byte. The dump is taken as
+# the database's superuser, from inside its container, where that user
+# needs no password: it reads everything, also what PostGIS keeps beside
+# the server's tables. The dump says who owns what, so that a restore hands
+# the server's tables back to the server's role (README.md, "Restore").
 docker compose exec -T db \
-    pg_dump --username venti --dbname venti --format custom --no-owner \
+    pg_dump --username postgres --dbname venti --format custom \
     > "$partial"
 
 # A dump that pg_restore cannot list is not a backup.

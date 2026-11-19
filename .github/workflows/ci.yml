@@ -59,7 +59,13 @@ jobs:
         run: docker build --file deploy/Dockerfile --tag venti-server:ci .
       - name: Start it on recorded data and ask every endpoint
         run: |
+          # Confined as docker-compose.yml confines it: no capabilities, no
+          # new privileges, a read-only root, bounds on memory and
+          # processes. The steps below include an upload, which the server
+          # analyses in a child process.
           docker run --detach --name venti --publish 127.0.0.1:8080:8080 \
+            --cap-drop ALL --security-opt no-new-privileges:true --read-only \
+            --tmpfs /tmp:size=16m --memory 1g --pids-limit 1024 \
             venti-server:ci dev --listen 0.0.0.0:8080
           for attempt in $(seq 1 30); do
             curl --silent --fail --output /dev/null http://127.0.0.1:8080/v1/health && break
@@ -118,12 +124,40 @@ jobs:
           # through Docker's forwarder with their address hidden.
           docker compose --file deploy/docker-compose.yml config --format json \
             | jq --exit-status '[.services[].ports // [] | .[] | .host_ip == "0.0.0.0"] | length == 3 and all'
+          # The three services are confined: no capability but those named,
+          # no new privileges, a read-only root, bounds on memory and
+          # processes.
+          docker compose --file deploy/docker-compose.yml config --format json \
+            | jq --exit-status '[.services[] | (.cap_drop == ["ALL"]) and (.security_opt | index("no-new-privileges:true") != null) and .read_only and (.mem_limit != null) and (.pids_limit > 0)] | length == 3 and all'
+          docker compose --file deploy/docker-compose.yml config --format json \
+            | jq --exit-status '.services | (.server.cap_add // []) == [] and .caddy.cap_add == ["NET_BIND_SERVICE"] and (.db.environment.POSTGRES_USER == "postgres")'
           # Every service's log is rotated: none can fill the disk.
           docker compose --file deploy/docker-compose.yml config --format json \
             | jq --exit-status '[.services[] | .logging | .driver == "json-file" and (.options["max-size"] | type == "string") and (.options["max-file"] | type == "string")] | length == 3 and all'
           docker run --rm --env VENTI_SITE_ADDRESS=:80 \
             --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: The web app's pages may not be framed
+        run: |
+          mkdir -p web && echo '<!doctype html><title>Venti</title>' > web/index.html
+          docker run --detach --name caddy-check --env VENTI_SITE_ADDRESS=:80 \
+            --publish 127.0.0.1:8081:80 \
+            --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            --volume "$PWD/web:/srv/web:ro" \
+            caddy:2.10-alpine
+          for attempt in $(seq 1 20); do
+            curl --silent --fail --output /dev/null http://127.0.0.1:8081/ && break
+            sleep 1
+          done
+          # The entry page, and a path of the app's own router, which gets
+          # the entry page too.
+          for path in / /logbook/; do
+            curl --silent --fail --head "http://127.0.0.1:8081$path" > headers.txt
+            grep --ignore-case --fixed-strings "content-security-policy: frame-ancestors 'none'; base-uri 'none'" headers.txt
+            grep --ignore-case --fixed-strings "x-frame-options: DENY" headers.txt
+            grep --ignore-case --fixed-strings "x-content-type-options: nosniff" headers.txt
+          done
+          docker rm --force caddy-check
 
   dependencies:
     name: Dependency licences

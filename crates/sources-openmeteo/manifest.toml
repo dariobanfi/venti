@@ -9,6 +9,9 @@ countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
 # models themselves start a new run every three hours.
 cadence_seconds = 600
 auth = "none"
+# A model's answer for one place, 72 hours of 44 values, was 19 kB on
+# 2026-11-19, and the answer about its run half a kilobyte.
+max_response_kb = 512
 
 # An instance that whoever runs the server runs themself imposes no limit.
 # These numbers keep the load on it small, and they are below what

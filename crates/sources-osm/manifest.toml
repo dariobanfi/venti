@@ -8,6 +8,9 @@ countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
 # resource: one request a day.
 cadence_seconds = 86400
 auth = "none"
+# The one answer of a run, every free-flying place of the first region with
+# all its tags, was 163 kB on 2026-11-19.
+max_response_kb = 4096
 
 # The main public instance asks whoever uses it regularly to stay under 100
 # queries a day and to run one at a time. A run needs one request; the

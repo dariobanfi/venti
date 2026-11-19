@@ -94,7 +94,7 @@ fun CockpitScreen(
     var isConfirmingFinish by remember { mutableStateOf(false) }
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
-    val map = remember { CockpitMap().also { it.airspace = fly.airspace() } }
+    val map = remember { CockpitMap() }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
 
@@ -108,7 +108,14 @@ fun CockpitScreen(
         Column(Modifier.systemBarsPadding()) {
             StatusLine(view, fly.score, fly.mode, varioName)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view, way, route) })
+                MapSurface(
+                    content = map,
+                    modifier = Modifier.fillMaxSize(),
+                    onUpdate = {
+                        map.airspace = fly.airspace()
+                        map.show(view, way, route)
+                    },
+                )
                 view.wind?.let { wind ->
                     WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
                 }

@@ -49,9 +49,20 @@ class CockpitMap : MapContent {
     private var wasCircling: Boolean? = null
     private var drawnTakeoff: Coordinate? = null
 
-    /** The pilot's airspace, and where it was last drawn around. */
+    /**
+     * The pilot's airspace, and where it was last drawn around. Files
+     * brought in or removed during a flight are drawn at the next step.
+     */
     var airspace: AirspaceSet? = null
+        set(value) {
+            if (value !== field) {
+                field = value
+                airspaceDrawnAt = null
+                airspaceIsNew = true
+            }
+        }
     private var airspaceDrawnAt: Coordinate? = null
+    private var airspaceIsNew = false
 
     /** The route the flight scores along so far, and the one last drawn. */
     private var route: List<Coordinate> = emptyList()
@@ -171,7 +182,16 @@ class CockpitMap : MapContent {
      * glider has flown some 10 km from where it was last drawn.
      */
     private fun drawAirspace(position: Coordinate, style: Style) {
-        val airspace = airspace ?: return
+        val airspace = airspace
+        if (airspace == null) {
+            // The files are gone: so is what was drawn from them.
+            if (airspaceIsNew) {
+                AirspaceLayers.show(emptyList(), style)
+                airspaceIsNew = false
+            }
+            return
+        }
+        airspaceIsNew = false
         val drawn = airspaceDrawnAt
         if (drawn != null && abs(drawn.lat - position.lat) < 0.09 && abs(drawn.lon - position.lon) < 0.13) return
         airspaceDrawnAt = position

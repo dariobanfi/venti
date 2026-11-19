@@ -29,6 +29,8 @@ final class FlySession {
     private(set) var way: WayToTarget?
     /// How the flight scores as a cross-country flight so far.
     private(set) var score: LiveScore?
+    /// How much of the day is left where the glider is.
+    private(set) var daylight: DaylightLeft?
     /// The airspace warnings of the moment, the most urgent first.
     private(set) var airspaceWarnings: [AirspaceWarning] = []
     /// Whether the glider is being checked against airspace right now.
@@ -162,6 +164,7 @@ final class FlySession {
         view = nil
         way = nil
         score = nil
+        daylight = nil
         airspaceWarnings = []
         airspaceCheck = .noAirspace
         handedAirspace = nil
@@ -223,6 +226,10 @@ final class FlySession {
             let latest = session.liveScore()
             if latest != score {
                 score = latest
+            }
+            let light = session.daylight(nowUnixS: now)
+            if light != daylight {
+                daylight = light
             }
         }
 

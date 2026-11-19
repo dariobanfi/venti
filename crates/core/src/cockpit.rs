@@ -29,6 +29,7 @@ use venti_flight::live::{
     self, FlightComputer, Phase, PositionSample, VarioSource, atmosphere, tone,
 };
 use venti_flight::scoring;
+use venti_flight::sun;
 use venti_sensors::{Battery, SentenceReader};
 
 use crate::airspace::AirspaceWatch;
@@ -218,6 +219,20 @@ pub struct LiveScore {
     pub route: Vec<Coordinate>,
 }
 
+/// How much of the day is left where the glider is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct DaylightLeft {
+    /// Sunset, seconds since 1970-01-01 UTC. Absent where the sun does
+    /// not set that day.
+    pub sunset_unix_s: Option<i64>,
+    /// The end of civil twilight, from when it is night.
+    pub dusk_unix_s: Option<i64>,
+    /// Minutes until sunset; negative once the sun has set.
+    pub minutes_to_sunset: Option<i64>,
+    /// Minutes until the end of civil twilight; negative once it is night.
+    pub minutes_to_dusk: Option<i64>,
+}
+
 /// Seconds between the positions kept for scoring the flight in the air.
 const SCORE_FIX_EVERY_S: f64 = 10.0;
 
@@ -368,6 +383,25 @@ impl FlightSession {
                 flown: Vec::new(),
                 score: None,
             }),
+        })
+    }
+
+    /// How much of the day is left at the glider's position: sunset and
+    /// the end of civil twilight, for a level horizon at sea level. In a
+    /// valley the sun is gone behind the mountains earlier. `None` until
+    /// there is a position.
+    pub fn daylight(&self, now_unix_s: f64) -> Option<DaylightLeft> {
+        let position = self.lock().computer.state(now_unix_s).position?;
+        let now = DateTime::from_timestamp(now_unix_s as i64, 0)?;
+        let light = sun::daylight_at(now, position);
+        let minutes_to = |event: Option<DateTime<chrono::Utc>>| {
+            event.map(|event| (event - now).num_seconds().div_euclid(60))
+        };
+        Some(DaylightLeft {
+            sunset_unix_s: light.sunset.map(|sunset| sunset.timestamp()),
+            dusk_unix_s: light.civil_dusk.map(|dusk| dusk.timestamp()),
+            minutes_to_sunset: minutes_to(light.sunset),
+            minutes_to_dusk: minutes_to(light.civil_dusk),
         })
     }
 
@@ -1190,6 +1224,30 @@ mod tests {
         // Choosing nothing goes back to the take-off.
         session.go_to(None);
         assert!(session.navigation(replay.now()).unwrap().is_takeoff);
+    }
+
+    #[test]
+    fn the_cockpit_knows_how_much_of_the_day_is_left() {
+        let folder = TempFolder::new();
+        assert_eq!(
+            FlightSession::new(folder_text(&folder)).daylight(1_000.0),
+            None
+        );
+
+        // The sample flight: 4 July 2026 above the Tegernsee, from half
+        // past ten UTC. Five minutes in, sunset is more than eight hours
+        // off, at about 19:13 UTC there, and night follows half an hour
+        // and more later.
+        let (session, replay) = fly(&folder, 300.0, false);
+        let left = session.daylight(replay.now()).unwrap();
+        let to_sunset = left.minutes_to_sunset.unwrap();
+        assert!((510..=530).contains(&to_sunset), "{to_sunset}");
+        let twilight = left.minutes_to_dusk.unwrap() - to_sunset;
+        assert!((30..=45).contains(&twilight), "{twilight}");
+
+        // Asked nine hours later from the same place, the sun has set.
+        let later = session.daylight(replay.now() + 9.0 * 3600.0).unwrap();
+        assert!(later.minutes_to_sunset.unwrap() < 0);
     }
 
     #[test]

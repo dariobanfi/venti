@@ -21,3 +21,4 @@ pub use identity::identity;
 pub use summary::{FlightSummary, summarise};
 pub mod live;
 pub mod scoring;
+pub mod sun;

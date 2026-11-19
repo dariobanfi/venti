@@ -33,6 +33,12 @@ struct CockpitScreen: View {
                                 .padding(10)
                         }
                     }
+                    .overlay(alignment: .topLeading) {
+                        if let daylight = fly.daylight {
+                            DaylightBadge(daylight: daylight)
+                                .padding(10)
+                        }
+                    }
                     .overlay(alignment: .bottom) {
                         AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
                             isShowingAirspace = true
@@ -359,6 +365,45 @@ private struct VarioBar: View {
         .frame(width: 10)
         .padding(.vertical, 10)
         .accessibilityHidden(true)
+    }
+}
+
+/// How much daylight is left, shown over the map once it is less than two
+/// hours: time to sunset, then time until night, then "Night".
+private struct DaylightBadge: View {
+    let daylight: DaylightLeft
+
+    /// What to show, if anything, and whether it is past sunset.
+    private var text: (words: String, isLate: Bool)? {
+        if let toSunset = daylight.minutesToSunset, toSunset >= 0 {
+            guard toSunset < 120 else { return nil }
+            return ("Sunset in \(Self.hoursMinutes(toSunset))", false)
+        }
+        if let toDusk = daylight.minutesToDusk, toDusk >= 0 {
+            return ("Night in \(Self.hoursMinutes(toDusk))", true)
+        }
+        // Where the sun does not set that day, there is nothing to say.
+        guard daylight.minutesToSunset != nil || daylight.minutesToDusk != nil else { return nil }
+        return ("Night", true)
+    }
+
+    var body: some View {
+        if let text {
+            Label(text.words, systemImage: text.isLate ? "moon.fill" : "sunset.fill")
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(text.isLate ? Color.red : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .glassEffect(.regular, in: .capsule)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Daylight")
+                .accessibilityValue(text.words)
+        }
+    }
+
+    private static func hoursMinutes(_ minutes: Int64) -> String {
+        Format.hoursMinutes(seconds: minutes * 60)
     }
 }
 

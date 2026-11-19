@@ -128,3 +128,42 @@ object MapRegion {
         return folder
     }
 }
+
+/**
+ * Text as the map can draw it.
+ *
+ * The label fonts shipped with the app hold Unicode's first 512 characters:
+ * the Latin letters with their accents. A label with any other character,
+ * a long dash is enough, makes the map engine ask for a font file that is
+ * not there, and the engine then draws nothing at all of what shares that
+ * label's source in that part of the map: not the label, and not the lines
+ * and areas either. So what the app itself writes on a map goes through
+ * here first, and a layer's names are kept apart from its shapes.
+ */
+object MapText {
+    /** The last character the shipped fonts hold. */
+    private const val LAST_SHIPPED = 0x1FF
+
+    /** The text with every character the fonts lack replaced by one they have. */
+    fun shipped(text: String): String = buildString {
+        for (character in text) {
+            when {
+                character == '\n' -> append(character)
+                character.code < 0x20 -> Unit
+                character.code <= LAST_SHIPPED -> append(character)
+                character in DASHES -> append('-')
+                character in SINGLE_QUOTES -> append('\'')
+                character in DOUBLE_QUOTES -> append('"')
+                character == '\u2026' -> append("...")
+                character.isWhitespace() -> append(' ')
+                // Half of a character from beyond the first 65,536: the other half says it.
+                character.isLowSurrogate() -> Unit
+                else -> append('?')
+            }
+        }
+    }
+
+    private const val DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"
+    private const val SINGLE_QUOTES = "\u2018\u2019\u201A\u2032"
+    private const val DOUBLE_QUOTES = "\u201C\u201D\u201E\u2033"
+}

@@ -1,6 +1,7 @@
 package fly.venti.app.airspace
 
 import fly.venti.app.map.MapSetup
+import fly.venti.app.map.MapText
 import fly.venti.core.AirspacePolicy
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Coordinate
@@ -22,6 +23,13 @@ import org.maplibre.geojson.Polygon
  */
 object AirspaceLayers {
     const val SOURCE = "airspace"
+
+    /**
+     * The names have a source of their own. Should one of them ever hold a
+     * character the map cannot draw, that costs the names and not the
+     * outlines, which are what keeps a pilot out.
+     */
+    private const val NAMES = "airspace-names"
 
     /** Below this zoom a country's airspace is a tangle, and is not drawn. */
     private const val MINIMUM_ZOOM = 7f
@@ -74,7 +82,8 @@ object AirspaceLayers {
             edge.minZoom = MINIMUM_ZOOM
             style.addLayer(edge)
         }
-        val names = SymbolLayer("airspace-names", SOURCE).withProperties(
+        style.addSource(GeoJsonSource(NAMES))
+        val names = SymbolLayer(NAMES, NAMES).withProperties(
             PropertyFactory.textField(Expression.get(LABEL)),
             PropertyFactory.textFont(arrayOf("noto-sans-regular")),
             PropertyFactory.textSize(11f),
@@ -90,7 +99,9 @@ object AirspaceLayers {
 
     /** Draws these airspaces in place of what was drawn before. */
     fun show(shapes: List<AirspaceShape>, style: Style) {
-        style.getSourceAs<GeoJsonSource>(SOURCE)?.setGeoJson(FeatureCollection.fromFeatures(shapes.map(::feature)))
+        val features = FeatureCollection.fromFeatures(shapes.map(::feature))
+        style.getSourceAs<GeoJsonSource>(SOURCE)?.setGeoJson(features)
+        style.getSourceAs<GeoJsonSource>(NAMES)?.setGeoJson(features)
     }
 
     /** One airspace as the layers read it: its outline with any holes, and what to draw it as. */
@@ -101,10 +112,14 @@ object AirspaceLayers {
             addStringProperty(LABEL, label(shape))
         }
 
-    /** The name over the limits, or the limits alone for an airspace without a name. */
+    /**
+     * The name over the limits, or the limits alone for an airspace without
+     * a name, in characters the map's fonts hold: a name comes from the
+     * pilot's file and can hold anything.
+     */
     fun label(shape: AirspaceShape): String {
-        val limits = "${shape.lower} – ${shape.upper}"
-        return if (shape.name.isEmpty()) limits else "${shape.name}\n$limits"
+        val limits = "${shape.lower} - ${shape.upper}"
+        return MapText.shipped(if (shape.name.isEmpty()) limits else "${shape.name}\n$limits")
     }
 
     /** A ring as GeoJSON wants it: closed, its last point the same as its first. */

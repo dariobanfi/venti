@@ -423,9 +423,14 @@ class VentiUiTest {
         tap(hasText("20 times faster"))
         waitFor(described("Altitude"))
 
+        val scenario = checkNotNull(app)
         val banner = hasTestTag("airspace-banner")
         waitFor(banner, seconds = 120)
         assertTrue(exists(banner and saying("SAMPLE ZONE (NOT REAL)")))
+        // The zone itself is on the cockpit's map: the map is asked, since
+        // a screenshot does not fail a test. The glider flies on towards
+        // the zone, so its edge comes into view if it is drawn at all.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-8-airspace")
 
@@ -463,9 +468,15 @@ class VentiUiTest {
         waitFor(hasTestTag("logbook-row"))
         tap(tab("Map"))
         waitFor(described("Show my position"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(5)
         keepScreenshot("$prefix-map-airspace")
     }
+
+    /** How many closed airspaces the map on screen has drawn: their washes and their edges. */
+    private fun airspaceOnTheMap(scenario: ActivityScenario<MainActivity>): Int =
+        (TestDevice.drawnOnTheMap(scenario, "airspace-wash-2") ?: 0) +
+            (TestDevice.drawnOnTheMap(scenario, "airspace-edge-2") ?: 0)
 
     @Test
     fun theCockpitWarnsOfAirspace() = flyNearAirspace("light", dark = false)

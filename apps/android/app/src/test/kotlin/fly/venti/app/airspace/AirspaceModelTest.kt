@@ -148,8 +148,14 @@ class AirspaceModelTest {
         assertEquals(rings[0].first(), rings[0].last())
         assertEquals(2, feature.getNumberProperty(AirspaceLayers.POLICY).toInt())
         val label = feature.getStringProperty(AirspaceLayers.LABEL)
-        assertEquals("SAMPLE ZONE (NOT REAL)\n${shape.lower} – ${shape.upper}", label)
-        assertEquals("${shape.lower} – ${shape.upper}", AirspaceLayers.label(shape.copy(name = "")))
+        assertEquals("SAMPLE ZONE (NOT REAL)\n${shape.lower} - ${shape.upper}", label)
+        assertEquals("${shape.lower} - ${shape.upper}", AirspaceLayers.label(shape.copy(name = "")))
+        // A name from a file can hold anything; the map's fonts cannot.
+        // One character they lack would cost the whole airspace its place
+        // on the map.
+        val odd = AirspaceLayers.label(shape.copy(name = "TMA \u201CZ\u00FCrich\u201D \u2013 \u0426\u0422\u0420 \uD83D\uDE80"))
+        assertEquals("TMA \"Z\u00FCrich\" - ??? ?", odd.lines().first())
+        assertTrue(label.all { it == '\n' || it.code in 0x20..0x1FF })
 
         // What matters most is drawn last, on top.
         assertTrue(AirspaceLayers.rank(AirspacePolicy.FREE) < AirspaceLayers.rank(AirspacePolicy.CAUTION))

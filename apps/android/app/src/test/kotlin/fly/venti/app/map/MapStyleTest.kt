@@ -21,6 +21,21 @@ import java.io.File
  * come from, and that the map data shipped with the app is complete.
  */
 class MapStyleTest {
+    @Test
+    fun whatTheAppWritesOnAMapStaysWithinTheShippedFonts() {
+        // The fonts in the app hold the first 512 characters of Unicode.
+        val shipped = TestSupport.files.list(AppFiles.MAP_REGION).filter { it.endsWith(".pbf") }.map { it.substringAfterLast('/') }
+        assertEquals(setOf("0-255.pbf", "256-511.pbf"), shipped.toSet())
+
+        assertEquals("GND - 9000 ft AMSL", MapText.shipped("GND \u2013 9000 ft AMSL"))
+        assertEquals("Hohenpei\u00DFenberg", MapText.shipped("Hohenpei\u00DFenberg"))
+        assertEquals("\u0141\u00F3d\u017A", MapText.shipped("\u0141\u00F3d\u017A"))
+        assertEquals("St. Peter's \"Zone\"...", MapText.shipped("St. Peter\u2019s \u201CZone\u201D\u2026"))
+        assertEquals("a b\nc", MapText.shipped("a\u2003b\nc\u0007"))
+        assertEquals("???", MapText.shipped("\u041C\u0438\u0440"))
+        assertEquals("?", MapText.shipped("\uD83D\uDE80"))
+    }
+
     private val template = TestSupport.files.text(AppFiles.MAP_STYLE)
     private val region = TestSupport.assets.resolve(AppFiles.MAP_REGION)
 

@@ -59,6 +59,7 @@ targets:
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Venti shows your position on the map and records your flights.
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: Venti connects to your vario over Bluetooth.
         INFOPLIST_KEY_NSMotionUsageDescription: Venti uses the pressure sensor as a vario when no external one is connected.
+        INFOPLIST_KEY_NSCameraUsageDescription: Venti uses the camera to scan the QR code of a task.
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         # iPhone in portrait for now: the flight screen is laid out for it.
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

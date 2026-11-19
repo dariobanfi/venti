@@ -16,6 +16,7 @@ struct TaskScreen: View {
     @State private var isShowingCode = false
     @State private var isConfirmingRemoval = false
     @State private var isPlanningRoute = false
+    @State private var isScanning = false
     @State private var exported: URL?
 
     var body: some View {
@@ -57,6 +58,9 @@ struct TaskScreen: View {
                     }
                 }
                 .accessibilityIdentifier("task-paste")
+                Button("Scan a QR code", systemImage: "qrcode.viewfinder") {
+                    isScanning = true
+                }
                 Button("Open a task file", systemImage: "folder") {
                     isChoosingFile = true
                 }
@@ -75,7 +79,7 @@ struct TaskScreen: View {
                             .foregroundStyle(.red)
                             .accessibilityIdentifier("task-problem")
                     }
-                    Text("Copy a task from a message, or open a file ending in .xctsk: the format XCTrack, Flyskyhy and other instruments exchange. The cockpit then leads from turnpoint to turnpoint, counts down to the start and measures the way to goal. A route of your own waypoints is flown from one to the next. Scanning a QR code is not built yet.")
+                    Text("Copy a task from a message, or open a file ending in .xctsk: the format XCTrack, Flyskyhy and other instruments exchange. The cockpit then leads from turnpoint to turnpoint, counts down to the start and measures the way to goal. A route of your own waypoints is flown from one to the next.")
                 }
             }
         }
@@ -120,6 +124,9 @@ struct TaskScreen: View {
         }
         .sheet(isPresented: $isPlanningRoute) {
             RoutePlanner()
+        }
+        .sheet(isPresented: $isScanning) {
+            TaskScanSheet()
         }
         .confirmationDialog(
             "Remove this task?",

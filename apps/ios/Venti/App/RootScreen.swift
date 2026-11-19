@@ -35,6 +35,7 @@ final class AppNavigation {
 struct RootScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account
+    @Environment(TaskModel.self) private var tasks
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigation = AppNavigation()
     @State private var notice: ImportNotice?
@@ -74,8 +75,23 @@ struct RootScreen: View {
         .onChange(of: logbook.view.totals.flights) {
             Task { await account.sync(force: true) }
         }
-        // A flight file opened from Files, Mail or another app.
+        // A file opened from Files, Mail or another app: a task, which is
+        // kept and found on the Fly tab, or a flight.
         .onOpenURL { url in
+            if url.pathExtension.lowercased() == "xctsk" {
+                let isKept = tasks.keep(fileAt: url)
+                Self.removeIfInInbox(url)
+                if isKept {
+                    navigation.tab = .fly
+                    notice = ImportNotice(
+                        title: "Task kept",
+                        text: "It replaces the task you had. The cockpit flies it; look at it on the Fly tab, under Task."
+                    )
+                } else {
+                    notice = ImportNotice(title: "The task could not be read", text: tasks.problem ?? "")
+                }
+                return
+            }
             Task {
                 let report = await logbook.importFiles(at: [url])
                 Self.removeIfInInbox(url)

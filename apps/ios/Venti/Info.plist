@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Only what cannot be said as a build setting in project.yml: the app opens
-  IGC flight files handed to it by Files, Mail and other apps, it keeps
+  IGC flight files and XCTSK task files handed to it by Files, Mail and other
+  apps, it keeps
   working in the background during a flight, and it may reach a server on
   the pilot's own network. Xcode adds the rest of the Info.plist when it
   builds.
@@ -23,6 +24,18 @@
 				<string>org.fai.igc</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>XCTSK task file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.xcontest.xctsk</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
@@ -40,6 +53,27 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>igc</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.xcontest.xctsk</string>
+			<key>UTTypeDescription</key>
+			<string>XCTSK task file</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>xctsk</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/xctsk</string>
 				</array>
 			</dict>
 		</dict>

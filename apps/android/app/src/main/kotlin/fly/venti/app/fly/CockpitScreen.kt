@@ -22,6 +22,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -94,6 +95,8 @@ fun CockpitScreen(
     airspace: AirspaceModel,
     /** The connected vario's name, if one is connected. */
     varioName: String?,
+    /** Whether the map draws where to fly for an FAI triangle: the pilot's setting. */
+    showsFaiAreas: Boolean,
     /** Called when the pilot has confirmed the end of the session. */
     onFinish: () -> Unit,
 ) {
@@ -103,6 +106,9 @@ fun CockpitScreen(
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
+    // Whether the map shows the whole flight instead of following closely.
+    var showsWholeFlight by remember { mutableStateOf(false) }
+    val fai = fly.faiAreas.takeIf { showsFaiAreas }
     val map = remember { CockpitMap() }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
@@ -132,9 +138,24 @@ fun CockpitScreen(
                     modifier = Modifier.fillMaxSize(),
                     onUpdate = {
                         map.airspace = fly.airspace()
-                        map.show(view, way, route, airspaceDistance)
+                        map.show(view, way, route, airspaceDistance, fai, showsWholeFlight)
                     },
                 )
+                // The whole flight at a glance, with the scored route and
+                // where to go for an FAI triangle; again for the close view
+                // that follows the glider.
+                SmallFloatingActionButton(
+                    onClick = { showsWholeFlight = !showsWholeFlight },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(10.dp),
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Icon(
+                        painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
+                        contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
+                    )
+                }
                 view.wind?.let { wind ->
                     WindBadge(
                         wind,

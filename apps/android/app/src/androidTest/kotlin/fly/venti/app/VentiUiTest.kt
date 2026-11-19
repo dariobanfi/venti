@@ -259,6 +259,15 @@ class VentiUiTest {
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Wind by height")) }
 
+        // The whole flight at a glance, with the scored route and where to
+        // go for an FAI triangle; and back to the view that follows.
+        tap(described("Show the whole flight"))
+        waitFor(described("Follow the glider"))
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-fly-3c-whole-flight")
+        tap(described("Follow the glider"))
+        waitFor(described("Show the whole flight"))
+
         // The cockpit shows the way back to the take-off until the pilot
         // chooses a place; the waypoints are listed nearest first.
         val strip = hasTestTag("target-strip")

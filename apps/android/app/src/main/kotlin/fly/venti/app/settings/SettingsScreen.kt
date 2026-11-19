@@ -68,6 +68,7 @@ fun SettingsScreen(
     var glider by remember { mutableStateOf(preferences.glider) }
     var trimSpeed by remember { mutableStateOf(preferences.trimSpeed) }
     var glideRatio by remember { mutableStateOf(preferences.glideRatio) }
+    var showsFaiAreas by remember { mutableStateOf(!preferences.hidesFaiAreas) }
     val names = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false)
 
     Scaffold(
@@ -137,11 +138,19 @@ fun SettingsScreen(
                         onChanged = { preferences.glideRatio = glideRatio },
                     )
                 }
+                row {
+                    SwitchRow("FAI triangle areas", isOn = showsFaiAreas) { isOn ->
+                        showsFaiAreas = isOn
+                        preferences.hidesFaiAreas = !isOn
+                    }
+                }
             }
             SectionFooter(
                 "Your glider's speed with the brakes up and its glide ratio. From them and the wind, the " +
                     "cockpit predicts how high you arrive at the place you fly to. The prediction assumes " +
-                    "air that neither rises nor sinks on the way.",
+                    "air that neither rises nor sinks on the way. The FAI triangle areas are drawn on the " +
+                    "cockpit's map once you have flown three kilometres in a straight line: a turnpoint " +
+                    "inside either of them makes that line one side of an FAI triangle.",
             )
 
             SectionHeader("Live wind")

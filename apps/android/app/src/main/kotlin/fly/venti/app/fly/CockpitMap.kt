@@ -4,6 +4,7 @@ import android.graphics.PointF
 import android.os.SystemClock
 import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.design.ClimbBand
+import fly.venti.app.map.Covered
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.latLng
@@ -12,7 +13,9 @@ import fly.venti.app.map.point
 import fly.venti.core.AirspaceSet
 import fly.venti.core.Bounds
 import fly.venti.core.CockpitView
+import fly.venti.app.wind.contains
 import fly.venti.core.Coordinate
+import fly.venti.core.FaiAreas
 import fly.venti.core.ThermalMarkView
 import fly.venti.core.WayToTarget
 import org.maplibre.android.camera.CameraPosition
@@ -81,6 +84,14 @@ class CockpitMap : MapContent {
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
 
+    /** Where to fly for an FAI triangle, and the side the areas last drawn stand on. */
+    private var fai: FaiAreas? = null
+    private var drawnFaiSide: List<Coordinate>? = null
+
+    /** Whether the whole flight is shown, and the box the map shows while it is. */
+    private var showsWholeFlight = false
+    private var wholeFlight: Bounds? = null
+
     /** The route the flight scores along so far, and the one last drawn. */
     private var route: List<Coordinate> = emptyList()
     private var drawnRoute: List<Coordinate>? = null
@@ -111,6 +122,14 @@ class CockpitMap : MapContent {
 
         // Airspace lowest of all.
         AirspaceLayers.add(style)
+
+        // Where to fly for an FAI triangle: two dashed outlines, under the
+        // route they belong to.
+        style.addSource(GeoJsonSource(FAI))
+        val areas = MapSetup.line("cockpit-fai-line", FAI, MapSetup.accent, 1.5f)
+        areas.setProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f)), PropertyFactory.lineOpacity(0.85f))
+        style.addLayer(areas)
+        drawnFaiSide = null
 
         // The route the flight scores along: thin and dashed, as on a
         // finished flight's map.
@@ -169,10 +188,25 @@ class CockpitMap : MapContent {
      * far, and how far the airspace of the loudest warning is, if one
      * warns.
      */
-    fun show(view: CockpitView, way: WayToTarget?, route: List<Coordinate>, airspaceDistance: Double? = null) {
+    fun show(
+        view: CockpitView,
+        way: WayToTarget?,
+        route: List<Coordinate>,
+        airspaceDistance: Double? = null,
+        /** Where to fly for an FAI triangle, if the pilot wants it drawn. */
+        fai: FaiAreas? = null,
+        /** Whether to show the whole flight instead of following the glider closely. */
+        showsWholeFlight: Boolean = false,
+    ) {
         wanted = view
         this.route = route
         this.airspaceDistance = airspaceDistance
+        if (fai?.side != this.fai?.side || showsWholeFlight != this.showsWholeFlight) {
+            // Something to draw or to frame anew, also while the glider stands still.
+            shown = null
+        }
+        this.fai = fai
+        this.showsWholeFlight = showsWholeFlight
         if (way != null) {
             target = way.position
         }
@@ -199,7 +233,26 @@ class CockpitMap : MapContent {
 
         draw(view, position, style)
         drawAirspace(position, style)
-        if (previous != null && position == previous.position && view.circling == previous.circling) return
+
+        // The whole flight: everything it has to show in one view, fitted
+        // again only when something has grown out of it.
+        if (showsWholeFlight) {
+            val places = listOf(position) + route + fai?.outlines.orEmpty().flatten() +
+                listOfNotNull(view.takeoff, target)
+            val box = box(places)
+            if (wholeFlight?.contains(box) != true) {
+                wholeFlight = box
+                MapSetup.show(box, map, mapView, Covered())
+            }
+            return
+        }
+        if (wholeFlight != null) {
+            // Back to following the glider at the usual zoom.
+            wholeFlight = null
+            chosenZoom = null
+        }
+        val isStill = previous != null && position == previous.position && view.circling == previous.circling
+        if (isStill && chosenZoom != null) return
 
         // Zoom only when the kind of flying changes or the airspace a
         // warning is about comes into or goes out of reach, so a zoom level
@@ -263,6 +316,15 @@ class CockpitMap : MapContent {
             FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
         )
 
+        if (fai?.side != drawnFaiSide) {
+            drawnFaiSide = fai?.side
+            style.getSourceAs<GeoJsonSource>(FAI)?.setGeoJson(
+                FeatureCollection.fromFeatures(
+                    fai?.outlines.orEmpty().filter { it.size >= 2 }.map { Feature.fromGeometry(it.lineString()) },
+                ),
+            )
+        }
+
         if (view.thermals != drawnThermals) {
             drawnThermals = view.thermals
             style.getSourceAs<GeoJsonSource>(THERMALS)?.setGeoJson(
@@ -297,6 +359,7 @@ class CockpitMap : MapContent {
         private const val ROUTE = "cockpit-route"
         private const val TARGET = "cockpit-target"
         private const val THERMALS = "cockpit-thermals"
+        private const val FAI = "cockpit-fai"
         const val LABEL = "label"
         private const val CRUISE_ZOOM = 13.0
         private const val THERMAL_ZOOM = 15.5
@@ -309,6 +372,14 @@ class CockpitMap : MapContent {
 
         /** The longest the map takes to slide to the glider's new position. */
         private const val LONGEST_GLIDE_MILLISECONDS = 1000L
+
+        /** The smallest box that holds every one of these places. */
+        fun box(places: List<Coordinate>): Bounds = Bounds(
+            south = places.minOfOrNull { it.lat } ?: 0.0,
+            west = places.minOfOrNull { it.lon } ?: 0.0,
+            north = places.maxOfOrNull { it.lat } ?: 0.0,
+            east = places.maxOfOrNull { it.lon } ?: 0.0,
+        )
 
         /** A thermal the glider has left, as the map draws it: a point with its climb to write beside it. */
         fun thermalFeature(mark: ThermalMarkView): Feature =

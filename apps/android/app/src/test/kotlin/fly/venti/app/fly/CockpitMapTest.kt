@@ -1,10 +1,13 @@
 package fly.venti.app.fly
 
 import fly.venti.app.TestSupport
+import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
 import fly.venti.core.FlightSession
 import fly.venti.core.Replay
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.maplibre.geojson.Point
@@ -35,6 +38,37 @@ class CockpitMapTest {
     @Test
     fun beforeTheMapHasASizeNothingIsWorkedOutFromIt() {
         assertEquals(13.0, CockpitMap.zoom(false, showing = 2000.0, latitude = 47.7, width = 0f, height = 0f), 0.0)
+    }
+
+    @Test
+    fun theWholeFlightIsFramedByTheSmallestBoxAroundItsPlaces() {
+        val places = listOf(Coordinate(47.66, 11.80), Coordinate(47.69, 11.74), Coordinate(47.67, 11.77))
+
+        assertEquals(Bounds(south = 47.66, west = 11.74, north = 47.69, east = 11.80), CockpitMap.box(places))
+    }
+
+    @Test
+    fun theCoreSaysWhereToFlyForAnFaiTriangle() {
+        val session = FlightSession(TestSupport.newFolder("fly").path)
+        val replay = Replay(TestSupport.sampleFlight)
+        // Before the flight has gone anywhere there is no side to stand a triangle on.
+        replay.advance(session, 60.0)
+        session.liveScore()
+        assertNull(session.faiAreas())
+
+        // Twenty minutes in, the flight has covered some kilometres in a straight line.
+        replay.advance(session, 1140.0)
+        session.liveScore()
+        val areas = checkNotNull(session.faiAreas())
+
+        assertEquals(2, areas.side.size)
+        assertEquals(2, areas.outlines.size)
+        for (outline in areas.outlines) {
+            // Closed outlines, for a line the map draws round each.
+            assertTrue(outline.size >= 4)
+            assertEquals(outline.first(), outline.last())
+        }
+        assertTrue(areas.smallestM < areas.largestM)
     }
 
     @Test

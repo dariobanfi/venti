@@ -92,6 +92,7 @@ fun RootScreen(
             waypoints = session.waypoints,
             airspace = session.airspace,
             varioName = session.vario.connectedName,
+            showsFaiAreas = !session.preferences.hidesFaiAreas,
             onFinish = {
                 // Ends the session, and for a real flight saves it and shows it.
                 val recording = fly.finish() ?: return@CockpitScreen

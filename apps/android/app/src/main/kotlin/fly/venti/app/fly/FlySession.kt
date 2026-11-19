@@ -12,6 +12,7 @@ import fly.venti.core.CockpitView
 import fly.venti.core.FlightSession
 import fly.venti.core.LiveScore
 import fly.venti.core.PendingRecording
+import fly.venti.core.FaiAreas
 import fly.venti.core.Replay
 import fly.venti.core.TargetPlace
 import fly.venti.core.ToneView
@@ -106,6 +107,13 @@ class FlySession(
 
     /** How the flight scores as a cross-country flight so far. */
     var score: LiveScore? by mutableStateOf(null)
+        private set
+
+    /**
+     * Where to fly for an FAI triangle, once the flight has covered a few
+     * kilometres in a straight line.
+     */
+    var faiAreas: FaiAreas? by mutableStateOf(null)
         private set
 
     /** The airspace warnings of the moment, the most urgent first. */
@@ -240,6 +248,7 @@ class FlySession(
         view = null
         way = null
         score = null
+        faiAreas = null
         airspaceWarnings = emptyList()
         airspaceCheck = AirspaceCheck.NO_AIRSPACE
         handedAirspace = null
@@ -291,6 +300,11 @@ class FlySession(
             val latest = session.liveScore()
             if (latest != score) {
                 score = latest
+            }
+            // Cheap, and it changes with the score: asked with it.
+            val areas = session.faiAreas()
+            if (areas != faiAreas) {
+                faiAreas = areas
             }
         }
         // Files brought in or removed in the middle of a session reach the

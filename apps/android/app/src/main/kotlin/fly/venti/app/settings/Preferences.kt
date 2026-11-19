@@ -38,6 +38,9 @@ interface Preferences {
     /** Whether the pilot has switched off airspace from the server. */
     var airspaceWithoutServer: Boolean
 
+    /** Whether the cockpit's map leaves out the FAI triangle areas. */
+    var hidesFaiAreas: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -85,6 +88,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(AIRSPACE_WITHOUT_SERVER, false)
         set(value) = store.edit { putBoolean(AIRSPACE_WITHOUT_SERVER, value) }
 
+    override var hidesFaiAreas: Boolean
+        get() = store.getBoolean(HIDES_FAI_AREAS, false)
+        set(value) = store.edit { putBoolean(HIDES_FAI_AREAS, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -96,6 +103,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val TRIM_SPEED = "VentiGliderTrimSpeed"
         const val GLIDE_RATIO = "VentiGliderGlideRatio"
         const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
+        const val HIDES_FAI_AREAS = "VentiCockpitHidesFaiAreas"
     }
 }
 
@@ -110,4 +118,5 @@ class MemoryPreferences : Preferences {
     override var trimSpeed = Preferences.DEFAULT_TRIM_SPEED
     override var glideRatio = Preferences.DEFAULT_GLIDE_RATIO
     override var airspaceWithoutServer = false
+    override var hidesFaiAreas = false
 }

@@ -266,6 +266,9 @@ pub struct LogbookEntry {
     pub outline: Vec<Coordinate>,
     /// How the flight scores as a cross-country flight.
     pub score: Option<EntryScore>,
+    /// Where the flight began, if the pilot has a waypoint there: the name
+    /// of a take-off within a kilometre, or of any waypoint close by.
+    pub takeoff_name: Option<String>,
 }
 
 /// A flight's cross-country score, in short. `Core::flight_analysis` has
@@ -317,6 +320,8 @@ pub struct Core {
     storage: Arc<dyn Storage>,
     /// The airspace of the pilot's files, once it has been asked for.
     airspace: Mutex<Option<Arc<AirspaceSet>>>,
+    /// The pilot's waypoints, once they have been read.
+    waypoints: Mutex<Option<Arc<Vec<venti_flight::waypoints::Waypoint>>>>,
 }
 
 #[uniffi::export]
@@ -370,6 +375,10 @@ impl Core {
                     totals.points += score.points;
                 }
             }
+            let takeoff_name = summary
+                .outline
+                .first()
+                .and_then(|&[lat, lon]| self.place_name(Coordinate { lat, lon }));
             section.flights.push(LogbookEntry {
                 id,
                 start_unix_s: summary.start_unix_s,
@@ -385,6 +394,7 @@ impl Core {
                     .map(|[lat, lon]| Coordinate { lat, lon })
                     .collect(),
                 score: summary.score.map(entry_score),
+                takeoff_name,
             });
         }
         view
@@ -470,6 +480,7 @@ impl Core {
             logbook: Logbook::open(Arc::clone(&storage))?,
             storage,
             airspace: Mutex::new(None),
+            waypoints: Mutex::new(None),
         }))
     }
 

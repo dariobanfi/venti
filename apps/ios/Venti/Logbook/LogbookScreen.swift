@@ -210,9 +210,16 @@ private struct LogbookRow: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// When it began, where if the pilot has a waypoint there, and on
+    /// which glider.
     private var subtitle: String {
-        let time = Format.time(unixSeconds: entry.startUnixS)
-        guard let glider = entry.glider, !glider.isEmpty else { return time }
-        return "\(time) · \(glider)"
+        var parts = [Format.time(unixSeconds: entry.startUnixS)]
+        if let place = entry.takeoffName, !place.isEmpty {
+            parts.append(place)
+        }
+        if let glider = entry.glider, !glider.isEmpty {
+            parts.append(glider)
+        }
+        return parts.joined(separator: " · ")
     }
 }

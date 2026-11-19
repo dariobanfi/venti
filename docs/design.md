@@ -37,6 +37,8 @@ With no flights the screen says so and offers two buttons: import flights (the m
 
 Deleting asks first. A flight's file exists only on the device, so it cannot be undone.
 
+A flight that began at a place the pilot has a waypoint for says so in its line, after the time: "10:30 · Wallberg". A take-off within a kilometre counts, or any waypoint within a few hundred metres. Names from a proper list of flying sites will take over once there is one.
+
 ### Flight
 
 The map fills the screen. A panel floats over its lower part with, from top to bottom: date, times and glider; four numbers (airtime, track distance, highest point, best climb); the altitude profile; the legend for the track colours.

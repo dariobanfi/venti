@@ -6,6 +6,7 @@
 //! is already there.
 
 use std::io;
+use std::sync::Arc;
 
 use venti_domain::GeoPoint;
 use venti_flight::live::navigation::bearing_deg;
@@ -18,6 +19,13 @@ const FILE: &str = "waypoints.cup";
 
 /// Two waypoints of the same name this close together are the same one.
 const SAME_PLACE_M: f64 = 50.0;
+
+/// A flight that began within this distance of a take-off among the
+/// pilot's waypoints began there.
+const TAKEOFF_WITHIN_M: f64 = 1000.0;
+
+/// Any other waypoint has to be this close to give a flight's start its name.
+const PLACE_WITHIN_M: f64 = 400.0;
 
 /// What a waypoint is, as far as it matters for flying.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -114,7 +122,7 @@ impl Core {
                 WaypointError::UnknownFormat | WaypointError::Empty => error.to_string(),
             },
         })?;
-        let mut stored = self.stored_waypoints()?;
+        let mut stored = self.stored_waypoints()?.as_ref().clone();
         let mut import = WaypointImport {
             added: 0,
             already_there: 0,
@@ -163,7 +171,7 @@ impl Core {
             kind: waypoints::WaypointKind::Other,
             description: String::new(),
         };
-        let mut stored = self.stored_waypoints()?;
+        let mut stored = self.stored_waypoints()?.as_ref().clone();
         if !stored.iter().any(|known| same(known, &waypoint)) {
             stored.push(waypoint.clone());
             self.store_waypoints(&stored)?;
@@ -173,7 +181,7 @@ impl Core {
 
     /// Removes one waypoint. Removing one that is not there is not an error.
     pub fn delete_waypoint(&self, id: String) -> Result<(), CoreError> {
-        let mut stored = self.stored_waypoints()?;
+        let mut stored = self.stored_waypoints()?.as_ref().clone();
         let before = stored.len();
         stored.retain(|waypoint| identifier(waypoint) != id);
         if stored.len() != before {
@@ -184,7 +192,9 @@ impl Core {
 
     /// Removes every waypoint.
     pub fn delete_all_waypoints(&self) -> Result<(), CoreError> {
-        self.storage.remove(FILE).map_err(storage_error)
+        self.storage.remove(FILE).map_err(storage_error)?;
+        self.remember_waypoints(None);
+        Ok(())
     }
 
     /// The pilot's waypoints as a file for other programs.
@@ -197,21 +207,72 @@ impl Core {
 }
 
 impl Core {
-    fn stored_waypoints(&self) -> Result<Vec<Waypoint>, CoreError> {
-        let Some(bytes) = self.storage.read(FILE).map_err(storage_error)? else {
-            return Ok(Vec::new());
+    /// The pilot's waypoints. Read from the stored file once and kept:
+    /// every list of flights asks for them, to name where a flight began.
+    fn stored_waypoints(&self) -> Result<Arc<Vec<Waypoint>>, CoreError> {
+        if let Some(kept) = self.kept_waypoints() {
+            return Ok(kept);
+        }
+        let read = match self.storage.read(FILE).map_err(storage_error)? {
+            // The file is the app's own writing. Should it be damaged,
+            // what can still be read of it is kept.
+            Some(bytes) => waypoints::parse(&String::from_utf8_lossy(&bytes))
+                .map(|file| file.waypoints)
+                .unwrap_or_default(),
+            None => Vec::new(),
         };
-        // The file is the app's own writing. Should it be damaged, what can
-        // still be read of it is kept.
-        Ok(waypoints::parse(&String::from_utf8_lossy(&bytes))
-            .map(|file| file.waypoints)
-            .unwrap_or_default())
+        let read = Arc::new(read);
+        self.remember_waypoints(Some(Arc::clone(&read)));
+        Ok(read)
     }
 
     fn store_waypoints(&self, stored: &[Waypoint]) -> Result<(), CoreError> {
         self.storage
             .write(FILE, waypoints::write_cup(stored).as_bytes())
-            .map_err(storage_error)
+            .map_err(storage_error)?;
+        // What was written is read back the next time: the file rounds
+        // positions to a thousandth of a minute, and identifiers follow.
+        self.remember_waypoints(None);
+        Ok(())
+    }
+
+    fn kept_waypoints(&self) -> Option<Arc<Vec<Waypoint>>> {
+        self.waypoints
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    fn remember_waypoints(&self, waypoints: Option<Arc<Vec<Waypoint>>>) {
+        *self
+            .waypoints
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = waypoints;
+    }
+
+    /// The name of the place a flight began at, if the pilot has a
+    /// waypoint there: a take-off within a kilometre, or failing that any
+    /// waypoint close by.
+    pub(crate) fn place_name(&self, position: Coordinate) -> Option<String> {
+        let here = GeoPoint::new(position.lat, position.lon).ok()?;
+        let waypoints = self.stored_waypoints().ok()?;
+        let nearest = |wanted: fn(&Waypoint) -> bool, within_m: f64| {
+            waypoints
+                .iter()
+                .filter(|waypoint| wanted(waypoint))
+                // A cheap look before the exact distance: a hundredth of a
+                // degree of latitude is more than a kilometre.
+                .filter(|waypoint| (waypoint.position.lat() - here.lat()).abs() < 0.01)
+                .map(|waypoint| (here.distance_m(waypoint.position), waypoint))
+                .filter(|(distance, _)| *distance <= within_m)
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, waypoint)| waypoint.name.clone())
+        };
+        nearest(
+            |waypoint| waypoint.kind == waypoints::WaypointKind::Takeoff,
+            TAKEOFF_WITHIN_M,
+        )
+        .or_else(|| nearest(|_| true, PLACE_WITHIN_M))
     }
 }
 
@@ -372,6 +433,47 @@ Zugspitze,ZS,DE,4725.260N,01059.090E,2962m,7,,,,,\n";
         core.delete_all_waypoints().unwrap();
         core.delete_all_waypoints().unwrap();
         assert!(core.waypoints(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_flight_is_named_after_the_take_off_it_began_at() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        let sample = venti_flight::igc::write(&venti_flight::testing::synthetic_flight());
+        core.import_flight(sample).unwrap();
+        // Without waypoints a flight's start has no name.
+        assert_eq!(core.logbook().years[0].flights[0].takeoff_name, None);
+
+        // The sample flight starts 60 m from the take-off of the test file.
+        core.import_waypoints(FILE_TEXT.to_owned()).unwrap();
+        assert_eq!(
+            core.logbook().years[0].flights[0].takeoff_name.as_deref(),
+            Some("Wallberg")
+        );
+        // A summit 65 km away names nothing; without the take-off, and with
+        // no other waypoint within a few hundred metres, the name is gone.
+        let takeoff = core
+            .waypoints(None)
+            .unwrap()
+            .into_iter()
+            .find(|waypoint| waypoint.name == "Wallberg")
+            .unwrap();
+        core.delete_waypoint(takeoff.id).unwrap();
+        assert_eq!(core.logbook().years[0].flights[0].takeoff_name, None);
+        // A waypoint of any kind right at the start names it.
+        core.add_waypoint(
+            "Mein Startplatz".to_owned(),
+            Coordinate {
+                lat: 47.6642,
+                lon: 11.7967,
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            core.logbook().years[0].flights[0].takeoff_name.as_deref(),
+            Some("Mein Startplatz")
+        );
     }
 
     #[test]

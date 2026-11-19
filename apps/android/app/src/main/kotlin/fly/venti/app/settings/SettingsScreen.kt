@@ -117,6 +117,9 @@ fun SettingsScreen(
                     LinkRow("Waypoints", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Waypoints) }
                 }
                 row {
+                    LinkRow("Airspace", R.drawable.ic_chevron_right) { onOpen(SettingsRoute.Airspace) }
+                }
+                row {
                     StepperRow(
                         "Trim speed",
                         value = "${Format.whole(trimSpeed)} km/h",

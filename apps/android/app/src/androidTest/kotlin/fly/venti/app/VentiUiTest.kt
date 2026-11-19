@@ -387,6 +387,63 @@ class VentiUiTest {
         waitFor(hasText("GeoSphere Austria"))
     }
 
+    /**
+     * Airspace: a made-up control zone lies beside the end of the sample
+     * flight. Replayed at twenty times its speed, the glider comes near it
+     * after about a minute, and the cockpit says so.
+     */
+    private fun flyNearAirspace(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }
+        waitFor(described("Show my position"), seconds = 90)
+
+        tap(tab("Fly"))
+        waitFor(hasText("Start flight"), seconds = 30)
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"), seconds = 20)
+
+        val banner = hasTestTag("airspace-banner")
+        waitFor(banner, seconds = 120)
+        assertTrue(exists(banner and saying("SAMPLE ZONE (NOT REAL)")))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-fly-8-airspace")
+
+        tap(banner)
+        waitFor(hasText("Seen: quiet for 10 minutes"), seconds = 10)
+        assertTrue(exists(hasText("Class D control zone", substring = true)))
+        Thread.sleep(1000)
+        keepScreenshot("$prefix-fly-9-airspace-warnings")
+        // "Seen" would speak again as the glider comes closer; "does not
+        // apply today" stays quiet, which is what this test can rely on.
+        tap(hasText("Does not apply today"))
+        waitFor(described("Airspace warning, quieted"), seconds = 10)
+
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        waitFor(hasText("Start flight"))
+
+        // The files behind the warnings, and the zone on the map.
+        tap(tab("Settings"))
+        waitFor(hasText("Vario sound"))
+        tap(hasText("Airspace"))
+        waitFor(hasText("sample-zones-not-real"), seconds = 15)
+        keepScreenshot("$prefix-settings-4-airspace")
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+        tap(tab("Map"))
+        waitFor(described("Show my position"))
+        letTheMapDraw()
+        keepScreenshot("$prefix-map-airspace")
+    }
+
+    @Test
+    fun theCockpitWarnsOfAirspace() = flyNearAirspace("light", dark = false)
+
+    @Test
+    fun theAirspaceWarningsInDarkAppearance() = flyNearAirspace("dark", dark = true)
+
     @Test
     fun theMapShowsLiveWindFromAServer() = lookAtTheWind("light", dark = false)
 

@@ -3,8 +3,10 @@ package fly.venti.app.map
 import android.annotation.SuppressLint
 import android.graphics.PointF
 import android.graphics.RectF
+import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.wind.WindFeature
 import fly.venti.app.wind.WindSymbols
+import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.WindStation
@@ -46,6 +48,8 @@ class OverviewMap : MapContent {
     private var drawn: List<List<Coordinate>>? = null
     private var stations: List<WindStation> = emptyList()
     private var drawnStations: List<WindStation>? = null
+    private var airspace: List<AirspaceShape> = emptyList()
+    private var drawnAirspace: List<AirspaceShape>? = null
     private var covered = Covered()
     private var isFollowing = false
 
@@ -64,9 +68,14 @@ class OverviewMap : MapContent {
         this.map = map
         this.style = style
         this.view = view
+        // What this map draws on top of the base map: airspace lowest,
+        // the flights over it, the wind above them.
+        AirspaceLayers.add(style)
+        addTracks(style)
         addWind(style, view)
         draw()
         drawStations()
+        drawAirspace()
         if (isFollowing) {
             startFollowing()
         }
@@ -75,13 +84,35 @@ class OverviewMap : MapContent {
         view.post { if (!view.isDestroyed) tellRegion(map, view) }
     }
 
-    /** The flights and the wind stations to draw, and how much of the map the bars cover. */
-    fun show(outlines: List<List<Coordinate>>, stations: List<WindStation>, covered: Covered) {
+    /** The flights, the wind stations and the airspace to draw, and how much of the map the bars cover. */
+    fun show(
+        outlines: List<List<Coordinate>>,
+        stations: List<WindStation>,
+        airspace: List<AirspaceShape>,
+        covered: Covered,
+    ) {
         this.outlines = outlines
         this.stations = stations
+        this.airspace = airspace
         this.covered = covered
         draw()
         drawStations()
+        drawAirspace()
+    }
+
+    /** Draws the airspace, once the style is there and only when it has changed. */
+    private fun drawAirspace() {
+        val style = style ?: return
+        if (airspace == drawnAirspace) return
+        drawnAirspace = airspace
+        AirspaceLayers.show(airspace, style)
+    }
+
+    /** The layers that draw the flights, empty at first. */
+    private fun addTracks(style: Style) {
+        style.addSource(GeoJsonSource(TRACKS))
+        style.addLayer(MapSetup.line("logbook-tracks-edge", TRACKS, MapSetup.WHITE, 5f))
+        style.addLayer(MapSetup.line("logbook-tracks-line", TRACKS, MapSetup.accent, 2.5f))
     }
 
     /**
@@ -150,14 +181,7 @@ class OverviewMap : MapContent {
         drawn = outlines
 
         val lines = MultiLineString.fromLineStrings(outlines.filter { it.size >= 2 }.map { it.lineString() })
-        val source = style.getSourceAs<GeoJsonSource>(TRACKS)
-        if (source != null) {
-            source.setGeoJson(lines)
-        } else {
-            style.addSource(GeoJsonSource(TRACKS, lines))
-            style.addLayer(MapSetup.line("logbook-tracks-edge", TRACKS, MapSetup.WHITE, 5f))
-            style.addLayer(MapSetup.line("logbook-tracks-line", TRACKS, MapSetup.accent, 2.5f))
-        }
+        style.getSourceAs<GeoJsonSource>(TRACKS)?.setGeoJson(lines)
 
         box(outlines)?.let { box ->
             // The map may not have its size yet when the style arrives.

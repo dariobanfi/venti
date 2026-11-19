@@ -49,6 +49,14 @@
          on the phone. The two rule files say so, one for each way Android
          has had of asking; from Android 12 a move straight to a new phone
          takes the logbook along. -->
+    <!-- The phone's speech engine, which says an airspace warning aloud.
+         From Android 11 an app sees only the services it asks to see. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".VentiApplication"
         android:allowBackup="true"

@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.fly.CockpitScreen
@@ -135,7 +136,9 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
     ) { bars ->
         val logbook = session.logbook
         when (navigation.tab) {
-            AppTab.Map -> kept.SaveableStateProvider("map") { MapScreen(logbook, session.wind, bars) }
+            AppTab.Map -> kept.SaveableStateProvider("map") {
+                MapScreen(logbook, session.wind, session.airspace, bars)
+            }
             AppTab.Fly -> kept.SaveableStateProvider("fly") {
                 FlyScreen(session.fly, session.vario, session.files, bars)
             }
@@ -160,6 +163,7 @@ private fun Sections(session: Session.Ready, navigation: AppNavigation) {
                 SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
                     WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                 }
+                SettingsRoute.Airspace -> AirspaceScreen(session.airspace, onBack = { navigation.back() })
                 null -> kept.SaveableStateProvider("settings") {
                     SettingsScreen(
                         session.preferences,

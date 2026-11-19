@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
+import fly.venti.core.AirspaceSet
+import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightSession
 import fly.venti.core.LiveScore
@@ -19,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.TimeZone
 
 /**
  * The phone's sensors, as a flying session needs them: the position, the
@@ -30,6 +33,20 @@ interface FlightSensors {
     fun start(session: FlightSession, onProblem: (String) -> Unit)
 
     fun stop()
+}
+
+/** Whatever says a warning aloud. */
+interface Announcer {
+    fun say(text: String)
+
+    fun stop()
+}
+
+/** Says nothing. Tests have nobody listening. */
+class SilentAnnouncer : Announcer {
+    override fun say(text: String) = Unit
+
+    override fun stop() = Unit
 }
 
 /** Whatever makes the vario's sound. */
@@ -61,6 +78,8 @@ class FlySession(
     private val sound: TonePlayer,
     /** Where the refresh runs: the main thread in the app. */
     private val scope: CoroutineScope,
+    /** Says a new airspace warning aloud. */
+    private val voice: Announcer = SilentAnnouncer(),
 ) {
     sealed interface Mode {
         data object Live : Mode
@@ -88,6 +107,16 @@ class FlySession(
     var score: LiveScore? by mutableStateOf(null)
         private set
 
+    /** The airspace warnings of the moment, the most urgent first. */
+    var airspaceWarnings: List<AirspaceWarning> by mutableStateOf(emptyList())
+        private set
+
+    /**
+     * The airspace to warn about, asked for when a session starts. The app
+     * sets this to the pilot's airspace files.
+     */
+    var airspace: () -> AirspaceSet? = { null }
+
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
 
@@ -108,6 +137,28 @@ class FlySession(
 
     /** Refreshes of the screen since the score was last asked for. */
     private var refreshesSinceScore = 0
+
+    /** "I have seen this warning": quiet for ten minutes, unless it becomes more urgent. */
+    @Synchronized
+    fun acknowledgeAirspace(id: String) {
+        session?.acknowledgeAirspace(id, minutes = 10u)
+        airspaceWarnings = session?.airspaceWarnings().orEmpty()
+    }
+
+    /** "This airspace does not apply to me today": quiet until midnight. */
+    @Synchronized
+    fun ignoreAirspaceToday(id: String) {
+        val utcOffsetSeconds = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
+        session?.ignoreAirspaceToday(id, utcOffsetSeconds)
+        airspaceWarnings = session?.airspaceWarnings().orEmpty()
+    }
+
+    /** Takes either of them back. */
+    @Synchronized
+    fun unsilenceAirspace(id: String) {
+        session?.unsilenceAirspace(id)
+        airspaceWarnings = session?.airspaceWarnings().orEmpty()
+    }
 
     /** Chooses the place to navigate to; `null` goes back to the take-off. */
     @Synchronized
@@ -161,6 +212,7 @@ class FlySession(
             sensors.stop()
         }
         sound.stop()
+        voice.stop()
 
         val recording = try {
             session.stopRecording()
@@ -176,6 +228,7 @@ class FlySession(
         view = null
         way = null
         score = null
+        airspaceWarnings = emptyList()
         return recording
     }
 
@@ -184,6 +237,7 @@ class FlySession(
         this.mode = mode
         // How the pilot's glider glides, for predicting arrival heights.
         session.setGlider(trimSpeedMs = preferences.trimSpeed / 3.6, glideRatio = preferences.glideRatio)
+        session.useAirspace(airspace())
         refreshesSinceScore = 0
         sound.isMuted = isMuted
         sound.start()
@@ -223,6 +277,14 @@ class FlySession(
             if (latest != score) {
                 score = latest
             }
+        }
+        val warnings = session.airspaceWarnings()
+        if (warnings != airspaceWarnings) {
+            airspaceWarnings = warnings
+        }
+        // A warning that is new, or more urgent than it was, is said aloud once.
+        if (session.takeAirspaceAlert() != null) {
+            warnings.firstOrNull { !it.silenced }?.let { loudest -> voice.say("Airspace. ${loudest.headline}.") }
         }
         sound.play(view.tone)
     }

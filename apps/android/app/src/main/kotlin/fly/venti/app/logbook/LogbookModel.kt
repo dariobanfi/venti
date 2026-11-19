@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import fly.venti.app.AppFiles
+import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.core.Assistant
@@ -124,6 +125,13 @@ class LogbookModel(
 
     /** The pilot's waypoints, which the core keeps beside the logbook. */
     fun makeWaypoints(): WaypointsModel = WaypointsModel(core, background)
+
+    /**
+     * The pilot's airspace files, which the core keeps there too. `now` is
+     * the clock a file's day of arrival is read from.
+     */
+    fun makeAirspace(now: () -> Long = { System.currentTimeMillis() / 1000 }): AirspaceModel =
+        AirspaceModel(core, background, now)
 
     /** The logbook looked at as a whole: months, gliders, bests. */
     fun statistics(): LogbookStatistics = core.statistics()

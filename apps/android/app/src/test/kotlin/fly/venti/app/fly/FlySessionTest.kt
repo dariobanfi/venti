@@ -1,6 +1,8 @@
 package fly.venti.app.fly
 
+import fly.venti.app.LaunchOptions
 import fly.venti.app.TestSupport
+import fly.venti.app.airspace.AirspaceWords
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.Coordinate
@@ -143,6 +145,56 @@ class FlySessionTest {
         assertNull(fly.way)
         assertNull(fly.score)
         assertEquals("Nothing chosen", TargetWords.spoken(null))
+    }
+
+    /** An announcer that remembers what it was asked to say. */
+    private class Spoken : Announcer {
+        val said: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+        override fun say(text: String) {
+            said += text
+        }
+
+        override fun stop() = Unit
+    }
+
+    @Test
+    fun theCockpitWarnsOfThePilotsAirspaceAndCanBeToldToBeQuiet() {
+        val folder = TestSupport.newFolder("fly")
+        // A made-up control zone beside the end of the sample flight.
+        val airspace = LogbookModel.open(folder, TestSupport.files).makeAirspace()
+        airspace.importText("zones.txt", LaunchOptions.SAMPLE_AIRSPACE_FILE)
+        val voice = Spoken()
+        val fly = FlySession(folder, MemoryPreferences(), FakeSensors(), SilentTone(), scope, voice)
+        fly.airspace = { airspace.set }
+        assertTrue(fly.airspaceWarnings.isEmpty())
+
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        var waited = 0
+        while (fly.airspaceWarnings.isEmpty() && waited < 8000) {
+            Thread.sleep(50)
+            waited += 50
+        }
+
+        val warning = fly.airspaceWarnings.first()
+        assertEquals("SAMPLE ZONE (NOT REAL)", warning.name)
+        assertFalse(warning.silenced)
+        assertTrue(warning.headline, "SAMPLE ZONE (NOT REAL)" in warning.headline)
+        assertEquals(warning, AirspaceWords.shown(fly.airspaceWarnings))
+        assertTrue(AirspaceWords.origin(warning).startsWith("From your file \u201czones\u201d"))
+        // It was said aloud once, in the words on the banner.
+        assertTrue(voice.said.toString(), voice.said.first().startsWith("Airspace. "))
+
+        // "Does not apply today" keeps it on the list, quieted.
+        fly.ignoreAirspaceToday(warning.id)
+        assertTrue(fly.airspaceWarnings.first { it.id == warning.id }.silenced)
+        fly.unsilenceAirspace(warning.id)
+        assertFalse(fly.airspaceWarnings.first { it.id == warning.id }.silenced)
+        fly.acknowledgeAirspace(warning.id)
+        assertTrue(fly.airspaceWarnings.first { it.id == warning.id }.silenced)
+
+        fly.finish()
+        assertTrue(fly.airspaceWarnings.isEmpty())
     }
 
     @Test

@@ -35,6 +35,9 @@ enum class SettingsRoute {
 
     /** The pilot's waypoints. */
     Waypoints,
+
+    /** The pilot's airspace files. */
+    Airspace,
 }
 
 /**

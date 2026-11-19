@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.text.format.DateFormat
+import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.airspace.AirspaceVoice
 import fly.venti.app.assistant.AssistantChat
 import fly.venti.app.assistant.AssistantHttp
 import fly.venti.app.assistant.EncryptedKeyStore
@@ -12,6 +14,7 @@ import fly.venti.app.assistant.ScriptedProvider
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.PhoneSensors
+import fly.venti.app.fly.SilentAnnouncer
 import fly.venti.app.fly.SilentTone
 import fly.venti.app.fly.VarioLink
 import fly.venti.app.fly.VarioSound
@@ -44,6 +47,7 @@ sealed interface Session {
         val chat: AssistantChat,
         val wind: WindModel,
         val waypoints: WaypointsModel,
+        val airspace: AirspaceModel,
         val preferences: Preferences,
         val files: AppFiles,
     ) : Session
@@ -66,6 +70,7 @@ sealed interface Session {
             scriptedAssistant: Boolean = false,
             server: String? = null,
             sampleWaypoints: Boolean = false,
+            sampleAirspace: Boolean = false,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -82,6 +87,8 @@ sealed interface Session {
                 preferences = preferences,
                 sensors = PhoneSensors(app, vario),
                 sound = if (isUnderTest) SilentTone() else VarioSound(),
+                // Tests have nobody listening.
+                voice = if (isUnderTest) SilentAnnouncer() else AirspaceVoice(app),
                 scope = scope,
             )
 
@@ -118,7 +125,13 @@ sealed interface Session {
             if (sampleWaypoints) {
                 waypoints.importText(LaunchOptions.SAMPLE_WAYPOINT_FILE)
             }
-            return Ready(logbook, fly, vario, chat, wind, waypoints, preferences, files)
+            val airspace = logbook.makeAirspace()
+            if (sampleAirspace) {
+                airspace.importText("sample-zones-not-real.txt", LaunchOptions.SAMPLE_AIRSPACE_FILE)
+            }
+            // The cockpit warns of what is in the pilot's files when a flight starts.
+            fly.airspace = { airspace.set }
+            return Ready(logbook, fly, vario, chat, wind, waypoints, airspace, preferences, files)
         }
     }
 }
@@ -148,6 +161,7 @@ class VentiApplication : Application() {
             scriptedAssistant = options.usesScriptedAssistant,
             server = options.server,
             sampleWaypoints = options.usesSampleWaypoints,
+            sampleAirspace = options.usesSampleAirspace,
         ).also { testSession = it }
     }
 }
@@ -179,6 +193,11 @@ data class LaunchOptions(
      * cockpit's navigation can be tested without picking a file.
      */
     val usesSampleWaypoints: Boolean = false,
+    /**
+     * Start with a made-up control zone near the end of the sample flight,
+     * so the cockpit's airspace warnings can be tested.
+     */
+    val usesSampleAirspace: Boolean = false,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -187,6 +206,19 @@ data class LaunchOptions(
         const val DARK = "dark"
         const val SERVER = "server"
         const val SAMPLE_WAYPOINTS = "sample-waypoints"
+        const val SAMPLE_AIRSPACE = "sample-airspace"
+
+        /** The made-up airspace, in OpenAir format. Its names say that it is not real. */
+        val SAMPLE_AIRSPACE_FILE = """
+            * Made-up airspace for testing Venti. Not real.
+            AC D
+            AY CTR
+            AN SAMPLE ZONE (NOT REAL)
+            AL GND
+            AH 9000ft AMSL
+            V X=47:42:00 N 011:44:00 E
+            DC 1
+        """.trimIndent()
 
         /** The made-up waypoints. Their names say that they are not real places to land. */
         val SAMPLE_WAYPOINT_FILE = """
@@ -205,6 +237,7 @@ data class LaunchOptions(
                 forcedDark = if (intent.hasExtra(DARK)) intent.getBooleanExtra(DARK, false) else null,
                 server = intent.getStringExtra(SERVER),
                 usesSampleWaypoints = intent.getBooleanExtra(SAMPLE_WAYPOINTS, false),
+                usesSampleAirspace = intent.getBooleanExtra(SAMPLE_AIRSPACE, false),
             )
         }
     }

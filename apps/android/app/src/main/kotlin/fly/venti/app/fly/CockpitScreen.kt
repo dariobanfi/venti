@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.airspace.AirspaceBanner
+import fly.venti.app.airspace.AirspaceWarningsSheet
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.numbers
@@ -91,8 +93,10 @@ fun CockpitScreen(
     val isReplay = fly.mode is FlySession.Mode.Replay
     var isConfirmingFinish by remember { mutableStateOf(false) }
     var isChoosingTarget by remember { mutableStateOf(false) }
-    val map = remember { CockpitMap() }
+    var isShowingAirspace by remember { mutableStateOf(false) }
+    val map = remember { CockpitMap().also { it.airspace = fly.airspace() } }
     val way = fly.way
+    val route = fly.score?.route.orEmpty()
 
     KeepScreenOn()
     // The cockpit covers the whole app; the back button ends it like the
@@ -104,10 +108,16 @@ fun CockpitScreen(
         Column(Modifier.systemBarsPadding()) {
             StatusLine(view, fly.score, fly.mode, varioName)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view, way) })
+                MapSurface(content = map, modifier = Modifier.fillMaxSize(), onUpdate = { map.show(view, way, route) })
                 view.wind?.let { wind ->
                     WindBadge(wind, Modifier.align(Alignment.TopEnd).padding(10.dp))
                 }
+                AirspaceBanner(
+                    fly.airspaceWarnings,
+                    onOpen = { isShowingAirspace = true },
+                    // Clear of the map's own credits button in the corner.
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
+                )
                 if (view.phase != FlightPhase.FLYING) {
                     Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
                         Text(
@@ -143,6 +153,16 @@ fun CockpitScreen(
                 }
             }
         }
+    }
+
+    if (isShowingAirspace) {
+        AirspaceWarningsSheet(
+            warnings = fly.airspaceWarnings,
+            onAcknowledge = fly::acknowledgeAirspace,
+            onIgnoreToday = fly::ignoreAirspaceToday,
+            onUnsilence = fly::unsilenceAirspace,
+            onDismiss = { isShowingAirspace = false },
+        )
     }
 
     if (isChoosingTarget) {
@@ -243,6 +263,12 @@ private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mo
                 )
                 Spacer(Modifier.width(3.dp))
                 Text("$distance km", style = style.numbers, color = quiet, maxLines = 1)
+            }
+            // An open triangle: how far it is to where it began.
+            val gap = score.closingM
+            if (gap != null && !score.closed && gap >= 100) {
+                Spacer(Modifier.width(8.dp))
+                Text("${Format.kilometres(gap)} to close", style = style.numbers, color = quiet, maxLines = 1)
             }
         }
         Spacer(Modifier.weight(1f))

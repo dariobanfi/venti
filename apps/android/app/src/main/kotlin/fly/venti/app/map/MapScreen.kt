@@ -51,10 +51,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
+import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.app.wind.WindSheet
+import fly.venti.core.Bounds
 import fly.venti.core.WindStation
 
 /**
@@ -62,7 +64,7 @@ import fly.venti.core.WindStation
  * server, and the pilot's own flights. Sites and forecasts arrive later.
  */
 @Composable
-fun MapScreen(logbook: LogbookModel, wind: WindModel, bars: PaddingValues) {
+fun MapScreen(logbook: LogbookModel, wind: WindModel, airspace: AirspaceModel, bars: PaddingValues) {
     val context = LocalContext.current
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -70,7 +72,11 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, bars: PaddingValues) {
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
-    map.onRegion = wind::show
+    var region by remember { mutableStateOf<Bounds?>(null) }
+    map.onRegion = { shown ->
+        region = shown
+        wind.show(shown)
+    }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
 
     val askForPosition = rememberLauncherForActivityResult(
@@ -94,13 +100,20 @@ fun MapScreen(logbook: LogbookModel, wind: WindModel, bars: PaddingValues) {
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
     val stations = wind.stations
+    // The airspace in the part of the map in view. Zoomed far out, a
+    // country's airspace is a tangle and is not drawn, so it is not asked
+    // for either.
+    val files = airspace.files
+    val airspaceInView = remember(region, files) {
+        region?.takeIf { it.east - it.west < 6 }?.let(airspace::shapes).orEmpty()
+    }
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
-                map.show(outlines, stations, Covered(top = statusBar))
+                map.show(outlines, stations, airspaceInView, Covered(top = statusBar))
                 map.follow(isFollowing)
             },
         )

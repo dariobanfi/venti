@@ -7,6 +7,9 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 
+/** A file the pilot picked: its name, and a way to read it. */
+class PickedFile(val name: String, val read: () -> ByteArray)
+
 /** Flight files as Android hands them over: from the file picker, or from another app. */
 object FlightFiles {
     /**
@@ -17,11 +20,18 @@ object FlightFiles {
     private const val LARGEST_BYTES = 32 * 1024 * 1024
 
     /**
-     * A file the pilot picked or another app sent, ready to be imported.
-     * `what` says what it was picked as, for the words about a problem.
+     * A file the pilot picked or another app sent, ready to be imported as
+     * text. `what` says what it was picked as, for the words about a
+     * problem.
      */
-    fun source(context: Context, uri: Uri, what: String = "a flight file"): FlightFileSource =
-        FlightFileSource(name(context, uri)) {
+    fun source(context: Context, uri: Uri, what: String = "a flight file"): FlightFileSource {
+        val file = picked(context, uri, what)
+        return FlightFileSource(file.name) { LogbookModel.decode(file.read()) }
+    }
+
+    /** The same file as it is, for a reader that looks at the bytes itself. */
+    fun picked(context: Context, uri: Uri, what: String): PickedFile =
+        PickedFile(name(context, uri)) {
             val stream = try {
                 context.contentResolver.openInputStream(uri)
             } catch (error: SecurityException) {
@@ -30,7 +40,7 @@ object FlightFiles {
             stream.use { input ->
                 val bytes = input.readAtMost(LARGEST_BYTES + 1)
                 if (bytes.size > LARGEST_BYTES) throw IOException("This file is too large to be $what.")
-                LogbookModel.decode(bytes)
+                bytes
             }
         }
 

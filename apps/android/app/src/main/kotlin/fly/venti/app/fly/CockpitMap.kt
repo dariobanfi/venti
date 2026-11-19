@@ -2,11 +2,14 @@ package fly.venti.app.fly
 
 import android.graphics.PointF
 import android.os.SystemClock
+import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.map.MapContent
 import fly.venti.app.map.MapSetup
 import fly.venti.app.map.latLng
 import fly.venti.app.map.lineString
 import fly.venti.app.map.point
+import fly.venti.core.AirspaceSet
+import fly.venti.core.Bounds
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
 import fly.venti.core.WayToTarget
@@ -21,6 +24,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
+import kotlin.math.abs
 
 /**
  * The cockpit's map: the glider, the track behind it coloured by climb, the
@@ -48,6 +52,14 @@ class CockpitMap : MapContent {
     private var wasCircling: Boolean? = null
     private var drawnTakeoff: Coordinate? = null
 
+    /** The pilot's airspace, and where it was last drawn around. */
+    var airspace: AirspaceSet? = null
+    private var airspaceDrawnAt: Coordinate? = null
+
+    /** The route the flight scores along so far, and the one last drawn. */
+    private var route: List<Coordinate> = emptyList()
+    private var drawnRoute: List<Coordinate>? = null
+
     /** The place being navigated to, if any, and the line last drawn to it. */
     private var target: Coordinate? = null
     private var drawnCourse: Pair<Coordinate, Coordinate>? = null
@@ -72,8 +84,18 @@ class CockpitMap : MapContent {
         this.style = style
         this.mapView = view
 
-        // The line to the place being flown to, added first so that it
-        // lies under the track and the glider.
+        // Airspace lowest of all.
+        AirspaceLayers.add(style)
+
+        // The route the flight scores along: thin and dashed, as on a
+        // finished flight's map.
+        style.addSource(GeoJsonSource(ROUTE))
+        val scored = MapSetup.line("cockpit-route-line", ROUTE, MapSetup.ink, 1.5f)
+        scored.setProperties(PropertyFactory.lineOpacity(0.7f), PropertyFactory.lineDasharray(arrayOf(4f, 3f)))
+        style.addLayer(scored)
+
+        // The line to the place being flown to, under the track and the
+        // glider.
         style.addSource(GeoJsonSource(COURSE))
         val course = MapSetup.line("cockpit-course-line", COURSE, MapSetup.ink, 2f)
         course.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
@@ -96,10 +118,12 @@ class CockpitMap : MapContent {
 
     /**
      * Called with every refresh of the cockpit, with the way to the place
-     * being navigated to, if any; the map follows in its own steps.
+     * being navigated to, if any, and the route the flight scores along so
+     * far; the map follows in its own steps.
      */
-    fun show(view: CockpitView, way: WayToTarget?) {
+    fun show(view: CockpitView, way: WayToTarget?, route: List<Coordinate>) {
         wanted = view
+        this.route = route
         if (way != null) {
             target = way.position
         }
@@ -140,6 +164,7 @@ class CockpitMap : MapContent {
         shownAt = now
 
         draw(view, position, style)
+        drawAirspace(position, style)
         if (previous != null && position == previous.position && view.circling == previous.circling) return
 
         // Zoom only when the kind of flying changes, so a zoom level the
@@ -159,6 +184,24 @@ class CockpitMap : MapContent {
         }
     }
 
+    /**
+     * Draws the airspace within about 40 km of the glider, again once the
+     * glider has flown some 10 km from where it was last drawn.
+     */
+    private fun drawAirspace(position: Coordinate, style: Style) {
+        val airspace = airspace ?: return
+        val drawn = airspaceDrawnAt
+        if (drawn != null && abs(drawn.lat - position.lat) < 0.09 && abs(drawn.lon - position.lon) < 0.13) return
+        airspaceDrawnAt = position
+        val area = Bounds(
+            south = position.lat - 0.36,
+            west = position.lon - 0.54,
+            north = position.lat + 0.36,
+            east = position.lon + 0.54,
+        )
+        AirspaceLayers.show(airspace.inArea(area), style)
+    }
+
     private fun draw(view: CockpitView, position: Coordinate, style: Style) {
         val takeoff = view.takeoff
         if (takeoff != null && takeoff != drawnTakeoff) {
@@ -173,6 +216,15 @@ class CockpitMap : MapContent {
         style.getSourceAs<GeoJsonSource>(FLIGHT)?.setGeoJson(
             FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
         )
+
+        if (route != drawnRoute) {
+            drawnRoute = route
+            style.getSourceAs<GeoJsonSource>(ROUTE)?.setGeoJson(
+                FeatureCollection.fromFeatures(
+                    if (route.size >= 2) listOf(Feature.fromGeometry(route.lineString())) else emptyList(),
+                ),
+            )
+        }
 
         val target = target ?: return
         val course = position to target
@@ -189,6 +241,7 @@ class CockpitMap : MapContent {
         const val FLIGHT = "cockpit-flight"
         const val TAKEOFF = "cockpit-takeoff"
         const val COURSE = "cockpit-course"
+        const val ROUTE = "cockpit-route"
         const val TARGET = "cockpit-target"
         const val CRUISE_ZOOM = 13.0
         const val THERMAL_ZOOM = 15.5

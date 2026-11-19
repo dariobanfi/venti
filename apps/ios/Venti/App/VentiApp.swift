@@ -9,7 +9,8 @@ struct VentiApp: App {
         WindowGroup {
             switch session {
             case .ready(
-                let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks
+                let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
+                let live
             ):
                 RootScreen()
                     .environment(logbook)
@@ -21,6 +22,7 @@ struct VentiApp: App {
                     .environment(account)
                     .environment(sites)
                     .environment(tasks)
+                    .environment(live)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -39,7 +41,7 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel
+        TaskModel, LiveModel
     )
     case failed(String)
 
@@ -72,6 +74,9 @@ enum Session {
             // Flying sites come from the same server as the wind.
             let sites = SitesModel()
             sites.server = { wind.server }
+            // So do the other pilots in the air.
+            let live = LiveModel()
+            live.server = { wind.server }
             // The assistant looks up live wind on the same server as the
             // map, and measures ages against the same clock.
             let scripted = LaunchOptions.usesScriptedAssistant
@@ -105,7 +110,7 @@ enum Session {
             // server, with the account's token.
             fly.server = { account.isSignedIn ? account.account?.server : nil }
             fly.carry = { request in await account.carry(request) }
-            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks)
+            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live)
         } catch {
             return .failed(error.words)
         }

@@ -9,6 +9,7 @@ struct MapScreen: View {
     @Environment(WindModel.self) private var wind
     @Environment(AirspaceModel.self) private var airspace
     @Environment(SitesModel.self) private var sites
+    @Environment(LiveModel.self) private var live
 
     @State private var isFollowing = false
     @State private var problem: String?
@@ -16,6 +17,8 @@ struct MapScreen: View {
     @State private var showsStations = false
     @State private var chosenSite: ChosenSite?
     @State private var showsSites = false
+    @State private var chosenGlider: ChosenGlider?
+    @State private var showsGliders = false
     /// A place the pilot pressed on, to show its forecast.
     @State private var pressed: ChosenPlace?
     /// The part of the map in view, as the map last reported it.
@@ -28,12 +31,14 @@ struct MapScreen: View {
                 stations: wind.stations,
                 airspace: airspaceInView,
                 sites: sites.sites,
+                gliders: live.gliders,
                 isFollowing: $isFollowing,
                 problem: $problem,
                 onRegion: { region in
                     self.region = region
                     wind.show(region)
                     sites.show(region)
+                    live.show(region)
                     // The airspace around what the pilot is looking at,
                     // unless it is the whole continent.
                     if region.north - region.south < 4 {
@@ -54,6 +59,9 @@ struct MapScreen: View {
                     if let site = sites.sites.first(where: { $0.id == id }) {
                         chosenSite = ChosenSite(site: site)
                     }
+                },
+                onGlider: { id in
+                    chosenGlider = ChosenGlider(id: id)
                 },
                 // A long press: the forecast for the place under the
                 // finger, where there is a server to ask.
@@ -80,6 +88,12 @@ struct MapScreen: View {
                     // The signs on the map, as a list.
                     mapButton("Flying sites", systemImage: "mappin.and.ellipse") {
                         showsSites = true
+                    }
+                }
+                if !live.gliders.isEmpty {
+                    // Who is in the air on this part of the map, as a list.
+                    mapButton("Pilots in the air", systemImage: "person.2") {
+                        showsGliders = true
                     }
                 }
                 mapButton("Show my position", systemImage: isFollowing ? "location.fill" : "location") {
@@ -112,6 +126,27 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showsSites) {
             SiteList()
+        }
+        // Other pilots are asked for again every quarter of a minute
+        // while the map is on screen, and not when it is not.
+        .task(id: wind.address) {
+            await live.keepCurrent()
+        }
+        .sheet(item: $chosenGlider) { chosen in
+            NavigationStack {
+                LiveGliderScreen(id: chosen.id)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                chosenGlider = nil
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showsGliders) {
+            LiveList()
         }
         .sheet(item: $pressed) { chosen in
             NavigationStack {

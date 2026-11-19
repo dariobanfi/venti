@@ -394,6 +394,25 @@ final class VentiUITests: XCTestCase {
         sleep(12)
         keepScreenshot("wind-1-map")
 
+        // Who is in the air, from the same server: its development mode
+        // has two gliders over the Tegernsee, one flying and one landed.
+        let pilots = app.buttons["Pilots in the air"]
+        XCTAssertTrue(pilots.waitForExistence(timeout: 30))
+        pilots.tap()
+        XCTAssertTrue(app.navigationBars["In the air"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Demo Pilot", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(saying("Landed", in: app).exists)
+        sleep(1)
+        keepScreenshot("wind-1b-in-the-air")
+        element("live-row", in: app).tap()
+        XCTAssertTrue(element("live-age", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Follow the flight in the browser"].exists
+            || app.links["Follow the flight in the browser"].exists)
+        sleep(1)
+        keepScreenshot("wind-1c-glider")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Done"].tap()
+
         stations.tap()
         XCTAssertTrue(app.navigationBars["Wind stations"].waitForExistence(timeout: 15))
         let summit = labelled(containing: "Zugspitze", in: app)

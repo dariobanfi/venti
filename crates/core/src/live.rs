@@ -518,6 +518,10 @@ pub struct LiveGlider {
     /// How old the position was when the server answered, seconds. The
     /// shell adds the time since.
     pub age_s: f64,
+    /// Whether nothing was heard of the glider for two minutes or more,
+    /// while its pilot has not said that it landed. A map draws it held
+    /// back: it is where the glider was, not where it is.
+    pub quiet: bool,
     /// For the map: "Demo Pilot · 1596 m".
     pub label: String,
     /// The path of the track's page on the server: "/live/…".
@@ -562,6 +566,7 @@ pub fn live_map(status: u16, body: Vec<u8>) -> Result<LiveMap, CoreError> {
             .map(|track| {
                 let name = one_line(&track.pilot.display_name, 40);
                 let latest = track.latest;
+                let age_s = (response.time - latest.time).num_seconds().max(0);
                 LiveGlider {
                     id: track.id.to_string(),
                     handle: track.pilot.handle.to_string(),
@@ -576,7 +581,8 @@ pub fn live_map(status: u16, body: Vec<u8>) -> Result<LiveMap, CoreError> {
                     climb_ms: latest.climb_ms,
                     course_deg: latest.course_deg,
                     landed: track.landed,
-                    age_s: (response.time - latest.time).num_seconds().max(0) as f64,
+                    age_s: age_s as f64,
+                    quiet: !track.landed && age_s >= QUIET_AFTER_S,
                     page_path: api::live_page_path(&track.id),
                 }
             })
@@ -584,6 +590,9 @@ pub fn live_map(status: u16, body: Vec<u8>) -> Result<LiveMap, CoreError> {
         truncated: response.truncated,
     })
 }
+
+/// A glider nothing was heard of for this many seconds has gone quiet.
+const QUIET_AFTER_S: i64 = 120;
 
 /// How old a glider's position is, in words for its label and its sheet:
 /// "Now", "40 s ago", "Landed 12 min ago", "No position for 6 min". A
@@ -596,7 +605,7 @@ pub fn live_age_in_words(age_s: f64, landed: bool) -> String {
         format!("Landed {}", ago(age_s))
     } else if age_s < 20.0 {
         "Now".to_owned()
-    } else if age_s < 120.0 {
+    } else if age_s < QUIET_AFTER_S as f64 {
         ago(age_s)
     } else {
         format!("No position for {}", ago(age_s).trim_end_matches(" ago"))
@@ -1048,9 +1057,17 @@ mod tests {
         // Four seconds old by the server's own clock.
         assert_eq!(flying.age_s, 4.0);
         assert_eq!(flying.course_deg, Some(20.0));
+        assert!(!flying.quiet);
         let landed = &map.gliders[1];
         assert!(landed.landed);
         assert_eq!(landed.age_s, 540.0);
+        // Landed is not quiet: the pilot's app said so.
+        assert!(!landed.quiet);
+        // The same glider, had its app said nothing for those nine minutes.
+        let mut answer: Value = serde_json::from_slice(&golden("live.json")).unwrap();
+        answer["tracks"][1]["landed"] = json!(false);
+        let map = live_map(200, answer.to_string().into_bytes()).unwrap();
+        assert!(map.gliders[1].quiet);
         assert_eq!(landed.course_deg, None);
 
         // A refusal comes in words.

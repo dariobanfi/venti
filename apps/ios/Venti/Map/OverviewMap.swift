@@ -14,6 +14,8 @@ struct OverviewMap: UIViewRepresentable {
     let airspace: [AirspaceShape]
     /// The flying sites to draw.
     var sites: [SiteView] = []
+    /// Other pilots in the air, to draw.
+    var gliders: [LiveGlider] = []
     /// Whether the map keeps the pilot's position in its centre.
     @Binding var isFollowing: Bool
     /// Set when the position cannot be shown, with words for the pilot.
@@ -24,6 +26,9 @@ struct OverviewMap: UIViewRepresentable {
     let onStation: (String) -> Void
     /// Called with a site's identifier when the pilot taps its sign.
     var onSite: (String) -> Void = { _ in }
+    /// Called with a live track's identifier when the pilot taps its
+    /// glider.
+    var onGlider: (String) -> Void = { _ in }
     /// Called with the place under the finger after a long press on the
     /// map.
     var onPlace: (Coordinate) -> Void = { _ in }
@@ -66,8 +71,10 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onRegion = onRegion
         coordinator.onStation = onStation
         coordinator.onSite = onSite
+        coordinator.onGlider = onGlider
         coordinator.onPlace = onPlace
         coordinator.show(sites, on: map)
+        coordinator.show(gliders, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
@@ -82,8 +89,11 @@ struct OverviewMap: UIViewRepresentable {
         var onRegion: (Bounds) -> Void = { _ in }
         var onStation: (String) -> Void = { _ in }
         var onSite: (String) -> Void = { _ in }
+        var onGlider: (String) -> Void = { _ in }
         var onPlace: (Coordinate) -> Void = { _ in }
 
+        private var gliders: [LiveGlider] = []
+        private var drawnGliders: [LiveGlider]?
         private var outlines: [[Coordinate]] = []
         private var drawnOutlines: [[Coordinate]]?
         private var stations: [WindStation] = []
@@ -98,6 +108,12 @@ struct OverviewMap: UIViewRepresentable {
         private static let tracks = "logbook-tracks"
         private static let wind = "wind-stations"
         private static let sites = "flying-sites"
+        private static let live = "live-gliders"
+
+        func show(_ gliders: [LiveGlider], on map: MLNMapView) {
+            self.gliders = gliders
+            drawGliders(on: map)
+        }
 
         func show(_ sites: [SiteView], on map: MLNMapView) {
             self.sites = sites
@@ -137,6 +153,7 @@ struct OverviewMap: UIViewRepresentable {
             drawOutlines(on: mapView)
             drawStations(on: mapView)
             drawSites(on: mapView)
+            drawGliders(on: mapView)
             drawAirspace(on: mapView)
             tellRegion(of: mapView)
         }
@@ -177,9 +194,9 @@ struct OverviewMap: UIViewRepresentable {
             guard recognizer.state == .ended, let map = recognizer.view as? MLNMapView else { return }
             let point = recognizer.location(in: map)
             let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-            // Wind lies over the sites, and wins where both are under the
-            // finger.
-            for (layer, open) in [(Self.wind, onStation), (Self.sites, onSite)] {
+            // Gliders lie over the wind and the wind over the sites: what
+            // is on top wins where several are under the finger.
+            for (layer, open) in [(Self.live, onGlider), (Self.wind, onStation), (Self.sites, onSite)] {
                 let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [layer])
                 let nearest = hits.min { first, second in
                     Self.distance(from: point, to: first, on: map) < Self.distance(from: point, to: second, on: map)
@@ -276,6 +293,54 @@ struct OverviewMap: UIViewRepresentable {
             symbols.symbolSortKey = NSExpression(forKeyPath: "rank")
             symbols.textOptional = NSExpression(forConstantValue: true)
             style.addLayer(symbols)
+
+            // Other pilots in the air, above everything: a wing turned the
+            // way it flies, with the pilot's name and altitude where there
+            // is room. Gliders are never left out for want of room.
+            for picture in LiveSymbols.all {
+                style.setImage(picture.image, forName: picture.name)
+            }
+            let gliders = MLNShapeSource(identifier: Self.live, shape: empty, options: nil)
+            style.addSource(gliders)
+            let wings = MLNSymbolStyleLayer(identifier: Self.live, source: gliders)
+            wings.iconImageName = NSExpression(forKeyPath: "picture")
+            wings.iconRotation = NSExpression(forKeyPath: "heading")
+            wings.iconRotationAlignment = NSExpression(forConstantValue: "map")
+            wings.iconAllowsOverlap = NSExpression(forConstantValue: true)
+            wings.text = NSExpression(forKeyPath: "label")
+            wings.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
+            wings.textFontSize = NSExpression(forConstantValue: 12)
+            wings.textAnchor = NSExpression(forConstantValue: "top")
+            wings.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 1.15)))
+            wings.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
+            wings.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            wings.textHaloWidth = NSExpression(forConstantValue: 1.6)
+            wings.textOptional = NSExpression(forConstantValue: true)
+            style.addLayer(wings)
+        }
+
+        /// Draws the gliders, once the style is there and only when they
+        /// have changed.
+        private func drawGliders(on map: MLNMapView) {
+            guard isStyleLoaded, gliders != drawnGliders,
+                  let source = map.style?.source(withIdentifier: Self.live) as? MLNShapeSource
+            else { return }
+            drawnGliders = gliders
+            source.shape = MLNShapeCollectionFeature(shapes: gliders.map(Self.gliderFeature))
+        }
+
+        /// One glider as the map's symbol layer reads it. A glider on the
+        /// ground points nowhere.
+        static func gliderFeature(for glider: LiveGlider) -> MLNPointFeature {
+            let feature = MLNPointFeature()
+            feature.coordinate = glider.position.location
+            feature.attributes = [
+                "id": glider.id,
+                "picture": LiveSymbols.name(for: glider),
+                "heading": glider.landed ? 0 : glider.courseDeg ?? 0,
+                "label": glider.label,
+            ]
+            return feature
         }
 
         /// Draws the flights, once the style is there and only when they

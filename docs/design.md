@@ -186,7 +186,8 @@ The first version is built and has been checked on a simulator with a replayed f
 
 - **A full-screen cover, not a tab.** Starting a flight covers the whole app; nothing can be navigated to by accident. One button ends it, and asks first.
 - **Fixed places, fixed sizes.** Altitude and climb sit side by side, always, in the largest type in the app. Unlike everywhere else, these sizes do not follow the text-size setting: an instrument must be where the eye expects it.
-- **It changes by itself.** While the glider circles in lift the lower row shows height gained, the thermal's average climb and the wind, and the map zooms in; on the glide it shows ground speed, glide ratio and distance to the take-off, and the map zooms out. The pilot touches nothing.
+- **It changes by itself.** While the glider circles in lift the lower row shows height gained, the thermal's average climb and the wind, and the map zooms in; on the glide it shows ground speed, the glide ratio the glider is making and, beside it, the glide ratio it needs to reach the place it is flying to, and the map zooms out. The pilot touches nothing.
+- **Where to.** One line between the map and the numbers says where the cockpit is navigating: an arrow that points to the place as seen from the glider (up is straight ahead), its name and distance, and the height at which the glider is expected to arrive over it. Until the pilot chooses a place, that place is the take-off. A tap on the line lists the pilot's waypoints nearest first; that list is the one thing in the cockpit that needs a second touch. On the map a thin dashed line runs from the glider to the place. An arrival below the place is the second thing shown in red, and a wind too strong to get there is said in words, not as a number. When no wind has been measured yet, the line says that the prediction is for still air.
 - **The map follows.** North up, the glider in the middle, the last three minutes of track behind it in the climb colours. It cannot be dragged away; it can be zoomed.
 - **The climb bar** beside the climb number grows up or down from the middle, in the climb colours. The number itself stays in the text colour.
 - **What is missing is said in red at the top:** no position, or a vario that has stopped talking.
@@ -202,7 +203,7 @@ What the apps pilots already fly with teach, and what the next versions should t
 - burnair shortens the pilot's own track to the last minute and a half while circling, to clear the map.
 - ForeFlight fixes its hazard colours (red within 100 ft, yellow within 1,000 ft) and repeats every alert in sound.
 
-Still to design: a high-contrast theme for sun, layouts the pilot can change, and the pages for navigation and airspace.
+Still to design: a high-contrast theme for sun, layouts the pilot can change, routes of more than one place, and airspace.
 
 ## Open
 

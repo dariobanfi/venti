@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use chrono::DateTime;
 use venti_domain::GeoPoint;
 use venti_flight::igc::{self, Fix, IgcFile};
+use venti_flight::live::navigation::{self, Glider, Target};
 use venti_flight::live::{
     self, FlightComputer, Phase, PositionSample, VarioSource, atmosphere, tone,
 };
@@ -194,6 +195,52 @@ pub struct CockpitView {
     pub instrument: Option<InstrumentView>,
 }
 
+/// A place for the cockpit to navigate to.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct TargetPlace {
+    /// Its name.
+    pub name: String,
+    /// Where it is.
+    pub position: Coordinate,
+    /// Its height above sea level, metres, if known.
+    pub elevation_m: Option<f64>,
+}
+
+/// The way to the place the cockpit navigates to.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct WayToTarget {
+    /// The place's name.
+    pub name: String,
+    /// Whether it is the take-off of this flight, which the cockpit
+    /// navigates back to when the pilot has chosen nothing else.
+    pub is_takeoff: bool,
+    /// Where it is.
+    pub position: Coordinate,
+    /// Distance to it over the ground, metres.
+    pub distance_m: f64,
+    /// The direction to fly, degrees clockwise from north.
+    pub bearing_deg: f64,
+    /// How far the glider is above the place now, metres; negative when
+    /// below it. Absent without the place's height.
+    pub height_above_m: Option<f64>,
+    /// The glide ratio over the ground needed to arrive at the place's
+    /// height. Absent when the glider is not above it.
+    pub required_glide: Option<f64>,
+    /// The glide ratio over the ground the glider is expected to make
+    /// towards the place: its own glide at trim speed, in the wind as last
+    /// measured. Absent when the wind is too strong to get there.
+    pub expected_glide: Option<f64>,
+    /// How far above the place the glider is expected to arrive, metres;
+    /// negative when it is expected to fall short. It assumes air that
+    /// neither rises nor sinks on the way: advice, not a promise.
+    pub arrival_height_m: Option<f64>,
+    /// How long the glide is expected to take, seconds.
+    pub time_to_go_s: Option<f64>,
+    /// Whether a wind was known for the prediction. Without one, still air
+    /// is assumed, and the screen should say so.
+    pub wind_known: bool,
+}
+
 /// A recording that was not imported into the logbook, found at launch.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct PendingRecording {
@@ -219,6 +266,10 @@ struct Inner {
     pressure_source: Option<PressureSource>,
     recorder: Option<Recorder>,
     last_position_s: Option<f64>,
+    /// The place the pilot chose to fly to. Without one the cockpit
+    /// navigates back to the take-off.
+    target: Option<Target>,
+    glider: Glider,
 }
 
 /// Which sensor is supplying pressure.
@@ -271,7 +322,80 @@ impl FlightSession {
                 pressure_source: None,
                 recorder: None,
                 last_position_s: None,
+                target: None,
+                glider: Glider::default(),
             }),
+        })
+    }
+
+    /// Chooses the place to navigate to, or with `None` goes back to
+    /// navigating to the take-off.
+    pub fn go_to(&self, place: Option<TargetPlace>) {
+        self.lock().target = place.and_then(|place| {
+            Some(Target {
+                name: place.name,
+                position: GeoPoint::new(place.position.lat, place.position.lon).ok()?,
+                elevation_m: place.elevation_m.filter(|elevation| elevation.is_finite()),
+            })
+        });
+    }
+
+    /// Says how the pilot's glider flies on a straight glide in still air:
+    /// its speed with the brakes up, and its glide ratio. Predictions of
+    /// arrival heights use these. Values that make no sense are ignored.
+    pub fn set_glider(&self, trim_speed_ms: f64, glide_ratio: f64) {
+        if (5.0..=25.0).contains(&trim_speed_ms) && (3.0..=15.0).contains(&glide_ratio) {
+            self.lock().glider = Glider {
+                trim_speed_ms,
+                glide_ratio,
+            };
+        }
+    }
+
+    /// The way to the chosen place, or to the take-off when none is
+    /// chosen. `None` until there is a position, and on the ground before
+    /// a take-off when no place is chosen.
+    pub fn navigation(&self, now_unix_s: f64) -> Option<WayToTarget> {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        let position = state.position?;
+        let (target, is_takeoff) = match &inner.target {
+            Some(target) => (target.clone(), false),
+            None => (
+                Target {
+                    name: "Take-off".to_owned(),
+                    position: state.takeoff?,
+                    // The height the glider left the ground at.
+                    elevation_m: state
+                        .altitude_m
+                        .zip(state.height_above_takeoff_m)
+                        .map(|(altitude, above)| altitude - above),
+                },
+                true,
+            ),
+        };
+        let way = navigation::navigate(
+            position,
+            state.altitude_m,
+            state.wind,
+            &target,
+            &inner.glider,
+        );
+        Some(WayToTarget {
+            name: way.name,
+            is_takeoff,
+            position: Coordinate {
+                lat: target.position.lat(),
+                lon: target.position.lon(),
+            },
+            distance_m: way.distance_m,
+            bearing_deg: way.bearing_deg,
+            height_above_m: way.height_above_m,
+            required_glide: way.required_glide,
+            expected_glide: way.expected_glide,
+            arrival_height_m: way.arrival_height_m,
+            time_to_go_s: way.time_to_go_s,
+            wind_known: way.wind_known,
         })
     }
 
@@ -813,6 +937,75 @@ mod tests {
         // Climbing in the air: the vario beeps.
         let tone = view.tone.unwrap();
         assert!(tone.frequency_hz > 700.0 && tone.duty < 1.0);
+    }
+
+    #[test]
+    fn the_cockpit_navigates_back_to_the_take_off_until_a_place_is_chosen() {
+        let folder = TempFolder::new();
+        // Nothing to navigate to before there is a position or a take-off.
+        assert_eq!(
+            FlightSession::new(folder_text(&folder)).navigation(1_000.0),
+            None
+        );
+
+        // Five minutes in: circling above the first thermal, west wind 3 m/s.
+        let (session, replay) = fly(&folder, 300.0, false);
+        let view = session.view(replay.now());
+        let home = session.navigation(replay.now()).unwrap();
+        assert!(home.is_takeoff);
+        assert_eq!(home.name, "Take-off");
+        assert_eq!(Some(home.position), view.takeoff);
+        assert_eq!(Some(home.distance_m), view.distance_to_takeoff_m);
+        assert_eq!(Some(home.bearing_deg), view.bearing_to_takeoff_deg);
+        // The take-off's height is the height the glider left the ground at.
+        assert_eq!(home.height_above_m, view.height_above_takeoff_m);
+        assert!(home.wind_known);
+        assert!(home.arrival_height_m.is_some());
+
+        // A landing field 4 km east and 900 m below: downwind, well in reach.
+        let here = view.position.unwrap();
+        let altitude = view.altitude_m.unwrap();
+        session.go_to(Some(TargetPlace {
+            name: "Landeplatz".to_owned(),
+            position: Coordinate {
+                lat: here.lat,
+                lon: here.lon + 4.0 / 75.0,
+            },
+            elevation_m: Some(altitude - 900.0),
+        }));
+        let way = session.navigation(replay.now()).unwrap();
+        assert!(!way.is_takeoff);
+        assert_eq!(way.name, "Landeplatz");
+        assert!(
+            (way.distance_m - 4000.0).abs() < 100.0,
+            "{}",
+            way.distance_m
+        );
+        assert!((way.bearing_deg - 90.0).abs() < 1.0);
+        assert!((way.required_glide.unwrap() - 4.44).abs() < 0.15);
+        // The default glider: 38 km/h and a glide of 8, with 3 m/s from
+        // behind: about 10 over the ground.
+        assert!(
+            (way.expected_glide.unwrap() - 10.3).abs() < 0.5,
+            "{:?}",
+            way.expected_glide
+        );
+        assert!(
+            (way.arrival_height_m.unwrap() - 510.0).abs() < 40.0,
+            "{:?}",
+            way.arrival_height_m
+        );
+
+        // A slower glider with a worse glide arrives lower; nonsense is ignored.
+        session.set_glider(9.0, 6.0);
+        let slower = session.navigation(replay.now()).unwrap();
+        assert!(slower.arrival_height_m.unwrap() < way.arrival_height_m.unwrap() - 80.0);
+        session.set_glider(0.0, 100.0);
+        assert_eq!(session.navigation(replay.now()), Some(slower));
+
+        // Choosing nothing goes back to the take-off.
+        session.go_to(None);
+        assert!(session.navigation(replay.now()).unwrap().is_takeoff);
     }
 
     #[test]

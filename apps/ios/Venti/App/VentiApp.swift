@@ -8,12 +8,13 @@ struct VentiApp: App {
     var body: some Scene {
         WindowGroup {
             switch session {
-            case .ready(let logbook, let fly, let chat, let wind):
+            case .ready(let logbook, let fly, let chat, let wind, let waypoints):
                 RootScreen()
                     .environment(logbook)
                     .environment(fly)
                     .environment(chat)
                     .environment(wind)
+                    .environment(waypoints)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -30,13 +31,18 @@ struct VentiApp: App {
 /// What the app holds for as long as it runs.
 @MainActor
 enum Session {
-    case ready(LogbookModel, FlySession, AssistantChat, WindModel)
+    case ready(LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel)
     case failed(String)
 
     static func start() -> Session {
         do {
             let folder = try LaunchOptions.dataFolder()
-            let logbook = try LogbookModel.open(folder: folder)
+            let core = try Core(dataFolder: folder.path)
+            let logbook = LogbookModel(core: core, folder: folder)
+            if LaunchOptions.usesSampleWaypoints {
+                _ = try? core.importWaypoints(text: LaunchOptions.sampleWaypoints)
+            }
+            let waypoints = WaypointsModel(core: core)
             // Under test the server is the one named on the command line,
             // or none: a test must not depend on what a pilot has saved.
             let wind =
@@ -57,7 +63,7 @@ enum Session {
                 server: { wind.server?.absoluteString },
                 now: { wind.now }
             )
-            return .ready(logbook, FlySession(dataFolder: folder), chat, wind)
+            return .ready(logbook, FlySession(dataFolder: folder), chat, wind, waypoints)
         } catch {
             return .failed(error.words)
         }
@@ -84,6 +90,19 @@ enum LaunchOptions {
     /// Answer the assistant's requests from a script instead of a provider,
     /// so its screen can be tested without a key or a network.
     static let usesScriptedAssistant = arguments.contains("--scripted-assistant")
+
+    /// Start with a few made-up waypoints around the sample flight, so the
+    /// cockpit's navigation can be tested without picking a file.
+    static let usesSampleWaypoints = arguments.contains("--sample-waypoints")
+
+    /// The made-up waypoints. Their names say that they are not real
+    /// places to land.
+    static let sampleWaypoints = """
+        name,code,country,lat,lon,elev,style
+        "Sample landing field",SLF,DE,4741.000N,01145.300E,735m,21
+        "Sample turnpoint",STP,DE,4737.200N,01152.000E,1700m,1
+        "Sample summit far away",SSF,DE,4725.260N,01059.090E,2962m,7
+        """
 
     /// The Venti server to use, given as `--server <address>`: the UI tests
     /// run one on the same machine.

@@ -7,10 +7,11 @@ import XCTest
 /// The app is started with an empty logbook in a throwaway folder.
 @MainActor
 final class VentiUITests: XCTestCase {
-    private func launch(bundledMap: Bool, dark: Bool = false) -> XCUIApplication {
+    private func launch(bundledMap: Bool, dark: Bool = false, extra: [String] = []) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : []) + (dark ? ["--dark"] : [])
+        app.launchArguments =
+            ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : []) + (dark ? ["--dark"] : []) + extra
         app.launch()
         return app
     }
@@ -25,6 +26,13 @@ final class VentiUITests: XCTestCase {
     /// Anything on screen with this identifier or label.
     private func element(_ name: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)[name].firstMatch
+    }
+
+    /// Anything on screen whose accessibility value contains this text.
+    private func valued(containing text: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "value CONTAINS %@", text))
+            .firstMatch
     }
 
     private func labelled(containing text: String, in app: XCUIApplication) -> XCUIElement {
@@ -130,7 +138,7 @@ final class VentiUITests: XCTestCase {
     /// its speed: about ninety seconds in the glider starts to circle in
     /// lift, and four minutes later it glides on.
     func testTheCockpitShowsAReplayedFlight() {
-        let app = launch(bundledMap: true)
+        let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
         app.tabBars.buttons["Fly"].tap()
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
         keepScreenshot("fly-1-ready")
@@ -152,6 +160,19 @@ final class VentiUITests: XCTestCase {
         sleep(3)
         keepScreenshot("fly-3-glide")
 
+        // The cockpit shows the way back to the take-off until the pilot
+        // chooses a place; the waypoints are listed nearest first.
+        let strip = element("target-strip", in: app)
+        XCTAssertTrue(valued(containing: "Take-off", in: app).exists)
+        strip.tap()
+        XCTAssertTrue(app.navigationBars["Fly to"].waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("fly-4-fly-to")
+        labelled(containing: "Sample landing field", in: app).tap()
+        XCTAssertTrue(valued(containing: "Sample landing field", in: app).waitForExistence(timeout: 10))
+        sleep(2)
+        keepScreenshot("fly-5-to-landing")
+
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
@@ -162,6 +183,16 @@ final class VentiUITests: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["Pilot"].waitForExistence(timeout: 15) || element("Vario sound", in: app).exists)
         keepScreenshot("settings-1")
+
+        // The pilot's waypoints.
+        app.buttons["Waypoints"].tap()
+        XCTAssertTrue(labelled(containing: "Sample turnpoint", in: app).waitForExistence(timeout: 15))
+        keepScreenshot("settings-3-waypoints")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        for _ in 0..<3 where !app.buttons["Data and licences"].isHittable {
+            app.swipeUp()
+        }
         app.buttons["Data and licences"].tap()
         XCTAssertTrue(app.staticTexts["Base map"].waitForExistence(timeout: 15))
         keepScreenshot("settings-2-credits")

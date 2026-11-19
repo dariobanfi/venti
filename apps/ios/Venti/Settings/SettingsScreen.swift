@@ -7,6 +7,8 @@ struct SettingsScreen: View {
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
+    @AppStorage(Preferences.trimSpeed) private var trimSpeed = Preferences.defaultTrimSpeed
+    @AppStorage(Preferences.glideRatio) private var glideRatio = Preferences.defaultGlideRatio
 
     var body: some View {
         NavigationStack {
@@ -23,7 +25,7 @@ struct SettingsScreen: View {
                     Text("Written into the flights you record. They stay on this iPhone.")
                 }
 
-                Section("Cockpit") {
+                Section {
                     Toggle(
                         "Vario sound",
                         isOn: Binding(
@@ -31,6 +33,19 @@ struct SettingsScreen: View {
                             set: { isOn in fly.isMuted = !isOn }
                         )
                     )
+                    NavigationLink("Waypoints") {
+                        WaypointsScreen()
+                    }
+                    Stepper(value: $trimSpeed, in: 25...60, step: 1) {
+                        LabeledContent("Trim speed", value: "\(Format.metres(trimSpeed)) km/h")
+                    }
+                    Stepper(value: $glideRatio, in: 4...14, step: 0.5) {
+                        LabeledContent("Glide ratio", value: Format.glideRatio(glideRatio))
+                    }
+                } header: {
+                    Text("Cockpit")
+                } footer: {
+                    Text("Your glider's speed with the brakes up and its glide ratio. From them and the wind, the cockpit predicts how high you arrive at the place you fly to. The prediction assumes air that neither rises nor sinks on the way.")
                 }
 
                 Section {

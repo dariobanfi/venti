@@ -15,7 +15,8 @@ extension CoreError {
         case .InvalidFlight(let message),
              .UnknownFlight(let message),
              .Storage(let message),
-             .Server(let message):
+             .Server(let message),
+             .InvalidFile(let message):
             message
         }
     }

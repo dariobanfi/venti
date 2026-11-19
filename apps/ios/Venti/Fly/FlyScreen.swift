@@ -6,6 +6,7 @@ struct FlyScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AppNavigation.self) private var navigation
     @Environment(FlySession.self) private var fly
+    @Environment(WaypointsModel.self) private var waypoints
 
     @State private var isChoosingVario = false
 
@@ -68,6 +69,7 @@ struct FlyScreen: View {
                 finish()
             }
             .environment(fly)
+            .environment(waypoints)
         }
         .alert(
             "Flying",

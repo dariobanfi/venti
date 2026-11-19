@@ -15,5 +15,6 @@ val Throwable.pilotMessage: String
         is CoreException.UnknownFlight -> reason
         is CoreException.Storage -> reason
         is CoreException.Server -> reason
+        is CoreException.InvalidFile -> reason
         else -> localizedMessage ?: toString()
     }

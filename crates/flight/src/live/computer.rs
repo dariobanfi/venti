@@ -5,11 +5,9 @@ use std::collections::VecDeque;
 use venti_domain::GeoPoint;
 
 use super::atmosphere::pressure_altitude_m;
+use super::navigation::bearing_deg;
 use super::vario::VarioFilter;
 use super::wind::{Wind, WindEstimator};
-
-/// Metres per degree of latitude on the FAI sphere.
-const M_PER_DEG_LAT: f64 = 111_194.9;
 
 /// The settings of the flight computer.
 ///
@@ -626,18 +624,13 @@ impl FlightComputer {
     }
 }
 
-/// The direction to travel from one point to reach another, in degrees
-/// clockwise from north, for the short distances of a flight.
-fn bearing_deg(from: GeoPoint, to: GeoPoint) -> f64 {
-    let north = (to.lat() - from.lat()) * M_PER_DEG_LAT;
-    let east = (to.lon() - from.lon()) * M_PER_DEG_LAT * from.lat().to_radians().cos();
-    east.atan2(north).to_degrees().rem_euclid(360.0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::igc::Fix;
+
+    /// Metres per degree of latitude on the FAI sphere.
+    const M_PER_DEG_LAT: f64 = 111_194.9;
     use crate::testing::synthetic_flight;
 
     /// Replays fixes through a computer the way the app's replay does:

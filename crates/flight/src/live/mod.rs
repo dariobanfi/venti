@@ -7,6 +7,7 @@
 
 pub mod atmosphere;
 mod computer;
+pub mod navigation;
 pub mod tone;
 pub mod vario;
 pub mod wind;

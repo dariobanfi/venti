@@ -188,6 +188,8 @@ pub enum CoreErrorKind {
     Storage,
     /// The Venti server gave no usable answer.
     Server,
+    /// A file other than a flight is not one the app can read.
+    InvalidFile,
 }
 
 impl CoreErrorKind {
@@ -197,6 +199,7 @@ impl CoreErrorKind {
             CoreError::UnknownFlight { .. } => Self::UnknownFlight,
             CoreError::Storage { .. } => Self::Storage,
             CoreError::Server { .. } => Self::Server,
+            CoreError::InvalidFile { .. } => Self::InvalidFile,
         }
     }
 
@@ -206,6 +209,7 @@ impl CoreErrorKind {
             Self::UnknownFlight => "UnknownFlight",
             Self::Storage => "Storage",
             Self::Server => "Server",
+            Self::InvalidFile => "InvalidFile",
         }
     }
 }

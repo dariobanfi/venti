@@ -10,4 +10,12 @@ enum Preferences {
     static let assistantModel = "VentiAssistantModel"
     /// The address of the Venti server that live wind comes from.
     static let server = "VentiServerAddress"
+    /// The glider's speed with the brakes up, km/h.
+    static let trimSpeed = "VentiGliderTrimSpeed"
+    /// The glider's glide ratio at that speed.
+    static let glideRatio = "VentiGliderGlideRatio"
+
+    /// What the core assumes of a glider until the pilot says otherwise.
+    static let defaultTrimSpeed = 38.0
+    static let defaultGlideRatio = 8.0
 }

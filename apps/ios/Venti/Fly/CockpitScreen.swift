@@ -13,13 +13,14 @@ struct CockpitScreen: View {
 
     @Environment(FlySession.self) private var fly
     @State private var isConfirmingFinish = false
+    @State private var isChoosingTarget = false
 
     var body: some View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(view: view, mode: fly.mode, varioName: fly.vario.connectedName)
-                CockpitMap(view: view)
+                CockpitMap(view: view, way: fly.way)
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
                     // labels made reading the screen by code or by VoiceOver
@@ -41,7 +42,10 @@ struct CockpitScreen: View {
                                 .padding(10)
                         }
                     }
-                Instruments(view: view)
+                TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
+                    isChoosingTarget = true
+                }
+                Instruments(view: view, way: fly.way)
                 HStack(spacing: 12) {
                     Button(isReplay ? "End replay" : "Finish flight") {
                         isConfirmingFinish = true
@@ -62,6 +66,14 @@ struct CockpitScreen: View {
                 .padding(.vertical, 10)
             }
             .background(Color(.systemBackground))
+            .sheet(isPresented: $isChoosingTarget) {
+                TargetPicker(
+                    position: view.position,
+                    chosen: fly.way.flatMap { $0.isTakeoff ? nil : $0.name }
+                ) { waypoint in
+                    fly.goTo(waypoint?.place)
+                }
+            }
             .confirmationDialog(
                 isReplay ? "End the replay?" : "Finish the flight?",
                 isPresented: $isConfirmingFinish,
@@ -80,6 +92,13 @@ struct CockpitScreen: View {
 
     private var isReplay: Bool {
         fly.mode != .live
+    }
+
+    /// The direction of travel, once the glider moves fast enough for it
+    /// to mean something.
+    private static func course(of view: CockpitView) -> Double? {
+        guard let speed = view.groundSpeedMs, speed >= 2 else { return nil }
+        return view.courseDeg
     }
 }
 
@@ -147,6 +166,7 @@ private struct StatusLine: View {
 /// or for thermalling.
 private struct Instruments: View {
     let view: CockpitView
+    let way: WayToTarget?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -205,10 +225,12 @@ private struct Instruments: View {
                         unit: ""
                     )
                     Divider()
+                    // Next to the glide the glider is making: the glide
+                    // it needs to reach the place it is flying to.
                     Instrument(
-                        title: "Take-off",
-                        value: view.distanceToTakeoffM.map(Format.kilometres(metres:)),
-                        unit: "km"
+                        title: "Needs",
+                        value: way?.requiredGlide.map(Format.glideRatio),
+                        unit: ""
                     )
                 }
             }

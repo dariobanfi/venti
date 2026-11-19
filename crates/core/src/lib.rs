@@ -32,6 +32,7 @@ mod statistics;
 mod storage;
 #[cfg(test)]
 mod testing;
+mod waypoints;
 mod wind;
 
 pub use analysis::*;
@@ -39,6 +40,7 @@ pub use assistant::*;
 pub use cockpit::*;
 pub use export::*;
 pub use statistics::*;
+pub use waypoints::*;
 pub use wind::*;
 
 use logbook::{Logbook, LogbookError};
@@ -80,6 +82,13 @@ pub enum CoreError {
     #[error("{message}")]
     Server {
         /// What happened.
+        message: String,
+    },
+    /// A file the pilot chose, other than a flight, is not one the app can
+    /// read: waypoints, for example. The message says why.
+    #[error("{message}")]
+    InvalidFile {
+        /// Why the file could not be used.
         message: String,
     },
 }
@@ -298,6 +307,8 @@ pub struct LogbookView {
 #[derive(Debug, uniffi::Object)]
 pub struct Core {
     logbook: Logbook,
+    /// Where the core keeps what is not a flight: the pilot's waypoints.
+    storage: Arc<dyn Storage>,
 }
 
 #[uniffi::export]
@@ -445,7 +456,8 @@ impl Core {
     /// browser's binding passes a [`StagedStorage`].
     pub fn with_storage(storage: Arc<dyn Storage>) -> Result<Arc<Self>, CoreError> {
         Ok(Arc::new(Self {
-            logbook: Logbook::open(storage)?,
+            logbook: Logbook::open(Arc::clone(&storage))?,
+            storage,
         }))
     }
 

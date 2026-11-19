@@ -15,6 +15,7 @@ pub mod igc;
 mod summary;
 pub mod testing;
 pub mod track;
+pub mod waypoints;
 
 pub use identity::identity;
 pub use summary::{FlightSummary, summarise};

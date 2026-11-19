@@ -24,6 +24,9 @@ final class FlySession {
     private(set) var mode: Mode?
     /// What the cockpit shows. Present while a session runs.
     private(set) var view: CockpitView?
+    /// The way to the place the cockpit navigates to: the one the pilot
+    /// chose, or the take-off. Absent until there is one to go to.
+    private(set) var way: WayToTarget?
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
     /// Whether the vario is silent. Remembered between flights.
@@ -91,6 +94,13 @@ final class FlySession {
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
     }
 
+    /// Chooses the place to navigate to; `nil` goes back to the take-off.
+    func goTo(_ place: TargetPlace?) {
+        guard let session else { return }
+        session.goTo(place: place)
+        refresh(elapsed: 0)
+    }
+
     /// Ends the session. For a live flight, returns the recording to put
     /// into the logbook, if any position was recorded.
     func finish() -> PendingRecording? {
@@ -115,12 +125,20 @@ final class FlySession {
         replay = nil
         mode = nil
         view = nil
+        way = nil
         return recording
     }
 
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
+        // How the pilot's glider glides, for predicting arrival heights.
+        // Unset values are zero, which the core ignores.
+        let defaults = UserDefaults.standard
+        session.setGlider(
+            trimSpeedMs: defaults.double(forKey: Preferences.trimSpeed) / 3.6,
+            glideRatio: defaults.double(forKey: Preferences.glideRatio)
+        )
         sound.isMuted = isMuted
         // A cockpit that dims and locks is no use.
         UIApplication.shared.isIdleTimerDisabled = true
@@ -153,6 +171,7 @@ final class FlySession {
         }
         let view = session.view(nowUnixS: now)
         self.view = view
+        way = session.navigation(nowUnixS: now)
         sound.play(view.tone)
     }
 }

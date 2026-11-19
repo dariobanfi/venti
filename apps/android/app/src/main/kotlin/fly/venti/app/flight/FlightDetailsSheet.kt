@@ -113,7 +113,8 @@ private fun ScoreSection(score: FlightScore) {
     }
     SectionFooter(
         "Worked out by Venti from the World XContest's published rules, at " +
-            "${Format.plain(score.pointsPerKm)} points per kilometre for this kind of route. The dashed " +
+            "${if (score.pointsPerKm == 1.0) "1 point" else "${Format.plain(score.pointsPerKm)} points"} " +
+            "per kilometre for this kind of route. The dashed " +
             "line on the map is the scored route. A league's own result can differ a little.",
     )
 }

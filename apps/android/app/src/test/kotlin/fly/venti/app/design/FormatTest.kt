@@ -36,6 +36,8 @@ class FormatTest {
         assertEquals("4:12", Format.minutesSeconds(252))
         assertEquals("0:12:34", Format.stopwatch(754))
         assertEquals("36", Format.kilometresPerHour(10.0))
+        assertEquals("36 kilometres per hour", Format.spokenKilometresPerHour(10.0))
+        assertEquals("1 kilometre per hour", Format.spokenKilometresPerHour(0.2))
         assertEquals("12.3", Format.kilometres(12_345.0))
         assertEquals("12", Format.wholeKilometres(12_345.0))
         assertEquals("8.4", Format.glideRatio(8.44))

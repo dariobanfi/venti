@@ -16,6 +16,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
+import fly.venti.core.WindBand
+import fly.venti.core.WindMark
+import fly.venti.core.WindSymbol
 import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.ui.graphics.Path as ComposePath
 
@@ -33,17 +36,16 @@ object WindSymbols {
     /** Every picture under the name the map knows it by, drawn for a screen of this density. */
     fun all(density: Float, densityDpi: Int): Map<String, Bitmap> = buildMap {
         for (band in WindBand.entries) {
-            val mark = WindMark(WindMark.Symbol.Arrow(band), heading = 0.0, label = "")
-            put(mark.picture, picture(density, densityDpi) { canvas, scale -> arrow(canvas, scale, band.color) })
+            put(
+                WindSymbol.Arrow(band).picture,
+                picture(density, densityDpi) { canvas, scale -> arrow(canvas, scale, band.color) },
+            )
         }
         put(
-            WindMark(WindMark.Symbol.Calm, 0.0, "").picture,
-            picture(density, densityDpi) { canvas, scale -> dot(canvas, scale, WindBand.Light.color) },
+            WindSymbol.Calm.picture,
+            picture(density, densityDpi) { canvas, scale -> dot(canvas, scale, WindBand.LIGHT.color) },
         )
-        put(
-            WindMark(WindMark.Symbol.Old, 0.0, "").picture,
-            picture(density, densityDpi) { canvas, scale -> dot(canvas, scale, old) },
-        )
+        put(WindSymbol.Old.picture, picture(density, densityDpi) { canvas, scale -> dot(canvas, scale, old) })
     }
 
     private fun picture(density: Float, densityDpi: Int, draw: (Canvas, Float) -> Unit): Bitmap {
@@ -97,9 +99,9 @@ object WindSymbols {
 @Composable
 fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
     val quiet = MaterialTheme.colorScheme.outline
-    ComposeCanvas(modifier.size(28.dp).rotate(mark.heading.toFloat())) {
+    ComposeCanvas(modifier.size(28.dp).rotate(mark.headingDeg.toFloat())) {
         when (val symbol = mark.symbol) {
-            is WindMark.Symbol.Arrow -> {
+            is WindSymbol.Arrow -> {
                 val side = size.minDimension
                 val dart = ComposePath().apply {
                     moveTo(side * 0.5f, side * 0.13f)
@@ -113,8 +115,8 @@ fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
                 drawPath(dart, Color.White, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round))
                 drawPath(dart, symbol.band.color)
             }
-            WindMark.Symbol.Calm -> drawCircle(WindBand.Light.color, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))
-            WindMark.Symbol.Old -> drawCircle(quiet, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))
+            WindSymbol.Calm -> drawCircle(WindBand.LIGHT.color, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))
+            WindSymbol.Old -> drawCircle(quiet, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))
         }
     }
 }

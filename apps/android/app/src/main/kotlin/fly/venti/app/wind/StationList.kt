@@ -49,7 +49,9 @@ import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.numbers
+import fly.venti.core.WindMark
 import fly.venti.core.WindStation
+import fly.venti.core.WindSymbol
 
 /**
  * The sheet over the map for the wind: the stations in view as a list, or
@@ -188,7 +190,7 @@ private fun StationRow(
     now: Long,
     onClick: () -> Unit,
 ) {
-    val mark = WindMark.of(station)
+    val mark = station.mark
     val detail = StationWords.detail(station, now)
     Row(
         modifier = Modifier
@@ -264,10 +266,10 @@ object StationWords {
         if (reading == null || speed == null || station.isOld) {
             return "No current reading. $detail"
         }
-        val parts = mutableListOf("Wind ${Format.kilometresPerHour(speed)} kilometres per hour")
+        val parts = mutableListOf("Wind ${Format.spokenKilometresPerHour(speed)}")
         reading.gustMs?.let { parts += "gusts ${Format.kilometresPerHour(it)}" }
         val from = reading.directionDeg
-        if (mark.symbol is WindMark.Symbol.Arrow && from != null) {
+        if (mark.symbol is WindSymbol.Arrow && from != null) {
             parts += "from ${Format.compassPoint(from)}"
         }
         return parts.joinToString(", ")

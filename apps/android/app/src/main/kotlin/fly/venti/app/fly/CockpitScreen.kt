@@ -508,7 +508,8 @@ private fun WindBadge(wind: WindView, modifier: Modifier = Modifier) {
     Badge(
         modifier.clearAndSetSemantics {
             contentDescription = "Wind"
-            stateDescription = "$speed kilometres per hour from ${Format.compassPoint(wind.fromDeg)}"
+            stateDescription =
+                "${Format.spokenKilometresPerHour(wind.speedMs)} from ${Format.compassPoint(wind.fromDeg)}"
         },
     ) {
         Icon(

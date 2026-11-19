@@ -79,6 +79,12 @@ object Format {
     /** Kilometres per hour, whole, from metres per second. */
     fun kilometresPerHour(metresPerSecond: Double): String = number(metresPerSecond * 3.6, decimals = 0)
 
+    /** A speed as a screen reader says it: "1 kilometre per hour", "12 kilometres per hour". */
+    fun spokenKilometresPerHour(metresPerSecond: Double): String {
+        val whole = kilometresPerHour(metresPerSecond)
+        return if (whole == "1") "1 kilometre per hour" else "$whole kilometres per hour"
+    }
+
     /** A glide ratio with one decimal. */
     fun glideRatio(ratio: Double): String = number(ratio, decimals = 1)
 

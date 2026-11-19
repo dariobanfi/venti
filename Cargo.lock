@@ -2760,6 +2760,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-sources-openaip"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-airspace",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
 name = "venti-store"
 version = "0.1.0"
 dependencies = [

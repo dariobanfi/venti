@@ -14,8 +14,10 @@ Everything is advisory. A record names its source and carries the age of its dat
 |---|---|
 | `venti-domain` | The canonical record, `Airspace`, with its checks |
 | `venti-airspace` | The OpenAir reader, the index with its questions, the warning table and the warning engine. Depends on `venti-domain` only |
+| `venti-sources` | `AirspaceSource`, the adapter trait for providers, and `run_airspace`, the pipeline that runs one |
+| `venti-sources-openaip` | The first provider: openAIP's airspace of Germany and Austria. See [data-sources.md](data-sources.md#airspace) |
 
-A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider.
+A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider. The last two rows are server-side: they produce the records, which reach a client in a region bundle that does not exist yet.
 
 ## The record
 

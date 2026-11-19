@@ -1,0 +1,32 @@
+id = "openaip"
+provider = "openAIP"
+kinds = ["airspace"]
+# The countries whose export files are fetched. openAIP covers the world;
+# adding a country is adding its code here and recording a fixture for it.
+countries = ["DE", "AT"]
+# The export files are rebuilt every day.
+cadence_seconds = 86400
+# The export files are public. Only openAIP's API needs a key, and it is not used.
+auth = "none"
+
+[licence]
+name = "CC BY-NC 4.0"
+commercial = false
+redistribution = true
+# CC BY-NC 4.0 itself has no share-alike term. openAIP's own terms of use
+# add one (see the second constraint), so the stricter reading is declared.
+share_alike = true
+attribution = "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share."
+link = "https://www.openaip.net"
+constraints = [
+    "It must be clearly visible to every user that the data is openAIP's or based on it.",
+    "openAIP's terms of use say that data altered or built upon may be distributed only under the same or a similar licence.",
+    "The data must not be sold on its own, for example as a paid data update. It may ship with a paid app as long as the data stays free.",
+    "The data is not certified. openAIP states that it contains errors and must not be used for primary navigation or flight planning; wherever the app shows it, the app says so.",
+]
+verified_on = "2026-11-19"
+verified_from = [
+    "https://www.openaip.net/",
+    "https://www.openaip.net/legal",
+    "https://www.openaip.net/docs",
+]

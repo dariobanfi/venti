@@ -1,6 +1,6 @@
 # Cockpit checklist: parity with XCTrack
 
-Last revised: 2026-11-18
+Last revised: 2026-11-19
 
 XCTrack is the benchmark for the Fly mode. This document lists what XCTrack does, what our first cockpit release must match, and where we intend to go further.
 
@@ -13,13 +13,15 @@ XCTrack is closed source. This inventory was assembled from:
 | **official** | xctrack.org pages read directly: home, Manual, External Devices, Change Log, Competition, Open Data, JavaScript Interface, Maps, FAQ | 2026-11-18 |
 | **config** | Real exported XCTrack configuration files published on GitHub (versions 0.9.12.x), which reveal widget classes and option names | 2026-11-18 |
 | **tracker** | The developers' public issue tracker, gitlab.com/xcontest-public/xctrack-public | 2026-11-18 |
-| **manual** | Search summaries of the AIR³ manual, which the XCTrack team recommends. Not read directly. | To verify |
+| **manual** | Search summaries of the AIR³ manual, which the XCTrack team recommends. Not read directly, except the airspace parts: [Preferences 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/preferences2/) and [Navigation widgets 2](https://www.fly-air3.com/en/support/air3-xctrack-manual/xctrack-manual/xctrack-widgets-manual/xctrack-pro-widgets-navigation2/), read 2026-11-19. | To verify, apart from airspace |
 
 Items without a tag are **config**. The stable line is 0.9.12.x; 1.0 has been in beta since June 2026 (1.0.7-beta on 2026-10-05).
 
 ## What is built
 
 As of 2026-11-19, in the Rust core and tested by replaying a flight, but not yet flown: the vario pipeline with source fallback, averaged climb, ground speed and course, glide ratio, wind from circling, automatic take-off, landing and circling detection, thermal gain and average, distance and bearing to take-off, the trail behind the glider, crash-safe IGC recording, in-app replay, the vario tone description, and parsers for `LK8EX1`, `POV`, `XCTRC`, `LXWP0` and BlueFly `PRS` with the three serial-style Bluetooth services. Everything else in the tables below is still to do.
+
+Also built, as an engine without a screen: airspace. The crate `venti-airspace` reads OpenAir files, answers what the proximity widget and the side view ask, and produces the warnings; see [airspace.md](airspace.md) and the "Engine" notes in the airspace table below. It is tested on real airspace files and scripted flights. It is not wired into the cockpit, nothing is drawn, and it has not flown.
 
 ## The gap this project fills
 
@@ -146,13 +148,18 @@ Ours: v1, all of it. The missing-data alarm matters most with an external vario.
 
 ## Airspace and obstacles
 
-| XCTrack | Ours |
-|---|---|
-| Airspace by country from airspace.xcontest.org with temporary activations, checked at start, plus custom OpenAir files *(official)* | v1 for static airspace and OpenAir import. Activations depend on a data source; see [data-sources.md](data-sources.md#airspace) |
-| Three warning levels with sounds, on-screen labels and suppression times | v1 |
-| High airspace hidden until close | v1 |
-| Per-class colours and per-airspace floor and ceiling adjustment (1.0, paid) | Later |
-| Obstacle and cable warnings with safety margin and an emergency map zoom | v1 where open cable data exists (Tirol), Later elsewhere |
+| XCTrack | Ours | Engine, as of 2026-11-19 |
+|---|---|---|
+| Airspace by country from airspace.xcontest.org with temporary activations, checked at start, plus custom OpenAir files *(official)* | v1 for static airspace and OpenAir import. Activations depend on a data source; see [data-sources.md](data-sources.md#airspace) | Built: the OpenAir reader, with circles, arcs and both coordinate notations, reporting every airspace it leaves out. Static airspace by country comes from openAIP. Activations: not built; every airspace counts as active |
+| Three warning levels with sounds, on-screen labels and suppression times | v1 | Built: near, very near and inside at XCTrack's margins, plus "entering" from a prediction XCTrack does not have; no flicker at a boundary; silencing for a time, until a time or for the rest of the day. Sounds and labels are the shell's |
+| Flight levels measured against the barometer's standard altitude; an option to force satellite altitude *(manual)* | v1 | Built: exact with a pressure altitude. Without one the limit is taken toward the pilot and the warning marked uncertain. Limits above sea level use the cockpit's altitude; XCTrack uses the altitude at the pilot's QNH |
+| Three kinds of airspace: restricted (warns), warning (class Q, drawn only), glider area (class W) *(official)* | v1 | Built as a table by class, type and country: avoid, caution, free. Danger areas warn, unlike in XCTrack. Glider areas never warn and never open the airspace around them |
+| Per-airspace status: disabled or active, for today or permanently *(manual)* | v1 | Built in part: an airspace can be ignored for a time. Nothing is stored between flights |
+| High airspace hidden until close | v1 | Built: a filter by box and by band of altitudes |
+| Per-class colours and per-airspace floor and ceiling adjustment (1.0, paid) | Later | |
+| Obstacle and cable warnings with safety margin and an emergency map zoom | v1 where open cable data exists (Tirol), Later elsewhere | Not built |
+
+The widgets above that depend on it: the airspace proximity widget (nearest airspace, distance and direction, also the nearest way out from inside) is answered by `AirspaceIndex::nearby`, and the airspace part of the side view by `AirspaceIndex::cross_section`. Terrain for the side view, and for limits above ground, is not built.
 
 ## Livetracking
 

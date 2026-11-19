@@ -1,0 +1,1650 @@
+{
+  "airspaces": [
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:677d59bd13e31af480aca6c2",
+      "lower": "14500 Feet above MeanSeaLevel = 4419.6 m",
+      "name": "CTA GLOCKNER",
+      "shape": "91 corners, 0 holes, 46.5561..47.3361 N, 11.7817..13.6833 E, fc37afd1df530891",
+      "type": "cta",
+      "updated": "2025-01-07T16:45:01.848Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:677d59bd13e31af480aca6c5",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "CTA GLOCKNER",
+      "shape": "91 corners, 0 holes, 46.5561..47.3361 N, 11.7817..13.6833 E, fc37afd1df530891",
+      "type": "cta",
+      "updated": "2025-01-07T16:45:01.971Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "frequencies": [
+        {
+          "mhz": 120.1,
+          "name": "INNSBRUCK TOWER",
+          "primary": true
+        }
+      ],
+      "id": "openaip:677d59be13e31af480aca6d8",
+      "lower": "ground",
+      "name": "CTR LOWI",
+      "shape": "16 corners, 0 holes, 47.1319..47.4167 N, 11.0017..11.8028 E, 28d7a692155050db",
+      "type": "ctr",
+      "updated": "2025-01-07T16:45:05.166Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "frequencies": [
+        {
+          "mhz": 118.1,
+          "name": "SALZBURG TOWER",
+          "primary": true
+        }
+      ],
+      "id": "openaip:677d59be13e31af480aca6e4",
+      "lower": "ground",
+      "name": "CTR LOWS",
+      "shape": "24 corners, 0 holes, 47.6869..48.0219 N, 12.8450..13.1828 E, f31d18916405a364",
+      "type": "ctr",
+      "updated": "2025-01-07T16:45:05.551Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59be13e31af480aca6f3",
+      "lower": "ground",
+      "name": "LOD21 (LIZUM)",
+      "shape": "8 corners, 0 holes, 47.1250..47.2250 N, 11.5750..11.6917 E, 898ce97d200f6b9d",
+      "type": "danger",
+      "updated": "2025-01-07T16:45:06.033Z",
+      "upper": "215 FlightLevel above Standard = 6553.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59be13e31af480aca6f6",
+      "lower": "ground",
+      "name": "LOD22 (HOCHFILZEN)",
+      "shape": "5 corners, 0 holes, 47.4500..47.5250 N, 12.6000..12.7222 E, c4547ae44a239160",
+      "type": "danger",
+      "updated": "2025-01-07T16:45:06.169Z",
+      "upper": "145 FlightLevel above Standard = 4419.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59be13e31af480aca723",
+      "lower": "ground",
+      "name": "LOR7 (LIZUM)",
+      "shape": "8 corners, 0 holes, 47.1250..47.2250 N, 11.5750..11.6917 E, 898ce97d200f6b9d",
+      "type": "restricted",
+      "updated": "2025-01-07T16:45:08.329Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59be13e31af480aca726",
+      "lower": "ground",
+      "name": "LOR8 (HOCHFILZEN)",
+      "shape": "5 corners, 0 holes, 47.4500..47.5250 N, 12.6000..12.7222 E, c4547ae44a239160",
+      "type": "restricted",
+      "updated": "2025-01-07T16:45:08.433Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59bf13e31af480aca818",
+      "lower": "11000 Feet above MeanSeaLevel = 3352.8 m",
+      "lower_at_least": "1500 Feet above AboveGround = 457.2 m",
+      "name": "TMZ LOWI E",
+      "shape": "9 corners, 0 holes, 47.1278..47.6953 N, 11.4458..12.4400 E, c67a888824cc70b3",
+      "type": "tmz",
+      "updated": "2026-11-07T20:25:39.214Z",
+      "upper": "125 FlightLevel above Standard = 3810.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59bf13e31af480aca830",
+      "lower": "ground",
+      "name": "TRA GAISBERG",
+      "shape": "6 corners, 0 holes, 47.7811..47.8261 N, 13.0944..13.1503 E, 83cff8a25ae9e3c5",
+      "type": "tra",
+      "updated": "2025-04-07T06:29:17.044Z",
+      "upper": "5000 Feet above MeanSeaLevel = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59bf13e31af480aca851",
+      "lower": "ground",
+      "name": "TRA LOWI C",
+      "shape": "11 corners, 0 holes, 47.2675..47.4167 N, 11.2206..11.7511 E, faa88474bb2d0047",
+      "type": "tra",
+      "updated": "2025-01-07T16:45:20.412Z",
+      "upper": "11000 Feet above MeanSeaLevel = 3352.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59c013e31af480aca854",
+      "lower": "ground",
+      "name": "TRA LOWI L",
+      "shape": "8 corners, 0 holes, 47.2619..47.2878 N, 11.2936..11.3975 E, e4e00af07e790467",
+      "type": "tra",
+      "updated": "2025-01-07T16:45:20.514Z",
+      "upper": "4500 Feet above MeanSeaLevel = 1371.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "hours_remarks": "https://innsbruckergleitschirmfliegerverein.org/index.php/fluggebiete/ctr\nhttps://tra.airspace.at/",
+        "on_demand": false,
+        "on_request": true,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59c013e31af480aca866",
+      "lower": "ground",
+      "name": "TRA NORDPARK",
+      "shape": "8 corners, 0 holes, 47.2675..47.3536 N, 11.2206..11.6042 E, 2b4709412f552cc0",
+      "type": "tra",
+      "updated": "2026-06-02T20:29:31.596Z",
+      "upper": "8000 Feet above MeanSeaLevel = 2438.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59c013e31af480aca875",
+      "lower": "ground",
+      "name": "TRA SCHWARZENBERG A",
+      "shape": "8 corners, 0 holes, 47.7144..47.8261 N, 13.0944..13.1828 E, 499993fa7ff85543",
+      "type": "tra",
+      "updated": "2025-04-07T06:29:17.032Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:677d59c013e31af480aca878",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "TRA SCHWARZENBERG B",
+      "shape": "6 corners, 0 holes, 47.7839..47.8292 N, 13.1344..13.2783 E, 2b30c1f001221627",
+      "type": "tra",
+      "updated": "2025-04-07T06:29:17.216Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "DE",
+      "id": "openaip:67dbc56ea7f2a48e4ede571f",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "EGGENFELDEN",
+      "shape": "64 corners, 0 holes, 48.2894..48.5042 N, 12.4642..13.0289 E, 68f4b8d19838e46c",
+      "type": "unspecified",
+      "updated": "2025-03-20T07:41:24.147Z",
+      "upper": "2500 Feet above AboveGround = 762.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "DE",
+      "id": "openaip:67dbc56ea7f2a48e4ede5762",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "MUENCHEN",
+      "shape": "65 corners, 0 holes, 47.8081..48.9167 N, 10.4967..12.2861 E, 65d17074e469f4b0",
+      "type": "unspecified",
+      "updated": "2025-03-28T11:56:35.603Z",
+      "upper": "2500 Feet above AboveGround = 762.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "DE",
+      "id": "openaip:67dbc56ea7f2a48e4ede577d",
+      "lower": "1000 Feet above AboveGround = 304.8 m",
+      "name": "SALZBURG",
+      "shape": "10 corners, 0 holes, 47.8058..48.0817 N, 12.7150..12.9044 E, 037decd99211406c",
+      "type": "unspecified",
+      "updated": "2025-03-20T07:41:27.887Z",
+      "upper": "2500 Feet above AboveGround = 762.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee0ca7f2a48e4ee04ec4",
+      "lower": "ground",
+      "name": "ED-R1 GARCHING H24",
+      "shape": "46 corners, 0 holes, 48.2553..48.2819 N, 11.6545..11.6944 E, ed18aa8933dc0211",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:01.350Z",
+      "upper": "3600 Feet above MeanSeaLevel = 1097.3 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee0ca7f2a48e4ee04f6c",
+      "lower": "ground",
+      "name": "ED-R60 OBERPFAFFENH. NOTAM NIGHTTIME",
+      "shape": "45 corners, 0 holes, 48.0731..48.0997 N, 11.2595..11.2994 E, 2bd21ac490289fe4",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:11.874Z",
+      "upper": "430 FlightLevel above Standard = 13106.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee0da7f2a48e4ee05005",
+      "lower": "ground",
+      "name": "ED-R141 ALTENSTADT MON-FRI",
+      "shape": "5 corners, 0 holes, 47.8083..47.8667 N, 10.7833..10.9333 E, a1485e3ced9a8199",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:18.453Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee0da7f2a48e4ee05008",
+      "lower": "ground",
+      "name": "ED-R142 REITERALPE MON-FRI+",
+      "shape": "57 corners, 0 holes, 47.6167..47.6833 N, 12.7583..12.8833 E, f2c9db1933f5e98e",
+      "type": "restricted",
+      "updated": "2026-11-11T22:35:41.676Z",
+      "upper": "12000 Feet above MeanSeaLevel = 3657.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee0da7f2a48e4ee05011",
+      "lower": "ground",
+      "name": "ED-R145 SPATZENHAUSEN MON-THU",
+      "shape": "6 corners, 0 holes, 47.7097..47.7667 N, 11.0717..11.1972 E, 4dbb5872b59d6393",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:18.955Z",
+      "upper": "5000 Feet above MeanSeaLevel = 1524.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05169",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "MUENCHEN",
+      "shape": "32 corners, 0 holes, 48.1856..48.5208 N, 11.1615..12.4359 E, a2994bb3655bb09f",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:33.440Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee0516c",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "MUENCHEN",
+      "shape": "61 corners, 0 holes, 48.3744..48.6149 N, 11.1708..12.5528 E, 970a5be690a4b2d4",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:33.571Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee0516f",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "MUENCHEN",
+      "shape": "57 corners, 0 holes, 48.0899..48.3311 N, 11.0383..12.4253 E, 906c3215a522b06b",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:33.692Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05172",
+      "lower": "65 FlightLevel above Standard = 1981.2 m",
+      "name": "MUENCHEN",
+      "shape": "123 corners, 0 holes, 48.4142..48.7347 N, 10.9086..12.6731 E, 312e0dc935b29b6d",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:33.862Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05175",
+      "lower": "65 FlightLevel above Standard = 1981.2 m",
+      "name": "MUENCHEN",
+      "shape": "121 corners, 0 holes, 47.9701..48.2861 N, 10.9908..12.6836 E, b33f0935ae7e2884",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:34.038Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05178",
+      "lower": "85 FlightLevel above Standard = 2590.8 m",
+      "name": "MUENCHEN",
+      "shape": "135 corners, 0 holes, 48.4983..48.7995 N, 10.8375..12.7383 E, 6294bebfa25584ff",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:34.161Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee0517b",
+      "lower": "85 FlightLevel above Standard = 2590.8 m",
+      "name": "MUENCHEN",
+      "shape": "104 corners, 0 holes, 47.9052..48.2269 N, 10.9394..12.7125 E, c2e609fffd05ac0b",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:34.281Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee0517e",
+      "lower": "5500 Feet above MeanSeaLevel = 1676.4 m",
+      "name": "MUENCHEN",
+      "shape": "110 corners, 0 holes, 48.3208..48.6482 N, 11.0365..12.5864 E, 3b8d5fcedd9cdf73",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:34.403Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05181",
+      "lower": "5500 Feet above MeanSeaLevel = 1676.4 m",
+      "name": "MUENCHEN",
+      "shape": "103 corners, 0 holes, 48.0566..48.3814 N, 11.0594..12.5847 E, 2b2b21cf57ffac92",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:34.518Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee0518d",
+      "lower": "ground",
+      "name": "CTR AUGSBURG",
+      "shape": "5 corners, 0 holes, 48.3458..48.5222 N, 10.7583..11.1014 E, ef6d39cb9cf71280",
+      "type": "ctr",
+      "updated": "2025-03-20T10:30:34.994Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee0fa7f2a48e4ee05190",
+      "lower": "ground",
+      "name": "SEKTOR EDMA SEGELFLUG",
+      "shape": "8 corners, 0 holes, 48.3711..48.4297 N, 10.9031..10.9928 E, 032ac44cfb8ba585",
+      "type": "unspecified",
+      "updated": "2025-03-20T10:30:35.121Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee0521b",
+      "lower": "ground",
+      "name": "CTR LECHFELD",
+      "shape": "5 corners, 0 holes, 48.0717..48.2989 N, 10.7217..11.0017 E, a15ed7e937160698",
+      "type": "ctr",
+      "updated": "2025-03-20T10:30:41.168Z",
+      "upper": "4500 Feet above MeanSeaLevel = 1371.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee05230",
+      "lower": "ground",
+      "name": "CTR MUENCHEN",
+      "shape": "10 corners, 0 holes, 48.2547..48.4564 N, 11.5214..12.0486 E, 04ff4d62a5338d1b",
+      "type": "ctr",
+      "updated": "2025-03-20T10:30:41.990Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee05233",
+      "lower": "ground",
+      "name": "CTR SEKTOR EDNX (HX)",
+      "shape": "5 corners, 0 holes, 48.2736..48.3053 N, 11.5331..11.6211 E, 39610ad5ce4f1432",
+      "type": "unspecified",
+      "updated": "2025-03-20T10:30:42.098Z",
+      "upper": "3000 Feet above MeanSeaLevel = 914.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee0524f",
+      "lower": "ground",
+      "name": "CTR OBERPFAFFENHOFEN",
+      "shape": "5 corners, 0 holes, 47.9789..48.1844 N, 11.1350..11.4306 E, 813c5df561f58985",
+      "type": "ctr",
+      "updated": "2025-03-20T10:30:43.199Z",
+      "upper": "3500 Feet above MeanSeaLevel = 1066.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee05252",
+      "lower": "ground",
+      "name": "UAV-AREA",
+      "shape": "5 corners, 0 holes, 47.9906..48.0492 N, 11.2192..11.3017 E, 011033e1e85f617a",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:43.332Z",
+      "upper": "3000 Feet above MeanSeaLevel = 914.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee05255",
+      "lower": "ground",
+      "name": "UAV-AREA MO-FR",
+      "shape": "8 corners, 0 holes, 48.0786..48.0919 N, 11.3033..11.3181 E, fd14a3d80efa2f1b",
+      "type": "restricted",
+      "updated": "2025-03-20T10:30:43.443Z",
+      "upper": "2300 Feet above MeanSeaLevel = 701.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "id": "openaip:67dbee10a7f2a48e4ee05261",
+      "lower": "ground",
+      "name": "CTR SALZBURG",
+      "shape": "63 corners, 0 holes, 47.7761..48.0203 N, 12.7711..13.0042 E, a2761446fd51283d",
+      "type": "ctr",
+      "updated": "2026-11-18T10:29:12.488Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 123.725,
+          "name": "SALZBURG RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee05348",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "SALZBURG",
+      "shape": "28 corners, 0 holes, 47.9247..48.1278 N, 12.5497..12.8450 E, fec1b6f9ea9cfb41",
+      "type": "tma",
+      "updated": "2026-11-18T10:29:12.464Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 123.725,
+          "name": "SALZBURG RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee0534c",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "SALZBURG",
+      "shape": "6 corners, 0 holes, 47.8058..47.9431 N, 12.6583..12.9044 E, db28ac55e570a9a2",
+      "type": "tma",
+      "updated": "2025-03-20T10:30:51.544Z",
+      "upper": "130 FlightLevel above Standard = 3962.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 123.725,
+          "name": "SALZBURG RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee05350",
+      "lower": "7000 Feet above MeanSeaLevel = 2133.6 m",
+      "name": "SALZBURG",
+      "shape": "20 corners, 0 holes, 47.9431..48.0203 N, 12.7711..12.8992 E, 6321255543c2e98e",
+      "type": "tma",
+      "updated": "2026-11-18T10:29:12.552Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 123.725,
+          "name": "SALZBURG RADAR",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee05354",
+      "lower": "7000 Feet above MeanSeaLevel = 2133.6 m",
+      "name": "SALZBURG",
+      "shape": "66 corners, 0 holes, 47.7756..47.9581 N, 12.7906..13.0042 E, d1fcbee4eba50267",
+      "type": "tma",
+      "updated": "2026-11-18T10:29:12.406Z",
+      "upper": "130 FlightLevel above Standard = 3962.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 120.305,
+          "name": "EGGENFELDEN INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee053b7",
+      "lower": "ground",
+      "name": "RMZ EDME",
+      "shape": "5 corners, 0 holes, 48.3417..48.4500 N, 12.5856..12.8572 E, b37635d926d89597",
+      "type": "rmz",
+      "updated": "2025-03-20T10:30:54.954Z",
+      "upper": "1000 Feet above AboveGround = 304.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "G",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 119.98,
+          "name": "PFARRKIRCHEN RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee053bb",
+      "lower": "ground",
+      "name": "RMZ SEKTOR PFARRKIRCHEN",
+      "shape": "5 corners, 0 holes, 48.4028..48.4347 N, 12.8167..12.8533 E, 8f0b73334ca6a069",
+      "type": "unspecified",
+      "updated": "2025-03-20T10:30:55.058Z",
+      "upper": "1000 Feet above AboveGround = 304.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 131.13,
+          "name": "SCHLEISSHEIM INFORMATION/RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee11a7f2a48e4ee053df",
+      "lower": "ground",
+      "name": "RMZ EDMX",
+      "shape": "9 corners, 0 holes, 48.1772..48.2867 N, 11.4558..11.6778 E, 57fe1b0e7fe9fb86",
+      "type": "rmz",
+      "updated": "2025-03-20T10:30:56.056Z",
+      "upper": "1000 Feet above AboveGround = 304.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 129.805,
+          "name": "LANDSHUT RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee13a7f2a48e4ee0557a",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "BIRKEN-65",
+      "shape": "8 corners, 0 holes, 48.4494..48.5208 N, 12.1147..12.4133 E, e4f208333323a0ef",
+      "type": "glider-sector",
+      "updated": "2025-03-20T10:31:08.525Z",
+      "upper": "65 FlightLevel above Standard = 1981.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 129.805,
+          "name": "LANDSHUT RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee13a7f2a48e4ee0557e",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "BIRKEN-75 UGR. 4500FT",
+      "shape": "59 corners, 0 holes, 48.3744..48.6149 N, 12.0750..12.5528 E, bc099a2624e9efec",
+      "type": "glider-sector",
+      "updated": "2025-03-20T10:31:08.639Z",
+      "upper": "75 FlightLevel above Standard = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 129.805,
+          "name": "LANDSHUT RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee13a7f2a48e4ee0558e",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "GAMMELSDORF UGR. 4500FT",
+      "shape": "5 corners, 0 holes, 48.4853..48.5572 N, 11.8775..11.9667 E, 10788bf6aab50494",
+      "type": "glider-sector",
+      "updated": "2025-03-20T10:31:09.118Z",
+      "upper": "5500 Feet above MeanSeaLevel = 1676.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 129.805,
+          "name": "LANDSHUT RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee13a7f2a48e4ee05596",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "name": "LANDSHUT",
+      "shape": "5 corners, 0 holes, 48.4792..48.5636 N, 11.8214..12.0522 E, cd455b9671761494",
+      "type": "glider-sector",
+      "updated": "2025-03-20T10:31:09.319Z",
+      "upper": "5500 Feet above MeanSeaLevel = 1676.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 129.805,
+          "name": "LANDSHUT RADIO",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee13a7f2a48e4ee0559a",
+      "lower": "3500 Feet above MeanSeaLevel = 1066.8 m",
+      "name": "MOOSBURG",
+      "shape": "5 corners, 0 holes, 48.4525..48.4906 N, 11.8214..11.9703 E, 349c7e8ce7fe9b09",
+      "type": "glider-sector",
+      "updated": "2025-05-21T06:07:33.234Z",
+      "upper": "4500 Feet above MeanSeaLevel = 1371.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 130.65,
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee14a7f2a48e4ee05659",
+      "lower": "ground",
+      "name": "PARA ALTENSTADT ETHA",
+      "remarks": "Parachuting.",
+      "shape": "61 corners, 0 holes, 47.8023..47.8689 N, 10.8212..10.9204 E, 7f3aa36855179848",
+      "type": "aerial-sporting",
+      "updated": "2025-03-20T10:31:14.527Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 120.305,
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbee14a7f2a48e4ee056b1",
+      "lower": "ground",
+      "name": "PARA EGGENFELDEN EDME",
+      "remarks": "Parachuting.",
+      "shape": "60 corners, 0 holes, 48.3628..48.4294 N, 12.6735..12.7737 E, 9207d185bf115740",
+      "type": "aerial-sporting",
+      "updated": "2025-03-20T10:31:17.300Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "DE",
+      "frequencies": [
+        {
+          "mhz": 126.95,
+          "name": "LANGEN INFORMATION",
+          "primary": true
+        }
+      ],
+      "id": "openaip:67dbf09ba7f2a48e4ee0b18d",
+      "lower": "ground",
+      "name": "FIS LANGEN",
+      "shape": "47 corners, 0 holes, 47.6233..48.4728 N, 9.8353..13.1797 E, 3a25c278780a16db",
+      "type": "fis-sector",
+      "updated": "2025-03-20T10:45:03.817Z",
+      "upper": "100 FlightLevel above Standard = 3048.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d1c",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE K11",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "31 corners, 0 holes, 47.0634..47.0820 N, 12.8603..12.9114 E, db1933092742fa10",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.280Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d21",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE K12",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "27 corners, 0 holes, 46.9977..47.0164 N, 12.9512..12.9754 E, aa3c653cb1b2e75e",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.329Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d29",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE K14",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "24 corners, 0 holes, 47.0480..47.0665 N, 12.7655..12.7888 E, 3941b507aeb79231",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.228Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d4a",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T10",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "62 corners, 0 holes, 47.0583..47.0840 N, 12.5355..12.5724 E, 3345b4be6aeb0ffa",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.114Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d50",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T12",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "44 corners, 0 holes, 47.0252..47.0538 N, 12.6876..12.7073 E, cf81a6abe07b5ae3",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:22.955Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d56",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T14",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "15 corners, 0 holes, 47.1025..47.1154 N, 12.5176..12.5401 E, b0c02515d1a3724e",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.218Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d65",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T5",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "60 corners, 0 holes, 46.9737..47.0058 N, 12.2546..12.3226 E, 739de30587827554",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:22.705Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d68",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T6",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "106 corners, 0 holes, 47.0868..47.1536 N, 12.4210..12.5131 E, e8ed1887b543f06a",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.640Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:68428e9cabdf33f4484a6d6e",
+      "lower": "ground",
+      "name": "NATIONALPARK HOHE TAUERN AUSSENZONE T8",
+      "remarks": "Motorized aircrafts below an altitude of 5000 m (16400 ft) not permitted.\nTake-off or landing with non-motorized aerial devices or aircraft that can be operated independently in flight is prohibited.\nThis includes hang- and paragliding, whereby the overflight is allowed.",
+      "shape": "76 corners, 0 holes, 47.0079..47.0328 N, 12.2212..12.3118 E, 50c9b0f83e4ed8b2",
+      "type": "overflight-restriction",
+      "updated": "2025-06-06T07:06:23.363Z",
+      "upper": "16400 Feet above MeanSeaLevel = 4998.7 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae5617614098ca4d5f699",
+      "lower": "7000 Feet above MeanSeaLevel = 2133.6 m",
+      "name": "TMA LOWI 1",
+      "shape": "21 corners, 0 holes, 47.1278..47.4167 N, 10.8744..11.8028 E, 26cc91d95367b328",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:45.059Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae5617614098ca4d5f69c",
+      "lower": "8500 Feet above MeanSeaLevel = 2590.8 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWI 4",
+      "shape": "7 corners, 0 holes, 47.3056..47.4578 N, 11.7475..11.9750 E, 8caa55743998bd06",
+      "type": "tma",
+      "updated": "2026-11-08T19:59:19.346Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae5617614098ca4d5f6a8",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWI",
+      "shape": "7 corners, 0 holes, 47.3056..47.4578 N, 11.7475..11.9750 E, 8caa55743998bd06",
+      "type": "tma",
+      "updated": "2025-11-17T09:10:03.121Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae5617614098ca4d5f6b5",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWI",
+      "shape": "40 corners, 0 holes, 47.3056..47.7417 N, 11.7389..12.4400 E, 21b1d24fa2c6b4a4",
+      "type": "tma",
+      "updated": "2025-11-17T09:10:04.872Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae5617614098ca4d5f6b8",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWI",
+      "shape": "21 corners, 0 holes, 47.1278..47.4167 N, 10.8744..11.8028 E, 26cc91d95367b328",
+      "type": "tma",
+      "updated": "2025-11-17T09:10:06.158Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61521",
+      "lower": "5500 Feet above MeanSeaLevel = 1676.4 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWS 2",
+      "shape": "7 corners, 0 holes, 47.5392..47.6208 N, 13.1356..13.3033 E, fe041d818a4ef49e",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.774Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61524",
+      "lower": "6500 Feet above MeanSeaLevel = 1981.2 m",
+      "name": "TMA LOWS 6",
+      "shape": "7 corners, 0 holes, 47.8700..48.1672 N, 13.1667..13.5000 E, 45fa2eb05a2222c5",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.704Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61527",
+      "lower": "7000 Feet above MeanSeaLevel = 2133.6 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWS 7",
+      "shape": "6 corners, 0 holes, 47.4806..47.5564 N, 13.1356..13.2017 E, 06d5710c0cb887c7",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.717Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d6152a",
+      "lower": "7500 Feet above MeanSeaLevel = 2286.0 m",
+      "name": "TMA LOWS 4",
+      "shape": "8 corners, 0 holes, 47.6703..47.8039 N, 13.1528..13.3547 E, e220161e16c7c66b",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.788Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m",
+      "upper_at_most": "1500 Feet above AboveGround = 457.2 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61530",
+      "lower": "9000 Feet above MeanSeaLevel = 2743.2 m",
+      "name": "TMA LOWS 8",
+      "shape": "5 corners, 0 holes, 47.4367..47.4806 N, 13.1403..13.1911 E, f26486216614fc2f",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.691Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61536",
+      "lower": "10000 Feet above MeanSeaLevel = 3048.0 m",
+      "name": "TMA LOWS 9",
+      "shape": "5 corners, 0 holes, 47.3681..47.4367 N, 13.1417..13.1931 E, 157102949e19e063",
+      "type": "tma",
+      "updated": "2026-11-08T20:47:06.706Z",
+      "upper": "195 FlightLevel above Standard = 5943.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61539",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "6 corners, 0 holes, 47.4806..47.5564 N, 13.1356..13.2017 E, 06d5710c0cb887c7",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.239Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d6153c",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "5 corners, 0 holes, 47.3681..47.4367 N, 13.1417..13.1931 E, 157102949e19e063",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.364Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d6153f",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "8 corners, 0 holes, 47.6703..47.8039 N, 13.1528..13.3547 E, e220161e16c7c66b",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.480Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61542",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "7 corners, 0 holes, 47.5392..47.6208 N, 13.1356..13.3033 E, fe041d818a4ef49e",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.584Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61545",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "56 corners, 0 holes, 47.6103..48.2914 N, 12.7492..13.3375 E, c8888254cdfff948",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.702Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61548",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "7 corners, 0 holes, 47.8700..48.1672 N, 13.1667..13.5000 E, 45fa2eb05a2222c5",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:13.837Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "C",
+      "country": "AT",
+      "id": "openaip:691ae7827614098ca4d61551",
+      "lower": "195 FlightLevel above Standard = 5943.6 m",
+      "name": "TMA LOWS",
+      "shape": "5 corners, 0 holes, 47.4367..47.4806 N, 13.1403..13.1911 E, f26486216614fc2f",
+      "type": "tma",
+      "updated": "2025-11-17T09:15:14.182Z",
+      "upper": "245 FlightLevel above Standard = 7467.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": true
+      },
+      "class": "unclassified",
+      "country": "AT",
+      "id": "openaip:6a906fe523dd57a68bf9ddae",
+      "lower": "ground",
+      "name": "UNTERSBERG",
+      "remarks": "Hang gliding and paragliding. In approach to landing meadow it is permitted to enter CTR Salzburg below 200 M GND.",
+      "shape": "28 corners, 0 holes, 47.7075..47.7508 N, 12.9044..13.0128 E, cf9cf0a411f83247",
+      "type": "tra",
+      "updated": "2026-08-28T05:31:34.144Z",
+      "upper": "7000 Feet above MeanSeaLevel = 2133.6 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "D",
+      "country": "AT",
+      "id": "openaip:6af0d47e8a6c329483179189",
+      "lower": "7500 Feet above MeanSeaLevel = 2286.0 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWI 4",
+      "shape": "7 corners, 0 holes, 47.3056..47.4578 N, 11.7475..11.9750 E, 8caa55743998bd06",
+      "type": "tma",
+      "updated": "2026-11-08T19:59:19.174Z",
+      "upper": "8500 Feet above MeanSeaLevel = 2590.8 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "AT",
+      "id": "openaip:6af0db8a8a6c32948317b899",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWS 2",
+      "shape": "7 corners, 0 holes, 47.5392..47.6208 N, 13.1356..13.3033 E, fe041d818a4ef49e",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.217Z",
+      "upper": "5500 Feet above MeanSeaLevel = 1676.4 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "AT",
+      "id": "openaip:6af0dc348a6c32948317bd85",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWS 4",
+      "shape": "8 corners, 0 holes, 47.6703..47.8039 N, 13.1528..13.3547 E, e220161e16c7c66b",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:44.208Z",
+      "upper": "7500 Feet above MeanSeaLevel = 2286.0 m"
+    },
+    {
+      "activity": {
+        "by_notam": false,
+        "on_demand": false,
+        "on_request": false,
+        "special_agreement": false
+      },
+      "class": "E",
+      "country": "AT",
+      "id": "openaip:6af0dcdc8a6c32948317c2ba",
+      "lower": "4500 Feet above MeanSeaLevel = 1371.6 m",
+      "lower_at_least": "1000 Feet above AboveGround = 304.8 m",
+      "name": "TMA LOWS 6",
+      "shape": "7 corners, 0 holes, 47.8700..48.1672 N, 13.1667..13.5000 E, 45fa2eb05a2222c5",
+      "type": "tma",
+      "updated": "2026-11-08T20:36:45.086Z",
+      "upper": "6500 Feet above MeanSeaLevel = 1981.2 m"
+    }
+  ],
+  "report": {
+    "airspaces": 88,
+    "budget_exhausted": false,
+    "duplicates": 0,
+    "failures": [],
+    "newest_change": "2026-11-18T10:29:12.552Z",
+    "rejected": [],
+    "requests": 2,
+    "skipped": [],
+    "source": "openaip"
+  }
+}

@@ -17,3 +17,10 @@ east = 17.2
 [observations]
 sources = ["dwd-10min", "geosphere-tawes"]
 priority = ["dwd-10min", "geosphere-tawes"]
+
+# Airspace of Germany and Austria from openAIP, which may not be used
+# commercially and stays a layer of its own. The box above also takes in
+# parts of Switzerland, Liechtenstein, Italy, Slovenia, Hungary, Slovakia and
+# Czechia: their airspace is not fetched yet.
+[airspace]
+sources = ["openaip"]

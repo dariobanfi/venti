@@ -1,0 +1,26 @@
+The .geojson files in this folder are data of openAIP, https://www.openaip.net,
+recorded on 2026-11-19 from https://storage.openaip.net/openaip-system-exports/
+and licensed under the Creative Commons Attribution-NonCommercial 4.0
+International License, https://creativecommons.org/licenses/by-nc/4.0/.
+They are not covered by the licence of the code around them.
+
+de_asp.geojson and at_asp.geojson are the airspace exports for Germany and
+Austria, cut down to the features that reach into the northern Alps around
+Munich, Innsbruck and Salzburg and have no more than 250 (Germany) or 110
+(Austria) corners. Each feature kept is as openAIP published it, with one
+exception: the fields "createdBy" and "updatedBy", which hold the user
+identifiers of openAIP's contributors, are removed. The adapter does not
+read them, and this repository holds no personal data.
+
+To record them again: fetch de_asp.geojson and at_asp.geojson from the
+address above and keep the features whose bounding box touches
+47.2..48.5 N, 10.9..13.2 E (Germany) or 47.0..47.95 N, 10.9..13.2 E
+(Austria), within the corner limits, in the order of the file. Then run the
+tests with VENTI_UPDATE_GOLDEN=1 and review what changed.
+
+at_asp_damaged.geojson is not openAIP's data as published: it is eight
+features of at_asp.geojson, seven of them deliberately broken, to test how
+the adapter reports what it cannot read. The test that uses it says how
+each is broken.
+
+openAIP's data is not certified and must not be used for navigation.

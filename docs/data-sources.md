@@ -61,6 +61,18 @@ pub trait ObservationSource: Send + Sync {
 
 `PlanCtx` carries the time of the run and the area it covers. Because an adapter never touches the network, its tests are recorded payloads in and canonical records out, and no adapter can skip the archive, the request budget or validation.
 
+`AirspaceSource` has the same three methods and returns airspaces. What differs is the run around it, because airspace is a different kind of data:
+
+| | Observations | Airspace |
+|---|---|---|
+| Changes | Every ten minutes | With the 28-day publication cycle of aviation data; openAIP rebuilds its files daily |
+| A run delivers | What is new, in pieces that are merged | The whole set, which replaces the one before |
+| A request that fails | Tolerated up to one in ten: a station is offline | Makes the run unfit to replace the last set. A country that could not be fetched would be airspace nobody is warned about |
+| A record that fails validation | Loses the faulty value | Is removed whole and reported by name |
+| A record the adapter cannot read | Is skipped and reported | The same, with one difference: a limit that cannot be read is replaced by the ground or by "unlimited" and the airspace is kept, larger than published |
+
+The canonical record, what is checked and how the cockpit uses it are in [airspace.md](airspace.md).
+
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
 
 ### Manifest
@@ -118,9 +130,16 @@ east = 17.2
 [observations]
 sources = ["dwd-10min", "geosphere-tawes"]
 priority = ["dwd-10min", "geosphere-tawes"]   # wins when two sources report the same station
+
+[airspace]
+sources = ["openaip"]
 ```
 
-Region packs live in `regions/<id>/region.toml`. The area is a bounding box for now; a boundary polygon replaces it when a region needs a shape a box cannot express. Sections for the other kinds (airspace, map layers and so on) are added as those kinds are built.
+Region packs live in `regions/<id>/region.toml`. The area is a bounding box for now; a boundary polygon replaces it when a region needs a shape a box cannot express. Sections for the other kinds (map layers and so on) are added as those kinds are built.
+
+A region may leave `[airspace]` out. Airspace from two sources is never merged, so `priority` there says which layer a client prefers where two cover the same air, not which fields win. A build checks a region's airspace sources against its adapters only if it has airspace adapters at all: a server that collects observations only must not be stopped by a section it takes no notice of.
+
+A manifest needed nothing new for airspace beyond the kind. `cadence_seconds` is how often the provider publishes, a day for openAIP, and the request budget and the staleness rule follow from it as for any source.
 
 ### Pipeline
 
@@ -184,9 +203,15 @@ As of 2026-11-19:
 | Daily canary | Built as a CI workflow |
 | Request limits | The per-run budget from the hourly limit and a concurrency cap at the per-second limit are enforced by the pipeline. The scheduler spaces runs by the cadence, also after failures and restarts. A true per-second rate limit is not built; no source that makes many requests publishes one. |
 | Resolve stage, change events | Designed, not built. Until resolve exists, a station reported by two sources is two stations. |
-| Every kind other than observations | Designed, not built |
+| Canonical type for airspace (`venti-domain`), and reading and questioning it (`venti-airspace`) | Built; see [airspace.md](airspace.md) |
+| `AirspaceSource`, its registry and its run with stages 1 to 4 (`venti-sources`); the `[airspace]` section of a region pack (`venti-regions`) | Built |
+| Adapter: `openaip` | Built, with fixtures recorded 2026-11-19 and golden files |
+| Airspace in the server: collecting, storing, serving, the canary, region bundles | Not built. The adapter is in no registry yet, so `venti-server ingest` and the canary do not run it |
+| Every kind other than observations and airspace | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
+
+On 2026-11-19 openAIP's export files for Germany and Austria were fetched by hand from the address the adapter uses, without a key: 756 and 262 airspaces, 2.0 MB and 0.8 MB, both written that night. The adapter has run over the trimmed recordings of those files only, never against the live store.
 
 On 2026-11-19 the server ran against the live providers and a real database for 22 minutes: three scheduled runs per source, all healthy, the same 50 and 267 stations, 1638 observations stored. The newest German values were 25 to 44 minutes old when fetched, the Austrian ones under ten. Of the 1939 observations the second and third runs delivered, 1272 were already stored; one of them had changed and was rewritten. The raw payloads of those six runs were 318 files and 5 MB, which makes about 240 MB a day.
 
@@ -236,13 +261,25 @@ No open real-time lightning source was found.
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| DFS AIP data sets | Official German airspace as AIXM, per AIRAC cycle, no key | Reported as CC BY 4.0 since November 2026 *(to verify in writing)* | Open after confirmation |
+| DFS AIP data sets | Official German airspace as AIXM, per AIRAC cycle, no key | CC BY 4.0 for the airspace data sets, stated on DFS's own pages and read there on 2026-11-19; see below. Not confirmed by letter | Open after confirmation. Not used; no adapter |
 | DAeC OpenAir file | Germany including glider sectors | No licence stated | Ask |
 | Austro Control | Austrian airspace as OpenAir and KML | Own terms; re-serving not addressed | Ask |
-| openAIP | Worldwide airspace, airports, obstacles, hotspots | CC BY-NC 4.0 | Open, non-commercial, kept as a separate layer |
+| openAIP | Worldwide airspace, airports, obstacles, hotspots. Airspace per country as GeoJSON and OpenAir files, rebuilt daily, no key | CC BY-NC 4.0, verified 2026-11-19, with a share-alike condition in openAIP's own terms; see below | **Built** for the airspace of Germany and Austria. Non-commercial, kept as a separate layer |
 | XContest airspace service | Airspace curated for paragliding with activation status | No published terms | Ask |
 
 **Activation times are the gap.** There is no open machine-readable feed of which restricted areas are active today, in either country. XContest maintains one by hand. Austria publishes a daily plan as a PDF. Until this is solved, the app shows restricted areas as potentially active and says so.
+
+**openAIP, as read on its own pages on 2026-11-19:**
+
+- *Licence.* The home page and the footer of every page: "OpenAIP data is licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license." The legal page ([openaip.net/legal](https://www.openaip.net/legal)) adds terms of use: the data must be attributed so that "it must be clearly visible to any user that the used data is openAIP data or is based on openAIP data"; it may not be sold on its own but "you may ship openAIP data with paid/commercial applications as long as you don't exclusively sell openAIP data"; and "If you alter, transform, or build upon openAIP Data, you may distribute the resulting work only under the same or similar license to this one." That last sentence is a share-alike condition, which CC BY-NC 4.0 itself does not contain. The manifest declares the stricter reading. **For the owner to decide:** whether to ask openAIP which of the two holds.
+- *Credit.* The wording openAIP offers, used as the manifest's credit line: "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share."
+- *Warranty.* "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors." The app must say so wherever it shows this data; it is a constraint in the manifest.
+- *Access without a key.* The documentation ([openaip.net/docs](https://www.openaip.net/docs)): "The export files are stored in the public S3 object storage bucket openaip-system-exports and can be downloaded anonymously via HTTPS from: https://storage.openaip.net/openaip-system-exports/ ... The export files are created on a daily basis ... without authentication or credentials. Each file is available at `https://storage.openaip.net/openaip-system-exports/<filename>`, where the filename follows the pattern `<country>_<type>.<extension>`." Only the API needs an account and a key; the adapter does not use it. The owner has nothing to sign up for.
+- *Format.* The adapter reads `<country>_asp.geojson`. It carries more than the OpenAir exports (hours, NOTAM and on-request flags, the period of temporary areas, a second floor, remarks, change times, a stable identifier) and gives corners in decimal degrees where the OpenAir exports round to whole seconds. The numbers in it are explained by openAIP's [schema](https://api.core.openaip.net/api/schemas/response/airspace/airspace-schema.json).
+- *To verify:* whether the hours of operation are UTC or local; what tells "on demand" from "on request".
+- *Gap.* Only Germany and Austria are fetched. The first region's box also takes in parts of Switzerland, Liechtenstein, Italy, Slovenia, Hungary, Slovakia and Czechia. Their airspace is missing until their codes are added to the manifest, which is one line and a recorded fixture each; the warning table has rules by class and type for any country and special ones only for Germany and Austria.
+
+**DFS, as read on its own pages on 2026-11-19, not used:** [aip.dfs.de/datasets](https://aip.dfs.de/datasets/) states under "Copyrights and terms of use": "Aeronautical data originated by DFS is published under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). This means that the data may be used for a wide range of purposes, including commercial purposes, provided DFS is credited as the rights holder." Data originated by airport operators is CC BY-NC 4.0, and for data from other originators the originator must be asked. The [terms document](https://aip.dfs.de/datasets/documentation/Nutzungsbedingungen_EN_Website.pdf) linked there lists the licence per data set, among them "Airspace ReferencedBorders: CC-BY-4.0" and "Airspace StrokedBorders: CC-BY-4.0", and adds: "The specific licence terms will be documented shortly in the metadata for the data sets, but the data sets may already be used as described above." So the statement can be verified in writing on the provider's own page. **For the owner to decide:** whether that page is confirmation enough or the letter in [Outreach](#outreach) is still wanted. Not checked: whether the airspace data set contains glider sectors, and which of its parts come from other originators.
 
 ### Obstacles and cables
 
@@ -320,7 +357,7 @@ Permissions to request, roughly in order of how much they block. AI sessions dra
 | DHV | Permission to use and re-serve the site database | Authoritative site data |
 | XContest | Use of the airspace activation data; flight cross-posting; acceptance of tracks recorded by the app | Airspace activations, community adoption |
 | thermal.kk7.ch | Use of thermal and skyways tiles, with expected load | Thermal overlay |
-| DFS | Written confirmation of the CC BY 4.0 terms | German airspace |
+| DFS | Written confirmation of the CC BY 4.0 terms. Since 2026-11-19 they are known to be stated on DFS's own page, per data set; whether a letter is still wanted is the owner's decision | German airspace |
 | Austro Control | Permission to re-serve airspace and obstacle files | Austrian airspace |
 | Land Tirol | Confirmation of licence for the station files and the obstacle dataset; they ask to be notified of use | Tirol stations, cables |
 | Avalanche services Bavaria, Salzburg, Vorarlberg, Carinthia | Access to station data | Mountain wind |

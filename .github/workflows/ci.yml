@@ -15,6 +15,24 @@ jobs:
   rust:
     name: Format, lint, test
     runs-on: ubuntu-latest
+    # The store's behavioural suite runs against a real PostgreSQL with
+    # PostGIS. The password is not a secret: the database lives for one job.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: venti
+          POSTGRES_PASSWORD: venti
+          POSTGRES_DB: venti
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username venti --dbname venti"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      VENTI_TEST_DATABASE_URL: postgres://venti:venti@127.0.0.1:5432/venti
     steps:
       - uses: actions/checkout@v4
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.

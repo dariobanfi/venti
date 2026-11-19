@@ -118,10 +118,40 @@ impl BoundingBox {
         })
     }
 
+    /// Southern edge, degrees of latitude.
+    pub fn south(&self) -> f64 {
+        self.south
+    }
+
+    /// Western edge, degrees of longitude.
+    pub fn west(&self) -> f64 {
+        self.west
+    }
+
+    /// Northern edge, degrees of latitude.
+    pub fn north(&self) -> f64 {
+        self.north
+    }
+
+    /// Eastern edge, degrees of longitude.
+    pub fn east(&self) -> f64 {
+        self.east
+    }
+
     /// Whether the point lies inside the box, edges included.
     pub fn contains(&self, point: GeoPoint) -> bool {
         (self.south..=self.north).contains(&point.lat())
             && (self.west..=self.east).contains(&point.lon())
+    }
+
+    /// The smallest box that contains both this box and `other`.
+    pub fn cover(&self, other: &BoundingBox) -> BoundingBox {
+        BoundingBox {
+            south: self.south.min(other.south),
+            west: self.west.min(other.west),
+            north: self.north.max(other.north),
+            east: self.east.max(other.east),
+        }
     }
 }
 
@@ -175,6 +205,18 @@ mod tests {
         assert!(alps.contains(GeoPoint::new(47.42, 10.98).unwrap()));
         assert!(alps.contains(GeoPoint::new(46.3, 9.4).unwrap()));
         assert!(!alps.contains(GeoPoint::new(52.9, 12.8).unwrap()));
+    }
+
+    #[test]
+    fn cover_contains_both_boxes() {
+        let alps = BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap();
+        let north = BoundingBox::new(52.0, 8.0, 54.0, 12.0).unwrap();
+        let both = alps.cover(&north);
+        assert_eq!(
+            (both.south(), both.west(), both.north(), both.east()),
+            (46.3, 8.0, 54.0, 17.2)
+        );
+        assert_eq!(alps.cover(&alps), alps);
     }
 
     #[test]

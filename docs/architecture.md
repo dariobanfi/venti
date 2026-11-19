@@ -41,7 +41,7 @@ Three ideas carry the design:
 
 ## Rust workspace
 
-Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `ingest`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `sensors` (sentence parsers for external varios), `core` (the logbook on the device and the cockpit session), `core-wasm` (the core for the browser) and the iOS shell in `apps/ios`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`.
+Packages are named `venti-<directory>`, for example `venti-domain`. Built so far: `domain`, `sources`, `sources-dwd`, `sources-geosphere`, `regions`, `ingest`, `api-types`, `store`, `flight` (flight files, track summary, track views for drawing, and the live flight computer), `sensors` (sentence parsers for external varios), `core` (the logbook on the device and the cockpit session), `core-wasm` (the core for the browser) and the iOS shell in `apps/ios`. The rest are planned. `tools/uniffi-bindgen-swift` generates the Swift interface of `core`.
 
 ```
 crates/
@@ -54,9 +54,10 @@ crates/
   regions        Loads and validates region packs.
   ingest         Runs a region's sources against the live providers. Development tool
                  and canary until the server exists, then it is folded into `server`.
-  store          Server persistence (PostgreSQL/PostGIS).
+  store          Server persistence behind one interface: PostgreSQL with PostGIS,
+                 and an in-memory twin for tests and the development mode.
   client-store   Client offline store (SQLite) and sync.
-  api-types      Request and response types shared by server and clients.
+  api-types      The wire format of the HTTP API, shared by server and clients. No I/O.
   tools          Assistant tool definitions: one definition, served in-app and over MCP.
   llm            Provider clients for the in-app assistant.
   core           Client application core: state, events, view models. UniFFI exports.
@@ -79,10 +80,12 @@ docs/
 
 - Dependencies point inward. `domain` depends on nothing in the workspace. `flight`, `sensors` and `sources` depend on `domain`. Everything else may depend on those.
 - A `sources-*` crate depends only on `domain` and `sources`. No other crate may name a provider-specific type.
+- `api-types` and `store` depend only on `domain`. The wire format must stay usable in a browser and on a phone, and the store must not know how data was fetched.
+- Nothing a client is built from reaches a server-side crate: `core`, and every crate that depends on it, never depends on `store`, `server`, `sources`, `regions` or a provider crate, not even through another crate.
 - `flight` and `sensors` do no I/O and read no clock. Time, positions and bytes are passed in, which makes every algorithm replayable from recorded data.
 - UI shells contain no business rules. If a shell needs an `if` about flying, the logic belongs in `core`.
 
-The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than a binary that assembles the registry depends on a provider crate, and it holds `core-wasm` to depending on `core` alone. Add the rules for `flight` and `sensors` to it when those crates are created.
+The test `crates/sources/tests/dependency_rules.rs` enforces the first two rules on every CI run by reading the crate dependency graph. It also fails if anything other than a binary that assembles the registry depends on a provider crate, if `api-types` or `store` grows a workspace dependency besides `domain`, or if a client crate can reach a server-side one, and it holds `core-wasm` to depending on `core` alone. Add the rules for `flight` and `sensors` to it when those crates are created.
 
 ## Clients
 
@@ -322,6 +325,7 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 
 - **Replay tests.** The flight engine is tested by feeding it recorded flights and sensor logs and comparing against stored results. The cockpit can be run on the ground from a recorded flight.
 - **Adapter contract tests.** See [data-sources.md](data-sources.md#testing).
+- **One store suite, two stores.** The behaviour of the store is written once (`crates/store/tests/suite`) and run against the in-memory store everywhere and against a real PostgreSQL with PostGIS in CI. Locally the PostgreSQL run needs `VENTI_TEST_DATABASE_URL` and is skipped without it; CI refuses to skip it.
 - **CI gates:** formatting, lints with warnings as errors, tests, the dependency-graph test, and a licence check on dependencies (`deny.toml`). All of them run on every push.
 - **Decisions are written down.** A change to anything in the decision log below updates the log in the same commit.
 
@@ -363,4 +367,9 @@ Realtime coverage is uneven: Germany has it, Tirol and Salzburg do not *(to veri
 | 2026-11-18 | The interface is checked by UI tests that publish screenshots | AI sessions cannot run Xcode or a simulator; without this nobody sees a change before the owner does | A session can drive a Mac directly |
 | 2026-11-18 | Adapters are pure: they plan requests and parse responses, and the pipeline does all I/O | Adapters are testable from recorded payloads alone, and none can skip archiving, request budgets or validation | Not expected |
 | 2026-11-18 | Validation removes an implausible value rather than the whole observation | One faulty sensor should not cost a good wind reading | Not expected |
+| 2026-11-19 | The store is one interface with two implementations, PostgreSQL and in memory, held to one behavioural suite | The development mode and every API test run without a database, and cannot drift from what PostgreSQL does | A third store is wanted |
+| 2026-11-19 | `tokio-postgres` with a `deadpool` pool and hand-written SQL; migrations are numbered SQL files compiled in and applied at start, all pending ones in one transaction | Few dependencies, no macros, no build-time database; a failed upgrade leaves the schema as it was. The connection is not encrypted because the database is on the same host. | The database moves to another machine (add TLS), or a migration needs a statement that cannot run in a transaction |
+| 2026-11-19 | Observations are partitioned by month; a partition is created when its first observation arrives, and retention is counted in whole months (thirteen by default) | Dropping a partition removes a month at almost no cost, where deleting rows by time would scan the table. Creating on arrival cannot be forgotten the way a scheduled job can. | A source with far finer resolution than ten minutes makes a month too large |
+| 2026-11-19 | A station's position is a `geography` column; box queries use a spatial index over its planar (`geometry`) view | A map viewport is a box in longitude and latitude, whose edges are not straight on the globe: the geography index would miss stations near them. Geography stays the column type for distance queries, which get their own index when the first one is written. | Queries by distance arrive |
+| 2026-11-19 | Storing an observation again merges it field by field, and unchanged rows are not rewritten | Providers publish wind and temperature at different times, and one failed request must not erase what an earlier run stored. Each run delivers hours of data again; rewriting it would only make garbage. | Not expected |
 | Open | How AI sessions inspect the running server | Needed to maintain it | Owner orders the server |

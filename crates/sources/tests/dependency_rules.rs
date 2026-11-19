@@ -6,12 +6,18 @@
 //! - Only binaries that assemble the registry depend on provider crates, so
 //!   no other code can name a provider-specific type.
 //! - `venti-flight` and `venti-sensors` depend only on `venti-domain`.
+//! - `venti-api-types`, the wire format shared by server and clients, and
+//!   `venti-store`, the server's persistence, depend only on `venti-domain`.
 //! - `venti-core`, the client core, never depends on the source framework:
 //!   clients talk to our server, never to a data provider.
 //! - `venti-core-wasm`, the browser's binding, depends only on `venti-core`:
 //!   like every shell it calls the core and nothing below it.
+//! - Nothing a client is built from reaches a server-side crate: a crate
+//!   that depends on `venti-core`, and `venti-core` itself, never depends on
+//!   the store, the server, the source framework or the region packs, not
+//!   even through other crates.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::process::Command;
 
 /// Crates that assemble the registry and may therefore depend on provider crates.
@@ -64,8 +70,15 @@ fn crate_dependencies_point_inward() {
     for (name, dependencies) in &graph {
         let allowed: Option<&[&str]> = match name.as_str() {
             "venti-domain" => Some(&[]),
-            "venti-sources" | "venti-flight" | "venti-sensors" => Some(&["venti-domain"]),
-            "venti-core" => Some(&["venti-domain", "venti-flight", "venti-sensors"]),
+            "venti-sources" | "venti-flight" | "venti-sensors" | "venti-api-types"
+            | "venti-store" => Some(&["venti-domain"]),
+            "venti-regions" => Some(&["venti-domain", "venti-sources"]),
+            "venti-core" => Some(&[
+                "venti-domain",
+                "venti-flight",
+                "venti-sensors",
+                "venti-api-types",
+            ]),
             "venti-core-wasm" => Some(&["venti-core"]),
             provider if is_provider(provider) => Some(&["venti-domain", "venti-sources"]),
             _ => None,
@@ -89,6 +102,62 @@ fn crate_dependencies_point_inward() {
 
     assert!(
         graph.contains_key("venti-domain"),
+        "workspace metadata looks wrong: {graph:?}"
+    );
+    assert!(
+        problems.is_empty(),
+        "dependency rules broken:\n{}",
+        problems.join("\n")
+    );
+}
+
+/// Whether a crate exists only for the server.
+fn is_server_side(name: &str) -> bool {
+    is_provider(name)
+        || [
+            "venti-server",
+            "venti-store",
+            "venti-sources",
+            "venti-regions",
+        ]
+        .contains(&name)
+}
+
+/// Every workspace crate `name` depends on, directly or through others.
+fn reachable(graph: &BTreeMap<String, Vec<String>>, name: &str) -> BTreeSet<String> {
+    let mut seen = BTreeSet::new();
+    let mut queue = vec![name.to_owned()];
+    while let Some(next) = queue.pop() {
+        for dependency in graph.get(&next).into_iter().flatten() {
+            if seen.insert(dependency.clone()) {
+                queue.push(dependency.clone());
+            }
+        }
+    }
+    seen
+}
+
+#[test]
+fn clients_never_reach_server_side_crates() {
+    let graph = workspace_dependencies();
+    let mut problems = Vec::new();
+
+    for name in graph.keys() {
+        let dependencies = reachable(&graph, name);
+        let is_client = name == "venti-core" || dependencies.contains("venti-core");
+        if !is_client {
+            continue;
+        }
+        for dependency in dependencies.iter().filter(|d| is_server_side(d)) {
+            problems.push(format!(
+                "{name} is part of a client and must not depend on {dependency}, \
+                 directly or through another crate"
+            ));
+        }
+    }
+
+    assert!(
+        graph.contains_key("venti-core"),
         "workspace metadata looks wrong: {graph:?}"
     );
     assert!(

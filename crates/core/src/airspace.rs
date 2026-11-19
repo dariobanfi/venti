@@ -203,7 +203,7 @@ pub struct AirspaceFile {
 #[derive(Debug, uniffi::Object)]
 pub struct AirspaceSet {
     pub(crate) index: AirspaceIndex,
-    policy: PolicyTable,
+    pub(crate) policy: PolicyTable,
     /// What each source identifier stands for.
     sources: Vec<Source>,
     /// The areas for which the airspace kept from the server is complete,
@@ -265,7 +265,7 @@ impl AirspaceSet {
 impl AirspaceSet {
     /// Where an airspace came from, under which name, and the date of its
     /// data.
-    fn origin(&self, airspace: &Airspace) -> (AirspaceOrigin, String, Option<i64>) {
+    pub(crate) fn origin(&self, airspace: &Airspace) -> (AirspaceOrigin, String, Option<i64>) {
         let known = self
             .sources
             .iter()
@@ -629,7 +629,7 @@ fn ring(points: &[GeoPoint]) -> Vec<Coordinate> {
         .collect()
 }
 
-fn policy_view(policy: Policy) -> AirspacePolicy {
+pub(crate) fn policy_view(policy: Policy) -> AirspacePolicy {
     match policy {
         Policy::Avoid => AirspacePolicy::Avoid,
         Policy::Caution => AirspacePolicy::Caution,
@@ -639,7 +639,7 @@ fn policy_view(policy: Policy) -> AirspacePolicy {
 
 /// A limit as published: "GND", "UNL", "FL 95", "5000 ft AMSL",
 /// "300 m AGL".
-fn limit_in_words(limit: &VerticalLimit) -> String {
+pub(crate) fn limit_in_words(limit: &VerticalLimit) -> String {
     let value = limit.value();
     let number = if value.fract() == 0.0 {
         format!("{value:.0}")
@@ -662,7 +662,7 @@ fn limit_in_words(limit: &VerticalLimit) -> String {
 }
 
 /// What an airspace is, in words: its class where it has one, and its type.
-fn kind_in_words(airspace: &Airspace) -> String {
+pub(crate) fn kind_in_words(airspace: &Airspace) -> String {
     let class = match airspace.class {
         AirspaceClass::A => Some("A"),
         AirspaceClass::B => Some("B"),

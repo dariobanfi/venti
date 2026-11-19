@@ -9,6 +9,9 @@ struct FlightDetailsSheet: View {
     let flight: FlightView
     /// What happened in the flight, once it has been worked out.
     let analysis: FlightAnalysis?
+    /// The flight checked against the airspace the app has, once that is
+    /// done.
+    let airspace: FlightAirspace?
     /// Called with a position in the flight's track to mark.
     let onSelect: (Int) -> Void
 
@@ -36,6 +39,31 @@ struct FlightDetailsSheet: View {
                         Text("Cross-country")
                     } footer: {
                         Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm == 1 ? "1 point" : "\(score.pointsPerKm.formatted()) points") per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
+                    }
+                }
+                if let airspace {
+                    Section {
+                        ForEach(Array(airspace.crossings.enumerated()), id: \.offset) { _, crossing in
+                            Button {
+                                onSelect(Int(crossing.entry.trackIndex))
+                            } label: {
+                                AirspaceCrossingRow(crossing: crossing, flightStart: flight.startUnixS)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("airspace-crossing-row")
+                        }
+                        if airspace.cover == .none {
+                            Text("Not checked: the app has no airspace where this flight was flown.")
+                                .foregroundStyle(.secondary)
+                        } else if airspace.crossings.isEmpty {
+                            Text("The flight entered none of the airspace the app has.")
+                                .foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("Airspace")
+                    } footer: {
+                        Text(Self.caveat(for: airspace.cover))
                     }
                 }
                 if let analysis, analysis.takeoff != nil {
@@ -128,6 +156,16 @@ struct FlightDetailsSheet: View {
         }
     }
 
+    /// What the airspace check can and cannot say.
+    static func caveat(for cover: AirspaceCover) -> String {
+        let limits = "Checked against the airspace the app has today, not the airspace of the day of the flight, and without knowing what was active. A help for your own review, nothing more."
+        return switch cover {
+        case .none: "Add an airspace file or set a Venti server under Settings, and the flight is checked against what the app then has."
+        case .partly: "Part of this flight lies where the app has no airspace; of that part nothing is known. \(limits)"
+        case .whole: limits
+        }
+    }
+
     /// "FAI triangle, closed", "Free flight".
     private static func name(of score: FlightScore) -> String {
         let kind =
@@ -153,6 +191,37 @@ struct FlightDetailsSheet: View {
 }
 
 /// One thermal: when, how much height, how fast, and the wind it showed.
+/// One stretch of the flight inside an airspace, or possibly inside it.
+private struct AirspaceCrossingRow: View {
+    let crossing: AirspaceCrossing
+    let flightStart: Int64
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: crossing.uncertain == nil ? "exclamationmark.triangle.fill" : "questionmark.circle")
+                .foregroundStyle(Color(uiColor: AirspaceLayers.color(for: crossing.policy)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(crossing.name.isEmpty ? "Unnamed airspace" : crossing.name)
+                    .foregroundStyle(.primary)
+                Text("\(crossing.kind) · \(crossing.lower) to \(crossing.upper)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("\(Format.time(unixSeconds: flightStart + Int64(crossing.entry.seconds))) · \(Format.metres(crossing.lowestM)) to \(Format.metres(crossing.highestM)) m")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let uncertain = crossing.uncertain {
+                    Text(uncertain)
+                        .font(.subheadline)
+                }
+            }
+            Spacer(minLength: 8)
+            Text("\(Format.minutesSeconds(seconds: Int64(crossing.seconds))) min")
+                .foregroundStyle(.primary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct ThermalRow: View {
     let thermal: ThermalSummary
     let flightStart: Int64

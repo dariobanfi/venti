@@ -183,6 +183,15 @@ final class LogbookModel {
         }.value
     }
 
+    /// A flight checked against the airspace the app has. Runs off the
+    /// main thread.
+    func airspace(of id: String) async throws -> FlightAirspace {
+        let core = self.core
+        return try await Task.detached(priority: .userInitiated) {
+            try core.flightAirspace(id: id)
+        }.value
+    }
+
     /// Writes a flight's file to a temporary folder, to be shared or saved
     /// elsewhere, and returns where it is.
     func exportFile(id: String) async throws -> URL {

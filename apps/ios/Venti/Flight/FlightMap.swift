@@ -11,6 +11,8 @@ struct FlightMap: UIViewRepresentable {
     var cursor: TrackPoint?
     /// The scored route to draw, once the flight has been analysed.
     var score: FlightScore?
+    /// The airspace around the flight that the app has, to draw under it.
+    var airspace: [AirspaceShape] = []
     /// How much of the map the bars and the panel cover, from each edge.
     var covered: UIEdgeInsets
 
@@ -28,7 +30,7 @@ struct FlightMap: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
-        context.coordinator.update(map, cursor: cursor, covered: covered, score: score)
+        context.coordinator.update(map, cursor: cursor, covered: covered, score: score, airspace: airspace)
     }
 
     @MainActor
@@ -37,13 +39,20 @@ struct FlightMap: UIViewRepresentable {
         private var cursor: TrackPoint?
         private var score: FlightScore?
         private var covered = UIEdgeInsets.zero
+        private var airspace: [AirspaceShape] = []
+        private var drawnAirspace: [AirspaceShape]?
         private var isStyleLoaded = false
 
         init(flight: FlightView) {
             self.flight = flight
         }
 
-        func update(_ map: MLNMapView, cursor: TrackPoint?, covered: UIEdgeInsets, score: FlightScore?) {
+        func update(
+            _ map: MLNMapView, cursor: TrackPoint?, covered: UIEdgeInsets, score: FlightScore?,
+            airspace: [AirspaceShape]
+        ) {
+            self.airspace = airspace
+            drawAirspace(on: map)
             if score != self.score {
                 self.score = score
                 drawRoute(on: map)
@@ -59,14 +68,25 @@ struct FlightMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            // Airspace lowest of all, under the route and the track.
+            AirspaceLayers.add(to: style)
             addRoute(to: style)
             addTrack(to: style)
             addEnds(to: style)
             addCursor(to: style)
             isStyleLoaded = true
             frame(mapView)
+            drawnAirspace = nil
+            drawAirspace(on: mapView)
             drawRoute(on: mapView)
             markCursor(on: mapView)
+        }
+
+        /// Draws the airspace around the flight, when it has changed.
+        private func drawAirspace(on map: MLNMapView) {
+            guard isStyleLoaded, airspace != drawnAirspace, let style = map.style else { return }
+            drawnAirspace = airspace
+            AirspaceLayers.show(airspace, in: style)
         }
 
         /// Fits the whole track into the part of the map that shows.

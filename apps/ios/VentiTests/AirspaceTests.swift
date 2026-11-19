@@ -227,6 +227,35 @@ final class AirspaceTests: XCTestCase {
         )
     }
 
+    func testAFlightIsCheckedAgainstTheAirspaceTheAppHas() async throws {
+        let folder = try makeFolder()
+        let core = try Core(dataFolder: folder.path)
+        let logbook = LogbookModel(core: core, folder: folder)
+        let added = await logbook.addSample()
+        let flight = try XCTUnwrap(added.added.first)
+
+        // Without airspace nothing is checked, and the screen says what to do.
+        let unchecked = try await logbook.airspace(of: flight)
+        XCTAssertEqual(unchecked.cover, .none)
+        XCTAssertTrue(unchecked.crossings.isEmpty)
+        XCTAssertTrue(FlightDetailsSheet.caveat(for: .none).hasPrefix("Add an airspace file"))
+
+        // With the sample zone: the flight clips its edge for about a
+        // minute, twelve minutes in.
+        _ = try core.importAirspace(
+            fileName: "zones.txt", bytes: Data(LaunchOptions.sampleAirspace.utf8), nowUnixS: 1_795_000_000
+        )
+        let checked = try await logbook.airspace(of: flight)
+        XCTAssertEqual(checked.cover, .whole)
+        XCTAssertEqual(checked.crossings.map(\.name), ["SAMPLE ZONE (NOT REAL)"])
+        let crossing = try XCTUnwrap(checked.crossings.first)
+        XCTAssertEqual(crossing.policy, .avoid)
+        XCTAssertNil(crossing.uncertain)
+        XCTAssertGreaterThan(crossing.entry.seconds, 600)
+        XCTAssertGreaterThan(crossing.seconds, 30)
+        XCTAssertTrue(FlightDetailsSheet.caveat(for: .whole).contains("not the airspace of the day of the flight"))
+    }
+
     func testAnImportIsSummedUpForThePilot() {
         XCTAssertEqual(
             AirspaceModel.summary(

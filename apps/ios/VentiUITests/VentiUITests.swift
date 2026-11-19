@@ -297,6 +297,19 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         sleep(4)
         keepScreenshot("map-airspace-flight")
+
+        // The flight's details say what it entered: the sample flight
+        // clips the zone's edge in its second thermal.
+        app.buttons["Flight details"].tap()
+        let crossing = element("airspace-crossing-row", in: app)
+        for _ in 0..<4 where !crossing.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(crossing.waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
+        sleep(1)
+        keepScreenshot("flight-airspace")
+        app.buttons["Done"].tap()
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(element("logbook-row", in: app).waitForExistence(timeout: 15))
         openTab("Map", in: app)

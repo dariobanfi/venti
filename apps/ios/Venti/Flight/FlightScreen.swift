@@ -7,6 +7,7 @@ struct FlightScreen: View {
     let id: String
 
     @Environment(LogbookModel.self) private var logbook
+    @Environment(AirspaceModel.self) private var airspace
     @Environment(\.dismiss) private var dismiss
 
     private enum Phase {
@@ -19,6 +20,8 @@ struct FlightScreen: View {
     /// Arrives a moment after the flight itself; the screen does not wait
     /// for it.
     @State private var analysis: FlightAnalysis?
+    /// The flight checked against the airspace the app has. Arrives last.
+    @State private var airspaceCheck: FlightAirspace?
     /// The flight's file, written out for sharing.
     @State private var exported: URL?
     @State private var isConfirmingDelete = false
@@ -36,7 +39,11 @@ struct FlightScreen: View {
                     description: Text(message)
                 )
             case .loaded(let flight):
-                FlightDetail(flight: flight, analysis: analysis)
+                FlightDetail(
+                    flight: flight, analysis: analysis, airspaceCheck: airspaceCheck,
+                    // The airspace around the flight, for its map.
+                    airspace: airspace.shapes(in: flight.bounds.grown(by: 0.2))
+                )
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -82,6 +89,7 @@ struct FlightScreen: View {
             // Without the analysis the flight is still shown in full.
             analysis = try? await logbook.analysis(id: id)
             exported = try? await logbook.exportFile(id: id)
+            airspaceCheck = try? await logbook.airspace(of: id)
         }
     }
 }
@@ -92,6 +100,8 @@ struct FlightScreen: View {
 private struct FlightDetail: View {
     let flight: FlightView
     let analysis: FlightAnalysis?
+    let airspaceCheck: FlightAirspace?
+    let airspace: [AirspaceShape]
 
     /// The position in the track the pilot is inspecting, if any.
     @State private var cursor: Int?
@@ -107,6 +117,7 @@ private struct FlightDetail: View {
                     flight: flight,
                     cursor: cursor.map { flight.track[$0] },
                     score: analysis?.score,
+                    airspace: airspace,
                     covered: UIEdgeInsets(
                         top: proxy.safeAreaInsets.top,
                         left: 0,
@@ -154,7 +165,7 @@ private struct FlightDetail: View {
             isPlaying = false
         }
         .sheet(isPresented: $isShowingDetails) {
-            FlightDetailsSheet(flight: flight, analysis: analysis) { index in
+            FlightDetailsSheet(flight: flight, analysis: analysis, airspace: airspaceCheck) { index in
                 // Show a thermal or glide the pilot picked from the list.
                 isPlaying = false
                 cursor = min(index, flight.track.count - 1)

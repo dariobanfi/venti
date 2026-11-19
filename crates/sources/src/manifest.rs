@@ -35,6 +35,8 @@ pub struct Manifest {
 pub enum Kind {
     /// Station observations.
     Observations,
+    /// Airspace.
+    Airspace,
 }
 
 /// What credential a provider requires.

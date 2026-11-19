@@ -5,6 +5,9 @@
 //! Adding a country means adding adapters for its providers and one region
 //! pack; nothing else changes.
 //!
+//! A pack has one section per kind of data: `[observations]`, which every
+//! region has, and `[airspace]`, which a region may leave out.
+//!
 //! The area is a bounding box for now. A boundary polygon replaces it when a
 //! region needs a shape a box cannot express.
 
@@ -12,7 +15,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use venti_domain::{BoundingBox, SourceId};
-use venti_sources::Registry;
+use venti_sources::{Kind, Registry};
 
 /// The configuration of one region.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -28,10 +31,17 @@ pub struct RegionPack {
     pub bounds: BoundingBox,
     /// The sources of station observations.
     pub observations: SourceList,
+    /// The sources of airspace. A region may have none.
+    ///
+    /// Airspace from different sources is never merged: each source stays a
+    /// layer of its own under its own licence. The priority says which
+    /// layer a client prefers where two cover the same airspace.
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub airspace: SourceList,
 }
 
 /// The sources of one kind of data in a region.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourceList {
     /// Every active source.
@@ -40,6 +50,13 @@ pub struct SourceList {
     /// not listed rank below all listed ones.
     #[serde(default)]
     pub priority: Vec<SourceId>,
+}
+
+impl SourceList {
+    /// Whether the list names no source.
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty() && self.priority.is_empty()
+    }
 }
 
 /// Why a region pack was rejected.
@@ -78,34 +95,50 @@ impl RegionPack {
     /// Parses a region pack written in TOML and checks it against itself.
     pub fn from_toml(text: &str) -> Result<Self, RegionError> {
         let pack: RegionPack = toml::from_str(text)?;
-        let mut seen = BTreeSet::new();
-        for source in &pack.observations.sources {
-            if !seen.insert(source) {
-                return Err(RegionError::Duplicate {
-                    region: pack.id.clone(),
-                    source_id: source.clone(),
-                });
+        for list in [&pack.observations, &pack.airspace] {
+            let mut seen = BTreeSet::new();
+            for source in &list.sources {
+                if !seen.insert(source) {
+                    return Err(RegionError::Duplicate {
+                        region: pack.id.clone(),
+                        source_id: source.clone(),
+                    });
+                }
             }
-        }
-        for source in &pack.observations.priority {
-            if !seen.contains(source) {
-                return Err(RegionError::PriorityNotActive {
-                    region: pack.id.clone(),
-                    source_id: source.clone(),
-                });
+            for source in &list.priority {
+                if !seen.contains(source) {
+                    return Err(RegionError::PriorityNotActive {
+                        region: pack.id.clone(),
+                        source_id: source.clone(),
+                    });
+                }
             }
         }
         Ok(pack)
     }
 
     /// Checks that the build contains an adapter for every source the region names.
+    ///
+    /// Observation sources are always checked. Airspace sources are checked
+    /// by a build that deals in airspace, which is one whose registry holds
+    /// at least one airspace adapter. A build that holds none, such as a
+    /// server that collects observations only, takes no notice of the
+    /// region's airspace and must not be stopped by it.
     pub fn check_against(&self, registry: &Registry) -> Result<(), RegionError> {
+        let unknown = |source: &SourceId| RegionError::UnknownSource {
+            region: self.id.clone(),
+            source_id: source.clone(),
+        };
         for source in &self.observations.sources {
             if registry.observations(source).is_none() {
-                return Err(RegionError::UnknownSource {
-                    region: self.id.clone(),
-                    source_id: source.clone(),
-                });
+                return Err(unknown(source));
+            }
+        }
+        if registry.handles(Kind::Airspace) {
+            for source in &self.airspace.sources {
+                if registry.airspace(source).is_none() {
+                    return Err(unknown(source));
+                }
             }
         }
         Ok(())
@@ -114,6 +147,11 @@ impl RegionPack {
 
 #[cfg(test)]
 mod tests {
+    use venti_sources::{
+        AirspaceSource, Manifest, ObservationSource, Parsed, ParsedAirspace, PlanCtx, Request,
+        SourceError,
+    };
+
     use super::*;
 
     const PACK: &str = r#"
@@ -165,5 +203,116 @@ mod tests {
             pack.check_against(&registry),
             Err(RegionError::UnknownSource { .. })
         ));
+    }
+
+    /// An adapter that offers both kinds and never fetches anything.
+    struct Fake(Manifest);
+
+    impl Fake {
+        fn new(id: &str) -> Self {
+            let text = format!(
+                r#"
+                id = "{id}"
+                provider = "Example"
+                kinds = ["observations", "airspace"]
+                countries = ["AT"]
+                cadence_seconds = 86400
+                auth = "none"
+
+                [licence]
+                name = "CC BY 4.0"
+                commercial = true
+                redistribution = true
+                share_alike = false
+                attribution = "Example"
+                link = "https://example.org"
+                verified_on = "2026-11-19"
+                verified_from = ["https://example.org/licence"]
+                "#
+            );
+            Self(Manifest::from_toml(&text).unwrap())
+        }
+    }
+
+    impl ObservationSource for Fake {
+        fn manifest(&self) -> &Manifest {
+            &self.0
+        }
+        fn plan(&self, _: &PlanCtx) -> Vec<Request> {
+            Vec::new()
+        }
+        fn parse(&self, _: &Request, _: &[u8], _: &PlanCtx) -> Result<Parsed, SourceError> {
+            Ok(Parsed::default())
+        }
+    }
+
+    impl AirspaceSource for Fake {
+        fn manifest(&self) -> &Manifest {
+            &self.0
+        }
+        fn plan(&self, _: &PlanCtx) -> Vec<Request> {
+            Vec::new()
+        }
+        fn parse(&self, _: &Request, _: &[u8], _: &PlanCtx) -> Result<ParsedAirspace, SourceError> {
+            Ok(ParsedAirspace::default())
+        }
+    }
+
+    const WITH_AIRSPACE: &str = r#"
+
+        [airspace]
+        sources = ["charts", "club-file"]
+        priority = ["charts"]
+    "#;
+
+    #[test]
+    fn a_region_may_name_airspace_sources_or_none() {
+        let without = RegionPack::from_toml(PACK).unwrap();
+        assert!(without.airspace.is_empty());
+
+        let with = RegionPack::from_toml(&format!("{PACK}{WITH_AIRSPACE}")).unwrap();
+        assert_eq!(with.airspace.sources.len(), 2);
+        assert_eq!(with.airspace.priority[0].as_str(), "charts");
+
+        // The same rules as for observations hold within the list.
+        let twice = WITH_AIRSPACE.replace("club-file", "charts");
+        assert!(matches!(
+            RegionPack::from_toml(&format!("{PACK}{twice}")),
+            Err(RegionError::Duplicate { .. })
+        ));
+        let stranger = WITH_AIRSPACE.replace(r#"priority = ["charts"]"#, r#"priority = ["one"]"#);
+        assert!(matches!(
+            RegionPack::from_toml(&format!("{PACK}{stranger}")),
+            Err(RegionError::PriorityNotActive { .. })
+        ));
+    }
+
+    #[test]
+    fn airspace_sources_are_checked_by_a_build_that_deals_in_airspace() {
+        let pack = RegionPack::from_toml(&format!("{PACK}{WITH_AIRSPACE}")).unwrap();
+
+        // A build with observation adapters only takes no notice of airspace.
+        let mut registry = Registry::new();
+        for id in ["one", "two"] {
+            registry
+                .register_observations(Box::new(Fake::new(id)))
+                .unwrap();
+        }
+        assert!(pack.check_against(&registry).is_ok());
+
+        // One airspace adapter, and every airspace source must have one.
+        registry
+            .register_airspace(Box::new(Fake::new("charts")))
+            .unwrap();
+        match pack.check_against(&registry) {
+            Err(RegionError::UnknownSource { source_id, .. }) => {
+                assert_eq!(source_id.as_str(), "club-file");
+            }
+            other => panic!("{other:?}"),
+        }
+        registry
+            .register_airspace(Box::new(Fake::new("club-file")))
+            .unwrap();
+        assert!(pack.check_against(&registry).is_ok());
     }
 }

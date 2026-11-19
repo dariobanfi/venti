@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use venti_domain::SourceId;
 
-use crate::{Kind, Manifest, ObservationSource};
+use crate::{AirspaceSource, Kind, Manifest, ObservationSource};
 
 /// Why an adapter could not be registered.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -18,10 +18,12 @@ pub enum RegistryError {
 /// Every adapter the build contains, looked up by identifier.
 ///
 /// Region packs name sources by identifier; the registry is where those names
-/// are resolved to code.
+/// are resolved to code. There is one list per kind of data. A provider that
+/// offers two kinds registers once for each, under one identifier.
 #[derive(Default)]
 pub struct Registry {
     observations: BTreeMap<SourceId, Box<dyn ObservationSource>>,
+    airspace: BTreeMap<SourceId, Box<dyn AirspaceSource>>,
 }
 
 impl Registry {
@@ -35,15 +37,24 @@ impl Registry {
         &mut self,
         source: Box<dyn ObservationSource>,
     ) -> Result<(), RegistryError> {
-        let manifest = source.manifest();
-        let id = manifest.id.clone();
-        if !manifest.kinds.contains(&Kind::Observations) {
-            return Err(RegistryError::KindNotDeclared(id));
-        }
+        let id = declared(source.manifest(), Kind::Observations)?;
         if self.observations.contains_key(&id) {
             return Err(RegistryError::Duplicate(id));
         }
         self.observations.insert(id, source);
+        Ok(())
+    }
+
+    /// Adds an airspace source.
+    pub fn register_airspace(
+        &mut self,
+        source: Box<dyn AirspaceSource>,
+    ) -> Result<(), RegistryError> {
+        let id = declared(source.manifest(), Kind::Airspace)?;
+        if self.airspace.contains_key(&id) {
+            return Err(RegistryError::Duplicate(id));
+        }
+        self.airspace.insert(id, source);
         Ok(())
     }
 
@@ -52,8 +63,42 @@ impl Registry {
         self.observations.get(id).map(Box::as_ref)
     }
 
-    /// The manifests of every registered source, sorted by identifier.
+    /// The airspace source with this identifier, if the build contains it.
+    pub fn airspace(&self, id: &SourceId) -> Option<&dyn AirspaceSource> {
+        self.airspace.get(id).map(Box::as_ref)
+    }
+
+    /// Whether the build contains any adapter for a kind of data. A build
+    /// that contains none does not deal in that kind at all.
+    pub fn handles(&self, kind: Kind) -> bool {
+        match kind {
+            Kind::Observations => !self.observations.is_empty(),
+            Kind::Airspace => !self.airspace.is_empty(),
+        }
+    }
+
+    /// The manifests of every registered source, sorted by identifier. A
+    /// source registered for two kinds is listed once.
     pub fn manifests(&self) -> impl Iterator<Item = &Manifest> {
-        self.observations.values().map(|source| source.manifest())
+        let mut manifests: BTreeMap<&SourceId, &Manifest> = BTreeMap::new();
+        let all = self
+            .observations
+            .values()
+            .map(|source| source.manifest())
+            .chain(self.airspace.values().map(|source| source.manifest()));
+        for manifest in all {
+            manifests.entry(&manifest.id).or_insert(manifest);
+        }
+        manifests.into_values()
+    }
+}
+
+/// The identifier of a source, if its manifest lists the kind it is being
+/// registered for.
+fn declared(manifest: &Manifest, kind: Kind) -> Result<SourceId, RegistryError> {
+    if manifest.kinds.contains(&kind) {
+        Ok(manifest.id.clone())
+    } else {
+        Err(RegistryError::KindNotDeclared(manifest.id.clone()))
     }
 }

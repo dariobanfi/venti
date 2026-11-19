@@ -11,6 +11,12 @@
 //! and what guarantees that rate limits, archiving and validation cannot be
 //! skipped by one careless adapter.
 //!
+//! Each kind of data has its own trait and its own run. Observations
+//! ([`ObservationSource`], [`run_observations`]) arrive every few minutes in
+//! pieces that are merged. Airspace ([`AirspaceSource`], [`run_airspace`])
+//! changes with the 28-day publication cycle of aviation data; a run
+//! delivers the whole set, which replaces the one before.
+//!
 //! See `docs/data-sources.md` for the design and the source catalogue.
 
 mod archive;
@@ -26,6 +32,12 @@ pub use archive::{Archive, ArchiveEntry, ArchiveError};
 pub use fetch::{Fetch, FetchError};
 pub use manifest::{Auth, Kind, Licence, LicenceFamily, Manifest, ManifestError, RateLimit};
 pub use registry::{Registry, RegistryError};
-pub use run::{Failure, RunOptions, RunOutput, RunReport, run_observations};
-pub use source::{ObservationSource, Parsed, PlanCtx, Request, Skipped, SourceError};
+pub use run::{
+    AirspaceRejection, AirspaceRunOutput, AirspaceRunReport, Failure, RunOptions, RunOutput,
+    RunReport, run_airspace, run_observations,
+};
+pub use source::{
+    AirspaceSource, ObservationSource, Parsed, ParsedAirspace, PlanCtx, Request, Skipped,
+    SourceError,
+};
 pub use validate::Rejection;

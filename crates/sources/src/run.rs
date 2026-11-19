@@ -2,18 +2,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
-use venti_domain::{Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{Airspace, AirspaceId, Observation, SourceId, Station, StationId, Timestamp};
 
 use crate::validate::{check_observation, check_station};
 use crate::{
-    Archive, ArchiveEntry, Fetch, ObservationSource, PlanCtx, Rejection, Request, Skipped,
+    AirspaceSource, Archive, ArchiveEntry, Fetch, Manifest, ObservationSource, PlanCtx, Rejection,
+    Request, Skipped, SourceError,
 };
 
 /// How a run should behave.
 #[derive(Debug, Clone, Copy)]
 pub struct RunOptions {
     /// Observations older than this are dropped. Providers often republish the
-    /// whole day; the caller usually only wants what is new.
+    /// whole day; the caller usually only wants what is new. Airspace runs
+    /// ignore it: they deliver the whole set every time.
     pub since: Option<Timestamp>,
     /// Requests made at the same time. Capped at the provider's per-second
     /// limit when it has one.
@@ -95,23 +97,32 @@ pub struct RunOutput {
     pub report: RunReport,
 }
 
-/// Runs one observation source once: fetch, archive, parse, merge, validate.
+/// What the fetching part of a run did.
+struct Fetched {
+    requests: usize,
+    budget_exhausted: bool,
+    failures: Vec<Failure>,
+}
+
+/// Fetches and archives what an adapter asks for, wave by wave.
 ///
-/// A failing request or an unparseable response is recorded in the report and
-/// does not stop the run. The function reads no clock; `ctx.now` is the time
-/// of the run.
+/// Every body is handed to `take`, which parses it, keeps what it found and
+/// returns the adapter's follow-up requests. A failing request, a payload
+/// the archive refuses or a body `take` cannot parse is recorded and does
+/// not stop the run.
 ///
-/// Limits enforced here: the per-run request budget derived from the
-/// provider's hourly limit, and a concurrency cap at its per-second limit.
-/// Spacing runs by the source's cadence is the scheduler's job.
-pub async fn run_observations(
-    source: &dyn ObservationSource,
+/// Limits enforced here, for every kind of source: the per-run request
+/// budget derived from the provider's hourly limit, and a concurrency cap
+/// at its per-second limit.
+async fn fetch_all(
+    manifest: &Manifest,
+    first: Vec<Request>,
     fetch: &impl Fetch,
     archive: &impl Archive,
     ctx: &PlanCtx,
     options: &RunOptions,
-) -> RunOutput {
-    let manifest = source.manifest();
+    mut take: impl FnMut(&Request, &[u8]) -> Result<Vec<Request>, SourceError>,
+) -> Fetched {
     let budget = manifest.requests_per_run().unwrap_or(options.max_requests);
     let per_second = manifest
         .rate_limit
@@ -122,11 +133,8 @@ pub async fn run_observations(
     let mut requests = 0;
     let mut budget_exhausted = false;
     let mut failures = Vec::new();
-    let mut skipped = Vec::new();
-    let mut stations: BTreeMap<StationId, Station> = BTreeMap::new();
-    let mut partials: Vec<Observation> = Vec::new();
 
-    let mut wave = source.plan(ctx);
+    let mut wave = first;
     while !wave.is_empty() {
         let allowed = budget - requests;
         if wave.len() > allowed {
@@ -169,15 +177,8 @@ pub async fn run_observations(
             if let Err(error) = archive.store(entry) {
                 failures.push(fail(error.to_string()));
             }
-            match source.parse(&request, &body, ctx) {
-                Ok(parsed) => {
-                    for station in parsed.stations {
-                        stations.entry(station.id.clone()).or_insert(station);
-                    }
-                    partials.extend(parsed.observations);
-                    skipped.extend(parsed.skipped);
-                    next.extend(parsed.follow_up);
-                }
+            match take(&request, &body) {
+                Ok(follow_up) => next.extend(follow_up),
                 Err(error) => failures.push(fail(error.to_string())),
             }
         }
@@ -186,6 +187,54 @@ pub async fn run_observations(
         }
         wave = next;
     }
+
+    Fetched {
+        requests,
+        budget_exhausted,
+        failures,
+    }
+}
+
+/// Runs one observation source once: fetch, archive, parse, merge, validate.
+///
+/// A failing request or an unparseable response is recorded in the report and
+/// does not stop the run. The function reads no clock; `ctx.now` is the time
+/// of the run.
+///
+/// Limits enforced here: the per-run request budget derived from the
+/// provider's hourly limit, and a concurrency cap at its per-second limit.
+/// Spacing runs by the source's cadence is the scheduler's job.
+pub async fn run_observations(
+    source: &dyn ObservationSource,
+    fetch: &impl Fetch,
+    archive: &impl Archive,
+    ctx: &PlanCtx,
+    options: &RunOptions,
+) -> RunOutput {
+    let manifest = source.manifest();
+    let mut skipped = Vec::new();
+    let mut stations: BTreeMap<StationId, Station> = BTreeMap::new();
+    let mut partials: Vec<Observation> = Vec::new();
+
+    let take = |request: &Request, body: &[u8]| {
+        let parsed = source.parse(request, body, ctx)?;
+        for station in parsed.stations {
+            stations.entry(station.id.clone()).or_insert(station);
+        }
+        partials.extend(parsed.observations);
+        skipped.extend(parsed.skipped);
+        Ok(parsed.follow_up)
+    };
+    let fetched = fetch_all(
+        manifest,
+        source.plan(ctx),
+        fetch,
+        archive,
+        ctx,
+        options,
+        take,
+    )
+    .await;
 
     let mut rejected = Vec::new();
     stations.retain(|_, station| ctx.area.contains(station.position));
@@ -231,12 +280,12 @@ pub async fn run_observations(
     let stations: Vec<Station> = stations.into_values().collect();
     let report = RunReport {
         source: manifest.id.clone(),
-        requests,
-        failures,
+        requests: fetched.requests,
+        failures: fetched.failures,
         skipped,
         rejected,
         merge_conflicts,
-        budget_exhausted,
+        budget_exhausted: fetched.budget_exhausted,
         stations: stations.len(),
         observations: observations.len(),
         newest_observation: observations.iter().map(|o| o.time).max(),
@@ -246,4 +295,144 @@ pub async fn run_observations(
         observations,
         report,
     }
+}
+
+/// An airspace the pipeline refused to pass on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AirspaceRejection {
+    /// The airspace's identifier, as text.
+    pub airspace: String,
+    /// Its name.
+    pub name: String,
+    /// Why.
+    pub reason: String,
+}
+
+/// What happened in an airspace run. This is the source's health record.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AirspaceRunReport {
+    /// The source that ran.
+    pub source: SourceId,
+    /// Requests made.
+    pub requests: usize,
+    /// Requests that failed, or whose response could not be parsed or archived.
+    pub failures: Vec<Failure>,
+    /// Airspaces, or parts of responses, the adapter could not convert.
+    pub skipped: Vec<Skipped>,
+    /// Airspaces removed by validation.
+    pub rejected: Vec<AirspaceRejection>,
+    /// Airspaces dropped because an earlier one had the same identifier.
+    pub duplicates: usize,
+    /// Whether the run stopped early because it used up its request budget.
+    pub budget_exhausted: bool,
+    /// Airspaces delivered.
+    pub airspaces: usize,
+    /// When the source last changed any of the airspaces delivered, if it says.
+    pub newest_change: Option<Timestamp>,
+}
+
+impl AirspaceRunReport {
+    /// Whether the set this run delivered may replace the one before.
+    ///
+    /// Stricter than for observations: every request must have worked. A
+    /// run that could not fetch one country's file would otherwise replace
+    /// a complete set by one with a country missing, and a pilot is not
+    /// warned about airspace that is missing. Whoever stores the result
+    /// keeps the previous set after an unhealthy run.
+    ///
+    /// Airspaces the adapter skipped or validation rejected do not make a
+    /// run unhealthy, or one bad record would freeze the whole set. They
+    /// are listed in the report, and a server must make them visible.
+    pub fn is_healthy(&self) -> bool {
+        self.airspaces > 0 && self.failures.is_empty() && !self.budget_exhausted
+    }
+}
+
+/// The canonical records an airspace run produced, and its report.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AirspaceRunOutput {
+    /// Airspaces, sorted by identifier.
+    pub airspaces: Vec<Airspace>,
+    /// What happened.
+    pub report: AirspaceRunReport,
+}
+
+/// Runs one airspace source once: fetch, archive, parse, validate.
+///
+/// The result is a snapshot: every airspace the source has that reaches
+/// into `ctx.area`, sorted by identifier. An airspace that fails
+/// [`Airspace::validate`] is removed and reported, as is a second airspace
+/// with an identifier already seen. Requests are budgeted and archived as
+/// for observations. `options.since` plays no part.
+pub async fn run_airspace(
+    source: &dyn AirspaceSource,
+    fetch: &impl Fetch,
+    archive: &impl Archive,
+    ctx: &PlanCtx,
+    options: &RunOptions,
+) -> AirspaceRunOutput {
+    let manifest = source.manifest();
+    let mut skipped = Vec::new();
+    let mut found: Vec<Airspace> = Vec::new();
+
+    let take = |request: &Request, body: &[u8]| {
+        let parsed = source.parse(request, body, ctx)?;
+        found.extend(parsed.airspaces);
+        skipped.extend(parsed.skipped);
+        Ok(parsed.follow_up)
+    };
+    let fetched = fetch_all(
+        manifest,
+        source.plan(ctx),
+        fetch,
+        archive,
+        ctx,
+        options,
+        take,
+    )
+    .await;
+
+    let mut rejected = Vec::new();
+    let mut duplicates = 0;
+    let mut airspaces: BTreeMap<AirspaceId, Airspace> = BTreeMap::new();
+    for airspace in found {
+        let bounds = airspace.bounds();
+        let reaches_in = bounds.north() >= ctx.area.south()
+            && bounds.south() <= ctx.area.north()
+            && bounds.east() >= ctx.area.west()
+            && bounds.west() <= ctx.area.east();
+        if !reaches_in {
+            continue;
+        }
+        if let Err(error) = airspace.validate() {
+            rejected.push(AirspaceRejection {
+                airspace: airspace.id.to_string(),
+                name: airspace.name.clone(),
+                reason: error.to_string(),
+            });
+            continue;
+        }
+        if airspaces.contains_key(&airspace.id) {
+            duplicates += 1;
+            continue;
+        }
+        airspaces.insert(airspace.id.clone(), airspace);
+    }
+
+    let airspaces: Vec<Airspace> = airspaces.into_values().collect();
+    let report = AirspaceRunReport {
+        source: manifest.id.clone(),
+        requests: fetched.requests,
+        failures: fetched.failures,
+        skipped,
+        rejected,
+        duplicates,
+        budget_exhausted: fetched.budget_exhausted,
+        airspaces: airspaces.len(),
+        newest_change: airspaces
+            .iter()
+            .filter_map(|airspace| airspace.validity.updated)
+            .max(),
+    };
+    AirspaceRunOutput { airspaces, report }
 }

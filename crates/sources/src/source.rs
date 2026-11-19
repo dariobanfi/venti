@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use venti_domain::{BoundingBox, Observation, Station, Timestamp};
+use venti_domain::{Airspace, BoundingBox, Observation, Station, Timestamp};
 
 use crate::Manifest;
 
@@ -28,7 +28,8 @@ impl Request {
 pub struct PlanCtx {
     /// The time of the run. Adapters never read a clock themselves.
     pub now: Timestamp,
-    /// The area the run covers. Adapters skip stations outside it.
+    /// The area the run covers. Adapters skip stations outside it; the
+    /// pipeline drops airspace that does not reach into it.
     pub area: BoundingBox,
 }
 
@@ -92,4 +93,41 @@ pub trait ObservationSource: Send + Sync {
     /// Converts the response to one request into canonical records and, where
     /// the provider needs several steps, further requests.
     fn parse(&self, request: &Request, body: &[u8], ctx: &PlanCtx) -> Result<Parsed, SourceError>;
+}
+
+/// What an airspace adapter made of one response.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ParsedAirspace {
+    /// Airspaces found in the response.
+    pub airspaces: Vec<Airspace>,
+    /// Further requests the adapter needs now that it has seen this response.
+    pub follow_up: Vec<Request>,
+    /// Airspaces, or parts of the response, that could not be converted. An
+    /// adapter never leaves an airspace out without an entry here: a pilot
+    /// is not warned about an airspace that is missing.
+    pub skipped: Vec<Skipped>,
+}
+
+/// An adapter for a source of airspace.
+///
+/// Pure, like [`ObservationSource`]: it names the files it needs and turns
+/// their bytes into canonical records. Unlike observations, an airspace run
+/// is a snapshot. Each run delivers the whole set the source has for the
+/// area, and that set replaces the one before: see
+/// [`run_airspace`](crate::run_airspace).
+pub trait AirspaceSource: Send + Sync {
+    /// The declared facts about this source.
+    fn manifest(&self) -> &Manifest;
+
+    /// The requests that start a run.
+    fn plan(&self, ctx: &PlanCtx) -> Vec<Request>;
+
+    /// Converts the response to one request into canonical records and, where
+    /// the provider needs several steps, further requests.
+    fn parse(
+        &self,
+        request: &Request,
+        body: &[u8],
+        ctx: &PlanCtx,
+    ) -> Result<ParsedAirspace, SourceError>;
 }

@@ -230,7 +230,10 @@ pub struct TaskStatusView {
     pub to_end_of_speed_m: Option<f64>,
     /// How much of the speed section is flown, from 0 to 1.
     pub speed_section_part: Option<f64>,
-    /// The start gate, until the turnpoint after the start is reached.
+    /// The start gate, until the start is taken. After that the distance to
+    /// the start's edge and the time to get there say nothing; a pilot who
+    /// goes back for a later gate steps the task back, and it is here
+    /// again.
     pub gate: Option<TaskGateView>,
     /// When the pilot's clock started, seconds since 1970-01-01 UTC.
     pub clock_from_unix_s: Option<i64>,
@@ -700,23 +703,26 @@ impl TaskFlown {
             to_goal_m: status.to_goal_m,
             to_end_of_speed_m: status.to_end_of_speed_m,
             speed_section_part: status.speed_section_part,
-            gate: status.start.map(|start| {
-                // The countdown runs with the clock, also between two
-                // positions.
-                let opens_in_s = start.gate_unix_s.map(|gate| gate - now);
-                TaskGateView {
-                    gate_unix_s: start.gate_unix_s,
-                    opens_in_s,
-                    next_gate_unix_s: start.next_gate_unix_s,
-                    distance_m: start.distance_m,
-                    speed_to_gate_ms: opens_in_s
-                        .filter(|seconds| *seconds > 0)
-                        .map(|seconds| start.distance_m / seconds as f64),
-                    arrives_in_s: ground_speed_ms
-                        .filter(|speed| *speed > 1.0)
-                        .map(|speed| start.distance_m / speed),
-                }
-            }),
+            gate: status
+                .start
+                .filter(|_| status.phase == Phase::BeforeStart)
+                .map(|start| {
+                    // The countdown runs with the clock, also between two
+                    // positions.
+                    let opens_in_s = start.gate_unix_s.map(|gate| gate - now);
+                    TaskGateView {
+                        gate_unix_s: start.gate_unix_s,
+                        opens_in_s,
+                        next_gate_unix_s: start.next_gate_unix_s,
+                        distance_m: start.distance_m,
+                        speed_to_gate_ms: opens_in_s
+                            .filter(|seconds| *seconds > 0)
+                            .map(|seconds| start.distance_m / seconds as f64),
+                        arrives_in_s: ground_speed_ms
+                            .filter(|speed| *speed > 1.0)
+                            .map(|speed| start.distance_m / speed),
+                    }
+                }),
             clock_from_unix_s: status.clock_from_unix_s,
             clock_s: status
                 .clock_from_unix_s
@@ -1014,6 +1020,17 @@ mod tests {
         assert_eq!(racing.next.unwrap().name, "WEST");
         assert_eq!(racing.reached, [false, true, false, false, false]);
         assert_eq!(flown.aim().unwrap().name, "WEST");
+        // The start is taken: there is no gate to wait for and no edge to
+        // fly to. A pilot who goes back for a later gate steps the task
+        // back, and the gate is there again.
+        assert_eq!(racing.gate, None);
+        flown.step(false);
+        let back = flown
+            .view(at(11, 31) as f64, Some(2_400.0), Some(10.0))
+            .unwrap();
+        assert_eq!(back.phase, TaskPhase::BeforeStart);
+        assert!(back.gate.is_some());
+        flown.step(true);
 
         // The pilot steps on by hand, and back.
         flown.step(true);

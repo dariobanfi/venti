@@ -5,19 +5,22 @@ use tokio_postgres::Row;
 use venti_domain::{Airspace, BoundingBox, SourceId};
 
 use super::{corrupt, count, db_error, upsert_run};
-use crate::{AirspaceLayer, AirspaceSet, RunRecord, StoreError, airspace};
+use crate::{AirspaceLayer, AirspaceSet, Coverage, RunRecord, StoreError, airspace};
 
 /// Makes the set of a run the stored one, unless a newer run's set is
 /// stored already. The statement locks the source's row, so of two runs
 /// that finish at the same moment the second waits for the first.
 const REPLACE_SET: &str = "
-    INSERT INTO airspace_sets AS s (source, fetched_at, airspaces, file_date, newest_change)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO airspace_sets AS s
+        (source, fetched_at, airspaces, file_date, newest_change, covers, countries)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (source) DO UPDATE
     SET fetched_at = EXCLUDED.fetched_at,
         airspaces = EXCLUDED.airspaces,
         file_date = EXCLUDED.file_date,
-        newest_change = EXCLUDED.newest_change
+        newest_change = EXCLUDED.newest_change,
+        covers = EXCLUDED.covers,
+        countries = EXCLUDED.countries
     WHERE s.fetched_at <= EXCLUDED.fetched_at";
 
 const INSERT_AIRSPACES: &str = "
@@ -28,23 +31,32 @@ const INSERT_AIRSPACES: &str = "
 
 /// The columns every query selects for a set, for an `airspace_sets` table
 /// named `s`.
-const SET_COLUMNS: &str = "s.source, s.fetched_at, s.airspaces, s.file_date, s.newest_change";
+const SET_COLUMNS: &str = "s.source, s.fetched_at, s.airspaces, s.file_date, s.newest_change, \
+                           s.covers, s.countries";
 
 /// The boxes are compared as plain longitude and latitude. `&&` lets the
 /// index find candidates; the comparison of the four edges that follows is
 /// the exact one. One statement reads the airspaces and their sets, so
-/// both are of one moment.
+/// both are of one moment. Every set is in the answer: one with nothing
+/// found is a single row without a record.
 const AIRSPACES_IN: &str = "
-    SELECT a.record, s.source, s.fetched_at, s.airspaces, s.file_date, s.newest_change
-    FROM airspaces a
-    JOIN airspace_sets s ON s.source = a.source
-    WHERE a.source = ANY($5::text[])
-      AND ST_MakeEnvelope(a.west, a.south, a.east, a.north, 4326)
-          && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-      AND a.west <= $3 AND a.east >= $1
-      AND a.south <= $4 AND a.north >= $2
-    ORDER BY a.source, a.id
-    LIMIT $6";
+    WITH found AS (
+        SELECT a.source, a.id, a.record
+        FROM airspaces a
+        WHERE a.source = ANY($5::text[])
+          AND ST_MakeEnvelope(a.west, a.south, a.east, a.north, 4326)
+              && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          AND a.west <= $3 AND a.east >= $1
+          AND a.south <= $4 AND a.north >= $2
+        ORDER BY a.source, a.id
+        LIMIT $6
+    )
+    SELECT f.record, s.source, s.fetched_at, s.airspaces, s.file_date, s.newest_change,
+           s.covers, s.countries
+    FROM airspace_sets s
+    LEFT JOIN found f ON f.source = s.source
+    WHERE s.source = ANY($5::text[])
+    ORDER BY s.source, f.id";
 
 fn set_from(row: &Row) -> Result<AirspaceSet, StoreError> {
     let source: &str = row.get("source");
@@ -54,12 +66,42 @@ fn set_from(row: &Row) -> Result<AirspaceSet, StoreError> {
         airspaces: u32::try_from(row.get::<_, i32>("airspaces")).unwrap_or(0),
         file_date: row.get("file_date"),
         newest_change: row.get("newest_change"),
+        coverage: Coverage {
+            boxes: boxes_from(&row.get::<_, Vec<f64>>("covers"))?,
+            countries: row.get("countries"),
+        },
     })
+}
+
+/// The boxes of a coverage as the `covers` column keeps them: the west,
+/// south, east and north edge of each box in turn.
+fn edges_of(boxes: &[BoundingBox]) -> Vec<f64> {
+    boxes
+        .iter()
+        .flat_map(|area| [area.west(), area.south(), area.east(), area.north()])
+        .collect()
+}
+
+fn boxes_from(edges: &[f64]) -> Result<Vec<BoundingBox>, StoreError> {
+    if !edges.len().is_multiple_of(4) {
+        return Err(corrupt(
+            "coverage of an airspace set",
+            format!("{} numbers do not make whole boxes", edges.len()),
+        ));
+    }
+    edges
+        .chunks_exact(4)
+        .map(|edge| {
+            BoundingBox::new(edge[1], edge[0], edge[3], edge[2])
+                .map_err(|e| corrupt("coverage of an airspace set", e))
+        })
+        .collect()
 }
 
 pub(super) async fn save_run(
     client: &mut Client,
     run: &RunRecord,
+    coverage: &Coverage,
     airspaces: &[Airspace],
 ) -> Result<(), StoreError> {
     airspace::check(run, airspaces)?;
@@ -69,7 +111,7 @@ pub(super) async fn save_run(
     upsert_run(&tx, run).await?;
 
     if run.healthy {
-        let set = AirspaceSet::of(run, airspaces);
+        let set = AirspaceSet::of(run, coverage, airspaces);
         let statement = tx.prepare_cached(REPLACE_SET).await.map_err(db_error)?;
         let replaced = tx
             .execute(
@@ -80,6 +122,8 @@ pub(super) async fn save_run(
                     &count(set.airspaces),
                     &set.file_date,
                     &set.newest_change,
+                    &edges_of(&set.coverage.boxes),
+                    &set.coverage.countries,
                 ],
             )
             .await
@@ -155,19 +199,26 @@ pub(super) async fn in_box(
         .await
         .map_err(db_error)?;
 
-    // The rows come sorted by source, so each layer is a run of rows.
+    // The rows come sorted by source, so each layer is a run of rows. A
+    // set with nothing found is one row without a record.
     let mut layers: Vec<AirspaceLayer> = Vec::new();
     for row in &rows {
-        let record: &str = row.get("record");
-        let airspace: Airspace =
-            serde_json::from_str(record).map_err(|e| corrupt("airspace record", e))?;
         let source: &str = row.get("source");
-        match layers.last_mut() {
-            Some(layer) if layer.set.source.as_str() == source => layer.airspaces.push(airspace),
-            _ => layers.push(AirspaceLayer {
+        if layers
+            .last()
+            .is_none_or(|layer| layer.set.source.as_str() != source)
+        {
+            layers.push(AirspaceLayer {
                 set: set_from(row)?,
-                airspaces: vec![airspace],
-            }),
+                airspaces: Vec::new(),
+            });
+        }
+        if let Some(record) = row.get::<_, Option<&str>>("record") {
+            let airspace: Airspace =
+                serde_json::from_str(record).map_err(|e| corrupt("airspace record", e))?;
+            if let Some(layer) = layers.last_mut() {
+                layer.airspaces.push(airspace);
+            }
         }
     }
     Ok(layers)

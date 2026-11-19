@@ -118,6 +118,7 @@ fn source_health(
 mod tests {
     use chrono::{TimeZone, Utc};
     use venti_api_types::v1::Attribution;
+    use venti_store::Coverage;
 
     use super::*;
 
@@ -211,6 +212,7 @@ mod tests {
             airspaces: 1018,
             file_date: Some(at(0) - Duration::hours(17)),
             newest_change: None,
+            coverage: Coverage::default(),
         };
         let holding = source_health(&daily, &status, Some(&set), at(5));
         assert_eq!(holding.airspaces, Some(1018));

@@ -191,6 +191,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "health.json",
         "observations.json",
         "airspace.json",
+        "airspace_none.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

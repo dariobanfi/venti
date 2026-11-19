@@ -9,7 +9,7 @@ use venti_sources::{
     AirspaceRunReport, Archive, Fetch, Kind, PlanCtx, Registry, RunOptions, RunReport,
     run_airspace, run_observations,
 };
-use venti_store::{RunRecord, Store};
+use venti_store::{Coverage, RunRecord, Store};
 
 use super::{airspace_summary, summary};
 use crate::clock::Clock;
@@ -150,9 +150,16 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         let options = RunOptions::default();
 
         let run = run_airspace(source, &self.fetch, &self.archive, &ctx, &options);
+        // Where the set of this run is whole: the area it was collected
+        // for, for the countries the adapter fetches. It goes into the
+        // store with the set and out with every answer.
+        let coverage = Coverage {
+            boxes: vec![job.area],
+            countries: source.manifest().countries.clone(),
+        };
         let Some(output) = unless_it_panics(&job.source, run).await else {
             let failed = self.record(&job.source, started_at, &Outcome::default());
-            self.save_airspace(&failed, &[]).await;
+            self.save_airspace(&failed, &coverage, &[]).await;
             return false;
         };
 
@@ -180,7 +187,9 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         }
 
         let record = self.record(&job.source, started_at, &Outcome::of_airspace(report));
-        self.save_airspace(&record, &output.airspaces).await && healthy
+        self.save_airspace(&record, &coverage, &output.airspaces)
+            .await
+            && healthy
     }
 
     fn record(&self, source: &SourceId, started_at: Timestamp, outcome: &Outcome) -> RunRecord {
@@ -211,8 +220,16 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         stored(record, saved)
     }
 
-    async fn save_airspace(&self, record: &RunRecord, airspaces: &[Airspace]) -> bool {
-        let saved = self.store.save_airspace_run(record, airspaces).await;
+    async fn save_airspace(
+        &self,
+        record: &RunRecord,
+        coverage: &Coverage,
+        airspaces: &[Airspace],
+    ) -> bool {
+        let saved = self
+            .store
+            .save_airspace_run(record, coverage, airspaces)
+            .await;
         stored(record, saved)
     }
 }

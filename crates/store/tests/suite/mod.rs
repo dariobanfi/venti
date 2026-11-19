@@ -45,6 +45,7 @@ macro_rules! store_suite {
             saving_the_same_airspace_run_twice_changes_nothing,
             a_bad_airspace_set_is_refused_and_nothing_is_stored,
             airspace_layers_are_kept_apart_and_sorted,
+            a_set_says_where_it_is_whole_as_its_run_said,
             pruning_leaves_airspace_alone,
             an_account_is_created_and_found_by_its_handle,
             a_handle_belongs_to_one_account,

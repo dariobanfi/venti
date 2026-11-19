@@ -24,7 +24,7 @@ A client reaches airspace through `venti-airspace`; nothing in it touches a netw
 
 - *No half set.* The stored set is replaced only by a run in which every file arrived. A run that got Germany and not Austria changes nothing, and the answer keeps saying when the set it serves was fetched.
 - *Source and age travel with the data.* An answer is in layers by source. Each layer says when the server fetched it and how old the source's files are, each record says the date of its own file, and the answer carries the source's credit and openAIP's notice that the data is not certified.
-- *No data is not "no airspace".* The server holds Germany and Austria, and of those only what reaches into its regions' box. An empty answer says nothing about the air.
+- *No data is not "no airspace".* The server holds Germany and Austria, and of those only what reaches into its regions' box. Every layer of an answer says so itself: the box inside which the set is whole and the countries it holds ([api.md](api.md#where-a-layer-is-whole)). Outside that box an empty answer says nothing about the air, and inside it nothing about a country that is not named.
 
 No app reads the endpoint yet; the pilot's own OpenAir files remain the app's only airspace until the core does.
 
@@ -305,4 +305,4 @@ The warning update is cheap on the real data because most of what surrounds a pi
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
 - **Settings for the pilot.** Margins, look-ahead and the table are `Config`; nothing stores a pilot's choices.
 - **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it; no app uses it yet.
-- **Coverage.** Neither the records nor the server's answer say which area a set covers.
+- **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. An OpenAir file says nothing of the kind at all.

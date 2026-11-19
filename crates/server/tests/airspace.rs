@@ -25,7 +25,7 @@ use venti_server::ingest::{Collector, DirArchive};
 use venti_server::plan::Job;
 use venti_sources::testing::{FixtureFetch, assert_golden};
 use venti_sources::{Kind, Manifest};
-use venti_store::{MemoryStore, RunRecord, Store};
+use venti_store::{Coverage, MemoryStore, RunRecord, Store};
 
 mod common;
 
@@ -95,6 +95,15 @@ fn run(source_name: &str, airspaces: usize) -> RunRecord {
         observations: 0,
         newest_observation: None,
         airspaces: u32::try_from(airspaces).unwrap(),
+    }
+}
+
+/// Where the hand-made sets of these tests say they are whole: Austria
+/// within the first region.
+fn austria() -> Coverage {
+    Coverage {
+        boxes: vec![first_region()],
+        countries: vec!["AT".to_owned()],
     }
 }
 
@@ -181,6 +190,20 @@ async fn airspace_comes_in_a_layer_with_its_source_its_dates_and_its_credit() {
         assert_eq!(record.validity.file_date, layer.file_date);
     }
 
+    // Where the server's set is whole: the region it collects for, and
+    // of that the two countries it fetches. The valley of the apps' sample
+    // flight is inside; the north of Germany is not, and neither is
+    // Switzerland.
+    assert_eq!(layer.covers, [first_region()]);
+    assert_eq!(layer.countries, ["DE", "AT"]);
+    let covered = |lat, lon| {
+        let place = GeoPoint::new(lat, lon).unwrap();
+        layer.covers.iter().any(|area| area.contains(place))
+    };
+    assert!(covered(47.7, 11.8));
+    assert!(!covered(53.6, 9.9));
+    assert!(!covered(47.4, 8.5));
+
     // What a client has to show: the credit, the licence and the warning.
     assert_eq!(airspace.attributions.len(), 1);
     let credit = &airspace.attributions[0];
@@ -208,11 +231,32 @@ async fn a_small_box_gets_what_touches_it() {
     assert_eq!(names, ["LOD22 (HOCHFILZEN)", "LOR8 (HOCHFILZEN)"]);
     assert_golden(&golden("airspace.json"), &airspace);
 
-    // A box with no airspace in it has no layer and credits nobody. That
-    // is all it says: the server holds airspace of two countries only.
+    // A box with no airspace in it gets the layer all the same, without
+    // airspaces: what it says about the box is in `covers`. Inside, the
+    // source has nothing there. "Nothing here" is openAIP's data too, and
+    // comes with its credit and its warning.
+    let quiet = "/v1/airspace?bbox=14.90,48.20,14.91,48.21";
+    let nothing: AirspaceResponse = get(&router, quiet).await.json();
+    assert_eq!(nothing.layers.len(), 1);
+    let layer = &nothing.layers[0];
+    assert!(layer.airspaces.is_empty());
+    assert_eq!(layer.covers, [first_region()]);
+    assert_eq!(layer.fetched_at, adapters::recorded_at());
+    assert!(nothing.attributions[0].notice.is_some());
+    assert_golden(&golden("airspace_none.json"), &nothing);
+
+    // Outside, the answer looks the same and says nothing about the box:
+    // the client compares the box it asked for with `covers`.
     let nowhere: AirspaceResponse = get(&router, "/v1/airspace?bbox=0,0,1,1").await.json();
-    assert!(nowhere.layers.is_empty());
-    assert!(nowhere.attributions.is_empty());
+    assert_eq!(nowhere.layers.len(), 1);
+    assert!(nowhere.layers[0].airspaces.is_empty());
+    let asked = GeoPoint::new(0.5, 0.5).unwrap();
+    assert!(
+        !nowhere.layers[0]
+            .covers
+            .iter()
+            .any(|area| area.contains(asked))
+    );
 }
 
 #[tokio::test]
@@ -256,12 +300,16 @@ async fn two_sources_are_two_layers_each_with_its_own_credit() {
         square("charts:innsbruck", 47.2, 11.3, 0.1),
         square("charts:salzburg", 47.7, 12.9, 0.1),
     ];
+    let tyrol = Coverage {
+        boxes: vec![BoundingBox::new(46.8, 10.1, 47.6, 12.9).unwrap()],
+        countries: vec!["AT".to_owned()],
+    };
     store
-        .save_airspace_run(&run(OPENAIP, 1), &ours)
+        .save_airspace_run(&run(OPENAIP, 1), &tyrol, &ours)
         .await
         .unwrap();
     store
-        .save_airspace_run(&run("charts", 2), &theirs)
+        .save_airspace_run(&run("charts", 2), &austria(), &theirs)
         .await
         .unwrap();
     let router = serving(store, &TestClock::new(), [&openaip_manifest(), &charts()]);
@@ -297,13 +345,23 @@ async fn two_sources_are_two_layers_each_with_its_own_credit() {
         ]
     );
 
-    // A box only one of them reaches into carries only that one's credit.
-    let salzburg: AirspaceResponse = get(&router, "/v1/airspace?bbox=12.9,47.7,13.0,47.8")
+    // Each layer says for itself where it is whole.
+    assert_eq!(airspace.layers[0].covers, austria().boxes);
+    assert_eq!(airspace.layers[1].covers, tyrol.boxes);
+
+    // A box only one of them reaches into has both layers, one of them
+    // without airspaces, and here outside what that one covers.
+    let salzburg: AirspaceResponse = get(&router, "/v1/airspace?bbox=12.95,47.7,13.0,47.8")
         .await
         .json();
-    assert_eq!(salzburg.layers.len(), 1);
-    assert_eq!(salzburg.attributions.len(), 1);
-    assert_eq!(salzburg.attributions[0].source.as_str(), "charts");
+    let layers: Vec<(&str, usize)> = salzburg
+        .layers
+        .iter()
+        .map(|layer| (layer.source.as_str(), layer.airspaces.len()))
+        .collect();
+    assert_eq!(layers, [("charts", 1), (OPENAIP, 0)]);
+    assert_eq!(salzburg.layers[1].covers, tyrol.boxes);
+    assert_eq!(salzburg.attributions.len(), 2);
 }
 
 #[tokio::test]
@@ -313,7 +371,7 @@ async fn airspace_of_a_source_the_server_does_not_serve_stays_inside() {
     let store = Arc::new(MemoryStore::new());
     let theirs = [square("charts:innsbruck", 47.2, 11.3, 0.1)];
     store
-        .save_airspace_run(&run("charts", 1), &theirs)
+        .save_airspace_run(&run("charts", 1), &austria(), &theirs)
         .await
         .unwrap();
     let router = serving(store, &TestClock::new(), [&openaip_manifest()]);
@@ -334,7 +392,7 @@ async fn a_box_with_too_many_airspaces_is_refused_and_not_cut() {
         .map(|n| square(&format!("openaip:{n:05}"), 47.0, n as f64 * 0.001, 0.0005))
         .collect();
     store
-        .save_airspace_run(&run(OPENAIP, many.len()), &many)
+        .save_airspace_run(&run(OPENAIP, many.len()), &austria(), &many)
         .await
         .unwrap();
     let router = serving(store, &TestClock::new(), [&openaip_manifest()]);

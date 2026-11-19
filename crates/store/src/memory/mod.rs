@@ -9,7 +9,7 @@ use venti_domain::{
 };
 
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
     SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, airspace,
     batch,
@@ -215,6 +215,7 @@ impl Store for MemoryStore {
     async fn save_airspace_run(
         &self,
         run: &RunRecord,
+        coverage: &Coverage,
         airspaces: &[Airspace],
     ) -> Result<(), StoreError> {
         airspace::check(run, airspaces)?;
@@ -228,7 +229,7 @@ impl Store for MemoryStore {
             .is_some_and(|stored| stored.set.fetched_at > run.started_at);
         if run.healthy && !newer_is_stored {
             let stored = StoredSet {
-                set: AirspaceSet::of(run, airspaces),
+                set: AirspaceSet::of(run, coverage, airspaces),
                 airspaces: airspaces
                     .iter()
                     .map(|airspace| (airspace.id.clone(), airspace.clone()))
@@ -260,12 +261,10 @@ impl Store for MemoryStore {
                 .cloned()
                 .collect();
             left -= found.len();
-            if !found.is_empty() {
-                layers.push(AirspaceLayer {
-                    set: stored.set.clone(),
-                    airspaces: found,
-                });
-            }
+            layers.push(AirspaceLayer {
+                set: stored.set.clone(),
+                airspaces: found,
+            });
         }
         Ok(layers)
     }

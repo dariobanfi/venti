@@ -17,7 +17,7 @@ use venti_domain::{
 };
 
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
     SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, batch,
 };
@@ -487,9 +487,10 @@ impl Store for PgStore {
     async fn save_airspace_run(
         &self,
         run: &RunRecord,
+        coverage: &Coverage,
         airspaces: &[Airspace],
     ) -> Result<(), StoreError> {
-        airspace::save_run(&mut self.client().await?, run, airspaces).await
+        airspace::save_run(&mut self.client().await?, run, coverage, airspaces).await
     }
 
     async fn airspaces_in(

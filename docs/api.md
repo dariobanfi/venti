@@ -16,7 +16,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 88 airspaces of the northern Alps around Munich, Innsbruck and Salzburg, recorded from openAIP the day after and served as if fetched at that same moment. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 88 airspaces of the northern Alps around Munich, Innsbruck and Salzburg, recorded from openAIP the day after and served as if fetched at that same moment. Those 88 are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -42,7 +42,7 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 **Missing values.** A value that is not known is left out of the answer. It is never `null` and never a placeholder number. A station without a temperature sensor has readings without `temperature_c`.
 
-**Sources and credit.** Every station and every airspace comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source that has data in it, and only those:
+**Sources and credit.** Every station and every airspace comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
 
 | Field | Meaning |
 |---|---|
@@ -323,6 +323,18 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
       "fetched_at": "2026-11-18T19:05:00Z",
       "file_date": "2026-11-18T19:05:00Z",
       "newest_change": "2026-11-18T10:29:12.552Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "countries": [
+        "DE",
+        "AT"
+      ],
       "airspaces": [
         {
           "id": "openaip:677d59be13e31af480aca6f6",
@@ -442,7 +454,7 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
 }
 ```
 
-**Layers.** Airspace comes in layers, one for each source that has airspace in the box, sorted by source. Layers are never merged: each source has its own licence, its own credit and its own date. A client that stores or draws airspace keeps them apart in the same way, and shows with each layer the credit and the notice of its source. The same airspace published by two sources is two records in two layers.
+**Layers.** Airspace comes in layers, one for each source the server holds airspace of, sorted by source. Every such source is in every answer, also when nothing of it touches the box: its layer then has no airspaces and still says how old the set is and [where it is whole](#where-a-layer-is-whole). Layers are never merged: each source has its own licence, its own credit and its own date. A client that stores or draws airspace keeps them apart in the same way, and shows with each layer the credit and the notice of its source. The same airspace published by two sources is two records in two layers.
 
 | Field | Meaning |
 |---|---|
@@ -450,7 +462,9 @@ curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
 | `layers[].fetched_at` | When the server fetched the set this layer is a part of. **Show the pilot how old this is**, measured against the server's clock (`time` of `/v1/health`) |
 | `layers[].file_date` | The date of the oldest file the source's set was read from, by the source's own word. Where a source puts no date on its files, it is the time of the fetch. Left out if no record says |
 | `layers[].newest_change` | When the source last changed any airspace of its set. Left out if the source does not say |
-| `layers[].airspaces` | The records, sorted by `id` |
+| `layers[].covers` | The boxes inside which the server's set of this source is whole; see [below](#where-a-layer-is-whole). A box is written with its four edges by name, in degrees: `{"south": 46.3, "west": 9.4, "north": 48.5, "east": 17.2}`. Empty, or missing in an answer of an older server, means the server does not say, and a client takes that as covering nothing |
+| `layers[].countries` | The countries whose airspace the layer holds, as ISO 3166-1 alpha-2 codes. Empty if the server does not say |
+| `layers[].airspaces` | The records of the layer that touch the box, sorted by `id`. May be empty |
 | `attributions[].notice` | What the source asks to be said wherever its data is shown. For openAIP: that the data is not certified and must not be used for navigation. **Show it with the airspace.** Left out for a source that asks for nothing of the kind |
 
 A record is the canonical airspace record of the project, the same that the apps read from an OpenAir file: `venti_domain::Airspace`. [airspace.md](airspace.md#the-record) explains every field. What a client needs to know here:
@@ -472,7 +486,60 @@ A record is the canonical airspace record of the project, the same that the apps
 
 **No answer says what is active today.** The server knows no activations and no NOTAMs. A client treats every airspace as potentially active.
 
-**No airspace in the answer is not "no airspace".** The server holds the airspace of the countries its sources cover, which today are Germany and Austria. A box over Switzerland has no layer, and that says nothing about Swiss airspace. Which area the data covers is not in the answer yet; a client must not show an empty answer as free air.
+### Where a layer is whole
+
+**No airspace in the answer is not "no airspace".** The server does not hold the world's airspace. It holds what reaches into the area it collects for, of the countries it fetches, and a layer says both:
+
+- `covers` is the area the server collected the set for: one box around its regions. Inside it the layer holds every airspace the server could read from what the source publishes for the countries in `countries`. Outside it the layer holds nothing, or only what happens to reach out of it.
+- `countries` are the countries that were fetched. Today that is Germany and Austria.
+
+Both describe the server's set, not the request: they are the same whatever box was asked for. A client that wants to know whether a place is covered asks whether the place lies in one of the boxes of `covers`. It shows a pilot "no airspace near" only for a place inside; anywhere else it says that its airspace does not reach there. A glider at 49° N is outside the first region's box, which ends at 48.5° N, and must not be told its air is free because the answer had no airspace in it.
+
+**The boxes take in more than the countries, and the answer cannot say where the border runs.** The first region's box also holds parts of Switzerland, Liechtenstein, Italy, Slovenia, Hungary, Slovakia and Czechia. Of their airspace the layer has nothing, although the places are inside `covers`. A client shows the pilot the countries with the airspace ("airspace of Germany and Austria"), so that a pilot over South Tyrol knows the silence there means nothing. This gap closes when those countries are fetched; it is written down in [data-sources.md](data-sources.md#airspace).
+
+A layer without airspaces, for a quiet box inside the area:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/airspace?bbox=14.90,48.20,14.91,48.21'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "openaip",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "file_date": "2026-11-18T19:05:00Z",
+      "newest_change": "2026-11-18T10:29:12.552Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "countries": [
+        "DE",
+        "AT"
+      ],
+      "airspaces": []
+    }
+  ],
+  "attributions": [
+    {
+      "source": "openaip",
+      "provider": "openAIP",
+      "licence": "CC BY-NC 4.0",
+      "text": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share.",
+      "url": "https://www.openaip.net",
+      "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors."
+    }
+  ]
+}
+```
+
+The credit and the notice come with it: that the source has nothing there is a statement from its data, and no more certified than the rest.
 
 **Caching.** The answer carries `Cache-Control: public, max-age=3600` and an `ETag`. The server fetches its sources once a day, so an answer changes once a day at most; a client that asks again with `If-None-Match` gets `304` until the server has fetched a new set.
 
@@ -1079,4 +1146,4 @@ The links inside the page start with the address the server was configured with 
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today, the area the airspace data covers, live positions and the assistant connector are planned and not built; see [plan.md](plan.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today, live positions and the assistant connector are planned and not built; see [plan.md](plan.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

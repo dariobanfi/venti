@@ -7,7 +7,9 @@ use venti_domain::{
     GeoPoint, HeightUnit, OperatingHours, Polygon, SourceId, Timestamp, Validity, VerticalLimit,
     VerticalReference,
 };
-use venti_store::{AirspaceLayer, AirspaceSet, Month, RunRecord, SourceStatus, Store, StoreError};
+use venti_store::{
+    AirspaceLayer, AirspaceSet, Coverage, Month, RunRecord, SourceStatus, Store, StoreError,
+};
 
 use super::{alps, at, everything, run, source};
 
@@ -58,9 +60,18 @@ fn delivered(source_name: &str, started_at: Timestamp, airspaces: &[Airspace]) -
     }
 }
 
+/// Where the runs of these tests collect: the first region, for Germany
+/// and Austria.
+fn region() -> Coverage {
+    Coverage {
+        boxes: vec![alps()],
+        countries: vec!["DE".to_owned(), "AT".to_owned()],
+    }
+}
+
 async fn save(store: &impl Store, source_name: &str, started_at: Timestamp, set: &[Airspace]) {
     store
-        .save_airspace_run(&delivered(source_name, started_at, set), set)
+        .save_airspace_run(&delivered(source_name, started_at, set), &region(), set)
         .await
         .unwrap();
 }
@@ -68,6 +79,28 @@ async fn save(store: &impl Store, source_name: &str, started_at: Timestamp, set:
 async fn layers_in(store: &impl Store, sources: &[&str], area: &BoundingBox) -> Vec<AirspaceLayer> {
     let sources: Vec<SourceId> = sources.iter().map(|name| source(name)).collect();
     store.airspaces_in(&sources, area, 1000).await.unwrap()
+}
+
+/// Where the stored set of openAIP says it is whole.
+async fn coverage_of(store: &impl Store) -> Coverage {
+    let sets = store.airspace_sets(&[source(OPENAIP)]).await.unwrap();
+    sets[0].coverage.clone()
+}
+
+/// What each layer of an answer holds: its source and the identifiers of
+/// its airspaces.
+fn listed(layers: &[AirspaceLayer]) -> Vec<(String, Vec<String>)> {
+    layers
+        .iter()
+        .map(|layer| {
+            let ids = layer.airspaces.iter().map(|a| a.id.to_string()).collect();
+            (layer.set.source.to_string(), ids)
+        })
+        .collect()
+}
+
+fn ids(of: &[&str]) -> Vec<String> {
+    of.iter().map(|&id| id.to_owned()).collect()
 }
 
 /// The identifiers of what one source has in a box.
@@ -173,6 +206,7 @@ pub(crate) async fn an_airspace_set_is_stored_and_read_back_exactly(store: &impl
                 // The oldest file and the newest change of the two.
                 file_date: plain.validity.file_date,
                 newest_change: plain.validity.updated,
+                coverage: region(),
             },
             airspaces: vec![full, plain],
         }]
@@ -228,8 +262,15 @@ pub(crate) async fn airspace_is_found_by_its_box_edges_included(store: &impl Sto
         ids_in(store, OPENAIP, &on_edge).await,
         ["openaip:around", "openaip:inside"]
     );
+    // Where the set has nothing, the answer is the set without airspaces:
+    // it still says how old it is and where it is whole.
     let nowhere = BoundingBox::new(10.0, 10.0, 11.0, 11.0).unwrap();
-    assert!(layers_in(store, &[OPENAIP], &nowhere).await.is_empty());
+    let empty = layers_in(store, &[OPENAIP], &nowhere).await;
+    assert_eq!(empty.len(), 1);
+    assert!(empty[0].airspaces.is_empty());
+    assert_eq!(empty[0].set.airspaces, 8);
+    assert_eq!(empty[0].set.fetched_at, at(18, 30));
+    assert_eq!(empty[0].set.coverage, region());
 }
 
 pub(crate) async fn a_healthy_run_replaces_the_whole_set(store: &impl Store) {
@@ -252,6 +293,7 @@ pub(crate) async fn a_healthy_run_replaces_the_whole_set(store: &impl Store) {
     assert_eq!(layers[0].airspaces, [grown, muenchen]);
     assert_eq!(layers[0].set.fetched_at, at(4, 0));
     assert_eq!(layers[0].set.airspaces, 2);
+    assert_eq!(layers[0].set.coverage, region());
     // The other source's set is its own.
     let charts = layers_in(store, &[CHARTS], &everything()).await;
     assert_eq!(charts[0].airspaces, [other]);
@@ -269,7 +311,7 @@ pub(crate) async fn an_unhealthy_run_leaves_the_set_alone(store: &impl Store) {
 
     // A source whose first run fails has no airspace at all.
     store
-        .save_airspace_run(&failed(at(2, 0)), &half)
+        .save_airspace_run(&failed(at(2, 0)), &region(), &half)
         .await
         .unwrap();
     assert!(layers_in(store, &[OPENAIP], &everything()).await.is_empty());
@@ -288,20 +330,26 @@ pub(crate) async fn an_unhealthy_run_leaves_the_set_alone(store: &impl Store) {
     save(store, OPENAIP, at(3, 0), &whole).await;
 
     // Germany's file could not be fetched: the run delivers Austria only,
-    // and yesterday's whole set stays.
+    // and yesterday's whole set stays. So does what it says of itself: the
+    // failed run would have claimed the whole world.
+    let world = Coverage {
+        boxes: vec![everything()],
+        countries: vec!["AT".to_owned()],
+    };
     store
-        .save_airspace_run(&failed(at(4, 0)), &half)
+        .save_airspace_run(&failed(at(4, 0)), &world, &half)
         .await
         .unwrap();
     // Unhealthy with nothing delivered is no different.
     store
-        .save_airspace_run(&failed(at(5, 0)), &[])
+        .save_airspace_run(&failed(at(5, 0)), &world, &[])
         .await
         .unwrap();
 
     let layers = layers_in(store, &[OPENAIP], &everything()).await;
     assert_eq!(layers[0].airspaces, whole);
     assert_eq!(layers[0].set.fetched_at, at(3, 0));
+    assert_eq!(layers[0].set.coverage, region());
     // The history knows about the failures all the same.
     assert_eq!(
         store.source_status(&[source(OPENAIP)]).await.unwrap(),
@@ -321,8 +369,16 @@ pub(crate) async fn an_older_run_does_not_replace_a_newer_set(store: &impl Store
     let older = [square("openaip:older", 47.2, 11.3, 0.1)];
     save(store, OPENAIP, at(4, 0), &newer).await;
 
-    // A run that started earlier and is stored late.
-    save(store, OPENAIP, at(3, 0), &older).await;
+    // A run that started earlier and is stored late. It collected for
+    // another area, which must not become the newer set's.
+    let elsewhere = Coverage {
+        boxes: vec![everything()],
+        countries: vec!["FR".to_owned()],
+    };
+    store
+        .save_airspace_run(&delivered(OPENAIP, at(3, 0), &older), &elsewhere, &older)
+        .await
+        .unwrap();
 
     assert_eq!(
         ids_in(store, OPENAIP, &everything()).await,
@@ -330,6 +386,7 @@ pub(crate) async fn an_older_run_does_not_replace_a_newer_set(store: &impl Store
     );
     let set = &store.airspace_sets(&[source(OPENAIP)]).await.unwrap()[0];
     assert_eq!(set.fetched_at, at(4, 0));
+    assert_eq!(set.coverage, region());
     // Both runs are in the history.
     let status = &store.source_status(&[source(OPENAIP)]).await.unwrap()[0];
     assert_eq!(status.last_started, Some(at(4, 0)));
@@ -370,21 +427,25 @@ pub(crate) async fn a_bad_airspace_set_is_refused_and_nothing_is_stored(store: &
     let stranger = [good.clone(), square("charts:muenchen", 48.3, 11.7, 0.1)];
     refused(
         store
-            .save_airspace_run(&delivered(OPENAIP, at(4, 0), &stranger), &stranger)
+            .save_airspace_run(
+                &delivered(OPENAIP, at(4, 0), &stranger),
+                &region(),
+                &stranger,
+            )
             .await,
     );
     // An airspace listed twice.
     let twice = [good.clone(), good.clone()];
     refused(
         store
-            .save_airspace_run(&delivered(OPENAIP, at(4, 0), &twice), &twice)
+            .save_airspace_run(&delivered(OPENAIP, at(4, 0), &twice), &region(), &twice)
             .await,
     );
     // A run that calls itself healthy and delivers nothing would empty the
     // source.
     refused(
         store
-            .save_airspace_run(&delivered(OPENAIP, at(4, 0), &[]), &[])
+            .save_airspace_run(&delivered(OPENAIP, at(4, 0), &[]), &region(), &[])
             .await,
     );
 
@@ -423,25 +484,13 @@ pub(crate) async fn airspace_layers_are_kept_apart_and_sorted(store: &impl Store
     .await;
 
     let both = layers_in(store, &[OPENAIP, CHARTS], &alps()).await;
-    let listed: Vec<(String, Vec<String>)> = both
-        .iter()
-        .map(|layer| {
-            let ids = layer.airspaces.iter().map(|a| a.id.to_string()).collect();
-            (layer.set.source.to_string(), ids)
-        })
-        .collect();
     assert_eq!(
-        listed,
+        listed(&both),
         [
-            (CHARTS.to_owned(), vec!["charts:z".to_owned()]),
+            (CHARTS.to_owned(), ids(&["charts:z"])),
             (
                 OPENAIP.to_owned(),
-                vec![
-                    "openaip:10".to_owned(),
-                    "openaip:9".to_owned(),
-                    "openaip:B".to_owned(),
-                    "openaip:b".to_owned()
-                ]
+                ids(&["openaip:10", "openaip:9", "openaip:B", "openaip:b"])
             ),
         ]
     );
@@ -462,28 +511,97 @@ pub(crate) async fn airspace_layers_are_kept_apart_and_sorted(store: &impl Store
     let named: Vec<&str> = sets.iter().map(|set| set.source.as_str()).collect();
     assert_eq!(named, [CHARTS, OPENAIP]);
 
-    // The limit counts airspaces across the layers and keeps the first.
+    // A source with nothing in the box is a layer all the same, in its
+    // place in the order.
+    let hamburg = BoundingBox::new(53.0, 9.0, 54.0, 10.0).unwrap();
+    assert_eq!(
+        listed(&layers_in(store, &[OPENAIP, CHARTS], &hamburg).await),
+        [
+            (CHARTS.to_owned(), ids(&["charts:far"])),
+            (OPENAIP.to_owned(), ids(&[])),
+        ]
+    );
+
+    // The limit counts airspaces across the layers and keeps the first. A
+    // layer without airspaces does not count, and one with nothing left in
+    // it is still listed.
     let sources = [source(OPENAIP), source(CHARTS)];
     let first = store.airspaces_in(&sources, &alps(), 3).await.unwrap();
-    let ids: Vec<String> = first
-        .iter()
-        .flat_map(|layer| &layer.airspaces)
-        .map(|airspace| airspace.id.to_string())
-        .collect();
-    assert_eq!(ids, ["charts:z", "openaip:10", "openaip:9"]);
+    assert_eq!(
+        listed(&first),
+        [
+            (CHARTS.to_owned(), ids(&["charts:z"])),
+            (OPENAIP.to_owned(), ids(&["openaip:10", "openaip:9"])),
+        ]
+    );
     let one = store.airspaces_in(&sources, &alps(), 1).await.unwrap();
     assert_eq!(
-        one.len(),
-        1,
-        "a layer with nothing left in it is not listed"
+        listed(&one),
+        [
+            (CHARTS.to_owned(), ids(&["charts:z"])),
+            (OPENAIP.to_owned(), ids(&[])),
+        ]
     );
-    assert!(
-        store
-            .airspaces_in(&sources, &alps(), 0)
-            .await
-            .unwrap()
-            .is_empty()
+    let none = store.airspaces_in(&sources, &alps(), 0).await.unwrap();
+    assert_eq!(
+        listed(&none),
+        [
+            (CHARTS.to_owned(), ids(&[])),
+            (OPENAIP.to_owned(), ids(&[]))
+        ]
     );
+    // An empty layer before a full one takes nothing from the limit.
+    let south = BoundingBox::new(46.9, 10.9, 47.2, 11.2).unwrap();
+    let far = [square("charts:far", 53.4, 9.8, 0.1)];
+    save(store, CHARTS, at(5, 0), &far).await;
+    let after_empty = store.airspaces_in(&sources, &south, 4).await.unwrap();
+    assert_eq!(
+        listed(&after_empty),
+        [
+            (CHARTS.to_owned(), ids(&[])),
+            (
+                OPENAIP.to_owned(),
+                ids(&["openaip:10", "openaip:9", "openaip:B", "openaip:b"])
+            ),
+        ]
+    );
+}
+
+pub(crate) async fn a_set_says_where_it_is_whole_as_its_run_said(store: &impl Store) {
+    let set = [square("openaip:innsbruck", 47.2, 11.3, 0.1)];
+
+    // Several boxes with awkward decimals, in the order given, and
+    // countries in the order given: they are not sorted or merged.
+    let two = Coverage {
+        boxes: vec![
+            BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap(),
+            BoundingBox::new(42.300_000_000_000_004, -1.9, 43.1 + 0.2, 3.3).unwrap(),
+        ],
+        countries: vec!["FR".to_owned(), "ES".to_owned(), "AD".to_owned()],
+    };
+    store
+        .save_airspace_run(&delivered(OPENAIP, at(3, 0), &set), &two, &set)
+        .await
+        .unwrap();
+    assert_eq!(coverage_of(store).await, two);
+    let layers = layers_in(store, &[OPENAIP], &everything()).await;
+    assert_eq!(layers[0].set.coverage, two);
+
+    // The next run collects for less: its set says less.
+    save(store, OPENAIP, at(4, 0), &set).await;
+    assert_eq!(coverage_of(store).await, region());
+
+    // A run that does not say where its set is whole stores a set that
+    // says nothing, which is not "everywhere".
+    store
+        .save_airspace_run(
+            &delivered(OPENAIP, at(5, 0), &set),
+            &Coverage::default(),
+            &set,
+        )
+        .await
+        .unwrap();
+    assert_eq!(coverage_of(store).await, Coverage::default());
 }
 
 pub(crate) async fn pruning_leaves_airspace_alone(store: &impl Store) {

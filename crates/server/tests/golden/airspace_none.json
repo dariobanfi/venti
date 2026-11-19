@@ -1,0 +1,33 @@
+{
+  "layers": [
+    {
+      "source": "openaip",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "file_date": "2026-11-18T19:05:00Z",
+      "newest_change": "2026-11-18T10:29:12.552Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "countries": [
+        "DE",
+        "AT"
+      ],
+      "airspaces": []
+    }
+  ],
+  "attributions": [
+    {
+      "source": "openaip",
+      "provider": "openAIP",
+      "licence": "CC BY-NC 4.0",
+      "text": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share.",
+      "url": "https://www.openaip.net",
+      "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors."
+    }
+  ]
+}

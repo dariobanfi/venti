@@ -467,9 +467,15 @@ mod tests {
             shutdown.clone(),
         ));
 
-        // The first run was at once, and its set is the stored one.
+        // The first run was at once, and its set is the stored one. It
+        // says where it is whole: the job's area, for the countries of the
+        // source's manifest.
         tokio::time::sleep(HOUR).await;
         assert_eq!(stored().await, Some(epoch));
+        let sets = store.airspace_sets(std::slice::from_ref(&air)).await;
+        let coverage = sets.unwrap().remove(0).coverage;
+        assert_eq!(coverage.boxes, [job("air").area]);
+        assert_eq!(coverage.countries, ["DE"]);
 
         // A day later the run fails. The set of the day before stays, and
         // the next try is a day after that, not sooner.

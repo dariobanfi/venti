@@ -21,7 +21,7 @@ pub(crate) struct Params {
 }
 
 /// `GET /v1/airspace?bbox=west,south,east,north`: the airspace that touches
-/// a box, one layer per source.
+/// a box, one layer per source the server holds airspace of.
 pub(crate) async fn airspace<S: Store>(
     State(api): State<Arc<Api<S>>>,
     headers: HeaderMap,
@@ -43,6 +43,13 @@ pub(crate) async fn airspace<S: Store>(
 
 impl<S: Store> Api<S> {
     /// The airspace that touches a box, as the API answers it.
+    ///
+    /// Every source the server holds a set of is a layer, also when
+    /// nothing of it touches the box: the layer says where its set is
+    /// whole, and a client can tell "no airspace here" from "not held"
+    /// by that and by nothing else. Such a layer is credited like any
+    /// other, because "nothing here" is a statement from the source's
+    /// data and carries its warning.
     ///
     /// Only sources this server is configured to serve airspace of are
     /// asked for, so what the store still holds of a source that was taken
@@ -82,6 +89,8 @@ impl<S: Store> Api<S> {
                 fetched_at: layer.set.fetched_at,
                 file_date: layer.set.file_date,
                 newest_change: layer.set.newest_change,
+                covers: layer.set.coverage.boxes,
+                countries: layer.set.coverage.countries,
                 airspaces: layer.airspaces,
             })
             .collect();

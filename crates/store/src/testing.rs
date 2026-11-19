@@ -9,7 +9,7 @@ use std::time::Duration;
 use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
 
 use crate::{
-    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
     SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility,
 };
@@ -83,7 +83,12 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
-    async fn save_airspace_run(&self, _: &RunRecord, _: &[Airspace]) -> Result<(), StoreError> {
+    async fn save_airspace_run(
+        &self,
+        _: &RunRecord,
+        _: &Coverage,
+        _: &[Airspace],
+    ) -> Result<(), StoreError> {
         self.fail().await
     }
 

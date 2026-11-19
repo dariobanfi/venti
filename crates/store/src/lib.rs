@@ -37,7 +37,7 @@ use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, Statio
 pub use account::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
 };
-pub use airspace::{AirspaceLayer, AirspaceSet};
+pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     Place, Score, ScoreKind, Visibility,
@@ -212,9 +212,10 @@ pub trait Store: Send + Sync + 'static {
     /// run delivered, all or nothing.
     ///
     /// - After a healthy run the store holds exactly `airspaces` for the
-    ///   source: what the set before had and this one lacks is gone.
+    ///   source: what the set before had and this one lacks is gone. With
+    ///   the set it keeps `coverage`, which says where that set is whole.
     /// - A run that was not healthy leaves the stored airspace as it is,
-    ///   and `airspaces` is not looked at. Half a set is worse than
+    ///   and neither `coverage` nor `airspaces` is looked at. Half a set is worse than
     ///   yesterday's whole one: a pilot is not warned about airspace that
     ///   is missing.
     /// - A run that started before the run whose set is stored replaces
@@ -228,13 +229,20 @@ pub trait Store: Send + Sync + 'static {
     fn save_airspace_run(
         &self,
         run: &RunRecord,
+        coverage: &Coverage,
         airspaces: &[Airspace],
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
 
     /// The stored airspace of `sources` whose bounding box touches `area`,
-    /// edges included: one layer per source that has any there, sorted by
-    /// source, with the airspaces of each sorted by identifier. At most
-    /// `limit` airspaces are returned in all: the first in that order.
+    /// edges included: one layer per source the store holds a set of,
+    /// sorted by source, with the airspaces of each sorted by identifier.
+    /// At most `limit` airspaces are returned in all: the first in that
+    /// order.
+    ///
+    /// A source whose set has nothing in `area` is a layer without
+    /// airspaces. That is an answer of its own: the set says where it is
+    /// whole, and only with that can "nothing found" be told from "not
+    /// held". A source the store holds no set of is not listed.
     ///
     /// An airspace is found by the smallest box around its outline, so one
     /// whose outline curves past `area` may be among the answers. None

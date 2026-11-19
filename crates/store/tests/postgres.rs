@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3]);
+    assert_eq!(versions, [1, 2, 3, 4]);
 }
 
 #[tokio::test]
@@ -225,6 +225,44 @@ async fn a_database_from_before_airspace_is_upgraded_in_place() {
 }
 
 #[tokio::test]
+async fn an_airspace_set_from_before_sets_said_where_they_are_whole_says_nothing() {
+    let Some(url) = fresh_schema("upgrade_from_3").await else {
+        return;
+    };
+    // A database as the server left it when it first collected airspace,
+    // with a set in it.
+    let old = look(&url).await;
+    for migration in [
+        include_str!("../migrations/0001_stations_observations_runs.sql"),
+        include_str!("../migrations/0002_accounts_sessions_flights.sql"),
+        include_str!("../migrations/0003_airspace.sql"),
+    ] {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             VALUES (1, 'first'), (2, 'second'), (3, 'third');
+         INSERT INTO airspace_sets VALUES
+             ('openaip', '2026-11-18 03:00+00', 344, '2026-11-18 01:12:30+00', NULL);",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let openaip = venti_domain::SourceId::new("openaip").unwrap();
+    let sets = store.airspace_sets(&[openaip]).await.unwrap();
+    assert_eq!(sets[0].airspaces, 344, "what was there is still there");
+    // Nothing is made up for it: until the next run it covers nothing.
+    assert_eq!(sets[0].coverage, venti_store::Coverage::default());
+}
+
+#[tokio::test]
 async fn the_box_query_for_airspace_uses_the_spatial_index() {
     let Some(url) = fresh_schema("airspace_index").await else {
         return;
@@ -240,11 +278,21 @@ async fn the_box_query_for_airspace_uses_the_spatial_index() {
         .unwrap();
     let plan = tables
         .query(
-            "EXPLAIN SELECT a.id FROM airspaces a
-             WHERE ST_MakeEnvelope(a.west, a.south, a.east, a.north, 4326)
-                   && ST_MakeEnvelope(9.4, 46.3, 17.2, 48.5, 4326)
-               AND a.west <= 17.2 AND a.east >= 9.4
-               AND a.south <= 48.5 AND a.north >= 46.3",
+            // The store's own question, with a box written in.
+            "EXPLAIN WITH found AS (
+                 SELECT a.source, a.id, a.record FROM airspaces a
+                 WHERE a.source = ANY(ARRAY['openaip'])
+                   AND ST_MakeEnvelope(a.west, a.south, a.east, a.north, 4326)
+                       && ST_MakeEnvelope(9.4, 46.3, 17.2, 48.5, 4326)
+                   AND a.west <= 17.2 AND a.east >= 9.4
+                   AND a.south <= 48.5 AND a.north >= 46.3
+                 ORDER BY a.source, a.id
+                 LIMIT 5001
+             )
+             SELECT f.record, s.source FROM airspace_sets s
+             LEFT JOIN found f ON f.source = s.source
+             WHERE s.source = ANY(ARRAY['openaip'])
+             ORDER BY s.source, f.id",
             &[],
         )
         .await

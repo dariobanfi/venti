@@ -117,6 +117,40 @@ describe('wind from the server', () => {
 		expect(answer?.lateProviders).toEqual(['Deutscher Wetterdienst']);
 	});
 
+	it('says who may create an account, by the server’s own word', async () => {
+		/** The recorded health answer with another word about registration, or none. */
+		const saying = (registration: string | undefined) => {
+			const health = JSON.parse(new TextDecoder().decode(recorded('health.json')));
+			if (registration === undefined) delete health.registration;
+			else health.registration = registration;
+			const { get } = server({
+				'/v1/health': { status: 200, body: new TextEncoder().encode(JSON.stringify(health)) }
+			});
+			return new WindSource(get, () => SERVER_NOW).registration();
+		};
+
+		// The development mode, as recorded, takes anyone.
+		expect(await new WindSource(server().get, () => SERVER_NOW).registration()).toBe('open');
+		expect(await saying('invite')).toBe('invite');
+		expect(await saying('closed')).toBe('closed');
+		// A server older than the question, and a rule this app does not
+		// know: no answer, and a form then offers the field for a code.
+		expect(await saying(undefined)).toBeUndefined();
+		expect(await saying('by_email')).toBeUndefined();
+	});
+
+	it('has no word on registration from a site without a server, or one out of reach', async () => {
+		const none = server({
+			'/v1/health': { status: 404, body: new TextEncoder().encode('<h1>Not found</h1>') }
+		});
+		const unreachable: typeof none.get = async () => {
+			throw new Error('Failed to fetch');
+		};
+
+		expect(await new WindSource(none.get, () => SERVER_NOW).registration()).toBeUndefined();
+		expect(await new WindSource(unreachable, () => SERVER_NOW).registration()).toBeUndefined();
+	});
+
 	it('has no wind, and asks no more, on a site without a server', async () => {
 		const { asked, get } = server({
 			'/v1/health': { status: 404, body: new TextEncoder().encode('<h1>Not found</h1>') }

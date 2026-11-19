@@ -4,6 +4,11 @@
 	anything, and where a password is chosen it says that a forgotten one
 	cannot be recovered.
 
+	Who may create an account is the server's to say, and the form follows:
+	a field for an invite code where the server takes accounts by invite, and
+	where it does not say; none where anyone may register; and no form at all
+	where the server takes no new accounts.
+
 	Whether what was typed will do is the core's to say, and the server's:
 	their refusals stand under the fields in their own words. The browser's
 	own checks are off, so there is one voice.
@@ -23,6 +28,15 @@
 	const MODES = ['Sign in', 'New account'] as const;
 	let mode = $state<string>(MODES[0]);
 	const isNew = $derived(mode === 'New account');
+	/** The server takes no new accounts: there is nothing to fill in. */
+	const closed = $derived(isNew && account.registration === 'closed');
+	/**
+	 * Whether a new account may need an invite code: the server says so, or
+	 * says nothing, as one older than the question, which may ask for one.
+	 */
+	const mayNeedInvite = $derived(
+		account.registration === 'invite' || account.registration === undefined
+	);
 
 	let handle = $state('');
 	let displayName = $state('');
@@ -35,7 +49,12 @@
 		event.preventDefault();
 		refusal = undefined;
 		refusal = isNew
-			? await account.createAccount({ handle, displayName, password, invite })
+			? await account.createAccount({
+					handle,
+					displayName,
+					password,
+					invite: mayNeedInvite ? invite : ''
+				})
 			: await account.signIn(handle, password);
 	}
 </script>
@@ -52,81 +71,95 @@
 			<div class="switch">
 				<Segmented label="What to do" options={MODES} bind:value={mode} />
 			</div>
-			<label class="field">
-				<span>Handle</span>
-				<input
-					name="username"
-					autocomplete="username"
-					autocapitalize="none"
-					autocorrect="off"
-					spellcheck="false"
-					bind:value={handle}
-				/>
-			</label>
-			{#if isNew}
+			{#if closed}
+				<p class="closed">
+					This server takes no new accounts. An account you already have signs in as before.
+				</p>
+			{:else}
 				<label class="field">
-					<span>Name</span>
+					<span>Handle</span>
 					<input
-						name="name"
-						autocomplete="name"
-						placeholder="Shown to others"
-						aria-label="Name shown to others"
-						bind:value={displayName}
-					/>
-				</label>
-			{/if}
-			<label class="field">
-				<span>Password</span>
-				<input
-					name="password"
-					type="password"
-					autocomplete={isNew ? 'new-password' : 'current-password'}
-					bind:value={password}
-				/>
-			</label>
-			{#if isNew}
-				<label class="field">
-					<span>Invite code</span>
-					<input
-						name="invite"
-						autocomplete="off"
+						name="username"
+						autocomplete="username"
 						autocapitalize="none"
 						autocorrect="off"
 						spellcheck="false"
-						bind:value={invite}
+						bind:value={handle}
 					/>
 				</label>
+				{#if isNew}
+					<label class="field">
+						<span>Name</span>
+						<input
+							name="name"
+							autocomplete="name"
+							placeholder="Shown to others"
+							aria-label="Name shown to others"
+							bind:value={displayName}
+						/>
+					</label>
+				{/if}
+				<label class="field">
+					<span>Password</span>
+					<input
+						name="password"
+						type="password"
+						autocomplete={isNew ? 'new-password' : 'current-password'}
+						bind:value={password}
+					/>
+				</label>
+				{#if isNew && mayNeedInvite}
+					<label class="field">
+						<span>Invite code</span>
+						<input
+							name="invite"
+							autocomplete="off"
+							autocapitalize="none"
+							autocorrect="off"
+							spellcheck="false"
+							bind:value={invite}
+						/>
+					</label>
+				{/if}
 			{/if}
 		</div>
-		{#if isNew}
+		{#if isNew && !closed}
 			<p class="group-note">
 				A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters;
 				a few words in a row are easy to remember. A forgotten password cannot be recovered: the
 				server knows no email address. Handle and name are public once you share a flight.
 			</p>
-			<p class="group-note">
-				The invite code is for a server that takes accounts by invite. Whoever runs it hands them
-				out.
-			</p>
+			{#if account.registration === 'invite'}
+				<p class="group-note">
+					This server takes new accounts by invite. Whoever runs it hands the codes out.
+				</p>
+			{:else if mayNeedInvite}
+				<p class="group-note">
+					The invite code is for a server that takes accounts by invite. Whoever runs it hands them
+					out.
+				</p>
+			{/if}
 		{/if}
 		{#if refusal}
 			<p class="group-note refusal" role="alert">{refusal}</p>
 		{/if}
 	</section>
 
-	<div class="submit">
-		<button
-			class="button-prominent"
-			type="submit"
-			disabled={account.working || handle === '' || password === ''}
-		>
-			{#if account.working}
-				Working…
-			{:else}
-				{isNew ? 'Create account' : 'Sign in'}
-			{/if}
-		</button>
-	</div>
+	{#if !closed}
+		<div class="submit">
+			<button
+				class="button-prominent"
+				type="submit"
+				disabled={account.working || handle === '' || password === ''}
+			>
+				{#if account.working}
+					Working…
+				{:else}
+					{isNew ? 'Create account' : 'Sign in'}
+				{/if}
+			</button>
+		</div>
+	{/if}
 </form>
 
 <style>
@@ -142,6 +175,11 @@
 
 	.refusal {
 		color: var(--danger);
+	}
+
+	.closed {
+		padding: 0.25rem 1rem 1rem;
+		color: var(--text-secondary);
 	}
 
 	.submit {

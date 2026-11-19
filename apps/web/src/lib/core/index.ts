@@ -61,6 +61,7 @@ export type {
 	ModelForecast,
 	MonthStatistics,
 	ProfilePoint,
+	Registration,
 	RouteKind,
 	SiteKind,
 	SitesMap,

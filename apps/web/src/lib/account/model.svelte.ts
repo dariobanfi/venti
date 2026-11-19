@@ -14,7 +14,8 @@ import {
 	type FlightSharing,
 	type FlightVisibility,
 	isInWords,
-	type NewAccount
+	type NewAccount,
+	type Registration
 } from '#lib/core/index.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
@@ -30,6 +31,13 @@ export class AccountModel {
 	 * the server was asked.
 	 */
 	hasServer = $state<boolean>();
+
+	/**
+	 * Who may create an account on the server: anyone, whoever has an
+	 * invite code, or nobody. Nothing while the server has not said, and
+	 * from one that never does, which may ask for a code.
+	 */
+	registration = $state<Registration>();
 
 	/** Whether a request or a sync is under way. */
 	working = $state(false);
@@ -70,6 +78,10 @@ export class AccountModel {
 		void core.hasServer().then(
 			(present) => (model.hasServer = present),
 			() => (model.hasServer = true)
+		);
+		void core.registration().then(
+			(registration) => (model.registration = registration),
+			() => {}
 		);
 		return model;
 	}

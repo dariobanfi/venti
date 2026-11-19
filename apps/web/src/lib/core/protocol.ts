@@ -29,6 +29,7 @@ import type {
 	KeptAirspace,
 	LogbookStatistics,
 	LogbookView,
+	Registration,
 	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
@@ -67,6 +68,8 @@ export interface Calls {
 	forecast: { given: Coordinate; answer: ForecastView | undefined };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
+	/** Who may create an account on this site's server, if the server says. */
+	registration: { given: undefined; answer: Registration | undefined };
 	/** The account this browser is signed in to, if any. */
 	account: { given: undefined; answer: AccountView | undefined };
 	signIn: { given: { handle: string; password: string }; answer: AccountView };
@@ -146,6 +149,7 @@ export async function answer<Name extends CallName>(
 		sites: (box) => sites.sites(box),
 		forecast: (place) => forecast.forecast(place),
 		hasServer: () => wind.present(),
+		registration: () => wind.registration(),
 		account: () => account.account(),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
 		createAccount: (wanted) => account.createAccount(wanted),

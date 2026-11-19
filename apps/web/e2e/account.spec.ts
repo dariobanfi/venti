@@ -128,7 +128,9 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await field(page, 'Handle').fill(pilot.handle);
 	await field(page, 'Name shown to others').fill('Test Pilot');
 	await field(page, 'Password').fill('too short');
-	await expect(field(page, 'Invite code')).toBeVisible();
+	// This server says that anyone may register: no invite code is asked for.
+	await expect(field(page, 'Invite code')).toBeHidden();
+	await expect(page.getByText(/invite/i)).toBeHidden();
 	await keep('27-account-new');
 
 	// What the server would refuse anyway, the core refuses before it is asked.
@@ -306,6 +308,59 @@ test('a flight cannot be shared before the pilot is signed in, and the sheet say
 	await sheet.getByRole('link', { name: 'Account' }).click();
 	await expect(page).toHaveTitle('Account · Venti');
 	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+});
+
+test('the form for a new account follows who may register on the server', async ({
+	context,
+	page,
+	keep
+}) => {
+	// The server says who may create an account in its health answer. The
+	// development mode's says "open"; here it says each of the others in turn.
+	let registration: string | undefined = 'invite';
+	await context.route('**/v1/health', async (route) => {
+		const response = await route.fetch();
+		const health = await response.json();
+		if (registration === undefined) delete health.registration;
+		else health.registration = registration;
+		await route.fulfill({ response, json: health });
+	});
+
+	// By invite: the field for the code, and why it is there.
+	await page.goto('/settings/account/');
+	await page.getByRole('radio', { name: 'New account' }).check();
+	await expect(field(page, 'Invite code')).toBeVisible();
+	await expect(
+		page.getByText('This server takes new accounts by invite. Whoever runs it hands the codes out.')
+	).toBeVisible();
+	await keep('52-account-new-by-invite');
+
+	// Closed: no form to fill in, and it says so. Signing in is as before.
+	registration = 'closed';
+	await page.reload();
+	await page.getByRole('radio', { name: 'New account' }).check();
+	await expect(
+		page.getByText(
+			'This server takes no new accounts. An account you already have signs in as before.'
+		)
+	).toBeVisible();
+	await expect(field(page, 'Handle')).toBeHidden();
+	await expect(field(page, 'Invite code')).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Create account' })).toBeHidden();
+	await keep('53-account-new-closed');
+	await page.getByRole('radio', { name: 'Sign in' }).check();
+	await expect(field(page, 'Handle')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+
+	// A server older than the question says nothing, and may ask for a
+	// code: the field is offered, as it always was.
+	registration = undefined;
+	await page.reload();
+	await page.getByRole('radio', { name: 'New account' }).check();
+	await expect(field(page, 'Invite code')).toBeVisible();
+	await expect(
+		page.getByText('The invite code is for a server that takes accounts by invite.')
+	).toBeVisible();
 });
 
 test('a site without a server has no account to sign in to, and says so', async ({

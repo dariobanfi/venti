@@ -247,6 +247,7 @@ Where the web's account and sharing differ from the iPhone's:
 - **What the last sync did** is a row of its own: "3 sent, 1 fetched".
 - **The link** of a shared flight opens its page in a new tab, and a button copies it; a browser has no share sheet to hand it to.
 - **Deleting a flight** says, when signed in, that the server's copy and those on the pilot's other devices go with it.
+- **Who may register is the server's to say**, and the form for a new account follows it. Where the server takes accounts by invite, the form has the field for the code and says who hands codes out. Where anyone may register, there is no such field and no word about invites. Where the server takes no new accounts, "New account" says so and has no form: "This server takes no new accounts. An account you already have signs in as before." A server that does not say, as an older one, may ask for a code, so the field is offered as it always was. The iPhone and Android show the field in every case.
 - **Passwords** are fields a password manager recognises: the handle as the user name, the password as a current or a new one.
 
 What stands in for the system:

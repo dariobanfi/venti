@@ -16,6 +16,7 @@
 import { unreachable } from './protocol';
 import {
 	type Bounds,
+	type Registration,
 	serverStatus,
 	serverStatusPath,
 	stationHistory,
@@ -71,6 +72,8 @@ export class WindSource {
 	/** The server's clock minus this device's, and when it was read. */
 	#clock: { aheadMs: number; readAt: number } | undefined;
 	#lateProviders: string[] = [];
+	/** Who may create an account on the server, by its own last word. */
+	#registration: Registration | undefined;
 	/** Whether the site turned out to have no server. */
 	#absent = false;
 
@@ -105,6 +108,20 @@ export class WindSource {
 		}
 	}
 
+	/**
+	 * Who may create an account on this site's server: anyone, whoever has
+	 * an invite code, or nobody. Nothing when the server does not say, as
+	 * one older than the question, when it could not be asked, and when the
+	 * site has none.
+	 */
+	async registration(): Promise<Registration | undefined> {
+		try {
+			return (await this.#readClock()) ? this.#registration : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	/** What a station measured over the last 24 hours. */
 	async stationHistory(stationId: string): Promise<StationHistory> {
 		const answer = await this.#get(stationHistoryPath(stationId));
@@ -136,6 +153,7 @@ export class WindSource {
 		const now = this.#deviceNow();
 		this.#clock = { aheadMs: status.timeUnixS * 1000 - now, readAt: now };
 		this.#lateProviders = status.lateProviders;
+		this.#registration = status.registration;
 		return true;
 	}
 }

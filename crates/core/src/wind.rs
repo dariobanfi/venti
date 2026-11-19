@@ -11,7 +11,7 @@
 use chrono::{DateTime, Utc};
 use venti_api_types::v1::{
     Attribution, HEALTH_PATH, HealthResponse, ObservationsRequest, ObservationsResponse, Reading,
-    StationWithLatest, StationsRequest, StationsResponse,
+    RegistrationMode, StationWithLatest, StationsRequest, StationsResponse,
 };
 use venti_domain::{BoundingBox, StationId};
 
@@ -225,6 +225,19 @@ pub struct StationHistory {
     pub credits: Vec<Credit>,
 }
 
+/// Who may create an account on a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum Registration {
+    /// Anyone. No invite code is asked for.
+    Open,
+    /// Whoever has an invite code from whoever runs the server.
+    Invite,
+    /// Nobody. Existing accounts sign in as before.
+    Closed,
+}
+
 /// How the server is doing.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -239,6 +252,11 @@ pub struct ServerStatus {
     /// The providers whose data the server has not received lately. Their
     /// stations show old readings until the provider delivers again.
     pub late_providers: Vec<String>,
+    /// Who may create an account here. `None` when the server does not
+    /// say, as one older than the question, or names a rule this version
+    /// does not know. Such a server may ask for an invite code, so a form
+    /// for a new account then offers the field for one.
+    pub registration: Option<Registration>,
 }
 
 /// The path to `GET` to learn how the server is doing.
@@ -260,6 +278,12 @@ pub fn server_status(status: u16, body: Vec<u8>) -> Result<ServerStatus, CoreErr
             .filter(|source| source.stale)
             .map(|source| source.provider)
             .collect(),
+        registration: match response.registration {
+            Some(RegistrationMode::Open) => Some(Registration::Open),
+            Some(RegistrationMode::Invite) => Some(Registration::Invite),
+            Some(RegistrationMode::Closed) => Some(Registration::Closed),
+            Some(RegistrationMode::Unknown) | None => None,
+        },
     })
 }
 
@@ -607,6 +631,27 @@ mod tests {
         assert_eq!(status.version, "0.1.0");
         assert_eq!(status.time_unix_s, NOW);
         assert_eq!(status.late_providers, ["Deutscher Wetterdienst"]);
+        // A server older than the question says nothing about who may
+        // register.
+        assert_eq!(status.registration, None);
+    }
+
+    #[test]
+    fn who_may_register_is_read_and_a_rule_not_known_is_no_answer() {
+        let says = |registration: &str| {
+            let body = format!(
+                r#"{{"status": "ok", "version": "0.1.0", "time": "2026-11-18T19:05:00Z",
+                    "registration": "{registration}", "sources": []}}"#
+            );
+            server_status(200, body.into_bytes()).unwrap().registration
+        };
+
+        assert_eq!(says("open"), Some(Registration::Open));
+        assert_eq!(says("invite"), Some(Registration::Invite));
+        assert_eq!(says("closed"), Some(Registration::Closed));
+        // A rule a later server may have: taken as "does not say", which
+        // leaves the field for an invite code on the form.
+        assert_eq!(says("by_email"), None);
     }
 
     /// The server's own recorded answers, which its tests keep current.
@@ -622,6 +667,8 @@ mod tests {
         let status = server_status(200, golden("health.json")).unwrap();
         assert_eq!(status.time_unix_s, NOW);
         assert!(status.late_providers.is_empty());
+        // The development mode takes anyone.
+        assert_eq!(status.registration, Some(Registration::Open));
 
         let map = wind_map(200, golden("stations.json"), status.time_unix_s).unwrap();
         assert!(!map.stations.is_empty());

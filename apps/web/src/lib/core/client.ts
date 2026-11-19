@@ -115,6 +115,11 @@ export class CoreClient {
 		return this.#call('hasServer', undefined);
 	}
 
+	/** Who may create an account on this site's server, if the server says. */
+	registration() {
+		return this.#call('registration', undefined);
+	}
+
 	/** The account this browser is signed in to, if any. */
 	account() {
 		return this.#call('account', undefined);

@@ -19,6 +19,11 @@ enum Format {
         date(unixSeconds).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
+    /// "Thu, 19 Nov at 15:00"
+    static func dayAndTime(unixSeconds: Int64) -> String {
+        "\(dayInYear(unixSeconds: unixSeconds)) at \(time(unixSeconds: unixSeconds))"
+    }
+
     /// "10:30"
     static func time(unixSeconds: Int64) -> String {
         date(unixSeconds).formatted(date: .omitted, time: .shortened)

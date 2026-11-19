@@ -24,6 +24,26 @@ extension WindBand {
 
     var color: Color { Color(uiColor: uiColor) }
 
+    /// The band's colour for a list or a table, which follow the iPhone's
+    /// appearance: on a dark surface the scale runs the other way, dim for
+    /// light wind and bright for strong, so that every step still stands
+    /// out. Checked as an ordered ramp against both surfaces. The map
+    /// keeps `uiColor`: its arrows have a white edge and lie on a map that
+    /// is light in both appearances.
+    var ink: Color {
+        let dark: UIColor =
+            switch self {
+            case .light: UIColor(hex: 0x256ABF)
+            case .moderate: UIColor(hex: 0x5598E7)
+            case .fresh: UIColor(hex: 0x9CC4F3)
+            case .strong: UIColor(hex: 0xE3EEFC)
+            }
+        let light = uiColor
+        return Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? dark : light
+        })
+    }
+
     /// How large the band's arrow is drawn, relative to the smallest.
     var arrowScale: Double {
         switch self {

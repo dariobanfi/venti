@@ -157,6 +157,18 @@ final class WindModel {
         return try stationHistory(status: status, body: body, nowUnixS: now)
     }
 
+    /// What the weather models say about a place for today and the next
+    /// days. The days are those of this iPhone's clock.
+    func forecast(at place: Coordinate) async throws -> ForecastView {
+        guard let server else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await get(forecastPath(lat: place.lat, lon: place.lon), from: server)
+        return try VentiCore.forecast(
+            status: status, body: body, utcOffsetS: Int32(TimeZone.current.secondsFromGMT())
+        )
+    }
+
     private func get(_ path: String, from server: URL) async throws -> (UInt16, Data) {
         guard let url = URL(string: server.absoluteString + path) else {
             throw URLError(.badURL)

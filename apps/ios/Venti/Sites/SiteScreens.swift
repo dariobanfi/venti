@@ -171,6 +171,7 @@ struct SiteScreen: View {
     let site: SiteView
 
     @Environment(SitesModel.self) private var sites
+    @Environment(WindModel.self) private var wind
     @Environment(WaypointsModel.self) private var waypoints
     @Environment(\.dismiss) private var dismiss
 
@@ -209,6 +210,16 @@ struct SiteScreen: View {
                     if site.paragliding == false {
                         Label("Marked as not for paragliders", systemImage: "nosign")
                     }
+                }
+            }
+            if wind.server != nil {
+                Section {
+                    NavigationLink {
+                        ForecastScreen(place: site.position, title: site.name)
+                    } label: {
+                        Label("Forecast for this place", systemImage: "cloud.sun")
+                    }
+                    .accessibilityIdentifier("site-forecast")
                 }
             }
             Section {

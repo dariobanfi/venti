@@ -130,12 +130,12 @@ struct WindGlyph: View {
         case .arrow(let band):
             Image(systemName: "location.north.fill")
                 .font(.system(size: 20))
-                .foregroundStyle(band.color)
+                .foregroundStyle(band.ink)
                 .rotationEffect(.degrees(mark.headingDeg))
         case .calm:
             Image(systemName: "circle.fill")
                 .font(.system(size: 9))
-                .foregroundStyle(WindBand.light.color)
+                .foregroundStyle(WindBand.light.ink)
         case .old:
             Image(systemName: "circle.fill")
                 .font(.system(size: 9))

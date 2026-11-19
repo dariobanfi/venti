@@ -45,6 +45,15 @@ struct StationScreen: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    ForecastScreen(place: station.position, title: station.name)
+                } label: {
+                    Label("Forecast for this place", systemImage: "cloud.sun")
+                }
+                .accessibilityIdentifier("station-forecast")
+            }
+
             if let credit {
                 Section("Source") {
                     VStack(alignment: .leading, spacing: 4) {

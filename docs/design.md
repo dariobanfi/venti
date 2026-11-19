@@ -58,6 +58,8 @@ Wherever a map reaches the top of the screen, a soft band of the background colo
 
 **Flying sites.** Once the map shows a valley and not a country, the take-offs, landings, winch sites and training slopes the server knows are drawn as small round signs in the map's own ink, not in a colour: colour belongs to wind, airspace and tracks. A take-off is a dark disc with a white arrow up, a landing a white disc with a dark arrow down, so the two are told apart at a glance. A name is written only where the source gives one. A tap opens the site: what it is, its height and the wind it works in, in words and as wedges on a small compass, where the source says so, and whether the source marks it official or discouraged. One button keeps the site as a waypoint, which the cockpit can navigate to without a network. A third round button lists the same sites by name. Everywhere sites are listed it says what a sign on a map is worth: the source is one anyone can edit, a site on the map is not permission to fly there, and a place without a sign may still be a site.
 
+**Forecast.** A site's page and a wind station's page lead to the forecast for that place. It is a table of one day: a column for every hour with the sun up, a row for the wind at each height the model gives, the highest at the top and the wind 10 m above the ground with its gusts last, then cloud base, cloud, rain, temperature and the height of the 0 °C level. The names of the rows stay in place and the hours scroll. Each wind is an arrow pointing where the air moves, in the wind scale's blue, with its km/h below; a pressure surface is named by about how high it lies ("3,100 m") with the surface in small print. Days are picked above the table, the weather model below it, one model at a time and never a blend. Under the table it says what the numbers are: one cell of the model's grid, how high the model thinks the ground is there, that the wind at 10 m is the wind above that ground and not at a take-off, and that nothing in the table says whether the day can be flown. The table has no colour for good or bad for the same reason the wind scale has none.
+
 ### The page of a shared flight
 
 A flight that its pilot shares has a page on the web, made by the server, which works without the web app and without scripts. It is the first thing someone outside the app sees of Venti, usually as a preview in a chat.
@@ -106,7 +108,7 @@ To verify: no flying app we read documents which colours it uses for climb and s
 
 ### Wind
 
-Wind strength is one blue in four steps of the mean wind, light to dark.
+Wind strength is one blue in four steps of the mean wind, light to dark. In lists and tables on a dark surface the same hue runs the other way, dim to bright (`#256ABF`, `#5598E7`, `#9CC4F3`, `#E3EEFC`), so that strong wind stands out there too; both ramps were checked as ordered ramps against their surface on 2026-11-19. The map keeps the light ramp in both appearances: its arrows have a white edge and the map itself stays light.
 
 | Band | Mean wind (km/h) | Colour |
 |---|---|---|

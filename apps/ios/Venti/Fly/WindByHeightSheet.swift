@@ -50,7 +50,7 @@ private struct WindByHeightRow: View {
                 .font(.headline.weight(.bold))
                 // The arrow shows where the wind goes, north at the top.
                 .rotationEffect(.degrees(band.fromDeg + 180))
-                .foregroundStyle(windBand(speedMs: band.speedMs).color)
+                .foregroundStyle(windBand(speedMs: band.speedMs).ink)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(Format.metres(band.floorM)) to \(Format.metres(band.ceilingM)) m")

@@ -1,3 +1,6 @@
 /target
 /var
 .DS_Store
+
+# Working copies of parallel AI sessions.
+.claude/worktrees/

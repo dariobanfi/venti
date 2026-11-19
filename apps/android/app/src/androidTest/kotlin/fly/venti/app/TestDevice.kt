@@ -46,11 +46,14 @@ object TestDevice {
      */
     fun letTheAppRun(screen: ComposeTestRule, seconds: Int) {
         val until = SystemClock.uptimeMillis() + seconds * 1000L
-        screen.waitUntil(seconds * 1000L + 15_000) { SystemClock.uptimeMillis() >= until }
+        screen.waitUntil((seconds + PATIENCE_SECONDS) * 1000L) { SystemClock.uptimeMillis() >= until }
         // The last frame the app asked for, drawn by the map as well.
         screen.waitForIdle()
         Thread.sleep(MAP_FRAME_MILLISECONDS)
     }
+
+    /** How long a test waits for something before it gives up. See `VentiUiTest.waitFor`. */
+    const val PATIENCE_SECONDS = 120
 
     /** What the map's own thread is given to draw the frame it was last asked for. */
     private const val MAP_FRAME_MILLISECONDS = 400L

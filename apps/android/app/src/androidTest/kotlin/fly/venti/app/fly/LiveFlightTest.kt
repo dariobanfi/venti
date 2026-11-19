@@ -116,7 +116,7 @@ class LiveFlightTest {
         }
     }
 
-    private fun waitFor(what: SemanticsMatcher, seconds: Int = 20) {
+    private fun waitFor(what: SemanticsMatcher, seconds: Int = TestDevice.PATIENCE_SECONDS) {
         screen.waitUntil(seconds * 1000L) { screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty() }
     }
 
@@ -141,7 +141,7 @@ class LiveFlightTest {
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, true)
         app = ActivityScenario.launch(intent)
-        waitFor(hasContentDescription("Show my position"), seconds = 90)
+        waitFor(hasContentDescription("Show my position"))
         tap(hasText("Fly") and isSelectable())
         waitFor(hasText("Start flight"))
 
@@ -153,10 +153,10 @@ class LiveFlightTest {
 
         fly()
         // Once positions arrive the warning goes and the instruments fill.
-        screen.waitUntil(30_000) { !exists(hasText("No position")) && reading("Speed")?.endsWith("km/h") == true }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("No position")) && reading("Speed")?.endsWith("km/h") == true }
         // Recording carries on with the screen off: the service is running
         // and shows its notification.
-        screen.waitUntil(15_000) { recordingNotificationIsShown() }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { recordingNotificationIsShown() }
 
         // The receiver reported height above the ellipsoid; the cockpit
         // shows height above the sea, some 46 m less in this valley.
@@ -172,8 +172,8 @@ class LiveFlightTest {
         isFlying = false
 
         // The flight is in the logbook and opens; the service has stopped.
-        waitFor(hasContentDescription("Flight details"), seconds = 30)
-        screen.waitUntil(15_000) { !recordingNotificationIsShown() }
+        waitFor(hasContentDescription("Flight details"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !recordingNotificationIsShown() }
         tap(hasContentDescription("Back"))
         waitFor(hasTestTag("logbook-row"))
     }

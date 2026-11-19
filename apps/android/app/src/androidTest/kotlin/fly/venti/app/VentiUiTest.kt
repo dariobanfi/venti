@@ -26,12 +26,13 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 import org.junit.runner.RunWith
 import java.io.File
 
@@ -46,20 +47,31 @@ import java.io.File
  */
 @RunWith(AndroidJUnit4::class)
 class VentiUiTest {
-    @get:Rule
-    val screen = createEmptyComposeRule()
-
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var app: ActivityScenario<MainActivity>? = null
+
+    /**
+     * Keeps a picture of the screen a test failed on, then closes the app.
+     * It stands outside the rule below, so the app is still open when it
+     * looks.
+     */
+    @get:Rule(order = 0)
+    val closing = object : TestWatcher() {
+        override fun failed(e: Throwable, description: Description) {
+            runCatching { TestDevice.keepScreenshot("failed-${description.methodName}") }
+        }
+
+        override fun finished(description: Description) {
+            app?.close()
+        }
+    }
+
+    @get:Rule(order = 1)
+    val screen = createEmptyComposeRule()
 
     @Before
     fun prepareTheDevice() {
         TestDevice.keepSystemDialogsAway()
-    }
-
-    @After
-    fun close() {
-        app?.close()
     }
 
     private fun launch(bundledMap: Boolean = true, dark: Boolean = false, with: Intent.() -> Unit = {}) {
@@ -76,7 +88,14 @@ class VentiUiTest {
         TestDevice.keepScreenshot(name)
     }
 
-    private fun waitFor(what: SemanticsMatcher, seconds: Int = 15) {
+    /**
+     * Waits for something to be on screen. It returns as soon as it is, so
+     * the patience costs nothing; and it has to be long. On the emulator's
+     * software renderer, with the cockpit redrawing five times a second, a
+     * single look at the screen can take many seconds, and a wait gives up
+     * after the first look that outlasts it.
+     */
+    private fun waitFor(what: SemanticsMatcher, seconds: Int = TestDevice.PATIENCE_SECONDS) {
         screen.waitUntil(seconds * 1000L) { screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty() }
     }
 
@@ -103,7 +122,7 @@ class VentiUiTest {
 
     /** From an empty logbook to a flight on the map. */
     private fun addSampleFlightAndOpenIt(prefix: String) {
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
         letTheMapDraw()
         keepScreenshot("$prefix-1-map")
 
@@ -113,7 +132,7 @@ class VentiUiTest {
 
         tap(hasText("Add a sample flight"))
         // A single imported flight opens straight away.
-        waitFor(described("Flight details"), seconds = 30)
+        waitFor(described("Flight details"))
         assertTrue(exists(described("Airtime")))
         letTheMapDraw(6)
         keepScreenshot("$prefix-3-flight")
@@ -200,26 +219,26 @@ class VentiUiTest {
      */
     private fun flyAReplayAndVisitTheSettings(prefix: String, dark: Boolean) {
         launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_WAYPOINTS, true) }
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"), seconds = 30)
+        waitFor(hasText("Start flight"))
         keepScreenshot("$prefix-fly-1-ready")
 
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
         tap(hasText("20 times faster"))
-        waitFor(described("Altitude"), seconds = 20)
+        waitFor(described("Altitude"))
 
         // Circling in lift, the cockpit changes to its thermal numbers by
         // itself.
-        waitFor(described("Gained"), seconds = 40)
+        waitFor(described("Gained"))
         assertTrue(exists(described("Thermal")))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-2-thermal")
 
         // On the glide after the thermal it changes back, now with the wind
         // it worked out while circling.
-        waitFor(described("Glide"), seconds = 40)
+        waitFor(described("Glide"))
         assertTrue(exists(described("Speed")))
         assertTrue(exists(described("Wind")))
         // Beside the glide it is making, the glide it needs to get home.
@@ -237,7 +256,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-4-fly-to")
         tap(described("Sample landing field"))
-        waitFor(strip and saying("Sample landing field"), seconds = 10)
+        waitFor(strip and saying("Sample landing field"))
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-5-to-landing")
 
@@ -274,11 +293,11 @@ class VentiUiTest {
      */
     private fun askTheAssistant(prefix: String, dark: Boolean) {
         launch(dark = dark) { putExtra(LaunchOptions.SCRIPTED_ASSISTANT, true) }
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
-        waitFor(described("Flight details"), seconds = 30)
+        waitFor(described("Flight details"))
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
 
@@ -288,7 +307,7 @@ class VentiUiTest {
         keepScreenshot("$prefix-assistant-1-start")
         tap(question)
 
-        waitFor(hasText("Your logbook has one flight", substring = true), seconds = 20)
+        waitFor(hasText("Your logbook has one flight", substring = true))
         assertTrue(exists(hasText("Looked up your list of flights")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-assistant-2-answer")
@@ -326,11 +345,11 @@ class VentiUiTest {
         }
         val scenario = checkNotNull(app)
 
-        waitFor(described("Wind stations"), seconds = 90)
+        waitFor(described("Wind stations"))
         // The credit appears with the first answer from the server.
-        waitFor(hasTestTag("wind-credits"), seconds = 60)
+        waitFor(hasTestTag("wind-credits"))
         assertTrue(exists(hasText("Wind: Deutscher Wetterdienst and GeoSphere Austria")))
-        screen.waitUntil(30_000) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "wind-stations") ?: 0) > 0 }
         letTheMapDraw()
         keepScreenshot("$prefix-wind-1-map")
 
@@ -338,7 +357,7 @@ class VentiUiTest {
         // in view. The Hohenpeißenberg stands alone, north of the others.
         val hill = checkNotNull(TestDevice.onScreen(scenario, lat = 47.8009, lon = 11.0108))
         TestDevice.tap(hill)
-        waitFor(hasText("Hohenpeißenberg"), seconds = 15)
+        waitFor(hasText("Hohenpeißenberg"))
         waitFor(hasText("Last 24 hours"))
         letTheMapDraw(2)
         keepScreenshot("$prefix-wind-2-station-from-the-map")
@@ -355,7 +374,7 @@ class VentiUiTest {
 
         // One station: what it measures, its last day, and whose data it is.
         tap(described("Zugspitze"))
-        waitFor(hasTestTag("wind-chart"), seconds = 30)
+        waitFor(hasTestTag("wind-chart"))
         letTheMapDraw(1)
         keepScreenshot("$prefix-wind-4-station")
         screen.onNode(hasTestTag("station-page"))
@@ -373,7 +392,7 @@ class VentiUiTest {
         val question = hasText("How is the wind on the Zugspitze right now?")
         waitFor(question)
         tap(question)
-        waitFor(hasText("Zugspitze: 54 km/h", substring = true), seconds = 30)
+        waitFor(hasText("Zugspitze: 54 km/h", substring = true))
         assertTrue(exists(hasText("Looked up the wind stations around a place")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-wind-5-assistant")
@@ -395,14 +414,14 @@ class VentiUiTest {
      */
     private fun flyNearAirspace(prefix: String, dark: Boolean) {
         launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_AIRSPACE, true) }
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
 
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"), seconds = 30)
+        waitFor(hasText("Start flight"))
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
         tap(hasText("20 times faster"))
-        waitFor(described("Altitude"), seconds = 20)
+        waitFor(described("Altitude"))
 
         val banner = hasTestTag("airspace-banner")
         waitFor(banner, seconds = 120)
@@ -411,14 +430,14 @@ class VentiUiTest {
         keepScreenshot("$prefix-fly-8-airspace")
 
         tap(banner)
-        waitFor(hasText("Seen: quiet for 10 minutes"), seconds = 10)
+        waitFor(hasText("Seen: quiet for 10 minutes"))
         assertTrue(exists(hasText("Class D control zone", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-9-airspace-warnings")
         // "Seen" would speak again as the glider comes closer; "does not
         // apply today" stays quiet, which is what this test can rely on.
         tap(hasText("Does not apply today"))
-        waitFor(described("Airspace warning, quieted"), seconds = 10)
+        waitFor(described("Airspace warning, quieted"))
 
         tap(hasText("End replay"))
         waitFor(hasText("Close the cockpit"))
@@ -429,7 +448,7 @@ class VentiUiTest {
         tap(tab("Settings"))
         waitFor(hasText("Vario sound"))
         tap(hasText("Airspace"))
-        waitFor(hasText("sample-zones-not-real"), seconds = 15)
+        waitFor(hasText("sample-zones-not-real"))
         keepScreenshot("$prefix-settings-4-airspace")
         tap(described("Back"))
         waitFor(hasText("Vario sound"))
@@ -439,7 +458,7 @@ class VentiUiTest {
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
-        waitFor(described("Flight details"), seconds = 30)
+        waitFor(described("Flight details"))
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
         tap(tab("Map"))
@@ -472,9 +491,9 @@ class VentiUiTest {
     @Test
     fun theMapNamesPlaces() {
         launch()
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
         val scenario = checkNotNull(app)
-        screen.waitUntil(60_000) { (TestDevice.drawnOnTheMap(scenario, "place") ?: 0) > 0 }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "place") ?: 0) > 0 }
     }
 
     @Test
@@ -503,7 +522,7 @@ class VentiUiTest {
             data = Uri.fromFile(file)
         }
 
-        waitFor(described("Flight details"), seconds = 90)
+        waitFor(described("Flight details"))
         assertTrue(exists(described("Airtime")))
         // It is in the logbook, under the flight that was opened.
         tap(described("Back"))
@@ -522,7 +541,7 @@ class VentiUiTest {
             data = Uri.fromFile(file)
         }
 
-        waitFor(hasText("1 file could not be imported"), seconds = 90)
+        waitFor(hasText("1 file could not be imported"))
         assertTrue(exists(hasText("notes.igc", substring = true) and hasText("not a flight file", substring = true)))
         keepScreenshot("import-1-not-a-flight")
         tap(hasText("OK") and hasClickAction())
@@ -539,14 +558,14 @@ class VentiUiTest {
     @Test
     fun theMapWithTilesFromTheNetwork() {
         launch(bundledMap = false)
-        waitFor(described("Show my position"), seconds = 90)
+        waitFor(described("Show my position"))
         letTheMapDraw(12)
         keepScreenshot("online-1-map")
 
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
-        waitFor(described("Flight details"), seconds = 30)
+        waitFor(described("Flight details"))
         letTheMapDraw(12)
         keepScreenshot("online-2-flight")
     }

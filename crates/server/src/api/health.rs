@@ -6,7 +6,7 @@ use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use chrono::Duration;
 use venti_api_types::v1::{
-    ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, SourceHealth,
+    ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RegistrationMode, SourceHealth,
 };
 use venti_domain::{SourceId, Timestamp};
 use venti_sources::Kind;
@@ -14,6 +14,7 @@ use venti_store::{AirspaceSet, ForecastModel, SiteSet, SourceStatus, Store};
 
 use super::error::ApiError;
 use super::{Api, ServedSource};
+use crate::accounts::Registration;
 
 /// A source is stale when no run has succeeded within this many of its
 /// cadence intervals. One missed run is normal; three in a row are not.
@@ -99,6 +100,11 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
         version: env!("CARGO_PKG_VERSION").to_owned(),
         time: now,
         forecasts: Some(forecasts),
+        registration: Some(match api.registration {
+            Registration::Open => RegistrationMode::Open,
+            Registration::Invite => RegistrationMode::Invite,
+            Registration::Closed => RegistrationMode::Closed,
+        }),
         client_addresses: api.clients.verdict(now),
         sources,
     };

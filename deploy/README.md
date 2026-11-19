@@ -52,7 +52,7 @@ All commands run on the server.
    nano .env
    ```
 
-   Set `POSTGRES_PASSWORD`. Set `VENTI_SITE_ADDRESS` to the domain name, or leave `:80` to try the stack without one. With a domain, set `VENTI_PUBLIC_URL` to the address people will use, such as `https://venti.example`: links to shared flights are built from it. Everything else has a working default. `.env` holds the database password: it is ignored by git and must stay out of any repository, chat or ticket.
+   Set `POSTGRES_PASSWORD`. Set `VENTI_SITE_ADDRESS` to the domain name, or leave `:80` to try the stack without one. **With `:80` nothing is encrypted**, so `env.example` keeps `VENTI_REGISTRATION=closed`: no accounts over plain HTTP. With a domain, set `VENTI_REGISTRATION=invite` as well. With a domain, set `VENTI_PUBLIC_URL` to the address people will use, such as `https://venti.example`: links to shared flights are built from it. Everything else has a working default. `.env` holds the database password: it is ignored by git and must stay out of any repository, chat or ticket.
 
 4. **Build and start.**
 
@@ -75,7 +75,7 @@ All commands run on the server.
 
 6. **Schedule the backup**; see [Backup](#backup). An install without a backup is not finished.
 
-7. **Invite the first pilot.** Nobody can create an account until you hand out an invite code; see [Accounts](#accounts).
+7. **Invite the first pilot**, once the site has its domain name and HTTPS and `.env` says `VENTI_REGISTRATION=invite`. Nobody can create an account until you hand out an invite code; see [Accounts](#accounts). A server that takes accounts at a plain `http://` address says so in its log at start, in capitals: `docker compose logs server | grep 'PLAIN HTTP'` should find nothing.
 
 ### What ends up where
 
@@ -115,9 +115,9 @@ Who may create an account is the setting `VENTI_REGISTRATION`:
 
 | Value | Meaning |
 |---|---|
-| `invite` | Whoever has an invite code. This is the default |
+| `invite` | Whoever has an invite code. This is what the server does when the setting is empty |
 | `open` | Anyone |
-| `closed` | Nobody. Existing accounts keep working |
+| `closed` | Nobody. Existing accounts keep working. This is what `env.example` starts with, because it also starts without HTTPS |
 
 Make invite codes on the server:
 

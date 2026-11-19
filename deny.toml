@@ -3,6 +3,37 @@
 [graph]
 all-features = true
 
+[advisories]
+# A dependency with a known vulnerability fails the check, and so does one
+# whose release was withdrawn. The advisory database is fetched when the
+# check runs, so a push can fail for an advisory published that morning:
+# that is the point.
+#
+# The three below are notices that a crate is no longer maintained, each
+# without a vulnerability, read on the advisory database's own pages
+# (rustsec.org/advisories/<id>.html) on 2026-11-19: type "INFO,
+# Unmaintained", no patched version. An entry silences that one notice and
+# nothing else: a vulnerability found in the same crate has a number of its
+# own and fails the check.
+#
+# Look at all three again by 2027-02-19, and before a public launch.
+ignore = [
+    # The server draws the numbers on a flight's preview picture with it,
+    # from one typeface compiled into the program: it reads no font a
+    # stranger supplies. The advisory names skrifa as the maintained
+    # alternative; moving the picture's text to it is a day's work that
+    # nobody has asked for yet.
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser reads one typeface that is compiled in; replace it with skrifa; look again by 2027-02-19" },
+    # Not ours to replace: UniFFI's binding generator brings it in through
+    # askama, at build time. It reads UniFFI's own settings file and
+    # nothing a user supplies, and is in no app and not in the server.
+    { id = "RUSTSEC-2026-0374", reason = "basic-toml comes with uniffi_bindgen and runs at build time only; gone when UniFFI drops it; look again by 2027-02-19" },
+    # Every crate of the workspace keeps time with chrono, the wire format
+    # and the apps' core included. The advisory names jiff and time; moving
+    # is a decision for the whole project, not for a dependency check.
+    { id = "RUSTSEC-2026-0543", reason = "chrono is in every crate and in the wire format; moving to jiff or time is the owner's decision; look again by 2027-02-19" },
+]
+
 [licenses]
 # Licences compatible with distributing Venti under AGPL-3.0-or-later.
 allow = [

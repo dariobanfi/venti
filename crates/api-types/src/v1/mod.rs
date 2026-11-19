@@ -65,7 +65,8 @@ pub use flights::{
 };
 pub use forecast::{ForecastLayer, ForecastResponse};
 pub use health::{
-    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, SourceHealth,
+    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
+    RegistrationMode, SourceHealth,
 };
 pub use observations::{ObservationsResponse, Reading};
 pub use request::{

@@ -15,6 +15,13 @@ pub struct HealthResponse {
     /// server older than forecasts, which has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forecasts: Option<ForecastsHealth>,
+    /// Whether the server takes new accounts, and whether it asks for an
+    /// invite code. An app shows the field for the code, or says that the
+    /// server takes nobody, by this. Left out by an older server: such a
+    /// server may ask for a code, so an app that reads nothing here offers
+    /// the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registration: Option<RegistrationMode>,
     /// Whether the server sees the addresses of those who ask it. For
     /// whoever runs the server; an app has no use for it. Left out while
     /// too few requests have arrived to tell, and by an older server.
@@ -52,6 +59,21 @@ pub enum ForecastsHealth {
     /// [`ErrorCode::NoForecasts`](super::ErrorCode::NoForecasts).
     NotConfigured,
     /// A state this version of the client does not know.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Who may create an account on a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistrationMode {
+    /// Anyone. `POST /v1/accounts` needs no invite code.
+    Open,
+    /// Whoever has an invite code from whoever runs the server.
+    Invite,
+    /// Nobody. Existing accounts sign in as before.
+    Closed,
+    /// A rule this version of the client does not know.
     #[serde(other)]
     Unknown,
 }
@@ -164,12 +186,27 @@ mod tests {
 
         assert_eq!(health.forecasts, None);
         assert_eq!(health.client_addresses, None);
+        assert_eq!(health.registration, None);
         assert_eq!(health.sources[0].sites, None);
         assert!(health.sources[0].models.is_empty());
         let written = serde_json::to_value(&health).unwrap();
         assert!(written.get("forecasts").is_none());
         assert!(written.get("client_addresses").is_none());
         assert!(written["sources"][0].get("models").is_none());
+    }
+
+    #[test]
+    fn a_server_says_who_may_create_an_account() {
+        let mode = |text: &str| serde_json::from_str::<RegistrationMode>(text).unwrap();
+        assert_eq!(mode(r#""open""#), RegistrationMode::Open);
+        assert_eq!(mode(r#""invite""#), RegistrationMode::Invite);
+        assert_eq!(mode(r#""closed""#), RegistrationMode::Closed);
+        // A rule a newer server invents does not break an older client.
+        assert_eq!(mode(r#""by_email""#), RegistrationMode::Unknown);
+        assert_eq!(
+            serde_json::to_string(&RegistrationMode::Invite).unwrap(),
+            r#""invite""#
+        );
     }
 
     #[test]

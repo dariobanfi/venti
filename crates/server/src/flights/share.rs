@@ -419,6 +419,24 @@ impl PublicUrl {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Whether what travels to this address travels in the clear: it is
+    /// plain HTTP, and not to this machine itself.
+    pub fn is_plain_http_to_elsewhere(&self) -> bool {
+        let Some(rest) = self.0.strip_prefix("http://") else {
+            return false;
+        };
+        // The host without its port; an IPv6 address stands in brackets.
+        let host = match rest.strip_prefix('[') {
+            Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
+            None => rest.split(':').next().unwrap_or_default(),
+        };
+        let this_machine = host == "localhost"
+            || host
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|address| address.is_loopback());
+        !this_machine
+    }
 }
 
 /// The page for a flight that its pilot made public or unlisted.

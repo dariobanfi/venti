@@ -9,8 +9,8 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use venti_store::PgStore;
 
-use crate::accounts::Limits;
 use crate::accounts::password::Cost;
+use crate::accounts::{Limits, Registration};
 use crate::api::{Api, Cors, Settings};
 use crate::clock::{Clock, SystemClock};
 use crate::config::Config;
@@ -90,6 +90,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     }
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
     tracing::info!("accounts: registration is {:?}", config.registration);
+    if let Some(warning) = plain_http_warning(config.public_url.as_ref(), config.registration) {
+        tracing::warn!("{warning}");
+    }
     tracing::info!("client addresses: {}", config.trusted_proxies.in_words());
 
     let shutdown = CancellationToken::new();
@@ -135,6 +138,37 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let _ = housekeeping.await;
     let _ = refreshing.await;
     served
+}
+
+/// What the log says at start about a server that takes passwords without
+/// encryption, if this is one: its public address is plain HTTP and not
+/// this machine's own, and it lets people sign in.
+///
+/// A server always lets people sign in. So the one way to have nothing to
+/// say is HTTPS, or an address only this machine reaches. With
+/// registration closed there are no accounts to protect unless some exist
+/// already, which this does not know: it says so in fewer words.
+pub(crate) fn plain_http_warning(
+    public_url: Option<&PublicUrl>,
+    registration: Registration,
+) -> Option<String> {
+    let url = public_url.filter(|url| url.is_plain_http_to_elsewhere())?;
+    Some(match registration {
+        Registration::Closed => format!(
+            "{} is plain HTTP: if this server has accounts, their passwords and session \
+             tokens travel unencrypted. Give it a domain name and HTTPS \
+             (VENTI_SITE_ADDRESS, VENTI_PUBLIC_URL)",
+            url.as_str()
+        ),
+        Registration::Open | Registration::Invite => format!(
+            "ACCOUNTS OVER PLAIN HTTP: {} is not HTTPS, and this server takes accounts. \
+             Every password and session token travels unencrypted, readable to anyone \
+             between a pilot and this machine. Do not hand out invite codes or let anyone \
+             sign in before the site has a domain name and HTTPS (VENTI_SITE_ADDRESS, \
+             VENTI_PUBLIC_URL); until then set VENTI_REGISTRATION=closed",
+            url.as_str()
+        ),
+    })
 }
 
 /// The address a server that listens on `address` is reached at from the
@@ -192,4 +226,42 @@ pub(crate) async fn cancel_on_signal(shutdown: CancellationToken) {
     }
     tracing::info!("stopping");
     shutdown.cancel();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn url(text: &str) -> PublicUrl {
+        PublicUrl::new(text).unwrap()
+    }
+
+    #[test]
+    fn a_server_that_takes_accounts_over_plain_http_says_so_loudly_at_start() {
+        let warning =
+            |address: &str, registration| plain_http_warning(Some(&url(address)), registration);
+
+        // The first try without a domain, as env.example starts out.
+        for registration in [Registration::Invite, Registration::Open] {
+            let said = warning("http://203.0.113.9", registration).unwrap();
+            assert!(said.starts_with("ACCOUNTS OVER PLAIN HTTP"), "{said}");
+            assert!(said.contains("VENTI_REGISTRATION=closed"), "{said}");
+            assert!(said.contains("http://203.0.113.9"), "{said}");
+        }
+        // With registration closed there may still be accounts.
+        let said = warning("http://venti.example:8080", Registration::Closed).unwrap();
+        assert!(said.contains("if this server has accounts"), "{said}");
+
+        // Nothing to say with HTTPS, on this machine's own address, or
+        // where no public address was given: that has a warning of its own.
+        for address in [
+            "https://venti.example",
+            "http://127.0.0.1:8080",
+            "http://localhost:8080",
+            "http://[::1]:8080",
+        ] {
+            assert_eq!(warning(address, Registration::Open), None, "{address}");
+        }
+        assert_eq!(plain_http_warning(None, Registration::Invite), None);
+    }
 }

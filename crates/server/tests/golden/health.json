@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "time": "2026-11-18T19:05:00Z",
   "forecasts": "available",
+  "registration": "open",
   "sources": [
     {
       "source": "dwd-10min",

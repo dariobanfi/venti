@@ -17,10 +17,14 @@ usage: venti-server <command>
       store them in PostgreSQL and serve the API. Settings come from FILE
       and from VENTI_* environment variables; see config.example.toml.
 
-  dev [--listen ADDRESS]
+  dev [--listen ADDRESS [--open-to-the-network]]
       Serve the same API over recorded data and a demo account. No
       network, no database. Listens on 127.0.0.1:8080 unless told
-      otherwise.
+      otherwise. This mode has a demo account whose password is public,
+      takes accounts from anyone and has no limits on attempts, so it
+      listens on an address other machines can reach only when
+      --open-to-the-network says so as well: for a phone on your own
+      network, or inside a container.
 
   invite [--config FILE] [--count N] [--expires-in-days N]
       Make invite codes and print them, one per line. Each creates one
@@ -102,8 +106,10 @@ fn parse_serve(mut args: impl Iterator<Item = String>) -> Result<Command, String
 
 fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
     let mut listen = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let mut open_to_the_network = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--open-to-the-network" => open_to_the_network = true,
             "--listen" => {
                 let address = value("--listen", &mut args)?;
                 listen = address
@@ -112,6 +118,17 @@ fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
             }
             other => return Err(format!("dev does not take {other:?}")),
         }
+    }
+    // The development mode is no server: its account's password and token
+    // are written in the documentation, anyone may add accounts, and no
+    // attempt is counted. On this machine's own address that harms nobody.
+    // On any other it is an open door, so it takes a second word.
+    if !listen.ip().is_loopback() && !open_to_the_network {
+        return Err(format!(
+            "dev would listen on {listen}, which other machines can reach, with a demo account \
+             whose password is public and no limits; add --open-to-the-network if that is \
+             meant (a phone on your own network, a container), or run `serve` for a real server"
+        ));
     }
     Ok(Command::Dev { listen })
 }
@@ -200,12 +217,43 @@ mod tests {
             })
         );
         assert_eq!(
-            parse_line("dev --listen 0.0.0.0:9000"),
+            parse_line("dev --listen [::1]:9000"),
             Ok(Command::Dev {
-                listen: "0.0.0.0:9000".parse().unwrap()
+                listen: "[::1]:9000".parse().unwrap()
             })
         );
         assert!(parse_line("dev --listen localhost").is_err());
+    }
+
+    #[test]
+    fn dev_listens_where_others_can_reach_it_only_when_told_twice() {
+        // Every address of the machine, a private one, a public one: each
+        // is reachable from elsewhere, and none is taken on one word.
+        for address in [
+            "0.0.0.0:8080",
+            "192.168.1.20:8080",
+            "203.0.113.9:80",
+            "[::]:8080",
+        ] {
+            let refused = parse_line(&format!("dev --listen {address}")).unwrap_err();
+            assert!(refused.contains("--open-to-the-network"), "{refused}");
+            assert!(refused.contains("password is public"), "{refused}");
+            assert_eq!(
+                parse_line(&format!("dev --listen {address} --open-to-the-network")),
+                Ok(Command::Dev {
+                    listen: address.parse().unwrap()
+                })
+            );
+        }
+        // The second word in front works as well, and alone it changes
+        // nothing.
+        assert!(parse_line("dev --open-to-the-network --listen 0.0.0.0:8080").is_ok());
+        assert_eq!(
+            parse_line("dev --open-to-the-network"),
+            Ok(Command::Dev {
+                listen: "127.0.0.1:8080".parse().unwrap()
+            })
+        );
     }
 
     #[test]

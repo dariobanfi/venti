@@ -11,10 +11,13 @@
  */
 
 import type {
+	AirspaceCover,
+	AirspaceCrossing,
 	AirspaceFile,
 	AirspaceImport,
 	AirspaceShape,
 	Credit,
+	FlightAirspace,
 	KeptAirspace
 } from '#lib/core/index.ts';
 
@@ -23,6 +26,9 @@ export interface Writing {
 	count(count: number): string;
 	day(unixSeconds: number): string;
 	list(items: readonly string[]): string;
+	time(unixSeconds: number): string;
+	metres(metres: number): string;
+	minutesSeconds(seconds: number): string;
 }
 
 /** "1 airspace", "1,018 airspaces" */
@@ -121,6 +127,55 @@ export function inALine(
 	const parts = kept.map((layer) => `${layer.provider}, ${airspaces(layer.airspaces, text)}`);
 	if (files.length > 0) parts.push(files.length === 1 ? '1 file' : `${files.length} files`);
 	return parts.length === 0 ? 'None' : parts.join(' · ');
+}
+
+/**
+ * One stretch of a flight inside an airspace, as the lines of its row: the
+ * airspace, what it is with its limits as published, when the glider
+ * entered and between which heights it flew there, and for how long.
+ * `flightStartUnixS` is the moment the flight's track begins.
+ */
+export function crossingLines(
+	crossing: AirspaceCrossing,
+	flightStartUnixS: number,
+	text: Pick<Writing, 'time' | 'metres' | 'minutesSeconds'>
+): { name: string; airspace: string; stretch: string; duration: string } {
+	const entered = text.time(flightStartUnixS + crossing.entry.seconds);
+	return {
+		name: crossing.name === '' ? 'Unnamed airspace' : crossing.name,
+		airspace: `${crossing.kind} · ${crossing.lower} to ${crossing.upper}`,
+		stretch: `${entered} · ${text.metres(crossing.lowestM)} to ${text.metres(crossing.highestM)} m`,
+		duration: `${text.minutesSeconds(crossing.seconds)} min`
+	};
+}
+
+/** What stands where the rows would be when a flight's check lists none. */
+export function nothingEntered(checked: FlightAirspace): string | undefined {
+	if (checked.cover === 'none') {
+		return 'Not checked: the app has no airspace where this flight was flown.';
+	}
+	return checked.crossings.length === 0
+		? 'The flight entered none of the airspace the app has.'
+		: undefined;
+}
+
+/**
+ * What a flight's check against airspace is worth, said under it wherever
+ * it is shown. The iPhone's words; where it speaks of setting a server,
+ * the browser speaks of the airspace screen, which is where its airspace
+ * comes from.
+ */
+export function checkCaveat(cover: AirspaceCover): string {
+	const limits =
+		'Checked against the airspace the app has today, not the airspace of the day of the flight, and without knowing what was active. A help for your own review, nothing more.';
+	switch (cover) {
+		case 'none':
+			return 'Bring in an airspace file under Settings, Airspace, and the flight is checked against what the app then has.';
+		case 'partly':
+			return `Part of this flight lies where the app has no airspace; of that part nothing is known. ${limits}`;
+		case 'whole':
+			return limits;
+	}
 }
 
 /** An airspace's name with its floor and ceiling under it, as on a chart. */

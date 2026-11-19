@@ -1,17 +1,20 @@
 <!--
 	Everything known about a flight, as lists: how it scores as a
-	cross-country flight, the time spent in thermals and on glides, every
-	thermal and every glide, both extremes of altitude and climb, the
-	recorder, the exact meaning of each colour.
+	cross-country flight, which airspace it entered, the time spent in
+	thermals and on glides, every thermal and every glide, both extremes of
+	altitude and climb, the recorder, the exact meaning of each colour.
 
-	Choosing a thermal or a glide marks the moment it began on the map and the
-	profile. On a narrow screen all this opens as a sheet from the flight
+	Choosing a thermal, a glide or a stretch inside airspace marks the moment
+	it began on the map and the profile. On a narrow screen all this opens as a sheet from the flight
 	panel; a wide one has room to show it under the panel all the time.
 
 	The words are those of the iPhone app's `FlightDetailsSheet.swift`.
 -->
 <script lang="ts">
+	import { AIRSPACE_COLORS } from '#lib/airspace/layers.ts';
+	import { checkCaveat, crossingLines, nothingEntered } from '#lib/airspace/words.ts';
 	import type {
+		FlightAirspace,
 		FlightAnalysis,
 		FlightScore,
 		FlightView,
@@ -19,17 +22,20 @@
 		ThermalSummary
 	} from '#lib/core/index.ts';
 	import { compassPoint, format } from '#lib/design/format.ts';
+	import Icon from '#lib/design/Icon.svelte';
 	import { CLIMB_BANDS } from '#lib/design/palette.ts';
 
 	interface Props {
 		flight: FlightView;
 		/** What happened in the flight, once it has been worked out. */
 		analysis: FlightAnalysis | undefined;
+		/** The flight checked against the airspace the app has, once that is done. */
+		airspace: FlightAirspace | undefined;
 		/** Called with a position in the flight's track to mark. */
 		onselect: (trackIndex: number) => void;
 	}
 
-	let { flight, analysis, onselect }: Props = $props();
+	let { flight, analysis, airspace, onselect }: Props = $props();
 
 	const text = format();
 
@@ -153,6 +159,43 @@
 				{text.number(score.pointsPerKm)} points per kilometre for this kind of route. The dashed line
 				on the map is the scored route. A league's own result can differ a little.
 			</p>
+		</section>
+	{/if}
+
+	{#if airspace}
+		{@const nothing = nothingEntered(airspace)}
+		<section>
+			<h3 id="airspace-entered">Airspace</h3>
+			{#if airspace.crossings.length > 0}
+				<ul class="card" aria-labelledby="airspace-entered">
+					{#each airspace.crossings as crossing (`${crossing.id} ${crossing.entry.trackIndex}`)}
+						{@const lines = crossingLines(crossing, flight.startUnixS, text)}
+						<li>
+							<button
+								class="row choice crossing"
+								type="button"
+								onclick={() => onselect(crossing.entry.trackIndex)}
+							>
+								<!-- The colour the airspace has on the map: to avoid, or to mind. -->
+								<span class="sign" style:color={AIRSPACE_COLORS[crossing.policy]}>
+									<Icon name={crossing.uncertain ? 'question' : 'warning'} />
+								</span>
+								<span>{lines.name}</span>
+								<span class="numeric">{lines.duration}</span>
+								<span class="lesser more">{lines.airspace}</span>
+								<span class="lesser more numeric">{lines.stretch}</span>
+								{#if crossing.uncertain}
+									<span class="doubt more">{crossing.uncertain}</span>
+								{/if}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if nothing}
+				<p class="card nothing">{nothing}</p>
+			{/if}
+			<p class="footnote">{checkCaveat(airspace.cover)}</p>
 		</section>
 	{/if}
 
@@ -308,6 +351,33 @@
 	.trailing {
 		flex: none;
 		align-items: flex-end;
+	}
+
+	/* A stretch inside airspace: its sign, the airspace's name and how long
+	   on the first line, and under them, at the full width, what it is, when
+	   and how high, and what is in doubt. */
+	.crossing {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		gap: 0.125rem 0.75rem;
+		align-items: start;
+	}
+
+	.crossing .more {
+		grid-column: 2 / -1;
+	}
+
+	.sign {
+		grid-row: 1 / span 2;
+	}
+
+	.doubt {
+		font-size: var(--subheadline);
+	}
+
+	.nothing {
+		padding: 0.75rem 1rem;
+		color: var(--text-secondary);
 	}
 
 	.lesser {

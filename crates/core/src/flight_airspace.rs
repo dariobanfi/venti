@@ -30,6 +30,8 @@ const LOOK_FOR_COVER_EVERY_S: i64 = 60;
 
 /// How much of a flight the app's airspace can speak for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum AirspaceCover {
     /// The app has no airspace that reaches the flight: nothing was
     /// checked.
@@ -43,6 +45,8 @@ pub enum AirspaceCover {
 
 /// One stretch of a flight inside an airspace, or possibly inside it.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AirspaceCrossing {
     /// The airspace's identifier.
     pub id: String,
@@ -81,6 +85,8 @@ pub struct AirspaceCrossing {
 
 /// A flight checked against the airspace the app has.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightAirspace {
     /// How much of the flight could be checked.
     pub cover: AirspaceCover,

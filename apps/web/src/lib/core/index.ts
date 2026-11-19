@@ -24,6 +24,8 @@
 
 export type {
 	AccountView,
+	AirspaceCover,
+	AirspaceCrossing,
 	AirspaceFile,
 	AirspaceImport,
 	AirspacePolicy,
@@ -34,6 +36,7 @@ export type {
 	CoreErrorKind,
 	Credit,
 	EntryScore,
+	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
 	FlightMoment,

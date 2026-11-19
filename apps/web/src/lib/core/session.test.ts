@@ -213,6 +213,78 @@ describe('a logbook in the browser', () => {
 	});
 });
 
+describe('a flight checked against airspace, in the browser', () => {
+	/**
+	 * Ten miles around the valley of the sample flight, from the ground to
+	 * far above it, and the same valley again from a height above ground.
+	 */
+	const ZONES = new TextEncoder().encode(
+		[
+			'AC D\nAY CTR\nAN CTR VALLEY\nAL GND\nAH 12000ft AMSL\nV X=47:40:00 N 011:46:00 E\nDC 10\n',
+			'AC R\nAN ED-R VALLEY\nAL 1000ft AGL\nAH FL 130\nV X=47:40:00 N 011:46:00 E\nDC 10\n'
+		].join('\n')
+	);
+
+	it('says nothing was checked while there is no airspace', async () => {
+		browser = new Browser();
+		const tab = await browser.tab();
+		const { id } = await tab.importFlight(sampleFlight());
+
+		expect(await tab.flightAirspace(id)).toEqual({ cover: 'none', crossings: [] });
+	});
+
+	it('is checked after a reload against files the store has yet to hand over', async () => {
+		browser = new Browser();
+		const first = await browser.tab();
+		const { id } = await first.importFlight(sampleFlight());
+		await first.importAirspace('Valley.txt', ZONES, 1_795_028_700);
+		browser.closeTabs();
+
+		// A reload: neither the flight's file nor the airspace file is in
+		// memory. An answer worked out from what happens to be there would
+		// be "nothing was checked".
+		const checked = await (await browser.tab()).flightAirspace(id);
+
+		expect(checked.cover).toBe('whole');
+		expect(checked.crossings.map((crossing) => crossing.name)).toEqual([
+			'CTR VALLEY',
+			'ED-R VALLEY'
+		]);
+		const [zone, restricted] = checked.crossings;
+		expect(zone).toMatchObject({
+			kind: 'Class D control zone',
+			lower: 'GND',
+			upper: '12000 ft AMSL',
+			policy: 'avoid',
+			origin: 'file',
+			source: 'valley'
+		});
+		// From the first position of the flight to its last.
+		expect(zone.entry.trackIndex).toBe(0);
+		expect(zone.seconds).toBe(zone.exit.seconds - zone.entry.seconds);
+		expect(zone.highestM).toBeGreaterThan(zone.lowestM);
+		// Ground to an altitude above the sea: nothing in doubt.
+		expect(zone.uncertain).toBeUndefined();
+		// A floor above ground, and the app has no terrain: only possibly inside.
+		expect(restricted.uncertain).toBe(
+			'Possibly clear: the app does not know the height of the ground there.'
+		);
+	});
+
+	it('follows the airspace as it changes', async () => {
+		browser = new Browser();
+		const tab = await browser.tab();
+		const { id } = await tab.importFlight(sampleFlight());
+		await tab.importAirspace('Valley.txt', ZONES, 1_795_028_700);
+		expect((await tab.flightAirspace(id)).crossings).toHaveLength(2);
+
+		const [file] = await tab.airspaceFiles();
+		await tab.deleteAirspaceFile(file.storedName);
+
+		expect(await tab.flightAirspace(id)).toEqual({ cover: 'none', crossings: [] });
+	});
+});
+
 describe('two tabs on one logbook', () => {
 	it('shows in one tab what the other imported', async () => {
 		browser = new Browser();

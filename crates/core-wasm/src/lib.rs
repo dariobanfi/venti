@@ -41,9 +41,9 @@ use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
-    FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility, ImportedFlight,
-    KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus, SignedIn, SitesMap,
-    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, WindMap,
+    FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
+    ImportedFlight, KeptAirspace, LogbookStatistics, LogbookView, ServerRequest, ServerStatus,
+    SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -156,6 +156,20 @@ impl Core {
             .call(|core| core.flight_analysis(id))
             .map_err(thrown)?;
         to_js(&analysis)
+    }
+
+    /// Checks one flight of the logbook against the airspace the app has
+    /// today: the pilot's files and what is kept from the server. Like any
+    /// call it throws while a stored file is still to be fetched, the
+    /// flight's or any of the airspace's: the answer is never worked out
+    /// from the airspace that happens to be in memory.
+    #[wasm_bindgen(js_name = flightAirspace)]
+    pub fn flight_airspace(&self, id: String) -> Result<Ts<FlightAirspace>, JsValue> {
+        let checked = self
+            .session
+            .call(|core| core.flight_airspace(id))
+            .map_err(thrown)?;
+        to_js(&checked)
     }
 
     /// The stored file of one flight, with a name to save it under.
@@ -705,6 +719,7 @@ fn settle<T>(staged: &StagedStorage, result: Result<T, CoreError>) -> Result<T, 
 mod tests {
     use std::collections::BTreeMap;
 
+    use venti_core::AirspaceCover;
     use venti_flight::igc;
     use venti_flight::testing::synthetic_flight;
 
@@ -883,6 +898,60 @@ mod tests {
         assert_eq!(fetch(&session.staged, &store, usize::MAX), 1);
         let error = session.call(|core| core.flight(id)).unwrap_err();
         assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::UnknownFlight);
+    }
+
+    #[test]
+    fn a_flight_is_checked_against_airspace_the_page_has_yet_to_fetch() {
+        let mut store = Store::new();
+        let session = open(&store);
+        let id = session
+            .call(|core| core.import_flight(sample()))
+            .unwrap()
+            .id;
+        // Ten miles around the valley of the sample flight, from the ground
+        // to far above it: the whole flight is inside.
+        let zone = "AC D\nAY CTR\nAN CTR VALLEY\nAL GND\nAH 12000ft AMSL\n\
+                    V X=47:40:00 N 011:46:00 E\nDC 10\n";
+        session
+            .call(|core| core.import_airspace("valley.txt".to_owned(), zone.as_bytes().to_vec(), 0))
+            .unwrap();
+        commit(&session.staged, &mut store);
+
+        // A reload: neither the flight's file nor the airspace file is in
+        // memory. A check that took "not fetched yet" for "no airspace"
+        // would answer at once that nothing was checked.
+        let session = open(&store);
+        let mut fetched = Vec::new();
+        let checked = loop {
+            match session.call(|core| core.flight_airspace(id.clone())) {
+                Ok(checked) => break checked,
+                Err(error) => {
+                    assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Storage);
+                    let wanted = session.staged.take_wanted();
+                    assert!(!wanted.is_empty(), "{error}");
+                    for name in &wanted {
+                        session.staged.provide(name, store.get(name).cloned());
+                    }
+                    fetched.extend(wanted);
+                }
+            }
+        };
+        assert!(
+            fetched.iter().any(|name| name.starts_with("flights/"))
+                && fetched.iter().any(|name| name.starts_with("airspace/")),
+            "{fetched:?}"
+        );
+        assert_eq!(checked.cover, AirspaceCover::Whole);
+        assert_eq!(checked.crossings.len(), 1, "{:?}", checked.crossings);
+        assert_eq!(checked.crossings[0].name, "CTR VALLEY");
+        assert_eq!(checked.crossings[0].entry.track_index, 0);
+
+        // The airspace is read once and kept; the flight's file is fetched
+        // again, like for any other look at the flight.
+        session
+            .call(|core| core.flight_airspace(id.clone()))
+            .unwrap_err();
+        assert_eq!(session.staged.take_wanted(), [format!("flights/{id}.igc")]);
     }
 
     #[test]

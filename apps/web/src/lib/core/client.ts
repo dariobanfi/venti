@@ -165,6 +165,11 @@ export class CoreClient {
 		return this.#call('airspaceIn', box);
 	}
 
+	/** A flight of the logbook checked against the airspace there is now. */
+	flightAirspace(id: string) {
+		return this.#call('flightAirspace', id);
+	}
+
 	/**
 	 * Asks the server for the airspace around a place and keeps it, if the
 	 * core says it is time. What is kept afterwards, or nothing when the

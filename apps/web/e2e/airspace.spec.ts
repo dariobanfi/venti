@@ -8,8 +8,18 @@
  * over the valley of the sample flight.
  */
 
-import type { Page } from '@playwright/test';
-import { addSampleFlight, dropFiles, expect, IN_THE_VALLEY, mapTabDrawn, test } from './helpers';
+import type { Locator, Page } from '@playwright/test';
+import {
+	addSampleFlight,
+	dropFiles,
+	expect,
+	flightDetails,
+	IN_THE_VALLEY,
+	mapTabDrawn,
+	metric,
+	panel,
+	test
+} from './helpers';
 
 /**
  * An OpenAir file as a pilot might bring it: a control zone of one nautical
@@ -40,6 +50,29 @@ AL GND
 AH FL 100
 `;
 
+/**
+ * Two airspaces the sample flight meets: a control zone whose edge its
+ * second thermal drifts into, and a restricted area over the whole valley
+ * whose floor is a height above the ground, which the app cannot place.
+ */
+const ENTERED = `AC D
+AY CTR
+AN CTR TEGERNSEE
+AL GND
+AH 9000ft AMSL
+V X=47:42:00 N 011:44:00 E
+DC 1
+
+AC R
+AN ED-R VALLEY
+AL 1000ft AGL
+AH FL 100
+DP 47:30:00 N 011:30:00 E
+DP 47:30:00 N 012:00:00 E
+DP 47:50:00 N 012:00:00 E
+DP 47:50:00 N 011:30:00 E
+`;
+
 const upload = (name: string, text: string) => ({
 	name,
 	mimeType: 'application/octet-stream',
@@ -48,6 +81,12 @@ const upload = (name: string, text: string) => ({
 
 /** How many airspaces a map says it draws, for those who cannot see it. */
 const drawn = (page: Page) => page.getByText(/^Airspace on this part of the map/);
+
+/** Brings what a flight's details say about airspace to the top of what scrolls. */
+const showAirspacePart = (details: Locator) =>
+	details
+		.getByRole('heading', { name: 'Airspace' })
+		.evaluate((heading) => heading.scrollIntoView({ block: 'start' }));
 
 const sections = (page: Page) => page.getByRole('navigation', { name: 'Sections' });
 
@@ -215,6 +254,10 @@ test('the map of a flight draws the airspace around it', async ({ page, mapDrawn
 	await page.getByRole('dialog', { name: 'Airspace' }).getByRole('button', { name: 'OK' }).click();
 
 	await addSampleFlight(page);
+	// The map counts its airspace once it has drawn everything, which a
+	// phone's map, drawn in software at twice the density, takes its time
+	// over on a busy machine.
+	await mapDrawn();
 
 	// The control zone of the file lies over the valley the flight crosses,
 	// named with its floor and ceiling; the server's airspace is around it.
@@ -225,6 +268,93 @@ test('the map of a flight draws the airspace around it', async ({ page, mapDrawn
 	await mapDrawn();
 	await page.waitForTimeout(1000);
 	await keep('36-flight-airspace');
+});
+
+test('a flight’s details list the airspace it entered, and say what that is worth', async ({
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	await page.goto('/settings/airspace/');
+	await addFiles(page, [upload('Entered.txt', ENTERED)]);
+	await page.getByRole('dialog', { name: 'Airspace' }).getByRole('button', { name: 'OK' }).click();
+	await addSampleFlight(page);
+
+	// Everything else known about the flight: a sheet on a phone, on screen
+	// all the time where there is room.
+	const details = flightDetails(page);
+	const sheet = page.getByRole('dialog', { name: 'Flight details' });
+	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();
+	const entered = details.getByRole('list', { name: 'Airspace' }).getByRole('button');
+
+	// The whole flight lies in the restricted area's outline, but whether
+	// above its floor the app cannot tell: "possibly", in the core's words.
+	const restricted = entered.filter({ hasText: 'ED-R VALLEY' });
+	await expect(restricted).toContainText('Restricted area · 1000 ft AGL to FL 100');
+	await expect(restricted).toContainText('12:30 · 786 to 2,117 m');
+	await expect(restricted).toContainText(
+		'Possibly clear: the app does not know the height of the ground there.'
+	);
+	await expect(restricted).toContainText('29:04 min');
+
+	// A minute at the edge of the control zone, twelve minutes into the
+	// flight: when, how long, and between which heights.
+	const zone = entered.filter({ hasText: 'CTR TEGERNSEE' });
+	await expect(zone).toContainText('Class D control zone · GND to 9000 ft AMSL');
+	await expect(zone).toContainText(/12:4\d · [\d,]+ to [\d,]+ m/);
+	await expect(zone).toContainText(/[12]:\d\d min/);
+	await expect(zone).not.toContainText('Possibly');
+
+	// Under the list: what the check is worth.
+	await expect(details).toContainText(
+		'Checked against the airspace the app has today, not the airspace of the day of the flight, and without knowing what was active. A help for your own review, nothing more.'
+	);
+	await showAirspacePart(details);
+	await mapDrawn();
+	await keep('45-flight-airspace-entered');
+
+	// Choosing a stretch marks the moment the glider entered, on the map
+	// and the profile.
+	await zone.click();
+	if (!wide) await expect(sheet).toBeHidden();
+	await expect(metric(panel(page).moment, 'Time')).toHaveText(/^12:4\d$/);
+	await mapDrawn();
+	await keep('46-flight-airspace-entry');
+});
+
+test('a flight that entered nothing says so, and a flight nothing could be checked against too', async ({
+	context,
+	page,
+	keep,
+	wide
+}) => {
+	// With the server's airspace alone: the terminal area of Innsbruck lies
+	// far above the flight.
+	await addSampleFlight(page);
+	const details = flightDetails(page);
+	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();
+	await expect(details).toContainText('The flight entered none of the airspace the app has.');
+	await expect(details).toContainText('Checked against the airspace the app has today');
+	await showAirspacePart(details);
+	await keep('47-flight-airspace-none-entered');
+
+	// Without any airspace nothing was checked, which is not "nothing entered".
+	await page.goto('/settings/airspace/');
+	await page.getByRole('switch', { name: 'Airspace from this site’s server' }).uncheck();
+	await expect(page.getByText('Switched off: only your own files are used.')).toBeVisible();
+	await context.route('**/v1/airspace**', (route) => route.abort());
+	await page.goto('/logbook/');
+	await page.getByRole('link', { name: /Sat, 4 Jul/ }).click();
+	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();
+	await expect(details).toContainText(
+		'Not checked: the app has no airspace where this flight was flown.'
+	);
+	await expect(details).toContainText(
+		'Bring in an airspace file under Settings, Airspace, and the flight is checked against what the app then has.'
+	);
+	await showAirspacePart(details);
+	await keep('48-flight-airspace-not-checked');
 });
 
 test('a site without a server draws the pilot’s own files and credits nobody', async ({

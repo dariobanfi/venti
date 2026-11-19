@@ -18,6 +18,7 @@ import type {
 	AirspaceShape,
 	Bounds,
 	Coordinate,
+	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
 	FlightSharing,
@@ -81,6 +82,8 @@ export interface Calls {
 	deleteAirspaceFile: { given: string; answer: undefined };
 	/** The airspaces that touch a box of the map, from the server's and from the pilot's files. */
 	airspaceIn: { given: Bounds; answer: AirspaceShape[] };
+	/** Given a flight's identifier: the flight checked against the airspace there is now. */
+	flightAirspace: { given: string; answer: FlightAirspace };
 	/**
 	 * Given a place: asks the server for the airspace around it and keeps it,
 	 * if the core says it is time. What is kept afterwards, or nothing when
@@ -150,6 +153,7 @@ export async function answer<Name extends CallName>(
 		airspaceFiles: () => session.airspaceFiles(),
 		deleteAirspaceFile: (storedName) => session.deleteAirspaceFile(storedName),
 		airspaceIn: (box) => session.airspaceIn(box),
+		flightAirspace: (id) => session.flightAirspace(id),
 		refreshAirspace: (place) => airspace.refresh(place),
 		keptAirspace: () => airspace.kept(),
 		forgetKeptAirspace: () => airspace.forget()

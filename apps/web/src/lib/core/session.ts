@@ -17,6 +17,7 @@ import type {
 	AirspaceImport,
 	AirspaceShape,
 	Bounds,
+	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
 	FlightView,
@@ -145,6 +146,15 @@ export class CoreSession {
 	/** The airspaces that touch a box of the map. */
 	airspaceIn(box: Bounds): Promise<AirspaceShape[]> {
 		return this.ask((core) => core.airspaceIn(box.south, box.west, box.north, box.east));
+	}
+
+	/**
+	 * One flight checked against the airspace there is now. The core asks
+	 * for the flight's file and for every airspace file it has not read yet,
+	 * one after another, before it answers.
+	 */
+	flightAirspace(id: string): Promise<FlightAirspace> {
+		return this.ask((core) => core.flightAirspace(id));
 	}
 
 	/**

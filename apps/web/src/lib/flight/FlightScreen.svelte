@@ -14,7 +14,7 @@
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { logbookHref } from '#lib/app/routes.ts';
-	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
+	import type { FlightAirspace, FlightAnalysis, FlightView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
@@ -48,6 +48,28 @@
 			lat: (flight.bounds.south + flight.bounds.north) / 2,
 			lon: (flight.bounds.west + flight.bounds.east) / 2
 		});
+	});
+
+	/**
+	 * The flight checked against the airspace the app has: asked for when
+	 * the flight opens and again whenever that airspace changes, as when the
+	 * server's arrives. Without it the details are shorter, not wrong.
+	 */
+	let airspaceCheck = $state.raw<FlightAirspace>();
+	$effect(() => {
+		const airspace = app.airspace;
+		if (airspace?.revision === undefined) return;
+		// Only the answer to the latest question counts.
+		let current = true;
+		airspace.check(flight.id).then(
+			(checked) => {
+				if (current) airspaceCheck = checked;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
 	});
 
 	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
@@ -103,7 +125,7 @@
 	let dockHeight = $state(0);
 	let dock: HTMLDivElement;
 
-	/** Shows a thermal or glide the pilot picked from the list. */
+	/** Shows a thermal, a glide or an entry into airspace the pilot picked from a list. */
 	function mark(trackIndex: number) {
 		playing = false;
 		cursor = Math.min(trackIndex, flight.track.length - 1);
@@ -180,7 +202,7 @@
 				/>
 			</div>
 			{#if wide}
-				<FlightDetails {flight} {analysis} onselect={mark} />
+				<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} />
 			{/if}
 		</div>
 	</div>
@@ -188,7 +210,7 @@
 
 {#if !wide}
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
-		<FlightDetails {flight} {analysis} onselect={mark} />
+		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} />
 	</Sheet>
 {/if}
 

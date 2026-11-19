@@ -86,6 +86,8 @@ pub enum AirspaceCheck {
 
 /// Where an airspace the app knows comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum AirspaceOrigin {
     /// A file the pilot brought in.
     File,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+	AirspaceCrossing,
 	AirspaceFile,
 	AirspaceImport,
 	AirspaceShape,
@@ -11,14 +12,17 @@ import { airspaceFeatures, airspaceLayers, AIRSPACE_COLORS, rank } from './layer
 import { AirspaceInView } from './view';
 import {
 	airspaces,
+	checkCaveat,
 	countryNames,
 	creditLine,
+	crossingLines,
 	fileDetail,
 	importSummary,
 	inALine,
 	keptDetail,
 	label,
-	leftOutWarning
+	leftOutWarning,
+	nothingEntered
 } from './words';
 
 const text = createFormat('en-GB', 'Europe/Berlin');
@@ -172,6 +176,78 @@ describe('what the maps draw from, in a line', () => {
 	it('counts airspaces in the reader’s way', () => {
 		expect(airspaces(1, text)).toBe('1 airspace');
 		expect(airspaces(58980, text)).toBe('58,980 airspaces');
+	});
+});
+
+describe('a flight checked against airspace', () => {
+	/** The sample flight's take-off: 4 July 2026, 10:30 UTC. */
+	const START = 1_783_161_000;
+
+	function crossing(given: Partial<AirspaceCrossing> = {}): AirspaceCrossing {
+		return {
+			id: 'file-zones:ctr-test',
+			name: 'CTR TEST',
+			kind: 'Class D control zone',
+			lower: 'GND',
+			upper: '9000 ft AMSL',
+			policy: 'avoid',
+			entry: {
+				trackIndex: 720,
+				seconds: 720,
+				position: { lat: 47.7, lon: 11.75 },
+				altitudeM: 1612
+			},
+			exit: { trackIndex: 795, seconds: 795, position: { lat: 47.7, lon: 11.74 }, altitudeM: 1498 },
+			seconds: 75,
+			lowestM: 1498.4,
+			highestM: 1612.2,
+			uncertain: undefined,
+			origin: 'file',
+			source: 'zones',
+			dataUnixS: NOW,
+			...given
+		};
+	}
+
+	it('says of a stretch which airspace, when, between which heights and for how long', () => {
+		expect(crossingLines(crossing(), START, text)).toEqual({
+			name: 'CTR TEST',
+			airspace: 'Class D control zone · GND to 9000 ft AMSL',
+			// Twelve minutes after a take-off at 12:30 where the reader is.
+			stretch: '12:42 · 1,498 to 1,612 m',
+			duration: '1:15 min'
+		});
+	});
+
+	it('does not leave an airspace without a name nameless', () => {
+		expect(crossingLines(crossing({ name: '' }), START, text).name).toBe('Unnamed airspace');
+	});
+
+	it('says so when nothing was entered, and when nothing could be checked', () => {
+		expect(nothingEntered({ cover: 'whole', crossings: [crossing()] })).toBeUndefined();
+		expect(nothingEntered({ cover: 'whole', crossings: [] })).toBe(
+			'The flight entered none of the airspace the app has.'
+		);
+		expect(nothingEntered({ cover: 'partly', crossings: [] })).toBe(
+			'The flight entered none of the airspace the app has.'
+		);
+		expect(nothingEntered({ cover: 'none', crossings: [] })).toBe(
+			'Not checked: the app has no airspace where this flight was flown.'
+		);
+	});
+
+	it('always says what the check is worth', () => {
+		const limits =
+			'Checked against the airspace the app has today, not the airspace of the day of the flight, and without knowing what was active. A help for your own review, nothing more.';
+
+		expect(checkCaveat('whole')).toBe(limits);
+		expect(checkCaveat('partly')).toBe(
+			`Part of this flight lies where the app has no airspace; of that part nothing is known. ${limits}`
+		);
+		// Nothing was checked: the pilot is told how to change that.
+		expect(checkCaveat('none')).toBe(
+			'Bring in an airspace file under Settings, Airspace, and the flight is checked against what the app then has.'
+		);
 	});
 });
 

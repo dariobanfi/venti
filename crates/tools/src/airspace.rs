@@ -24,8 +24,11 @@ use venti_domain::{
     VerticalReference,
 };
 
-use crate::wind::{box_around, compass, error_code, place_and_radius, refusal, tenth, unreadable};
-use crate::{Tool, ToolError};
+use crate::wind::{
+    MAX_ID_CHARS, MAX_LAYERS, MAX_NOTICE_CHARS, box_around, compass, error_code, place_and_radius,
+    refusal, tenth, unreadable,
+};
+use crate::{Tool, ToolError, source_text};
 
 /// How far around a place `airspace_at` looks when the model does not say.
 const DEFAULT_RADIUS_KM: f64 = 10.0;
@@ -312,51 +315,6 @@ fn described(airspace: &Airspace, table: &PolicyTable) -> Map<String, Value> {
     entry
 }
 
-/// Text a source supplied, made fit to stand in a result: one line, with
-/// nothing in it that does not show, and no longer than `most` characters.
-///
-/// Line breaks and other control characters become spaces and runs of
-/// spaces one, so that the text cannot be laid out to look like something
-/// other than a value; characters that change the direction of writing or
-/// have no width are left out, so that it cannot hide what it says. What
-/// is cut off is marked with an ellipsis.
-pub(crate) fn source_text(text: &str, most: usize) -> String {
-    let shown = text.chars().filter(|c| !is_hidden(*c)).map(|c| {
-        if c.is_control() || c.is_whitespace() {
-            ' '
-        } else {
-            c
-        }
-    });
-    let mut one_line = String::with_capacity(text.len().min(4 * most));
-    for c in shown {
-        if c == ' ' && (one_line.is_empty() || one_line.ends_with(' ')) {
-            continue;
-        }
-        one_line.push(c);
-    }
-    let one_line = one_line.trim_end();
-    if one_line.chars().count() <= most {
-        return one_line.to_owned();
-    }
-    let mut cut: String = one_line.chars().take(most.saturating_sub(1)).collect();
-    cut.push('…');
-    cut
-}
-
-/// Whether a character does not show and can change how what follows is
-/// read: zero-width characters, the marks and overrides of writing
-/// direction, and the tag characters that repeat ASCII invisibly.
-fn is_hidden(c: char) -> bool {
-    matches!(c,
-        '\u{200B}'..='\u{200F}'
-        | '\u{202A}'..='\u{202E}'
-        | '\u{2060}'..='\u{2064}'
-        | '\u{2066}'..='\u{2069}'
-        | '\u{FEFF}'
-        | '\u{E0000}'..='\u{E007F}')
-}
-
 /// A limit as a pilot reads it on a chart, with metres beside feet.
 fn limit_text(limit: &VerticalLimit) -> String {
     let metres = |text: String| match (limit.unit(), limit.metres()) {
@@ -499,6 +457,7 @@ fn data(answer: &AirspaceResponse, place: GeoPoint, radius_km: f64, now: DateTim
     let entries: Vec<Value> = answer
         .layers
         .iter()
+        .take(MAX_LAYERS)
         .map(|layer| {
             let mut entry = Map::new();
             let credit = answer
@@ -507,16 +466,19 @@ fn data(answer: &AirspaceResponse, place: GeoPoint, radius_km: f64, now: DateTim
                 .find(|attribution| attribution.source == layer.source);
             match credit {
                 Some(credit) => {
-                    entry.insert(
-                        "source".to_owned(),
-                        json!(format!("{} ({})", credit.text, credit.licence)),
-                    );
+                    entry.insert("source".to_owned(), json!(crate::wind::credit(credit)));
                     if let Some(notice) = &credit.notice {
-                        entry.insert("notice".to_owned(), json!(notice));
+                        entry.insert(
+                            "notice".to_owned(),
+                            json!(source_text(notice, MAX_NOTICE_CHARS)),
+                        );
                     }
                 }
                 None => {
-                    entry.insert("source".to_owned(), json!(layer.source.to_string()));
+                    entry.insert(
+                        "source".to_owned(),
+                        json!(source_text(layer.source.as_str(), MAX_ID_CHARS)),
+                    );
                 }
             }
             entry.insert(
@@ -780,7 +742,7 @@ mod tests {
         );
         for text in [name, remarks] {
             assert!(
-                !text.chars().any(|c| c.is_control() || is_hidden(c)),
+                !text.chars().any(|c| c.is_control() || crate::is_hidden(c)),
                 "{text:?}"
             );
             assert!(!text.contains("  "), "{text:?}");

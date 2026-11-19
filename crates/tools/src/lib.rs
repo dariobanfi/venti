@@ -180,6 +180,58 @@ pub fn failure(error: &ToolError) -> String {
     json!({"error": error.to_string()}).to_string()
 }
 
+/// Text that neither this crate nor the app wrote, made fit to stand in a
+/// tool's result: one line, with nothing in it that does not show, and no
+/// longer than `most` characters.
+///
+/// Every tool passes through here what it hands on of someone else's
+/// words: an airspace's name from openAIP, a flying site's from
+/// OpenStreetMap, and what a server says of itself (a credit, a model's
+/// name), since the app's assistant may be talking to a server its pilot
+/// does not run. A model reads a result as it reads everything else.
+///
+/// Line breaks and other control characters become spaces and runs of
+/// spaces one, so that the text cannot be laid out to look like something
+/// other than a value; characters that change the direction of writing or
+/// have no width are left out, so that it cannot hide what it says. What
+/// is cut off is marked with an ellipsis.
+pub(crate) fn source_text(text: &str, most: usize) -> String {
+    let shown = text.chars().filter(|c| !is_hidden(*c)).map(|c| {
+        if c.is_control() || c.is_whitespace() {
+            ' '
+        } else {
+            c
+        }
+    });
+    let mut one_line = String::with_capacity(text.len().min(4 * most));
+    for c in shown {
+        if c == ' ' && (one_line.is_empty() || one_line.ends_with(' ')) {
+            continue;
+        }
+        one_line.push(c);
+    }
+    let one_line = one_line.trim_end();
+    if one_line.chars().count() <= most {
+        return one_line.to_owned();
+    }
+    let mut cut: String = one_line.chars().take(most.saturating_sub(1)).collect();
+    cut.push('…');
+    cut
+}
+
+/// Whether a character does not show and can change how what follows is
+/// read: zero-width characters, the marks and overrides of writing
+/// direction, and the tag characters that repeat ASCII invisibly.
+pub(crate) fn is_hidden(c: char) -> bool {
+    matches!(c,
+        '\u{200B}'..='\u{200F}'
+        | '\u{202A}'..='\u{202E}'
+        | '\u{2060}'..='\u{2064}'
+        | '\u{2066}'..='\u{2069}'
+        | '\u{FEFF}'
+        | '\u{E0000}'..='\u{E007F}')
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;

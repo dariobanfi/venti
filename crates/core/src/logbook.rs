@@ -104,11 +104,6 @@ pub(crate) struct Logbook {
 impl Logbook {
     /// Opens the logbook kept in `storage` and brings the index in line
     /// with the flight files found there.
-    ///
-    /// Storage that has not fetched a file yet makes this fail with
-    /// [`io::ErrorKind::WouldBlock`]. Whatever could be read by then is
-    /// already in the index, so opening again after each fetch gets there
-    /// a few files at a time.
     pub fn open(storage: Arc<dyn Storage>) -> Result<Self, LogbookError> {
         let logbook = Self {
             storage,
@@ -116,10 +111,32 @@ impl Logbook {
         };
 
         let mut index = logbook.read_index()?;
-        let mut changed = index.version != INDEX_VERSION;
+        let outdated = index.version != INDEX_VERSION;
         index.version = INDEX_VERSION;
+        *logbook.lock() = index;
 
-        let stored: BTreeSet<String> = logbook
+        logbook.reconcile(outdated)?;
+        Ok(logbook)
+    }
+
+    /// Brings the index in line with the stored flight files again.
+    ///
+    /// Storage that fetches its files on request cannot hand over a file
+    /// that is missing from the index the first time it is asked. Such a
+    /// file is left out by [`open`](Self::open) and taken in by a refresh
+    /// once the host has fetched it. On disk there is nothing to wait for
+    /// and no reason to call this.
+    pub fn refresh(&self) -> Result<(), LogbookError> {
+        self.reconcile(false)
+    }
+
+    /// Forgets the flights whose files have gone, takes in the files the
+    /// index does not know, and stores the index if any of that changed it
+    /// or `changed` says it has to be stored anyway.
+    fn reconcile(&self, mut changed: bool) -> Result<(), LogbookError> {
+        let mut index = self.lock();
+
+        let stored: BTreeSet<String> = self
             .storage
             .list(FLIGHTS_FOLDER)?
             .iter()
@@ -131,33 +148,23 @@ impl Logbook {
         index.flights.retain(|id, _| stored.contains(id));
         changed |= index.flights.len() != before;
 
-        let mut not_fetched = None;
         for id in stored {
             if index.flights.contains_key(&id) {
                 continue;
             }
-            match logbook.read_flight(&id).and_then(|text| read(&text)) {
-                Ok((_, summary)) => {
-                    index.flights.insert(id, summary);
-                    changed = true;
-                }
-                Err(LogbookError::Storage(error)) if error.kind() == io::ErrorKind::WouldBlock => {
-                    not_fetched = Some(error);
-                }
-                // A stored file that no longer reads is left in place and
-                // out of the list; it was valid when it was imported.
-                Err(_) => {}
+            // A stored file that no longer reads is left in place and out
+            // of the list; it was valid when it was imported. So is one the
+            // storage has yet to fetch, until the next refresh.
+            if let Ok((_, summary)) = self.read_flight(&id).and_then(|text| read(&text)) {
+                index.flights.insert(id, summary);
+                changed = true;
             }
         }
 
         if changed {
-            logbook.write_index(&index)?;
+            self.write_index(&index)?;
         }
-        if let Some(error) = not_fetched {
-            return Err(error.into());
-        }
-        *logbook.lock() = index;
-        Ok(logbook)
+        Ok(())
     }
 
     /// Stores a flight file. Returns the flight's identifier and whether it
@@ -592,27 +599,37 @@ mod tests {
         let mut store = two_stored_flights();
         store.remove(INDEX_FILE);
         let staged = Arc::new(StagedStorage::new(store.keys().cloned()));
-        let storage = || Arc::clone(&staged) as Arc<dyn Storage>;
 
-        // Nothing is in memory: both flights are wanted.
-        would_block(Logbook::open(storage()));
+        // Nothing is in memory: the logbook opens empty and wants both
+        // flight files.
+        let logbook = Logbook::open(Arc::clone(&staged) as Arc<dyn Storage>).unwrap();
+        assert!(logbook.flights().is_empty());
         let wanted = staged.take_wanted();
         assert_eq!(wanted.len(), 2);
 
-        // With one fetched, that one is indexed and the other still wanted.
+        // With one fetched, that one is taken in and the other still wanted.
         staged.provide(&wanted[0], store.get(&wanted[0]).cloned());
-        would_block(Logbook::open(storage()));
-        assert_eq!(staged.take_wanted(), [wanted[1].clone()]);
+        logbook.refresh().unwrap();
         staged.release();
+        assert_eq!(logbook.flights().len(), 1);
+        assert_eq!(staged.take_wanted(), [wanted[1].clone()]);
 
         staged.provide(&wanted[1], store.get(&wanted[1]).cloned());
-        let logbook = Logbook::open(storage()).unwrap();
+        logbook.refresh().unwrap();
+        staged.release();
         assert_eq!(logbook.flights().len(), 2);
+        assert!(staged.take_wanted().is_empty());
+
+        // The rebuilt index is the only thing to store.
         let staged_names: Vec<String> = staged
             .take_staged()
             .into_iter()
             .map(|file| file.name)
             .collect();
         assert_eq!(staged_names, [INDEX_FILE]);
+
+        // Nothing changes when there is nothing to take in.
+        logbook.refresh().unwrap();
+        assert!(staged.take_staged().is_empty());
     }
 }

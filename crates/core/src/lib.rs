@@ -440,6 +440,13 @@ impl Core {
             logbook: Logbook::open(storage)?,
         }))
     }
+
+    /// Takes into the logbook the stored flight files it does not know yet
+    /// and could not read when it was opened. Only storage that fetches
+    /// files on request needs this: see [`StagedStorage`].
+    pub fn refresh_logbook(&self) -> Result<(), CoreError> {
+        Ok(self.logbook.refresh()?)
+    }
 }
 
 /// A stored score as the shells see it.

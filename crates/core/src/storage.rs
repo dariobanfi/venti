@@ -145,6 +145,11 @@ pub struct StagedFile {
 /// - What the host provided is dropped again with
 ///   [`release`](Self::release), so a logbook of hundreds of flights is
 ///   never in memory at once.
+///
+/// The one file that is read without being asked for by name is a flight
+/// file missing from the logbook's index. The logbook opens without it;
+/// the host sees it in the wanted list, fetches it and has the logbook
+/// refreshed.
 #[derive(Debug, Default)]
 pub struct StagedStorage {
     state: Mutex<Staged>,
@@ -178,6 +183,12 @@ impl StagedStorage {
     /// list.
     pub fn take_wanted(&self) -> Vec<String> {
         std::mem::take(&mut self.lock().wanted)
+    }
+
+    /// Whether the core asked for a file it could not read and the host has
+    /// not yet looked at which.
+    pub fn is_waiting(&self) -> bool {
+        !self.lock().wanted.is_empty()
     }
 
     /// Hands over the contents of a stored file, or says with `None` that
@@ -505,8 +516,10 @@ mod tests {
         assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
         // Asking twice wants the file once.
         storage.read("flights/a.igc").unwrap_err();
+        assert!(storage.is_waiting());
         assert_eq!(storage.take_wanted(), ["flights/a.igc"]);
         assert!(storage.take_wanted().is_empty());
+        assert!(!storage.is_waiting());
 
         storage.provide("flights/a.igc", Some(b"one".to_vec()));
         assert_eq!(

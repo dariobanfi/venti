@@ -145,6 +145,11 @@ class FlySessionTest {
         val id = logbook.adopt(recording)
         assertEquals(id, logbook.view.years.first().flights.first().id)
         assertTrue(pendingRecordings(folder.path).isEmpty())
+        // Half a minute in the air is short, but it opens like any flight.
+        val flight = logbook.flight(id)
+        assertEquals("Test Wing", flight.glider)
+        assertTrue(flight.track.size >= 2)
+        assertTrue(flight.maxAltitudeM > 1500)
     }
 
     @Test

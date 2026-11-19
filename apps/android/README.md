@@ -84,7 +84,7 @@ Map tiles are fetched from OpenFreeMap and Mapterhorn until the project has its 
 
 ### Not verified
 
-The app has run on an emulator in CI, driven by the UI tests. Nobody has yet run it on a real phone. In particular, nothing below has been tried, because an emulator cannot:
+The app has run on an emulator in CI, driven by the UI tests. One of them records a flight from made-up positions handed to Android as if its satellite receiver had found them, so the permission, the location manager, the recording service with its notification, the altitude conversion of Android 14 and later, and saving to the logbook all run there. Nobody has yet run the app on a real phone. In particular, nothing below has been tried, because an emulator cannot:
 
 - **Flying with it.** The cockpit has only seen replayed flights. Fly it only beside the instrument you trust.
 - **Recording with the screen off.** The foreground service, its notification and the wake lock are written to Android's documentation. Whether a recording survives hours in a pocket, and what the battery savers of Samsung, Xiaomi and others do to it, is unknown.

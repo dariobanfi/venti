@@ -20,6 +20,9 @@ struct CockpitScreen: View {
             VStack(spacing: 0) {
                 StatusLine(view: view, mode: fly.mode, varioName: fly.vario.connectedName)
                 CockpitMap(view: view)
+                    // Labelled before the badges are laid over it, or the
+                    // label would swallow them for VoiceOver and for tests.
+                    .accessibilityLabel("Map")
                     .overlay(alignment: .topTrailing) {
                         if let wind = view.wind {
                             WindBadge(wind: wind)
@@ -36,7 +39,6 @@ struct CockpitScreen: View {
                                 .padding(10)
                         }
                     }
-                    .accessibilityLabel("Map")
                 Instruments(view: view)
                 HStack(spacing: 12) {
                     Button(isReplay ? "End replay" : "Finish flight") {
@@ -126,6 +128,10 @@ private struct StatusLine: View {
             let name = varioName ?? "Vario"
             guard instrument.talking else { return "\(name) silent" }
             return instrument.batteryPercent.map { "\(name) \($0)%" } ?? name
+        }
+        // In a replay the pressure is the recording's, not this phone's.
+        if case .replay = mode {
+            return "Recorded data"
         }
         return switch view.varioSource {
         case .pressure: "Phone barometer"

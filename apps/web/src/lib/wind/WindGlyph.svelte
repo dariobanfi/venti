@@ -7,8 +7,8 @@
 	so a screen reader passes over it.
 -->
 <script lang="ts">
-	import { WIND_BANDS } from '#lib/design/palette.ts';
-	import type { WindMark } from './mark';
+	import type { WindMark } from '#lib/core/index.ts';
+	import { CALM_ON_MAP, WIND_BANDS } from '#lib/design/palette.ts';
 	import { DART, DOT_RADIUS, SIDE } from './symbols';
 
 	let { mark }: { mark: WindMark } = $props();
@@ -28,10 +28,10 @@
 		<polygon
 			points={dart}
 			fill={WIND_BANDS[mark.symbol.band].color}
-			transform="rotate({mark.heading} {SIDE / 2} {SIDE / 2})"
+			transform="rotate({mark.headingDeg} {SIDE / 2} {SIDE / 2})"
 		/>
 	{:else if mark.symbol.kind === 'calm'}
-		<circle cx={SIDE / 2} cy={SIDE / 2} r={DOT_RADIUS} fill={WIND_BANDS[0].color} />
+		<circle cx={SIDE / 2} cy={SIDE / 2} r={DOT_RADIUS} fill={CALM_ON_MAP} />
 	{:else}
 		<circle cx={SIDE / 2} cy={SIDE / 2} r={DOT_RADIUS} />
 	{/if}

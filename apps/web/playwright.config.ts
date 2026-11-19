@@ -22,6 +22,11 @@ const PHONE = {
 };
 const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
 
+// Where the Venti server in its development mode listens: its usual place,
+// or the one `vite.config.ts` is told as well, for a machine whose port 8080
+// is taken.
+const VENTI_SERVER = new URL(process.env.VENTI_DEV_SERVER ?? 'http://127.0.0.1:8080');
+
 function project(name: string, size: typeof PHONE | typeof DESKTOP, dark: boolean): Project {
 	return { name, use: { ...size, colorScheme: dark ? 'dark' : 'light' } };
 }
@@ -60,13 +65,14 @@ export default defineConfig({
 			reuseExistingServer: false
 		},
 		{
-			// The Venti server over its recorded data, for the wind on the map.
-			// The preview above passes the app's questions on to it, as the web
-			// server in front of both will. One that is running already serves
-			// the same data, so it is used.
-			command: 'cargo run --locked -p venti-server -- dev',
+			// The Venti server over its recorded data, for the wind on the map
+			// and for an account to sign in to. The preview above passes the
+			// app's questions on to it, as the web server in front of both
+			// will. One that is running already is used; what the tests leave
+			// behind in it (accounts, flights) they do not trip over next time.
+			command: `cargo run --locked -p venti-server -- dev --listen ${VENTI_SERVER.host}`,
 			cwd: '../..',
-			url: 'http://127.0.0.1:8080/v1/health',
+			url: `${VENTI_SERVER.origin}/v1/health`,
 			reuseExistingServer: true,
 			// The first start compiles the server.
 			timeout: 900_000

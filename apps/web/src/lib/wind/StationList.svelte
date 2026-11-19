@@ -8,7 +8,7 @@
 	import type { WindStation } from '#lib/core/index.ts';
 	import { age, compassPoint, format } from '#lib/design/format.ts';
 	import Sheet from '#lib/design/Sheet.svelte';
-	import { spoken, windMark } from './mark';
+	import { spoken } from './mark';
 	import type { WindState } from './watch';
 	import WindGlyph from './WindGlyph.svelte';
 
@@ -80,7 +80,7 @@
 		{:else}
 			<ul class="card" aria-label="Wind stations">
 				{#each shown as station (station.id)}
-					{@const mark = windMark(station)}
+					{@const mark = station.mark}
 					<li>
 						<button type="button" aria-label={sentence(station)} onclick={() => onchoose(station)}>
 							<WindGlyph {mark} />

@@ -40,7 +40,7 @@ npm test                # unit tests, in Node, against the real core
 npm run build && npm run test:e2e   # the built site in a real browser
 ```
 
-The end-to-end tests need a Chromium that Playwright can drive: `npx playwright install chromium` once. They start the Venti server in its development mode themselves, which compiles it the first time, and use one that is already running. They use the app as a pilot would and keep a screenshot of every screen in `screenshots/<project>/`, for four projects: a phone's width and a desktop's, each in light and in dark appearance. **Look at the screenshots after every change to a screen.** One project is quicker: `npm run test:e2e -- --project=phone-light`.
+The end-to-end tests need a Chromium that Playwright can drive: `npx playwright install chromium` once. They start the Venti server in its development mode themselves, which compiles it the first time, and use one that is already running; with `VENTI_DEV_SERVER=http://127.0.0.1:18080` they start and use it there, when port 8080 belongs to something else. They use the app as a pilot would and keep a screenshot of every screen in `screenshots/<project>/`, for four projects: a phone's width and a desktop's, each in light and in dark appearance. **Look at the screenshots after every change to a screen.** One project is quicker: `npm run test:e2e -- --project=phone-light`.
 
 The tests draw a real map without the network. The app asks OpenFreeMap and Mapterhorn for tiles as it always does; the test browser answers those requests from the small region the iPhone app bundles (`apps/ios/Venti/Resources/MapDemo`, the valley of the sample flight). Outside that valley the test maps are blank, which is the region's edge and not a fault.
 

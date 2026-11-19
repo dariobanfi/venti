@@ -43,22 +43,32 @@ export type {
 	ThermalSummary,
 	Totals,
 	TrackPoint,
+	WindBand,
 	WindMap,
+	WindMark,
 	WindReading,
 	WindStation,
+	WindSymbol,
 	WindView
 } from './pkg/venti_core_wasm.js';
+import type { CoreErrorKind } from './pkg/venti_core_wasm.js';
 import { UNREACHABLE } from './protocol';
 
 export { CoreClient } from './client';
 export type { WindAnswer } from './wind-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */
-const CORE_ERRORS = ['InvalidFlight', 'UnknownFlight', 'Storage', 'Server'];
+const CORE_ERRORS: CoreErrorKind[] = [
+	'InvalidFlight',
+	'UnknownFlight',
+	'Storage',
+	'Server',
+	'InvalidFile'
+];
 
 /** Whether an error came from the core, rather than from the browser around it. */
 export function isCoreError(error: unknown): boolean {
-	return error instanceof Error && CORE_ERRORS.includes(error.name);
+	return error instanceof Error && (CORE_ERRORS as string[]).includes(error.name);
 }
 
 /**

@@ -69,6 +69,25 @@ describe('wind from the server', () => {
 		expect(zugspitze.isOld).toBe(false);
 	});
 
+	it('hands over how the core wants each station drawn', async () => {
+		const { get } = server();
+		const wind = new WindSource(get, () => SERVER_NOW);
+
+		const stations = (await wind.windMap(ALPS))!.map.stations;
+
+		// 14.9 m/s from 260° with gusts of 25.7: a strong wind blowing to 80°.
+		const zugspitze = stations.find((station) => station.name === 'Zugspitze')!;
+		expect(zugspitze.mark).toEqual({
+			symbol: { kind: 'arrow', band: 'strong' },
+			headingDeg: 80,
+			label: '54/93'
+		});
+		// Every mark is one of the three the app has a picture for.
+		for (const station of stations) {
+			expect(['arrow', 'calm', 'old']).toContain(station.mark.symbol.kind);
+		}
+	});
+
 	it('lets time pass on the server’s clock between two looks at it', async () => {
 		const { asked, get } = server();
 		const { clock, read } = device(SERVER_NOW - 5000);

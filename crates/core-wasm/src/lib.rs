@@ -518,6 +518,7 @@ mod tests {
             CoreErrorKind::UnknownFlight,
             CoreErrorKind::Storage,
             CoreErrorKind::Server,
+            CoreErrorKind::InvalidFile,
         ] {
             assert_eq!(kind.name(), format!("{kind:?}"));
         }

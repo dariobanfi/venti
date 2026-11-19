@@ -7,7 +7,8 @@
  * the list show one arrow.
  */
 
-import { OLD_ON_MAP, WIND_BANDS } from '#lib/design/palette.ts';
+import type { WindBand } from '#lib/core/index.ts';
+import { CALM_ON_MAP, OLD_ON_MAP, WIND_BANDS } from '#lib/design/palette.ts';
 import { pictureName } from './mark';
 
 /** The side of a picture, in CSS pixels. */
@@ -45,12 +46,12 @@ export function windPictures(pixelRatio = 2): Picture[] {
 		draw(pixelRatio, color, (path) => path.arc(SIDE / 2, SIDE / 2, DOT_RADIUS, 0, 2 * Math.PI));
 
 	return [
-		...WIND_BANDS.map((band, index) => ({
-			name: pictureName({ kind: 'arrow', band: index }),
-			image: dart(band.color),
+		...(Object.keys(WIND_BANDS) as WindBand[]).map((band) => ({
+			name: pictureName({ kind: 'arrow', band }),
+			image: dart(WIND_BANDS[band].color),
 			pixelRatio
 		})),
-		{ name: pictureName({ kind: 'calm' }), image: dot(WIND_BANDS[0].color), pixelRatio },
+		{ name: pictureName({ kind: 'calm' }), image: dot(CALM_ON_MAP), pixelRatio },
 		{ name: pictureName({ kind: 'old' }), image: dot(OLD_ON_MAP), pixelRatio }
 	];
 }

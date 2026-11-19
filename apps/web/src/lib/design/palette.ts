@@ -3,6 +3,8 @@
  * choices. Everything a stylesheet can colour is in `src/app.css` instead.
  */
 
+import type { WindBand } from '#lib/core/index.ts';
+
 /**
  * The accent as drawn on the map. The map is light in both appearances, so
  * this is the light value whatever the page looks like.
@@ -48,35 +50,31 @@ export function climbBand(metresPerSecond: number): number {
 }
 
 /**
- * How strong the wind is, in four bands of its mean speed.
+ * What each band of wind looks like. Which band a wind falls in is the
+ * core's decision (`WindBand` in `crates/core/src/wind.rs`); the app only
+ * gives each band its colour and its arrow.
  *
  * One hue from light to dark: strength is shown as a magnitude, not as a
  * verdict. Whether 25 km/h is too much depends on the pilot, the wing and
  * the place, and the app does not decide that from one number. The iPhone
- * app's `WindBand.swift` holds the same table.
+ * app's `WindBand.swift` holds the same colours.
  */
-export interface WindBand {
-	/** A band holds mean winds below this one, in km/h, and not below the band before it. */
-	readonly below: number;
+export interface WindBandLook {
 	readonly color: string;
 	/** How large the band's arrow is drawn, relative to the second band's. */
 	readonly arrowScale: number;
 }
 
 /** The bands from the lightest wind to the strongest. */
-export const WIND_BANDS: readonly WindBand[] = [
-	{ below: 10, color: '#86B6EF', arrowScale: 0.85 },
-	{ below: 20, color: '#3987E5', arrowScale: 1 },
-	{ below: 30, color: '#1C5CAB', arrowScale: 1.15 },
-	{ below: Infinity, color: '#0D366B', arrowScale: 1.3 }
-];
+export const WIND_BANDS: Readonly<Record<WindBand, WindBandLook>> = {
+	light: { color: '#86B6EF', arrowScale: 0.85 },
+	moderate: { color: '#3987E5', arrowScale: 1 },
+	fresh: { color: '#1C5CAB', arrowScale: 1.15 },
+	strong: { color: '#0D366B', arrowScale: 1.3 }
+};
 
-/** The position in {@link WIND_BANDS} of the band a mean wind falls in. */
-export function windBand(metresPerSecond: number): number {
-	const band = WIND_BANDS.findIndex((candidate) => metresPerSecond * 3.6 < candidate.below);
-	// Only something that is not a number is below no limit: draw it as the lightest.
-	return band === -1 ? 0 : band;
-}
+/** Calm air, as a dot on the map: the palest of the wind's blues. */
+export const CALM_ON_MAP = WIND_BANDS.light.color;
 
 /** A station with nothing current to say, as a dot on the map. */
 export const OLD_ON_MAP = '#A9A8A2';

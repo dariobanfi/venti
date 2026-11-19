@@ -1,0 +1,18 @@
+{
+  "body": {
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+      "capabilities": {
+        "tools": {}
+      },
+      "instructions": "Answers questions about the weather.",
+      "protocolVersion": "2025-03-26",
+      "serverInfo": {
+        "name": "example",
+        "version": "1.2.3"
+      }
+    }
+  },
+  "status": 200
+}

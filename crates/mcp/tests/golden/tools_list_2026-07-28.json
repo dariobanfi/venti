@@ -1,0 +1,54 @@
+{
+  "body": {
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example",
+          "title": "Example Server",
+          "version": "1.2.3"
+        }
+      },
+      "cacheScope": "public",
+      "resultType": "complete",
+      "tools": [
+        {
+          "annotations": {
+            "openWorldHint": false,
+            "readOnlyHint": true
+          },
+          "description": "Get current weather information for a location.",
+          "inputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "location": {
+                "description": "City name or zip code",
+                "type": "string"
+              }
+            },
+            "required": [
+              "location"
+            ],
+            "type": "object"
+          },
+          "name": "get_weather"
+        },
+        {
+          "annotations": {
+            "openWorldHint": false,
+            "readOnlyHint": true
+          },
+          "description": "The current time.",
+          "inputSchema": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "name": "get_time"
+        }
+      ],
+      "ttlMs": 3600000
+    }
+  },
+  "status": 200
+}

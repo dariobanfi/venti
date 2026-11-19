@@ -3,8 +3,11 @@
 //! Their data is on a Venti server, so they are answered in two steps:
 //! [`request`] says what to ask the server for, and [`result`] turns the
 //! server's answer into what the model reads. Whoever offers the tools does
-//! the asking in between: the app sends an HTTP request, and the server's
-//! own connector reads its database and builds the same answer types.
+//! the asking in between. The app sends an HTTP request. The server's own
+//! connector has no use for a path to itself: it reads a call's arguments
+//! with [`StationsCall`] or [`HistoryCall`], builds from its database the
+//! answer the request would have got, and hands it to [`wind_stations`] or
+//! [`station_history`], the functions the app's results come from too.
 //!
 //! The model gets wind in km/h, as pilots in the first region speak of it,
 //! and directions both in degrees and as a compass point. Every reading
@@ -92,24 +95,36 @@ pub fn needs_server(name: &str) -> bool {
 /// What a tool needs from the server: the path and query to `GET`.
 pub fn request(name: &str, input: &Value) -> Result<String, ToolError> {
     match name {
-        "wind_stations" => {
-            let (place, radius_km) = place_and_radius(input)?;
-            Ok(StationsRequest {
-                bbox: box_around(place, radius_km),
-            }
-            .path_and_query())
-        }
-        "station_history" => {
-            let (station, _) = station_and_hours(input)?;
-            Ok(ObservationsRequest {
-                station,
-                from: None,
-                to: None,
-            }
-            .path_and_query())
-        }
+        "wind_stations" => Ok(StationsCall::read(input)?.request().path_and_query()),
+        "station_history" => Ok(HistoryCall::read(input)?.request().path_and_query()),
         other => Err(ToolError::UnknownTool(other.to_owned())),
     }
+}
+
+/// What to tell the model when the server did not answer a tool's request:
+/// its HTTP status and, if its answer had one, the code of its error.
+pub fn refusal(status: u16, code: Option<&str>) -> ToolError {
+    ToolError::Failed(match code {
+        Some("station_not_found") => {
+            "There is no station with this id. Use an id from wind_stations.".to_owned()
+        }
+        Some(code) => format!("The Venti server could not answer ({code})."),
+        None => format!("The Venti server could not answer (status {status})."),
+    })
+}
+
+/// The code of the error in a server's answer, if the answer is one of the
+/// server's errors.
+pub(crate) fn error_code(body: &[u8]) -> Option<String> {
+    serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|answer| {
+            answer
+                .get("error")?
+                .get("code")?
+                .as_str()
+                .map(str::to_owned)
+        })
 }
 
 /// The tool's result, as JSON text, from the server's answer to
@@ -122,38 +137,27 @@ pub fn result(
     now: DateTime<Utc>,
 ) -> Result<String, ToolError> {
     if !(200..300).contains(&status) {
-        let code = serde_json::from_slice::<Value>(body)
-            .ok()
-            .and_then(|answer| {
-                answer
-                    .get("error")?
-                    .get("code")?
-                    .as_str()
-                    .map(str::to_owned)
-            });
-        return Err(ToolError::Failed(match code.as_deref() {
-            Some("station_not_found") => {
-                "There is no station with this id. Use an id from wind_stations.".to_owned()
-            }
-            Some(code) => format!("The Venti server could not answer ({code})."),
-            None => format!("The Venti server could not answer (status {status})."),
-        }));
+        return Err(refusal(status, error_code(body).as_deref()));
     }
-    let unreadable =
-        |_| ToolError::Failed("The Venti server's answer could not be read.".to_owned());
     match name {
         "wind_stations" => {
-            let (place, radius_km) = place_and_radius(input)?;
+            let call = StationsCall::read(input)?;
             let answer: StationsResponse = serde_json::from_slice(body).map_err(unreadable)?;
-            Ok(wind_stations(&answer, place, radius_km, now).to_string())
+            Ok(wind_stations(&answer, call.place, call.radius_km, now).to_string())
         }
         "station_history" => {
-            let (_, hours) = station_and_hours(input)?;
+            let call = HistoryCall::read(input)?;
             let answer: ObservationsResponse = serde_json::from_slice(body).map_err(unreadable)?;
-            Ok(station_history(&answer, hours, now).to_string())
+            Ok(station_history(&answer, call.hours, now).to_string())
         }
         other => Err(ToolError::UnknownTool(other.to_owned())),
     }
+}
+
+/// What to tell the model about a server's answer that is not what the
+/// tool expects.
+pub(crate) fn unreadable(_: serde_json::Error) -> ToolError {
+    ToolError::Failed("The Venti server's answer could not be read.".to_owned())
 }
 
 /// The stations around a place, nearest first, as the model reads them.
@@ -337,7 +341,7 @@ fn reading_fields(reading: &Reading, now: DateTime<Utc>) -> Map<String, Value> {
 
 /// Whose data a result holds, with the licence. The model is told to name
 /// the source; the licences ask for that.
-fn sources(attributions: &[Attribution]) -> Value {
+pub(crate) fn sources(attributions: &[Attribution]) -> Value {
     json!(
         attributions
             .iter()
@@ -346,7 +350,84 @@ fn sources(attributions: &[Attribution]) -> Value {
     )
 }
 
-fn place_and_radius(input: &Value) -> Result<(GeoPoint, f64), ToolError> {
+/// A call of `wind_stations`, with its arguments read and bounded.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StationsCall {
+    /// The place asked about.
+    pub place: GeoPoint,
+    /// How far around it to look, in kilometres.
+    pub radius_km: f64,
+}
+
+impl StationsCall {
+    /// Reads the arguments the model gave.
+    pub fn read(input: &Value) -> Result<Self, ToolError> {
+        let (place, radius_km) = place_and_radius(input, DEFAULT_RADIUS_KM, MAX_RADIUS_KM)?;
+        Ok(Self { place, radius_km })
+    }
+
+    /// What the call asks the server for: the stations of the box that
+    /// holds the circle. [`wind_stations`] cuts the answer to the circle.
+    pub fn request(&self) -> StationsRequest {
+        StationsRequest {
+            bbox: box_around(self.place, self.radius_km),
+        }
+    }
+}
+
+/// A call of `station_history`, with its arguments read and bounded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryCall {
+    /// The station asked about.
+    pub station: StationId,
+    /// How many hours back to look.
+    pub hours: i64,
+}
+
+impl HistoryCall {
+    /// Reads the arguments the model gave.
+    pub fn read(input: &Value) -> Result<Self, ToolError> {
+        let station = input["station_id"]
+            .as_str()
+            .ok_or_else(|| ToolError::BadArguments("station_id is required".to_owned()))?
+            .parse()
+            .map_err(|_| {
+                ToolError::BadArguments(
+                    "station_id is not a station's id; use one from wind_stations".to_owned(),
+                )
+            })?;
+        let hours = match &input["hours"] {
+            Value::Null => DEFAULT_HOURS,
+            hours => hours
+                .as_i64()
+                .filter(|hours| *hours >= 1)
+                .map(|hours| hours.min(MAX_HOURS))
+                .ok_or_else(|| {
+                    ToolError::BadArguments("hours must be a whole number from 1".to_owned())
+                })?,
+        };
+        Ok(Self { station, hours })
+    }
+
+    /// What the call asks the server for: the station's last day, which is
+    /// the server's default window. [`station_history`] cuts the answer to
+    /// the hours asked for.
+    pub fn request(&self) -> ObservationsRequest {
+        ObservationsRequest {
+            station: self.station.clone(),
+            from: None,
+            to: None,
+        }
+    }
+}
+
+/// Reads a place and a radius around it from a tool's arguments. A radius
+/// that is left out is `default_km`, and none is larger than `max_km`.
+pub(crate) fn place_and_radius(
+    input: &Value,
+    default_km: f64,
+    max_km: f64,
+) -> Result<(GeoPoint, f64), ToolError> {
     let number = |name: &str| {
         input[name]
             .as_f64()
@@ -358,11 +439,11 @@ fn place_and_radius(input: &Value) -> Result<(GeoPoint, f64), ToolError> {
         )
     })?;
     let radius_km = match &input["radius_km"] {
-        Value::Null => DEFAULT_RADIUS_KM,
+        Value::Null => default_km,
         radius => radius
             .as_f64()
             .filter(|radius| radius.is_finite() && *radius > 0.0)
-            .map(|radius| radius.min(MAX_RADIUS_KM))
+            .map(|radius| radius.min(max_km))
             .ok_or_else(|| {
                 ToolError::BadArguments("radius_km must be a number above 0".to_owned())
             })?,
@@ -370,31 +451,8 @@ fn place_and_radius(input: &Value) -> Result<(GeoPoint, f64), ToolError> {
     Ok((place, radius_km))
 }
 
-fn station_and_hours(input: &Value) -> Result<(StationId, i64), ToolError> {
-    let station = input["station_id"]
-        .as_str()
-        .ok_or_else(|| ToolError::BadArguments("station_id is required".to_owned()))?
-        .parse()
-        .map_err(|_| {
-            ToolError::BadArguments(
-                "station_id is not a station's id; use one from wind_stations".to_owned(),
-            )
-        })?;
-    let hours = match &input["hours"] {
-        Value::Null => DEFAULT_HOURS,
-        hours => hours
-            .as_i64()
-            .filter(|hours| *hours >= 1)
-            .map(|hours| hours.min(MAX_HOURS))
-            .ok_or_else(|| {
-                ToolError::BadArguments("hours must be a whole number from 1".to_owned())
-            })?,
-    };
-    Ok((station, hours))
-}
-
 /// The box that holds the circle of a radius around a place.
-fn box_around(place: GeoPoint, radius_km: f64) -> BoundingBox {
+pub(crate) fn box_around(place: GeoPoint, radius_km: f64) -> BoundingBox {
     const KM_PER_DEGREE: f64 = 111.32;
     let north_south = radius_km / KM_PER_DEGREE;
     // Degrees of longitude shrink towards the poles; near them the box
@@ -424,7 +482,7 @@ fn bearing_deg(from: GeoPoint, to: GeoPoint) -> f64 {
 }
 
 /// A direction as one of sixteen compass points.
-fn compass(degrees: f64) -> &'static str {
+pub(crate) fn compass(degrees: f64) -> &'static str {
     const POINTS: [&str; 16] = [
         "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW",
         "NW", "NNW",
@@ -454,7 +512,7 @@ fn mean_direction(readings: &[&Reading]) -> Option<f64> {
     (east.hypot(north) > 1e-6).then(|| east.atan2(north).to_degrees().round().rem_euclid(360.0))
 }
 
-fn tenth(value: f64) -> f64 {
+pub(crate) fn tenth(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
 
@@ -556,6 +614,39 @@ mod tests {
         ));
         assert!(needs_server("wind_stations"));
         assert!(!needs_server("get_flight"));
+    }
+
+    #[test]
+    fn a_call_can_be_read_without_asking_anything() {
+        // What a host that answers from its own data needs: the arguments,
+        // bounded, and the request whose answer the result is made from.
+        let call = StationsCall::read(&json!({"latitude": 47.5, "longitude": 11.1})).unwrap();
+        assert_eq!(call.place, GeoPoint::new(47.5, 11.1).unwrap());
+        assert_eq!(call.radius_km, 25.0);
+        assert!(call.request().bbox.contains(call.place));
+        let far = json!({"latitude": 47.5, "longitude": 11.1, "radius_km": 5000});
+        assert_eq!(StationsCall::read(&far).unwrap().radius_km, 100.0);
+
+        let call = HistoryCall::read(&json!({"station_id": "dwd-10min:05792"})).unwrap();
+        assert_eq!(call.hours, 6);
+        assert_eq!(call.request().station, call.station);
+        let long = json!({"station_id": "dwd-10min:05792", "hours": 500});
+        assert_eq!(HistoryCall::read(&long).unwrap().hours, 24);
+
+        // The same refusals the app's model reads.
+        assert!(
+            refusal(404, Some("station_not_found"))
+                .to_string()
+                .contains("no station with this id")
+        );
+        assert_eq!(
+            refusal(503, Some("unavailable")).to_string(),
+            "The Venti server could not answer (unavailable)."
+        );
+        assert_eq!(
+            refusal(502, None).to_string(),
+            "The Venti server could not answer (status 502)."
+        );
     }
 
     #[test]

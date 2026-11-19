@@ -1,6 +1,6 @@
 [package]
 name = "venti-tools"
-description = "The tools an assistant can use, each defined once: served to the in-app assistant and, later, over MCP."
+description = "The tools an assistant can use, each defined once: served to the in-app assistant and by the server's MCP connector."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,6 +11,7 @@ publish.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+venti-airspace.workspace = true
 venti-api-types.workspace = true
 venti-domain.workspace = true
 

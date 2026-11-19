@@ -70,6 +70,26 @@ jobs:
           curl --silent --fail http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations | jq --exit-status '.observations | length > 100'
           curl --silent --fail 'http://127.0.0.1:8080/v1/airspace?bbox=9.4,46.3,17.2,48.5' \
             | jq --exit-status '.layers | length == 1 and .[0].source == "openaip" and (.[0].airspaces | length) == 192 and (.[0].countries | length) == 8 and (.[0].covers | length) == 1'
+      - name: Ask the connector for its tools and for the wind at the Zugspitze
+        run: |
+          # The oldest revision of the protocol: a conversation begins with
+          # initialize, and no request names a revision.
+          ask() {
+            curl --silent --fail --request POST http://127.0.0.1:8080/mcp \
+              --header 'Content-Type: application/json' "$@"
+          }
+          ask --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | jq --exit-status '.result.serverInfo.name == "venti" and .result.protocolVersion == "2025-03-26"'
+          ask --data '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | jq --exit-status '[.result.tools[].name] == ["wind_stations", "station_history", "airspace_at"]'
+          # The newest: every request stands alone and says so in its headers.
+          ask --header 'MCP-Protocol-Version: 2026-07-28' --header 'Mcp-Method: tools/call' --header 'Mcp-Name: wind_stations' \
+            --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wind_stations","arguments":{"latitude":47.42,"longitude":10.98},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}' \
+            | jq --exit-status '.result.resultType == "complete" and .result.isError == false and (.result.content[0].text | fromjson | .stations[0].name) == "Zugspitze"'
+          # A page of another site may not call from a browser.
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST http://127.0.0.1:8080/mcp \
+            --header 'Content-Type: application/json' --header 'Origin: https://evil.example' \
+            --data '{"jsonrpc":"2.0","id":4,"method":"tools/list"}')" = 403
       - name: Ask for the demo account's flights, upload one and fetch its share page
         run: |
           token=venti_0000000000000000000000000000000000000000000000000000

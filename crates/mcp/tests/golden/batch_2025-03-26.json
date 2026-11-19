@@ -1,0 +1,44 @@
+{
+  "body": [
+    {
+      "id": "a",
+      "jsonrpc": "2.0",
+      "result": {
+        "content": [
+          {
+            "text": "12:00",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "id": "b",
+      "jsonrpc": "2.0",
+      "result": {}
+    },
+    {
+      "id": "c",
+      "jsonrpc": "2.0",
+      "result": {
+        "content": [
+          {
+            "text": "Föhn",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "error": {
+        "code": -32602,
+        "message": "Unknown tool: nothing"
+      },
+      "id": "d",
+      "jsonrpc": "2.0"
+    }
+  ],
+  "status": 200
+}

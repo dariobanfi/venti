@@ -1,0 +1,44 @@
+{
+  "caveats": [
+    "This is advice from data that is not certified, not a clearance. It must not be used for navigation or flight planning. The pilot checks the official publications (AIP, NOTAM).",
+    "Nothing here says what is active today. Hours, NOTAMs and activations are not known, so every airspace counts as possibly active.",
+    "A limit above ground (AGL) depends on the terrain, which is not known here. A flight level (FL) depends on the air pressure of the day.",
+    "No airspace listed does not mean free airspace. The server holds airspace for some areas and some countries only; `data` says for each source whether it reaches this place."
+  ],
+  "data": [
+    {
+      "coverage": "This source's data reaches the place and the whole radius. It holds the airspace of these countries only: DE, AT, CH, IT, SI, HR, HU, SK. If the place or its surroundings lie in another country, this source says nothing about the airspace there.",
+      "fetched_days_ago": 0,
+      "fetched_utc": "2026-11-18 19:05",
+      "files_written_utc": "2026-11-18 19:05",
+      "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors.",
+      "source": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share. (CC BY-NC 4.0)"
+    }
+  ],
+  "near_the_place": [],
+  "over_the_place": [
+    {
+      "ceiling": "FL 145 (about 4420 m in standard air)",
+      "country": "AT",
+      "floor": "GND",
+      "for_a_paraglider": "avoid",
+      "name": "LOD22 (HOCHFILZEN)",
+      "type": "danger area",
+      "why": "Entry is restricted while active, and the app does not know when it is."
+    },
+    {
+      "ceiling": "FL 125 (about 3810 m in standard air)",
+      "country": "AT",
+      "floor": "GND",
+      "for_a_paraglider": "avoid",
+      "name": "LOR8 (HOCHFILZEN)",
+      "type": "restricted area",
+      "why": "Entry is restricted while active, and the app does not know when it is."
+    }
+  ],
+  "place": {
+    "latitude": 47.485,
+    "longitude": 12.655
+  },
+  "radius_km": 15.0
+}

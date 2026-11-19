@@ -2814,6 +2814,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "venti-mcp"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "venti-regions"
 version = "0.1.0"
 dependencies = [
@@ -2863,12 +2870,14 @@ dependencies = [
  "venti-api-types",
  "venti-domain",
  "venti-flight",
+ "venti-mcp",
  "venti-regions",
  "venti-sources",
  "venti-sources-dwd",
  "venti-sources-geosphere",
  "venti-sources-openaip",
  "venti-store",
+ "venti-tools",
 ]
 
 [[package]]
@@ -2937,6 +2946,7 @@ dependencies = [
  "chrono",
  "serde_json",
  "thiserror",
+ "venti-airspace",
  "venti-api-types",
  "venti-domain",
 ]

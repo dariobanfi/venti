@@ -22,6 +22,7 @@ venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
 venti-sensors = { path = "crates/sensors" }
 venti-llm = { path = "crates/llm" }
+venti-mcp = { path = "crates/mcp" }
 venti-tools = { path = "crates/tools" }
 venti-core = { path = "crates/core" }
 

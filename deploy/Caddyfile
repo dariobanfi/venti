@@ -33,6 +33,24 @@
 		reverse_proxy server:8080
 	}
 
+	# The connector: the server's public tools for a pilot's own assistant,
+	# over the Model Context Protocol. The server bounds the size of a
+	# request and the time for an answer itself, and counts requests by the
+	# client address, which it learns from Caddy as for the API above.
+	handle /mcp {
+		reverse_proxy server:8080
+	}
+
+	# The connector asks nobody to sign in. An assistant that looks for a
+	# sign-in service all the same is told by the server that there is none.
+	# Without this it would be handed the web app's page below.
+	handle /.well-known/oauth-* {
+		reverse_proxy server:8080
+	}
+	handle /.well-known/openid-configuration* {
+		reverse_proxy server:8080
+	}
+
 	# Map tiles: PMTiles archives of several gigabytes that map clients read
 	# piece by piece with HTTP range requests, which the file server answers
 	# by itself. The archives are compressed inside, so they are not encoded

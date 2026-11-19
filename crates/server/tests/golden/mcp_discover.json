@@ -1,0 +1,26 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "venti",
+        "title": "Venti",
+        "version": "0.1.0"
+      }
+    },
+    "cacheScope": "public",
+    "capabilities": {
+      "tools": {}
+    },
+    "instructions": "Venti is a free app for paraglider pilots. This connector answers from public data the Venti server collects: wind measured by weather stations, and airspace. Give places as coordinates. Say how old a reading is and name the source of the data. Airspace answers are advice from data that is not certified and never a clearance: nothing here knows what is active today. The connector is open to everyone and knows nothing about the person asking.",
+    "resultType": "complete",
+    "supportedVersions": [
+      "2026-07-28",
+      "2025-11-25",
+      "2025-06-18",
+      "2025-03-26"
+    ],
+    "ttlMs": 3600000
+  }
+}

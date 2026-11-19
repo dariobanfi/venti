@@ -8,7 +8,7 @@ This folder holds everything needed to run Venti on one Linux machine with Docke
 |---|---|
 | `docker-compose.yml` | The three services: Caddy, the Venti server, PostgreSQL with PostGIS |
 | `Dockerfile` | Builds the `venti-server` image from this repository |
-| `Caddyfile` | TLS, the web app's static files, map tiles, and the way in to the API and to the pages of shared flights |
+| `Caddyfile` | TLS, the web app's static files, map tiles, and the way in to the API, to the pages of shared flights and to the connector for assistants |
 | `env.example` | Every setting, with comments. Copy it to `.env` |
 | `backup.sh` | Dumps the database and removes old dumps |
 
@@ -146,6 +146,31 @@ docker compose logs --since 5m server | grep 'wrong password\|nobody has'
 ```
 
 `client=` should show the phone's public address. If it shows an address that starts with `172.`, Docker is hiding the visitors' addresses from Caddy. On the development machine it did so for requests from the machine itself; whether it does for some real visitors, for example those who arrive over IPv6, has to be seen on the real server. Where it happens, every visitor counts as one, and thirty wrong passwords by anyone lock everyone out of signing in for an hour. Fix the Docker setup before letting people in.
+
+## The connector
+
+The server answers a pilot's own Claude or ChatGPT at `https://<domain>/mcp`: wind stations and airspace, for reading, without sign-in. [docs/mcp.md](../docs/mcp.md) says what it offers, how a pilot adds it and what the server learns from it. It is on as soon as the server runs. There is nothing to set.
+
+- **It needs the domain and HTTPS.** Claude reaches a connector from Anthropic's servers, over HTTPS on port 443 and no other port (Anthropic's help page, read 2026-11-19). On `:80` without a domain only programs on your own network can use it.
+- **Check after the install** *(to verify on a real server)*. This lists three tools:
+
+  ```bash
+  curl -s https://<domain>/mcp --header 'Content-Type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+  ```
+
+  Then add the address in Claude as [docs/mcp.md](../docs/mcp.md#adding-it-to-an-assistant) describes and ask it for the wind somewhere. Nobody has done that yet.
+- **What it writes to the log.** Nothing for an ordinary request. One line when an address has sent more than 120 requests in a minute, and is refused until the minute is over:
+
+  ```bash
+  docker compose logs --since 1d server | grep 'connector: too many requests'
+  ```
+
+  An assistant's provider sends many pilots' questions from few addresses. If the address in such a line is a provider's, the bound is too low for the number of pilots, and it is one number in `crates/server/src/accounts/mod.rs`.
+- **The visitor's address matters here as it does for sign-in.** If Docker hides the visitors' addresses (see above), everyone counts as one address, and 120 requests a minute is all the connector answers.
+- **Web pages.** A page in a browser may call the connector only from `VENTI_PUBLIC_URL` and the origins in `VENTI_CORS_ORIGINS`. Assistants are not affected: they do not call from a browser.
+- **No sign-in.** An assistant that looks for a sign-in service at `/.well-known/oauth-...` gets `404` from the server, which is the answer that there is none.
+- **Taking it off the internet:** remove the `handle /mcp` block from the `Caddyfile` and restart Caddy. The API and the apps do not use it.
 
 ## Backup
 
@@ -289,12 +314,12 @@ All settings are described in `env.example`. The ones that deserve a second thou
 
 - **`VENTI_USER_AGENT`** is sent to the data providers with every request. Some providers ask operators to name a contact there. What to put in it is the owner's decision; the default names only the program and its version.
 - **`VENTI_OBSERVATION_MONTHS`** is how many whole calendar months of observations are kept. Older months are dropped once a day. Lowering it deletes data at the next cleanup.
-- **`VENTI_CORS_ORIGINS`** is only needed when a web app on a *different* origin calls the API from a browser.
-- **`VENTI_PUBLIC_URL`** is the address people reach the site at. The page of a shared flight names itself and its preview picture with it, and a chat app can only fetch a preview from a complete, correct address. Without it the server falls back to the address it listens on and says so in its log at start.
+- **`VENTI_CORS_ORIGINS`** is only needed when a web app on a *different* origin calls the API from a browser. The same origins may call the connector from a browser.
+- **`VENTI_PUBLIC_URL`** is the address people reach the site at. The page of a shared flight names itself and its preview picture with it, and a chat app can only fetch a preview from a complete, correct address. Without it the server falls back to the address it listens on and says so in its log at start. It is also the one address whose pages may call the connector from a browser without being named in `VENTI_CORS_ORIGINS`.
 - **`VENTI_REGISTRATION`** is who may create an account; see [Accounts](#accounts).
 - **`VENTI_NETWORK`** moves the services' private network; see [The visitor's address](#the-visitors-address).
 
-Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days). They are in `crates/server/src/accounts/mod.rs` with their reasons.
+Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
 
 The server can also read a TOML file instead of variables; see `crates/server/config.example.toml`. The Compose setup does not use it.
 

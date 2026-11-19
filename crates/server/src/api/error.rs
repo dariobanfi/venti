@@ -34,6 +34,16 @@ impl ApiError {
         self.status == StatusCode::NOT_FOUND
     }
 
+    /// The HTTP status the error is answered with.
+    pub(crate) fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    /// The error's stable code.
+    pub(crate) fn code(&self) -> ErrorCode {
+        self.code
+    }
+
     /// The client sent something the API cannot read.
     pub(crate) fn bad_request(code: ErrorCode, message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, code, message)

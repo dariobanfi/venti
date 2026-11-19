@@ -74,6 +74,15 @@ pub struct Limits {
     /// What a file that could not be analysed in time counts as. Such a
     /// file costs the full time allowed, so few are tolerated.
     pub slow_upload_weight: u32,
+    /// Requests to the connector from one address within
+    /// [`connector_window`](Self::connector_window). The connector is open
+    /// to the internet without sign-in. An assistant's provider sends the
+    /// questions of many people from few addresses, so this is far more
+    /// than one person asks, and far less than would be a burden: every
+    /// request is a read of the server's own database.
+    pub connector_requests_per_address: u32,
+    /// The window for that.
+    pub connector_window: Duration,
     /// Devices that can be signed in to one account. The one used longest
     /// ago makes room for a new one.
     pub sessions_per_account: usize,
@@ -91,6 +100,8 @@ impl Default for Limits {
             registration_window: Duration::hours(1),
             uploads_per_day: 1000,
             slow_upload_weight: 50,
+            connector_requests_per_address: 120,
+            connector_window: Duration::minutes(1),
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
             // still be signed in when spring comes, because a forgotten
@@ -110,6 +121,7 @@ impl Limits {
             wrong_passwords_per_address: u32::MAX,
             registrations_per_address: u32::MAX,
             uploads_per_day: u32::MAX,
+            connector_requests_per_address: u32::MAX,
             ..Self::default()
         }
     }

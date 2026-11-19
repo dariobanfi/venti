@@ -7,6 +7,7 @@ use serde::Deserialize;
 use venti_api_types::v1::{
     ErrorCode, MAX_STATIONS, Reading, Station, StationWithLatest, StationsResponse, parse_bbox,
 };
+use venti_domain::BoundingBox;
 use venti_store::Store;
 
 use super::error::ApiError;
@@ -37,27 +38,36 @@ pub(crate) async fn stations<S: Store>(
         ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
     })?;
 
-    // One more than a response lists, to know whether the box holds more.
-    let mut found = api.store.stations_in(&area, MAX_STATIONS + 1).await?;
-    let truncated = found.len() > MAX_STATIONS;
-    found.truncate(MAX_STATIONS);
+    let answer = api.stations_in(&area).await?;
+    Ok(cache::json(&headers, &answer))
+}
 
-    let stations: Vec<StationWithLatest> = found
-        .iter()
-        .filter(|entry| api.serves(entry.station.id.source()))
-        .map(|entry| StationWithLatest {
-            station: Station::from(&entry.station),
-            latest: entry.latest.as_ref().map(Reading::from),
-        })
-        .collect();
-    let attributions = api.attributions(stations.iter().map(|entry| &entry.station.source));
+impl<S: Store> Api<S> {
+    /// The stations inside a box, each with its newest observation, as the
+    /// API answers them. The connector's wind tool is answered from this
+    /// too.
+    pub(crate) async fn stations_in(
+        &self,
+        area: &BoundingBox,
+    ) -> Result<StationsResponse, ApiError> {
+        // One more than a response lists, to know whether the box holds more.
+        let mut found = self.store.stations_in(area, MAX_STATIONS + 1).await?;
+        let truncated = found.len() > MAX_STATIONS;
+        found.truncate(MAX_STATIONS);
 
-    Ok(cache::json(
-        &headers,
-        &StationsResponse {
+        let stations: Vec<StationWithLatest> = found
+            .iter()
+            .filter(|entry| self.serves(entry.station.id.source()))
+            .map(|entry| StationWithLatest {
+                station: Station::from(&entry.station),
+                latest: entry.latest.as_ref().map(Reading::from),
+            })
+            .collect();
+        let attributions = self.attributions(stations.iter().map(|entry| &entry.station.source));
+        Ok(StationsResponse {
             stations,
             truncated,
             attributions,
-        },
-    ))
+        })
+    }
 }

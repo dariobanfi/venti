@@ -1,0 +1,37 @@
+{
+  "hours": [
+    {
+      "hour_utc": "2026-11-18 17:00",
+      "strongest_gust_km_h": 87.0,
+      "temperature_c": -7.0,
+      "wind_from": "NW",
+      "wind_from_deg": 304.0,
+      "wind_km_h": 34.0
+    },
+    {
+      "hour_utc": "2026-11-18 18:00",
+      "strongest_gust_km_h": 101.0,
+      "temperature_c": -7.2,
+      "wind_from": "W",
+      "wind_from_deg": 275.0,
+      "wind_km_h": 48.0
+    }
+  ],
+  "latest": {
+    "age_min": 45,
+    "gusts_km_h": 93.0,
+    "measured_utc": "2026-11-18 18:20",
+    "temperature_c": -7.1,
+    "wind_from": "W",
+    "wind_from_deg": 260.0,
+    "wind_km_h": 54.0
+  },
+  "sources": [
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+  ],
+  "station": {
+    "elevation_m": 2956.0,
+    "name": "Zugspitze",
+    "station_id": "dwd-10min:05792"
+  }
+}

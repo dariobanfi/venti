@@ -2,15 +2,18 @@
 //!
 //! Each tool is defined here once: its name, what it is for, the shape of
 //! its arguments, and whether it only reads. The same definitions serve the
-//! assistant inside the app and, later, the server's MCP connector, so a
-//! pilot gets the same answers whichever assistant they ask.
+//! assistant inside the app and the server's MCP connector, so a pilot gets
+//! the same answers whichever assistant they ask.
 //!
 //! A tool does not know where its data comes from. Whoever offers the tools
 //! implements [`Host`]: in the app, the client core answers from the
 //! logbook on the device.
 //!
-//! The tools in [`wind`] read from a Venti server instead, and are
-//! answered in two steps so that this crate stays free of I/O.
+//! The tools in [`wind`] and [`airspace`] read from a Venti server
+//! instead, and are answered in two steps so that this crate stays free of
+//! I/O: one function says what to ask the server for, one turns its answer
+//! into the tool's result. The server's connector offers exactly these and
+//! skips the first step: it builds the answer from its own database.
 //!
 //! Rules for tools:
 //!
@@ -23,6 +26,7 @@
 
 use serde_json::{Value, json};
 
+pub mod airspace;
 pub mod wind;
 
 /// One tool.
@@ -209,7 +213,11 @@ mod tests {
     #[test]
     fn every_tool_has_a_schema_a_description_and_a_unique_name() {
         let mut names = Vec::new();
-        for tool in TOOLS.iter().chain(&wind::SERVER_TOOLS) {
+        let all = TOOLS
+            .iter()
+            .chain(&wind::SERVER_TOOLS)
+            .chain(&airspace::AIRSPACE_TOOLS);
+        for tool in all {
             let schema = tool.input_schema();
             assert_eq!(schema["type"], "object", "{}", tool.name);
             assert_eq!(schema["additionalProperties"], false, "{}", tool.name);

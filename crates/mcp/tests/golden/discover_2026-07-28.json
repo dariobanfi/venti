@@ -1,0 +1,29 @@
+{
+  "body": {
+    "id": "discover-1",
+    "jsonrpc": "2.0",
+    "result": {
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example",
+          "title": "Example Server",
+          "version": "1.2.3"
+        }
+      },
+      "cacheScope": "public",
+      "capabilities": {
+        "tools": {}
+      },
+      "instructions": "Answers questions about the weather.",
+      "resultType": "complete",
+      "supportedVersions": [
+        "2026-07-28",
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26"
+      ],
+      "ttlMs": 3600000
+    }
+  },
+  "status": 200
+}

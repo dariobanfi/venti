@@ -35,32 +35,42 @@ pub(crate) async fn observations<S: Store>(
             format!("{error}; a station identifier looks like dwd-10min:05792"),
         )
     })?;
-    let (from, to) = window(
-        params.from.as_deref(),
-        params.to.as_deref(),
-        api.clock.now(),
-    )?;
+    let answer = api
+        .observations_of(&id, params.from.as_deref(), params.to.as_deref())
+        .await?;
+    Ok(cache::json(&headers, &answer))
+}
 
-    let unknown = || {
-        ApiError::missing(
-            ErrorCode::StationNotFound,
-            format!("there is no station {id}"),
-        )
-    };
-    if !api.serves(id.source()) {
-        return Err(unknown());
-    }
-    let station = api.store.station(&id).await?.ok_or_else(unknown)?;
-    let observations = api.store.observations(&id, from, to).await?;
+impl<S: Store> Api<S> {
+    /// What one station measured in a window of time, as the API answers
+    /// it. `from` and `to` are the request's parameters as text; see
+    /// [`window`]. The connector's history tool is answered from this too.
+    pub(crate) async fn observations_of(
+        &self,
+        id: &StationId,
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> Result<ObservationsResponse, ApiError> {
+        let (from, to) = window(from, to, self.clock.now())?;
 
-    Ok(cache::json(
-        &headers,
-        &ObservationsResponse {
+        let unknown = || {
+            ApiError::missing(
+                ErrorCode::StationNotFound,
+                format!("there is no station {id}"),
+            )
+        };
+        if !self.serves(id.source()) {
+            return Err(unknown());
+        }
+        let station = self.store.station(id).await?.ok_or_else(unknown)?;
+        let observations = self.store.observations(id, from, to).await?;
+
+        Ok(ObservationsResponse {
             station: Station::from(&station),
             observations: observations.iter().map(Reading::from).collect(),
-            attributions: api.attributions([id.source()]),
-        },
-    ))
+            attributions: self.attributions([id.source()]),
+        })
+    }
 }
 
 /// Works out the window a request asks for.

@@ -1,0 +1,16 @@
+{
+  "body": {
+    "id": "call-1",
+    "jsonrpc": "2.0",
+    "result": {
+      "content": [
+        {
+          "text": "72°F, partly cloudy",
+          "type": "text"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "status": 200
+}

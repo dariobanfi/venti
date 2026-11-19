@@ -1,0 +1,82 @@
+{
+  "place": {
+    "latitude": 47.42,
+    "longitude": 10.98
+  },
+  "radius_km": 60.0,
+  "sources": [
+    "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+    "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)"
+  ],
+  "stations": [
+    {
+      "age_min": 45,
+      "direction_from_place": "ENE",
+      "distance_km": 0.4,
+      "elevation_m": 2956.0,
+      "gusts_km_h": 93.0,
+      "measured_utc": "2026-11-18 18:20",
+      "name": "Zugspitze",
+      "station_id": "dwd-10min:05792",
+      "temperature_c": -7.1,
+      "wind_from": "W",
+      "wind_from_deg": 260.0,
+      "wind_km_h": 54.0
+    },
+    {
+      "age_min": 45,
+      "direction_from_place": "NE",
+      "distance_km": 9.3,
+      "elevation_m": 719.0,
+      "gusts_km_h": 8.0,
+      "measured_utc": "2026-11-18 18:20",
+      "name": "Garmisch-Partenkirchen",
+      "station_id": "dwd-10min:01550",
+      "wind_from": "N",
+      "wind_from_deg": 350.0,
+      "wind_km_h": 5.0
+    },
+    {
+      "age_min": 5,
+      "direction_from_place": "ESE",
+      "distance_km": 35.3,
+      "elevation_m": 578.0,
+      "gusts_km_h": 5.0,
+      "measured_utc": "2026-11-18 19:00",
+      "name": "INNSBRUCK/UNIVERSITAET",
+      "station_id": "geosphere-tawes:11320",
+      "temperature_c": 7.8,
+      "wind_from": "W",
+      "wind_from_deg": 281.0,
+      "wind_km_h": 1.0
+    },
+    {
+      "age_min": 45,
+      "direction_from_place": "N",
+      "distance_km": 42.4,
+      "elevation_m": 977.0,
+      "gusts_km_h": 77.0,
+      "measured_utc": "2026-11-18 18:20",
+      "name": "Hohenpeißenberg",
+      "station_id": "dwd-10min:02290",
+      "temperature_c": 4.5,
+      "wind_from": "WSW",
+      "wind_from_deg": 240.0,
+      "wind_km_h": 44.0
+    },
+    {
+      "age_min": 5,
+      "direction_from_place": "ESE",
+      "distance_km": 43.3,
+      "elevation_m": 2251.0,
+      "gusts_km_h": 26.0,
+      "measured_utc": "2026-11-18 19:00",
+      "name": "PATSCHERKOFEL",
+      "station_id": "geosphere-tawes:11126",
+      "temperature_c": -2.6,
+      "wind_from": "SSW",
+      "wind_from_deg": 195.0,
+      "wind_km_h": 19.0
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-//! The HTTP API, version 1, and the share pages beside it.
+//! The HTTP API, version 1, with the share pages and the connector beside
+//! it.
 //!
 //! The wire format lives in `venti-api-types`, shared with the clients;
 //! `docs/api.md` describes the endpoints for people. This module turns
@@ -18,6 +19,9 @@
 //! and, unless it is private, to everyone else; a private flight and a
 //! flight that does not exist get the same answer. What may keep an answer
 //! is said in [`cache`].
+//!
+//! The connector ([`mcp`]) offers what anyone may read to a pilot's own
+//! assistant, over the Model Context Protocol. It is not part of `/v1`.
 
 mod account;
 mod airspace;
@@ -27,6 +31,7 @@ mod cache;
 mod error;
 mod flights;
 mod health;
+mod mcp;
 mod observations;
 mod pilots;
 mod shape;
@@ -41,10 +46,10 @@ use std::time::Duration;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request, header};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{any, delete, get, post, put};
 use tokio::sync::Semaphore;
 use tower_http::compression::CompressionLayer;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
@@ -62,6 +67,8 @@ use crate::accounts::{Limits, Registration};
 use crate::clock::Clock;
 use crate::flights::analyser::Analyser;
 use crate::flights::share::PublicUrl;
+
+pub use mcp::MCP_PATH;
 
 /// The largest request body accepted where a request carries JSON or
 /// nothing: far more than a sign-in needs, and too little to be a burden.
@@ -165,6 +172,10 @@ pub struct Api<S> {
     /// Uploads under way.
     uploading: flights::Uploading,
     pictures: Semaphore,
+    /// The connector's side of the Model Context Protocol.
+    mcp: venti_mcp::Server,
+    /// Requests to the connector, by client address.
+    connector_requests: Throttle,
 }
 
 impl<S: Store> Api<S> {
@@ -175,11 +186,15 @@ impl<S: Store> Api<S> {
         manifests: impl IntoIterator<Item = &'a Manifest>,
         settings: Settings,
     ) -> Self {
-        let sources = manifests
+        let sources: BTreeMap<SourceId, ServedSource> = manifests
             .into_iter()
             .map(|manifest| (manifest.id.clone(), ServedSource::from_manifest(manifest)))
             .collect();
         let limits = settings.limits;
+        // No page in a browser may call the connector until the router is
+        // told which may call the API.
+        let nobody = Cors::Origins(Vec::new());
+        let mcp = mcp::protocol(sources.values(), &nobody, &settings.public_url);
         Self {
             store,
             clock,
@@ -204,6 +219,11 @@ impl<S: Store> Api<S> {
             uploads: Throttle::new(limits.uploads_per_day, chrono::Duration::days(1)),
             uploading: flights::Uploading::new(),
             pictures: Semaphore::new(PICTURES_AT_ONCE),
+            mcp,
+            connector_requests: Throttle::new(
+                limits.connector_requests_per_address,
+                limits.connector_window,
+            ),
             limits,
         }
     }
@@ -229,7 +249,7 @@ impl<S: Store> Api<S> {
     /// The router that answers every request.
     ///
     /// From the outside in, a request passes: the request log, response
-    /// compression, CORS, and then one of three groups of routes.
+    /// compression, CORS, and then one of four groups of routes.
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
@@ -237,11 +257,14 @@ impl<S: Store> Api<S> {
     /// - The upload of a flight file: the same, with a deadline and a body
     ///   limit that fit a file.
     /// - The share pages: they answer people, in HTML, errors included.
+    /// - The connector: it answers assistants, in the protocol's own shape,
+    ///   errors included, with a deadline and a body limit of its own.
     ///
     /// The request log names the method and the path and never a header,
     /// so no token reaches it; a password travels in a body, which is not
     /// logged either.
-    pub fn router(self, cors: &Cors) -> Router {
+    pub fn router(mut self, cors: &Cors) -> Router {
+        self.mcp = mcp::protocol(self.sources.values(), cors, &self.public_url);
         let deadline = |limit: Duration| {
             axum::middleware::from_fn(move |request, next| shape::deadline(limit, request, next))
         };
@@ -294,12 +317,24 @@ impl<S: Store> Api<S> {
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
+        let connector = Router::new()
+            .route(MCP_PATH, any(mcp::endpoint::<S>))
+            // The framework's own limit is for forms; the layer below is
+            // the one that counts here.
+            .layer(DefaultBodyLimit::disable())
+            .layer(RequestBodyLimitLayer::new(mcp::MAX_BODY_BYTES))
+            .layer(axum::middleware::from_fn(|request, next| {
+                mcp::deadline(DEADLINE, request, next)
+            }))
+            .layer(axum::middleware::from_fn(mcp::rpc_errors));
+
         Router::new()
             .merge(ordinary)
             .merge(upload)
             .fallback(error::not_found)
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .merge(share)
+            .merge(connector)
             .with_state(Arc::new(self))
             .layer(cors_layer(cors))
             .layer(CompressionLayer::new())
@@ -340,11 +375,15 @@ fn cors_layer(cors: &Cors) -> CorsLayer {
             Method::PATCH,
             Method::DELETE,
         ])
-        .allow_headers([
-            header::AUTHORIZATION,
-            header::CONTENT_TYPE,
-            header::IF_NONE_MATCH,
-        ])
+        .allow_headers(AllowHeaders::list(
+            [
+                header::AUTHORIZATION,
+                header::CONTENT_TYPE,
+                header::IF_NONE_MATCH,
+            ]
+            .into_iter()
+            .chain(mcp::REQUEST_HEADERS),
+        ))
         .expose_headers([header::ETAG, header::RETRY_AFTER])
         .max_age(PREFLIGHT_MAX_AGE)
 }

@@ -1,0 +1,14 @@
+[package]
+name = "venti-mcp"
+description = "The Model Context Protocol as a server speaks it over HTTP: reads a request into what is asked, and builds each answer. No I/O."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

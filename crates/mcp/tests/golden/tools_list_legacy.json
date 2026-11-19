@@ -1,0 +1,44 @@
+{
+  "body": {
+    "id": 2,
+    "jsonrpc": "2.0",
+    "result": {
+      "tools": [
+        {
+          "annotations": {
+            "openWorldHint": false,
+            "readOnlyHint": true
+          },
+          "description": "Get current weather information for a location.",
+          "inputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "location": {
+                "description": "City name or zip code",
+                "type": "string"
+              }
+            },
+            "required": [
+              "location"
+            ],
+            "type": "object"
+          },
+          "name": "get_weather"
+        },
+        {
+          "annotations": {
+            "openWorldHint": false,
+            "readOnlyHint": true
+          },
+          "description": "The current time.",
+          "inputSchema": {
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "name": "get_time"
+        }
+      ]
+    }
+  },
+  "status": 200
+}

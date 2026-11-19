@@ -1163,4 +1163,4 @@ The links inside the page start with the address the server was configured with 
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today, live positions and the assistant connector are planned and not built; see [plan.md](plan.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today and live positions are planned and not built; see [plan.md](plan.md). The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

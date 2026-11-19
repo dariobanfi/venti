@@ -1,6 +1,7 @@
 //! The store in PostgreSQL with PostGIS.
 
 mod accounts;
+mod airspace;
 mod flights;
 mod migrate;
 mod partitions;
@@ -8,15 +9,17 @@ mod partitions;
 use std::time::Duration;
 
 use deadpool_postgres::{
-    Client, Manager, ManagerConfig, Pool, PoolError, RecyclingMethod, Runtime,
+    Client, Manager, ManagerConfig, Pool, PoolError, RecyclingMethod, Runtime, Transaction,
 };
 use tokio_postgres::{NoTls, Row};
-use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{
+    Airspace, BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp,
+};
 
 use crate::{
-    Account, AccountCreation, Derived, Flight, FlightChanges, FlightKey, Listing, Month,
-    NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord, SecretHash, Session, SourceStatus,
-    StationLatest, Store, StoreError, Visibility, batch,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -194,8 +197,8 @@ const UPSERT_OBSERVATIONS: &str = "
 const UPSERT_RUN: &str = "
     INSERT INTO source_runs
         (source, started_at, finished_at, healthy, requests, failed_requests,
-         skipped, rejected, stations, observations, newest_observation)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         skipped, rejected, stations, observations, newest_observation, airspaces)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     ON CONFLICT (source, started_at) DO UPDATE
     SET finished_at = EXCLUDED.finished_at,
         healthy = EXCLUDED.healthy,
@@ -205,7 +208,34 @@ const UPSERT_RUN: &str = "
         rejected = EXCLUDED.rejected,
         stations = EXCLUDED.stations,
         observations = EXCLUDED.observations,
-        newest_observation = EXCLUDED.newest_observation";
+        newest_observation = EXCLUDED.newest_observation,
+        airspaces = EXCLUDED.airspaces";
+
+/// Writes the outcome of a run into the run history, as part of the
+/// transaction that stores what the run delivered.
+async fn upsert_run(tx: &Transaction<'_>, run: &RunRecord) -> Result<(), StoreError> {
+    let statement = tx.prepare_cached(UPSERT_RUN).await.map_err(db_error)?;
+    tx.execute(
+        &statement,
+        &[
+            &run.source.as_str(),
+            &run.started_at,
+            &run.finished_at,
+            &run.healthy,
+            &count(run.requests),
+            &count(run.failed_requests),
+            &count(run.skipped),
+            &count(run.rejected),
+            &count(run.stations),
+            &count(run.observations),
+            &run.newest_observation,
+            &count(run.airspaces),
+        ],
+    )
+    .await
+    .map_err(db_error)?;
+    Ok(())
+}
 
 /// The box is compared as plain longitude and latitude. `&&` lets the index
 /// find candidates; the index stores rounded boxes, so the exact comparison
@@ -343,26 +373,7 @@ impl Store for PgStore {
             .map_err(db_error)?;
         }
 
-        let statement = tx.prepare_cached(UPSERT_RUN).await.map_err(db_error)?;
-        tx.execute(
-            &statement,
-            &[
-                &run.source.as_str(),
-                &run.started_at,
-                &run.finished_at,
-                &run.healthy,
-                &count(run.requests),
-                &count(run.failed_requests),
-                &count(run.skipped),
-                &count(run.rejected),
-                &count(run.stations),
-                &count(run.observations),
-                &run.newest_observation,
-            ],
-        )
-        .await
-        .map_err(db_error)?;
-
+        upsert_run(&tx, run).await?;
         tx.commit().await.map_err(db_error)
     }
 
@@ -471,6 +482,27 @@ impl Store for PgStore {
             .await
             .map_err(db_error)?;
         tx.commit().await.map_err(db_error)
+    }
+
+    async fn save_airspace_run(
+        &self,
+        run: &RunRecord,
+        airspaces: &[Airspace],
+    ) -> Result<(), StoreError> {
+        airspace::save_run(&mut self.client().await?, run, airspaces).await
+    }
+
+    async fn airspaces_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<AirspaceLayer>, StoreError> {
+        airspace::in_box(&self.client().await?, sources, area, limit).await
+    }
+
+    async fn airspace_sets(&self, sources: &[SourceId]) -> Result<Vec<AirspaceSet>, StoreError> {
+        airspace::sets(&self.client().await?, sources).await
     }
 
     async fn create_account(&self, new: &NewAccount) -> Result<AccountCreation, StoreError> {

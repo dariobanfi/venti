@@ -92,6 +92,7 @@ async fn connecting_again_finds_the_schema_and_the_data() {
         stations: 0,
         observations: 0,
         newest_observation: None,
+        airspaces: 0,
     };
     first.save_run(&run, &[], &[]).await.unwrap();
 
@@ -170,7 +171,89 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2]);
+    assert_eq!(versions, [1, 2, 3]);
+}
+
+#[tokio::test]
+async fn a_database_from_before_airspace_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_2").await else {
+        return;
+    };
+    // A database as the server left it before it collected airspace, with
+    // a run in its history.
+    let old = look(&url).await;
+    old.batch_execute(include_str!(
+        "../migrations/0001_stations_observations_runs.sql"
+    ))
+    .await
+    .unwrap();
+    old.batch_execute(include_str!(
+        "../migrations/0002_accounts_sessions_flights.sql"
+    ))
+    .await
+    .unwrap();
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name) VALUES (1, 'first'), (2, 'second');
+         INSERT INTO source_runs VALUES
+             ('dwd-10min', '2026-11-18 18:00+00', '2026-11-18 18:01+00',
+              true, 1, 0, 0, 0, 3, 9, NULL);",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let dwd = venti_domain::SourceId::new("dwd-10min").unwrap();
+    let status = store
+        .source_status(std::slice::from_ref(&dwd))
+        .await
+        .unwrap();
+    assert_eq!(status[0].stations, 3, "what was there is still there");
+    // The old run delivered no airspace, and no source has a set yet.
+    let airspaces: i32 = old
+        .query_one("SELECT airspaces FROM source_runs", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(airspaces, 0);
+    assert!(store.airspace_sets(&[dwd]).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn the_box_query_for_airspace_uses_the_spatial_index() {
+    let Some(url) = fresh_schema("airspace_index").await else {
+        return;
+    };
+    PgStore::connect(&url).await.unwrap();
+    let tables = look(&url).await;
+    // With a handful of rows the planner would read the table from end to
+    // end whatever indexes exist; forbidding that shows whether the index
+    // can answer the query at all.
+    tables
+        .batch_execute("SET enable_seqscan = off")
+        .await
+        .unwrap();
+    let plan = tables
+        .query(
+            "EXPLAIN SELECT a.id FROM airspaces a
+             WHERE ST_MakeEnvelope(a.west, a.south, a.east, a.north, 4326)
+                   && ST_MakeEnvelope(9.4, 46.3, 17.2, 48.5, 4326)
+               AND a.west <= 17.2 AND a.east >= 9.4
+               AND a.south <= 48.5 AND a.north >= 46.3",
+            &[],
+        )
+        .await
+        .unwrap();
+    let plan: Vec<String> = plan.iter().map(|row| row.get(0)).collect();
+    assert!(
+        plan.iter().any(|line| line.contains("airspaces_box_idx")),
+        "{plan:#?}"
+    );
 }
 
 #[tokio::test]

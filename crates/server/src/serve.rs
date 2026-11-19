@@ -59,10 +59,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
         password_cost: Cost::OWASP,
         analyser: analyser.clone(),
     };
-    let manifests = jobs
-        .iter()
-        .filter_map(|job| registry.observations(&job.source))
-        .map(|adapter| adapter.manifest());
+    let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings);
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
     tracing::info!("accounts: registration is {:?}", config.registration);

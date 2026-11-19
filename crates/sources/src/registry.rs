@@ -68,12 +68,12 @@ impl Registry {
         self.airspace.get(id).map(Box::as_ref)
     }
 
-    /// Whether the build contains any adapter for a kind of data. A build
-    /// that contains none does not deal in that kind at all.
-    pub fn handles(&self, kind: Kind) -> bool {
+    /// The declared facts about the source with this identifier, if the
+    /// build contains an adapter of it for this kind of data.
+    pub fn manifest(&self, id: &SourceId, kind: Kind) -> Option<&Manifest> {
         match kind {
-            Kind::Observations => !self.observations.is_empty(),
-            Kind::Airspace => !self.airspace.is_empty(),
+            Kind::Observations => self.observations(id).map(ObservationSource::manifest),
+            Kind::Airspace => self.airspace(id).map(AirspaceSource::manifest),
         }
     }
 

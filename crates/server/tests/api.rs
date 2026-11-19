@@ -59,7 +59,14 @@ async fn health_reports_every_source_fresh() {
         .iter()
         .map(|source| (source.source.as_str(), source.stations))
         .collect();
-    assert_eq!(stations, [("dwd-10min", 3), ("geosphere-tawes", 3)]);
+    assert_eq!(
+        stations,
+        [("dwd-10min", 3), ("geosphere-tawes", 3), ("openaip", 0)]
+    );
+    // The airspace source says how much airspace the server holds, and
+    // the sources of observations say nothing about airspace.
+    let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
+    assert_eq!(airspaces, [None, None, Some(88)]);
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }
@@ -183,6 +190,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
     for name in [
         "health.json",
         "observations.json",
+        "airspace.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",
@@ -449,6 +457,7 @@ fn run(source: &str) -> RunRecord {
         stations: 0,
         observations: 0,
         newest_observation: None,
+        airspaces: 0,
     }
 }
 

@@ -9,15 +9,16 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use serde::Serialize;
+use venti_domain::Timestamp;
 
-use crate::{Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Request};
+use crate::{Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Fetched, Request};
 
 pub use futures::executor::block_on;
 
 /// Answers requests from recorded payloads. Unknown URLs get a 404.
 #[derive(Debug, Default)]
 pub struct FixtureFetch {
-    responses: HashMap<String, Vec<u8>>,
+    responses: HashMap<String, Fetched>,
 }
 
 impl FixtureFetch {
@@ -28,7 +29,24 @@ impl FixtureFetch {
 
     /// Records the response for a URL.
     pub fn with(mut self, url: impl Into<String>, body: impl Into<Vec<u8>>) -> Self {
-        self.responses.insert(url.into(), body.into());
+        self.responses
+            .insert(url.into(), Fetched::from(body.into()));
+        self
+    }
+
+    /// Records the response for a URL together with the date the provider
+    /// put on it.
+    pub fn dated(
+        mut self,
+        url: impl Into<String>,
+        body: impl Into<Vec<u8>>,
+        last_modified: Timestamp,
+    ) -> Self {
+        let response = Fetched {
+            body: body.into(),
+            last_modified: Some(last_modified),
+        };
+        self.responses.insert(url.into(), response);
         self
     }
 
@@ -46,7 +64,7 @@ impl FixtureFetch {
 }
 
 impl Fetch for FixtureFetch {
-    async fn get(&self, request: &Request) -> Result<Vec<u8>, FetchError> {
+    async fn get(&self, request: &Request) -> Result<Fetched, FetchError> {
         self.responses
             .get(&request.url)
             .cloned()

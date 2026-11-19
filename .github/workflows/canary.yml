@@ -1,6 +1,7 @@
 name: Source canary
 
-# Runs every data source against its live provider once a day. Providers
+# Runs every data source against its live provider once a day: the sources of
+# observations and the sources of airspace of every region pack. Providers
 # change formats without notice; a failure here is how the project finds out.
 
 on:

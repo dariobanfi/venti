@@ -1,0 +1,124 @@
+{
+  "layers": [
+    {
+      "source": "openaip",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "file_date": "2026-11-18T19:05:00Z",
+      "newest_change": "2026-11-18T10:29:12.552Z",
+      "airspaces": [
+        {
+          "id": "openaip:677d59be13e31af480aca6f6",
+          "name": "LOD22 (HOCHFILZEN)",
+          "class": "unclassified",
+          "airspace_type": "danger",
+          "country": "AT",
+          "lower": {
+            "reference": "ground",
+            "metres": 0.0
+          },
+          "upper": {
+            "reference": "standard",
+            "value": 145.0,
+            "unit": "flight-level",
+            "metres": 4419.6
+          },
+          "geometry": {
+            "exterior": [
+              [
+                12.6,
+                47.525
+              ],
+              [
+                12.625,
+                47.475
+              ],
+              [
+                12.69167,
+                47.45
+              ],
+              [
+                12.72222,
+                47.5
+              ],
+              [
+                12.6,
+                47.525
+              ]
+            ]
+          },
+          "activity": {
+            "by_notam": false,
+            "on_request": false,
+            "on_demand": false,
+            "special_agreement": false
+          },
+          "validity": {
+            "file_date": "2026-11-18T19:05:00Z",
+            "updated": "2025-01-07T16:45:06.169Z"
+          }
+        },
+        {
+          "id": "openaip:677d59be13e31af480aca726",
+          "name": "LOR8 (HOCHFILZEN)",
+          "class": "unclassified",
+          "airspace_type": "restricted",
+          "country": "AT",
+          "lower": {
+            "reference": "ground",
+            "metres": 0.0
+          },
+          "upper": {
+            "reference": "standard",
+            "value": 125.0,
+            "unit": "flight-level",
+            "metres": 3810.0
+          },
+          "geometry": {
+            "exterior": [
+              [
+                12.6,
+                47.525
+              ],
+              [
+                12.625,
+                47.475
+              ],
+              [
+                12.69167,
+                47.45
+              ],
+              [
+                12.72222,
+                47.5
+              ],
+              [
+                12.6,
+                47.525
+              ]
+            ]
+          },
+          "activity": {
+            "by_notam": false,
+            "on_request": false,
+            "on_demand": false,
+            "special_agreement": false
+          },
+          "validity": {
+            "file_date": "2026-11-18T19:05:00Z",
+            "updated": "2025-01-07T16:45:08.433Z"
+          }
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "openaip",
+      "provider": "openAIP",
+      "licence": "CC BY-NC 4.0",
+      "text": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share.",
+      "url": "https://www.openaip.net",
+      "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors."
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+use std::sync::Arc;
+
+use axum::extract::{Query, State};
+use axum::http::HeaderMap;
+use axum::response::Response;
+use serde::Deserialize;
+use venti_api_types::v1::{AirspaceLayer, AirspaceResponse, ErrorCode, MAX_AIRSPACES, parse_bbox};
+use venti_domain::{BoundingBox, SourceId};
+use venti_sources::Kind;
+use venti_store::Store;
+
+use super::error::ApiError;
+use super::{Api, cache};
+
+const BBOX_HELP: &str =
+    "give bbox as west,south,east,north in degrees, for example bbox=10.5,47.2,11.9,47.8";
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct Params {
+    bbox: Option<String>,
+}
+
+/// `GET /v1/airspace?bbox=west,south,east,north`: the airspace that touches
+/// a box, one layer per source.
+pub(crate) async fn airspace<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    headers: HeaderMap,
+    Query(params): Query<Params>,
+) -> Result<Response, ApiError> {
+    let bbox = params.bbox.ok_or_else(|| {
+        ApiError::bad_request(
+            ErrorCode::InvalidBbox,
+            format!("the bbox parameter is missing; {BBOX_HELP}"),
+        )
+    })?;
+    let area = parse_bbox(&bbox).map_err(|error| {
+        ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
+    })?;
+
+    let answer = api.airspace_in(&area).await?;
+    Ok(cache::slow_json(&headers, &answer))
+}
+
+impl<S: Store> Api<S> {
+    /// The airspace that touches a box, as the API answers it.
+    ///
+    /// Only sources this server is configured to serve airspace of are
+    /// asked for, so what the store still holds of a source that was taken
+    /// out of the configuration stays inside. A box that holds more than
+    /// one answer carries is refused whole: see
+    /// [`MAX_AIRSPACES`].
+    pub(crate) async fn airspace_in(
+        &self,
+        area: &BoundingBox,
+    ) -> Result<AirspaceResponse, ApiError> {
+        let sources: Vec<SourceId> = self
+            .sources
+            .iter()
+            .filter(|(_, served)| served.kinds.contains(&Kind::Airspace))
+            .map(|(source, _)| source.clone())
+            .collect();
+        // One more than an answer carries, to know whether the box holds more.
+        let found = self
+            .store
+            .airspaces_in(&sources, area, MAX_AIRSPACES + 1)
+            .await?;
+        let count: usize = found.iter().map(|layer| layer.airspaces.len()).sum();
+        if count > MAX_AIRSPACES {
+            return Err(ApiError::bad_request(
+                ErrorCode::BoxTooLarge,
+                format!(
+                    "the box holds more than {MAX_AIRSPACES} airspaces, which is the most one \
+                     answer carries; ask for it in several smaller boxes"
+                ),
+            ));
+        }
+
+        let layers: Vec<AirspaceLayer> = found
+            .into_iter()
+            .map(|layer| AirspaceLayer {
+                source: layer.set.source,
+                fetched_at: layer.set.fetched_at,
+                file_date: layer.set.file_date,
+                newest_change: layer.set.newest_change,
+                airspaces: layer.airspaces,
+            })
+            .collect();
+        let attributions = self.attributions(layers.iter().map(|layer| &layer.source));
+        Ok(AirspaceResponse {
+            layers,
+            attributions,
+        })
+    }
+}

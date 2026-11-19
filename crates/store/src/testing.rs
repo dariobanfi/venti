@@ -6,12 +6,12 @@
 
 use std::time::Duration;
 
-use venti_domain::{BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
 
 use crate::{
-    Account, AccountCreation, Derived, Flight, FlightChanges, FlightKey, Listing, Month,
-    NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord, SecretHash, Session, SourceStatus,
-    StationLatest, Store, StoreError, Visibility,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -80,6 +80,23 @@ impl Store for TroubledStore {
     }
 
     async fn prune_before(&self, _: Month) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn save_airspace_run(&self, _: &RunRecord, _: &[Airspace]) -> Result<(), StoreError> {
+        self.fail().await
+    }
+
+    async fn airspaces_in(
+        &self,
+        _: &[SourceId],
+        _: &BoundingBox,
+        _: usize,
+    ) -> Result<Vec<AirspaceLayer>, StoreError> {
+        self.fail().await
+    }
+
+    async fn airspace_sets(&self, _: &[SourceId]) -> Result<Vec<AirspaceSet>, StoreError> {
         self.fail().await
     }
 

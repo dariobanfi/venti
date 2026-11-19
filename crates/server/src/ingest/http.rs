@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use venti_sources::{Fetch, FetchError, Request};
+use chrono::{DateTime, Utc};
+use reqwest::header::LAST_MODIFIED;
+use venti_domain::Timestamp;
+use venti_sources::{Fetch, FetchError, Fetched, Request};
 
 /// Fetches over HTTPS.
 pub struct HttpFetch {
@@ -24,7 +27,7 @@ impl HttpFetch {
 }
 
 impl Fetch for HttpFetch {
-    async fn get(&self, request: &Request) -> Result<Vec<u8>, FetchError> {
+    async fn get(&self, request: &Request) -> Result<Fetched, FetchError> {
         let transport = |e: reqwest::Error| FetchError::Transport(e.to_string());
         let response = self
             .client
@@ -36,6 +39,41 @@ impl Fetch for HttpFetch {
         if !status.is_success() {
             return Err(FetchError::Status(status.as_u16()));
         }
-        Ok(response.bytes().await.map_err(transport)?.to_vec())
+        let last_modified = response
+            .headers()
+            .get(LAST_MODIFIED)
+            .and_then(|value| value.to_str().ok())
+            .and_then(http_date);
+        Ok(Fetched {
+            body: response.bytes().await.map_err(transport)?.to_vec(),
+            last_modified,
+        })
+    }
+}
+
+/// Reads the date of a `Last-Modified` header, such as
+/// `Thu, 19 Nov 2026 01:57:33 GMT`. `None` for anything else: a date that
+/// cannot be read is no date.
+fn http_date(text: &str) -> Option<Timestamp> {
+    DateTime::parse_from_rfc2822(text.trim())
+        .ok()
+        .map(|date| date.with_timezone(&Utc))
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone;
+
+    use super::*;
+
+    #[test]
+    fn the_date_a_provider_puts_on_a_file_is_read() {
+        // As openAIP's file store sent it on 2026-11-19.
+        assert_eq!(
+            http_date("Thu, 19 Nov 2026 01:57:33 GMT"),
+            Some(Utc.with_ymd_and_hms(2026, 11, 19, 1, 57, 33).unwrap())
+        );
+        assert_eq!(http_date("yesterday"), None);
+        assert_eq!(http_date(""), None);
     }
 }

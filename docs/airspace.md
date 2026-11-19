@@ -16,8 +16,17 @@ Everything is advisory. A record names its source and carries the age of its dat
 | `venti-airspace` | The OpenAir reader, the index with its questions, the warning table and the warning engine. Depends on `venti-domain` only |
 | `venti-sources` | `AirspaceSource`, the adapter trait for providers, and `run_airspace`, the pipeline that runs one |
 | `venti-sources-openaip` | The first provider: openAIP's airspace of Germany and Austria. See [data-sources.md](data-sources.md#airspace) |
+| `venti-store`, `venti-server` | Keep each source's airspace as one whole set and serve it at `GET /v1/airspace`. See [api.md](api.md#get-v1airspacebboxwestsoutheastnorth) |
 
-A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider. The last two rows are server-side: they produce the records, which reach a client in a region bundle that does not exist yet.
+A client reaches airspace through `venti-airspace`; nothing in it touches a network or a provider. The other rows are server-side: they produce the records and hand them out.
+
+**On the server (since 2026-11-19).** The server fetches openAIP's files for Germany and Austria once a day, keeps what reaches into its regions as one set, and serves it in the canonical record, the one described below and the one the apps already read from OpenAir files. Three rules of this document continue there:
+
+- *No half set.* The stored set is replaced only by a run in which every file arrived. A run that got Germany and not Austria changes nothing, and the answer keeps saying when the set it serves was fetched.
+- *Source and age travel with the data.* An answer is in layers by source. Each layer says when the server fetched it and how old the source's files are, each record says the date of its own file, and the answer carries the source's credit and openAIP's notice that the data is not certified.
+- *No data is not "no airspace".* The server holds Germany and Austria, and of those only what reaches into its regions' box. An empty answer says nothing about the air.
+
+No app reads the endpoint yet; the pilot's own OpenAir files remain the app's only airspace until the core does.
 
 **In the app (since 2026-11-19).** Until that bundle exists, the pilot brings airspace in as OpenAir files. The core (`crates/core/src/airspace.rs`) keeps each file as it came, under the day it was brought in, reads all of them into one index, and gives a map the airspaces in view and the cockpit's session the warnings: the session feeds the engine every position, at most once a second, with the flight computer's altitude, pressure altitude, speed, course and averaged climb, and no ground elevation. The wording of a warning ("Inside CTR Innsbruck", "CTR Innsbruck in 30 s", "CTR Innsbruck 300 m NE", "Climbing into ...") is made in the core, so every shell says the same. The iPhone draws the airspace on both maps, shows the most urgent warning over the cockpit's map, says a new or more urgent one aloud, and offers "Seen: quiet for 10 minutes" (acknowledge) and "Does not apply today" (ignore). What a file left out is said at import and stays on the file's row in red. Not done: the ground elevation, so every limit above ground is "possibly"; activations; the airspace side view; anything on the web. Android has the same since the same day: the files, both maps, the banner, the sheet and the voice.
 
@@ -295,4 +304,5 @@ The warning update is cheap on the real data because most of what surrounds a pi
 - **Airways in OpenAir files** (`DY`).
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
 - **Settings for the pilot.** Margins, look-ahead and the table are `Config`; nothing stores a pilot's choices.
-- **Bundles.** How a client gets a set of records for a region is the region bundle of [architecture.md](architecture.md#api-and-offline-sync), which does not exist yet.
+- **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it; no app uses it yet.
+- **Coverage.** Neither the records nor the server's answer say which area a set covers.

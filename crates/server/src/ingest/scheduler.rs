@@ -52,8 +52,7 @@ async fn run_source<S, F, A>(
     F: Fetch,
     A: Archive,
 {
-    let cadence = collector.adapter(&job.source).manifest().cadence_seconds;
-    let pace = Pace::new(cadence);
+    let pace = Pace::new(collector.cadence_seconds(&job));
     let mut next = Instant::now() + pace.first_delay(since_last_start(&collector, &job).await);
     let mut failures: u32 = 0;
 
@@ -112,10 +111,12 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
     use venti_domain::{
-        BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp,
+        Activity, Airspace, AirspaceClass, AirspaceId, AirspaceType, BoundingBox, GeoPoint,
+        Observation, Polygon, SourceId, Station, StationId, Timestamp, Validity, VerticalLimit,
     };
     use venti_sources::{
-        FetchError, Manifest, ObservationSource, Parsed, PlanCtx, Registry, Request, SourceError,
+        AirspaceSource, FetchError, Fetched, Kind, Manifest, ObservationSource, Parsed,
+        ParsedAirspace, PlanCtx, Registry, Request, SourceError,
     };
     use venti_store::testing::TroubledStore;
     use venti_store::{MemoryStore, RunRecord};
@@ -161,7 +162,7 @@ mod tests {
                 r#"
                 id = "{id}"
                 provider = "Test"
-                kinds = ["observations"]
+                kinds = ["observations", "airspace"]
                 countries = ["DE"]
                 cadence_seconds = {cadence_seconds}
                 auth = "none"
@@ -216,6 +217,52 @@ mod tests {
         }
     }
 
+    /// The same source as one of airspace: every run delivers a set of one
+    /// airspace.
+    impl AirspaceSource for TestSource {
+        fn manifest(&self) -> &Manifest {
+            &self.manifest
+        }
+
+        fn plan(&self, ctx: &PlanCtx) -> Vec<Request> {
+            ObservationSource::plan(self, ctx)
+        }
+
+        fn parse(
+            &self,
+            _request: &Request,
+            _body: &[u8],
+            _ctx: &PlanCtx,
+        ) -> Result<ParsedAirspace, SourceError> {
+            let point = |lat, lon| GeoPoint::new(lat, lon).unwrap();
+            let ring = vec![
+                point(47.0, 11.0),
+                point(47.0, 11.2),
+                point(47.1, 11.2),
+                point(47.0, 11.0),
+            ];
+            Ok(ParsedAirspace {
+                airspaces: vec![Airspace {
+                    id: AirspaceId::new(self.manifest.id.clone(), "1").unwrap(),
+                    name: "Test".to_owned(),
+                    class: AirspaceClass::D,
+                    airspace_type: AirspaceType::Ctr,
+                    country: None,
+                    lower: VerticalLimit::ground(),
+                    upper: VerticalLimit::unlimited(),
+                    lower_at_least: None,
+                    upper_at_most: None,
+                    geometry: Polygon::new(ring, Vec::new()).unwrap(),
+                    activity: Activity::default(),
+                    frequencies: Vec::new(),
+                    remarks: None,
+                    validity: Validity::default(),
+                }],
+                ..ParsedAirspace::default()
+            })
+        }
+    }
+
     // --- A fetcher that follows a script and notes when it was called -------
 
     /// A handle to one script; the collector holds a clone of it.
@@ -236,11 +283,23 @@ mod tests {
 
     impl ScriptedFetch {
         fn new(takes: Duration, failures: usize) -> Self {
-            let failure = Err(FetchError::Status(503));
+            Self::answering(takes, std::iter::repeat_n(false, failures))
+        }
+
+        /// Answers its first calls as listed, `true` for success, and every
+        /// call after them with success.
+        fn answering(takes: Duration, works: impl IntoIterator<Item = bool>) -> Self {
+            let answer = |works| {
+                if works {
+                    Ok(())
+                } else {
+                    Err(FetchError::Status(503))
+                }
+            };
             Self(Arc::new(Script {
                 began: Instant::now(),
                 calls: Mutex::default(),
-                answers: Mutex::new(std::iter::repeat_n(failure, failures).collect()),
+                answers: Mutex::new(works.into_iter().map(answer).collect()),
                 takes,
                 in_flight: AtomicUsize::new(0),
                 most_in_flight: AtomicUsize::new(0),
@@ -254,7 +313,7 @@ mod tests {
     }
 
     impl Fetch for ScriptedFetch {
-        async fn get(&self, request: &Request) -> Result<Vec<u8>, FetchError> {
+        async fn get(&self, request: &Request) -> Result<Fetched, FetchError> {
             let script = &self.0;
             let at = script.began.elapsed().as_secs();
             script.calls.lock().unwrap().push((request.url.clone(), at));
@@ -263,7 +322,7 @@ mod tests {
             tokio::time::sleep(script.takes).await;
             script.in_flight.fetch_sub(1, Ordering::SeqCst);
             let answer = script.answers.lock().unwrap().pop_front();
-            answer.unwrap_or(Ok(())).map(|()| Vec::new())
+            answer.unwrap_or(Ok(())).map(|()| Fetched::default())
         }
     }
 
@@ -272,6 +331,7 @@ mod tests {
     fn job(id: &str) -> Job {
         Job {
             source: SourceId::new(id).unwrap(),
+            kind: Kind::Observations,
             area: BoundingBox::new(46.0, 9.0, 49.0, 18.0).unwrap(),
         }
     }
@@ -371,6 +431,69 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn an_airspace_source_runs_once_a_day_and_keeps_its_set_through_a_failed_run() {
+        const HOUR: Duration = Duration::from_secs(3600);
+        // The first night's run works, the second fails, the third works.
+        let fetch = ScriptedFetch::answering(Duration::ZERO, [true, false, true]);
+        let store = Arc::new(MemoryStore::new());
+        let mut registry = Registry::new();
+        registry
+            .register_airspace(Box::new(TestSource::new("air", 86_400)))
+            .unwrap();
+        let collector = Arc::new(Collector::new(
+            registry,
+            store.clone(),
+            fetch.clone(),
+            None::<DirArchive>,
+            Arc::new(VirtualClock::new()),
+            Some(chrono::Duration::hours(3)),
+        ));
+        let air = SourceId::new("air").unwrap();
+        let airspace_job = Job {
+            kind: Kind::Airspace,
+            ..job("air")
+        };
+        let epoch = Utc.with_ymd_and_hms(2026, 11, 18, 12, 0, 0).unwrap();
+        let stored = || async {
+            let sets = store.airspace_sets(std::slice::from_ref(&air)).await;
+            sets.unwrap().first().map(|set| set.fetched_at)
+        };
+
+        let shutdown = CancellationToken::new();
+        let schedule = tokio::spawn(run(
+            collector,
+            vec![airspace_job],
+            no_jitter,
+            shutdown.clone(),
+        ));
+
+        // The first run was at once, and its set is the stored one.
+        tokio::time::sleep(HOUR).await;
+        assert_eq!(stored().await, Some(epoch));
+
+        // A day later the run fails. The set of the day before stays, and
+        // the next try is a day after that, not sooner.
+        tokio::time::sleep(46 * HOUR).await;
+        assert_eq!(stored().await, Some(epoch));
+        let status = store
+            .source_status(std::slice::from_ref(&air))
+            .await
+            .unwrap();
+        assert_eq!(
+            status[0].last_failure,
+            Some(epoch + chrono::Duration::hours(24))
+        );
+
+        tokio::time::sleep(2 * HOUR).await;
+        shutdown.cancel();
+        schedule.await.unwrap();
+        assert_eq!(stored().await, Some(epoch + chrono::Duration::hours(48)));
+        let calls = fetch.0.calls.lock().unwrap();
+        let hours: Vec<u64> = calls.iter().map(|(_, seconds)| seconds / 3600).collect();
+        assert_eq!(hours, [0, 24, 48]);
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_source_never_runs_twice_at_once() {
         // Each request takes 25 minutes, far longer than the cadence.
         let fetch = ScriptedFetch::new(25 * MINUTE, 0);
@@ -444,6 +567,7 @@ mod tests {
             stations: 1,
             observations: 1,
             newest_observation: None,
+            airspaces: 0,
         };
         store.save_run(&record, &[], &[]).await.unwrap();
 

@@ -32,6 +32,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "accounts, sessions, invites and flights",
         sql: include_str!("../../migrations/0002_accounts_sessions_flights.sql"),
     },
+    Migration {
+        version: 3,
+        name: "airspace",
+        sql: include_str!("../../migrations/0003_airspace.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

@@ -70,7 +70,7 @@ All commands run on the server.
    curl -s http://localhost/v1/health        # with a domain: https://<domain>/v1/health
    ```
 
-   Within a few seconds of the first start the log shows one line per data source with the number of stations and observations it delivered, and the health answer lists each source with `"stale": false`. The database schema is created by the server on its first start; there is no separate migration step.
+   Within a few seconds of the first start the log shows one line per data source with what it delivered: stations and observations for the weather sources, airspaces for openAIP. The health answer lists each source with `"stale": false`. The database schema is created by the server on its first start; there is no separate migration step.
 
 6. **Schedule the backup**; see [Backup](#backup). An install without a backup is not finished.
 
@@ -80,7 +80,7 @@ All commands run on the server.
 
 | Data | Place | Lose it and |
 |---|---|---|
-| Database | Docker volume `venti_db-data` | Every account and every pilot's flights are gone for good, unless there is a dump. Observations and run history are gone too; those the server refills for the last hours by itself |
+| Database | Docker volume `venti_db-data` | Every account and every pilot's flights are gone for good, unless there is a dump. Observations and run history are gone too; those the server refills for the last hours by itself, and the airspace with its first run after the start |
 | Raw provider payloads, about 240 MB a day for the first region and kept for 14 days | Docker volume `venti_archive` | Nothing breaks; old parsing bugs can no longer be replayed |
 | TLS certificates | Docker volume `venti_caddy-data` | Caddy asks for new ones, which the issuers rate-limit |
 | Web app, map tiles | `deploy/data/web`, `deploy/data/tiles` (or the folders named in `.env`) | Copy them there again |
@@ -215,7 +215,7 @@ docker compose start server
 curl -s http://localhost/v1/health
 ```
 
-The restored database lacks everything after the dump. The server refills the last three hours of the German stations on its next run and continues from there; the gap in between stays.
+The restored database lacks everything after the dump. The server refills the last three hours of the German stations on its next run and continues from there; the gap in between stays. The airspace is the dump's until the next daily run replaces it; `/v1/airspace` says how old it is.
 
 For accounts and flights: accounts created after the dump are gone, and so are flights uploaded after it. A flight is still on the phone it was uploaded from. The apps are meant to notice that the server has gone back in time (the server tells a device whose bookmark lies in the future to compare its whole logbook) and to upload what is missing; that is built on the server and in no app yet. Sessions made after the dump stop working, and those pilots sign in again. Passwords changed after the dump are the old ones again.
 
@@ -252,6 +252,13 @@ FROM source_runs ORDER BY started_at DESC LIMIT 20;
 -- How much is stored, per month.
 SELECT date_trunc('month', time) AS month, count(*) FROM observations GROUP BY 1 ORDER BY 1;
 
+-- The airspace the server holds and serves: per source, when it was fetched and how old its files are.
+SELECT source, fetched_at, airspaces, file_date, newest_change FROM airspace_sets;
+
+-- The last airspace runs. An unhealthy one left the stored set as it was.
+SELECT source, started_at, healthy, requests, failed_requests, skipped, rejected, airspaces
+FROM source_runs WHERE source = 'openaip' ORDER BY started_at DESC LIMIT 10;
+
 -- Accounts, with how many flights each holds and how much room their files take.
 SELECT a.handle, a.created_at, count(f.id) AS flights,
        pg_size_pretty(coalesce(sum(octet_length(f.file)), 0)) AS files
@@ -271,7 +278,10 @@ When a source stays stale: run it by hand, outside the schedule and without touc
 
 ```bash
 docker compose exec server venti-server ingest /app/regions/alps-de-at/region.toml
+docker compose exec server venti-server ingest /app/regions/alps-de-at/region.toml --source openaip
 ```
+
+Airspace is fetched once a day, and a run that fails is tried again a day later, not sooner. While it fails the server keeps serving the last complete set, and `/v1/airspace` says when that was fetched. After two failed days `/v1/health` reports the source as stale. Restarting the server does not bring the next run forward: it waits out what is left of the day. An airspace the provider's file holds and the server could not read is named in the log (`left out`, `rejected`); the run stays healthy, and that airspace is missing from what pilots get.
 
 ## Settings
 

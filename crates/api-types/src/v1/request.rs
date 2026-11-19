@@ -61,6 +61,23 @@ impl ObservationsRequest {
     }
 }
 
+/// Path of the airspace inside a box.
+pub const AIRSPACE_PATH: &str = "/v1/airspace";
+
+/// A request for the airspace that touches a box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AirspaceRequest {
+    /// The box to list.
+    pub bbox: BoundingBox,
+}
+
+impl AirspaceRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        format!("{AIRSPACE_PATH}?bbox={}", format_bbox(&self.bbox))
+    }
+}
+
 /// Path that creates an account.
 pub const ACCOUNTS_PATH: &str = "/v1/accounts";
 
@@ -363,6 +380,14 @@ mod tests {
             observations.path_and_query(),
             "/v1/stations/dwd-10min:05792/observations\
              ?from=2026-11-18T12:00:00Z&to=2026-11-18T18:00:00Z"
+        );
+
+        let airspace = AirspaceRequest {
+            bbox: BoundingBox::new(46.3, 9.4, 48.5, 17.2).unwrap(),
+        };
+        assert_eq!(
+            airspace.path_and_query(),
+            "/v1/airspace?bbox=9.4,46.3,17.2,48.5"
         );
     }
 

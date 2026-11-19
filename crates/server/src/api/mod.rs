@@ -7,10 +7,11 @@
 //! Two kinds of data go out, and they are kept apart.
 //!
 //! **What the data sources deliver.** Every response that carries it names
-//! the sources it came from and carries their credit lines. A station whose
-//! source this server is not configured to serve is never returned, even
-//! when the store still holds it: without a manifest there is no licence to
-//! serve it under.
+//! the sources it came from and carries their credit lines. A station or an
+//! airspace whose source this server is not configured to serve is never
+//! returned, even when the store still holds it: without a manifest there
+//! is no licence to serve it under. Airspace goes out in layers, one per
+//! source, and is never merged across sources.
 //!
 //! **What pilots keep here.** An account is acted for with a session token
 //! in the `Authorization` header ([`auth`]). A flight is shown to its pilot
@@ -19,6 +20,7 @@
 //! is said in [`cache`].
 
 mod account;
+mod airspace;
 mod auth;
 mod body;
 mod cache;
@@ -46,11 +48,11 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, Attribution, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, HEALTH_PATH, SESSIONS_PATH, STATIONS_PATH,
+    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, HEALTH_PATH, SESSIONS_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
-use venti_sources::Manifest;
+use venti_sources::{Kind, Manifest};
 use venti_store::Store;
 
 use crate::accounts::client::TrustedProxies;
@@ -84,6 +86,8 @@ const PICTURES_AT_ONCE: usize = 2;
 pub struct ServedSource {
     /// Who publishes the data.
     pub provider: String,
+    /// The kinds of data the source offers.
+    pub kinds: Vec<Kind>,
     /// How often the source is collected, in seconds.
     pub cadence_seconds: u32,
     /// The credit that goes out with its data.
@@ -95,6 +99,7 @@ impl ServedSource {
     pub fn from_manifest(manifest: &Manifest) -> Self {
         Self {
             provider: manifest.provider.clone(),
+            kinds: manifest.kinds.clone(),
             cadence_seconds: manifest.cadence_seconds,
             attribution: Attribution {
                 source: manifest.id.clone(),
@@ -102,6 +107,7 @@ impl ServedSource {
                 licence: manifest.licence.name.clone(),
                 text: manifest.licence.attribution.clone(),
                 url: manifest.licence.link.clone(),
+                notice: manifest.licence.notice.clone(),
             },
         }
     }
@@ -247,6 +253,7 @@ impl<S: Store> Api<S> {
                 "/v1/stations/{id}/observations",
                 get(observations::observations::<S>),
             )
+            .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

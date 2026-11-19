@@ -1,8 +1,9 @@
 //! The `dev` subcommand: the same API over recorded data and a demo account.
 //!
 //! No network and no database. The real adapters run once over the payloads
-//! recorded in their crates, the result goes into an in-memory store, and
-//! the real router serves it. One account is already there, with three
+//! recorded in their crates (wind stations, and the airspace of the northern
+//! Alps), the result goes into an in-memory store, and the real router
+//! serves it. One account is already there, with three
 //! flights made from the sample flight; its handle, password and a session
 //! token are fixed and written down in `docs/api.md`. Client work and UI
 //! tests run against this.
@@ -200,10 +201,7 @@ pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String
     let clock: Arc<dyn Clock> = Arc::new(FixedClock(now));
     add_demo_account(&store, now, settings.password_cost).await?;
 
-    let manifests = jobs
-        .iter()
-        .filter_map(|job| registry.observations(&job.source))
-        .map(|adapter| adapter.manifest());
+    let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings);
 
     // Everything in the payloads is taken: a day of history per station.

@@ -29,7 +29,7 @@ pub mod testing;
 mod validate;
 
 pub use archive::{Archive, ArchiveEntry, ArchiveError};
-pub use fetch::{Fetch, FetchError};
+pub use fetch::{Fetch, FetchError, Fetched};
 pub use manifest::{Auth, Kind, Licence, LicenceFamily, Manifest, ManifestError, RateLimit};
 pub use registry::{Registry, RegistryError};
 pub use run::{

@@ -103,7 +103,7 @@ impl AirspaceSource for OpenAip {
         &self,
         request: &Request,
         body: &[u8],
-        ctx: &PlanCtx,
+        _ctx: &PlanCtx,
     ) -> Result<ParsedAirspace, SourceError> {
         if !self.manifest.countries.contains(&request.tag) {
             return Err(SourceError::UnknownRequest(request.tag.clone()));
@@ -132,7 +132,6 @@ impl AirspaceSource for OpenAip {
                 &self.manifest.id,
                 &request.tag,
                 feature,
-                ctx.now,
                 &mut parsed.skipped,
             ) {
                 Ok(airspace) => parsed.airspaces.push(airspace),
@@ -413,7 +412,6 @@ fn airspace(
     source: &SourceId,
     file_country: &str,
     feature: Feature,
-    fetched: Timestamp,
     notes: &mut Vec<Skipped>,
 ) -> Result<Airspace, String> {
     let properties = feature.properties;
@@ -509,8 +507,10 @@ fn airspace(
         validity: Validity {
             // openAIP is revised continuously and names no AIRAC cycle.
             airac: None,
-            // The files are rebuilt daily and carry no date of their own.
-            file_date: Some(fetched),
+            // The files are rebuilt daily and carry no date inside. The
+            // pipeline dates the record by what openAIP's file store says
+            // about the file it came from.
+            file_date: None,
             updated: properties.updated_at.as_deref().and_then(time),
         },
     })

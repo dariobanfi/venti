@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use venti_domain::{BoundingBox, SourceId};
-use venti_sources::{Kind, Registry};
+use venti_sources::Registry;
 
 /// The configuration of one region.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,13 +117,10 @@ impl RegionPack {
         Ok(pack)
     }
 
-    /// Checks that the build contains an adapter for every source the region names.
-    ///
-    /// Observation sources are always checked. Airspace sources are checked
-    /// by a build that deals in airspace, which is one whose registry holds
-    /// at least one airspace adapter. A build that holds none, such as a
-    /// server that collects observations only, takes no notice of the
-    /// region's airspace and must not be stopped by it.
+    /// Checks that the build contains an adapter for every source the region
+    /// names, of observations and of airspace alike. A region whose airspace
+    /// the server could not collect must stop it at start, not leave pilots
+    /// with a map that silently has none.
     pub fn check_against(&self, registry: &Registry) -> Result<(), RegionError> {
         let unknown = |source: &SourceId| RegionError::UnknownSource {
             region: self.id.clone(),
@@ -134,11 +131,9 @@ impl RegionPack {
                 return Err(unknown(source));
             }
         }
-        if registry.handles(Kind::Airspace) {
-            for source in &self.airspace.sources {
-                if registry.airspace(source).is_none() {
-                    return Err(unknown(source));
-                }
+        for source in &self.airspace.sources {
+            if registry.airspace(source).is_none() {
+                return Err(unknown(source));
             }
         }
         Ok(())
@@ -288,19 +283,27 @@ mod tests {
     }
 
     #[test]
-    fn airspace_sources_are_checked_by_a_build_that_deals_in_airspace() {
+    fn airspace_sources_need_an_adapter_like_any_other() {
         let pack = RegionPack::from_toml(&format!("{PACK}{WITH_AIRSPACE}")).unwrap();
 
-        // A build with observation adapters only takes no notice of airspace.
+        // A build with observation adapters only cannot serve this region.
         let mut registry = Registry::new();
         for id in ["one", "two"] {
             registry
                 .register_observations(Box::new(Fake::new(id)))
                 .unwrap();
         }
-        assert!(pack.check_against(&registry).is_ok());
+        match pack.check_against(&registry) {
+            Err(RegionError::UnknownSource { source_id, .. }) => {
+                assert_eq!(source_id.as_str(), "charts");
+            }
+            other => panic!("{other:?}"),
+        }
+        // A region without airspace asks for no airspace adapter.
+        let without = RegionPack::from_toml(PACK).unwrap();
+        assert!(without.check_against(&registry).is_ok());
 
-        // One airspace adapter, and every airspace source must have one.
+        // An adapter for one of its two airspace sources is not enough.
         registry
             .register_airspace(Box::new(Fake::new("charts")))
             .unwrap();

@@ -6,7 +6,9 @@
 //! anyone may reuse it for a minute, and it carries an `ETag`, so a client
 //! that asks again with `If-None-Match` gets a bodiless `304` when nothing
 //! changed. On a phone in the mountains that is the difference between a
-//! few hundred bytes and tens of kilobytes.
+//! few hundred bytes and tens of kilobytes. Airspace changes once a day at
+//! most and may be reused for an hour; for the airspace of a whole region
+//! the `304` saves half a megabyte.
 //!
 //! **Made for one account** (anything asked with a session token): nobody
 //! may keep it, `no-store`, and it carries no `ETag`. A validator is a
@@ -33,6 +35,11 @@ use super::error::ApiError;
 /// How long an answer that is the same for everyone may be reused without
 /// asking again.
 const MAX_AGE: &str = "public, max-age=60";
+
+/// The same for an answer whose data changes once a day at most. An hour
+/// is how long a set that the server has just replaced may still be shown
+/// as the newest; every answer says when its data was fetched.
+const SLOW_MAX_AGE: &str = "public, max-age=3600";
 
 /// Who may keep an answer that must be checked before every reuse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +97,15 @@ fn validated(
 pub(crate) fn json(request: &HeaderMap, value: &impl Serialize) -> Response {
     match to_json(value) {
         Ok(body) => validated(request, "application/json", body, MAX_AGE),
+        Err(error) => error.into_response(),
+    }
+}
+
+/// Serialises `value` as the JSON body of an answer that is the same for
+/// everyone and changes once a day at most: it may be reused for an hour.
+pub(crate) fn slow_json(request: &HeaderMap, value: &impl Serialize) -> Response {
+    match to_json(value) {
+        Ok(body) => validated(request, "application/json", body, SLOW_MAX_AGE),
         Err(error) => error.into_response(),
     }
 }
@@ -220,6 +236,12 @@ mod tests {
 
         let changed = json(&asking_with(&tag), &[1, 2, 4]);
         assert_eq!(changed.status(), StatusCode::OK);
+
+        // Data that changes once a day is validated in the same way and may
+        // be reused for longer.
+        let slow = slow_json(&asking_with(&tag), &[1, 2, 3]);
+        assert_eq!(slow.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(slow.headers()[header::CACHE_CONTROL], SLOW_MAX_AGE);
     }
 
     #[test]

@@ -11,6 +11,10 @@ publish.workspace = true
 venti-domain.workspace = true
 chrono.workspace = true
 deadpool-postgres.workspace = true
+# Airspace records are kept as the JSON the API sends. Every number of a
+# record must come back from the database as it went in, which the parser
+# only promises with this feature.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tokio-postgres.workspace = true

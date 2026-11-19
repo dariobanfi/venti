@@ -16,7 +16,7 @@ mod schedule;
 pub mod scheduler;
 
 use venti_domain::Timestamp;
-use venti_sources::RunReport;
+use venti_sources::{AirspaceRunReport, RunReport};
 
 pub use archive::DirArchive;
 pub use collect::Collector;
@@ -37,5 +37,23 @@ fn summary(report: &RunReport, now: Timestamp) -> String {
         report.failures.len(),
         report.skipped.len(),
         report.rejected.len(),
+    )
+}
+
+/// What an airspace run delivered, in one line for a person.
+fn airspace_summary(report: &AirspaceRunReport) -> String {
+    let changed = report.newest_change.map_or_else(
+        || "unknown".to_owned(),
+        |newest| newest.format("%Y-%m-%d").to_string(),
+    );
+    format!(
+        "{} airspaces (last changed {changed}), {} requests, \
+         {} failed, {} left out, {} rejected, {} duplicates",
+        report.airspaces,
+        report.requests,
+        report.failures.len(),
+        report.skipped.len(),
+        report.rejected.len(),
+        report.duplicates,
     )
 }

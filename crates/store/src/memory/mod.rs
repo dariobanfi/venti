@@ -4,12 +4,15 @@ mod flights;
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
-use venti_domain::{BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{
+    Airspace, AirspaceId, BoundingBox, Observation, SourceId, Station, StationId, Timestamp,
+};
 
 use crate::{
-    Account, AccountCreation, Derived, Flight, FlightChanges, FlightKey, Listing, Month,
-    NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord, SecretHash, Session, SourceStatus,
-    StationLatest, Store, StoreError, Visibility, batch,
+    Account, AccountCreation, AirspaceLayer, AirspaceSet, Derived, Flight, FlightChanges,
+    FlightKey, Listing, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
+    SecretHash, Session, SourceStatus, StationLatest, Store, StoreError, Visibility, airspace,
+    batch,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -28,6 +31,8 @@ struct Inner {
     stations: BTreeMap<StationId, Entry>,
     /// Runs by source and start time.
     runs: BTreeMap<(SourceId, Timestamp), RunRecord>,
+    /// The airspace of each source, as its latest healthy run delivered it.
+    airspace: BTreeMap<SourceId, StoredSet>,
     accounts: accounts::Accounts,
     flights: flights::Flights,
 }
@@ -38,6 +43,18 @@ struct Entry {
     /// When a run last delivered the station.
     last_seen_at: Timestamp,
     observations: BTreeMap<Timestamp, Observation>,
+}
+
+#[derive(Debug)]
+struct StoredSet {
+    set: AirspaceSet,
+    /// Sorted by identifier: the order [`Store::airspaces_in`] promises.
+    airspaces: BTreeMap<AirspaceId, Airspace>,
+}
+
+/// Whether two boxes share at least a point, edges included.
+fn touch(a: &BoundingBox, b: &BoundingBox) -> bool {
+    a.west() <= b.east() && a.east() >= b.west() && a.south() <= b.north() && a.north() >= b.south()
 }
 
 impl MemoryStore {
@@ -193,6 +210,74 @@ impl Store for MemoryStore {
             .runs
             .retain(|(_, started_at), _| *started_at >= cutoff);
         Ok(())
+    }
+
+    async fn save_airspace_run(
+        &self,
+        run: &RunRecord,
+        airspaces: &[Airspace],
+    ) -> Result<(), StoreError> {
+        airspace::check(run, airspaces)?;
+        let mut inner = self.lock();
+        inner
+            .runs
+            .insert((run.source.clone(), run.started_at), run.clone());
+        let newer_is_stored = inner
+            .airspace
+            .get(&run.source)
+            .is_some_and(|stored| stored.set.fetched_at > run.started_at);
+        if run.healthy && !newer_is_stored {
+            let stored = StoredSet {
+                set: AirspaceSet::of(run, airspaces),
+                airspaces: airspaces
+                    .iter()
+                    .map(|airspace| (airspace.id.clone(), airspace.clone()))
+                    .collect(),
+            };
+            inner.airspace.insert(run.source.clone(), stored);
+        }
+        Ok(())
+    }
+
+    async fn airspaces_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<AirspaceLayer>, StoreError> {
+        let inner = self.lock();
+        let mut left = limit;
+        let mut layers = Vec::new();
+        for (source, stored) in &inner.airspace {
+            if !sources.contains(source) {
+                continue;
+            }
+            let found: Vec<Airspace> = stored
+                .airspaces
+                .values()
+                .filter(|airspace| touch(&airspace.bounds(), area))
+                .take(left)
+                .cloned()
+                .collect();
+            left -= found.len();
+            if !found.is_empty() {
+                layers.push(AirspaceLayer {
+                    set: stored.set.clone(),
+                    airspaces: found,
+                });
+            }
+        }
+        Ok(layers)
+    }
+
+    async fn airspace_sets(&self, sources: &[SourceId]) -> Result<Vec<AirspaceSet>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .airspace
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .map(|(_, stored)| stored.set.clone())
+            .collect())
     }
 
     async fn create_account(&self, new: &NewAccount) -> Result<AccountCreation, StoreError> {

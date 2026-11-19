@@ -2,11 +2,11 @@
 
 Last revised: 2026-11-19
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, and for a pilot's account and flights. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has two parts:
 
-- **Weather stations**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto).
+- **Weather stations and airspace**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), and [the page a shared flight has](#the-page-a-shared-flight-has).
 
 ## Try it
@@ -16,7 +16,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 88 airspaces of the northern Alps around Munich, Innsbruck and Salzburg, recorded from openAIP the day after and served as if fetched at that same moment. It needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -38,11 +38,11 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 
 **Versions.** Every path starts with `/v1`. Within a version the format only grows: an answer may gain fields, so a client ignores fields it does not know. Removing or renaming a field, or changing what one means, needs a `/v2` beside `/v1`.
 
-**Units.** Times are UTC in RFC 3339 (`2026-11-18T18:20:00Z`). Positions are WGS84 degrees. Heights are metres above mean sea level. Wind speed is metres per second, and wind direction is the direction the wind comes from, in degrees clockwise from true north. Temperature is degrees Celsius, pressure is hectopascal at the station's own height, humidity is percent.
+**Units.** Times are UTC in RFC 3339 (`2026-11-18T18:20:00Z`). Positions are WGS84 degrees. Heights are metres above mean sea level, except the limits of an airspace, which are given as published; see [airspace](#get-v1airspacebboxwestsoutheastnorth). Wind speed is metres per second, and wind direction is the direction the wind comes from, in degrees clockwise from true north. Temperature is degrees Celsius, pressure is hectopascal at the station's own height, humidity is percent.
 
 **Missing values.** A value that is not known is left out of the answer. It is never `null` and never a placeholder number. A station without a temperature sensor has readings without `temperature_c`.
 
-**Sources and credit.** Every station comes from exactly one data source and names it in `source`. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source that has data in it, and only those:
+**Sources and credit.** Every station and every airspace comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source that has data in it, and only those:
 
 | Field | Meaning |
 |---|---|
@@ -51,12 +51,13 @@ None of this is a secret, and none of it exists on a real server. Anyone may cre
 | `licence` | The licence's name |
 | `text` | The credit line, worded as the provider asks |
 | `url` | Where the credit line links to |
+| `notice` | What the provider asks to be said wherever its data is shown, beside the credit. Left out when it asks for nothing of the kind |
 
-A client that shows the data shows the credit of its source next to it. The licences require that; it is not decoration.
+A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace changes once a day at most and carries `max-age=3600`. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 800 kB and 190 kB.
 
 **Browsers.** A web app on another origin may call the API only if the server's configuration lists that origin (`cors_origins`). Apps that are not browsers are not affected. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. A page on another site therefore cannot make a visitor's browser act for the visitor.
 
@@ -76,6 +77,7 @@ A client that shows the data shows the credit of its source next to it. The lice
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_bbox` | `bbox` is missing, is not four numbers, or the numbers do not form a box |
+| 400 | `box_too_large` | The box holds more airspaces than one answer carries. Ask for smaller boxes |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window is longer than seven days |
@@ -129,6 +131,16 @@ How the server and each of its data sources are doing.
       "newest_observation": "2026-11-18T19:00:00Z",
       "stale": false,
       "stations": 3
+    },
+    {
+      "source": "openaip",
+      "provider": "openAIP",
+      "cadence_seconds": 86400,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0,
+      "airspaces": 88,
+      "file_date": "2026-11-18T19:05:00Z"
     }
   ]
 }
@@ -140,15 +152,17 @@ How the server and each of its data sources are doing.
 | `version` | The server's version |
 | `time` | The server's clock. Compute the age of an observation against this, not against the device's clock, which may be wrong |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
-| `sources[].last_success` | When a run last delivered observations without trouble. Left out if none ever did |
-| `sources[].last_failure` | When a run last delivered nothing, or had more than a tenth of its requests fail. Left out if none ever did |
-| `sources[].newest_observation` | The time of the newest observation the source has delivered |
-| `sources[].stale` | `true` when no run has succeeded within three cadence intervals |
-| `sources[].stations` | How many stations the last successful run delivered |
+| `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
+| `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace: any request failed, because a set with a file missing must not replace a whole one. Left out if none ever did |
+| `sources[].newest_observation` | The time of the newest observation the source has delivered. Left out for a source of airspace |
+| `sources[].stale` | `true` when no run has succeeded for too long. For a source the server asks every few minutes: three cadence intervals. For a source it asks once a day or less often, which is airspace: two and a quarter intervals, 54 hours for a daily one. A failed daily run is tried again a day later, so one missed day is tolerated and the second is not |
+| `sources[].stations` | How many stations the last successful run delivered. `0` for a source of airspace |
+| `sources[].airspaces` | How many airspaces the server holds from the source: the set of its last successful run, which is what it serves. Left out for a source that delivers no airspace |
+| `sources[].file_date` | The date of the oldest file that set was read from. Left out for a source that delivers no airspace |
 
 The status code is `200` whenever the server can read its database, also when sources are stale: a monitor that only looks at the code learns whether the server works, and the body says whether its data is fresh. When the database cannot be reached the answer is `503` with the error body.
 
-`newest_observation` can lag behind `last_success`. A run succeeds when the provider answers, and some providers publish late: on 2026-11-19 the German values were 25 to 44 minutes behind real time when fetched.
+`newest_observation` can lag behind `last_success`. A run succeeds when the provider answers, and some providers publish late: on 2026-11-19 the German values were 25 to 44 minutes behind real time when fetched. `file_date` can lag in the same way: a run succeeds also when the provider hands out a file it has not renewed. openAIP's files of 2026-11-19 were written at 01:12 and 01:57 UTC.
 
 ## `GET /v1/stations?bbox=west,south,east,north`
 
@@ -290,6 +304,188 @@ curl 'http://127.0.0.1:8080/v1/stations/dwd-10min:05792/observations?from=2026-1
 A station that exists but measured nothing in the window gives `200` with an empty `observations` list. A station the server does not know gives `404` with `station_not_found`.
 
 How much history there is depends on the source. The German stations deliver the last hours with every run. The Austrian network delivers only its newest values, so its history grows by one reading per run from the moment the server first collected it. The server keeps observations for thirteen whole months by default.
+
+## `GET /v1/airspace?bbox=west,south,east,north`
+
+The airspace that touches a box, as the server last fetched it from its sources. A phone asks for the box of its whole region once, keeps the answer, and flies with it offline.
+
+`bbox` is required and written as for stations. An airspace is found by the smallest box around its outline: one that curves past the requested box may be in the answer, and none that reaches into it is ever missing.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/airspace?bbox=12.65,47.48,12.66,47.49'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "openaip",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "file_date": "2026-11-18T19:05:00Z",
+      "newest_change": "2026-11-18T10:29:12.552Z",
+      "airspaces": [
+        {
+          "id": "openaip:677d59be13e31af480aca6f6",
+          "name": "LOD22 (HOCHFILZEN)",
+          "class": "unclassified",
+          "airspace_type": "danger",
+          "country": "AT",
+          "lower": {
+            "reference": "ground",
+            "metres": 0.0
+          },
+          "upper": {
+            "reference": "standard",
+            "value": 145.0,
+            "unit": "flight-level",
+            "metres": 4419.6
+          },
+          "geometry": {
+            "exterior": [
+              [
+                12.6,
+                47.525
+              ],
+              [
+                12.625,
+                47.475
+              ],
+              [
+                12.69167,
+                47.45
+              ],
+              [
+                12.72222,
+                47.5
+              ],
+              [
+                12.6,
+                47.525
+              ]
+            ]
+          },
+          "activity": {
+            "by_notam": false,
+            "on_request": false,
+            "on_demand": false,
+            "special_agreement": false
+          },
+          "validity": {
+            "file_date": "2026-11-18T19:05:00Z",
+            "updated": "2025-01-07T16:45:06.169Z"
+          }
+        },
+        {
+          "id": "openaip:677d59be13e31af480aca726",
+          "name": "LOR8 (HOCHFILZEN)",
+          "class": "unclassified",
+          "airspace_type": "restricted",
+          "country": "AT",
+          "lower": {
+            "reference": "ground",
+            "metres": 0.0
+          },
+          "upper": {
+            "reference": "standard",
+            "value": 125.0,
+            "unit": "flight-level",
+            "metres": 3810.0
+          },
+          "geometry": {
+            "exterior": [
+              [
+                12.6,
+                47.525
+              ],
+              [
+                12.625,
+                47.475
+              ],
+              [
+                12.69167,
+                47.45
+              ],
+              [
+                12.72222,
+                47.5
+              ],
+              [
+                12.6,
+                47.525
+              ]
+            ]
+          },
+          "activity": {
+            "by_notam": false,
+            "on_request": false,
+            "on_demand": false,
+            "special_agreement": false
+          },
+          "validity": {
+            "file_date": "2026-11-18T19:05:00Z",
+            "updated": "2025-01-07T16:45:08.433Z"
+          }
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "openaip",
+      "provider": "openAIP",
+      "licence": "CC BY-NC 4.0",
+      "text": "Data used comes from openAIP and is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License. Visit https://www.openaip.net and contribute to better aviation data, free for everyone to use and share.",
+      "url": "https://www.openaip.net",
+      "notice": "OpenAIP data is not certified and must not be used for primary navigation or flight planning. Never rely on openAIP data! OpenAIP data contains errors."
+    }
+  ]
+}
+```
+
+**Layers.** Airspace comes in layers, one for each source that has airspace in the box, sorted by source. Layers are never merged: each source has its own licence, its own credit and its own date. A client that stores or draws airspace keeps them apart in the same way, and shows with each layer the credit and the notice of its source. The same airspace published by two sources is two records in two layers.
+
+| Field | Meaning |
+|---|---|
+| `layers[].source` | The source of the layer. Its credit, licence and notice are the entry of `attributions` with the same `source` |
+| `layers[].fetched_at` | When the server fetched the set this layer is a part of. **Show the pilot how old this is**, measured against the server's clock (`time` of `/v1/health`) |
+| `layers[].file_date` | The date of the oldest file the source's set was read from, by the source's own word. Where a source puts no date on its files, it is the time of the fetch. Left out if no record says |
+| `layers[].newest_change` | When the source last changed any airspace of its set. Left out if the source does not say |
+| `layers[].airspaces` | The records, sorted by `id` |
+| `attributions[].notice` | What the source asks to be said wherever its data is shown. For openAIP: that the data is not certified and must not be used for navigation. **Show it with the airspace.** Left out for a source that asks for nothing of the kind |
+
+A record is the canonical airspace record of the project, the same that the apps read from an OpenAir file: `venti_domain::Airspace`. [airspace.md](airspace.md#the-record) explains every field. What a client needs to know here:
+
+| Field | Meaning |
+|---|---|
+| `id` | `source:local`. The part before the colon is the layer's source |
+| `name` | As published. May be empty |
+| `class` | `A` to `G`, or `unclassified` |
+| `airspace_type` | The kind: `ctr`, `tma`, `restricted`, `danger`, `glider-sector` and some forty more, or `{"other": "..."}` with the source's own word |
+| `country` | ISO code. Left out if the source gives none |
+| `lower`, `upper` | The floor and the ceiling as published: `reference` (`ground`, `above-ground`, `mean-sea-level`, `standard`, `unlimited`), `value` and `unit` (`feet`, `metres`, `flight-level`), and `metres`, the same height in metres above the same reference. These are the one exception to "heights are metres above mean sea level": a limit above ground or on standard pressure cannot be turned into one without the terrain or the air pressure |
+| `lower_at_least`, `upper_at_most` | A second floor, and the height the ceiling may be raised to. Left out for most |
+| `geometry.exterior` | The outline: corners as `[longitude, latitude]`, the first repeated at the end. `geometry.holes` and `geometry.circle` are left out for most |
+| `activity` | What the source publishes about use: by NOTAM, on request, hours. It is background, not the state of today |
+| `frequencies`, `remarks` | As published. Left out when there are none |
+| `validity.file_date` | The date of the file this record was read from |
+| `validity.updated` | When the source last changed this record. Left out if it does not say |
+
+**No answer says what is active today.** The server knows no activations and no NOTAMs. A client treats every airspace as potentially active.
+
+**No airspace in the answer is not "no airspace".** The server holds the airspace of the countries its sources cover, which today are Germany and Austria. A box over Switzerland has no layer, and that says nothing about Swiss airspace. Which area the data covers is not in the answer yet; a client must not show an empty answer as free air.
+
+**Caching.** The answer carries `Cache-Control: public, max-age=3600` and an `ETag`. The server fetches its sources once a day, so an answer changes once a day at most; a client that asks again with `If-None-Match` gets `304` until the server has fetched a new set.
+
+**Size.** One answer carries the whole box; there are no pages. Measured on 2026-11-19 with openAIP's files of that day:
+
+| Box | Airspaces | Corners | Plain | With gzip |
+|---|---|---|---|---|
+| Germany and Austria whole | 1,018 | 59,043 | 1,675 kB | 369 kB |
+| The first region (46.3 to 48.5° N, 9.4 to 17.2° E) | 344 | 31,438 | 798 kB | 187 kB |
+
+A box that holds more than 5000 airspaces is refused with `400` and `box_too_large`. It is not cut short: a client could take a cut answer for the whole airspace of the box, and a pilot is not warned about airspace that is missing. Ask for such a box in several smaller ones.
+
+**When a source fails.** A run that could not fetch every file of a source changes nothing: the server keeps serving the set of its last complete run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 
 ## Accounts and sessions
 
@@ -883,4 +1079,4 @@ The links inside the page start with the address the server was configured with 
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, airspace, live positions and the assistant connector are planned and not built; see [plan.md](plan.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecasts, sites, which airspace is active today, the area the airspace data covers, live positions and the assistant connector are planned and not built; see [plan.md](plan.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

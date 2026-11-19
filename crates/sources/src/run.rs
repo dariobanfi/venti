@@ -6,8 +6,8 @@ use venti_domain::{Airspace, AirspaceId, Observation, SourceId, Station, Station
 
 use crate::validate::{check_observation, check_station};
 use crate::{
-    AirspaceSource, Archive, ArchiveEntry, Fetch, Manifest, ObservationSource, PlanCtx, Rejection,
-    Request, Skipped, SourceError,
+    AirspaceSource, Archive, ArchiveEntry, Fetch, Fetched, Manifest, ObservationSource, PlanCtx,
+    Rejection, Request, Skipped, SourceError,
 };
 
 /// How a run should behave.
@@ -98,7 +98,7 @@ pub struct RunOutput {
 }
 
 /// What the fetching part of a run did.
-struct Fetched {
+struct Fetching {
     requests: usize,
     budget_exhausted: bool,
     failures: Vec<Failure>,
@@ -106,8 +106,8 @@ struct Fetched {
 
 /// Fetches and archives what an adapter asks for, wave by wave.
 ///
-/// Every body is handed to `take`, which parses it, keeps what it found and
-/// returns the adapter's follow-up requests. A failing request, a payload
+/// Every response is handed to `take`, which parses it, keeps what it found
+/// and returns the adapter's follow-up requests. A failing request, a payload
 /// the archive refuses or a body `take` cannot parse is recorded and does
 /// not stop the run.
 ///
@@ -121,8 +121,8 @@ async fn fetch_all(
     archive: &impl Archive,
     ctx: &PlanCtx,
     options: &RunOptions,
-    mut take: impl FnMut(&Request, &[u8]) -> Result<Vec<Request>, SourceError>,
-) -> Fetched {
+    mut take: impl FnMut(&Request, &Fetched) -> Result<Vec<Request>, SourceError>,
+) -> Fetching {
     let budget = manifest.requests_per_run().unwrap_or(options.max_requests);
     let per_second = manifest
         .rate_limit
@@ -161,8 +161,8 @@ async fn fetch_all(
                 url: request.url.clone(),
                 error,
             };
-            let body = match result {
-                Ok(body) => body,
+            let response = match result {
+                Ok(response) => response,
                 Err(error) => {
                     failures.push(fail(error.to_string()));
                     continue;
@@ -172,12 +172,12 @@ async fn fetch_all(
                 source: &manifest.id,
                 request: &request,
                 fetched_at: ctx.now,
-                body: &body,
+                body: &response.body,
             };
             if let Err(error) = archive.store(entry) {
                 failures.push(fail(error.to_string()));
             }
-            match take(&request, &body) {
+            match take(&request, &response) {
                 Ok(follow_up) => next.extend(follow_up),
                 Err(error) => failures.push(fail(error.to_string())),
             }
@@ -188,7 +188,7 @@ async fn fetch_all(
         wave = next;
     }
 
-    Fetched {
+    Fetching {
         requests,
         budget_exhausted,
         failures,
@@ -216,8 +216,8 @@ pub async fn run_observations(
     let mut stations: BTreeMap<StationId, Station> = BTreeMap::new();
     let mut partials: Vec<Observation> = Vec::new();
 
-    let take = |request: &Request, body: &[u8]| {
-        let parsed = source.parse(request, body, ctx)?;
+    let take = |request: &Request, response: &Fetched| {
+        let parsed = source.parse(request, &response.body, ctx)?;
         for station in parsed.stations {
             stations.entry(station.id.clone()).or_insert(station);
         }
@@ -364,6 +364,12 @@ pub struct AirspaceRunOutput {
 /// [`Airspace::validate`] is removed and reported, as is a second airspace
 /// with an identifier already seen. Requests are budgeted and archived as
 /// for observations. `options.since` plays no part.
+///
+/// Every airspace leaves with the date of the file it was read from
+/// ([`Validity::file_date`](venti_domain::Validity)). Where the adapter
+/// found none in the file, it is the date the provider's server put on the
+/// response ([`Fetched::last_modified`](crate::Fetched)), and where the
+/// server gave none, the time of the run.
 pub async fn run_airspace(
     source: &dyn AirspaceSource,
     fetch: &impl Fetch,
@@ -375,9 +381,17 @@ pub async fn run_airspace(
     let mut skipped = Vec::new();
     let mut found: Vec<Airspace> = Vec::new();
 
-    let take = |request: &Request, body: &[u8]| {
-        let parsed = source.parse(request, body, ctx)?;
-        found.extend(parsed.airspaces);
+    let take = |request: &Request, response: &Fetched| {
+        let parsed = source.parse(request, &response.body, ctx)?;
+        // An airspace is as old as the file it was read from. An adapter
+        // whose files carry their date inside sets it; for the others it is
+        // what the provider's server says about the file, and failing that
+        // the time of this run.
+        let file_date = response.last_modified.unwrap_or(ctx.now);
+        found.extend(parsed.airspaces.into_iter().map(|mut airspace| {
+            airspace.validity.file_date.get_or_insert(file_date);
+            airspace
+        }));
         skipped.extend(parsed.skipped);
         Ok(parsed.follow_up)
     };

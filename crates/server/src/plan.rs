@@ -5,16 +5,33 @@ use std::path::{Path, PathBuf};
 
 use venti_domain::{BoundingBox, SourceId};
 use venti_regions::{RegionError, RegionPack};
-use venti_sources::Registry;
+use venti_sources::{Kind, Manifest, Registry};
 
 /// One source to collect, and the area to collect it for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Job {
     /// The source.
     pub source: SourceId,
+    /// What it is collected for: observations or airspace.
+    pub kind: Kind,
     /// The smallest box that covers every configured region listing the
     /// source.
     pub area: BoundingBox,
+}
+
+impl Job {
+    /// The declared facts about the job's source.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the registry has no adapter of the source for the job's
+    /// kind. Jobs come from region packs that were checked against the
+    /// registry when the plan was made.
+    pub fn manifest<'a>(&self, registry: &'a Registry) -> &'a Manifest {
+        registry
+            .manifest(&self.source, self.kind)
+            .unwrap_or_else(|| panic!("the plan names {}, which has no adapter", self.source))
+    }
 }
 
 /// Why the configured regions cannot be served.
@@ -46,6 +63,13 @@ pub enum PlanError {
         "source {0} may not be redistributed under its licence; the API cannot keep it back yet"
     )]
     NotRedistributable(SourceId),
+    /// The regions list one source for observations and for airspace. The
+    /// run history and the health report are kept per source.
+    #[error(
+        "source {0} is listed for observations and for airspace; \
+         the server collects a source for one kind of data"
+    )]
+    TwoKinds(SourceId),
 }
 
 /// Reads the region packs at `paths` and plans their sources.
@@ -78,47 +102,69 @@ fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> 
 /// provider's request limits apply to the source, not to a region. Its area
 /// is one box around all those regions.
 pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanError> {
-    let mut areas: BTreeMap<SourceId, BoundingBox> = BTreeMap::new();
+    let mut jobs: BTreeMap<SourceId, Job> = BTreeMap::new();
     for pack in packs {
-        for source in &pack.observations.sources {
-            areas
-                .entry(source.clone())
-                .and_modify(|area| *area = area.cover(&pack.bounds))
-                .or_insert(pack.bounds);
+        let listed = [
+            (Kind::Observations, &pack.observations.sources),
+            (Kind::Airspace, &pack.airspace.sources),
+        ];
+        for (kind, sources) in listed {
+            for source in sources {
+                let job = jobs.entry(source.clone()).or_insert_with(|| Job {
+                    source: source.clone(),
+                    kind,
+                    area: pack.bounds,
+                });
+                if job.kind != kind {
+                    return Err(PlanError::TwoKinds(source.clone()));
+                }
+                job.area = job.area.cover(&pack.bounds);
+            }
         }
     }
-    if areas.is_empty() {
+    if jobs.is_empty() {
         return Err(PlanError::Empty);
     }
-    for source in areas.keys() {
+    for job in jobs.values() {
         let redistributable = registry
-            .observations(source)
-            .is_some_and(|adapter| adapter.manifest().licence.redistribution);
+            .manifest(&job.source, job.kind)
+            .is_some_and(|manifest| manifest.licence.redistribution);
         if !redistributable {
-            return Err(PlanError::NotRedistributable(source.clone()));
+            return Err(PlanError::NotRedistributable(job.source.clone()));
         }
     }
-    Ok(areas
-        .into_iter()
-        .map(|(source, area)| Job { source, area })
-        .collect())
+    Ok(jobs.into_values().collect())
 }
 
 #[cfg(test)]
 mod tests {
-    use venti_sources::{Manifest, ObservationSource, Parsed, PlanCtx, Request, SourceError};
+    use venti_sources::{ObservationSource, Parsed, PlanCtx, Request, SourceError};
 
     use super::*;
     use crate::adapters;
 
     fn pack(id: &str, bounds: [f64; 4], sources: &[&str]) -> RegionPack {
+        pack_with_airspace(id, bounds, sources, &[])
+    }
+
+    fn pack_with_airspace(
+        id: &str,
+        bounds: [f64; 4],
+        observations: &[&str],
+        airspace: &[&str],
+    ) -> RegionPack {
         let [south, west, north, east] = bounds;
-        let sources: Vec<String> = sources.iter().map(|s| format!("{s:?}")).collect();
+        let list = |sources: &[&str]| {
+            let sources: Vec<String> = sources.iter().map(|s| format!("{s:?}")).collect();
+            sources.join(", ")
+        };
         let text = format!(
             "id = {id:?}\nname = {id:?}\nlanguages = [\"de\"]\n\
              [bounds]\nsouth = {south}\nwest = {west}\nnorth = {north}\neast = {east}\n\
-             [observations]\nsources = [{}]\n",
-            sources.join(", ")
+             [observations]\nsources = [{}]\n\
+             [airspace]\nsources = [{}]\n",
+            list(observations),
+            list(airspace)
         );
         RegionPack::from_toml(&text).unwrap()
     }
@@ -144,6 +190,55 @@ mod tests {
         );
         assert_eq!(jobs[1].source.as_str(), "geosphere-tawes");
         assert_eq!(jobs[1].area, packs[0].bounds);
+    }
+
+    #[test]
+    fn airspace_sources_are_planned_beside_the_observation_sources() {
+        let alps = [46.3, 9.4, 48.5, 17.2];
+        let packs = [
+            pack_with_airspace("alps", alps, &["dwd-10min"], &["openaip"]),
+            pack_with_airspace("north", [52.0, 8.0, 54.0, 12.0], &[], &["openaip"]),
+        ];
+
+        let jobs = plan(&packs, &adapters::registry()).unwrap();
+
+        let planned: Vec<(&str, Kind)> = jobs
+            .iter()
+            .map(|job| (job.source.as_str(), job.kind))
+            .collect();
+        assert_eq!(
+            planned,
+            [
+                ("dwd-10min", Kind::Observations),
+                ("openaip", Kind::Airspace)
+            ]
+        );
+        assert_eq!(jobs[0].area, packs[0].bounds);
+        assert_eq!(
+            jobs[1].area,
+            BoundingBox::new(46.3, 8.0, 54.0, 17.2).unwrap()
+        );
+        assert_eq!(jobs[1].manifest(&adapters::registry()).provider, "openAIP");
+
+        // A region of airspace alone is a plan too.
+        let only = [pack_with_airspace("alps", alps, &[], &["openaip"])];
+        assert_eq!(plan(&only, &adapters::registry()).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_source_is_collected_for_one_kind_of_data() {
+        // The pack is not checked against the registry here; the plan's own
+        // rule is what is tested.
+        let packs = [pack_with_airspace(
+            "alps",
+            [46.3, 9.4, 48.5, 17.2],
+            &["dwd-10min"],
+            &["dwd-10min"],
+        )];
+        assert!(matches!(
+            plan(&packs, &adapters::registry()),
+            Err(PlanError::TwoKinds(source)) if source.as_str() == "dwd-10min"
+        ));
     }
 
     /// An adapter for a source that may be used but not served onward.
@@ -216,7 +311,8 @@ mod tests {
             "/../../regions/alps-de-at/region.toml"
         ));
         let jobs = load(&[path], &adapters::registry()).unwrap();
-        assert_eq!(jobs.len(), 2);
+        let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
+        assert_eq!(sources, ["dwd-10min", "geosphere-tawes", "openaip"]);
 
         let missing = PathBuf::from("regions/nowhere/region.toml");
         assert!(matches!(

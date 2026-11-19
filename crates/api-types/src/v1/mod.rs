@@ -5,6 +5,7 @@
 //! | [`HEALTH_PATH`] | GET | | [`HealthResponse`] |
 //! | [`STATIONS_PATH`] | GET | [`StationsRequest`] | [`StationsResponse`] |
 //! | [`observations_path`] | GET | [`ObservationsRequest`] | [`ObservationsResponse`] |
+//! | [`AIRSPACE_PATH`] | GET | [`AirspaceRequest`] | [`AirspaceResponse`] |
 //! | [`ACCOUNTS_PATH`] | POST | [`CreateAccountRequest`] | [`SignInResponse`] |
 //! | [`SESSIONS_PATH`] | POST | [`SignInRequest`] | [`SignInResponse`] |
 //! | [`SESSIONS_PATH`] | GET, DELETE | | [`SessionsResponse`], nothing |
@@ -35,6 +36,7 @@
 //! direction the wind comes from.
 
 mod account;
+mod airspace;
 mod attribution;
 mod error;
 mod flights;
@@ -48,6 +50,7 @@ pub use account::{
     DisplayNameError, Handle, HandleError, MAX_DISPLAY_NAME_LENGTH, Password, PasswordError,
     Session, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
 };
+pub use airspace::{AirspaceLayer, AirspaceResponse};
 pub use attribution::Attribution;
 pub use error::{ErrorBody, ErrorCode, ErrorResponse};
 pub use flights::{
@@ -59,11 +62,11 @@ pub use flights::{
 pub use health::{HealthResponse, HealthStatus, SourceHealth};
 pub use observations::{ObservationsResponse, Reading};
 pub use request::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, BboxError, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, FlightChangesRequest, FlightsRequest, HEALTH_PATH, ObservationsRequest,
-    PilotRequest, SESSIONS_PATH, STATIONS_PATH, StationsRequest, TimeError, flight_file_path,
-    flight_path, format_bbox, format_time, observations_path, parse_bbox, parse_time, pilot_path,
-    session_path, share_image_path, share_path,
+    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FlightChangesRequest, FlightsRequest, HEALTH_PATH,
+    ObservationsRequest, PilotRequest, SESSIONS_PATH, STATIONS_PATH, StationsRequest, TimeError,
+    flight_file_path, flight_path, format_bbox, format_time, observations_path, parse_bbox,
+    parse_time, pilot_path, session_path, share_image_path, share_path,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 
@@ -77,3 +80,9 @@ pub const MAX_WINDOW_DAYS: i64 = 7;
 /// first ones by source and identifier, and [`StationsResponse::truncated`]
 /// is set.
 pub const MAX_STATIONS: usize = 5000;
+
+/// The most airspaces one response carries. A box that holds more is
+/// refused with [`ErrorCode::BoxTooLarge`] and not cut short: a client
+/// could take a cut answer for the whole airspace of the box, and a pilot
+/// is not warned about airspace that is missing.
+pub const MAX_AIRSPACES: usize = 5000;

@@ -26,6 +26,8 @@ pub enum ErrorCode {
     InvalidRequest,
     /// The `bbox` parameter is missing or is not four numbers that form a box.
     InvalidBbox,
+    /// The box holds more than one answer carries. Ask for a smaller one.
+    BoxTooLarge,
     /// The station identifier in the path is not of the form `source:local`.
     InvalidStationId,
     /// `from` or `to` is not an RFC 3339 time.

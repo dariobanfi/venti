@@ -241,9 +241,59 @@ fn bad_and_repeated_records_are_removed_and_reported_and_the_rest_is_kept() {
 }
 
 #[test]
+fn an_airspace_is_dated_by_its_file() {
+    let written = Utc.with_ymd_and_hms(2026, 11, 19, 1, 57, 33).unwrap();
+    let inside = Utc.with_ymd_and_hms(2026, 10, 29, 0, 0, 0).unwrap();
+    // The record from Austria names the date of its file itself.
+    let mut dated = record("innsbruck", 47.2, 11.3, 0.0, 5000.0);
+    dated["validity"]["file_date"] = json!(inside);
+    let fetch = FixtureFetch::new()
+        // Germany's file store says when it wrote the file.
+        .dated(
+            GERMANY,
+            bytes(&[record("muenchen", 48.3, 11.7, 0.0, 3500.0)]),
+            written,
+        )
+        .dated(
+            AUSTRIA,
+            bytes(&[dated, record("salzburg", 47.7, 12.9, 0.0, 5000.0)]),
+            written,
+        );
+
+    let output = run(&fetch);
+
+    let date = |id: &str| {
+        let airspace = output.airspaces.iter().find(|a| a.id.local() == id);
+        airspace.unwrap().validity.file_date
+    };
+    assert_eq!(date("muenchen"), Some(written));
+    assert_eq!(date("salzburg"), Some(written));
+    // What the file says about itself wins over what its server says.
+    assert_eq!(date("innsbruck"), Some(inside));
+
+    // A file store that puts no date on a file: the time of the run is the
+    // best that is known.
+    let undated = FixtureFetch::new()
+        .with(
+            GERMANY,
+            bytes(&[record("muenchen", 48.3, 11.7, 0.0, 3500.0)]),
+        )
+        .with(
+            AUSTRIA,
+            bytes(&[record("innsbruck", 47.2, 11.3, 0.0, 5000.0)]),
+        );
+    let output = run(&undated);
+    assert!(
+        output
+            .airspaces
+            .iter()
+            .all(|airspace| airspace.validity.file_date == Some(ctx().now))
+    );
+}
+
+#[test]
 fn a_source_registers_for_the_kinds_its_manifest_lists() {
     let mut registry = Registry::new();
-    assert!(!registry.handles(Kind::Airspace));
 
     // Listed for observations only: not an airspace source.
     let observations_only = Charts::new(r#"["observations"]"#);
@@ -259,7 +309,9 @@ fn a_source_registers_for_the_kinds_its_manifest_lists() {
     registry
         .register_airspace(Box::new(Charts::new(r#"["observations", "airspace"]"#)))
         .unwrap();
-    assert!(registry.handles(Kind::Airspace) && !registry.handles(Kind::Observations));
+    let id = SourceId::new("charts").unwrap();
+    assert!(registry.manifest(&id, Kind::Airspace).is_some());
+    assert!(registry.manifest(&id, Kind::Observations).is_none());
     assert_eq!(
         registry
             .register_airspace(Box::new(Charts::new(r#"["airspace"]"#)))
@@ -271,8 +323,8 @@ fn a_source_registers_for_the_kinds_its_manifest_lists() {
     registry
         .register_observations(Box::new(Charts::new(r#"["observations", "airspace"]"#)))
         .unwrap();
-    let id = SourceId::new("charts").unwrap();
     assert!(registry.airspace(&id).is_some() && registry.observations(&id).is_some());
+    assert!(registry.manifest(&id, Kind::Observations).is_some());
     assert!(
         registry
             .airspace(&SourceId::new("other").unwrap())

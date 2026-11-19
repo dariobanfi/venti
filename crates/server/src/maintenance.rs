@@ -116,6 +116,7 @@ mod tests {
             stations: 1,
             observations: 4,
             newest_observation: None,
+            airspaces: 0,
         };
         store
             .save_run(&run, std::slice::from_ref(&station), &observations)

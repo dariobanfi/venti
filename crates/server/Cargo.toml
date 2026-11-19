@@ -1,6 +1,6 @@
 [package]
 name = "venti-server"
-description = "The Venti server: collects observations from the data sources on a schedule, stores them and serves them over a versioned HTTP API."
+description = "The Venti server: collects observations and airspace from the data sources on a schedule, stores them and serves them over a versioned HTTP API."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,6 +15,7 @@ venti-regions.workspace = true
 venti-sources.workspace = true
 venti-sources-dwd.workspace = true
 venti-sources-geosphere.workspace = true
+venti-sources-openaip.workspace = true
 venti-store.workspace = true
 argon2.workspace = true
 axum.workspace = true

@@ -12,8 +12,8 @@
 //!
 //! The store holds two kinds of things:
 //!
-//! - what the data sources deliver: canonical [`Station`] and
-//!   [`Observation`] records from `venti-domain`, each belonging to exactly
+//! - what the data sources deliver: canonical [`Station`], [`Observation`]
+//!   and [`Airspace`] records from `venti-domain`, each belonging to exactly
 //!   one source, and the history of the sources' runs;
 //! - what pilots entrust to the server: their [`Account`], the [`Session`]s
 //!   of their devices, and their [`Flight`]s with the files they came from.
@@ -22,6 +22,7 @@
 //! a flight file is read: it is handed hashes and finished records.
 
 mod account;
+mod airspace;
 mod batch;
 mod flight;
 mod memory;
@@ -31,11 +32,12 @@ pub mod testing;
 
 use std::future::Future;
 
-use venti_domain::{BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{Airspace, BoundingBox, Observation, SourceId, Station, StationId, Timestamp};
 
 pub use account::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
 };
+pub use airspace::{AirspaceLayer, AirspaceSet};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
     Place, Score, ScoreKind, Visibility,
@@ -80,7 +82,9 @@ pub struct RunRecord {
     pub started_at: Timestamp,
     /// When it finished.
     pub finished_at: Timestamp,
-    /// Whether the run delivered observations without trouble.
+    /// Whether the run did its job. For observations: it delivered some,
+    /// and nearly every request worked. For airspace: it delivered a set
+    /// that is fit to replace the one before.
     pub healthy: bool,
     /// Requests made to the provider.
     pub requests: u32,
@@ -96,6 +100,8 @@ pub struct RunRecord {
     pub observations: u32,
     /// The time of the newest observation delivered.
     pub newest_observation: Option<Timestamp>,
+    /// Airspaces delivered. Zero for a source of observations.
+    pub airspaces: u32,
 }
 
 /// What the run history says about one source.
@@ -189,7 +195,8 @@ pub trait Store: Send + Sync + 'static {
 
     /// Removes everything older than the start of `first_kept`: observations
     /// measured before it, stations no run has delivered since, and the
-    /// records of runs that started before it.
+    /// records of runs that started before it. Airspace is not touched: a
+    /// source's set stays until a newer one replaces it.
     ///
     /// Retention works in whole calendar months because that is the unit the
     /// database can drop cheaply.
@@ -197,6 +204,57 @@ pub trait Store: Send + Sync + 'static {
         &self,
         first_kept: Month,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    // --- Airspace ---------------------------------------------------------
+
+    /// Stores the outcome of one run of an airspace source and, if the run
+    /// was healthy, replaces the airspace stored for the source by what the
+    /// run delivered, all or nothing.
+    ///
+    /// - After a healthy run the store holds exactly `airspaces` for the
+    ///   source: what the set before had and this one lacks is gone.
+    /// - A run that was not healthy leaves the stored airspace as it is,
+    ///   and `airspaces` is not looked at. Half a set is worse than
+    ///   yesterday's whole one: a pilot is not warned about airspace that
+    ///   is missing.
+    /// - A run that started before the run whose set is stored replaces
+    ///   nothing either.
+    /// - Saving the same run again changes nothing.
+    ///
+    /// A healthy run must deliver at least one airspace, every airspace
+    /// must belong to the run's source, and no two may share an
+    /// identifier; the pipeline's output satisfies all three. Anything else
+    /// is refused with [`StoreError::Invalid`] and nothing is stored.
+    fn save_airspace_run(
+        &self,
+        run: &RunRecord,
+        airspaces: &[Airspace],
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// The stored airspace of `sources` whose bounding box touches `area`,
+    /// edges included: one layer per source that has any there, sorted by
+    /// source, with the airspaces of each sorted by identifier. At most
+    /// `limit` airspaces are returned in all: the first in that order.
+    ///
+    /// An airspace is found by the smallest box around its outline, so one
+    /// whose outline curves past `area` may be among the answers. None
+    /// that reaches into `area` is ever missing.
+    ///
+    /// The answer is taken at one moment. Each source's airspace is in it
+    /// as one run delivered it, never as a mixture of two.
+    fn airspaces_in(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<AirspaceLayer>, StoreError>> + Send;
+
+    /// What the store holds of each of `sources`, sorted by source. A
+    /// source of which it holds no airspace is left out.
+    fn airspace_sets(
+        &self,
+        sources: &[SourceId],
+    ) -> impl Future<Output = Result<Vec<AirspaceSet>, StoreError>> + Send;
 
     // --- Accounts ---------------------------------------------------------
 

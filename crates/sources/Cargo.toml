@@ -12,7 +12,12 @@ venti-domain.workspace = true
 chrono.workspace = true
 futures.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+# Providers publish coordinates with sixteen and seventeen digits. Without
+# this feature the JSON parser may read such a number one step off in its
+# last digit; with it every number is read as published. The feature is set
+# here, where every adapter gets it, so that an adapter reads the same
+# whichever crates are built beside it.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
 thiserror.workspace = true
 toml.workspace = true
 

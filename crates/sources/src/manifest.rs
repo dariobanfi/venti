@@ -76,7 +76,13 @@ pub struct Licence {
     /// Where the credit line links to: the provider's page for the data or
     /// for its terms.
     pub link: String,
-    /// Further conditions, in plain words.
+    /// What the provider asks to be said wherever its data is shown, beside
+    /// the credit: a warning about what the data must not be used for, for
+    /// example. Written for the people who see the data. `None` when the
+    /// provider asks for nothing of the kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
+    /// Further conditions, in plain words, for whoever builds with the data.
     #[serde(default)]
     pub constraints: Vec<String>,
     /// When the terms were last read on the provider's own pages.
@@ -161,6 +167,14 @@ impl Manifest {
         if self.licence.name.trim().is_empty() || self.licence.attribution.trim().is_empty() {
             return Err(invalid("licence name and attribution are required"));
         }
+        if self
+            .licence
+            .notice
+            .as_ref()
+            .is_some_and(|notice| notice.trim().is_empty())
+        {
+            return Err(invalid("licence.notice is empty; leave it out instead"));
+        }
         let is_https = |url: &String| url.starts_with("https://");
         if !is_https(&self.licence.link) {
             return Err(invalid("licence.link must be an https URL"));
@@ -242,6 +256,27 @@ mod tests {
         let text = GOOD.replace("https://example.org/data", "example.org/data");
         assert!(matches!(
             Manifest::from_toml(&text),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn a_notice_is_optional_and_never_empty() {
+        assert_eq!(Manifest::from_toml(GOOD).unwrap().licence.notice, None);
+
+        let with = GOOD.replace(
+            "link = ",
+            "notice = \"Not for navigation.\"\n        link = ",
+        );
+        let manifest = Manifest::from_toml(&with).unwrap();
+        assert_eq!(
+            manifest.licence.notice.as_deref(),
+            Some("Not for navigation.")
+        );
+
+        let empty = with.replace("Not for navigation.", " ");
+        assert!(matches!(
+            Manifest::from_toml(&empty),
             Err(ManifestError::Invalid { .. })
         ));
     }

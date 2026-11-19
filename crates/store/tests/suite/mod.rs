@@ -3,13 +3,15 @@
 //! `tests/memory.rs` and `tests/postgres.rs` both run every function here,
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
-//! What the data sources deliver is below; accounts and flights have files
-//! of their own.
+//! Stations and observations are below; airspace, accounts and flights have
+//! files of their own.
 
 mod accounts;
+mod airspace;
 mod flights;
 
 pub(crate) use accounts::*;
+pub(crate) use airspace::*;
 pub(crate) use flights::*;
 
 use chrono::{Duration, TimeZone, Utc};
@@ -35,6 +37,15 @@ macro_rules! store_suite {
             a_bad_batch_is_refused_and_nothing_is_stored,
             source_status_follows_the_run_history,
             pruning_removes_whole_months_and_what_belongs_to_them,
+            an_airspace_set_is_stored_and_read_back_exactly,
+            airspace_is_found_by_its_box_edges_included,
+            a_healthy_run_replaces_the_whole_set,
+            an_unhealthy_run_leaves_the_set_alone,
+            an_older_run_does_not_replace_a_newer_set,
+            saving_the_same_airspace_run_twice_changes_nothing,
+            a_bad_airspace_set_is_refused_and_nothing_is_stored,
+            airspace_layers_are_kept_apart_and_sorted,
+            pruning_leaves_airspace_alone,
             an_account_is_created_and_found_by_its_handle,
             a_handle_belongs_to_one_account,
             an_invite_creates_exactly_one_account,
@@ -122,6 +133,7 @@ fn run(source_name: &str, started_at: Timestamp) -> RunRecord {
         stations: 0,
         observations: 0,
         newest_observation: None,
+        airspaces: 0,
     }
 }
 

@@ -1,5 +1,5 @@
-//! The `ingest` subcommand: runs the observation sources of a region once
-//! against the live providers.
+//! The `ingest` subcommand: runs the sources of a region once against the
+//! live providers, the sources of observations and of airspace alike.
 //!
 //! ```text
 //! venti-server ingest <region.toml> [--source ID] [--archive DIR] [--json]
@@ -16,11 +16,15 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use chrono::Duration;
+use serde::Serialize;
 use venti_domain::SourceId;
 use venti_regions::RegionPack;
-use venti_sources::{PlanCtx, RunOptions, run_observations};
+use venti_sources::{
+    AirspaceRunOutput, Failure, PlanCtx, RunOptions, RunOutput, Skipped, run_airspace,
+    run_observations,
+};
 
-use super::{DirArchive, HttpFetch, summary};
+use super::{DirArchive, HttpFetch, airspace_summary, summary};
 use crate::adapters;
 use crate::clock::{Clock, SystemClock};
 
@@ -35,6 +39,24 @@ pub struct Args {
     pub archive: Option<PathBuf>,
     /// Print the canonical records and reports as JSON on standard output.
     pub json: bool,
+}
+
+/// What `--json` prints: the output of every run, by kind.
+#[derive(Debug, Default, Serialize)]
+struct Outputs {
+    observations: Vec<RunOutput>,
+    airspace: Vec<AirspaceRunOutput>,
+}
+
+/// Prints the health line of one source, and its first problems below it.
+fn report(id: &SourceId, ok: bool, summary: &str, failures: &[Failure], skipped: &[Skipped]) {
+    eprintln!("{} {id}: {summary}", if ok { "ok  " } else { "FAIL" });
+    for failure in failures.iter().take(5) {
+        eprintln!("     failed {}: {}", failure.tag, failure.error);
+    }
+    for skipped in skipped.iter().take(5) {
+        eprintln!("     skipped {:?}: {}", skipped.what, skipped.reason);
+    }
 }
 
 /// Runs the sources and reports on standard error. `user_agent` is sent to
@@ -75,32 +97,37 @@ pub async fn run(args: Args, user_agent: &str) -> ExitCode {
         ..RunOptions::default()
     };
 
+    let wanted = |id: &SourceId| args.source.as_ref().is_none_or(|wanted| wanted == id);
     let mut all_healthy = true;
-    let mut outputs = Vec::new();
-    for id in &pack.observations.sources {
-        if args.source.as_ref().is_some_and(|wanted| wanted != id) {
-            continue;
-        }
+    let mut outputs = Outputs::default();
+    for id in pack.observations.sources.iter().filter(|id| wanted(id)) {
         let source = registry
             .observations(id)
             .expect("region was checked against the registry");
         let output = run_observations(source, &fetch, &archive, &ctx, &options).await;
 
-        let report = &output.report;
-        let ok = report.is_healthy();
+        let run = &output.report;
+        let ok = run.is_healthy();
         all_healthy &= ok;
-        eprintln!(
-            "{} {id}: {}",
-            if ok { "ok  " } else { "FAIL" },
-            summary(report, now)
-        );
-        for failure in report.failures.iter().take(5) {
-            eprintln!("     failed {}: {}", failure.tag, failure.error);
+        report(id, ok, &summary(run, now), &run.failures, &run.skipped);
+        outputs.observations.push(output);
+    }
+    for id in pack.airspace.sources.iter().filter(|id| wanted(id)) {
+        let source = registry
+            .airspace(id)
+            .expect("region was checked against the registry");
+        let output = run_airspace(source, &fetch, &archive, &ctx, &options).await;
+
+        // Healthy means what it means to the server: this set would have
+        // replaced the stored one.
+        let run = &output.report;
+        let ok = run.is_healthy();
+        all_healthy &= ok;
+        report(id, ok, &airspace_summary(run), &run.failures, &run.skipped);
+        for rejected in run.rejected.iter().take(5) {
+            eprintln!("     rejected {:?}: {}", rejected.name, rejected.reason);
         }
-        for skipped in report.skipped.iter().take(5) {
-            eprintln!("     skipped {:?}: {}", skipped.what, skipped.reason);
-        }
-        outputs.push(output);
+        outputs.airspace.push(output);
     }
 
     if args.json {
@@ -113,7 +140,7 @@ pub async fn run(args: Args, user_agent: &str) -> ExitCode {
         }
     }
 
-    if outputs.is_empty() {
+    if outputs.observations.is_empty() && outputs.airspace.is_empty() {
         eprintln!("no source ran");
         return ExitCode::from(2);
     }

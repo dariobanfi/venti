@@ -8,6 +8,7 @@ use venti_sources::Registry;
 use venti_sources::testing::FixtureFetch;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_geosphere::Tawes10Min;
+use venti_sources_openaip::OpenAip;
 
 /// The registry of every adapter.
 ///
@@ -24,6 +25,9 @@ pub fn registry() -> Registry {
         .register_observations(Box::new(Tawes10Min::new()))
         .expect("geosphere-tawes registers once");
     registry
+        .register_airspace(Box::new(OpenAip::new()))
+        .expect("openaip registers once");
+    registry
 }
 
 /// The payloads recorded from every provider, as a fetcher that answers
@@ -32,10 +36,15 @@ pub fn recorded_payloads() -> FixtureFetch {
     FixtureFetch::new()
         .with_all(venti_sources_dwd::fixtures::recorded())
         .with_all(venti_sources_geosphere::fixtures::recorded())
+        .with_all(venti_sources_openaip::fixtures::recorded())
 }
 
-/// The moment the recorded payloads describe: the latest recording time of
-/// any provider.
+/// The moment the development mode's clock stands at: the latest recording
+/// time of the observations.
+///
+/// Wind is what ages by the minute, so the clock stays with the wind. The
+/// airspace files were recorded the day after; airspace changes with the
+/// month, and the development mode serves them as fetched at this moment.
 pub fn recorded_at() -> Timestamp {
     venti_sources_dwd::fixtures::recorded_at().max(venti_sources_geosphere::fixtures::recorded_at())
 }
@@ -43,6 +52,7 @@ pub fn recorded_at() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use venti_regions::RegionPack;
+    use venti_sources::Kind;
 
     use super::*;
 
@@ -61,5 +71,20 @@ mod tests {
             checked += 1;
         }
         assert!(checked > 0, "no region packs found");
+    }
+
+    #[test]
+    fn every_adapter_is_registered_for_what_its_manifest_offers() {
+        let registry = registry();
+        for manifest in registry.manifests() {
+            for kind in &manifest.kinds {
+                let registered = match kind {
+                    Kind::Observations => registry.observations(&manifest.id).is_some(),
+                    Kind::Airspace => registry.airspace(&manifest.id).is_some(),
+                };
+                assert!(registered, "{} is not registered for {kind:?}", manifest.id);
+            }
+        }
+        assert_eq!(registry.manifests().count(), 3);
     }
 }

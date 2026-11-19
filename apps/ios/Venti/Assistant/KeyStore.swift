@@ -7,18 +7,22 @@ import Security
 /// request. It is not synchronised to other devices, never written to the
 /// app's files, and never sent anywhere but to the provider.
 enum KeyStore {
-    private static let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "fly.venti.assistant",
-        kSecAttrAccount as String: "anthropic",
-    ]
+    /// What identifies the key in the Keychain. Computed, because a
+    /// dictionary of `Any` cannot be shared between threads.
+    private static var query: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "fly.venti.assistant",
+            kSecAttrAccount as String: "anthropic",
+        ]
+    }
 
     static func read() -> String? {
-        var query = query
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var search = Self.query
+        search[kSecReturnData as String] = true
+        search[kSecMatchLimit as String] = kSecMatchLimitOne
         var found: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &found) == errSecSuccess,
+        guard SecItemCopyMatching(search as CFDictionary, &found) == errSecSuccess,
               let data = found as? Data
         else { return nil }
         return String(data: data, encoding: .utf8)
@@ -28,13 +32,13 @@ enum KeyStore {
     @discardableResult
     static func save(_ key: String) -> Bool {
         remove()
-        var item = query
+        var item = Self.query
         item[kSecValueData as String] = Data(key.utf8)
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
     }
 
     static func remove() {
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(Self.query as CFDictionary)
     }
 }

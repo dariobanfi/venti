@@ -19,12 +19,13 @@ use venti_api_types::v1::{
     ErrorCode, ErrorResponse, HealthResponse, HealthStatus, MAX_STATIONS, ObservationsRequest,
     ObservationsResponse, StationsRequest, StationsResponse,
 };
-use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
+use venti_domain::{BoundingBox, GeoPoint, SourceId, Station, StationId};
 use venti_server::api::{Api, Cors};
 use venti_server::clock::FixedClock;
 use venti_server::{adapters, dev};
 use venti_sources::testing::assert_golden;
-use venti_store::{MemoryStore, Month, RunRecord, SourceStatus, StationLatest, Store, StoreError};
+use venti_store::testing::TroubledStore;
+use venti_store::{MemoryStore, RunRecord, Store};
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -578,61 +579,9 @@ async fn a_stale_source_degrades_health_without_failing_it() {
     assert_eq!(health.sources[0].last_success, Some(yesterday));
 }
 
-/// A store whose database is down, or answers only after `delay`.
-struct TroubledStore {
-    delay: Option<std::time::Duration>,
-}
-
-impl TroubledStore {
-    async fn fail<T>(&self) -> Result<T, StoreError> {
-        match self.delay {
-            Some(delay) => {
-                tokio::time::sleep(delay).await;
-                Err(StoreError::Failure("too late to matter".to_owned()))
-            }
-            None => Err(StoreError::Unavailable("connection refused".to_owned())),
-        }
-    }
-}
-
-impl Store for TroubledStore {
-    async fn save_run(
-        &self,
-        _: &RunRecord,
-        _: &[Station],
-        _: &[Observation],
-    ) -> Result<(), StoreError> {
-        self.fail().await
-    }
-    async fn stations_in(
-        &self,
-        _: &BoundingBox,
-        _: usize,
-    ) -> Result<Vec<StationLatest>, StoreError> {
-        self.fail().await
-    }
-    async fn station(&self, _: &StationId) -> Result<Option<Station>, StoreError> {
-        self.fail().await
-    }
-    async fn observations(
-        &self,
-        _: &StationId,
-        _: Timestamp,
-        _: Timestamp,
-    ) -> Result<Vec<Observation>, StoreError> {
-        self.fail().await
-    }
-    async fn source_status(&self, _: &[SourceId]) -> Result<Vec<SourceStatus>, StoreError> {
-        self.fail().await
-    }
-    async fn prune_before(&self, _: Month) -> Result<(), StoreError> {
-        self.fail().await
-    }
-}
-
 #[tokio::test]
 async fn a_database_that_is_down_is_a_503_that_says_try_again() {
-    let router = dwd_only(TroubledStore { delay: None });
+    let router = dwd_only(TroubledStore::down());
 
     for path in [
         "/v1/health".to_owned(),
@@ -649,9 +598,7 @@ async fn a_database_that_is_down_is_a_503_that_says_try_again() {
 
 #[tokio::test(start_paused = true)]
 async fn a_request_that_takes_too_long_is_given_up() {
-    let router = dwd_only(TroubledStore {
-        delay: Some(std::time::Duration::from_secs(3600)),
-    });
+    let router = dwd_only(TroubledStore::slow(std::time::Duration::from_secs(3600)));
     let began = tokio::time::Instant::now();
 
     let answer = get(&router, &first_region()).await;

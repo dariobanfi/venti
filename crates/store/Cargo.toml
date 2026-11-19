@@ -1,6 +1,6 @@
 [package]
 name = "venti-store"
-description = "Server persistence: stations, observations and the run history of the data sources, in PostgreSQL with PostGIS or in memory."
+description = "Server persistence: what the data sources deliver, and pilots' accounts, sessions and flights, in PostgreSQL with PostGIS or in memory."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,10 +12,8 @@ venti-domain.workspace = true
 chrono.workspace = true
 deadpool-postgres.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tokio-postgres.workspace = true
-
-[dev-dependencies]
-tokio.workspace = true
 
 [lints]
 workspace = true

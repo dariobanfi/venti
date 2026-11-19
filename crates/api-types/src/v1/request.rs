@@ -6,6 +6,8 @@
 use chrono::{DateTime, SecondsFormat, Utc};
 use venti_domain::{BoundingBox, GeoError, StationId, Timestamp};
 
+use super::{FlightId, Handle};
+
 /// Path of the health endpoint.
 pub const HEALTH_PATH: &str = "/v1/health";
 
@@ -16,7 +18,7 @@ pub const STATIONS_PATH: &str = "/v1/stations";
 pub fn observations_path(station: &StationId) -> String {
     format!(
         "{STATIONS_PATH}/{}/observations",
-        encode_path_segment(&station.to_string())
+        encode(&station.to_string())
     )
 }
 
@@ -49,20 +51,152 @@ pub struct ObservationsRequest {
 impl ObservationsRequest {
     /// The path and query string to GET.
     pub fn path_and_query(&self) -> String {
-        let mut text = observations_path(&self.station);
-        let parameters = [("from", self.from), ("to", self.to)];
-        let mut separator = '?';
-        for (name, time) in parameters {
-            if let Some(time) = time {
-                text.push(separator);
-                text.push_str(name);
-                text.push('=');
-                text.push_str(&format_time(time));
-                separator = '&';
-            }
-        }
-        text
+        with_query(
+            observations_path(&self.station),
+            [
+                ("from", self.from.map(format_time)),
+                ("to", self.to.map(format_time)),
+            ],
+        )
     }
+}
+
+/// Path that creates an account.
+pub const ACCOUNTS_PATH: &str = "/v1/accounts";
+
+/// Path of the account a request is signed in to.
+pub const ACCOUNT_PATH: &str = "/v1/account";
+
+/// Path that changes the password of the account a request is signed in to.
+pub const ACCOUNT_PASSWORD_PATH: &str = "/v1/account/password";
+
+/// Path of an account's sessions: signing in, listing them, and signing out
+/// everywhere.
+pub const SESSIONS_PATH: &str = "/v1/sessions";
+
+/// Path of one session, by the identifier the session list gives.
+pub fn session_path(id: &str) -> String {
+    format!("{SESSIONS_PATH}/{}", encode(id))
+}
+
+/// Path of an account's flights: uploading one, and listing them.
+pub const FLIGHTS_PATH: &str = "/v1/flights";
+
+/// Path of what changed among an account's flights.
+pub const FLIGHT_CHANGES_PATH: &str = "/v1/flights/changes";
+
+/// Path of one flight.
+pub fn flight_path(flight: &FlightId) -> String {
+    format!("{FLIGHTS_PATH}/{flight}")
+}
+
+/// Path of one flight's file, exactly as it was uploaded.
+pub fn flight_file_path(flight: &FlightId) -> String {
+    format!("{FLIGHTS_PATH}/{flight}/igc")
+}
+
+/// Path of a pilot's public page data.
+pub fn pilot_path(pilot: &Handle) -> String {
+    format!("/v1/pilots/{pilot}")
+}
+
+/// Path of the page about one flight that is meant for sharing. It is not
+/// part of the versioned API: it answers HTML, for people and for the
+/// previews chat apps make of a link.
+pub fn share_path(flight: &FlightId) -> String {
+    format!("/f/{flight}")
+}
+
+/// Path of the picture that goes with a flight's share page.
+pub fn share_image_path(flight: &FlightId) -> String {
+    format!("/f/{flight}/preview.png")
+}
+
+/// A request for one page of the signed-in account's flights, newest first.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlightsRequest {
+    /// The `next` of the page before. `None` asks for the first page.
+    pub after: Option<String>,
+    /// How many flights to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
+    /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl FlightsRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            FLIGHTS_PATH.to_owned(),
+            [
+                ("after", self.after.clone()),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// A request for what changed among the signed-in account's flights.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlightChangesRequest {
+    /// The `cursor` of the answer before. `None` asks for everything.
+    pub since: Option<String>,
+    /// How many changes to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl FlightChangesRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            FLIGHT_CHANGES_PATH.to_owned(),
+            [
+                ("since", self.since.clone()),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// A request for a pilot and one page of their public flights, newest first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PilotRequest {
+    /// The pilot.
+    pub handle: Handle,
+    /// The `next` of the page before. `None` asks for the first page.
+    pub after: Option<String>,
+    /// How many flights to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl PilotRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        with_query(
+            pilot_path(&self.handle),
+            [
+                ("after", self.after.clone()),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// Appends the parameters that have a value to a path.
+fn with_query<const N: usize>(mut path: String, parameters: [(&str, Option<String>); N]) -> String {
+    let mut separator = '?';
+    for (name, value) in parameters {
+        if let Some(value) = value {
+            path.push(separator);
+            path.push_str(name);
+            path.push('=');
+            path.push_str(&encode(&value));
+            separator = '&';
+        }
+    }
+    path
 }
 
 /// Why a `bbox` parameter was rejected.
@@ -130,12 +264,13 @@ pub fn parse_time(text: &str) -> Result<Timestamp, TimeError> {
         .map_err(|_| TimeError(text.to_owned()))
 }
 
-/// Escapes text for use as one segment of a URL path.
+/// Escapes text for use as one segment of a URL path or one value of a
+/// query string.
 ///
 /// Station identifiers contain a provider's own station key, which may hold
 /// any character. Letters, digits, `-`, `.`, `_`, `~` and `:` stay as they
 /// are; every other byte becomes `%XX`.
-fn encode_path_segment(text: &str) -> String {
+fn encode(text: &str) -> String {
     let mut encoded = String::with_capacity(text.len());
     for byte in text.bytes() {
         if byte.is_ascii_alphanumeric() || b"-._~:".contains(&byte) {
@@ -229,6 +364,57 @@ mod tests {
             "/v1/stations/dwd-10min:05792/observations\
              ?from=2026-11-18T12:00:00Z&to=2026-11-18T18:00:00Z"
         );
+    }
+
+    #[test]
+    fn account_and_flight_requests_build_their_paths() {
+        let flight: FlightId = "0123456789abcdefghjkmnpqrs".parse().unwrap();
+        assert_eq!(
+            flight_path(&flight),
+            "/v1/flights/0123456789abcdefghjkmnpqrs"
+        );
+        assert_eq!(
+            flight_file_path(&flight),
+            "/v1/flights/0123456789abcdefghjkmnpqrs/igc"
+        );
+        assert_eq!(share_path(&flight), "/f/0123456789abcdefghjkmnpqrs");
+        assert_eq!(
+            share_image_path(&flight),
+            "/f/0123456789abcdefghjkmnpqrs/preview.png"
+        );
+        assert_eq!(session_path("abc"), "/v1/sessions/abc");
+        // An identifier from somewhere else cannot leave its path segment.
+        assert_eq!(session_path("../account"), "/v1/sessions/..%2Faccount");
+
+        assert_eq!(FlightsRequest::default().path_and_query(), "/v1/flights");
+        let page = FlightsRequest {
+            after: Some("1783161000_0123456789abcdefghjkmnpqrs".to_owned()),
+            limit: Some(20),
+        };
+        assert_eq!(
+            page.path_and_query(),
+            "/v1/flights?after=1783161000_0123456789abcdefghjkmnpqrs&limit=20"
+        );
+
+        assert_eq!(
+            FlightChangesRequest::default().path_and_query(),
+            "/v1/flights/changes"
+        );
+        let changes = FlightChangesRequest {
+            since: Some("a b&c".to_owned()),
+            limit: None,
+        };
+        assert_eq!(
+            changes.path_and_query(),
+            "/v1/flights/changes?since=a%20b%26c"
+        );
+
+        let pilot = PilotRequest {
+            handle: Handle::new("Demo").unwrap(),
+            after: None,
+            limit: Some(5),
+        };
+        assert_eq!(pilot.path_and_query(), "/v1/pilots/demo?limit=5");
     }
 
     #[test]

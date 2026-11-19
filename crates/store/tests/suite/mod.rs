@@ -2,7 +2,15 @@
 //!
 //! `tests/memory.rs` and `tests/postgres.rs` both run every function here,
 //! each against its own implementation. A new behaviour is added once, as a
-//! function below and a name in [`store_suite`], and both stores must pass it.
+//! function and a name in [`store_suite`], and both stores must pass it.
+//! What the data sources deliver is below; accounts and flights have files
+//! of their own.
+
+mod accounts;
+mod flights;
+
+pub(crate) use accounts::*;
+pub(crate) use flights::*;
 
 use chrono::{Duration, TimeZone, Utc};
 use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
@@ -27,6 +35,29 @@ macro_rules! store_suite {
             a_bad_batch_is_refused_and_nothing_is_stored,
             source_status_follows_the_run_history,
             pruning_removes_whole_months_and_what_belongs_to_them,
+            an_account_is_created_and_found_by_its_handle,
+            a_handle_belongs_to_one_account,
+            an_invite_creates_exactly_one_account,
+            requests_racing_for_one_invite_create_one_account,
+            a_session_is_found_by_its_token_until_it_expires,
+            using_a_session_is_recorded_every_few_minutes,
+            sessions_are_listed_and_removed_per_account,
+            an_account_keeps_only_its_most_recent_sessions,
+            sessions_unused_for_too_long_are_pruned,
+            a_new_password_signs_out_the_other_devices,
+            a_deleted_account_leaves_nothing_behind,
+            a_flight_is_stored_private_and_read_back_exactly,
+            storing_the_same_flight_again_changes_nothing,
+            two_accounts_may_hold_the_same_flight,
+            uploads_racing_for_one_flight_create_it_once,
+            a_flight_for_an_unknown_account_is_refused,
+            flights_are_listed_newest_first_page_by_page,
+            visibility_changes_for_the_owner_only,
+            only_the_owner_deletes_a_flight,
+            changes_are_reported_in_order_with_deletions,
+            change_numbers_follow_the_clock_and_never_go_back,
+            a_deleted_flight_can_be_uploaded_again,
+            derived_values_can_be_worked_out_again,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

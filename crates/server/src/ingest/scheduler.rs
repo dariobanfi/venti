@@ -117,7 +117,8 @@ mod tests {
     use venti_sources::{
         FetchError, Manifest, ObservationSource, Parsed, PlanCtx, Registry, Request, SourceError,
     };
-    use venti_store::{MemoryStore, Month, RunRecord, SourceStatus, StationLatest, StoreError};
+    use venti_store::testing::TroubledStore;
+    use venti_store::{MemoryStore, RunRecord};
 
     use super::*;
     use crate::clock::Clock;
@@ -263,45 +264,6 @@ mod tests {
             script.in_flight.fetch_sub(1, Ordering::SeqCst);
             let answer = script.answers.lock().unwrap().pop_front();
             answer.unwrap_or(Ok(())).map(|()| Vec::new())
-        }
-    }
-
-    // --- A store whose database is down ------------------------------------
-
-    struct DownStore;
-
-    impl Store for DownStore {
-        async fn save_run(
-            &self,
-            _: &RunRecord,
-            _: &[Station],
-            _: &[Observation],
-        ) -> Result<(), StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
-        }
-        async fn stations_in(
-            &self,
-            _: &BoundingBox,
-            _: usize,
-        ) -> Result<Vec<StationLatest>, StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
-        }
-        async fn station(&self, _: &StationId) -> Result<Option<Station>, StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
-        }
-        async fn observations(
-            &self,
-            _: &StationId,
-            _: Timestamp,
-            _: Timestamp,
-        ) -> Result<Vec<Observation>, StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
-        }
-        async fn source_status(&self, _: &[SourceId]) -> Result<Vec<SourceStatus>, StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
-        }
-        async fn prune_before(&self, _: Month) -> Result<(), StoreError> {
-            Err(StoreError::Unavailable("down".to_owned()))
         }
     }
 
@@ -526,7 +488,7 @@ mod tests {
         let fetch = ScriptedFetch::working();
         let collector = collector_for(
             vec![TestSource::new("fine", 600)],
-            Arc::new(DownStore),
+            Arc::new(TroubledStore::down()),
             &fetch,
         );
         let calls = minutes_of_calls(collector, vec![job("fine")], &fetch, no_jitter, 35).await;

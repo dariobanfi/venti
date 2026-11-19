@@ -1,5 +1,7 @@
 //! The store in PostgreSQL with PostGIS.
 
+mod accounts;
+mod flights;
 mod migrate;
 mod partitions;
 
@@ -11,7 +13,11 @@ use deadpool_postgres::{
 use tokio_postgres::{NoTls, Row};
 use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
 
-use crate::{Month, RunRecord, SourceStatus, StationLatest, Store, StoreError, batch};
+use crate::{
+    Account, AccountCreation, Derived, Flight, FlightChanges, FlightKey, Listing, Month,
+    NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord, SecretHash, Session, SourceStatus,
+    StationLatest, Store, StoreError, Visibility, batch,
+};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -465,5 +471,138 @@ impl Store for PgStore {
             .await
             .map_err(db_error)?;
         tx.commit().await.map_err(db_error)
+    }
+
+    async fn create_account(&self, new: &NewAccount) -> Result<AccountCreation, StoreError> {
+        accounts::create(&mut self.client().await?, new).await
+    }
+
+    async fn account(&self, handle: &str) -> Result<Option<Account>, StoreError> {
+        accounts::by_handle(&self.client().await?, handle).await
+    }
+
+    async fn password_hash(&self, handle: &str) -> Result<Option<(Account, String)>, StoreError> {
+        accounts::password_hash(&self.client().await?, handle).await
+    }
+
+    async fn set_password(
+        &self,
+        account_id: &str,
+        password_hash: &str,
+        keep_session: &str,
+    ) -> Result<(), StoreError> {
+        let mut client = self.client().await?;
+        accounts::set_password(&mut client, account_id, password_hash, keep_session).await
+    }
+
+    async fn delete_account(&self, account_id: &str) -> Result<(), StoreError> {
+        accounts::delete(&self.client().await?, account_id).await
+    }
+
+    async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
+        accounts::create_invite(&self.client().await?, invite).await
+    }
+
+    async fn create_session(
+        &self,
+        session: &Session,
+        token: &SecretHash,
+        keep: usize,
+    ) -> Result<(), StoreError> {
+        accounts::create_session(&mut self.client().await?, session, token, keep).await
+    }
+
+    async fn use_session(
+        &self,
+        token: &SecretHash,
+        now: Timestamp,
+        idle_since: Timestamp,
+    ) -> Result<Option<(Session, Account)>, StoreError> {
+        accounts::use_session(&self.client().await?, token, now, idle_since).await
+    }
+
+    async fn sessions(&self, account_id: &str) -> Result<Vec<Session>, StoreError> {
+        accounts::sessions(&self.client().await?, account_id).await
+    }
+
+    async fn delete_session(&self, account_id: &str, session_id: &str) -> Result<bool, StoreError> {
+        accounts::delete_session(&self.client().await?, account_id, session_id).await
+    }
+
+    async fn delete_sessions(&self, account_id: &str) -> Result<(), StoreError> {
+        accounts::delete_sessions(&self.client().await?, account_id).await
+    }
+
+    async fn prune_sessions(&self, idle_since: Timestamp) -> Result<u64, StoreError> {
+        accounts::prune_sessions(&self.client().await?, idle_since).await
+    }
+
+    async fn save_flight(&self, new: &NewFlight) -> Result<(Flight, bool), StoreError> {
+        flights::save(&mut self.client().await?, new).await
+    }
+
+    async fn flight(&self, id: &str) -> Result<Option<Flight>, StoreError> {
+        flights::get(&self.client().await?, id).await
+    }
+
+    async fn flight_file(&self, id: &str) -> Result<Option<Vec<u8>>, StoreError> {
+        flights::file(&self.client().await?, id).await
+    }
+
+    async fn flights_of(
+        &self,
+        account_id: &str,
+        listing: Listing,
+        after: Option<&FlightKey>,
+        limit: usize,
+    ) -> Result<Vec<Flight>, StoreError> {
+        flights::of_account(&self.client().await?, account_id, listing, after, limit).await
+    }
+
+    async fn flight_changes(
+        &self,
+        account_id: &str,
+        since: i64,
+        limit: usize,
+    ) -> Result<FlightChanges, StoreError> {
+        flights::changes(&mut self.client().await?, account_id, since, limit).await
+    }
+
+    async fn set_visibility(
+        &self,
+        account_id: &str,
+        id: &str,
+        visibility: Visibility,
+        now: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
+        let mut client = self.client().await?;
+        flights::set_visibility(&mut client, account_id, id, visibility, now).await
+    }
+
+    async fn delete_flight(
+        &self,
+        account_id: &str,
+        id: &str,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        flights::delete(&mut self.client().await?, account_id, id, now).await
+    }
+
+    async fn outdated_flights(
+        &self,
+        version: u32,
+        after: Option<&(u32, String)>,
+        limit: usize,
+    ) -> Result<Vec<OutdatedFlight>, StoreError> {
+        flights::outdated(&self.client().await?, version, after, limit).await
+    }
+
+    async fn set_derived(
+        &self,
+        id: &str,
+        derived: &Derived,
+        now: Timestamp,
+    ) -> Result<bool, StoreError> {
+        flights::set_derived(&mut self.client().await?, id, derived, now).await
     }
 }

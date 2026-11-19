@@ -122,3 +122,104 @@ async fn a_malformed_url_is_refused_without_repeating_it() {
         other => panic!("expected a refusal, got {:?}", other.err()),
     }
 }
+
+/// A plain connection to a test's schema, for looking at the tables.
+async fn look(url: &str) -> tokio_postgres::Client {
+    let (client, connection) = tokio_postgres::connect(url, NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+}
+
+#[tokio::test]
+async fn a_database_from_before_accounts_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_1").await else {
+        return;
+    };
+    // A database as the first version of the server left it, with data.
+    let old = look(&url).await;
+    old.batch_execute(include_str!(
+        "../migrations/0001_stations_observations_runs.sql"
+    ))
+    .await
+    .unwrap();
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name) VALUES (1, 'first');
+         INSERT INTO source_runs VALUES
+             ('dwd-10min', '2026-11-18 18:00+00', '2026-11-18 18:01+00',
+              true, 1, 0, 0, 0, 3, 9, NULL);",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let source = venti_domain::SourceId::new("dwd-10min").unwrap();
+    let status = store.source_status(&[source]).await.unwrap();
+    assert_eq!(status[0].stations, 3, "what was there is still there");
+    assert_eq!(store.account("dario").await.unwrap(), None);
+    let versions = old
+        .query(
+            "SELECT version FROM schema_migrations ORDER BY version",
+            &[],
+        )
+        .await
+        .unwrap();
+    let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
+    assert_eq!(versions, [1, 2]);
+}
+
+#[tokio::test]
+async fn deleting_an_account_leaves_no_row_that_names_it() {
+    let Some(url) = fresh_schema("delete_leaves_no_row").await else {
+        return;
+    };
+    let store = PgStore::connect(&url).await.unwrap();
+    // The suite's behaviour builds an account with a password, an invite,
+    // sessions, flights and a deleted flight, deletes it, and then creates
+    // another account with the same handle.
+    suite::a_deleted_account_leaves_nothing_behind(&store).await;
+
+    // The suite asked through the interface. Here every table is searched
+    // for the account's identifier and its flights' addresses, in any
+    // column.
+    let tables = look(&url).await;
+    let names = tables
+        .query(
+            "SELECT table_name FROM information_schema.tables
+             WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(names.len() >= 8, "the schema has {} tables", names.len());
+    let account = format!("\"{:0>26}\"", "dario");
+    for row in names {
+        let table: &str = row.get(0);
+        let mentions: i64 = tables
+            .query_one(
+                &format!(
+                    "SELECT count(*) FROM {table} t
+                     WHERE to_jsonb(t)::text LIKE '%' || $1 || '%'
+                        OR to_jsonb(t)::text LIKE '%0dario1\"%'
+                        OR to_jsonb(t)::text LIKE '%0dario2\"%'"
+                ),
+                &[&account],
+            )
+            .await
+            .unwrap()
+            .get(0);
+        assert_eq!(mentions, 0, "{table} still names the deleted account");
+    }
+    // The invite it used is still there, used, and names nobody.
+    let invite = tables
+        .query_one("SELECT used_at IS NOT NULL, used_by FROM invites", &[])
+        .await
+        .unwrap();
+    assert!(invite.get::<_, bool>(0));
+    assert_eq!(invite.get::<_, Option<String>>(1), None);
+}

@@ -21,11 +21,18 @@ struct Migration {
     sql: &'static str,
 }
 
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "stations, observations and run history",
-    sql: include_str!("../../migrations/0001_stations_observations_runs.sql"),
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "stations, observations and run history",
+        sql: include_str!("../../migrations/0001_stations_observations_runs.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "accounts, sessions, invites and flights",
+        sql: include_str!("../../migrations/0002_accounts_sessions_flights.sql"),
+    },
+];
 
 /// Applies every migration the database has not seen yet.
 ///

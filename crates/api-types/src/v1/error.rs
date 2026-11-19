@@ -34,6 +34,43 @@ pub enum ErrorCode {
     InvalidRange,
     /// No station has this identifier.
     StationNotFound,
+    /// A handle that is not written as handles are.
+    InvalidHandle,
+    /// A display name that is empty, too long or holds characters that do
+    /// not show.
+    InvalidDisplayName,
+    /// A new password that is too short or too long, or is the handle.
+    InvalidPassword,
+    /// The `visibility` is not one the server knows.
+    InvalidVisibility,
+    /// `after` or `since` is not a value the server gave out.
+    InvalidCursor,
+    /// `limit` is not a number from one to the largest page.
+    InvalidLimit,
+    /// The request needs an account and carries no valid session token:
+    /// none at all, one that was signed out, or one that expired.
+    Unauthorized,
+    /// The handle or the password is wrong. Which of the two is not said.
+    InvalidCredentials,
+    /// The password sent to confirm a change to the account is wrong.
+    WrongPassword,
+    /// The server takes no new accounts.
+    RegistrationClosed,
+    /// The server asks for an invite code, and the one given is missing,
+    /// wrong, used or expired.
+    InvalidInvite,
+    /// The handle belongs to another account or is not available.
+    HandleTaken,
+    /// The account has no session with this identifier.
+    SessionNotFound,
+    /// No flight has this address, or it is not the caller's to see.
+    FlightNotFound,
+    /// No pilot has this handle.
+    PilotNotFound,
+    /// The uploaded file is not a flight file the server can use.
+    InvalidFlight,
+    /// Too many attempts. `Retry-After` says when to try again.
+    RateLimited,
     /// The path is not part of the API.
     NotFound,
     /// The path exists but not with this method.
@@ -78,7 +115,7 @@ mod tests {
 
     #[test]
     fn a_code_from_a_newer_server_decodes_as_unknown() {
-        let text = r#"{"error":{"code":"rate_limited","message":"slow down"}}"#;
+        let text = r#"{"error":{"code":"flight_quarantined","message":"under review"}}"#;
         let error: ErrorResponse = serde_json::from_str(text).unwrap();
         assert_eq!(error.error.code, ErrorCode::Unknown);
     }

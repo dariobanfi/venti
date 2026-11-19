@@ -496,8 +496,10 @@ class CockpitMap : MapContent {
             }
 
         /**
-         * From 2 where the thermal lifts least to 5 where it lifts most;
-         * 3.5 all around an even one, which at a point a second makes a
+         * How large a dot is for the core's strength of its climb: 3.5 at
+         * the mean of the picture, up to 5 where the climb is a metre a
+         * second or more above it and down to 2 where it is as much below.
+         * An even thermal is all 3.5, which at a point a second makes a
          * string of beads.
          */
         fun liftDotRadius(strength: Double): Double = 2 + 3 * strength.coerceIn(0.0, 1.0)

@@ -120,12 +120,12 @@ class CockpitMapTest {
             assertEquals(point.lon, place.longitude(), 1e-9)
             // The colour is the trail's: the band of the climb there.
             assertEquals(ClimbBand.of(point.climbMs).ordinal, dot.getNumberProperty(CockpitMap.BAND).toInt())
-            // The size is between the smallest and the largest dot, by how strong the climb is among them.
+            // The size is between the smallest and the largest dot, by the climb beside the picture's mean.
             val radius = dot.getNumberProperty(CockpitMap.RADIUS).toDouble()
             assertTrue("$radius", radius in 2.0..5.0)
             assertEquals(2 + 3 * point.strength, radius, 1e-9)
         }
-        // The sample's thermal lifts at 2.4 m/s all around: no dot of it is in a sinking band.
+        // The sample's thermal lifts at 2.4 m/s all around: every dot of it is in a climbing band.
         assertTrue(dots.all { it.getNumberProperty(CockpitMap.BAND).toInt() >= ClimbBand.Climb.ordinal })
 
         // On the glide after it there is no picture, and nothing of it to draw.

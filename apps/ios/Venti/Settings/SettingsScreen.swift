@@ -69,6 +69,7 @@ struct SettingsScreen: View {
                     } label: {
                         LabeledContent("Account", value: account.account.map { "@\($0.handle)" } ?? "Not signed in")
                     }
+                    .accessibilityIdentifier("account-link")
                 } header: {
                     Text("Venti server")
                 } footer: {

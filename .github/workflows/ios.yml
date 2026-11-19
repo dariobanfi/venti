@@ -145,10 +145,20 @@ jobs:
                   name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", name)
                   if name.endswith(".png"):
                       shutil.copy(source / exported, target / name)
+          # What XCTest kept by itself of a test that failed: a recording of
+          # the screen, and what it could read of the screen at that moment.
+          failures = target / "failures"
+          for test in json.loads((source / "manifest.json").read_text()):
+              for attachment in test.get("attachments", []):
+                  exported = attachment["exportedFileName"]
+                  if exported.lower().endswith((".mp4", ".mov", ".txt")):
+                      failures.mkdir(exist_ok=True)
+                      identifier = re.sub(r"[^A-Za-z0-9]+", "-", test.get("testIdentifier", "test")).strip("-")
+                      shutil.copy(source / exported, failures / f"{identifier}-{exported}")
           EOF
           # Half size is enough to judge a screen and keeps the artifact small.
           sips -Z 1400 target/apple/screenshots/*.png > /dev/null
-          ls -l target/apple/screenshots
+          ls -lR target/apple/screenshots
 
       - uses: actions/upload-artifact@v4
         if: always()

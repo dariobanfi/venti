@@ -226,6 +226,15 @@ final class VentiUITests: XCTestCase {
         app.buttons["20 times faster"].tap()
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
+        // A minute of flying later the zone is still far off, and the
+        // cockpit is checking: no notice, no warning.
+        sleep(3)
+        keepScreenshot("fly-6a-before-the-zone")
+        XCTAssertTrue(app.buttons["End replay"].exists, "The cockpit can be read while it replays.")
+        XCTAssertFalse(element("airspace-notice", in: app).exists)
+
+        // The warning comes when the glider is two kilometres from the
+        // zone, nine minutes into the flight.
         let banner = element("airspace-banner", in: app)
         XCTAssertTrue(banner.waitForExistence(timeout: 120))
         XCTAssertTrue(valued(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
@@ -364,11 +373,14 @@ final class VentiUITests: XCTestCase {
         openTab("Settings", in: app)
         // The row is below the first screenful, and a row that is not on
         // screen does not exist yet.
-        let link = app.buttons["Account"]
+        let link = element("account-link", in: app)
         for _ in 0..<4 where !(link.exists && link.isHittable) {
             app.swipeUp()
         }
-        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        if !link.waitForExistence(timeout: 10) {
+            keepScreenshot("account-0-settings-without-the-link")
+        }
+        XCTAssertTrue(link.exists)
         link.tap()
         let handle = app.textFields["Handle"]
         XCTAssertTrue(handle.waitForExistence(timeout: 15))

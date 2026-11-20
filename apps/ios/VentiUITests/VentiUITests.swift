@@ -99,7 +99,7 @@ final class VentiUITests: XCTestCase {
     private func tapWhenStill(_ element: XCUIElement, timeout: TimeInterval = 10) {
         XCTAssertTrue(element.waitForExistence(timeout: timeout))
         var last = element.frame
-        for _ in 0..<20 {
+        for _ in 0..<40 {
             usleep(200_000)
             let now = element.frame
             if now == last, element.isHittable {
@@ -1091,9 +1091,10 @@ final class VentiUITests: XCTestCase {
 
         // The same server's forecast for the place: the wind at each
         // height through the day, and the sky.
+        // The route's map may still be on its way out over the page: the
+        // row is tapped once it holds still and can be touched.
         let forecast = element("site-forecast", in: app)
-        XCTAssertTrue(forecast.waitForExistence(timeout: 10))
-        forecast.tap()
+        tapWhenStill(forecast, timeout: 15)
         XCTAssertTrue(element("forecast-table", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(labelled(containing: "hPa", in: app).exists)
         sleep(1)

@@ -41,6 +41,11 @@
 //! are files that whoever runs the server put in a folder, open data with
 //! the credits their descriptions name. Anyone may list and fetch them.
 //!
+//! **Map imagery** ([`imagery`]) is a provider's photographs from above,
+//! passed on tile by tile and cut where they may not be shown: the one
+//! other way a request can make the server ask a provider, for a tile at
+//! an address the adapter makes from three checked numbers.
+//!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
 
@@ -56,6 +61,7 @@ mod flights;
 mod forecast;
 mod groups;
 mod health;
+mod imagery;
 mod live;
 mod log;
 mod maps;
@@ -100,6 +106,7 @@ use crate::clock::Clock;
 use crate::flights::analyser::Analyser;
 use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
+use crate::imagery::Imagery;
 use crate::maps::Maps;
 
 pub use mcp::MCP_PATH;
@@ -237,6 +244,8 @@ pub struct Api<S> {
     /// The map regions the server hands out. None, unless it was given
     /// some.
     maps: Maps,
+    /// The map imagery the server passes on, if it passes any on.
+    imagery: Option<Arc<Imagery>>,
 }
 
 impl<S: Store> Api<S> {
@@ -315,6 +324,7 @@ impl<S: Store> Api<S> {
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
             maps: Maps::default(),
+            imagery: None,
         }
     }
 
@@ -335,6 +345,15 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_maps(mut self, maps: Maps) -> Self {
         self.maps = maps;
+        self
+    }
+
+    /// The same API, passing on the map imagery of `imagery`.
+    ///
+    /// Without this every address under `/v1/imagery` is "not found".
+    #[must_use]
+    pub fn with_imagery(mut self, imagery: Arc<Imagery>) -> Self {
+        self.imagery = Some(imagery);
         self
     }
 
@@ -365,7 +384,8 @@ impl<S: Store> Api<S> {
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
-    ///   handler.
+    ///   handler. A tile of map imagery is one of them: compression leaves
+    ///   images alone.
     /// - The fixes of a live track: the same, with a body limit that fits
     ///   a batch of them.
     /// - The upload of a flight file: the same, with a deadline and a body
@@ -442,6 +462,7 @@ impl<S: Store> Api<S> {
             .route(GROUP_JOIN_PATH, post(groups::join::<S>))
             .route(PLAN_BOARD_PATH, get(groups::board::<S>))
             .route(MAPS_PATH, get(maps::list::<S>))
+            .route(imagery::ROUTE, get(imagery::tile::<S>))
             .route(
                 "/v1/groups/{id}",
                 get(groups::show::<S>)

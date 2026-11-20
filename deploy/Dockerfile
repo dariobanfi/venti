@@ -38,7 +38,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin venti \
-    && install -d -o venti -g venti /app /var/lib/venti/archive
+    && install -d -o venti -g venti /app /var/lib/venti/archive /var/lib/venti/imagery
 
 COPY --from=build /usr/local/bin/venti-server /usr/local/bin/venti-server
 COPY regions /app/regions
@@ -49,10 +49,11 @@ WORKDIR /app
 # Defaults that fit the container; `docker-compose.yml` sets the rest.
 ENV VENTI_LISTEN=0.0.0.0:8080 \
     VENTI_REGIONS=/app/regions/alps-de-at/region.toml \
-    VENTI_ARCHIVE_DIR=/var/lib/venti/archive
+    VENTI_ARCHIVE_DIR=/var/lib/venti/archive \
+    VENTI_IMAGERY_DIR=/var/lib/venti/imagery
 
 EXPOSE 8080
-VOLUME /var/lib/venti/archive
+VOLUME /var/lib/venti/archive /var/lib/venti/imagery
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl --fail --silent --show-error --output /dev/null http://127.0.0.1:8080/v1/health

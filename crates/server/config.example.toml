@@ -37,6 +37,19 @@ archive_dir = "var/archive"
 # hands out no maps.
 # maps_dir = "var/maps"
 
+# Folder the server keeps tiles of map imagery in:       VENTI_IMAGERY_DIR
+# Austria's orthophoto from basemap.at, cut at the border, which the apps
+# ask for at /v1/imagery/basemap-at/{z}/{x}/{y}. A tile is asked of the
+# provider once and kept here. Without it the server passes no imagery on
+# and every such address is "not found".
+imagery_dir = "var/imagery"
+
+# The most megabytes that folder holds.                VENTI_IMAGERY_CACHE_MB
+# When a new tile takes it over, the files written longest ago are removed
+# until it holds a tenth less. 20 GB is some hundreds of thousands of
+# tiles.
+imagery_cache_mb = 20480
+
 # The User-Agent sent to data providers.                  VENTI_USER_AGENT
 # Some providers ask operators to name a contact here, for example
 # "venti-server/0.1 (+https://your-site.example/contact)". What to put in

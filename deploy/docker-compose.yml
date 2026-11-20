@@ -104,6 +104,7 @@ services:
       VENTI_LOG_LEVEL: ${VENTI_LOG_LEVEL:-}
       VENTI_OBSERVATION_MONTHS: ${VENTI_OBSERVATION_MONTHS:-}
       VENTI_ARCHIVE_DAYS: ${VENTI_ARCHIVE_DAYS:-}
+      VENTI_IMAGERY_CACHE_MB: ${VENTI_IMAGERY_CACHE_MB:-}
       VENTI_LIVE_HOURS: ${VENTI_LIVE_HOURS:-}
       VENTI_REPORT_DAYS: ${VENTI_REPORT_DAYS:-}
       VENTI_PLAN_DAYS: ${VENTI_PLAN_DAYS:-}
@@ -120,6 +121,9 @@ services:
       VENTI_MAPS_DIR: /srv/maps
     volumes:
       - archive:/var/lib/venti/archive
+      # Tiles of map imagery the server passed on, kept so that a provider
+      # is asked for each once. Losing them costs nothing but asking again.
+      - imagery:/var/lib/venti/imagery
       # The map regions the server hands out for download, one folder for
       # each, kept on the host so that a build or rsync can put them
       # there. The server only reads them. In `.env`, VENTI_MAPS_DIR names
@@ -207,5 +211,6 @@ volumes:
   db-data:
   open-meteo-data:
   archive:
+  imagery:
   caddy-data:
   caddy-config:

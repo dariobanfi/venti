@@ -19,6 +19,12 @@
 //! group that the demo account is not in. Client work and UI tests run
 //! against this.
 //!
+//! Map imagery is answered from the tiles recorded from its providers, cut
+//! as a real server cuts them, and every other tile is "nothing here". With
+//! `--online-imagery` this one route asks the providers over the network
+//! and keeps their tiles in a folder under the system's temporary folder;
+//! nothing else of the mode does.
+//!
 //! Map regions are the one thing that is not compiled in: the mode hands
 //! out those of a folder it is given (`--maps`), by the code a real server
 //! runs, and none without. The region the apps bundle is such a folder.
@@ -59,7 +65,8 @@ use crate::flights::derive::derive;
 use crate::flights::new_flight;
 use crate::flights::share::PublicUrl;
 use crate::forecast::{self, Asking};
-use crate::ingest::{Collector, DirArchive};
+use crate::imagery::{self, Imagery, TileCache};
+use crate::ingest::{Collector, DirArchive, HttpFetch};
 use crate::maps::Maps;
 use crate::{plan, serve};
 
@@ -756,12 +763,58 @@ pub async fn recorded_with_its_store(
     Ok((api, store))
 }
 
+/// The development mode's map imagery, and a line for its log that says
+/// where it comes from.
+///
+/// Without `online`, the tiles recorded from the providers and nothing
+/// else: no network, and nothing kept. With it, the providers over the
+/// network, as on a real server, with the tiles kept in
+/// `venti-dev-imagery` under the system's temporary folder.
+pub fn imagery(online: bool) -> Result<(Arc<Imagery>, String), String> {
+    let sources = adapters::imagery_sources();
+    if !online {
+        let imagery = Imagery::new(
+            sources,
+            Arc::new(adapters::recorded_imagery()),
+            None,
+            imagery::Limits::default(),
+        );
+        return Ok((
+            Arc::new(imagery),
+            "imagery: the recorded tiles only (--online-imagery asks the providers)".to_owned(),
+        ));
+    }
+    let folder = std::env::temp_dir().join("venti-dev-imagery");
+    let cache = Arc::new(TileCache::new(
+        folder,
+        imagery::DEFAULT_CACHE_MB * 1024 * 1024,
+    )?);
+    let said = format!(
+        "imagery: ONLINE, asked of the providers over the network and kept in {}",
+        cache.root().display()
+    );
+    let fetch = HttpFetch::new(&crate::config::default_user_agent())?;
+    let imagery = Imagery::new(
+        sources,
+        Arc::new(fetch),
+        Some(cache),
+        imagery::Limits::default(),
+    );
+    Ok((Arc::new(imagery), said))
+}
+
 /// Serves the recorded data on `address` until the process is told to stop,
-/// and with it the map regions in the folder `maps`, if one is given.
+/// and with it the map regions in the folder `maps`, if one is given. With
+/// `online_imagery` the route of map imagery asks the providers; see
+/// [`imagery`].
 ///
 /// Any web origin may call it: it holds nothing but test data, and a web
 /// app under development runs on whatever port its tooling picks.
-pub async fn dev(address: SocketAddr, maps: Option<PathBuf>) -> Result<(), String> {
+pub async fn dev(
+    address: SocketAddr,
+    maps: Option<PathBuf>,
+    online_imagery: bool,
+) -> Result<(), String> {
     // Uploads are analysed as on a real server, in a child of this program.
     let settings = settings(
         serve::local_url(address)?,
@@ -783,11 +836,19 @@ pub async fn dev(address: SocketAddr, maps: Option<PathBuf>) -> Result<(), Strin
             .map_err(|error| format!("the map regions could not be read: {error}"))?;
         api = api.with_maps(regions);
     }
+    let (imagery, imagery_said) = imagery(online_imagery)?;
+    api = api.with_imagery(imagery);
     let router = api.router(&Cors::Any);
+    let network = if online_imagery {
+        "no network but for map imagery"
+    } else {
+        "no network"
+    };
     tracing::info!(
-        "development mode: recorded data of {}, no network, no database",
+        "development mode: recorded data of {}, {network}, no database",
         adapters::recorded_at().format("%Y-%m-%d %H:%M UTC")
     );
+    tracing::info!("{imagery_said}");
     tracing::info!(
         "demo account: handle {DEMO_HANDLE:?}, password {DEMO_PASSWORD:?}; \
          or send 'Authorization: Bearer {DEMO_TOKEN}'"

@@ -71,9 +71,13 @@ async fn main() -> ExitCode {
             log_to_stderr(config.log_level);
             serve::serve(config).await
         }
-        Command::Dev { listen, maps } => {
+        Command::Dev {
+            listen,
+            maps,
+            online_imagery,
+        } => {
             log_to_stderr(Level::INFO);
-            dev::dev(listen, maps).await
+            dev::dev(listen, maps, online_imagery).await
         }
     };
 

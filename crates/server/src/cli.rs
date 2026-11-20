@@ -19,6 +19,7 @@ usage: venti-server <command>
       and from VENTI_* environment variables; see config.example.toml.
 
   dev [--listen ADDRESS [--open-to-the-network]] [--maps FOLDER]
+      [--online-imagery]
       Serve the same API over recorded data and a demo account. No
       network, no database. Listens on 127.0.0.1:8080 unless told
       otherwise. This mode has a demo account whose password is public,
@@ -28,7 +29,11 @@ usage: venti-server <command>
       network, or inside a container. With --maps it hands out the map
       regions in FOLDER as serve hands out those of its maps_dir, and
       has read them before it listens; without, it hands out none. The
-      region the apps bundle is in apps/ios/Venti/Resources.
+      region the apps bundle is in apps/ios/Venti/Resources. Map
+      imagery (/v1/imagery) comes from the few tiles recorded from its
+      providers, and every other tile is empty; with --online-imagery
+      this one route asks the providers over the network and keeps their
+      tiles in venti-dev-imagery under the system's temporary folder.
 
   invite [--config FILE] [--count N] [--expires-in-days N]
       Make invite codes and print them, one per line. Each creates one
@@ -93,6 +98,8 @@ pub enum Command {
         listen: SocketAddr,
         /// The folder of the map regions to hand out, if one was named.
         maps: Option<PathBuf>,
+        /// Whether map imagery is asked of its providers over the network.
+        online_imagery: bool,
     },
     /// Run a region's sources once.
     Ingest(oneshot::Args),
@@ -150,9 +157,11 @@ fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
     let mut listen = SocketAddr::from(([127, 0, 0, 1], 8080));
     let mut open_to_the_network = false;
     let mut maps = None;
+    let mut online_imagery = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--open-to-the-network" => open_to_the_network = true,
+            "--online-imagery" => online_imagery = true,
             "--maps" => maps = Some(PathBuf::from(value("--maps", &mut args)?)),
             "--listen" => {
                 let address = value("--listen", &mut args)?;
@@ -174,7 +183,11 @@ fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
              meant (a phone on your own network, a container), or run `serve` for a real server"
         ));
     }
-    Ok(Command::Dev { listen, maps })
+    Ok(Command::Dev {
+        listen,
+        maps,
+        online_imagery,
+    })
 }
 
 fn parse_ingest(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
@@ -311,6 +324,7 @@ mod tests {
             Ok(Command::Dev {
                 listen: "127.0.0.1:8080".parse().unwrap(),
                 maps: None,
+                online_imagery: false,
             })
         );
         assert_eq!(
@@ -318,6 +332,7 @@ mod tests {
             Ok(Command::Dev {
                 listen: "[::1]:9000".parse().unwrap(),
                 maps: None,
+                online_imagery: false,
             })
         );
         assert!(parse_line("dev --listen localhost").is_err());
@@ -330,6 +345,7 @@ mod tests {
             Ok(Command::Dev {
                 listen: "127.0.0.1:8080".parse().unwrap(),
                 maps: Some(PathBuf::from("apps/ios/Venti/Resources")),
+                online_imagery: false,
             })
         );
         // Before or after where to listen.
@@ -338,6 +354,7 @@ mod tests {
             Ok(Command::Dev {
                 listen: "127.0.0.1:9000".parse().unwrap(),
                 maps: Some(PathBuf::from("../maps")),
+                online_imagery: false,
             })
         );
         assert!(parse_line("dev --maps").is_err());
@@ -345,6 +362,20 @@ mod tests {
         // Only the development mode takes the option: a server is told
         // in its configuration.
         assert!(parse_line("serve --maps var/maps").is_err());
+    }
+
+    #[test]
+    fn dev_asks_providers_of_imagery_only_when_told() {
+        assert_eq!(
+            parse_line("dev --online-imagery --maps ../maps"),
+            Ok(Command::Dev {
+                listen: "127.0.0.1:8080".parse().unwrap(),
+                maps: Some(PathBuf::from("../maps")),
+                online_imagery: true,
+            })
+        );
+        assert!(USAGE.contains("[--online-imagery]"));
+        assert!(parse_line("serve --online-imagery").is_err());
     }
 
     #[test]
@@ -365,6 +396,7 @@ mod tests {
                 Ok(Command::Dev {
                     listen: address.parse().unwrap(),
                     maps: None,
+                    online_imagery: false,
                 })
             );
         }
@@ -376,6 +408,7 @@ mod tests {
             Ok(Command::Dev {
                 listen: "127.0.0.1:8080".parse().unwrap(),
                 maps: None,
+                online_imagery: false,
             })
         );
     }

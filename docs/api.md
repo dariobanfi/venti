@@ -2,11 +2,11 @@
 
 Last revised: 2026-11-20
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. Beside the JSON it hands out the map regions that an app downloads to draw its map without a network. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. Beside the JSON it hands out the map regions that an app downloads to draw its map without a network, and passes on tiles of map imagery, cut where they may not be shown. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -130,7 +130,7 @@ Because its clock stands still, this mode takes live fixes of **any time**, wher
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. The list of map regions carries `max-age=60`; a file of a region never changes under its path and may be kept for good, see [Maps](#maps). Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. The list of map regions carries `max-age=60`; a file of a region never changes under its path and may be kept for good, see [Maps](#maps). A tile of map imagery, and the answer that there is none, carry `max-age=604800`, a week; see [Map imagery](#map-imagery). Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
 
 **Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB. A live track of twenty minutes at a fix a second is 204 kB and 28 kB. The one answer that is never compressed is a file of a map region: [Maps](#maps) says why.
 
@@ -204,6 +204,8 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 501 | `no_forecasts` | The server has no forecast service. Asking again does not help |
 | 503 | `unavailable` | The server cannot reach its database, is too busy for this request, or has no forecast for a place at hand and cannot fetch one now. `Retry-After` says when to try again |
 | 503 | `timeout` | The server could not answer within ten seconds |
+| 502 | `unavailable` | A [tile of map imagery](#get-v1imagerysourcezxy): its provider failed or sent what is not a tile. May be kept for a minute |
+| 504 | `timeout` | A [tile of map imagery](#get-v1imagerysourcezxy): its provider did not answer within eight seconds. May be kept for a minute |
 | 500 | `internal` | The server failed in a way it did not expect; the cause is in its log |
 
 A client must expect codes it does not know.
@@ -3463,6 +3465,31 @@ Below the numbers it draws the end of the track as a line seen from above, north
 **Headers.** `Cache-Control: no-store`: the page says how old a position is, and no copy of it may be handed out later. `X-Robots-Tag: noindex` and the same in the page, also for a public track: where a person is right now is nothing for a search engine. `Referrer-Policy: same-origin`, because the address is the key to the track. A content security policy that allows the page its own style and nothing else: no script, no frame, no form, no request to anywhere.
 
 What is left to build: a map under the line, and one that moves without the page being loaded again. Both need a script and map tiles, and belong to the web app. The web app shows live tracks on its map since 2026-11-20, but it has no address for one track, so the page does not link to it yet.
+
+## Map imagery
+
+Photographs from above that the server passes on to the apps' maps, tile by tile, where a provider's tiles cannot be drawn as they are. There is one source so far, `basemap-at`: Austria's orthophoto from [basemap.at](https://basemap.at), whose tiles are white beyond Austria's border. The server cuts them along the border, so that a map can lay them over other photographs ([architecture.md](architecture.md#the-aerial-view-through-the-server)). Anyone may read it, without an account. The credit the provider asks for goes with the layer wherever it is shown: "Datenquelle: basemap.at", with basemap.at as a link to https://basemap.at.
+
+### `GET /v1/imagery/{source}/{z}/{x}/{y}`
+
+```bash
+cargo run -p venti-server -- dev
+curl -o innsbruck.jpg http://127.0.0.1:8080/v1/imagery/basemap-at/15/17420/11489
+curl -o brenner.png http://127.0.0.1:8080/v1/imagery/basemap-at/15/17431/11524
+```
+
+One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` from the west, row `y` from the north, in the order MapLibre writes `{z}/{x}/{y}`. A map's raster source takes `/v1/imagery/basemap-at/{z}/{x}/{y}` as its tile address.
+
+| Answer | When |
+|---|---|
+| `200`, `image/jpeg` | The tile lies wholly inside Austria: the provider's JPEG as it came |
+| `200`, `image/png` | Austria's border runs through the tile or within 50 m of it: the provider's tile cut, with what lies beyond the border transparent |
+| `204 No Content` | Nothing here: the tile lies beyond the border, outside the provider's box (8.78 to 17.5° E, 46.36 to 49.04° N), at a zoom other than 0 to 19, or was cut to nothing; or the provider has no such tile |
+| `502` `unavailable` | The provider failed, or sent what is not a tile |
+| `504` `timeout` | The provider did not answer within eight seconds |
+| `404` `not_found` | Not the address of a tile: a source the server does not have, or anything but three plain numbers that name a tile (zoom at most 24, column and row below 2^zoom). Also every address, on a server that passes no imagery on |
+
+`200` and `204` carry `Cache-Control: public, max-age=604800`, a week; `502` and `504` carry `public, max-age=60`. A tile is asked of the provider once and then kept on the server's disk. A tile beyond the border is never asked of the provider. The development mode answers from six tiles recorded on 2026-11-20 (the two above are among them; `crates/sources-basemapat/tests/fixtures/NOTICE.txt` lists them) and with `204` for every other, unless it is started with `--online-imagery`.
 
 ## What is not here yet
 

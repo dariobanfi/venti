@@ -19,7 +19,9 @@
 //!    clients share. Beside it, a flight that its pilot shares has a page
 //!    of its own for people and for link previews. The server also hands
 //!    out the map regions that whoever runs it put in a folder, for apps
-//!    to draw without a network ([`maps`]).
+//!    to draw without a network ([`maps`]), and passes on map imagery,
+//!    cut at the edge of what may be shown and kept on its disk
+//!    ([`imagery`]).
 //! 4. **Cleans up.** Data older than the configured retention is removed
 //!    ([`maintenance`]).
 //!
@@ -46,6 +48,7 @@ pub mod dev;
 pub mod flights;
 pub mod forecast;
 pub mod groups;
+pub mod imagery;
 pub mod ingest;
 pub mod live;
 pub mod maintenance;

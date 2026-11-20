@@ -18,6 +18,7 @@ use crate::flights::analyser::Analyser;
 use crate::flights::refresh;
 use crate::flights::share::PublicUrl;
 use crate::forecast::{self, Asking};
+use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
 use crate::{adapters, groups, live, maintenance, plan};
@@ -90,6 +91,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings);
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
+    }
+    if let Some(imagery) = imagery(&config)? {
+        api = api.with_imagery(imagery);
     }
     let shutdown = CancellationToken::new();
     // The map regions are listed as their files are read, which the
@@ -174,6 +178,35 @@ pub async fn serve(config: Config) -> Result<(), String> {
         let _ = reading.await;
     }
     served
+}
+
+/// The map imagery the server passes on, if the configuration names a
+/// folder to keep its tiles in; see [`crate::imagery`]. The folder is
+/// swept once beside everything else, which also learns what it holds.
+fn imagery(config: &Config) -> Result<Option<Arc<Imagery>>, String> {
+    let Some(folder) = config.imagery_dir.clone() else {
+        tracing::info!("no imagery: the server was not told where to keep its tiles (imagery_dir)");
+        return Ok(None);
+    };
+    let cache = Arc::new(TileCache::new(
+        folder,
+        u64::from(config.imagery_cache_mb) * 1024 * 1024,
+    )?);
+    cache.sweep_in_background();
+    let sources = adapters::imagery_sources();
+    let imagery = Imagery::new(
+        sources,
+        Arc::new(HttpFetch::new(&config.user_agent)?),
+        Some(cache.clone()),
+        imagery::Limits::default(),
+    );
+    tracing::info!(
+        "imagery: {} at /v1/imagery, tiles kept in {} up to {} MB",
+        imagery.sources().collect::<Vec<_>>().join(", "),
+        cache.root().display(),
+        config.imagery_cache_mb
+    );
+    Ok(Some(Arc::new(imagery)))
 }
 
 /// What the log says at start about a server that takes passwords without

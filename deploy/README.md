@@ -77,6 +77,7 @@ All commands run on the server.
 |---|---|---|
 | Database | Docker volume `venti_db-data` | Every account and every pilot's flights are gone for good, unless there is a dump. The last hours of observations and the airspace the server fetches again |
 | Raw provider payloads, about 240 MB a day, kept 14 days | Docker volume `venti_archive` | Nothing breaks; old parsing bugs can no longer be replayed |
+| Tiles of map imagery, up to 20 GB (`VENTI_IMAGERY_CACHE_MB`) | Docker volume `venti_imagery` | Nothing breaks; the server asks the provider for each tile again |
 | TLS certificates | Docker volume `venti_caddy-data` | Caddy asks for new ones, which the issuers rate-limit |
 | Web app, map tiles | `deploy/data/web`, `deploy/data/tiles` (or the folders named in `.env`) | Copy them there again |
 | Map regions for download | `deploy/data/maps` (or `VENTI_MAPS_DIR`) | Copy or build them again: [Map regions](#map-regions) |

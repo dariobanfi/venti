@@ -21,6 +21,7 @@ use crate::accounts::client::TrustedProxies;
 use crate::adapters::{self, Providers};
 use crate::flights::share::PublicUrl;
 use crate::groups::DEFAULT_PLAN_DAYS;
+use crate::imagery::DEFAULT_CACHE_MB;
 use crate::live::DEFAULT_RETENTION_HOURS;
 
 /// Everything the server needs to be told.
@@ -37,6 +38,11 @@ pub struct Config {
     /// The folder of the map regions the server hands out, one folder with
     /// a `map.toml` for each; see [`crate::maps`]. `None` hands out none.
     pub maps_dir: Option<PathBuf>,
+    /// The folder tiles of map imagery are kept in; see
+    /// [`crate::imagery`]. `None` passes no imagery on.
+    pub imagery_dir: Option<PathBuf>,
+    /// The most megabytes that folder is to hold.
+    pub imagery_cache_mb: u32,
     /// The `User-Agent` sent to data providers.
     pub user_agent: String,
     /// Web origins that may call the API from a browser.
@@ -156,6 +162,8 @@ struct File {
     regions: Option<Vec<String>>,
     archive_dir: Option<String>,
     maps_dir: Option<String>,
+    imagery_dir: Option<String>,
+    imagery_cache_mb: Option<u32>,
     user_agent: Option<String>,
     cors_origins: Option<Vec<String>>,
     log_level: Option<String>,
@@ -222,6 +230,14 @@ const ARCHIVE_DIR: Setting = Setting {
 const MAPS_DIR: Setting = Setting {
     key: "maps_dir",
     variable: "VENTI_MAPS_DIR",
+};
+const IMAGERY_DIR: Setting = Setting {
+    key: "imagery_dir",
+    variable: "VENTI_IMAGERY_DIR",
+};
+const IMAGERY_CACHE_MB: Setting = Setting {
+    key: "imagery_cache_mb",
+    variable: "VENTI_IMAGERY_CACHE_MB",
 };
 const USER_AGENT: Setting = Setting {
     key: "user_agent",
@@ -372,6 +388,10 @@ impl Config {
         // server runs, not here.
         let maps_dir = env(&MAPS_DIR).or(file.maps_dir).map(PathBuf::from);
 
+        // No default either: a server that is not told where to keep tiles
+        // passes no imagery on, and asks no provider of imagery anything.
+        let imagery_dir = env(&IMAGERY_DIR).or(file.imagery_dir).map(PathBuf::from);
+
         let user_agent = env(&USER_AGENT)
             .or(file.user_agent)
             .unwrap_or_else(default_user_agent);
@@ -449,6 +469,8 @@ impl Config {
             )?,
             plan_days: number(&PLAN_DAYS, file.retention.plan_days, DEFAULT_PLAN_DAYS)?,
         };
+        let default_cache_mb = u32::try_from(DEFAULT_CACHE_MB).unwrap_or(u32::MAX);
+        let imagery_cache_mb = number(&IMAGERY_CACHE_MB, file.imagery_cache_mb, default_cache_mb)?;
         let room = Room {
             flights: number(
                 &ACCOUNT_FLIGHTS,
@@ -470,6 +492,8 @@ impl Config {
             regions: regions.into_iter().map(PathBuf::from).collect(),
             archive_dir,
             maps_dir,
+            imagery_dir,
+            imagery_cache_mb,
             user_agent,
             cors_origins,
             log_level,
@@ -544,6 +568,9 @@ mod tests {
         assert_eq!(config.archive_dir, Some(PathBuf::from("var/archive")));
         // The example hands out no maps until a folder is named.
         assert_eq!(config.maps_dir, None);
+        // It keeps tiles of imagery in var/imagery, up to 20 GB.
+        assert_eq!(config.imagery_dir, Some(PathBuf::from("var/imagery")));
+        assert_eq!(config.imagery_cache_mb, 20480);
         assert_eq!(config.user_agent, "venti-server/0.1");
         assert_eq!(config.cors_origins, ["http://localhost:5173"]);
         assert_eq!(config.log_level, Level::INFO);
@@ -693,6 +720,8 @@ mod tests {
                 ("VENTI_LISTEN", "0.0.0.0:9000"),
                 ("VENTI_ARCHIVE_DIR", ""),
                 ("VENTI_MAPS_DIR", "/srv/maps"),
+                ("VENTI_IMAGERY_DIR", "/srv/imagery"),
+                ("VENTI_IMAGERY_CACHE_MB", "512"),
                 (
                     "VENTI_CORS_ORIGINS",
                     "https://venti.example,https://www.venti.example",
@@ -720,6 +749,8 @@ mod tests {
         assert_eq!(config.listen, "0.0.0.0:9000".parse().unwrap());
         assert_eq!(config.archive_dir, Some(PathBuf::from("var/archive")));
         assert_eq!(config.maps_dir, Some(PathBuf::from("/srv/maps")));
+        assert_eq!(config.imagery_dir, Some(PathBuf::from("/srv/imagery")));
+        assert_eq!(config.imagery_cache_mb, 512);
         assert_eq!(
             config.cors_origins,
             ["https://venti.example", "https://www.venti.example"]

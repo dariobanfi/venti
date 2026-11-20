@@ -159,10 +159,20 @@ struct PublicFlightScreen: View {
         }
         .navigationTitle(flight.pilot)
         .navigationBarTitleDisplayMode(.inline)
-        // The name stands over a map: it needs ground to be read on.
-        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
+            // The name stands over a map, among the map's own names: it
+            // gets ground of its own to be read on, as the buttons beside
+            // it have.
+            ToolbarItem(placement: .principal) {
+                Text(flight.pilot)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .glassEffect(.regular, in: .capsule)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
                     // Everything else this pilot shares with everyone.

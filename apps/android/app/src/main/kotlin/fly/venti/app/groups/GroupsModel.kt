@@ -65,6 +65,7 @@ class GroupsModel(
             .mapNotNull { plan ->
                 plan.position?.let { position -> PlanPin(plan.id, position, listOfNotNull(plan.place, plan.meetAt).joinToString(" ")) }
             }
+            .let(PlanPin::gathered)
     }
 
     fun plan(id: String): PlanView? = board?.days.orEmpty().firstNotNullOfOrNull { day -> day.plans.firstOrNull { it.id == id } }
@@ -187,4 +188,15 @@ class GroupsModel(
 }
 
 /** A plan marked on the map: where, and the place and time under the mark. */
-data class PlanPin(val id: String, val position: Coordinate, val label: String)
+data class PlanPin(val id: String, val position: Coordinate, val label: String) {
+    companion object {
+        /**
+         * Plans at one place as one mark, their words one under the other:
+         * drawn apart they lay their words on top of each other. A tap
+         * opens the first.
+         */
+        fun gathered(pins: List<PlanPin>): List<PlanPin> =
+            pins.groupBy { it.position }
+                .map { (position, here) -> PlanPin(here.first().id, position, here.joinToString("\n") { it.label }) }
+    }
+}

@@ -2,6 +2,7 @@ package fly.venti.app.groups
 
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
+import fly.venti.core.Coordinate
 import fly.venti.app.account.AccountModel
 import fly.venti.app.account.MemorySessionStore
 import fly.venti.app.logbook.LogbookModel
@@ -158,6 +159,26 @@ class GroupsModelTest {
         assertEquals(1, groups.pins(TODAY.minusDays(1)).size)
         assertTrue(groups.pins(TODAY.minusDays(2)).isEmpty())
         assertTrue(groups.pins(TODAY.plusDays(1)).isEmpty())
+    }
+
+    @Test
+    fun plansAtOnePlaceAreOneMarkWithTheirWordsOneUnderTheOther() {
+        val takeoff = Coordinate(lat = 47.66, lon = 11.80)
+        val elsewhere = Coordinate(lat = 47.70, lon = 11.90)
+        val pins = PlanPin.gathered(
+            listOf(
+                PlanPin("today", takeoff, "Startplatz Ost 10:30"),
+                PlanPin("other", elsewhere, "Landeplatz"),
+                PlanPin("tomorrow", takeoff, "Startplatz Ost 09:00"),
+            ),
+        )
+        assertEquals(
+            listOf(
+                PlanPin("today", takeoff, "Startplatz Ost 10:30\nStartplatz Ost 09:00"),
+                PlanPin("other", elsewhere, "Landeplatz"),
+            ),
+            pins,
+        )
     }
 
     @Test

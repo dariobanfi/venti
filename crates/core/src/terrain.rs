@@ -6,7 +6,8 @@
 //! ground is. See [`venti_flight::terrain`] for how a height is read from
 //! a tile.
 
-use std::io::{Cursor, Read};
+use std::fs::File;
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use venti_domain::GeoPoint;
@@ -49,10 +50,24 @@ const AREA_COARSEST_ZOOM: u8 = 8;
 /// An image larger than this is no elevation tile.
 const IMAGE_AT_MOST_BYTES: usize = 4 * 1024 * 1024;
 
-/// An archive is read whole from memory, so only a small one is taken:
-/// the region that comes with the app. Reading a country's archive piece
-/// by piece from its file is not built.
+/// An archive handed over as bytes is read whole from memory, so only a
+/// small one is taken that way: the region that comes with the app. A
+/// downloaded region's archive is opened from its file and read piece by
+/// piece, see [`Terrain::open_archive`].
 const ARCHIVE_AT_MOST_BYTES: usize = 64 * 1024 * 1024;
+
+/// A directory of an archive larger than this is none this app reads. The
+/// format keeps directories to a few kilobytes each.
+const DIRECTORY_AT_MOST_BYTES: u64 = 16 * 1024 * 1024;
+
+/// How many of an opened archive's further directories are kept in
+/// memory. Each lists the tiles of a patch of the map, so a flight needs
+/// one or two at a time.
+const LEAVES_KEPT: usize = 16;
+
+/// How many directories lead to a tile at the most. The format allows a
+/// root and three levels below it.
+const DIRECTORY_LEVELS: usize = 4;
 
 /// One elevation tile to fetch.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -84,6 +99,8 @@ pub struct GroundUnderFlight {
 #[derive(Debug, Default, uniffi::Object)]
 pub struct Terrain {
     model: Mutex<model::Terrain>,
+    /// The archives opened from their files: downloaded regions.
+    archives: Mutex<Vec<Arc<ArchiveFile>>>,
 }
 
 #[uniffi::export]
@@ -123,26 +140,64 @@ impl Terrain {
     /// Empty when all are there, and for an area that is none.
     pub fn tiles_covering(&self, area: Bounds) -> Vec<TerrainTile> {
         let model = self.lock();
-        for z in (AREA_COARSEST_ZOOM..=ZOOM).rev() {
-            let tiles = TileAddress::covering(area.south, area.west, area.north, area.east, z);
-            if tiles.len() > AREA_TILES_AT_MOST && z > AREA_COARSEST_ZOOM {
-                continue;
-            }
-            return tiles
-                .into_iter()
-                // An area larger than a country gets its middle and no
-                // more; nobody flies it in a day.
-                .take(4 * AREA_TILES_AT_MOST)
-                .filter(|tile| !model.has(*tile))
-                .map(|tile| TerrainTile {
-                    z: tile.z,
-                    x: tile.x,
-                    y: tile.y,
-                    path: format!("{}/{}/{}", tile.z, tile.x, tile.y),
-                })
-                .collect();
-        }
-        Vec::new()
+        area_tiles(area)
+            .into_iter()
+            .filter(|tile| !model.has(*tile))
+            .map(|tile| TerrainTile {
+                z: tile.z,
+                x: tile.x,
+                y: tile.y,
+                path: format!("{}/{}/{}", tile.z, tile.x, tile.y),
+            })
+            .collect()
+    }
+
+    /// Opens an archive of elevation tiles in the PMTiles format, version
+    /// 3, from its file: a region downloaded for flying without a network.
+    /// Nothing but its directory is read now; [`Terrain::read_around`] and
+    /// [`Terrain::read_covering`] take tiles from it as they are needed.
+    /// Opening a file that is open already opens it afresh.
+    ///
+    /// # Errors
+    ///
+    /// When the file cannot be read, is no such archive, or its tiles are
+    /// not WebP images.
+    pub fn open_archive(&self, path: String) -> Result<(), CoreError> {
+        let archive = Arc::new(ArchiveFile::open(&path)?);
+        let mut archives = self.archives();
+        archives.retain(|open| open.path != path);
+        archives.push(archive);
+        Ok(())
+    }
+
+    /// Lets every opened archive go, before its file is deleted or
+    /// replaced. The tiles already taken from it stay.
+    pub fn close_archives(&self) {
+        self.archives().clear();
+    }
+
+    /// Takes from the opened archives the tiles for flying around a place
+    /// that are not held yet, and returns how many it took. What they do
+    /// not have is still in [`Terrain::tiles_wanted`] afterwards.
+    ///
+    /// This reads files and decodes images: a few hundredths of a second
+    /// for each tile. Not for the thread that draws.
+    pub fn read_around(&self, lat: f64, lon: f64) -> u32 {
+        let Some(here) = GeoPoint::new(lat, lon)
+            .ok()
+            .and_then(|position| TileAddress::holding(position, ZOOM))
+        else {
+            return 0;
+        };
+        self.read(here.with_neighbours(RINGS_WANTED))
+    }
+
+    /// Takes from the opened archives the tiles for the ground under an
+    /// area that are not held yet, and returns how many it took: the
+    /// tiles [`Terrain::tiles_covering`] names. Not for the thread that
+    /// draws.
+    pub fn read_covering(&self, area: Bounds) -> u32 {
+        self.read(area_tiles(area))
     }
 
     /// The ground under a flight's track, at up to `places` moments
@@ -262,6 +317,56 @@ impl Terrain {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
+
+    fn archives(&self) -> MutexGuard<'_, Vec<Arc<ArchiveFile>>> {
+        self.archives
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Takes the tiles named from the opened archives, where one has
+    /// them, and says how many. A tile that an archive cannot give, or
+    /// that is no image, is left: the shell may still fetch it.
+    fn read(&self, wanted: Vec<TileAddress>) -> u32 {
+        let archives = self.archives().clone();
+        if archives.is_empty() {
+            return 0;
+        }
+        let mut taken = 0;
+        for address in wanted {
+            if self.lock().has(address) {
+                continue;
+            }
+            for archive in &archives {
+                let Ok(Some(image)) = archive.tile(address) else {
+                    continue;
+                };
+                let Ok((side, rgba)) = pixels(&image) else {
+                    continue;
+                };
+                if self.lock().add_pixels(address, side, &rgba).is_ok() {
+                    taken += 1;
+                    break;
+                }
+            }
+        }
+        taken
+    }
+}
+
+/// The tiles for the ground under an area: at the finest zoom level at
+/// which the area needs no more than a few dozen.
+fn area_tiles(area: Bounds) -> Vec<TileAddress> {
+    for z in (AREA_COARSEST_ZOOM..=ZOOM).rev() {
+        let tiles = TileAddress::covering(area.south, area.west, area.north, area.east, z);
+        if tiles.len() > AREA_TILES_AT_MOST && z > AREA_COARSEST_ZOOM {
+            continue;
+        }
+        // An area larger than a country gets its middle and no more;
+        // nobody flies it in a day.
+        return tiles.into_iter().take(4 * AREA_TILES_AT_MOST).collect();
+    }
+    Vec::new()
 }
 
 fn not_a_tile(why: &str) -> CoreError {
@@ -319,35 +424,12 @@ fn archive_tiles(archive: &[u8]) -> Result<Vec<(TileAddress, &[u8])>, CoreError>
             "it is too large to be read whole; only the region that comes with the app is read this way",
         ));
     }
-    if archive.len() < 127 || &archive[..7] != b"PMTiles" {
-        return Err(not_an_archive(
-            "it does not begin as a PMTiles archive does",
-        ));
-    }
-    if archive[7] != 3 {
-        return Err(not_an_archive("it is not of version 3 of the format"));
-    }
-    let number = |at: usize| {
-        let mut bytes = [0; 8];
-        bytes.copy_from_slice(&archive[at..at + 8]);
-        usize::try_from(u64::from_le_bytes(bytes)).unwrap_or(usize::MAX)
-    };
-    let (root_at, root_length) = (number(8), number(16));
-    let (leaves_at, leaves_length) = (number(40), number(48));
-    let (tiles_at, tiles_length) = (number(56), number(64));
-    let (directories_packed, tiles_packed, tile_kind) = (archive[97], archive[98], archive[99]);
-    // 1 is "not compressed", 2 is gzip; a tile kind of 4 is WebP.
-    if !(1..=2).contains(&directories_packed) {
-        return Err(not_an_archive(
-            "its directory is packed in a way this app does not read",
-        ));
-    }
-    if tiles_packed != 1 || tile_kind != 4 {
-        return Err(not_an_archive("its tiles are not plain WebP images"));
-    }
-    let part = |at: usize, length: usize| {
-        at.checked_add(length)
-            .and_then(|end| archive.get(at..end))
+    let header = header(archive)?;
+    let size = |number: u64| usize::try_from(number).unwrap_or(usize::MAX);
+    let part = |at: u64, length: u64| {
+        size(at)
+            .checked_add(size(length))
+            .and_then(|end| archive.get(size(at)..end))
             .ok_or_else(|| not_an_archive("it is cut short"))
     };
 
@@ -355,30 +437,21 @@ fn archive_tiles(archive: &[u8]) -> Result<Vec<(TileAddress, &[u8])>, CoreError>
     // The root directory, and the directories it points to. A directory
     // that points back would go round for ever: no more are followed than
     // an archive of this size can hold.
-    let mut waiting = vec![part(root_at, root_length)?];
+    let mut waiting = vec![part(header.root_at, header.root_length)?];
     let mut followed = 0;
     while let Some(packed) = waiting.pop() {
         followed += 1;
         if followed > 4096 {
             return Err(not_an_archive("its directories do not end"));
         }
-        for entry in directory(packed, directories_packed == 2)? {
+        for entry in directory(packed, header.is_gzip)? {
             if entry.run == 0 {
-                let leaf = part(leaves_at, leaves_length)?;
-                let slice = entry
-                    .offset
-                    .checked_add(entry.length)
-                    .and_then(|end| leaf.get(entry.offset..end))
-                    .ok_or_else(|| not_an_archive("it is cut short"))?;
-                waiting.push(slice);
+                let leaves = part(header.leaves_at, header.leaves_length)?;
+                waiting.push(within(leaves, &entry)?);
                 continue;
             }
-            let data = part(tiles_at, tiles_length)?;
-            let image = entry
-                .offset
-                .checked_add(entry.length)
-                .and_then(|end| data.get(entry.offset..end))
-                .ok_or_else(|| not_an_archive("it is cut short"))?;
+            let data = part(header.tiles_at, header.tiles_length)?;
+            let image = within(data, &entry)?;
             for step in 0..entry.run {
                 let address = address_of(entry.first + step)
                     .ok_or_else(|| not_an_archive("it names a tile the map does not have"))?;
@@ -392,13 +465,215 @@ fn archive_tiles(archive: &[u8]) -> Result<Vec<(TileAddress, &[u8])>, CoreError>
     Ok(tiles)
 }
 
+/// Where the parts of a PMTiles archive are: what its first bytes say.
+#[derive(Debug, Clone, Copy)]
+struct Header {
+    root_at: u64,
+    root_length: u64,
+    leaves_at: u64,
+    leaves_length: u64,
+    tiles_at: u64,
+    tiles_length: u64,
+    /// Whether the directories are packed with gzip.
+    is_gzip: bool,
+}
+
+/// The length of an archive's header.
+const HEADER_BYTES: usize = 127;
+
+/// Reads the header from the first bytes of an archive of elevation
+/// tiles, and refuses what this app does not read.
+fn header(start: &[u8]) -> Result<Header, CoreError> {
+    if start.len() < HEADER_BYTES || &start[..7] != b"PMTiles" {
+        return Err(not_an_archive(
+            "it does not begin as a PMTiles archive does",
+        ));
+    }
+    if start[7] != 3 {
+        return Err(not_an_archive("it is not of version 3 of the format"));
+    }
+    let number = |at: usize| {
+        let mut bytes = [0; 8];
+        bytes.copy_from_slice(&start[at..at + 8]);
+        u64::from_le_bytes(bytes)
+    };
+    let (directories_packed, tiles_packed, tile_kind) = (start[97], start[98], start[99]);
+    // 1 is "not compressed", 2 is gzip; a tile kind of 4 is WebP.
+    if !(1..=2).contains(&directories_packed) {
+        return Err(not_an_archive(
+            "its directory is packed in a way this app does not read",
+        ));
+    }
+    if tiles_packed != 1 || tile_kind != 4 {
+        return Err(not_an_archive("its tiles are not plain WebP images"));
+    }
+    Ok(Header {
+        root_at: number(8),
+        root_length: number(16),
+        leaves_at: number(40),
+        leaves_length: number(48),
+        tiles_at: number(56),
+        tiles_length: number(64),
+        is_gzip: directories_packed == 2,
+    })
+}
+
+/// An archive opened from its file. Its first directory is held; further
+/// directories and tiles are read from the file when a tile is asked for.
+#[derive(Debug)]
+struct ArchiveFile {
+    path: String,
+    file: Mutex<File>,
+    header: Header,
+    root: Arc<Vec<Entry>>,
+    /// The further directories read last, by where they are in the file,
+    /// the latest at the end.
+    leaves: Mutex<Vec<(u64, Arc<Vec<Entry>>)>>,
+}
+
+impl ArchiveFile {
+    fn open(path: &str) -> Result<Self, CoreError> {
+        let mut file = File::open(path).map_err(|_| not_an_archive("its file cannot be opened"))?;
+        let mut start = [0; HEADER_BYTES];
+        file.read_exact(&mut start)
+            .map_err(|_| not_an_archive("it is cut short"))?;
+        let header = header(&start)?;
+        let packed = read_part(
+            &mut file,
+            header.root_at,
+            header.root_length,
+            DIRECTORY_AT_MOST_BYTES,
+        )?;
+        let root = Arc::new(directory(&packed, header.is_gzip)?);
+        Ok(Self {
+            path: path.to_owned(),
+            file: Mutex::new(file),
+            header,
+            root,
+            leaves: Mutex::new(Vec::new()),
+        })
+    }
+
+    /// The image of one tile, as the archive holds it. `None` for a tile
+    /// the archive does not have.
+    fn tile(&self, address: TileAddress) -> Result<Option<Vec<u8>>, CoreError> {
+        let Some(number) = number_of(address) else {
+            return Ok(None);
+        };
+        let mut entries = Arc::clone(&self.root);
+        for _ in 0..DIRECTORY_LEVELS {
+            // The entry that begins at or before the tile: its run holds
+            // the tile, or it points to the directory that knows.
+            let before = entries.partition_point(|entry| entry.first <= number);
+            let Some(entry) = before
+                .checked_sub(1)
+                .and_then(|index| entries.get(index))
+                .copied()
+            else {
+                return Ok(None);
+            };
+            if entry.run == 0 {
+                entries = self.leaf(entry)?;
+                continue;
+            }
+            if number - entry.first >= entry.run {
+                return Ok(None);
+            }
+            let at = self
+                .header
+                .tiles_at
+                .checked_add(entry.offset)
+                .filter(|_| {
+                    entry
+                        .offset
+                        .checked_add(entry.length)
+                        .is_some_and(|end| end <= self.header.tiles_length)
+                })
+                .ok_or_else(|| not_an_archive("it is cut short"))?;
+            return self
+                .read(at, entry.length, IMAGE_AT_MOST_BYTES as u64)
+                .map(Some);
+        }
+        Err(not_an_archive("its directories do not end"))
+    }
+
+    /// A further directory, from memory if it was read lately.
+    fn leaf(&self, entry: Entry) -> Result<Arc<Vec<Entry>>, CoreError> {
+        let lock = || {
+            self.leaves
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+        };
+        {
+            let mut leaves = lock();
+            if let Some(index) = leaves.iter().position(|(at, _)| *at == entry.offset) {
+                let found = leaves.remove(index);
+                let entries = Arc::clone(&found.1);
+                leaves.push(found);
+                return Ok(entries);
+            }
+        }
+        let at = self
+            .header
+            .leaves_at
+            .checked_add(entry.offset)
+            .filter(|_| {
+                entry
+                    .offset
+                    .checked_add(entry.length)
+                    .is_some_and(|end| end <= self.header.leaves_length)
+            })
+            .ok_or_else(|| not_an_archive("it is cut short"))?;
+        let packed = self.read(at, entry.length, DIRECTORY_AT_MOST_BYTES)?;
+        let entries = Arc::new(directory(&packed, self.header.is_gzip)?);
+        let mut leaves = lock();
+        if leaves.len() >= LEAVES_KEPT {
+            leaves.remove(0);
+        }
+        leaves.push((entry.offset, Arc::clone(&entries)));
+        Ok(entries)
+    }
+
+    fn read(&self, at: u64, length: u64, at_most: u64) -> Result<Vec<u8>, CoreError> {
+        let mut file = self
+            .file
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        read_part(&mut file, at, length, at_most)
+    }
+}
+
+/// Reads a part of a file: `length` bytes from `at` on.
+fn read_part(file: &mut File, at: u64, length: u64, at_most: u64) -> Result<Vec<u8>, CoreError> {
+    if length > at_most {
+        return Err(not_an_archive(
+            "a part of it is larger than any this app reads",
+        ));
+    }
+    let cut_short = || not_an_archive("it is cut short");
+    let mut bytes = vec![0; usize::try_from(length).map_err(|_| cut_short())?];
+    file.seek(SeekFrom::Start(at)).map_err(|_| cut_short())?;
+    file.read_exact(&mut bytes).map_err(|_| cut_short())?;
+    Ok(bytes)
+}
+
+/// The part of `whole` that an entry names.
+fn within<'a>(whole: &'a [u8], entry: &Entry) -> Result<&'a [u8], CoreError> {
+    let size = |number: u64| usize::try_from(number).unwrap_or(usize::MAX);
+    size(entry.offset)
+        .checked_add(size(entry.length))
+        .and_then(|end| whole.get(size(entry.offset)..end))
+        .ok_or_else(|| not_an_archive("it is cut short"))
+}
+
 /// One line of a directory: a run of tiles that share one image, or with
 /// a run of zero a further directory.
+#[derive(Debug, Clone, Copy)]
 struct Entry {
     first: u64,
     run: u64,
-    length: usize,
-    offset: usize,
+    length: u64,
+    offset: u64,
 }
 
 /// Reads one directory: how many entries, then for all of them the tile
@@ -452,11 +727,11 @@ fn directory(packed: &[u8], is_gzip: bool) -> Result<Vec<Entry>, CoreError> {
         entry.run = next()?;
     }
     for entry in &mut entries {
-        entry.length = usize::try_from(next()?).map_err(|_| cut_short())?;
+        entry.length = next()?;
     }
-    let mut before: Option<(usize, usize)> = None;
+    let mut before: Option<(u64, u64)> = None;
     for entry in &mut entries {
-        let written = usize::try_from(next()?).map_err(|_| cut_short())?;
+        let written = next()?;
         entry.offset = match (written, before) {
             (0, Some((offset, length))) => offset.checked_add(length).ok_or_else(cut_short)?,
             (0, None) => return Err(cut_short()),
@@ -506,6 +781,40 @@ fn address_of(number: u64) -> Option<TileAddress> {
         x: u32::try_from(x).ok()?,
         y: u32::try_from(y).ok()?,
     })
+}
+
+/// The number a tile has in an archive: the reverse of [`address_of`].
+/// `None` for an address the map does not have.
+fn number_of(address: TileAddress) -> Option<u64> {
+    if address.z > 22 {
+        return None;
+    }
+    let side = 1_u64 << address.z;
+    let (mut x, mut y) = (u64::from(address.x), u64::from(address.y));
+    if x >= side || y >= side {
+        return None;
+    }
+    // Every coarser level comes first.
+    let first: u64 = (0..u32::from(address.z)).map(|z| 1_u64 << (2 * z)).sum();
+    let mut along = 0_u64;
+    let mut half = side / 2;
+    while half > 0 {
+        let right = u64::from(x & half > 0);
+        let down = u64::from(y & half > 0);
+        along += half * half * ((3 * right) ^ down);
+        // What is left to place lies within this quarter.
+        x &= half - 1;
+        y &= half - 1;
+        if down == 0 {
+            if right == 1 {
+                x = half - 1 - x;
+                y = half - 1 - y;
+            }
+            std::mem::swap(&mut x, &mut y);
+        }
+        half /= 2;
+    }
+    Some(first + along)
 }
 
 #[cfg(test)]
@@ -707,6 +1016,255 @@ mod tests {
         .unwrap();
         assert!(words(terrain.add_archive(basemap)).contains("not plain WebP images"));
         assert_eq!(terrain.tile_count(), 0);
+    }
+
+    /// A file for one test, removed when the test is over.
+    struct TempFile(std::path::PathBuf);
+
+    impl TempFile {
+        fn holding(name: &str, bytes: &[u8]) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "venti-terrain-{}-{name}.pmtiles",
+                std::process::id()
+            ));
+            std::fs::write(&path, bytes).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> String {
+            self.0.to_str().unwrap().to_owned()
+        }
+    }
+
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    /// Packs tiles into an archive as a large one is laid out: its first
+    /// directory lists no tiles but further directories, of `per_leaf`
+    /// tiles each.
+    fn packed_with_leaves(tiles: &[(TileAddress, &[u8])], per_leaf: usize) -> Vec<u8> {
+        fn varint(out: &mut Vec<u8>, mut value: u64) {
+            loop {
+                let low = u8::try_from(value & 0x7F).unwrap();
+                value >>= 7;
+                if value == 0 {
+                    out.push(low);
+                    return;
+                }
+                out.push(low | 0x80);
+            }
+        }
+        // Entries as (first tile, run, length, offset).
+        fn directory_of(entries: &[(u64, u64, u64, u64)]) -> Vec<u8> {
+            let mut out = Vec::new();
+            varint(&mut out, entries.len() as u64);
+            let mut before = 0;
+            for entry in entries {
+                varint(&mut out, entry.0 - before);
+                before = entry.0;
+            }
+            for entry in entries {
+                varint(&mut out, entry.1);
+            }
+            for entry in entries {
+                varint(&mut out, entry.2);
+            }
+            for entry in entries {
+                varint(&mut out, entry.3 + 1);
+            }
+            out
+        }
+
+        let mut numbered: Vec<(u64, &[u8])> = tiles
+            .iter()
+            .map(|(address, image)| (number_of(*address).unwrap(), *image))
+            .collect();
+        numbered.sort_by_key(|(number, _)| *number);
+        numbered.dedup_by_key(|(number, _)| *number);
+
+        let (mut data, mut leaves, mut root) = (Vec::new(), Vec::new(), Vec::new());
+        for chunk in numbered.chunks(per_leaf) {
+            let mut entries = Vec::new();
+            for (number, image) in chunk {
+                entries.push((*number, 1, image.len() as u64, data.len() as u64));
+                data.extend_from_slice(image);
+            }
+            let leaf = directory_of(&entries);
+            root.push((chunk[0].0, 0, leaf.len() as u64, leaves.len() as u64));
+            leaves.extend(leaf);
+        }
+        let root = directory_of(&root);
+
+        let mut header = vec![0_u8; HEADER_BYTES];
+        header[..7].copy_from_slice(b"PMTiles");
+        header[7] = 3;
+        let mut put = |at: usize, value: usize| {
+            header[at..at + 8].copy_from_slice(&(value as u64).to_le_bytes());
+        };
+        let leaves_at = HEADER_BYTES + root.len();
+        put(8, HEADER_BYTES);
+        put(16, root.len());
+        put(24, leaves_at);
+        put(40, leaves_at);
+        put(48, leaves.len());
+        put(56, leaves_at + leaves.len());
+        put(64, data.len());
+        // Tiles in order, directories and tiles not packed, WebP.
+        header[96..100].copy_from_slice(&[1, 1, 1, 4]);
+        [header, root, leaves, data].concat()
+    }
+
+    #[test]
+    fn a_downloaded_region_is_read_from_its_file_as_tiles_are_needed() {
+        let whole = Terrain::new();
+        whole.add_archive(bundled()).unwrap();
+
+        // The region as it comes with the app, opened from its file.
+        let file = TempFile::holding("as-it-is", &bundled());
+        let terrain = Terrain::new();
+        terrain.open_archive(file.path()).unwrap();
+        // Opening reads the directory and no tile.
+        assert_eq!(terrain.tile_count(), 0);
+        assert_eq!(terrain.elevation(47.6662, 11.7982), None);
+        assert_eq!(terrain.tiles_wanted(47.6662, 11.7982).len(), 25);
+
+        // Around the Wallberg the region has twelve of the twenty-five
+        // tiles of zoom 12; the others are still wanted, from a server.
+        assert_eq!(terrain.read_around(47.6662, 11.7982), 12);
+        assert_eq!(terrain.tile_count(), 12);
+        assert_eq!(terrain.tiles_wanted(47.6662, 11.7982).len(), 13);
+        // Nothing is read twice.
+        assert_eq!(terrain.read_around(47.6662, 11.7982), 0);
+        for (lat, lon) in [(47.6662, 11.7982), (47.7130, 11.7400), (47.6642, 11.7967)] {
+            assert_eq!(terrain.elevation(lat, lon), whole.elevation(lat, lon));
+            assert!(terrain.elevation(lat, lon).is_some());
+        }
+
+        // Opened again, the file is open once, and closing lets it go:
+        // what was taken stays, and nothing more is read.
+        terrain.open_archive(file.path()).unwrap();
+        assert_eq!(terrain.archives().len(), 1);
+        terrain.close_archives();
+        assert_eq!(terrain.tile_count(), 12);
+        let fresh = Terrain::new();
+        assert_eq!(fresh.read_around(47.6662, 11.7982), 0);
+    }
+
+    #[test]
+    fn a_large_archive_with_directories_of_directories_is_read_the_same() {
+        let whole = Terrain::new();
+        whole.add_archive(bundled()).unwrap();
+        let bundled = bundled();
+        let tiles = archive_tiles(&bundled).unwrap();
+
+        // One tile to a directory makes thirty directories, more than are
+        // kept in memory; four to a directory makes eight.
+        for per_leaf in [1, 4] {
+            let packed = packed_with_leaves(&tiles, per_leaf);
+            // The reader of whole archives follows the directories too.
+            assert_eq!(archive_tiles(&packed).unwrap().len(), 30);
+
+            let file = TempFile::holding(&format!("leaves-{per_leaf}"), &packed);
+            let terrain = Terrain::new();
+            terrain.open_archive(file.path()).unwrap();
+            assert_eq!(terrain.read_around(47.6662, 11.7982), 12);
+            for (lat, lon) in [(47.6662, 11.7982), (47.7130, 11.7400), (47.6642, 11.7967)] {
+                assert_eq!(terrain.elevation(lat, lon), whole.elevation(lat, lon));
+            }
+
+            // The ground under a flight is read at the zoom level its
+            // area asks for: here the coarser tiles the archive has.
+            let under = Terrain::new();
+            under.open_archive(file.path()).unwrap();
+            let area = Bounds {
+                south: 47.60,
+                west: 11.50,
+                north: 47.90,
+                east: 12.10,
+            };
+            let wanted = under.tiles_covering(area);
+            assert!(wanted.iter().all(|tile| tile.z < ZOOM), "{wanted:?}");
+            let taken = under.read_covering(area);
+            assert!(taken > 0, "{taken}");
+            assert_eq!(
+                under.tiles_covering(area).len(),
+                wanted.len() - taken as usize
+            );
+            let lake = under.elevation(47.7130, 11.7400).unwrap();
+            assert!((lake - 725.0).abs() < 3.0, "{lake}");
+        }
+    }
+
+    #[test]
+    fn a_file_that_is_no_archive_of_elevation_is_not_opened() {
+        let terrain = Terrain::new();
+        let nowhere = std::env::temp_dir().join("venti-terrain-no-such-file.pmtiles");
+        assert!(
+            words(terrain.open_archive(nowhere.to_str().unwrap().to_owned()))
+                .contains("cannot be opened")
+        );
+        let short = TempFile::holding("short", &bundled()[..100]);
+        assert!(words(terrain.open_archive(short.path())).contains("cut short"));
+        let basemap = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../apps/ios/Venti/Resources/MapDemo/basemap.pmtiles"
+        ))
+        .unwrap();
+        let other = TempFile::holding("basemap", &basemap);
+        assert!(words(terrain.open_archive(other.path())).contains("not plain WebP images"));
+        assert!(terrain.archives().is_empty());
+
+        // A file whose end is missing opens, since its directory is
+        // there; the tiles that are missing are left, and the others read.
+        let bundled = bundled();
+        let cut = TempFile::holding("cut", &bundled[..bundled.len() / 2]);
+        terrain.open_archive(cut.path()).unwrap();
+        assert!(terrain.read_around(47.6662, 11.7982) < 12);
+    }
+
+    #[test]
+    fn a_tile_has_the_number_its_address_is_read_from() {
+        for z in 0..=6_u8 {
+            let side = 1_u32 << z;
+            for x in 0..side {
+                for y in 0..side {
+                    let address = TileAddress { z, x, y };
+                    let number = number_of(address).unwrap();
+                    assert_eq!(address_of(number), Some(address), "{address:?}");
+                }
+            }
+        }
+        for address in [
+            TileAddress {
+                z: 12,
+                x: 2181,
+                y: 1429,
+            },
+            TileAddress {
+                z: 12,
+                x: 4095,
+                y: 0,
+            },
+            TileAddress {
+                z: 14,
+                x: 8725,
+                y: 5717,
+            },
+            TileAddress {
+                z: 22,
+                x: 4_194_303,
+                y: 4_194_303,
+            },
+        ] {
+            assert_eq!(address_of(number_of(address).unwrap()), Some(address));
+        }
+        assert_eq!(number_of(TileAddress { z: 1, x: 1, y: 0 }), Some(4));
+        // Beyond the edge of a level, and beyond the levels there are.
+        assert_eq!(number_of(TileAddress { z: 1, x: 2, y: 0 }), None);
+        assert_eq!(number_of(TileAddress { z: 23, x: 0, y: 0 }), None);
     }
 
     #[test]

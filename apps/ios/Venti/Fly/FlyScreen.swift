@@ -151,10 +151,12 @@ struct FlyScreen: View {
             .environment(tasks)
             .environment(maps)
         }
+        // Outside the cockpit only: while it is open, or opening, it says
+        // what went wrong among its own notices.
         .alert(
             "Flying",
             isPresented: Binding(
-                get: { fly.problem != nil },
+                get: { fly.problem != nil && fly.mode == nil },
                 set: { isPresented in
                     if !isPresented {
                         fly.problem = nil

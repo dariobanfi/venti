@@ -224,6 +224,15 @@ struct CockpitScreen: View {
             if let notice = PhaseNotice(view: view, isReplay: isReplay) {
                 notice
             }
+            // Something that went wrong while the cockpit is open is said
+            // here, among its notices, and put away with a tap. A box over
+            // the screen would hide the readings, and one asked for while
+            // the cockpit opens keeps it from opening.
+            if let problem = fly.problem {
+                ProblemNotice(text: problem) {
+                    fly.problem = nil
+                }
+            }
         }
         .padding(.horizontal, VentiSpace.s4)
         .padding(.bottom, VentiSpace.s2)
@@ -536,6 +545,41 @@ private struct PhaseNotice: View {
         .background(.venti(.surfaceRaised), in: .rect(cornerRadius: VentiRadius.m))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cockpit-phase")
+    }
+}
+
+/// Something that went wrong, as a band among the cockpit's notices: the
+/// caution sign, what it is, and that a tap puts it away.
+private struct ProblemNotice: View {
+    let text: String
+    let putAway: () -> Void
+
+    var body: some View {
+        Button(action: putAway) {
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                Image("icon-caution")
+                    .resizable()
+                    .frame(width: VentiSize.icon, height: VentiSize.icon)
+                    .foregroundStyle(.venti(.caution))
+                Text(text)
+                    .font(.ventiType(.label))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, VentiSpace.s4)
+            .padding(.vertical, VentiSpace.s3)
+            .frame(minHeight: VentiSize.touch)
+            .foregroundStyle(.venti(.text))
+            .background(.venti(.cautionSoft), in: .rect(cornerRadius: VentiRadius.m))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Puts this message away")
+        .accessibilityIdentifier("cockpit-problem")
     }
 }
 

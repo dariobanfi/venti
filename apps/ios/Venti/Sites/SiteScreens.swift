@@ -256,10 +256,6 @@ struct SiteScreen: View {
                     }
                     .accessibilityIdentifier("site-forecast")
                 }
-                // What others flew from here and shared with everyone.
-                if !flown.isEmpty {
-                    FlownFromHere(flights: flown)
-                }
             }
             Section {
                 Button(kept == nil ? "Add to my waypoints" : "In your waypoints", systemImage: kept == nil ? "plus" : "checkmark") {
@@ -273,6 +269,12 @@ struct SiteScreen: View {
                 .disabled(kept != nil)
             } footer: {
                 Text("As a waypoint the cockpit can navigate to it, also without a network.")
+            }
+            // What others flew from here and shared with everyone: under
+            // what the page is opened for, because it arrives a moment
+            // later and must not push that away from under a finger.
+            if wind.server != nil, !flown.isEmpty {
+                FlownFromHere(flights: flown)
             }
             Section {
                 if let address = site.url, let link = URL(string: address) {

@@ -716,7 +716,6 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("sites-2-list")
         row.tap()
         XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
-        XCTAssertTrue(saying("OpenStreetMap", in: app).exists)
         sleep(1)
         keepScreenshot("sites-3-site")
 
@@ -731,6 +730,19 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("sites-4-forecast")
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 10))
+
+        // Further down the site's page: what was flown from here, where
+        // the server has public flights that took off at this site, and
+        // where the site is from.
+        let source = saying("OpenStreetMap", in: app)
+        for _ in 0..<4 where !source.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(source.exists)
+        if element("site-flight", in: app).exists {
+            sleep(1)
+            keepScreenshot("sites-3b-flown-from-here")
+        }
 
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Done"].tap()

@@ -1,10 +1,11 @@
 # Working rules for AI sessions
 
-Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before changing anything, and `docs/design.md` before changing a screen. They are the project's memory. If a change contradicts them, update the document in the same commit or do not make the change.
+Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before changing anything. Before changing anything a user sees, read `design/AGENTS.md` and `design/DESIGN.md`, the product's design language, look at `design/reference/screens/`, and read `docs/design.md`, which says what each screen does. They are the project's memory. If a change contradicts them, update the document in the same commit or do not make the change.
 
 ## Fixed by the owner
 
 - Native UI only: SwiftUI, Jetpack Compose, and a web app in the browser. No React Native, Flutter or web views in the mobile apps.
+- The look is the owner's design language, "Valley", in `design/`: its tokens, type, icons, logo and art, in the themes `light`, `dark` and `flight`. A screen takes colours, sizes, radii and fonts from the tokens and never writes its own; it uses the files in `design/assets` and never redraws, recolours or copies them. `design/DESIGN.md` decides how something looks; `docs/design.md` says what a screen does and where a platform differs. Do not change the files in `design/` except on the owner's word.
 - Shared logic is Rust. UI shells contain no business rules.
 - Self-hosted on one Linux server. Do not add a service that bills by usage.
 - The project pays for no AI inference. Users bring their own assistant or credentials.
@@ -74,3 +75,4 @@ Cloud sessions for this repository use the `venti` environment, which has unrest
 - Mark anything not checked against a primary source as "to verify". Do not present it as fact.
 - Prefer deleting code to adding a second way of doing something.
 - Show the owner what changed. After a change to a screen on any platform, send them the new screenshots from the workflow's artifact without waiting to be asked, so that they can direct the work.
+- Before a screen is called done, go through the list at the end of `design/AGENTS.md`: every theme against `design/reference/screens/`, the loading, empty, error and offline states, 360 px wide and text at 130%, and no colour or size in the diff that is not a token.

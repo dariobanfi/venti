@@ -8,15 +8,24 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 
 /**
- * The app's sections. More join as the product grows: the community comes
- * next. Five is as many as a Material navigation bar takes.
+ * The app's sections, as the design language's tab bar has them, with its
+ * icons. The assistant and the settings are not among them: they open from
+ * the Today tab's corner.
  */
 enum class AppTab(val title: String, @param:DrawableRes val icon: Int) {
+    Today("Today", R.drawable.venti_forecast),
     Map("Map", R.drawable.venti_map),
     Fly("Fly", R.drawable.venti_wing),
     Logbook("Logbook", R.drawable.venti_track),
-    Assistant("Assistant", R.drawable.ic_auto_awesome),
-    Settings("Settings", R.drawable.ic_settings),
+}
+
+/** A page of the Today tab, opened from its corner. */
+enum class TodayRoute {
+    /** The settings, with the pages reached from them. */
+    Settings,
+
+    /** The assistant. */
+    Assistant,
 }
 
 /** A screen reached from the logbook's list. */
@@ -72,7 +81,10 @@ enum class FlyRoute {
  * from outside can bring its flight to the front.
  */
 class AppNavigation {
-    var tab: AppTab by mutableStateOf(AppTab.Map)
+    var tab: AppTab by mutableStateOf(AppTab.Today)
+
+    /** The page opened from the Today tab's corner, if any. */
+    var todayRoute: TodayRoute? by mutableStateOf(null)
 
     /** The screens opened on top of the logbook's list, the newest last. */
     val logbookPath = mutableStateListOf<LogbookRoute>()
@@ -83,14 +95,46 @@ class AppNavigation {
     /** The screen opened on top of the Fly tab, if any. */
     var flyRoute: FlyRoute? by mutableStateOf(null)
 
-    /** Whether the pilot is on one of the sections' first screens, where the tab bar shows. */
-    val isAtTopLevel: Boolean
+    /**
+     * Whether the tab bar shows: on the sections' first screens, and on the
+     * settings and the assistant, which are pages of the Today tab. A
+     * flight or the statistics have the whole screen.
+     */
+    val showsTabBar: Boolean
         get() = when (tab) {
+            AppTab.Today -> todayRoute != TodayRoute.Settings || settingsRoute == null
             AppTab.Logbook -> logbookPath.isEmpty()
-            AppTab.Settings -> settingsRoute == null
             AppTab.Fly -> flyRoute == null
-            else -> true
+            AppTab.Map -> true
         }
+
+    /** Whether there is somewhere to go back to within the section in front. */
+    val canGoBack: Boolean
+        get() = when (tab) {
+            AppTab.Today -> todayRoute != null
+            AppTab.Logbook -> logbookPath.isNotEmpty()
+            AppTab.Fly -> flyRoute != null
+            AppTab.Map -> false
+        }
+
+    /**
+     * The pilot tapped a tab. Tapped again while it is in front, the Today
+     * tab goes back to Today itself, whatever page lay over it.
+     */
+    fun choose(chosen: AppTab) {
+        if (chosen == tab && chosen == AppTab.Today) {
+            todayRoute = null
+            settingsRoute = null
+        }
+        tab = chosen
+    }
+
+    /** Opens the settings, from the Today tab's corner or from a screen that needs one set. */
+    fun showSettings() {
+        tab = AppTab.Today
+        todayRoute = TodayRoute.Settings
+        settingsRoute = null
+    }
 
     fun show(flight: String) {
         tab = AppTab.Logbook
@@ -114,8 +158,12 @@ class AppNavigation {
             logbookPath.removeAt(logbookPath.lastIndex)
             true
         }
-        tab == AppTab.Settings && settingsRoute != null -> {
+        tab == AppTab.Today && todayRoute == TodayRoute.Settings && settingsRoute != null -> {
             settingsRoute = null
+            true
+        }
+        tab == AppTab.Today && todayRoute != null -> {
+            todayRoute = null
             true
         }
         tab == AppTab.Fly && flyRoute != null -> {
@@ -138,6 +186,7 @@ class AppNavigation {
                     navigation.tab.name,
                     navigation.settingsRoute?.name.orEmpty(),
                     navigation.flyRoute?.name.orEmpty(),
+                    navigation.todayRoute?.name.orEmpty(),
                 ) +
                     navigation.logbookPath.map { route ->
                         when (route) {
@@ -151,10 +200,11 @@ class AppNavigation {
             },
             restore = { saved ->
                 AppNavigation().apply {
-                    tab = AppTab.valueOf(saved[0])
+                    tab = AppTab.entries.firstOrNull { it.name == saved[0] } ?: AppTab.Today
                     settingsRoute = SettingsRoute.entries.firstOrNull { it.name == saved[1] }
                     flyRoute = FlyRoute.entries.firstOrNull { it.name == saved[2] }
-                    saved.drop(3).forEach { route ->
+                    todayRoute = TodayRoute.entries.firstOrNull { it.name == saved[3] }
+                    saved.drop(4).forEach { route ->
                         logbookPath += when {
                             route == STATISTICS -> LogbookRoute.Statistics
                             route.startsWith(PUBLIC_FLIGHT) -> LogbookRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))

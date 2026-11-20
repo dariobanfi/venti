@@ -11,6 +11,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -83,13 +85,25 @@ class VentiUiTest {
         TestDevice.keepSystemDialogsAway()
     }
 
-    private fun launch(bundledMap: Boolean = true, dark: Boolean = false, with: Intent.() -> Unit = {}) {
+    private fun launch(
+        bundledMap: Boolean = true,
+        dark: Boolean = false,
+        /** Whether the test begins where the app opens, on Today, and not on the map. */
+        onToday: Boolean = false,
+        with: Intent.() -> Unit = {},
+    ) {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, bundledMap)
             .putExtra(LaunchOptions.DARK, dark)
             .apply(with)
         app = ActivityScenario.launch(intent)
+        // The app opens on Today; most tests begin on the map. A file
+        // handed over from another app opens what it brought instead.
+        if (intent.action == null && !onToday) {
+            waitFor(tab("Map"))
+            tap(tab("Map"))
+        }
     }
 
     private fun keepScreenshot(name: String) {
@@ -127,8 +141,23 @@ class VentiUiTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
-    /** One of the four sections in the tab bar. */
-    private fun tab(name: String) = hasText(name) and isSelectable()
+    /** One of the sections in the tab bar; not a day of the Today tab's switch, which says "Today" too. */
+    private fun tab(name: String) = hasText(name) and isSelectable() and !hasAnyAncestor(hasTestTag("today-days"))
+
+    /**
+     * The settings or the assistant: pages of the Today tab, opened from
+     * its corner. A tap on the tab while it is in front goes back to Today
+     * itself, whatever page lay over it.
+     */
+    private fun openFromToday(name: String) {
+        val opener = described(name) and hasClickAction()
+        tap(tab("Today"))
+        if (!exists(opener)) {
+            tap(tab("Today"))
+        }
+        waitFor(opener)
+        tap(opener)
+    }
 
     private fun described(text: String) = hasContentDescription(text)
 
@@ -406,7 +435,7 @@ class VentiUiTest {
         waitFor(hasText("Open the cockpit"))
 
         // Settings, and the credits the map data's licences ask for.
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         keepScreenshot("$prefix-settings-1")
 
@@ -440,7 +469,7 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
 
-        tap(tab("Assistant"))
+        openFromToday("Assistant")
         val question = hasText("How was my flying this year?")
         waitFor(question)
         keepScreenshot("$prefix-assistant-1-start")
@@ -541,7 +570,7 @@ class VentiUiTest {
         waitFor(described("Wind stations"))
 
         // The assistant looks up the same wind on the same server.
-        tap(tab("Assistant"))
+        openFromToday("Assistant")
         val question = hasText("How is the wind on the Zugspitze right now?")
         waitFor(question)
         tap(question)
@@ -552,7 +581,7 @@ class VentiUiTest {
 
         // The settings hold the server's address, and the credits name
         // whose stations it delivers.
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Venti server"))
         screen.onNode(hasText("Data and licences")).performScrollTo()
         keepScreenshot("$prefix-wind-6-settings")
@@ -618,7 +647,7 @@ class VentiUiTest {
         waitFor(hasText("Open the cockpit"))
 
         // The files behind the warnings.
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         tap(hasText("Airspace"))
         waitFor(hasText("sample-zones-not-real"))
@@ -929,7 +958,7 @@ class VentiUiTest {
     /** From the map to the account screen, by way of the settings. */
     private fun openTheAccount() {
         waitFor(described("Show my position"))
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
@@ -1119,7 +1148,7 @@ class VentiUiTest {
         keepScreenshot("$prefix-plans-4-on-the-map")
 
         // Signing out leaves the flights on the phone.
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasTestTag("account-link"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
@@ -1212,7 +1241,7 @@ class VentiUiTest {
 
         // A new account on the server.
         val handle = "l${System.currentTimeMillis() % 1_000_000_000}"
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
@@ -1651,10 +1680,85 @@ class VentiUiTest {
         waitFor(described("Flying sites"))
 
         // The site that was kept is among the pilot's waypoints.
-        tap(tab("Settings"))
+        openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         tap(hasText("Waypoints"))
         waitFor(described(takeoff))
+    }
+
+    /**
+     * Today, against Venti in development mode: the app opens on it, with
+     * the take-offs around the Tegernsee and what the recorded forecast, a
+     * stormy day, says about flying from each. Another day, and a
+     * take-off's own page. Skipped without a server, like the wind.
+     */
+    private fun lookAtToday(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark, onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+
+        // The best take-off as a card, with its status in words once its
+        // forecast is read, its readings, and the others as rows.
+        waitFor(hasTestTag("today-card"))
+        val status = described("Flyable") or described("Marginal") or described("Not flyable")
+        waitFor(hasTestTag("today-card") and status)
+        assertTrue(exists(hasTestTag("today-card") and described("Cloud base")))
+        assertTrue(exists(hasTestTag("today-row")))
+        // Whose forecast it is, and that it is a reading of a model.
+        screen.onNode(hasTestTag("today-foot")).performScrollTo()
+        waitFor(hasText("the take-off decides", substring = true))
+        assertTrue(exists(hasText("They are not advice to fly", substring = true)))
+        screen.onNode(hasTestTag("today-headline")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-today-1")
+
+        // Another day.
+        val anotherDay = hasAnyAncestor(hasTestTag("today-days")) and isSelectable() and isSelected().not()
+        if (exists(anotherDay)) {
+            screen.onAllNodes(anotherDay).onLast().performClick()
+            waitFor(hasTestTag("today-card") and status)
+            TestDevice.letTheAppRun(screen, 1)
+            keepScreenshot("$prefix-today-2-another-day")
+        }
+
+        // A take-off's own page, over Today.
+        tap(hasTestTag("today-card"))
+        waitFor(hasText("Wind it works in"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("$prefix-today-3-site")
+        tap(hasText("Done"))
+        waitFor(hasTestTag("today-card"))
+    }
+
+    @Test
+    fun todaySaysWhatTheForecastSaysOfTheTakeoffs() = lookAtToday("light", dark = false)
+
+    @Test
+    fun todayInDarkAppearance() = lookAtToday("dark", dark = true)
+
+    /**
+     * Today without a Venti to ask: the app opens on it, says what is
+     * missing and leads to where it is set. The settings are a page of the
+     * Today tab and keep the tab bar, and their place while the pilot looks
+     * at another tab.
+     */
+    @Test
+    fun todayWithoutVentiSaysWhatIsMissing() {
+        launch(onToday = true)
+        waitFor(hasText("Venti is not connected"))
+        assertTrue(exists(hasTestTag("today-headline") and hasText("No forecast yet")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("today-0-not-connected")
+
+        tap(hasText("Open the settings"))
+        waitFor(hasText("Vario sound"))
+        tap(tab("Fly"))
+        waitFor(hasText("Open the cockpit"))
+        tap(tab("Today"))
+        waitFor(hasText("Vario sound"))
+        // Tapped again, the tab goes back to Today itself.
+        tap(tab("Today"))
+        waitFor(hasText("Venti is not connected"))
     }
 
     /**

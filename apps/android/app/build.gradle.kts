@@ -282,6 +282,9 @@ abstract class DesignPack : DefaultTask() {
             .forEach { svg ->
                 drawables.resolve("venti_" + svg.nameWithoutExtension.replace('-', '_') + ".xml").writeText(vector(svg.readText()))
             }
+        // The valley at the head of the Today screen, as the pack draws it.
+        drawables.resolve("venti_art_valley_strip.xml")
+            .writeText(art(design.resolve("assets/illustration/valley-strip.svg").readText()))
         // The window's colour before Compose draws, in each appearance.
         val theme = (groovy.json.JsonSlurper().parse(design.resolve("tokens/tokens.json")) as Map<*, *>)["theme"] as Map<*, *>
         for ((folder, name) in listOf("values" to "light", "values-night" to "dark")) {
@@ -320,6 +323,50 @@ abstract class DesignPack : DefaultTask() {
             "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"\n" +
             "    android:width=\"24dp\"\n    android:height=\"24dp\"\n" +
             "    android:viewportWidth=\"24\"\n    android:viewportHeight=\"24\">\n$paths</vector>\n"
+    }
+
+    /**
+     * One of the pack's flat illustrations, shapes filled with a colour or
+     * a straight gradient, as an Android vector drawable. Anything else in
+     * it stops the build, so that the art is never drawn short.
+     */
+    private fun art(svg: String): String {
+        fun attr(tag: String, name: String): String? = Regex("""\b$name="([^"]*)"""").find(tag)?.groupValues?.get(1)
+        fun argb(hex: String): String = "#FF" + hex.removePrefix("#").uppercase()
+        val box = attr(Regex("<svg[^>]*>").find(svg)!!.value, "viewBox")!!.split(' ').map { it.toDouble() }
+        val (width, height) = box[2] to box[3]
+        val gradients = Regex("""<linearGradient\b([^>]*)>(.*?)</linearGradient>""").findAll(svg).associate { match ->
+            val tag = match.groupValues[1]
+            require(attr(tag, "gradientUnits") == "userSpaceOnUse") { "only gradients in the picture's own units" }
+            val stops = Regex("<stop\\b[^>]*/>").findAll(match.groupValues[2]).joinToString("") { stop ->
+                "        <item android:offset=\"${attr(stop.value, "offset")}\" android:color=\"${argb(attr(stop.value, "stop-color")!!)}\"/>\n"
+            }
+            attr(tag, "id")!! to
+                "    <aapt:attr name=\"android:fillColor\">\n      <gradient android:type=\"linear\"" +
+                " android:startX=\"${attr(tag, "x1")}\" android:startY=\"${attr(tag, "y1")}\"" +
+                " android:endX=\"${attr(tag, "x2")}\" android:endY=\"${attr(tag, "y2")}\">\n$stops      </gradient>\n    </aapt:attr>\n"
+        }
+        val body = svg.substringAfter("</defs>", svg.substringAfter(">")).removeSuffix("</svg>")
+        val shapes = Regex("<(\\w+)\\b[^>]*/>").findAll(body).joinToString("") { match ->
+            val tag = match.value
+            val data = when (match.groupValues[1]) {
+                "path" -> attr(tag, "d")!!
+                "rect" -> "M0,0H${attr(tag, "width")}V${attr(tag, "height")}H0Z"
+                else -> error("the art has a ${match.groupValues[1]}, which this does not draw")
+            }
+            val fill = attr(tag, "fill")!!
+            val gradient = Regex("""url\(#(.+)\)""").matchEntire(fill)?.groupValues?.get(1)
+            if (gradient != null) {
+                "  <path android:pathData=\"$data\">\n${gradients.getValue(gradient)}  </path>\n"
+            } else {
+                "  <path android:pathData=\"$data\" android:fillColor=\"${argb(fill)}\"/>\n"
+            }
+        }
+        return "<!-- Made at build time from the design pack, design/assets/illustration. -->\n" +
+            "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"\n" +
+            "    xmlns:aapt=\"http://schemas.android.com/aapt\"\n" +
+            "    android:width=\"${(width / 2).toInt()}dp\"\n    android:height=\"${(height / 2).toInt()}dp\"\n" +
+            "    android:viewportWidth=\"${width.toInt()}\"\n    android:viewportHeight=\"${height.toInt()}\">\n$shapes</vector>\n"
     }
 
     /**

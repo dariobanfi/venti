@@ -44,6 +44,14 @@ object Format {
     fun dayInYear(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         at(unixSeconds, "EEE, d MMM", zone)
 
+    /** "Saturday" */
+    fun weekday(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        at(unixSeconds, "EEEE", zone)
+
+    /** "Sat" */
+    fun shortWeekday(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        at(unixSeconds, "EEE", zone)
+
     /** "10:30" */
     fun time(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         at(unixSeconds, if (uses24HourClock) "HH:mm" else "h:mm a", zone)

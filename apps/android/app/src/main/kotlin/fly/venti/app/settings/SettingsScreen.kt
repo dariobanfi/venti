@@ -68,6 +68,8 @@ fun SettingsScreen(
     /** Opens a screen on top of the settings. */
     onOpen: (SettingsRoute) -> Unit,
     bars: PaddingValues,
+    /** Back to the Today tab, where the settings open from. */
+    onBack: () -> Unit,
 ) {
     val links = LocalUriHandler.current
     var pilot by remember { mutableStateOf(preferences.pilot) }
@@ -79,7 +81,16 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
-        topBar = { TopAppBar(title = { Text("Settings") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    }
+                },
+            )
+        },
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(

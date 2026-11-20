@@ -88,6 +88,8 @@ fun AssistantScreen(
     /** Whether a Venti server is set: the assistant can then look up live wind. */
     hasWind: Boolean,
     bars: PaddingValues,
+    /** Back to the Today tab, where the assistant opens from. */
+    onBack: () -> Unit,
 ) {
     Scaffold(
         modifier = Modifier
@@ -98,6 +100,11 @@ fun AssistantScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Assistant") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    }
+                },
                 actions = {
                     if (chat.hasKey) {
                         Options(chat)

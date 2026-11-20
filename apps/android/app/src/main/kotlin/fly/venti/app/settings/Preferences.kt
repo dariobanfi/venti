@@ -54,6 +54,14 @@ interface Preferences {
     /** Whether the DHV-XC is asked to publish a flight at once. Off until the pilot turns it on. */
     var dhvxcPublishes: Boolean
 
+    /**
+     * Whether the Today tab shows the take-offs around the pilot. Set when
+     * the pilot taps "Use my position" there: until then it shows those
+     * around the middle of the first region, also when the cockpit may
+     * already use the position.
+     */
+    var todayNearPilot: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -121,6 +129,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(DHVXC_PUBLISHES, false)
         set(value) = store.edit { putBoolean(DHVXC_PUBLISHES, value) }
 
+    override var todayNearPilot: Boolean
+        get() = store.getBoolean(TODAY_NEAR_PILOT, false)
+        set(value) = store.edit { putBoolean(TODAY_NEAR_PILOT, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -137,6 +149,7 @@ class StoredPreferences(context: Context) : Preferences {
         const val DHVXC_USER = "dhvxc-user"
         const val DHVXC_GLIDER = "dhvxc-glider"
         const val DHVXC_PUBLISHES = "dhvxc-publishes"
+        const val TODAY_NEAR_PILOT = "today-near-pilot"
     }
 }
 
@@ -156,4 +169,5 @@ class MemoryPreferences : Preferences {
     override var dhvxcUser = ""
     override var dhvxcGlider = ""
     override var dhvxcPublishes = false
+    override var todayNearPilot = false
 }

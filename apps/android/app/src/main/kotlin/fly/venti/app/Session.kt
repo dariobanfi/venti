@@ -37,6 +37,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.SitesModel
+import fly.venti.app.today.TodayModel
 import fly.venti.app.task.TaskModel
 import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.waypoints.WaypointsModel
@@ -78,6 +79,8 @@ sealed interface Session {
         val leagues: Leagues,
         /** Maps for flying without a network. */
         val maps: OfflineMapsModel,
+        /** The take-offs around, and what the forecast says of each. */
+        val today: TodayModel,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -192,6 +195,11 @@ sealed interface Session {
             sites.server = { (wind.server as? WindServer.Usable)?.url }
             // The cockpit's wind on the ground, from the same stations.
             fly.windOnTheGround = { place, landing -> wind.stationsAround(place, landing) }
+            // And the forecasts for the take-offs of the Today tab, whose
+            // hours are gone by the server's clock.
+            val today = TodayModel()
+            today.server = { (wind.server as? WindServer.Usable)?.url }
+            today.clock = { wind.serverNow() }
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }
@@ -273,7 +281,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                leagues, maps, preferences, files, scope,
+                leagues, maps, today, preferences, files, scope,
             )
         }
     }

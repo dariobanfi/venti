@@ -182,6 +182,27 @@ class WindModel(
     val now: Long get() = (clock() / 1000.0 + (serverClock?.first ?: 0.0)).roundToLong()
 
     /**
+     * The current time by the server's clock, read from the server first if
+     * it has not been yet. This phone's own time when there is no server or
+     * no answer.
+     */
+    suspend fun serverNow(): Long {
+        val server = url
+        if (serverClock == null && server != null) {
+            try {
+                val answer = transport(server + serverStatusPath())
+                val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
+                serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // This phone's clock, then.
+            }
+        }
+        return now
+    }
+
+    /**
      * The map says which part of it is in view. The server is asked unless
      * that part is covered by a recent answer.
      */

@@ -54,13 +54,17 @@ import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
+import fly.venti.app.sites.SiteSheet
+import fly.venti.app.today.TodayScreen
 import fly.venti.app.wind.WindServer
+import fly.venti.core.Bounds
+import fly.venti.core.SiteView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /**
- * The whole app: its four sections under a tab bar, the screens opened from
+ * The whole app: its sections under a tab bar, the screens opened from
  * them, and the cockpit, which covers everything while a flight runs.
  */
 @Composable
@@ -211,13 +215,16 @@ private fun Sections(
     // Each section keeps what it remembers, such as how far its list was
     // scrolled, while the pilot is in another.
     val kept = rememberSaveableStateHolder()
-    BackHandler(enabled = !navigation.isAtTopLevel) { navigation.back() }
+    BackHandler(enabled = navigation.canGoBack) { navigation.back() }
+    // A take-off opened from the Today tab: its page, in a sheet over it.
+    var todaySite by remember { mutableStateOf<SiteView?>(null) }
 
     Scaffold(
         bottomBar = {
-            // The tab bar shows on the sections' first screens only: a
-            // flight or the statistics have the whole screen.
-            if (navigation.isAtTopLevel) {
+            // The tab bar shows on the sections' first screens and the
+            // Today tab's pages: a flight or the statistics have the whole
+            // screen.
+            if (navigation.showsTabBar) {
                 // The pack's tab bar: on the surface under a line, the
                 // section in front in the text's colour with its icon in
                 // coral, the others muted. No pill behind the icon.
@@ -229,7 +236,7 @@ private fun Sections(
                         val selected = navigation.tab == tab
                         NavigationBarItem(
                             selected = selected,
-                            onClick = { navigation.tab = tab },
+                            onClick = { navigation.choose(tab) },
                             icon = { Icon(painterResource(tab.icon), contentDescription = null) },
                             label = {
                                 Text(
@@ -255,6 +262,66 @@ private fun Sections(
         // One Venti server gives the wind, the airspace and the assistant's look-ups.
         val hasServer = session.wind.server is WindServer.Usable
         when (navigation.tab) {
+            AppTab.Today -> when (navigation.todayRoute) {
+                TodayRoute.Assistant -> kept.SaveableStateProvider("assistant") {
+                    AssistantScreen(session.chat, hasWind = hasServer, bars = bars, onBack = { navigation.back() })
+                }
+                TodayRoute.Settings -> when (navigation.settingsRoute) {
+                    SettingsRoute.Credits -> CreditsScreen(session.wind, onBack = { navigation.back() })
+                    SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
+                        WaypointsScreen(session.waypoints, onBack = { navigation.back() })
+                    }
+                    SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                    SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
+                    SettingsRoute.Account -> kept.SaveableStateProvider("account") {
+                        AccountScreen(session.account, session.wind, session.scope, onBack = { navigation.back() })
+                    }
+                    null -> kept.SaveableStateProvider("settings") {
+                        SettingsScreen(
+                            session.preferences,
+                            session.fly,
+                            session.wind,
+                            session.account,
+                            offlineMaps = session.maps.inALine,
+                            onOpen = { navigation.settingsRoute = it },
+                            bars = bars,
+                            onBack = { navigation.back() },
+                        )
+                    }
+                }
+                null -> kept.SaveableStateProvider("today") {
+                    TodayScreen(
+                        session.today,
+                        session.wind,
+                        session.preferences,
+                        onOpen = { site ->
+                            // The site's page names its source's credit, from the sites around it.
+                            session.sites.show(around(site))
+                            todaySite = site
+                        },
+                        onOpenSettings = { navigation.showSettings() },
+                        onOpenAssistant = { navigation.todayRoute = TodayRoute.Assistant },
+                        bars = bars,
+                    )
+                    todaySite?.let { site ->
+                        SiteSheet(
+                            sites = session.sites,
+                            waypoints = session.waypoints,
+                            wind = session.wind,
+                            showsList = false,
+                            chosen = site,
+                            onChoose = { todaySite = it },
+                            onDismiss = { todaySite = null },
+                            community = session.community,
+                            onOpenFlight = { flight ->
+                                todaySite = null
+                                navigation.showLogbook()
+                                navigation.open(LogbookRoute.PublicFlight(flight.id))
+                            },
+                        )
+                    }
+                }
+            }
             AppTab.Map -> kept.SaveableStateProvider("map") {
                 MapScreen(
                     logbook,
@@ -371,31 +438,14 @@ private fun Sections(
                     )
                 }
             }
-            AppTab.Assistant -> kept.SaveableStateProvider("assistant") {
-                AssistantScreen(session.chat, hasWind = hasServer, bars = bars)
-            }
-            AppTab.Settings -> when (navigation.settingsRoute) {
-                SettingsRoute.Credits -> CreditsScreen(session.wind, onBack = { navigation.back() })
-                SettingsRoute.Waypoints -> kept.SaveableStateProvider("waypoints") {
-                    WaypointsScreen(session.waypoints, onBack = { navigation.back() })
-                }
-                SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
-                SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
-                SettingsRoute.Account -> kept.SaveableStateProvider("account") {
-                    AccountScreen(session.account, session.wind, session.scope, onBack = { navigation.back() })
-                }
-                null -> kept.SaveableStateProvider("settings") {
-                    SettingsScreen(
-                        session.preferences,
-                        session.fly,
-                        session.wind,
-                        session.account,
-                        offlineMaps = session.maps.inALine,
-                        onOpen = { navigation.settingsRoute = it },
-                        bars = bars,
-                    )
-                }
-            }
         }
     }
 }
+
+/** A small box around a site, for the sites around it. */
+private fun around(site: SiteView): Bounds = Bounds(
+    south = site.position.lat - 0.05,
+    west = site.position.lon - 0.07,
+    north = site.position.lat + 0.05,
+    east = site.position.lon + 0.07,
+)

@@ -23,6 +23,10 @@ const STATIONS_AT_MOST: usize = 8;
 /// foehn coming.
 const AROUND_M: f64 = 75_000.0;
 
+/// A station closer to the glider than this is near enough for its wind
+/// to stand in the cockpit without its distance, metres. To verify.
+const NEAR_M: f64 = 15_000.0;
+
 /// A station speaks for a landing when it stands within this distance of
 /// it, metres. To verify with pilots who know their valleys: a station
 /// round a corner measures another wind.
@@ -81,6 +85,11 @@ pub struct GroundWindStation {
     pub place: String,
     /// What it measured, in words: "NW 12/25 km/h · 6 min ago".
     pub wind: String,
+    /// The few characters of the cockpit's badge: mean and gusts in
+    /// km/h, "12/25", and for a station that neither speaks for the
+    /// landing nor stands near the glider how far off it is, "12/25 ·
+    /// 54 km". A wind from that far is another valley's.
+    pub badge: String,
     /// Whether it is the station that speaks for the landing.
     pub is_at_landing: bool,
     /// Whether its wind is strong for a landing.
@@ -192,6 +201,11 @@ pub fn ground_wind(
             if let Some(elevation_m) = station.elevation_m {
                 place.push_str(&format!(" · {elevation_m:.0} m"));
             }
+            let is_at_landing = at_landing.as_deref() == Some(station.id.as_str());
+            let mut badge = wind_speeds_label(*speed_ms, gust_ms);
+            if !is_at_landing && distance_m > NEAR_M {
+                badge.push_str(&format!(" · {:.0} km", distance_m / 1000.0));
+            }
             GroundWindStation {
                 id: station.id.clone(),
                 name: station.name.clone(),
@@ -208,7 +222,8 @@ pub fn ground_wind(
                     wind_in_words(from_deg, *speed_ms, gust_ms),
                     age_in_words(*age_min)
                 ),
-                is_at_landing: at_landing.as_deref() == Some(station.id.as_str()),
+                badge,
+                is_at_landing,
                 is_strong: is_strong(*speed_ms, gust_ms, trim_speed_ms),
             }
         })
@@ -401,6 +416,10 @@ mod tests {
         );
         assert_eq!(near.place, "690 m N · 1600 m");
         assert_eq!(near.wind, "NW 12/25 km/h · 6 min ago");
+        // Near the glider its wind stands for itself; the one fifteen
+        // kilometres to the north says how far off it is.
+        assert_eq!(near.badge, "12/25");
+        assert_eq!(wind.stations[1].badge, "10 · 15 km");
         assert!(!near.is_at_landing && !near.is_strong);
         assert_eq!(wind.stations[1].wind, "NW 10 km/h · 5 min ago");
         // Without a place to land nothing speaks for one.
@@ -534,6 +553,8 @@ mod tests {
 
         assert_eq!(wind.stations[0].id, "goal");
         assert!(wind.stations[0].distance_m > 99_000.0);
+        // It speaks for the landing: no distance beside its wind.
+        assert_eq!(wind.stations[0].badge, "33");
         assert_eq!(wind.alert.unwrap().title, "Strong wind at Goal");
         assert_eq!(wind.stations.len(), 2);
     }

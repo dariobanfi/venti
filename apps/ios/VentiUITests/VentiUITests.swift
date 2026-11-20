@@ -1035,8 +1035,14 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("compare-3-numbers")
 
-        // Taken away again, the page is the one flight's as before.
-        element("compare-end", in: app).tap()
+        // Taken away again, the page is the one flight's as before. The
+        // button is under the numbers, below what a half-high sheet shows.
+        let end = element("compare-end", in: app)
+        for _ in 0..<4 where !(end.exists && end.isHittable) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(end.waitForExistence(timeout: 10))
+        end.tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 10))
         XCTAssertFalse(element("flight-beside", in: app).exists)
     }
@@ -1100,8 +1106,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "over ground", in: app).waitForExistence(timeout: 30))
 
         // The wind on the ground, from the server's wind stations: the
-        // nearest in a badge, and all of them in the wind's sheet. The
-        // development mode's stations stand fifty kilometres off and more.
+        // nearest in a badge, and all of them in the wind's sheet, which
+        // begins with them when it is opened from that badge. The
+        // development mode's stations stand fifty kilometres off and
+        // more, and the badge says so.
         let ground = element("ground-wind-badge", in: app)
         XCTAssertTrue(ground.waitForExistence(timeout: 60))
         tapWhenStill(ground)

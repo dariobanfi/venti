@@ -20,6 +20,9 @@ struct CockpitScreen: View {
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
+    /// Whether the wind's sheet begins with the wind on the ground: it
+    /// was opened from that badge or from its warning.
+    @State private var windsBeginOnTheGround = false
     @State private var isShowingAhead = false
     @State private var isShowingLive = false
     /// Whether the screen takes no touches: against a glove, a line or
@@ -75,6 +78,7 @@ struct CockpitScreen: View {
                                 WindBadge(wind: wind, ageS: view.windAgeS)
                                     .contentShape(.capsule)
                                     .onTapGesture {
+                                        windsBeginOnTheGround = false
                                         isShowingWinds = true
                                     }
                                     .accessibilityAddTraits(.isButton)
@@ -93,6 +97,7 @@ struct CockpitScreen: View {
                                 GroundWindBadge(station: station)
                                     .contentShape(.capsule)
                                     .onTapGesture {
+                                        windsBeginOnTheGround = true
                                         isShowingWinds = true
                                     }
                                     .accessibilityAddTraits(.isButton)
@@ -186,6 +191,7 @@ struct CockpitScreen: View {
                             // over the airspace's place on the map.
                             if let warning = fly.windWarning {
                                 GroundWindBanner(alert: warning) {
+                                    windsBeginOnTheGround = true
                                     isShowingWinds = true
                                 } putAway: {
                                     fly.putWindWarningAway()
@@ -314,7 +320,7 @@ struct CockpitScreen: View {
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $isShowingWinds) {
-                WindByHeightSheet()
+                WindByHeightSheet(groundFirst: windsBeginOnTheGround)
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $isShowingAhead) {
@@ -822,7 +828,9 @@ struct GroundWindBadge: View {
                     .font(.subheadline.weight(.bold))
                     .rotationEffect(.degrees(from + 180))
             }
-            Text(windSpeedsLabel(speedMs: station.speedMs, gustMs: station.gustMs))
+            // Mean and gusts, and how far off the station is when it is
+            // neither the landing's nor near.
+            Text(station.badge)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .monospacedDigit()
         }

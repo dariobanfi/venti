@@ -159,6 +159,13 @@ final class WindModelTests: XCTestCase {
             "Strong wind at the landing. 54 kilometres per hour, gusts 93, from the west."
         )
 
+        // A pilot who went straight to the cockpit: the map tab has not
+        // read the server's clock, so the cockpit's asking reads it, and
+        // ages are still the server's.
+        let straight = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: Asked()))
+        let first = await straight.stations(around: glider, andAround: nil)
+        XCTAssertEqual(first?.stations.first { $0.name == "Zugspitze" }?.ageMin, 45)
+
         // Without a server, and from a server that does not answer, there
         // is nothing, and nothing to say about it in the air.
         let none = await WindModel(address: "").stations(around: glider, andAround: nil)

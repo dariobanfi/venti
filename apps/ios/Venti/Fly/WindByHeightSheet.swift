@@ -7,40 +7,25 @@ import VentiCore
 ///
 /// It reads the running session, so the list fills while it is open.
 struct WindByHeightSheet: View {
+    /// Whether the wind on the ground comes first: the pilot tapped its
+    /// badge or its warning, not the wind aloft.
+    var groundFirst = false
+
     @Environment(FlySession.self) private var fly
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                let bands = fly.view?.windsByHeight ?? []
-                Section {
-                    if bands.isEmpty {
-                        Text("No wind measured yet. It is worked out from your drift while you circle.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(bands, id: \.floorM) { band in
-                        WindByHeightRow(band: band)
-                    }
-                } footer: {
-                    Text("Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band you have not circled in has no wind to show, and an old one may have changed. Under the wind stands how fast you climbed through the band while circling.")
-                }
-
-                // What the wind stations around measured last: the wind
-                // down where the landings are.
-                if let below = fly.windBelow, !below.stations.isEmpty {
-                    Section {
-                        ForEach(below.stations, id: \.id) { station in
-                            GroundWindRow(station: station)
-                        }
-                    } header: {
-                        Text("On the ground")
-                    } footer: {
-                        Text(groundFootnote)
-                    }
+                if groundFirst {
+                    onTheGround
+                    byHeight
+                } else {
+                    byHeight
+                    onTheGround
                 }
             }
-            .navigationTitle("Wind by height")
+            .navigationTitle(groundFirst ? "Wind on the ground" : "Wind by height")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -54,6 +39,42 @@ struct WindByHeightSheet: View {
 }
 
 extension WindByHeightSheet {
+    /// The wind in each band of height the glider has circled in.
+    @ViewBuilder fileprivate var byHeight: some View {
+        let bands = fly.view?.windsByHeight ?? []
+        Section {
+            if bands.isEmpty {
+                Text("No wind measured yet. It is worked out from your drift while you circle.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(bands, id: \.floorM) { band in
+                WindByHeightRow(band: band)
+            }
+        } header: {
+            if groundFirst {
+                Text("By height")
+            }
+        } footer: {
+            Text("Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band you have not circled in has no wind to show, and an old one may have changed. Under the wind stands how fast you climbed through the band while circling.")
+        }
+    }
+
+    /// What the wind stations around measured last: the wind down where
+    /// the landings are.
+    @ViewBuilder fileprivate var onTheGround: some View {
+        if let below = fly.windBelow, !below.stations.isEmpty {
+            Section {
+                ForEach(below.stations, id: \.id) { station in
+                    GroundWindRow(station: station)
+                }
+            } header: {
+                Text("On the ground")
+            } footer: {
+                Text(groundFootnote)
+            }
+        }
+    }
+
     /// What the stations' numbers are, and whose.
     fileprivate var groundFootnote: String {
         let what = "The nearest wind stations within 75 km with a reading of the last hour, as your server had them when it was last asked, every two minutes in flight. A station measures where it stands, and some report three quarters of an hour late: the age stands beside each. Mean wind and gusts in km/h."

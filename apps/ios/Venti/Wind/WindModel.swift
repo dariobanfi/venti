@@ -166,6 +166,13 @@ final class WindModel {
             )
         }
         do {
+            // Ages are measured against the server's clock. A pilot who
+            // went straight to the cockpit has not read it yet.
+            if clock == nil {
+                let (status, body) = try await get(serverStatusPath(), from: server)
+                let state = try serverStatus(status: status, body: body)
+                clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
+            }
             let path = try windMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
             let (status, body) = try await get(path, from: server)
             return try windMap(status: status, body: body, nowUnixS: now)

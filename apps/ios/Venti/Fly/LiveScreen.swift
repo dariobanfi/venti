@@ -61,7 +61,7 @@ struct LiveScreen: View {
                         "Sharing a flight needs an account on Venti. Sign in under Settings.",
                         systemImage: "person.crop.circle.badge.exclamationmark"
                     )
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.venti(.textSecondary))
                 }
             }
 
@@ -115,8 +115,8 @@ struct LiveScreen: View {
 
             Section {
                 Text("Your positions go from this iPhone to Venti from take-off on, every quarter of a minute, and nowhere else. Venti removes the track two days after its last position. A track is not a flight in your logbook: that is the recording, which stays on this iPhone until you sync.")
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
             }
         }
         .navigationTitle("Live tracking")

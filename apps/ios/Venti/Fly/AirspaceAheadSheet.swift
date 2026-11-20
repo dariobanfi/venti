@@ -37,8 +37,8 @@ struct AirspaceAheadSheet: View {
                                     .accessibilityIdentifier("ahead-ground")
                             }
                             Text(verbatim: "\(ahead.toward) · \(ahead.lineWords)")
-                                .font(.venti(.footnote))
-                                .foregroundStyle(.secondary)
+                                .font(.venti(.subheadline))
+                                .foregroundStyle(.venti(.textSecondary))
                         }
                         AheadChart(ahead: ahead)
                             .frame(height: 240)
@@ -56,7 +56,7 @@ struct AirspaceAheadSheet: View {
                 } else {
                     Section {
                         Text("Nothing to show yet: the side view needs a position, a height and a way to look.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.venti(.textSecondary))
                     }
                 }
             }
@@ -117,7 +117,7 @@ private struct AheadChart: View {
                 .foregroundStyle(Self.color(span.policy).opacity(span.uncertain ? 0.2 : 0.36))
                 .annotation(position: .overlay, alignment: .top) {
                     Text(span.name)
-                        .font(.venti(.caption2, .semibold))
+                        .font(.venti(.subheadline, .semibold))
                         .lineLimit(1)
                         .padding(.top, 3)
                 }
@@ -198,12 +198,12 @@ private struct AheadRow: View {
                 Text(span.name)
                     .font(.venti(.body, .semibold))
                 Text(verbatim: "\(span.kind) · \(span.lower) to \(span.upper)")
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
                 if span.uncertain {
                     Text("Its height could not be placed exactly.")
-                        .font(.venti(.footnote))
-                        .foregroundStyle(.secondary)
+                        .font(.venti(.subheadline))
+                        .foregroundStyle(.venti(.textSecondary))
                 }
             }
             Spacer(minLength: 8)
@@ -213,7 +213,7 @@ private struct AheadRow: View {
                     .monospacedDigit()
                 if span.inTheWay {
                     Text(span.uncertain ? "Possibly on your line" : "On your line")
-                        .font(.venti(.footnote, .semibold))
+                        .font(.venti(.subheadline, .semibold))
                         .foregroundStyle(AheadChart.color(.avoid))
                 }
             }

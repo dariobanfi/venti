@@ -45,7 +45,7 @@ extension WindByHeightSheet {
         Section {
             if bands.isEmpty {
                 Text("No wind measured yet. It is worked out from your drift while you circle.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.venti(.textSecondary))
             }
             ForEach(bands, id: \.floorM) { band in
                 WindByHeightRow(band: band)
@@ -106,8 +106,8 @@ private struct GroundWindRow: View {
                     .font(.venti(.body, station.isAtLanding ? .semibold : .regular))
                     .lineLimit(1)
                 Text(station.isAtLanding ? "At your landing · \(station.place)" : station.place)
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -118,8 +118,8 @@ private struct GroundWindRow: View {
                     .font(.venti(.subheadline))
                     .foregroundStyle(station.isStrong ? Color.venti(.danger) : Color.venti(.text))
                 Text(station.age)
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
             }
             .monospacedDigit()
             .lineLimit(1)
@@ -149,8 +149,8 @@ private struct WindByHeightRow: View {
                     .font(.venti(.body, band.isHere ? .semibold : .regular))
                     .monospacedDigit()
                 Text(band.isHere ? "You are here · measured \(age)" : "Measured \(age)")
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
@@ -159,11 +159,18 @@ private struct WindByHeightRow: View {
                     .monospacedDigit()
                 // How the thermal climbed through this band: where it is
                 // strong, and where it weakens toward the top.
+                // The colour of the climb is a mark beside the number: text
+                // is not coloured by a scale.
                 if let climb = band.climbMs {
-                    Text("\(Format.climb(metresPerSecond: climb)) m/s")
-                        .font(.venti(.footnote, .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(ClimbBand(metresPerSecond: climb).color)
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(ClimbBand(metresPerSecond: climb).color)
+                            .frame(width: 10, height: 10)
+                        Text("\(Format.climb(metresPerSecond: climb)) m/s")
+                            .font(.venti(.subheadline, .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.venti(.textSecondary))
+                    }
                 }
             }
         }

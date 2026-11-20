@@ -140,7 +140,7 @@ struct AirspaceWarningsSheet: View {
                                 .font(.venti(.headline))
                             Text(warning.detail)
                                 .font(.venti(.subheadline))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.venti(.textSecondary))
                             if let uncertain = warning.uncertain {
                                 Text(uncertain)
                                     .font(.venti(.subheadline))
@@ -169,7 +169,7 @@ struct AirspaceWarningsSheet: View {
                 }
                 if fly.airspaceWarnings.isEmpty {
                     Text("No airspace near.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.venti(.textSecondary))
                 }
                 Section {
                 } footer: {

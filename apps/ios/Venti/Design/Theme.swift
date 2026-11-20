@@ -196,6 +196,7 @@ private struct Themed: ViewModifier {
 /// its rows the surface of a card.
 struct VentiList<Content: View>: View {
     @ViewBuilder var content: Content
+    @Environment(\.ventiInFlight) private var isInFlight
 
     var body: some View {
         List {
@@ -206,6 +207,8 @@ struct VentiList<Content: View>: View {
         }
         .scrollContentBackground(.hidden)
         .background(.venti(.bg))
+        // A row is what a finger needs, and in flight what a glove needs.
+        .environment(\.defaultMinListRowHeight, isInFlight ? VentiSize.touchInFlight : VentiSize.touch)
     }
 }
 

@@ -53,6 +53,13 @@ struct RouteMapPlanner: View {
                 AerialButton()
                     .padding(16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                // Whose photographs: at the top, where the panel and the
+                // map's credits button leave room.
+                PhotographCredit()
+                    .padding(.leading, 12)
+                    .padding(.top, 16)
+                    .padding(.trailing, 80)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 panel(for: plan)
             }

@@ -7,6 +7,11 @@ import SwiftUI
 /// It is one choice for every map of the app, and the button keeps it: a
 /// screen with a map reads the same preference and hands it to its map.
 struct AerialButton: View {
+    /// Who made the photographs, in short: said on the map while they
+    /// show. Each provider's own wording is behind the map's credits
+    /// button, which a phone's map folds away.
+    static let credit = "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX"
+
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
 
     var body: some View {
@@ -18,5 +23,24 @@ struct AerialButton: View {
         .buttonStyle(.ventiRound(isOn: showsAerial))
         .accessibilityIdentifier("map-aerial")
         .accessibilityAddTraits(showsAerial ? .isSelected : [])
+    }
+}
+
+/// The photographs' makers in one short line over a map, while the aerial
+/// view is on. The map tab says the same in its own line of credits.
+struct PhotographCredit: View {
+    @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
+
+    var body: some View {
+        if showsAerial {
+            Text(AerialButton.credit)
+                .font(.venti(.caption2))
+                .foregroundStyle(.venti(.textSecondary))
+                .lineLimit(2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .ventiFloating(in: .rect(cornerRadius: 10))
+                .accessibilityIdentifier("photo-credits")
+        }
     }
 }

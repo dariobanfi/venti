@@ -371,7 +371,10 @@ struct MapScreen: View {
         if !sites.credits.isEmpty, !sites.sites.isEmpty, !hidesSites, let region, region.east - region.west <= SitesModel.widestMap {
             parts.append("Sites: \(sites.credits.map(\.provider).formatted(.list(type: .and)))")
         }
-        return parts.joined(separator: " · ")
+        let line = parts.joined(separator: " · ")
+        // Who made the photographs, on a line of its own while they show.
+        guard showsAerial else { return line }
+        return line.isEmpty ? AerialButton.credit : line + "\n" + AerialButton.credit
     }
 
     @ViewBuilder private var credits: some View {
@@ -379,7 +382,7 @@ struct MapScreen: View {
             Text(creditLine)
                 .font(.venti(.caption2))
                 .foregroundStyle(.venti(.textSecondary))
-                .lineLimit(3)
+                .lineLimit(5)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .ventiFloating(in: .rect(cornerRadius: 10))

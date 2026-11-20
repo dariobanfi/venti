@@ -205,6 +205,14 @@ struct FlightDetail: View {
                 AerialButton()
                     .padding(16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                // And whose photographs, beside the map's credits button
+                // and over the panel.
+                PhotographCredit()
+                    .padding(.leading, 44)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, panelHeight + 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .ignoresSafeArea(edges: .bottom)
 
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)

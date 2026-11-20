@@ -1470,6 +1470,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertFalse(aerial.isSelected)
         aerial.tap()
         XCTAssertTrue(aerial.isSelected)
+        // Whose photographs they are is said on the map while they show.
+        XCTAssertTrue(element("photo-credits", in: app).waitForExistence(timeout: 10))
         sleep(12)
         keepScreenshot("online-3-flight-aerial")
 
@@ -1479,6 +1481,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(aerial.waitForExistence(timeout: 30))
         XCTAssertTrue(aerial.isSelected)
         sleep(12)
+        // The map tab names them in its own line of credits.
+        XCTAssertTrue(element("wind-credits", in: app).label.contains("Photos: basemap.at"))
         keepScreenshot("online-4-map-aerial")
         aerial.tap()
         XCTAssertFalse(aerial.isSelected)

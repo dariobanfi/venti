@@ -5,8 +5,11 @@ import XCTest
 /// Checks that the style is prepared correctly for both places tiles can
 /// come from, and that the map data bundled with the app is complete.
 final class MapStyleTests: XCTestCase {
-    private func style(for source: MapStyle.Source) throws -> [String: Any] {
-        let text = try MapStyle.json(for: source)
+    /// A Venti server, as a pilot's settings name one.
+    private let server = URL(string: "https://venti.example")
+
+    private func style(for source: MapStyle.Source, server: URL? = nil) throws -> [String: Any] {
+        let text = try MapStyle.json(for: source, server: server)
         XCTAssertFalse(text.contains("__"), "a placeholder was not replaced")
         let style = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
@@ -37,12 +40,36 @@ final class MapStyleTests: XCTestCase {
         return sources.filter { !$0.key.hasPrefix("aerial-") }
     }
 
+    /// Austria's photographs come through Venti, which cuts them at the
+    /// border: with a server they are asked of it, and without one the
+    /// source and its layer are not in the style at all.
+    func testAustriasPhotographsAreAskedOfThePilotsServer() throws {
+        for source in try everySource() {
+            let with = try style(for: source, server: server)
+            let asked = try XCTUnwrap((with["sources"] as? [String: [String: Any]])?["aerial-austria"])
+            XCTAssertEqual(asked["tiles"] as? [String], ["https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}"])
+            XCTAssertTrue((asked["attribution"] as? String)?.contains("basemap.at") == true)
+            let layers = try XCTUnwrap(with["layers"] as? [[String: Any]])
+            XCTAssertTrue(layers.contains { $0["id"] as? String == "aerial-austria" })
+
+            let without = try style(for: source)
+            XCTAssertNil((without["sources"] as? [String: [String: Any]])?["aerial-austria"])
+            let left = try XCTUnwrap(without["layers"] as? [[String: Any]])
+            XCTAssertFalse(left.contains { $0["source"] as? String == "aerial-austria" })
+            // Nothing else goes with it.
+            XCTAssertEqual(left.count, layers.count - 1)
+        }
+    }
+
     /// The shared style marks which layers belong to the drawn ground and
     /// which to the aerial view, and stands in the drawn view: nothing of
     /// the photographs is fetched until the pilot asks for them.
     func testTheAerialViewIsHiddenUntilItIsAskedFor() throws {
         let views = try MapStyle.views()
-        XCTAssertEqual(views.aerial, ["aerial-world", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"])
+        XCTAssertEqual(
+            views.aerial,
+            ["aerial-world", "aerial-austria", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"]
+        )
         XCTAssertEqual(views.drawn, ["path", "track", "road-minor", "road-major", "rail"])
 
         for source in try everySource() {

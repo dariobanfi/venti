@@ -97,11 +97,24 @@ enum MapStyle {
         return folder
     }
 
+    /// What stands in the shared style for the address of the Venti
+    /// server the app talks to.
+    static let serverPlaceholder = "__VENTI_SERVER__"
+
+    /// The Venti server the pilot has set, if the address is one.
+    static var savedServer: URL? {
+        WindModel.server(from: UserDefaults.standard.string(forKey: Preferences.server) ?? "")
+    }
+
     /// The style as JSON text, pointing at the given source.
     ///
     /// Label fonts always come from inside the app, so place names never
-    /// wait for the network.
-    static func json(for source: Source, in bundle: Bundle = .main) throws -> String {
+    /// wait for the network. What the style asks of Venti itself, the
+    /// photographs of Austria that Venti cuts at the border, is asked of
+    /// `server`; without a server that source and its layer are left out.
+    static func json(
+        for source: Source, server: URL? = savedServer, in bundle: Bundle = .main
+    ) throws -> String {
         guard let template = bundle.url(forResource: "style", withExtension: "json") else {
             throw StyleError.missing("style.json")
         }
@@ -133,6 +146,24 @@ enum MapStyle {
         }
         sources["basemap"] = basemap
         sources["terrain"] = terrain
+
+        var layers = style["layers"] as? [[String: Any]] ?? []
+        for (name, described) in sources {
+            guard let tiles = described["tiles"] as? [String],
+                  tiles.contains(where: { $0.contains(serverPlaceholder) })
+            else { continue }
+            if let server {
+                var asked = described
+                asked["tiles"] = tiles.map {
+                    $0.replacingOccurrences(of: serverPlaceholder, with: server.absoluteString)
+                }
+                sources[name] = asked
+            } else {
+                sources[name] = nil
+                layers.removeAll { $0["source"] as? String == name }
+            }
+        }
+        style["layers"] = layers
         style["sources"] = sources
 
         let data = try JSONSerialization.data(withJSONObject: style, options: [.sortedKeys, .withoutEscapingSlashes])
@@ -141,12 +172,12 @@ enum MapStyle {
 
     /// Writes the prepared style to the caches folder and returns its
     /// location. The map view loads a style from a URL, not from text.
-    static func url(for source: Source, in bundle: Bundle = .main) throws -> URL {
+    static func url(for source: Source, server: URL? = savedServer, in bundle: Bundle = .main) throws -> URL {
         let caches = try FileManager.default.url(
             for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         )
         let file = caches.appendingPathComponent("map-style-\(source.key).json")
-        try json(for: source, in: bundle).write(to: file, atomically: true, encoding: .utf8)
+        try json(for: source, server: server, in: bundle).write(to: file, atomically: true, encoding: .utf8)
         return file
     }
 }

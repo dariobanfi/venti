@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. Their addresses are the providers' own and the same for every app; docs/data-sources.md has each provider's terms."
+    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. The world's and Bavaria's are fetched from their providers, at addresses that are the same for every app. Austria's come through Venti, which cuts them at the border: the address begins with a placeholder for the Venti server an app talks to, and an app that has none leaves that source and its layer out. docs/data-sources.md has each provider's terms."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {
@@ -24,6 +24,14 @@
       "tileSize": 256,
       "maxzoom": 13,
       "attribution": "<a href=\"https://cloudless.eox.at\">EOxCloudless</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016 &amp; 2017)"
+    },
+    "aerial-austria": {
+      "type": "raster",
+      "tiles": ["__VENTI_SERVER__/v1/imagery/basemap-at/{z}/{x}/{y}"],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "bounds": [9.5307, 46.3723, 17.1608, 49.0205],
+      "attribution": "<a href=\"https://basemap.at\">Datenquelle: basemap.at</a>"
     },
     "aerial-bavaria": {
       "type": "raster",
@@ -121,6 +129,14 @@
       "type": "raster",
       "metadata": { "venti:view": "aerial" },
       "source": "aerial-world",
+      "layout": { "visibility": "none" }
+    },
+    {
+      "id": "aerial-austria",
+      "type": "raster",
+      "metadata": { "venti:view": "aerial" },
+      "source": "aerial-austria",
+      "minzoom": 11,
       "layout": { "visibility": "none" }
     },
     {

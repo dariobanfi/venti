@@ -11,6 +11,7 @@ describe('the map style prepared for the browser', () => {
 		expect(JSON.stringify(style)).not.toContain('__');
 		expect(style.version).toBe(8);
 		expect(Object.keys(style.sources).sort()).toEqual([
+			'aerial-austria',
 			'aerial-bavaria',
 			'aerial-world',
 			'basemap',
@@ -65,12 +66,17 @@ describe('the map style prepared for the browser', () => {
 
 		expect(AERIAL_LAYERS).toEqual([
 			'aerial-world',
+			'aerial-austria',
 			'aerial-bavaria',
 			'aerial-road',
 			'aerial-aerialway-casing'
 		]);
 		expect(DRAWN_LAYERS).toEqual(['path', 'track', 'road-minor', 'road-major', 'rail']);
-		expect(photographs.map((layer) => layer.id)).toEqual(['aerial-world', 'aerial-bavaria']);
+		expect(photographs.map((layer) => layer.id)).toEqual([
+			'aerial-world',
+			'aerial-austria',
+			'aerial-bavaria'
+		]);
 		// The file stands in the drawn view: nothing of the photographs is fetched.
 		for (const layer of layers) {
 			expect(layer.layout?.visibility ?? 'visible', layer.id).toBe(
@@ -101,6 +107,17 @@ describe('the map style prepared for the browser', () => {
 			const source = mapStyle().sources[layer.source ?? ''] as { attribution?: string };
 			expect(source.attribution, layer.id).toBeTruthy();
 		}
+	});
+
+	it('asks Venti itself for Austria’s photographs, which it cuts at the border', () => {
+		const austria = mapStyle().sources['aerial-austria'] as {
+			tiles: string[];
+			attribution: string;
+		};
+
+		// Under the app's own address: here, where there is none, a path alone.
+		expect(austria.tiles).toEqual(['/v1/imagery/basemap-at/{z}/{x}/{y}']);
+		expect(austria.attribution).toContain('basemap.at');
 	});
 
 	it('asks the app for its label fonts, not the network', () => {

@@ -24,6 +24,9 @@ export const FONT_SCHEME = 'venti-font';
 /** The font the style sets its labels in, for layers the app adds itself. */
 export const LABEL_FONT = 'noto-sans-regular';
 
+/** What stands in the shared style for the address of the Venti server an app talks to. */
+const VENTI_SERVER = '__VENTI_SERVER__';
+
 /** The name of the second elevation source, the one the 3D terrain is built from. */
 export const TERRAIN_3D_SOURCE = 'terrain-3d';
 
@@ -53,6 +56,18 @@ export function mapStyle(): StyleSpecification {
 	basemap.url = ONLINE.basemap;
 
 	style.sources.terrain = elevation(style.sources.terrain as RasterDEMSourceSpecification);
+
+	// What comes through Venti, Austria's photographs cut at the border, is
+	// asked of the server the app itself came from.
+	const server = globalThis.location?.origin ?? '';
+	for (const source of Object.values(style.sources)) {
+		const tiles = (source as { tiles?: string[] }).tiles;
+		if (tiles) {
+			(source as { tiles?: string[] }).tiles = tiles.map((address) =>
+				address.replace(VENTI_SERVER, server)
+			);
+		}
+	}
 	return style;
 }
 

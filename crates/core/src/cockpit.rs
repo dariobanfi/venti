@@ -2102,7 +2102,7 @@ mod tests {
             let (session, replay) = fly(&folder, seconds, false);
             let wind = session.view(replay.now()).wind.unwrap();
             assert!(
-                (wind.from_deg - 270.0).abs() < 8.0 && (wind.speed_ms - 3.0).abs() < 0.5,
+                (wind.from_deg - 270.0).abs() < 5.0 && (wind.speed_ms - 3.0).abs() < 0.25,
                 "{seconds} s: {wind:?}"
             );
         }

@@ -59,6 +59,11 @@ const MISFIT_LIMIT_MS: f64 = 2.0;
 /// circle too, but badly for its size.
 const MISFIT_SHARE: f64 = 0.25;
 
+/// A velocity that lies further than this from the fitted circle, metres
+/// per second, or further than twice what they all do on average if that
+/// is more, is left out of the second fit.
+const OUTLIER_MS: f64 = 1.5;
+
 /// One measurement of the wind: the fit to one stretch of circling.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WindFix {
@@ -175,41 +180,43 @@ impl WindEstimator {
             return None;
         }
 
-        // Least-squares circle through the velocity points: find D, E, F
-        // minimising the sum of (x² + y² + Dx + Ey + F)². That is linear in
-        // D, E and F, so it reduces to three equations.
-        let n = samples.len() as f64;
-        let (mut sx, mut sy, mut sxx, mut syy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
-        let (mut sxz, mut syz, mut sz) = (0.0, 0.0, 0.0);
-        for &(_, x, y) in &samples {
-            let z = x * x + y * y;
-            sx += x;
-            sy += y;
-            sxx += x * x;
-            syy += y * y;
-            sxy += x * y;
-            sxz += x * z;
-            syz += y * z;
-            sz += z;
+        // The circle through all of them; then once more without the
+        // velocities that lie well off it. Those are the seconds of rolling
+        // in and out, where the glider flies faster than in its circles,
+        // and a gust or two. The fit that is made as the glider leaves a
+        // thermal is the one that stands for the whole glide after it, and
+        // two seconds of glide in it moved the wind by a tenth.
+        let mut samples = samples;
+        let mut circle = circle_through(&samples)?;
+        let off = |circle: (f64, f64, f64), &(_, x, y): &(f64, f64, f64)| {
+            ((x - circle.0).hypot(y - circle.1) - circle.2).abs()
+        };
+        let spread = |circle: (f64, f64, f64), samples: &[(f64, f64, f64)]| {
+            (samples
+                .iter()
+                .map(|sample| off(circle, sample).powi(2))
+                .sum::<f64>()
+                / samples.len() as f64)
+                .sqrt()
+        };
+        let far = OUTLIER_MS.max(2.0 * spread(circle, &samples));
+        let near: Vec<(f64, f64, f64)> = samples
+            .iter()
+            .copied()
+            .filter(|sample| off(circle, sample) <= far)
+            .collect();
+        if near.len() < samples.len() && near.len() >= SECTORS_NEEDED {
+            circle = circle_through(&near)?;
+            samples = near;
         }
-        let [d, e, f] = solve(
-            [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]],
-            [-sxz, -syz, -sz],
-        )?;
-        let (centre_east, centre_north) = (-d / 2.0, -e / 2.0);
-        let airspeed = (centre_east * centre_east + centre_north * centre_north - f).sqrt();
+        let (centre_east, centre_north, airspeed) = circle;
 
         // A paraglider flies between about 6 and 20 m/s. A fit outside that,
         // or one the points do not lie close to, was not a steady circle.
         if !(4.0..=25.0).contains(&airspeed) {
             return None;
         }
-        let misfit = (samples
-            .iter()
-            .map(|&(_, x, y)| ((x - centre_east).hypot(y - centre_north) - airspeed).powi(2))
-            .sum::<f64>()
-            / n)
-            .sqrt();
+        let misfit = spread(circle, &samples);
         let allowed = MISFIT_LIMIT_MS.min(MISFIT_SHARE * airspeed);
         if misfit > allowed {
             return None;
@@ -245,6 +252,36 @@ impl WindEstimator {
             quality: ((1.0 - misfit / allowed) * sectors as f64 / SECTORS as f64).max(0.01),
         })
     }
+}
+
+/// The circle that fits a set of velocities best: its centre, east and
+/// north, and its radius. Least squares, by finding D, E and F that
+/// minimise the sum of (x² + y² + Dx + Ey + F)², which is linear in the
+/// three.
+fn circle_through(samples: &[(f64, f64, f64)]) -> Option<(f64, f64, f64)> {
+    let n = samples.len() as f64;
+    let (mut sx, mut sy, mut sxx, mut syy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mut sxz, mut syz, mut sz) = (0.0, 0.0, 0.0);
+    for &(_, x, y) in samples {
+        let z = x * x + y * y;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        syy += y * y;
+        sxy += x * y;
+        sxz += x * z;
+        syz += y * z;
+        sz += z;
+    }
+    let [d, e, f] = solve(
+        [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]],
+        [-sxz, -syz, -sz],
+    )?;
+    let (centre_east, centre_north) = (-d / 2.0, -e / 2.0);
+    let radius = (centre_east * centre_east + centre_north * centre_north - f).sqrt();
+    radius
+        .is_finite()
+        .then_some((centre_east, centre_north, radius))
 }
 
 /// Solves three linear equations by Gaussian elimination. `None` if they
@@ -336,8 +373,10 @@ mod tests {
             estimator.add(f64::from(second), 11.0, 4.0);
         }
         assert!((in_thermal.from_deg - 180.0).abs() < 1.0);
-        // Only the sample on which the glider rolled out still counts as
-        // turning; after that nothing is fitted and the estimate holds.
+        // Two seconds of the glide are in the last fits. Here the glide is
+        // one metre per second faster than the circles, which is too near
+        // the circle to be told from it, and moves the wind by two degrees
+        // at most. After them nothing is fitted and the estimate holds.
         let on_glide = estimator.wind().unwrap();
         assert!(
             (on_glide.from_deg - in_thermal.from_deg).abs() < 2.0,
@@ -347,6 +386,20 @@ mod tests {
             (on_glide.speed_ms - in_thermal.speed_ms).abs() < 0.1,
             "{on_glide:?}"
         );
+    }
+
+    #[test]
+    fn the_seconds_of_rolling_out_do_not_move_the_wind() {
+        // Circles at 9.5 m/s in a westerly of 3, then a glide north-west at
+        // 13.5 m/s through the air: well off the circle of velocities.
+        let mut estimator = WindEstimator::new();
+        circle(&mut estimator, 84, 9.5, (3.0, 0.0));
+        for second in 84..200 {
+            estimator.add(f64::from(second), -9.5 + 3.0, 9.5);
+        }
+        let on_glide = estimator.wind().unwrap();
+        assert!((on_glide.from_deg - 270.0).abs() < 0.5, "{on_glide:?}");
+        assert!((on_glide.speed_ms - 3.0).abs() < 0.03, "{on_glide:?}");
     }
 
     #[test]

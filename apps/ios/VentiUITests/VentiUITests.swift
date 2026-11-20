@@ -159,7 +159,10 @@ final class VentiUITests: XCTestCase {
         chart.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
             .press(forDuration: 0.3, thenDragTo: chart.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
         XCTAssertTrue(app.buttons["Show flight totals"].waitForExistence(timeout: 10))
-        XCTAssertTrue(element("In the air", in: app).exists)
+        // The moment's numbers: with the ground under the flight, which
+        // the region inside the app has, the height over it; until that
+        // is read, the time in the air.
+        XCTAssertTrue(element("Over ground", in: app).exists || element("In the air", in: app).exists)
         sleep(1)
         keepScreenshot("light-4-flight-moment")
 
@@ -180,7 +183,10 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("light-5b-flight-thermals")
         thermal.tap()
         XCTAssertTrue(app.buttons["Show flight totals"].waitForExistence(timeout: 10))
-        XCTAssertTrue(element("In the air", in: app).exists)
+        // The moment's numbers: with the ground under the flight, which
+        // the region inside the app has, the height over it; until that
+        // is read, the time in the air.
+        XCTAssertTrue(element("Over ground", in: app).exists || element("In the air", in: app).exists)
         app.buttons["Show flight totals"].tap()
 
         // Back to the logbook, where the flight is now listed.

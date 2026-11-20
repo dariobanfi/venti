@@ -67,6 +67,7 @@ export type {
 	GroupView,
 	ImportedFlight,
 	KeptAirspace,
+	LeagueHandover,
 	LiveFollowView,
 	LiveGlider,
 	LiveMap,

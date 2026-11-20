@@ -11,6 +11,7 @@ import {
 	type CoreClient,
 	type FlightAnalysis,
 	type FlightFile,
+	type LeagueHandover,
 	type FlightView,
 	isCoreError,
 	type LogbookStatistics,
@@ -123,6 +124,14 @@ export class LogbookModel {
 	/** A flight's file as it was imported, with a name to save it under. */
 	flightFile(id: string): Promise<FlightFile> {
 		return this.#core.flightFile(id);
+	}
+
+	/**
+	 * What the pilot is told before a flight goes to a league, with its file:
+	 * until when the leagues take it, and whether it is signed.
+	 */
+	leagueHandover(id: string): Promise<LeagueHandover> {
+		return this.#core.leagueHandover(id);
 	}
 
 	/** What happened in one flight: its thermals and glides, and how it scores. */

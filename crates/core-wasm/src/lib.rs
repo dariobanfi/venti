@@ -46,11 +46,11 @@ use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
-    KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics, LogbookView, PilotPage, PlanBoard,
-    PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, Ranking, RankingSeason,
-    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SiteAtPlace,
-    SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile,
-    TrackPoint, WindMap,
+    KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics, LogbookView,
+    PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder,
+    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus,
+    SignedIn, SiteAtPlace, SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary,
+    TerrainTile, TrackPoint, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -187,6 +187,23 @@ impl Core {
             .call(|core| core.flight_file(id))
             .map_err(thrown)?;
         to_js(&file)
+    }
+
+    /// What to tell the pilot before a flight of the logbook goes to a
+    /// league, with its file: until when the leagues take it, whether the
+    /// file is signed, and the addresses of XContest's claim page and the
+    /// leagues' rules. `now_unix_s` is the moment the pilot asks at.
+    #[wasm_bindgen(js_name = leagueHandover)]
+    pub fn league_handover(
+        &self,
+        id: String,
+        now_unix_s: f64,
+    ) -> Result<Ts<LeagueHandover>, JsValue> {
+        let handover = self
+            .session
+            .call(|core| core.league_handover(id, whole_seconds(now_unix_s)))
+            .map_err(thrown)?;
+        to_js(&handover)
     }
 
     /// Removes a flight from the logbook for good.

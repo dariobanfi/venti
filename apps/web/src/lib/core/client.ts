@@ -95,6 +95,15 @@ export class CoreClient {
 		return this.#call('flightFile', id);
 	}
 
+	/**
+	 * What the pilot is told before a flight of the logbook goes to a
+	 * league, with its file, by the browser's clock now.
+	 */
+	leagueHandover(id: string) {
+		// The page's clock: the one a pilot sees, and the one a test sets.
+		return this.#call('leagueHandover', { id, nowUnixS: Date.now() / 1000 });
+	}
+
 	deleteFlight(id: string) {
 		return this.#call('deleteFlight', id);
 	}

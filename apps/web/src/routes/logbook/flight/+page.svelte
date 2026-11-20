@@ -11,7 +11,7 @@
 	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { logbookHref } from '#lib/app/routes.ts';
-	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
+	import type { FlightAnalysis, FlightView, LeagueHandover } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -19,6 +19,7 @@
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
 	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
+	import LeagueSheet from '#lib/logbook/LeagueSheet.svelte';
 	import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
 	const app = getApp();
@@ -39,9 +40,13 @@
 	/** Whether the sheet that says who can see the flight is open. */
 	let sharing = $state(false);
 
+	/** The sheet that hands the flight to a league, while it is open. */
+	let league = $state.raw<{ handover: LeagueHandover | undefined; problem: string | undefined }>();
+
 	/** What can be done with the flight besides looking at it. */
 	const actions: MenuItem[] = [
 		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
+		{ label: 'Send to a league', icon: 'league', onselect: () => void sendToALeague() },
 		{ label: 'Download flight file', icon: 'download', onselect: () => void downloadFlight() },
 		{
 			label: 'Delete flight',
@@ -99,6 +104,18 @@
 		}
 	}
 
+	/** Opens the sheet that hands the flight to a league, with what the core says about it now. */
+	async function sendToALeague() {
+		if (!id || !app.logbook) return;
+		league = { handover: undefined, problem: undefined };
+		try {
+			const handover = await app.logbook.leagueHandover(id);
+			if (league) league = { handover, problem: undefined };
+		} catch (error) {
+			if (league) league = { handover: undefined, problem: reasonFor(error) };
+		}
+	}
+
 	async function deleteFlight() {
 		confirmingDelete = false;
 		if (!id || !app.logbook) return;
@@ -130,6 +147,13 @@
 			inLogbook
 		/>
 		<ShareFlightSheet open={sharing} flight={phase.flight.id} onclose={() => (sharing = false)} />
+		<LeagueSheet
+			open={Boolean(league)}
+			handover={league?.handover}
+			problem={league?.problem}
+			ondownload={() => void downloadFlight()}
+			onclose={() => (league = undefined)}
+		/>
 	{/key}
 {:else if phase.is === 'failed'}
 	<div class="unavailable">

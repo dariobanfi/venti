@@ -20,6 +20,7 @@ import type {
 	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
+	LeagueHandover,
 	FlightView,
 	ImportedFlight,
 	LogbookStatistics,
@@ -123,6 +124,14 @@ export class CoreSession {
 
 	flightFile(id: string): Promise<FlightFile> {
 		return this.ask((core) => core.flightFile(id));
+	}
+
+	/**
+	 * What the pilot is told before a flight goes to a league, with its
+	 * file: by the clock of `nowUnixS`.
+	 */
+	leagueHandover(id: string, nowUnixS: number): Promise<LeagueHandover> {
+		return this.ask((core) => core.leagueHandover(id, nowUnixS));
 	}
 
 	deleteFlight(id: string): Promise<void> {

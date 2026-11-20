@@ -114,6 +114,25 @@ describe('a logbook in the browser', () => {
 		expect(file).toEqual({ name: '2026-07-04-XVE-000-01.igc', igcText: sampleFlight() });
 	});
 
+	it('says before a stored flight goes to a league until when the leagues take it, after a reload', async () => {
+		browser = new Browser();
+		const { id } = await (await browser.tab()).importFlight(sampleFlight());
+		browser.closeTabs();
+
+		// The sample flight was flown on 4 July 2026: by the 10th it is in time,
+		// by November it is not.
+		const tab = await browser.tab();
+		const early = await tab.leagueHandover(id, Date.UTC(2026, 6, 10) / 1000);
+		expect(early.isLate).toBe(false);
+		expect(early.deadline).toContain('until the end of 18 Jul 2026, by UTC');
+		expect(early.isSigned).toBe(false);
+		expect(early.signature).toContain('Venti recorded this flight and does not sign its files yet');
+		expect(early.xcontestClaimUrl).toMatch(/^https:\/\/www\.xcontest\.org\//);
+		expect(early.file.igcText).toBe(sampleFlight());
+		const late = await tab.leagueHandover(id, Date.UTC(2026, 10, 20) / 1000);
+		expect(late.isLate).toBe(true);
+	});
+
 	it('says what happened in a stored flight, in positions of its track', async () => {
 		browser = new Browser();
 		const { id } = await (await browser.tab()).importFlight(sampleFlight());

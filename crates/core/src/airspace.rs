@@ -815,6 +815,7 @@ impl AirspaceWatch {
         position: GeoPoint,
         altitude_m: Option<f64>,
         pressure_altitude_m: Option<f64>,
+        ground_elevation_m: Option<f64>,
         ground_speed_ms: Option<f64>,
         course_deg: Option<f64>,
         climb_ms: Option<f64>,
@@ -835,9 +836,9 @@ impl AirspaceWatch {
             position,
             altitude_m,
             pressure: pressure_altitude_m.map(PressureAltitude::standard),
-            // No terrain model yet: limits above ground are taken as
-            // reaching to the glider, and the warning says so.
-            ground_elevation_m: None,
+            // Where the session has no terrain, limits above ground are
+            // taken as reaching to the glider, and the warning says so.
+            ground_elevation_m,
             ground_speed_ms,
             course_deg,
             climb_ms,
@@ -1207,6 +1208,86 @@ AH FL 100
             (danger.lower.as_str(), danger.upper.as_str()),
             ("1000 ft AGL", "FL 95")
         );
+    }
+
+    #[test]
+    fn with_terrain_the_cockpit_knows_the_ground_under_and_ahead() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        session.use_airspace(Some(core.airspace().unwrap()));
+        let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+
+        // Without terrain the cockpit says nothing about the ground.
+        replay.advance(session.clone(), 60.0);
+        let view = session.view(replay.now());
+        assert_eq!(
+            (view.ground_elevation_m, view.height_above_ground_m),
+            (None, None)
+        );
+        let ahead = session.airspace_ahead(replay.now()).unwrap();
+        assert!(ahead.ground.is_empty());
+        assert_eq!(
+            (ahead.line_meets_ground_m, ahead.ground_words),
+            (None, None)
+        );
+
+        // The ground around the Tegernsee, as it comes with the iPhone
+        // app. The sample flight was laid over this ground: it takes off
+        // on the Wallberg and glides out over the valley.
+        let terrain = crate::Terrain::new();
+        terrain
+            .add_archive(
+                std::fs::read(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../apps/ios/Venti/Resources/MapDemo/terrain.pmtiles"
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+        session.use_terrain(Some(terrain));
+
+        // Nine minutes in the glider is over the valley floor, more than
+        // a thousand metres up, gliding towards the zone.
+        replay.advance(session.clone(), 480.0);
+        let view = session.view(replay.now());
+        let ground = view.ground_elevation_m.unwrap();
+        assert!((ground - 744.0).abs() < 15.0, "{ground}");
+        let above = view.height_above_ground_m.unwrap();
+        assert!((above - (view.altitude_m.unwrap() - ground)).abs() < 1e-9);
+        assert!((above - 1155.0).abs() < 25.0, "{above}");
+
+        // Ahead: the ground all the way, down to the lake at 725 m, and a
+        // glide that would reach it eight kilometres on. The zone, whose
+        // floor is the ground, stands on the lowest ground under it.
+        let ahead = session.airspace_ahead(replay.now()).unwrap();
+        assert_eq!(ahead.ground.len(), 101);
+        let lowest = ahead
+            .ground
+            .iter()
+            .map(|place| place.elevation_m)
+            .fold(f64::INFINITY, f64::min);
+        assert!((lowest - 725.0).abs() < 1.0, "{lowest}");
+        let meets = ahead.line_meets_ground_m.unwrap();
+        assert!((7500.0..8600.0).contains(&meets), "{meets}");
+        assert!(
+            ahead
+                .ground_words
+                .as_deref()
+                .is_some_and(|words| words.starts_with("Your line meets the ground in ")),
+            "{:?}",
+            ahead.ground_words
+        );
+        assert_eq!(ahead.words, "CTR TEST in 1.9 km, on your line");
+        let zone = &ahead.spans[0];
+        assert!((zone.floor_m - 725.0).abs() < 1.0 && !zone.uncertain);
+        assert!(ahead.bottom_m <= 700.0 && ahead.bottom_m >= 500.0);
+
+        // Taken away again, the ground is forgotten at once.
+        session.use_terrain(None);
+        assert_eq!(session.view(replay.now()).height_above_ground_m, None);
     }
 
     #[test]

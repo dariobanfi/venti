@@ -37,6 +37,7 @@ fastrand = "2.5.0"
 flate2 = "1.1.11"
 futures = { version = "0.3.34", default-features = false, features = ["std", "executor"] }
 getrandom = "0.4.3"
+image-webp = "0.2.4"
 ipnet = "2.12.2"
 js-sys = "0.3.107"
 reqwest = "0.13.5"

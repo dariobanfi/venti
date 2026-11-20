@@ -42,13 +42,14 @@ mod sites;
 mod statistics;
 mod storage;
 mod task;
+mod terrain;
 #[cfg(test)]
 mod testing;
 mod waypoints;
 mod wind;
 
 pub use account::*;
-pub use ahead::{AirspaceAhead, AirspaceAheadSpan};
+pub use ahead::{AheadGround, AirspaceAhead, AirspaceAheadSpan};
 pub use airspace::*;
 pub use analysis::*;
 pub use assistant::*;
@@ -63,6 +64,7 @@ pub use report::*;
 pub use sites::*;
 pub use statistics::*;
 pub use task::*;
+pub use terrain::*;
 pub use waypoints::*;
 pub use wind::*;
 

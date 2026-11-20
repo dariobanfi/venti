@@ -3,9 +3,11 @@
 //! would pass each of it.
 //!
 //! It is a picture to plan a glide with, not a warning: the warnings come
-//! from the engine, with their margins and their sound. Like them it has
-//! no terrain, so a limit given above ground cannot be placed exactly; it
-//! is then drawn as far as it may reach and marked as uncertain.
+//! from the engine, with their margins and their sound. Where the session
+//! was given terrain the picture has the ground in it, and a limit given
+//! above ground stands on that ground. Where it was not, such a limit
+//! cannot be placed exactly; it is then drawn as far as it may reach and
+//! marked as uncertain.
 
 use venti_airspace::{Altitudes, Policy, PressureAltitude, destination, resolve};
 use venti_domain::GeoPoint;
@@ -15,6 +17,16 @@ use crate::{AirspacePolicy, AirspaceSet};
 
 /// How far ahead the side view looks, metres.
 pub(crate) const AHEAD_M: f64 = 10_000.0;
+
+/// The ground along the line is read this far apart, metres.
+pub(crate) const GROUND_STEP_M: f64 = 100.0;
+
+/// And at this many places: from the glider to the end of the line.
+pub(crate) const GROUND_PLACES: usize = 101;
+
+/// A glider lower than this over the ground is on it, or about to be:
+/// nothing is said about where its line meets the ground.
+const ON_THE_GROUND_M: f64 = 30.0;
 
 /// The side view shows at least this much height under and over the
 /// glider, metres.
@@ -63,6 +75,15 @@ pub struct AirspaceAheadSpan {
     pub policy: AirspacePolicy,
 }
 
+/// The ground at one place on the line ahead.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct AheadGround {
+    /// How far from the glider, metres.
+    pub distance_m: f64,
+    /// The height of the ground there, metres above mean sea level.
+    pub elevation_m: f64,
+}
+
 /// The airspace ahead, from the side.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct AirspaceAhead {
@@ -88,8 +109,18 @@ pub struct AirspaceAhead {
     /// The airspaces on the line, in the order they begin. Airspace a
     /// paraglider needs nothing for is left out.
     pub spans: Vec<AirspaceAheadSpan>,
-    /// What matters most, in a line.
+    /// What matters most about the airspace, in a line.
     pub words: String,
+    /// The ground along the line, every hundred metres, as far as the
+    /// session's terrain covers it. Empty without terrain.
+    pub ground: Vec<AheadGround>,
+    /// Where the glider's line meets the ground, metres from the glider.
+    /// `None` when it stays clear as far as the ground is known, when
+    /// there is no line, and for a glider on the ground.
+    pub line_meets_ground_m: Option<f64>,
+    /// What the line does over the ground, in a line: where it meets it,
+    /// or by how much it stays clear. `None` without terrain on the line.
+    pub ground_words: Option<String>,
 }
 
 /// Where the view looks from, and along what.
@@ -104,18 +135,53 @@ pub(crate) struct Look {
     /// the glider makes way on this line.
     pub glide: Option<f64>,
     pub line_words: String,
+    /// The ground along the line: [`GROUND_PLACES`] heights a
+    /// [`GROUND_STEP_M`] apart from the glider on, each `None` where the
+    /// terrain does not reach. Empty without terrain.
+    pub ground: Vec<Option<f64>>,
 }
 
-/// The side view for one moment. `None` when the line cannot be laid out,
+/// The side view for one moment: over the airspace of `set`, or with
+/// `None` over the ground alone. `None` when the line cannot be laid out,
 /// which only happens next to a pole.
-pub(crate) fn ahead(set: &AirspaceSet, look: &Look) -> Option<AirspaceAhead> {
+pub(crate) fn ahead(set: Option<&AirspaceSet>, look: &Look) -> Option<AirspaceAhead> {
     let end = destination(look.position, look.bearing_deg, AHEAD_M)?;
-    let altitudes = Altitudes {
+    let altitudes = |ground_elevation_m: Option<f64>| Altitudes {
         altitude_m: look.altitude_m,
         pressure: look.pressure_altitude_m.map(PressureAltitude::standard),
-        // No terrain model yet.
-        ground_elevation_m: None,
+        ground_elevation_m,
     };
+    // The lowest and the highest ground under a stretch of the line, if
+    // all of it is known.
+    let ground_between = |from_m: f64, to_m: f64| -> Option<(f64, f64)> {
+        let first = (from_m / GROUND_STEP_M).floor() as usize;
+        let last = (to_m / GROUND_STEP_M).ceil() as usize;
+        let (mut low, mut high) = (f64::INFINITY, f64::NEG_INFINITY);
+        for height in look.ground.get(first..=last.min(GROUND_PLACES - 1))? {
+            let height = (*height)?;
+            (low, high) = (low.min(height), high.max(height));
+        }
+        low.is_finite().then_some((low, high))
+    };
+    let known: Vec<AheadGround> = look
+        .ground
+        .iter()
+        .enumerate()
+        .filter_map(|(place, height)| {
+            height.map(|elevation_m| AheadGround {
+                distance_m: place as f64 * GROUND_STEP_M,
+                elevation_m,
+            })
+        })
+        .collect();
+    let lowest_ground = known
+        .iter()
+        .map(|place| place.elevation_m)
+        .min_by(f64::total_cmp);
+    let highest_ground = known
+        .iter()
+        .map(|place| place.elevation_m)
+        .max_by(f64::total_cmp);
     let line_end_m = look
         .glide
         .filter(|glide| glide.is_finite() && *glide > 0.0)
@@ -134,20 +200,33 @@ pub(crate) fn ahead(set: &AirspaceSet, look: &Look) -> Option<AirspaceAhead> {
             look.altitude_m + ROOM_AT_MOST_M,
         )
     };
-    let mut bottom = (look.altitude_m - ROOM_M).min(reach(line_end_m) - 100.0);
+    let mut bottom = match lowest_ground {
+        // With the ground in the picture, its foot lies under the lowest
+        // ground on the line.
+        Some(lowest) => (lowest - 100.0).min(look.altitude_m - 100.0),
+        None => (look.altitude_m - ROOM_M).min(reach(line_end_m) - 100.0),
+    };
     let mut top = look.altitude_m + ROOM_M;
+    if let Some(highest) = highest_ground {
+        // A ridge higher than the glider is shown whole.
+        top = top.max(reach(highest + 100.0));
+    }
+
+    // The line ends where it meets the ground: what lies beyond is not
+    // reached on it.
+    let (line_meets_ground_m, ground_words) = over_the_ground(look, &line_at, has_line);
+    let reached_m = line_meets_ground_m.unwrap_or(AHEAD_M);
 
     let mut spans = Vec::new();
-    for span in set.index.cross_section(&[look.position, end]) {
+    let crossed = set.map_or_else(Vec::new, |set| {
+        set.index.cross_section(&[look.position, end])
+    });
+    for span in crossed {
+        let Some(set) = set else { break };
         let policy = set.policy.policy_for(span.airspace);
         if policy == Policy::Free {
             continue;
         }
-        let (floor, ceiling) = (
-            resolve(&span.lower, &altitudes),
-            resolve(&span.upper, &altitudes),
-        );
-        let (floor_m, ceiling_m) = (floor.low_m, ceiling.high_m);
         // A stretch that runs to the end of the line ends there exactly,
         // not a hair before it.
         let from_m = span.from_m.max(0.0);
@@ -156,6 +235,15 @@ pub(crate) fn ahead(set: &AirspaceSet, look: &Look) -> Option<AirspaceAhead> {
         } else {
             span.to_m
         };
+        // A limit above ground follows the ground. Drawn as one block it
+        // begins over the lowest ground under the stretch and ends over
+        // the highest: larger than the airspace, never smaller.
+        let under = ground_between(from_m, to_m);
+        let (floor, ceiling) = (
+            resolve(&span.lower, &altitudes(under.map(|(low, _)| low))),
+            resolve(&span.upper, &altitudes(under.map(|(_, high)| high))),
+        );
+        let (floor_m, ceiling_m) = (floor.low_m, ceiling.high_m);
         let (near, far) = (line_at(from_m), line_at(to_m));
         if floor.low_m == floor.high_m {
             bottom = bottom.min(reach(floor_m - 100.0));
@@ -184,18 +272,30 @@ pub(crate) fn ahead(set: &AirspaceSet, look: &Look) -> Option<AirspaceAhead> {
             // With no way made on the line nothing on it is reached,
             // except what the glider is in already.
             in_the_way: (has_line || from_m <= 0.0)
+                && from_m <= reached_m
                 && near.max(far) >= floor_m
                 && near.min(far) <= ceiling_m,
             policy: policy_view(policy),
         });
     }
-    let bottom = bottom.max(look.altitude_m - ROOM_BELOW_AT_MOST_M);
+    let bottom = bottom.max(
+        look.altitude_m
+            - if lowest_ground.is_some() {
+                ROOM_AT_MOST_M
+            } else {
+                ROOM_BELOW_AT_MOST_M
+            },
+    );
     let (bottom_m, top_m) = (
         (bottom / 100.0).floor() * 100.0,
         (top / 100.0).ceil() * 100.0,
     );
 
-    let words = in_words(&spans, &line_at, has_line);
+    let words = match set {
+        Some(_) => in_words(&spans, &line_at, has_line, reached_m),
+        // Nothing may sound like "clear" when there is nothing to look in.
+        None => "No airspace in the app".to_owned(),
+    };
     Some(AirspaceAhead {
         toward: look.toward.clone(),
         bearing_deg: look.bearing_deg,
@@ -207,11 +307,81 @@ pub(crate) fn ahead(set: &AirspaceSet, look: &Look) -> Option<AirspaceAhead> {
         top_m,
         spans,
         words,
+        ground: known,
+        line_meets_ground_m,
+        ground_words,
     })
 }
 
+/// Where the glider's line meets the ground, and what it does over the
+/// ground in a line of words.
+fn over_the_ground(
+    look: &Look,
+    line_at: &dyn Fn(f64) -> f64,
+    has_line: bool,
+) -> (Option<f64>, Option<String>) {
+    // How far over the ground the line is at each place where the ground
+    // is known, from the glider on, up to the first place where it is not.
+    let over: Vec<(f64, f64)> = look
+        .ground
+        .iter()
+        .enumerate()
+        .map_while(|(place, height)| {
+            let distance_m = place as f64 * GROUND_STEP_M;
+            height.map(|ground| (distance_m, line_at(distance_m) - ground))
+        })
+        .collect();
+    let Some(&(_, here)) = over.first() else {
+        return (None, None);
+    };
+    if !has_line || here < ON_THE_GROUND_M {
+        return (None, None);
+    }
+    let meeting = over.windows(2).find_map(|pair| {
+        let ((before_m, before), (_, after)) = (pair[0], pair[1]);
+        // Between two places the line and the ground are taken as
+        // straight.
+        (after <= 0.0).then(|| before_m + GROUND_STEP_M * before / (before - after))
+    });
+    if let Some(distance_m) = meeting {
+        return (
+            Some(distance_m),
+            Some(format!(
+                "Your line meets the ground in {}",
+                distance_in_words(distance_m)
+            )),
+        );
+    }
+    let least = over
+        .iter()
+        .map(|&(_, clear)| clear)
+        .fold(f64::INFINITY, f64::min);
+    let known_to_m = over.last().map_or(0.0, |&(distance_m, _)| distance_m);
+    let clear = format!(
+        "Your line clears the ground by {:.0} m at the least",
+        (least / 10.0).floor() * 10.0
+    );
+    (
+        None,
+        Some(if known_to_m >= AHEAD_M - GROUND_STEP_M {
+            clear
+        } else {
+            // The app's ground ends before the line does.
+            format!(
+                "{clear}, as far as the app has the ground: {}",
+                distance_in_words(known_to_m)
+            )
+        }),
+    )
+}
+
 /// What matters most on the line, in a line.
-fn in_words(spans: &[AirspaceAheadSpan], line_at: &dyn Fn(f64) -> f64, has_line: bool) -> String {
+fn in_words(
+    spans: &[AirspaceAheadSpan],
+    line_at: &dyn Fn(f64) -> f64,
+    has_line: bool,
+    reached_m: f64,
+) -> String {
     let possibly = |span: &AirspaceAheadSpan| if span.uncertain { "possibly " } else { "" };
     if let Some(span) = spans
         .iter()
@@ -243,7 +413,9 @@ fn in_words(spans: &[AirspaceAheadSpan], line_at: &dyn Fn(f64) -> f64, has_line:
     } else {
         format!("in {}", distance_in_words(span.from_m))
     };
-    if !has_line {
+    // Without a line, and beyond where the line meets the ground, there
+    // is nothing to measure the airspace against.
+    if !has_line || span.from_m > reached_m {
         return format!("{} {place}", span.name);
     }
     let (near, far) = (line_at(span.from_m), line_at(span.to_m));
@@ -327,6 +499,7 @@ DP 48:00:00 N 010:00:00 E
             toward: "On course E".to_owned(),
             glide,
             line_words: "Your glide now, 8".to_owned(),
+            ground: Vec::new(),
         }
     }
 
@@ -338,7 +511,7 @@ DP 48:00:00 N 010:00:00 E
         // East at 2,300 m with a glide of 8: 375 m are lost in the three
         // kilometres to the zone's edge, which is reached at 1,925 m,
         // under its ceiling.
-        let view = ahead(&set, &look(2300.0, 90.0, Some(8.0))).unwrap();
+        let view = ahead(Some(&set), &look(2300.0, 90.0, Some(8.0))).unwrap();
         assert_eq!(view.distance_m, 10_000.0);
         assert!((view.line_end_m - 1050.0).abs() < 1e-6);
         // The class E area is left out.
@@ -362,19 +535,19 @@ DP 48:00:00 N 010:00:00 E
 
         // From 3,400 m the same glide ends at 2,150 m: over the zone all
         // the way, by 150 m at the far end.
-        let view = ahead(&set, &look(3400.0, 90.0, Some(8.0))).unwrap();
+        let view = ahead(Some(&set), &look(3400.0, 90.0, Some(8.0))).unwrap();
         assert!(!view.spans[0].in_the_way);
         assert_eq!(view.words, "CTR EAST in 3.0 km: 150 m below your line");
 
         // Westwards there is nothing.
-        let view = ahead(&set, &look(2300.0, 270.0, Some(8.0))).unwrap();
+        let view = ahead(Some(&set), &look(2300.0, 270.0, Some(8.0))).unwrap();
         assert!(view.spans.is_empty());
         assert_eq!(view.words, "No airspace to avoid on this line for 10 km");
         assert_eq!((view.bottom_m, view.top_m), (900.0, 2800.0));
 
         // A steep line ends far under any ground: the picture does not
         // follow it down.
-        let view = ahead(&set, &look(2300.0, 270.0, Some(3.0))).unwrap();
+        let view = ahead(Some(&set), &look(2300.0, 270.0, Some(3.0))).unwrap();
         assert!(view.line_end_m < -1000.0);
         assert_eq!(view.bottom_m, 800.0);
     }
@@ -389,17 +562,139 @@ DP 48:00:00 N 010:00:00 E
             position: GeoPoint::new(47.5, 11.1).unwrap(),
             ..look(1800.0, 90.0, Some(8.0))
         };
-        let view = ahead(&set, &inside).unwrap();
+        let view = ahead(Some(&set), &inside).unwrap();
         assert_eq!(view.spans[0].from_m, 0.0);
         assert!(view.spans[0].in_the_way);
         assert_eq!(view.words, "In CTR EAST now");
 
         // A wind the glider makes no way against: no line, and what lies
         // ahead is named with its distance only.
-        let view = ahead(&set, &look(2300.0, 90.0, None)).unwrap();
+        let view = ahead(Some(&set), &look(2300.0, 90.0, None)).unwrap();
         assert_eq!(view.line_end_m, 2300.0);
         assert!(!view.spans[0].in_the_way);
         assert_eq!(view.words, "CTR EAST in 3.0 km");
+    }
+
+    #[test]
+    fn the_ground_is_in_the_picture_and_the_line_ends_on_it() {
+        let folder = TempFolder::new();
+        let set = set(&folder);
+
+        // Flat at 800 m for four kilometres, then a slope that rises
+        // 130 m every hundred metres to a ridge of 2,100 m at five, and
+        // stays there. A glide of 8 from 2,300 m is at 1,712 m where it
+        // meets the slope, 4.7 km out: before it would be over the ridge.
+        let ground: Vec<Option<f64>> = (0..GROUND_PLACES)
+            .map(|place| {
+                let distance = place as f64 * GROUND_STEP_M;
+                Some((800.0 + (distance - 4000.0) * 1.3).clamp(800.0, 2100.0))
+            })
+            .collect();
+        let over_a_ridge = Look {
+            ground: ground.clone(),
+            ..look(2300.0, 270.0, Some(8.0))
+        };
+        let view = ahead(Some(&set), &over_a_ridge).unwrap();
+        assert_eq!(view.ground.len(), 101);
+        assert_eq!(view.ground[45].distance_m, 4500.0);
+        assert!((view.ground[45].elevation_m - 1450.0).abs() < 1e-6);
+        let meets = view.line_meets_ground_m.unwrap();
+        assert!((meets - 4701.75).abs() < 0.5, "{meets}");
+        assert_eq!(
+            view.ground_words.as_deref(),
+            Some("Your line meets the ground in 4.7 km")
+        );
+        // The picture's foot lies under the lowest ground.
+        assert_eq!(view.bottom_m, 700.0);
+
+        // From 3,400 m the same glide clears the ridge: by 675 m where the
+        // ridge begins, and by less and less as it sinks over it, to 50 m
+        // at the end of the line.
+        let high = Look {
+            ground: ground.clone(),
+            ..look(3400.0, 270.0, Some(8.0))
+        };
+        let view = ahead(Some(&set), &high).unwrap();
+        assert_eq!(view.line_meets_ground_m, None);
+        assert_eq!(
+            view.ground_words.as_deref(),
+            Some("Your line clears the ground by 50 m at the least")
+        );
+
+        // Where the app's ground ends after three kilometres, that is
+        // said.
+        let short: Vec<Option<f64>> = ground
+            .iter()
+            .enumerate()
+            .map(|(place, height)| height.filter(|_| place <= 30))
+            .collect();
+        let view = ahead(
+            Some(&set),
+            &Look {
+                ground: short,
+                ..look(2300.0, 270.0, Some(8.0))
+            },
+        )
+        .unwrap();
+        assert_eq!(view.ground.len(), 31);
+        assert_eq!(
+            view.ground_words.as_deref(),
+            Some(
+                "Your line clears the ground by 1120 m at the least, as far as the app has the ground: 3.0 km"
+            )
+        );
+
+        // A zone beyond where the line meets the ground is named and not
+        // measured against the line, and it is not in the line's way.
+        let low = Look {
+            ground: (0..GROUND_PLACES).map(|_| Some(800.0)).collect(),
+            ..look(1000.0, 90.0, Some(8.0))
+        };
+        let view = ahead(Some(&set), &low).unwrap();
+        assert!((view.line_meets_ground_m.unwrap() - 1600.0).abs() < 0.5);
+        assert!(!view.spans[0].in_the_way);
+        assert_eq!(view.words, "CTR EAST in 3.0 km");
+        // The zone stands on the ground now, and nothing about it is in
+        // doubt.
+        assert_eq!(view.spans[0].floor_m, 800.0);
+
+        // A glider on the ground has no line to speak of, and without
+        // airspace in the app nothing sounds like "clear".
+        let standing = Look {
+            ground: (0..GROUND_PLACES).map(|_| Some(800.0)).collect(),
+            ..look(805.0, 90.0, Some(8.0))
+        };
+        let view = ahead(None, &standing).unwrap();
+        assert_eq!((view.line_meets_ground_m, view.ground_words), (None, None));
+        assert_eq!(view.words, "No airspace in the app");
+        assert!(view.spans.is_empty());
+    }
+
+    #[test]
+    fn a_limit_above_ground_stands_on_the_ground_where_it_is_known() {
+        let folder = TempFolder::new();
+        let set = set(&folder);
+
+        // The restricted area ends 300 m over the ground. Under it the
+        // ground rises from 900 m to 1,400 m: drawn as one block, it ends
+        // 300 m over the highest of it.
+        let ground: Vec<Option<f64>> = (0..GROUND_PLACES)
+            .map(|place| Some(900.0 + 5.0 * place as f64))
+            .collect();
+        let from_the_zone = Look {
+            position: GeoPoint::new(47.5, 11.15).unwrap(),
+            ground,
+            ..look(1700.0, 90.0, Some(8.0))
+        };
+        let view = ahead(Some(&set), &from_the_zone).unwrap();
+        let area = view
+            .spans
+            .iter()
+            .find(|span| span.name == "ED-R HIGH")
+            .unwrap();
+        assert!(!area.uncertain);
+        assert_eq!(area.floor_m, 1500.0);
+        assert_eq!(area.ceiling_m, Some(1700.0));
     }
 
     #[test]
@@ -414,7 +709,7 @@ DP 48:00:00 N 010:00:00 E
             position: GeoPoint::new(47.5, 11.15).unwrap(),
             ..look(1700.0, 90.0, Some(8.0))
         };
-        let view = ahead(&set, &from_the_zone).unwrap();
+        let view = ahead(Some(&set), &from_the_zone).unwrap();
         let area = view
             .spans
             .iter()

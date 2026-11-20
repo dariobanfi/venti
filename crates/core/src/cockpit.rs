@@ -40,7 +40,7 @@ use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceSet, AirspaceWarning, Coordinate, CoreError, RouteKind,
-    ServerRequest,
+    ServerRequest, Terrain,
 };
 
 /// How long an external instrument may be silent, in seconds, before it
@@ -266,6 +266,15 @@ pub struct CockpitView {
     pub altitude_m: Option<f64>,
     /// Height above the take-off, metres.
     pub height_above_takeoff_m: Option<f64>,
+    /// The height of the ground under the glider, metres above mean sea
+    /// level, where the app holds terrain for the place.
+    pub ground_elevation_m: Option<f64>,
+    /// Height above the ground under the glider, metres: the altitude
+    /// less the terrain's height there. The terrain is a model of the
+    /// bare ground a pixel of about 13 m wide: it knows no trees, cables
+    /// or buildings, and on a steep slope the ground a few metres to the
+    /// side is far higher or lower.
+    pub height_above_ground_m: Option<f64>,
     /// The highest altitude of the flight, metres.
     pub max_altitude_m: Option<f64>,
     /// The climb rate now.
@@ -514,6 +523,11 @@ struct Inner {
     glider: Glider,
     /// The airspace warnings, once the shell has handed over the airspace.
     watch: Option<AirspaceWatch>,
+    /// The height of the ground, once the shell has handed over terrain.
+    terrain: Option<Arc<Terrain>>,
+    /// The ground under the latest position, metres above mean sea level,
+    /// where the terrain covers it.
+    ground_m: Option<f64>,
     /// The flight since take-off, a position every ten seconds, for
     /// scoring it in the air.
     flown: Vec<Fix>,
@@ -584,6 +598,8 @@ impl FlightSession {
                 target: None,
                 glider: Glider::default(),
                 watch: None,
+                terrain: None,
+                ground_m: None,
                 flown: Vec::new(),
                 score: None,
                 longest: None,
@@ -751,6 +767,17 @@ impl FlightSession {
         })
     }
 
+    /// Hands the session the height of the ground. From then on the
+    /// cockpit knows how high over the ground the glider is wherever the
+    /// terrain covers it, airspace whose limits are given above ground is
+    /// placed exactly there, and the side view draws the ground ahead.
+    /// The terrain may gain tiles while it is in use. `None` takes it away.
+    pub fn use_terrain(&self, terrain: Option<Arc<Terrain>>) {
+        let mut inner = self.lock();
+        inner.terrain = terrain;
+        inner.ground_m = None;
+    }
+
     /// Hands the session the airspace to warn about: the set from
     /// [`crate::Core::airspace`]. From then on every position is checked
     /// against it. `None` switches the warnings off.
@@ -784,16 +811,19 @@ impl FlightSession {
             .unwrap_or_default()
     }
 
-    /// The airspace on the line ahead, seen from the side, for planning
-    /// a glide: on the glider's course while it glides, towards the place
-    /// the cockpit navigates to while it circles or stands. The line drawn
-    /// is the glide of the last seconds on a glide, and otherwise the
-    /// glider's own glide in the wind as last worked out. `None` without
-    /// airspace, without a position and a height, and when there is no
-    /// way to look.
+    /// The airspace and the ground on the line ahead, seen from the side,
+    /// for planning a glide: on the glider's course while it glides,
+    /// towards the place the cockpit navigates to while it circles or
+    /// stands. The line drawn is the glide of the last seconds on a glide,
+    /// and otherwise the glider's own glide in the wind as last worked
+    /// out. `None` with neither airspace nor terrain, without a position
+    /// and a height, and when there is no way to look.
     pub fn airspace_ahead(&self, now_unix_s: f64) -> Option<AirspaceAhead> {
         let inner = self.lock();
-        let watch = inner.watch.as_ref()?;
+        // Something to draw: airspace, or the ground.
+        if inner.watch.is_none() && inner.terrain.is_none() {
+            return None;
+        }
         let state = inner.computer.state(now_unix_s);
         let (position, altitude_m) = (state.position?, state.altitude_m?);
 
@@ -858,8 +888,16 @@ impl FlightSession {
             }
         };
 
+        let ground = inner.terrain.as_ref().map_or_else(Vec::new, |terrain| {
+            terrain.profile(
+                position,
+                bearing_deg,
+                ahead::GROUND_STEP_M,
+                ahead::GROUND_PLACES,
+            )
+        });
         ahead::ahead(
-            watch.set(),
+            inner.watch.as_ref().map(AirspaceWatch::set),
             &ahead::Look {
                 position,
                 altitude_m,
@@ -868,6 +906,7 @@ impl FlightSession {
                 toward,
                 glide,
                 line_words,
+                ground,
             },
         )
     }
@@ -1128,12 +1167,18 @@ impl FlightSession {
             }
             share.set_landed(state.phase == Phase::Landed);
         }
+        let ground_m = inner
+            .terrain
+            .as_ref()
+            .and_then(|terrain| terrain.elevation_at(position));
+        inner.ground_m = ground_m;
         if let Some(watch) = inner.watch.as_mut() {
             watch.feed(
                 sample.time_unix_s,
                 position,
                 state.altitude_m,
                 state.pressure_altitude_m,
+                ground_m,
                 state.ground_speed_ms,
                 state.course_deg,
                 state.average_climb_ms,
@@ -1260,6 +1305,11 @@ impl FlightSession {
             position: state.position.map(coordinate),
             altitude_m: state.altitude_m,
             height_above_takeoff_m: state.height_above_takeoff_m,
+            ground_elevation_m: inner.ground_m,
+            height_above_ground_m: state
+                .altitude_m
+                .zip(inner.ground_m)
+                .map(|(altitude, ground)| altitude - ground),
             max_altitude_m: state.max_altitude_m,
             climb_ms: state.climb_ms,
             vario_source: state.vario_source.map(|source| match source {

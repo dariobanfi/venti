@@ -26,3 +26,4 @@ pub mod live;
 pub mod scoring;
 pub mod sun;
 pub mod task;
+pub mod terrain;

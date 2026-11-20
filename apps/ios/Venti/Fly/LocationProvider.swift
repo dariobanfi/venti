@@ -73,15 +73,24 @@ final class LocationProvider: NSObject, @preconcurrency CLLocationManagerDelegat
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-        if (error as? CLError)?.code == .denied {
+        // While the system's question whether Venti may use the position
+        // is still open, positions fail as "denied" too. That is no
+        // answer: only a pilot's no, or a restriction, is said.
+        if (error as? CLError)?.code == .denied, Self.isRefused(manager.authorizationStatus) {
             reportDenied()
         }
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
+        if Self.isRefused(manager.authorizationStatus) {
             reportDenied()
         }
+    }
+
+    /// Whether the app has been told it may not use the position: by the
+    /// pilot or by a restriction on the iPhone. Not yet asked is not that.
+    nonisolated static func isRefused(_ status: CLAuthorizationStatus) -> Bool {
+        status == .denied || status == .restricted
     }
 
     private func reportDenied() {

@@ -74,7 +74,7 @@ enum AirspaceLayers {
         names.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
         names.textFontSize = NSExpression(forConstantValue: 11)
         names.textColor = NSExpression(forConstantValue: UIColor(hex: 0x7A1F48))
-        names.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+        names.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
         names.textHaloWidth = NSExpression(forConstantValue: 1.4)
         // Airspace open to a paraglider is drawn, but not named.
         names.predicate = NSPredicate(format: "policy > 0")

@@ -43,10 +43,15 @@ struct ComparedFlight: Equatable {
 }
 
 extension Palette {
-    /// The colour of a second flight laid beside the one on screen: none
-    /// of the colours a track takes from its climb, and not the app's.
-    static let otherFlight = Color(red: 0.055, green: 0.56, blue: 0.43)
-    static let otherFlightOnMap = UIColor(red: 0.055, green: 0.56, blue: 0.43, alpha: 1)
+    /// The colour of a second flight laid beside the one on screen: the
+    /// design language's first colour for comparing flights, which no
+    /// climb band has. On the map, which is light in both appearances,
+    /// the light theme's.
+    static var otherFlight: Color {
+        Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).series[0]) })
+    }
+
+    static var otherFlightOnMap: UIColor { UIColor(VentiTheme.light.series[0]) }
 }
 
 /// Chooses the flight to lay beside the one on screen: one of the pilot's

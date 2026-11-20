@@ -22,6 +22,12 @@ enum Preferences {
     static let glideRatio = "VentiGliderGlideRatio"
     /// Whether the cockpit's map leaves out the FAI triangle areas.
     static let hidesFaiAreas = "VentiCockpitHidesFaiAreas"
+    /// The layers of the map tab the pilot has switched off with its
+    /// chips. All are shown until then.
+    static let mapHidesWind = "VentiMapHidesWind"
+    static let mapHidesAirspace = "VentiMapHidesAirspace"
+    static let mapHidesSites = "VentiMapHidesSites"
+    static let mapHidesPilots = "VentiMapHidesPilots"
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 

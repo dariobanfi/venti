@@ -158,9 +158,9 @@ private struct Bubble: View {
                 .textSelection(.enabled)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .foregroundStyle(entry.fromPilot ? Color.white : Color.venti(.text))
+                .foregroundStyle(entry.fromPilot ? Color.venti(.onPrimary) : Color.venti(.text))
                 .background(
-                    entry.fromPilot ? Palette.accent : Color(.secondarySystemBackground),
+                    entry.fromPilot ? Color.venti(.primary) : Color.venti(.surfaceRaised),
                     in: .rect(cornerRadius: 18)
                 )
             if !entry.lookedUp.isEmpty {

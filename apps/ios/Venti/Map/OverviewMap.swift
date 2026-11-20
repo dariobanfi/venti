@@ -290,7 +290,7 @@ struct OverviewMap: UIViewRepresentable {
 
             let tracks = MLNShapeSource(identifier: Self.tracks, shape: empty, options: nil)
             style.addSource(tracks)
-            style.addLayer(MapSetup.line("logbook-tracks-edge", from: tracks, color: .white, width: 5))
+            style.addLayer(MapSetup.line("logbook-tracks-edge", from: tracks, color: Palette.haloOnMap, width: 5))
             style.addLayer(
                 MapSetup.line("logbook-tracks-line", from: tracks, color: Palette.accentOnMap, width: 2.5)
             )
@@ -300,7 +300,7 @@ struct OverviewMap: UIViewRepresentable {
             // opened, over the logbook's own lines.
             let flight = MLNShapeSource(identifier: Self.liveTrack, shape: empty, options: nil)
             style.addSource(flight)
-            style.addLayer(MapSetup.line("live-track-edge", from: flight, color: .white, width: 5.5))
+            style.addLayer(MapSetup.line("live-track-edge", from: flight, color: Palette.haloOnMap, width: 5.5))
             for band in ClimbBand.allCases {
                 let layer = MapSetup.line(
                     "live-track-\(band.rawValue)", from: flight, color: band.uiColor, width: 3
@@ -319,13 +319,15 @@ struct OverviewMap: UIViewRepresentable {
             let signs = MLNSymbolStyleLayer(identifier: Self.sites, source: sites)
             signs.iconImageName = NSExpression(forKeyPath: "picture")
             signs.iconAllowsOverlap = NSExpression(forConstantValue: true)
+            // A pin stands on the site with its tip; the name is under it.
+            signs.iconAnchor = NSExpression(forConstantValue: "bottom")
             signs.text = NSExpression(forKeyPath: "label")
             signs.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
-            signs.textFontSize = NSExpression(forConstantValue: 11)
+            signs.textFontSize = NSExpression(forConstantValue: 12)
             signs.textAnchor = NSExpression(forConstantValue: "top")
-            signs.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 1.1)))
-            signs.textColor = NSExpression(forConstantValue: UIColor(hex: 0x1F1F1D))
-            signs.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            signs.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 0.2)))
+            signs.textColor = NSExpression(forConstantValue: Palette.inkOnMap)
+            signs.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
             signs.textHaloWidth = NSExpression(forConstantValue: 1.4)
             signs.textOptional = NSExpression(forConstantValue: true)
             signs.minimumZoomLevel = 9
@@ -348,8 +350,8 @@ struct OverviewMap: UIViewRepresentable {
             symbols.textFontSize = NSExpression(forConstantValue: 12)
             symbols.textAnchor = NSExpression(forConstantValue: "top")
             symbols.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 1.15)))
-            symbols.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
-            symbols.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            symbols.textColor = NSExpression(forConstantValue: Palette.inkOnMap)
+            symbols.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
             symbols.textHaloWidth = NSExpression(forConstantValue: 1.6)
             // Where stations crowd, the windiest are drawn first and the
             // others give way; a station keeps its arrow when only its
@@ -363,15 +365,15 @@ struct OverviewMap: UIViewRepresentable {
             // the sites, since a plan is often for one of them.
             let pins = MLNShapeSource(identifier: Self.plans, shape: MLNShapeCollectionFeature(shapes: []), options: nil)
             style.addSource(pins)
-            style.addLayer(MapSetup.dot(Self.plans, from: pins, radius: 7, color: Palette.accentOnMap, ring: .white))
+            style.addLayer(MapSetup.dot(Self.plans, from: pins, radius: 7, color: Palette.accentOnMap, ring: Palette.haloOnMap))
             let names = MLNSymbolStyleLayer(identifier: Self.plans + "-names", source: pins)
             names.text = NSExpression(forKeyPath: "label")
             names.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
             names.textFontSize = NSExpression(forConstantValue: 12)
             names.textAnchor = NSExpression(forConstantValue: "top")
             names.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 0.9)))
-            names.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
-            names.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            names.textColor = NSExpression(forConstantValue: Palette.inkOnMap)
+            names.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
             names.textHaloWidth = NSExpression(forConstantValue: 1.6)
             names.textAllowsOverlap = NSExpression(forConstantValue: true)
             style.addLayer(names)

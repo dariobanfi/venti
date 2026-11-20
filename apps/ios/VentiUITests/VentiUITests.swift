@@ -658,6 +658,9 @@ final class VentiUITests: XCTestCase {
         }
         continueAfterFailure = false
         let app = XCUIApplication()
+        // The cockpit this test opens asks for the position: as on a new
+        // iPhone, so that the system's question comes and is answered.
+        app.resetAuthorizationStatus(for: .location)
         app.launchArguments = ["--ui-testing", "--bundled-map", "--server", server]
         app.launch()
 
@@ -685,13 +688,55 @@ final class VentiUITests: XCTestCase {
             keepScreenshot("today-2-another-day")
         }
 
-        // A take-off's own page.
+        // A take-off's own page: its status again, and the two things to
+        // do from here.
         card.tap()
         XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Plan route"].exists)
         sleep(1)
         keepScreenshot("today-3-site")
+
+        // "Start flight" brings the Fly tab to the front and opens the
+        // cockpit, which waits for the take-off.
+        app.buttons["Start flight"].tap()
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
+        if allow.waitForExistence(timeout: 10) {
+            allow.tap()
+        }
+        XCTAssertTrue(element("cockpit-end", in: app).waitForExistence(timeout: 20))
+        sleep(1)
+        keepScreenshot("today-4-cockpit-from-the-site")
+        endTheCockpit(in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
+
+        // The site's page is where it was.
+        openTab("Today", in: app)
+        XCTAssertTrue(app.buttons["Plan route"].waitForExistence(timeout: 15))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(card.waitForExistence(timeout: 15))
+    }
+
+    /// The app's icon on the home screen: the design language's, which
+    /// the screenshot is kept to show.
+    func testTheAppHasItsIconOnTheHomeScreen() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 60))
+        XCUIDevice.shared.press(.home)
+
+        // The icon is on whichever page of the home screen had room.
+        let home = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let icon = home.icons["Venti"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 15))
+        for _ in 0..<4 where !icon.isHittable {
+            home.swipeLeft()
+            sleep(1)
+        }
+        XCTAssertTrue(icon.isHittable)
+        sleep(1)
+        keepScreenshot("icon-1-home-screen")
     }
 
     /// Today without a Venti to ask: the app opens on it, says what is
@@ -1033,6 +1078,16 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("sites-3-site")
+
+        // A route that begins here: the map to draw it on opens with the
+        // site as its first place.
+        app.buttons["Plan route"].tap()
+        XCTAssertTrue(element("route-map", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(app.navigationBars["Draw a route"].exists)
+        sleep(3)
+        keepScreenshot("sites-3a-plan-route")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
 
         // The same server's forecast for the place: the wind at each
         // height through the day, and the sky.

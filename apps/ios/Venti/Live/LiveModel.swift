@@ -219,9 +219,9 @@ enum LiveSymbols {
     /// that nothing was heard of for a while.
     static var all: [Picture] {
         [
-            Picture(name: flying, image: wing(color: UIColor(hex: 0x157F4B))),
-            Picture(name: quiet, image: wing(color: UIColor(hex: 0x85847F))),
-            Picture(name: landed, image: disc(color: UIColor(hex: 0x85847F))),
+            Picture(name: flying, image: wing(color: Palette.goodOnMap)),
+            Picture(name: quiet, image: wing(color: Palette.quietOnMap)),
+            Picture(name: landed, image: disc(color: Palette.quietOnMap)),
         ]
     }
 
@@ -256,7 +256,7 @@ enum LiveSymbols {
                 offset: CGSize(width: 0, height: 0.5), blur: 1.5,
                 color: UIColor.black.withAlphaComponent(0.35).cgColor
             )
-            UIColor.white.setStroke()
+            Palette.haloOnMap.setStroke()
             for shape in [crescent, pilot] {
                 shape.lineWidth = 3
                 shape.lineJoinStyle = .round
@@ -280,7 +280,7 @@ enum LiveSymbols {
             color.setFill()
             disc.fill()
             context.cgContext.setShadow(offset: .zero, blur: 0, color: nil)
-            UIColor.white.setStroke()
+            Palette.haloOnMap.setStroke()
             disc.lineWidth = 2
             disc.stroke()
         }

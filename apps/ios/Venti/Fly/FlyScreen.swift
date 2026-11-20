@@ -122,6 +122,16 @@ struct FlyScreen: View {
                 Self.keep(recording, in: logbook, showingItWith: navigation, for: fly)
             }
         }
+        // "Start flight" on a site's page: this tab came to the front
+        // for it and opens the cockpit. As a task, which runs once the tab
+        // is on screen: a cockpit asked for before that has nothing to
+        // open over, and stays shut.
+        .task(id: navigation.wantsCockpit) {
+            if navigation.wantsCockpit {
+                navigation.wantsCockpit = false
+                fly.startFlight()
+            }
+        }
         .sheet(isPresented: $isChoosingVario) {
             VarioSheet(vario: fly.vario)
                 .presentationDetents([.medium, .large])

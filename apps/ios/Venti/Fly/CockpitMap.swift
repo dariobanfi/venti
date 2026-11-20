@@ -117,10 +117,10 @@ struct CockpitMap: UIViewRepresentable {
             // at, under everything the pilot steers by.
             let reach = MLNShapeSource(identifier: "cockpit-range", shape: nil, options: nil)
             style.addSource(reach)
-            let reachEdge = MapSetup.line("cockpit-range-edge", from: reach, color: .white, width: 4)
+            let reachEdge = MapSetup.line("cockpit-range-edge", from: reach, color: Palette.haloOnMap, width: 4)
             reachEdge.lineOpacity = NSExpression(forConstantValue: 0.7)
             style.addLayer(reachEdge)
-            style.addLayer(MapSetup.line("cockpit-range-line", from: reach, color: UIColor(hex: 0x1B7F5C), width: 2))
+            style.addLayer(MapSetup.line("cockpit-range-line", from: reach, color: Palette.goodOnMap, width: 2))
 
             // Where to fly for an FAI triangle: two dashed outlines, under
             // the route they belong to.
@@ -136,16 +136,16 @@ struct CockpitMap: UIViewRepresentable {
             // to fly as a thin line through them.
             let zones = MLNShapeSource(identifier: "cockpit-task", shape: nil, options: nil)
             style.addSource(zones)
-            let rings = MapSetup.line("cockpit-task-line", from: zones, color: UIColor(hex: 0x1F1F1D), width: 1.5)
+            let rings = MapSetup.line("cockpit-task-line", from: zones, color: Palette.inkOnMap, width: 1.5)
             rings.predicate = NSPredicate(format: "next == 0")
             style.addLayer(rings)
-            let nextRing = MapSetup.line("cockpit-task-next", from: zones, color: UIColor(hex: 0x1F1F1D), width: 3.5)
+            let nextRing = MapSetup.line("cockpit-task-next", from: zones, color: Palette.inkOnMap, width: 3.5)
             nextRing.predicate = NSPredicate(format: "next == 1")
             style.addLayer(nextRing)
             let ahead = MLNShapeSource(identifier: "cockpit-task-way", shape: nil, options: nil)
             style.addSource(ahead)
             let aheadLine = MapSetup.line(
-                "cockpit-task-way-line", from: ahead, color: UIColor(hex: 0x1F1F1D), width: 1.5
+                "cockpit-task-way-line", from: ahead, color: Palette.inkOnMap, width: 1.5
             )
             aheadLine.lineOpacity = NSExpression(forConstantValue: 0.6)
             style.addLayer(aheadLine)
@@ -162,13 +162,13 @@ struct CockpitMap: UIViewRepresentable {
             // lies under the trail and the glider.
             let course = MLNShapeSource(identifier: "cockpit-course", shape: nil, options: nil)
             style.addSource(course)
-            let line = MapSetup.line("cockpit-course-line", from: course, color: UIColor(hex: 0x1F1F1D), width: 2)
+            let line = MapSetup.line("cockpit-course-line", from: course, color: Palette.inkOnMap, width: 2)
             line.lineDashPattern = NSExpression(forConstantValue: [2, 2])
             style.addLayer(line)
 
             let trail = MLNShapeSource(identifier: "cockpit-trail", shape: nil, options: nil)
             style.addSource(trail)
-            style.addLayer(MapSetup.line("cockpit-trail-edge", from: trail, color: .white, width: 6))
+            style.addLayer(MapSetup.line("cockpit-trail-edge", from: trail, color: Palette.haloOnMap, width: 6))
             for band in ClimbBand.allCases {
                 let layer = MapSetup.line(
                     "cockpit-trail-\(band.rawValue)", from: trail, color: band.uiColor, width: 3.5
@@ -184,7 +184,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addSource(thermals)
             style.addLayer(
                 MapSetup.dot(
-                    "cockpit-thermal-dot", from: thermals, radius: 5, color: ClimbBand.climb.uiColor, ring: .white
+                    "cockpit-thermal-dot", from: thermals, radius: 5, color: ClimbBand.climb.uiColor, ring: Palette.haloOnMap
                 )
             )
             let climbs = MLNSymbolStyleLayer(identifier: "cockpit-thermal-climb", source: thermals)
@@ -193,8 +193,8 @@ struct CockpitMap: UIViewRepresentable {
             climbs.textFontSize = NSExpression(forConstantValue: 13)
             climbs.textAnchor = NSExpression(forConstantValue: "left")
             climbs.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0.7, dy: 0)))
-            climbs.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
-            climbs.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            climbs.textColor = NSExpression(forConstantValue: Palette.inkOnMap)
+            climbs.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
             climbs.textHaloWidth = NSExpression(forConstantValue: 1.6)
             style.addLayer(climbs)
 
@@ -206,9 +206,9 @@ struct CockpitMap: UIViewRepresentable {
             // it, and the dots are what there is to read.
             let ring = MLNShapeSource(identifier: "cockpit-lift-ring", shape: nil, options: nil)
             style.addSource(ring)
-            style.addLayer(MapSetup.line("cockpit-lift-ring-edge", from: ring, color: .white, width: 4.5))
+            style.addLayer(MapSetup.line("cockpit-lift-ring-edge", from: ring, color: Palette.haloOnMap, width: 4.5))
             let circle = MapSetup.line(
-                "cockpit-lift-ring-line", from: ring, color: UIColor(hex: 0x1F1F1D), width: 2
+                "cockpit-lift-ring-line", from: ring, color: Palette.inkOnMap, width: 2
             )
             circle.lineDashPattern = NSExpression(forConstantValue: [2, 2])
             style.addLayer(circle)
@@ -219,7 +219,7 @@ struct CockpitMap: UIViewRepresentable {
                 dots.predicate = NSPredicate(format: "band == %d", band.rawValue)
                 dots.circleRadius = NSExpression(forKeyPath: "radius")
                 dots.circleColor = NSExpression(forConstantValue: band.uiColor)
-                dots.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                dots.circleStrokeColor = NSExpression(forConstantValue: Palette.haloOnMap)
                 dots.circleStrokeWidth = NSExpression(forConstantValue: 1)
                 style.addLayer(dots)
             }
@@ -227,7 +227,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addSource(core)
             style.addLayer(
                 MapSetup.dot(
-                    "cockpit-lift-centre-dot", from: core, radius: 4, color: UIColor(hex: 0x1F1F1D), ring: .white
+                    "cockpit-lift-centre-dot", from: core, radius: 4, color: Palette.inkOnMap, ring: Palette.haloOnMap
                 )
             )
 
@@ -235,7 +235,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addSource(place)
             style.addLayer(
                 MapSetup.dot(
-                    "cockpit-target-dot", from: place, radius: 6, color: UIColor(hex: 0x1F1F1D), ring: .white
+                    "cockpit-target-dot", from: place, radius: 6, color: Palette.inkOnMap, ring: Palette.haloOnMap
                 )
             )
 
@@ -243,7 +243,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addSource(takeoff)
             style.addLayer(
                 MapSetup.dot(
-                    "cockpit-takeoff-dot", from: takeoff, radius: 5, color: .white, ring: UIColor(hex: 0x1F1F1D)
+                    "cockpit-takeoff-dot", from: takeoff, radius: 5, color: Palette.haloOnMap, ring: Palette.inkOnMap
                 )
             )
 
@@ -255,7 +255,7 @@ struct CockpitMap: UIViewRepresentable {
             style.addSource(glider)
             style.addLayer(
                 MapSetup.dot(
-                    "cockpit-glider-dot", from: glider, radius: 9, color: Palette.accentOnMap, ring: .white
+                    "cockpit-glider-dot", from: glider, radius: 9, color: Palette.ownPositionOnMap, ring: Palette.ownPositionRingOnMap
                 )
             )
 

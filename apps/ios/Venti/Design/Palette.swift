@@ -16,21 +16,44 @@ enum Palette {
 
     static var accent: Color { Color(uiColor: accentUI) }
 
-    /// The accent as drawn on the map, which is light in both appearances.
-    static var accentOnMap: UIColor { UIColor(hex: 0x6250D6) }
+    // What is drawn on a map takes the light theme's values: the map is
+    // light in both appearances.
 
-    /// Mean wind in a chart: one blue, a step lighter on a dark ground.
+    /// The accent as drawn on the map: a flight's line, the pilot's plans.
+    static var accentOnMap: UIColor { UIColor(VentiTheme.light.primary) }
+
+    /// The near-black of dots, dashes, casings and words on the map: the
+    /// design language's map ink (`--map-label`, `--map-track-casing`).
+    static var inkOnMap: UIColor { UIColor(VentiBrand.ink) }
+
+    /// The halo around words on the map and the edge under its lines and
+    /// signs (`--map-label-halo`). The pack's Swift tokens leave the map's
+    /// colours out; this one has the value of the light theme's paper.
+    static var haloOnMap: UIColor { UIColor(VentiTheme.light.bg) }
+
+    /// What is well on the map: a glider that is flying, the ground
+    /// within reach.
+    static var goodOnMap: UIColor { UIColor(VentiTheme.light.good) }
+
+    /// What has gone quiet on the map: an old reading, a glider nothing
+    /// was heard of for a while.
+    static var quietOnMap: UIColor { UIColor(VentiTheme.light.borderStrong) }
+
+    /// The pilot's own glider on the map: cream with a dark ring, the
+    /// pairing of the dot in the logo (`--map-own-position` and its ring).
+    static var ownPositionOnMap: UIColor { UIColor(VentiBrand.cream) }
+    static var ownPositionRingOnMap: UIColor { UIColor(VentiBrand.indigo) }
+
+    /// Mean wind in a chart: the fifth of the seven steps of the design
+    /// language's wind scale, by the appearance of where it is drawn.
     static var wind: Color {
-        Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(hex: 0x6DA7EC) : UIColor(hex: 0x256ABF)
-        })
+        Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).wind[4]) })
     }
 
-    /// The span from mean wind up to the gusts, in the same blue held back.
+    /// The span from mean wind up to the gusts: the same scale's second
+    /// step, held back.
     static var gusts: Color {
-        Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(hex: 0x1C5CAB) : UIColor(hex: 0xB7D3F6)
-        })
+        Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).wind[1]) })
     }
 }
 

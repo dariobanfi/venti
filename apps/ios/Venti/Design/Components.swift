@@ -171,26 +171,80 @@ extension View {
 
     /// What floats over a map: the pack's surface in a shape, with the
     /// pack's shadow for it (`--shadow-float`). No glass. In flight there
-    /// are no shadows: the shape has an edge instead.
-    func ventiFloating(in shape: some Shape) -> some View {
-        modifier(Floating(shape: shape))
+    /// are no shadows: the shape has an edge instead. A ground other than
+    /// the surface is for a control that is pressed or switched on.
+    func ventiFloating(in shape: some Shape, ground: VentiColor.Role = .surface) -> some View {
+        modifier(Floating(shape: shape, ground: ground))
     }
+}
+
+/// The pack's chip (`.v-chip`): switches a layer of the map on and off.
+/// Drawn 36 high, with room above and below it for the finger.
+struct VentiChip: View {
+    let title: String
+    /// The name of one of the pack's icons.
+    let icon: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Image(icon)
+                    .resizable()
+                    .frame(width: 18, height: 18)
+                Text(title)
+                    .font(.ventiType(.label))
+                    .lineLimit(1)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 14)
+            .frame(height: 36)
+            .foregroundStyle(.venti(isOn ? .onPrimary : .text))
+            .ventiFloating(in: .capsule, ground: isOn ? .primary : .surface)
+            .frame(minHeight: VentiSize.touch)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// The pack's round button (`.v-btn--round`): a sign alone, floating over
+/// a map. Its label is still said to VoiceOver.
+struct VentiRoundButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.iconOnly)
+            .font(.system(size: 20, weight: .medium))
+            .frame(width: VentiSize.touch, height: VentiSize.touch)
+            .foregroundStyle(.venti(.text))
+            .ventiFloating(in: .circle, ground: configuration.isPressed ? .surfaceRaised : .surface)
+            .contentShape(.circle)
+    }
+}
+
+extension ButtonStyle where Self == VentiRoundButtonStyle {
+    /// The pack's round button over a map.
+    static var ventiRound: VentiRoundButtonStyle { VentiRoundButtonStyle() }
 }
 
 private struct Floating<Outline: Shape>: ViewModifier {
     let shape: Outline
+    let ground: VentiColor.Role
     @Environment(\.ventiInFlight) private var isInFlight
 
     func body(content: Content) -> some View {
         if isInFlight {
             content
-                .background(.venti(.surface), in: shape)
+                .background(.venti(ground), in: shape)
                 .overlay {
                     shape.stroke(.venti(.borderStrong), lineWidth: 1.5)
                 }
         } else {
             content
-                .background(.venti(.surface), in: shape)
+                .background(.venti(ground), in: shape)
                 .shadow(color: VentiBrand.ink.opacity(0.14), radius: 3, y: 2)
                 .shadow(color: VentiBrand.ink.opacity(0.16), radius: 12, y: 8)
         }

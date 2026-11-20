@@ -26,6 +26,16 @@ struct StatisticsRoute: Hashable {}
 final class AppNavigation {
     var tab: AppTab = .today
     var logbookPath = NavigationPath()
+    /// Set when the cockpit was asked for from another tab, a site's
+    /// page for one: the Fly tab opens it and takes this back.
+    var wantsCockpit = false
+
+    /// "Start flight" outside the Fly tab: that tab comes to the front
+    /// and opens the cockpit, which waits for the take-off.
+    func startFlight() {
+        tab = .fly
+        wantsCockpit = true
+    }
 
     func show(flight id: String) {
         tab = .logbook

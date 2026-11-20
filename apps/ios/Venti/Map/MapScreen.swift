@@ -1,9 +1,10 @@
 import SwiftUI
 import VentiCore
 
-/// The map tab: terrain, live wind from the stations of the pilot's Venti
-/// server, the flying sites it knows, the pilot's airspace and the pilot's
-/// own flights. A long press shows the forecast for the place pressed.
+/// The map tab: terrain, live wind from the stations Venti knows, its
+/// flying sites, airspace, the pilots in the air and the pilot's own
+/// flights. The chips along the top switch its layers on and off. A long
+/// press shows the forecast for the place pressed.
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
@@ -13,6 +14,12 @@ struct MapScreen: View {
     @Environment(AccountModel.self) private var account
     @Environment(GroupsModel.self) private var groups
     @Environment(OfflineMapsModel.self) private var maps
+    @Environment(AppNavigation.self) private var navigation
+
+    @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
+    @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
+    @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
+    @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -36,10 +43,10 @@ struct MapScreen: View {
         ZStack(alignment: .bottomTrailing) {
             OverviewMap(
                 outlines: outlines,
-                stations: wind.stations,
-                airspace: airspaceInView,
-                sites: sites.sites,
-                gliders: live.gliders,
+                stations: hidesWind ? [] : wind.stations,
+                airspace: hidesAirspace ? [] : airspaceInView,
+                sites: hidesSites ? [] : sites.sites,
+                gliders: hidesPilots ? [] : live.gliders,
                 plans: groups.pins(),
                 followed: live.followed?.track ?? [],
                 isFollowing: $isFollowing,
@@ -108,36 +115,41 @@ struct MapScreen: View {
                 if wind.server != nil {
                     // Everything the arrows say, as a list: for reading the
                     // numbers side by side, and for pilots who use VoiceOver.
-                    mapButton("Wind stations", systemImage: "wind") {
+                    mapButton("Wind stations", icon: Image("icon-wind")) {
                         showsStations = true
                     }
                 }
                 if !sites.sites.isEmpty {
                     // The signs on the map, as a list.
-                    mapButton("Flying sites", systemImage: "mappin.and.ellipse") {
+                    mapButton("Flying sites", icon: Image("icon-site")) {
                         showsSites = true
                     }
                 }
                 if !live.gliders.isEmpty {
                     // Who is in the air on this part of the map, as a list.
-                    mapButton("Pilots in the air", systemImage: "person.2") {
+                    mapButton("Pilots in the air", icon: Image("icon-live")) {
                         showsGliders = true
                     }
                 }
                 if account.isSignedIn || wind.server != nil {
                     // Who flies where today and on the days ahead: the
                     // plans of the pilot's groups.
-                    mapButton("Flying plans", systemImage: "calendar") {
+                    mapButton("Flying plans", icon: Image(systemName: "calendar")) {
                         showsPlans = true
                     }
                 }
-                mapButton("Show my position", systemImage: isFollowing ? "location.fill" : "location") {
+                mapButton("Show my position", icon: Image(systemName: isFollowing ? "location.fill" : "location")) {
                     isFollowing.toggle()
                 }
             }
             .padding(16)
         }
-        .overlay(alignment: .top) { notice }
+        .overlay(alignment: .top) {
+            VStack(spacing: 4) {
+                layerChips
+                notice
+            }
+        }
         .overlay(alignment: .bottomLeading) { credits }
         // Asks again every minute while the map is on screen, and at once
         // when the pilot changes the server.
@@ -230,6 +242,21 @@ struct MapScreen: View {
             // the place that was pressed stays in view above it.
             .presentationDetents([.medium, .large])
         }
+        // A sheet of the map that sends the pilot to another tab, a site's
+        // "Start flight" for one, closes behind them.
+        .onChange(of: navigation.tab) { _, tab in
+            if tab != .map {
+                chosen = nil
+                chosenSite = nil
+                chosenPlan = nil
+                chosenGlider = nil
+                pressed = nil
+                showsStations = false
+                showsSites = false
+                showsGliders = false
+                showsPlans = false
+            }
+        }
         .alert(
             "Position unavailable",
             isPresented: Binding(
@@ -248,16 +275,52 @@ struct MapScreen: View {
         }
     }
 
-    private func mapButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    /// One of the round buttons over the map, as the design language has
+    /// them: the sign alone, the title for VoiceOver.
+    private func mapButton(_ title: String, icon: Image, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .labelStyle(.iconOnly)
-                .font(.venti(.title3))
-                .frame(width: 30, height: 30)
+            Label {
+                Text(title)
+            } icon: {
+                icon
+            }
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
+        .buttonStyle(.ventiRound)
+    }
+
+    /// The chips that switch the map's layers on and off: what Venti
+    /// gives the map, each only where there is something to switch.
+    private var layerChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if wind.server != nil {
+                    VentiChip(title: "Wind", icon: "icon-wind", isOn: shown($hidesWind))
+                        .accessibilityIdentifier("layer-wind")
+                }
+                VentiChip(title: "Airspace", icon: "icon-airspace", isOn: shown($hidesAirspace))
+                    .accessibilityIdentifier("layer-airspace")
+                if wind.server != nil {
+                    VentiChip(title: "Sites", icon: "icon-site", isOn: shown($hidesSites))
+                        .accessibilityIdentifier("layer-sites")
+                    VentiChip(title: "Pilots", icon: "icon-live", isOn: shown($hidesPilots))
+                        .accessibilityIdentifier("layer-pilots")
+                }
+            }
+            .padding(.horizontal, 16)
+            // Room for the chips' shadows, which the scrolling row would
+            // cut off.
+            .padding(.bottom, 12)
+        }
+        .scrollClipDisabled()
+    }
+
+    /// A chip is on while its layer is not hidden.
+    private func shown(_ isHidden: Binding<Bool>) -> Binding<Bool> {
+        Binding {
+            !isHidden.wrappedValue
+        } set: { isShown in
+            isHidden.wrappedValue = !isShown
+        }
     }
 
     /// What the pilot should know about the wind on the map, if anything.
@@ -282,7 +345,6 @@ struct MapScreen: View {
                 .padding(.vertical, 8)
                 .ventiFloating(in: .rect(cornerRadius: 14))
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
                 .accessibilityIdentifier("wind-notice")
         }
     }
@@ -292,16 +354,16 @@ struct MapScreen: View {
     /// and on the airspace screen.
     private var creditLine: String {
         var parts: [String] = []
-        if !wind.credits.isEmpty {
+        if !wind.credits.isEmpty, !hidesWind {
             parts.append("Wind: \(wind.credits.map(\.provider).formatted(.list(type: .and)))")
         }
-        if !airspace.credits.isEmpty, let region, region.east - region.west < 6 {
+        if !airspace.credits.isEmpty, !hidesAirspace, let region, region.east - region.west < 6 {
             // What the providers of airspace ask to be said is said here
             // in two words and in full on the airspace screen.
             let certified = airspace.credits.contains { $0.notice != nil } ? ", not certified" : ""
             parts.append("Airspace: \(airspace.credits.map(\.provider).formatted(.list(type: .and)))\(certified)")
         }
-        if !sites.credits.isEmpty, !sites.sites.isEmpty, let region, region.east - region.west <= SitesModel.widestMap {
+        if !sites.credits.isEmpty, !sites.sites.isEmpty, !hidesSites, let region, region.east - region.west <= SitesModel.widestMap {
             parts.append("Sites: \(sites.credits.map(\.provider).formatted(.list(type: .and)))")
         }
         return parts.joined(separator: " · ")
@@ -311,7 +373,7 @@ struct MapScreen: View {
         if !creditLine.isEmpty {
             Text(creditLine)
                 .font(.venti(.caption2))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.venti(.textSecondary))
                 .lineLimit(3)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

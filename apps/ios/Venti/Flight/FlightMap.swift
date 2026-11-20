@@ -115,12 +115,12 @@ struct FlightMap: UIViewRepresentable {
         private func addOther(to style: MLNStyle) {
             let track = MLNShapeSource(identifier: "flight-other", shape: nil, options: nil)
             style.addSource(track)
-            style.addLayer(MapSetup.line("flight-other-edge", from: track, color: .white, width: 5.5))
+            style.addLayer(MapSetup.line("flight-other-edge", from: track, color: Palette.haloOnMap, width: 5.5))
             style.addLayer(MapSetup.line("flight-other-line", from: track, color: Palette.otherFlightOnMap, width: 3))
             let glider = MLNShapeSource(identifier: "flight-other-cursor", shape: nil, options: nil)
             style.addSource(glider)
             let dot = MapSetup.dot(
-                "flight-other-cursor-dot", from: glider, radius: 7, color: Palette.otherFlightOnMap, ring: .white
+                "flight-other-cursor-dot", from: glider, radius: 7, color: Palette.otherFlightOnMap, ring: Palette.haloOnMap
             )
             dot.isVisible = false
             style.addLayer(dot)
@@ -201,7 +201,7 @@ struct FlightMap: UIViewRepresentable {
             style.addSource(source)
 
             // A white edge keeps the track readable over any ground colour.
-            style.addLayer(MapSetup.line("flight-track-edge", from: source, color: .white, width: 6.5))
+            style.addLayer(MapSetup.line("flight-track-edge", from: source, color: Palette.haloOnMap, width: 6.5))
             // Sink first and climbs last, so that where the track crosses
             // itself the thermals stay on top.
             for band in ClimbBand.allCases {
@@ -218,7 +218,7 @@ struct FlightMap: UIViewRepresentable {
             let source = MLNShapeSource(identifier: "flight-route", shape: nil, options: nil)
             style.addSource(source)
             let line = MapSetup.line(
-                "flight-route-line", from: source, color: UIColor(hex: 0x1F1F1D).withAlphaComponent(0.7), width: 1.5
+                "flight-route-line", from: source, color: Palette.inkOnMap.withAlphaComponent(0.7), width: 1.5
             )
             line.lineDashPattern = NSExpression(forConstantValue: [4, 3])
             style.addLayer(line)
@@ -249,26 +249,26 @@ struct FlightMap: UIViewRepresentable {
         /// A hollow dot where the recording starts and a solid one where it ends.
         private func addEnds(to style: MLNStyle) {
             guard let first = flight.track.first, let last = flight.track.last else { return }
-            let ink = UIColor(hex: 0x1F1F1D)
+            let ink = Palette.inkOnMap
 
             let start = MLNPointFeature()
             start.coordinate = first.coordinate
             let startSource = MLNShapeSource(identifier: "flight-start", shape: start, options: nil)
             style.addSource(startSource)
-            style.addLayer(MapSetup.dot("flight-start-dot", from: startSource, radius: 5, color: .white, ring: ink))
+            style.addLayer(MapSetup.dot("flight-start-dot", from: startSource, radius: 5, color: Palette.haloOnMap, ring: ink))
 
             let end = MLNPointFeature()
             end.coordinate = last.coordinate
             let endSource = MLNShapeSource(identifier: "flight-end", shape: end, options: nil)
             style.addSource(endSource)
-            style.addLayer(MapSetup.dot("flight-end-dot", from: endSource, radius: 5, color: ink, ring: .white))
+            style.addLayer(MapSetup.dot("flight-end-dot", from: endSource, radius: 5, color: ink, ring: Palette.haloOnMap))
         }
 
         private func addCursor(to style: MLNStyle) {
             let source = MLNShapeSource(identifier: "flight-cursor", shape: nil, options: nil)
             style.addSource(source)
             let dot = MapSetup.dot(
-                "flight-cursor-dot", from: source, radius: 8, color: Palette.accentOnMap, ring: .white
+                "flight-cursor-dot", from: source, radius: 8, color: Palette.accentOnMap, ring: Palette.haloOnMap
             )
             dot.isVisible = false
             style.addLayer(dot)

@@ -4,44 +4,43 @@ import VentiCore
 
 /// How the core's four bands of wind strength are drawn.
 ///
-/// One hue from light to dark: strength is shown as a magnitude, not as a
-/// verdict. Whether 25 km/h is too much depends on the pilot, the wing and
-/// the place, and the app does not decide that from one number. The steps
-/// were checked to be told apart by colour-blind pilots. Which speed falls
-/// in which band, and how a station is marked, is the core's decision.
+/// One hue from light to dark, the design language's wind scale: strength
+/// is shown as a magnitude, not as a verdict. Whether 25 km/h is too much
+/// depends on the pilot, the wing and the place, and the app does not
+/// decide that from one number. Which speed falls in which band, and how a
+/// station is marked, is the core's decision.
+///
+/// The pack's scale has seven steps, one every 5 km/h; the core sorts a
+/// speed into four bands (below 10, 10 to 20, 20 to 30, 30 km/h and more).
+/// Each band takes the pack's step for the middle of its span: the second,
+/// fourth, sixth and seventh. The pack's own breaks wait for the core to
+/// sort by them.
 extension WindBand {
     /// Every band, the weakest first.
     static var all: [WindBand] { [.light, .moderate, .fresh, .strong] }
 
-    var uiColor: UIColor {
+    /// Which of the pack's seven steps of wind the band is drawn in,
+    /// from 0.
+    var step: Int {
         switch self {
-        case .light: UIColor(hex: 0x86B6EF)
-        case .moderate: UIColor(hex: 0x3987E5)
-        case .fresh: UIColor(hex: 0x1C5CAB)
-        case .strong: UIColor(hex: 0x0D366B)
+        case .light: 1
+        case .moderate: 3
+        case .fresh: 5
+        case .strong: 6
         }
     }
+
+    /// The band's colour on the map, which is light in both appearances.
+    var uiColor: UIColor { UIColor(VentiTheme.light.wind[step]) }
 
     var color: Color { Color(uiColor: uiColor) }
 
     /// The band's colour for a list or a table, which follow the iPhone's
-    /// appearance: on a dark surface the scale runs the other way, dim for
-    /// light wind and bright for strong, so that every step still stands
-    /// out. Checked as an ordered ramp against both surfaces. The map
-    /// keeps `uiColor`: its arrows have a white edge and lie on a map that
-    /// is light in both appearances.
+    /// appearance: the pack's dark scale runs the other way, dim for light
+    /// wind and bright for strong, so that every step still stands out.
     var ink: Color {
-        let dark: UIColor =
-            switch self {
-            case .light: UIColor(hex: 0x256ABF)
-            case .moderate: UIColor(hex: 0x5598E7)
-            case .fresh: UIColor(hex: 0x9CC4F3)
-            case .strong: UIColor(hex: 0xE3EEFC)
-            }
-        let light = uiColor
-        return Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? dark : light
-        })
+        let step = step
+        return Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).wind[step]) })
     }
 
     /// How large the band's arrow is drawn, relative to the smallest.
@@ -89,11 +88,11 @@ enum WindSymbols {
             Picture(name: name(of: .arrow(band: band)), image: arrow(color: band.uiColor))
         }
         pictures.append(Picture(name: name(of: .calm), image: dot(color: WindBand.light.uiColor)))
-        pictures.append(Picture(name: name(of: .old), image: dot(color: UIColor(hex: 0xA9A8A2))))
+        pictures.append(Picture(name: name(of: .old), image: dot(color: Palette.quietOnMap)))
         return pictures
     }
 
-    /// A dart pointing up, with a white edge so it stands out on any ground.
+    /// A dart pointing up, with a pale edge so it stands out on any ground.
     /// The map turns it to where the wind blows.
     static func arrow(color: UIColor) -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
@@ -111,7 +110,7 @@ enum WindSymbols {
                 offset: CGSize(width: 0, height: 0.5), blur: 1.5,
                 color: UIColor.black.withAlphaComponent(0.35).cgColor
             )
-            UIColor.white.setStroke()
+            Palette.haloOnMap.setStroke()
             dart.stroke()
             canvas.setShadow(offset: .zero, blur: 0, color: nil)
             color.setFill()
@@ -119,7 +118,7 @@ enum WindSymbols {
         }
     }
 
-    /// A small disc with a white edge.
+    /// A small disc with a pale edge.
     static func dot(color: UIColor) -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
             let disc = UIBezierPath(ovalIn: CGRect(x: side / 2 - 4.5, y: side / 2 - 4.5, width: 9, height: 9))
@@ -130,7 +129,7 @@ enum WindSymbols {
                 offset: CGSize(width: 0, height: 0.5), blur: 1.5,
                 color: UIColor.black.withAlphaComponent(0.35).cgColor
             )
-            UIColor.white.setStroke()
+            Palette.haloOnMap.setStroke()
             disc.stroke()
             canvas.setShadow(offset: .zero, blur: 0, color: nil)
             color.setFill()

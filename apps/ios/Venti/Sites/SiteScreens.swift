@@ -2,13 +2,16 @@ import SwiftUI
 import UIKit
 import VentiCore
 
-/// The pictures the map draws flying sites with: a dark disc with a white
-/// sign for a take-off, a white disc with a dark sign for a landing, so
-/// that the two are told apart at a glance and neither is taken for wind,
-/// airspace or a track, which have the colours.
+/// The pictures the map draws flying sites with: the design language's
+/// pin, its tip on the site. A dark pin with a cream dot is a place to
+/// take off from; the same turned round, cream with a dark dot, a place
+/// to land, so that the two are told apart at a glance and neither is
+/// taken for wind, airspace or a track, which have the colours. A ring
+/// in place of the dot is a training hill or a site of another kind.
 @MainActor
 enum SiteSymbols {
-    static let side: CGFloat = 26
+    /// The head is a disc; the tip, at the bottom edge, is the site.
+    static let size = CGSize(width: 28, height: 34)
 
     /// A picture with the name the map knows it by.
     struct Picture {
@@ -23,45 +26,56 @@ enum SiteSymbols {
     }
 
     static func picture(for kind: SiteKind) -> UIImage {
-        let ink = UIColor(hex: 0x1F1F1D)
-        // A landing is the light one: where the flight ends.
-        let (ground, sign) = kind == .landing ? (UIColor.white, ink) : (ink, UIColor.white)
-        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
-            let disc = UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: side - 4, height: side - 4))
-            let canvas = context.cgContext
-            canvas.setShadow(
-                offset: CGSize(width: 0, height: 0.5), blur: 1.5,
-                color: UIColor.black.withAlphaComponent(0.35).cgColor
+        // The map is light in both appearances: the light theme's pair.
+        let dark = UIColor(VentiTheme.light.primary)
+        let cream = UIColor(VentiTheme.light.onPrimary)
+        let (ground, sign) = kind == .landing ? (cream, dark) : (dark, cream)
+        return UIGraphicsImageRenderer(size: size).image { _ in
+            let radius: CGFloat = 10
+            let centre = CGPoint(x: size.width / 2, y: radius + 3)
+            // The head, and from where its sides leave the circle two
+            // straight lines to the tip.
+            let pin = UIBezierPath()
+            pin.addArc(
+                withCenter: centre, radius: radius, startAngle: .pi * 5 / 6, endAngle: .pi / 6, clockwise: true
             )
+            pin.addLine(to: CGPoint(x: centre.x, y: centre.y + 2 * radius))
+            pin.close()
+            pin.lineJoinStyle = .round
+            pin.lineWidth = 2
             ground.setFill()
-            disc.fill()
-            canvas.setShadow(offset: .zero, blur: 0, color: nil)
-            (kind == .landing ? ink : UIColor.white).setStroke()
-            disc.lineWidth = 1.5
-            disc.stroke()
+            pin.fill()
+            sign.setStroke()
+            pin.stroke()
 
-            let weight = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
-            if let glyph = UIImage(systemName: kind.systemImage, withConfiguration: weight)?
-                .withTintColor(sign, renderingMode: .alwaysOriginal)
-            {
-                glyph.draw(at: CGPoint(x: (side - glyph.size.width) / 2, y: (side - glyph.size.height) / 2))
+            let dot = UIBezierPath(ovalIn: CGRect(x: centre.x - 4, y: centre.y - 4, width: 8, height: 8))
+            switch kind {
+            case .takeoff, .towing, .landing:
+                sign.setFill()
+                dot.fill()
+            case .training, .other:
+                dot.lineWidth = 2
+                dot.stroke()
             }
         }
     }
 }
 
-/// A site's sign as lists and sheets show it.
+/// A site's sign as lists and sheets show it: the pack's icon for what it
+/// is, on a disc that is dark for a place to take off from and pale for a
+/// place to land.
 struct SiteGlyph: View {
     let kind: SiteKind
 
     var body: some View {
-        Image(systemName: kind.systemImage)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(kind == .landing ? Color.venti(.text) : Color.venti(.bg))
+        Image(kind.icon)
+            .resizable()
+            .frame(width: 16, height: 16)
+            .foregroundStyle(.venti(kind == .landing ? .text : .onPrimary))
             .frame(width: 28, height: 28)
-            .background(kind == .landing ? Color.venti(.bg) : Color.venti(.text), in: .circle)
+            .background(.venti(kind == .landing ? .surface : .primary), in: .circle)
             .overlay {
-                Circle().strokeBorder(Color.venti(.text), lineWidth: kind == .landing ? 1.5 : 0)
+                Circle().strokeBorder(.venti(.borderStrong), lineWidth: kind == .landing ? 1.5 : 0)
             }
             .accessibilityHidden(true)
     }
@@ -181,8 +195,11 @@ private struct SiteRow: View {
     }
 }
 
-/// One flying site: what its source says about it, what that is worth,
-/// and a way to keep it as a waypoint.
+/// One flying site, as the design language's sheet has it: its name with
+/// what the forecast says of it, what it is in a line, and the two things
+/// to do from here, plan a route and start a flight. Under that, what its
+/// source says about it, what that is worth, and a way to keep it as a
+/// waypoint.
 struct SiteScreen: View {
     let site: SiteView
 
@@ -190,9 +207,15 @@ struct SiteScreen: View {
     @Environment(WindModel.self) private var wind
     @Environment(WaypointsModel.self) private var waypoints
     @Environment(CommunityModel.self) private var community
-    @Environment(\.dismiss) private var dismiss
+    @Environment(TodayModel.self) private var today
+    @Environment(AppNavigation.self) private var navigation
+    @Environment(FlySession.self) private var fly
 
     @State private var kept: String?
+    /// What the forecast says about flying from here. Absent for a place
+    /// to land, without a server, and until the server has answered.
+    @State private var outlook: SiteOutlook?
+    @State private var isPlanningRoute = false
     /// The newest public flights that took off here. Empty until the
     /// server has answered, and for a site nobody shared a flight from.
     @State private var flown: [PublicFlight] = []
@@ -207,10 +230,11 @@ struct SiteScreen: View {
     var body: some View {
         VentiList {
             Section {
-                LabeledContent("What it is", value: site.kindInWords)
-                if let elevation = site.elevationM {
-                    LabeledContent("Height", value: "\(Format.metres(elevation)) m")
-                }
+                head
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
+            Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
                 LabeledContent("Wind it works in") {
                     if site.wind.isEmpty {
@@ -297,14 +321,117 @@ struct SiteScreen: View {
                 Text(footnote)
             }
         }
+        // The name stands at the head of the page; the bar keeps it for
+        // the way back from the pages further in, without showing it twice.
         .navigationTitle(site.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityHidden(true)
+            }
+        }
         // What was flown from a place to take off from; a landing field
         // has no flights that began there.
         .task(id: site.id) {
             guard wind.server != nil, site.kind == .takeoff || site.kind == .towing else { return }
             flown = (try? await community.flights(near: site.position)) ?? []
         }
+        // What the forecast says about flying from here.
+        .task(id: site.id) {
+            guard isForTakingOff else { return }
+            outlook = await today.outlook(of: site)
+        }
+        .fullScreenCover(isPresented: $isPlanningRoute) {
+            RouteMapPlanner(from: site.position)
+        }
+    }
+
+    /// Whether flights begin here: the forecast's verdict and "Start
+    /// flight" are for such a place.
+    private var isForTakingOff: Bool {
+        site.uses.contains(.takeoff) && !site.discouraged
+    }
+
+    /// The first day the forecast has flying hours for, and whether that
+    /// is today; today where it has none at all.
+    private var day: (day: OutlookDay, isToday: Bool)? {
+        guard let days = outlook?.days, let first = days.first else { return nil }
+        if let index = days.firstIndex(where: { !$0.hours.isEmpty }) {
+            return (days[index], index == 0)
+        }
+        return (first, true)
+    }
+
+    /// The name with the status, the site in a line, what the forecast
+    /// says, and the two buttons.
+    private var head: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(site.name)
+                    .font(.ventiType(.heading))
+                    .lineLimit(2)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: VentiSpace.s2)
+                if let day {
+                    VentiStatus(day.day)
+                        .accessibilityIdentifier("site-status")
+                }
+            }
+            VStack(alignment: .leading, spacing: VentiSpace.s1) {
+                Text(inALine)
+                    .foregroundStyle(.venti(.textSecondary))
+                if let day {
+                    Text(Self.words(of: day.day, isToday: day.isToday))
+                        .foregroundStyle(.venti(.textSecondary))
+                        .accessibilityIdentifier("site-outlook")
+                }
+            }
+            HStack(spacing: VentiSpace.s3) {
+                Button {
+                    isPlanningRoute = true
+                } label: {
+                    Text("Plan route")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.venti(.quiet))
+                .accessibilityIdentifier("site-plan-route")
+                if isForTakingOff, fly.mode == nil {
+                    Button {
+                        navigation.startFlight()
+                    } label: {
+                        Text("Start flight")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.venti(.accent))
+                    .accessibilityIdentifier("site-start-flight")
+                }
+            }
+            .padding(.top, VentiSpace.s1)
+        }
+        .padding(.horizontal, VentiSpace.s1)
+    }
+
+    /// "Take-off 1550 m, wind from N to NE"
+    private var inALine: String {
+        var line = site.kindInWords
+        if let elevation = site.elevationM {
+            line += " \(Format.metres(elevation)) m"
+        }
+        if !site.windInWords.isEmpty {
+            line += ", wind from \(site.windInWords)"
+        }
+        return line
+    }
+
+    /// "Good from noon. Gusts to 26 km/h after 15:00", with the day's name
+    /// before it when it is not today.
+    static func words(of day: OutlookDay, isToday: Bool) -> String {
+        let name = isToday
+            ? ""
+            : Date(timeIntervalSince1970: TimeInterval(day.startUnixS)).formatted(.dateTime.weekday(.wide)) + ": "
+        return day.why.isEmpty ? "\(name)\(day.headline)" : "\(name)\(day.headline). \(day.why)"
     }
 
     /// The credit and the notice of the site's source, and what a site on

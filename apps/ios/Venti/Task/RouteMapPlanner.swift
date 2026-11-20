@@ -17,8 +17,14 @@ struct RouteMapPlanner: View {
     @Environment(\.dismiss) private var dismiss
 
     /// The places of the route so far, in order.
-    @State private var places: [Coordinate] = []
+    @State private var places: [Coordinate]
     @State private var problem: String?
+
+    /// A route with nothing drawn yet, or one that begins at a place: a
+    /// take-off whose page the pilot came from.
+    init(from start: Coordinate? = nil) {
+        _places = State(initialValue: start.map { [$0] } ?? [])
+    }
 
     var body: some View {
         let plan = planRoute(points: places)
@@ -76,16 +82,19 @@ struct RouteMapPlanner: View {
                 Text(Self.legs(of: plan))
                     .font(.venti(.footnote))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(2)
                     .accessibilityLabel("Legs")
                     .accessibilityValue(Self.legs(of: plan))
             }
             HStack(spacing: 10) {
+                // The sign alone, like the bin: the words of the button
+                // between them need the room.
                 Button("Undo", systemImage: "arrow.uturn.backward") {
                     problem = nil
                     places.removeLast()
                 }
+                .labelStyle(.iconOnly)
                 .disabled(places.isEmpty)
                 // A triangle ends where it began: one tap instead of
                 // aiming a finger at the first place.
@@ -157,9 +166,14 @@ struct RouteDrawingMap: UIViewRepresentable {
         let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         map.automaticallyAdjustsContentInset = true
-        // The northern Alps between Lake Constance and Salzburg, as the
-        // map tab begins.
-        map.setCenter(CLLocationCoordinate2D(latitude: 47.45, longitude: 11.6), zoomLevel: 7.4, animated: false)
+        if let start = places.first {
+            // A route that begins at a place: the country around it.
+            map.setCenter(start.location, zoomLevel: 9.5, animated: false)
+        } else {
+            // The northern Alps between Lake Constance and Salzburg, as
+            // the map tab begins.
+            map.setCenter(CLLocationCoordinate2D(latitude: 47.45, longitude: 11.6), zoomLevel: 7.4, animated: false)
+        }
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         // The map's own double tap zooms; a single tap must wait for it.
@@ -198,7 +212,7 @@ struct RouteDrawingMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            let ink = UIColor(hex: 0x1F1F1D)
+            let ink = Palette.inkOnMap
 
             // Where a third place makes an FAI triangle of the first leg:
             // two dashed outlines, under the route, as in the cockpit.
@@ -213,7 +227,7 @@ struct RouteDrawingMap: UIViewRepresentable {
             // readable over any ground.
             let line = MLNShapeSource(identifier: "route-drawn", shape: nil, options: nil)
             style.addSource(line)
-            style.addLayer(MapSetup.line("route-drawn-edge", from: line, color: .white, width: 6))
+            style.addLayer(MapSetup.line("route-drawn-edge", from: line, color: Palette.haloOnMap, width: 6))
             style.addLayer(MapSetup.line("route-drawn-line", from: line, color: ink, width: 3))
 
             // The route as it would be scored, dashed in the app's colour
@@ -228,7 +242,7 @@ struct RouteDrawingMap: UIViewRepresentable {
             // The places, each with its number.
             let places = MLNShapeSource(identifier: "route-places", shape: nil, options: nil)
             style.addSource(places)
-            style.addLayer(MapSetup.dot("route-places-dot", from: places, radius: 11, color: .white, ring: ink))
+            style.addLayer(MapSetup.dot("route-places-dot", from: places, radius: 11, color: Palette.haloOnMap, ring: ink))
             let numbers = MLNSymbolStyleLayer(identifier: "route-places-number", source: places)
             numbers.text = NSExpression(forKeyPath: "label")
             numbers.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])

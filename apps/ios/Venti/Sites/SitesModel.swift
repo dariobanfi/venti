@@ -116,14 +116,14 @@ final class SitesModel {
 }
 
 extension SiteKind {
-    /// The symbol a site of this kind is drawn with, in lists and sheets.
-    var systemImage: String {
+    /// The design language's icon a site of this kind is shown with, in
+    /// lists and sheets. The pack has one for taking off, one for landing
+    /// and one for a site as such.
+    var icon: String {
         switch self {
-        case .takeoff: "arrow.up.right"
-        case .landing: "arrow.down.right"
-        case .towing: "arrow.up.to.line"
-        case .training: "graduationcap"
-        case .other: "mappin"
+        case .takeoff, .towing: "icon-takeoff"
+        case .landing: "icon-landing"
+        case .training, .other: "icon-site"
         }
     }
 

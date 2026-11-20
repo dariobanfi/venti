@@ -212,7 +212,7 @@ struct TaskTurnpointRow: View {
                     Text(Format.count(turnpoint.number))
                         .font(.venti(.footnote, .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(isNext ? Color.white : Color.venti(.text))
+                        .foregroundStyle(isNext ? Color.venti(.onPrimary) : Color.venti(.text))
                 }
             }
             .frame(width: 28, height: 28)

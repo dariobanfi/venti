@@ -142,4 +142,15 @@ final class FlySessionTests: XCTestCase {
         XCTAssertFalse(LocationProvider.isUsable(location(accuracy: -1, age: 1), now: now))
         XCTAssertFalse(LocationProvider.isUsable(location(accuracy: 5, age: 600), now: now))
     }
+
+    /// While the system's question is open, positions fail as if they
+    /// were refused. Only a no is a no: the pilot is not told that Venti
+    /// may not use the position before they have answered.
+    func testAQuestionStillOpenIsNotARefusal() {
+        XCTAssertFalse(LocationProvider.isRefused(.notDetermined))
+        XCTAssertFalse(LocationProvider.isRefused(.authorizedWhenInUse))
+        XCTAssertFalse(LocationProvider.isRefused(.authorizedAlways))
+        XCTAssertTrue(LocationProvider.isRefused(.denied))
+        XCTAssertTrue(LocationProvider.isRefused(.restricted))
+    }
 }

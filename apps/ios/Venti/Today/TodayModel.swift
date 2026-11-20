@@ -64,9 +64,28 @@ final class TodayModel {
     static let forecastTries = 7
 
     @ObservationIgnored private let transport: Transport
+    /// What was asked about single sites, for their own pages.
+    @ObservationIgnored private var askedSites: [String: (outlook: SiteOutlook, at: Date)] = [:]
 
     init(transport: @escaping Transport = WindModel.fetch) {
         self.transport = transport
+    }
+
+    /// What the forecast says about one site, for its own page: what the
+    /// list already has, what was asked not long ago, or a new answer.
+    /// `nil` without a server and when no answer could be read.
+    func outlook(of site: SiteView) async -> SiteOutlook? {
+        if let listed = places.first(where: { $0.id == site.id })?.outlook {
+            return listed
+        }
+        if let kept = askedSites[site.id], Date().timeIntervalSince(kept.at) < Self.keepFor {
+            return kept.outlook
+        }
+        guard let server = server() else { return nil }
+        let nowUnixS = await clock()
+        guard let outlook = await outlook(for: site, from: server, nowUnixS: nowUnixS) else { return nil }
+        askedSites[site.id] = (outlook, Date())
+        return outlook
     }
 
     /// Whether what is shown was asked for this place not long ago.

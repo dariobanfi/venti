@@ -4,13 +4,15 @@
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
 //! Stations and observations are below; airspace, flying sites, forecasts,
-//! accounts, flights and live tracks have files of their own.
+//! accounts, flights, live tracks and what whoever runs the server does
+//! about them have files of their own.
 
 mod accounts;
 mod airspace;
 mod flights;
 mod forecasts;
 mod live;
+mod moderation;
 mod sites;
 
 pub(crate) use accounts::*;
@@ -18,6 +20,7 @@ pub(crate) use airspace::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
 pub(crate) use live::*;
+pub(crate) use moderation::*;
 pub(crate) use sites::*;
 
 use chrono::{Duration, TimeZone, Utc};
@@ -112,6 +115,15 @@ macro_rules! store_suite {
             a_deletion_and_a_first_batch_never_both_win,
             a_bad_live_batch_is_refused_and_nothing_is_stored,
             no_live_track_has_an_identifier_that_cannot_be_one,
+            a_flight_taken_down_is_private_until_it_is_released,
+            a_flight_taken_down_stays_so_when_uploaded_again,
+            an_account_whose_publishing_is_suspended_publishes_nothing,
+            a_suspension_and_a_publication_never_both_win,
+            a_live_track_is_removed_whoever_it_belongs_to,
+            a_report_is_kept_once_for_whoever_runs_the_server,
+            reports_racing_for_one_subject_are_kept_once,
+            a_closed_report_is_kept_for_a_while_and_then_removed,
+            a_report_goes_with_either_of_its_accounts,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

@@ -4,7 +4,7 @@ use chrono::Duration;
 use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
     Account, Derived, Flight, Kept, Listing, NewFlight, Place, PublicFlights, PublicOrder, Room,
-    Saved, Score, ScoreKind, Store, StoreError, Visibility,
+    Saved, Score, ScoreKind, Store, StoreError, Visibility, VisibilityChange,
 };
 
 use super::accounts::{create, id};
@@ -70,6 +70,7 @@ fn stored(new: &NewFlight, account: &Account, change: i64) -> Flight {
         file_bytes: new.file_bytes,
         derived: new.derived.clone(),
         change,
+        taken_down_at: None,
     }
 }
 
@@ -425,18 +426,19 @@ pub(crate) async fn visibility_changes_for_the_owner_only(store: &impl Store) {
         .set_visibility(&anna.id, &new.id, Visibility::Public, at(21, 0))
         .await
         .unwrap();
-    assert_eq!(foreign, None);
+    assert_eq!(foreign, VisibilityChange::NoSuchFlight);
     assert_eq!(store.flight(&new.id).await.unwrap(), Some(private.clone()));
     let unknown = store
         .set_visibility(&dario.id, &id("unknown"), Visibility::Public, at(21, 0))
         .await
         .unwrap();
-    assert_eq!(unknown, None);
+    assert_eq!(unknown, VisibilityChange::NoSuchFlight);
 
     let unlisted = store
         .set_visibility(&dario.id, &new.id, Visibility::Unlisted, at(21, 0))
         .await
         .unwrap()
+        .flight()
         .unwrap();
     assert_eq!(
         unlisted,
@@ -453,7 +455,7 @@ pub(crate) async fn visibility_changes_for_the_owner_only(store: &impl Store) {
         .set_visibility(&dario.id, &new.id, Visibility::Unlisted, at(22, 0))
         .await
         .unwrap();
-    assert_eq!(same, Some(unlisted));
+    assert_eq!(same, VisibilityChange::Set(Box::new(unlisted)));
     let changes = store.flight_changes(&dario.id, 0, 10).await.unwrap();
     assert_eq!(changes.latest, micros(at(21, 0)));
 }
@@ -791,6 +793,7 @@ async fn share(store: &impl Store, new: &NewFlight, visibility: Visibility) -> F
         .set_visibility(&new.account_id, &new.id, visibility, at(21, 0))
         .await
         .unwrap()
+        .flight()
         .expect("the flight was just stored")
 }
 

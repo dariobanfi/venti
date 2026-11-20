@@ -20,7 +20,10 @@
 //!   computes them;
 //! - what pilots entrust to the server: their [`Account`], the [`Session`]s
 //!   of their devices, their [`Flight`]s with the files they came from, and
-//!   for a short time the [`LiveTrack`]s of flights under way.
+//!   for a short time the [`LiveTrack`]s of flights under way;
+//! - what whoever runs the server needs to answer for what is shared on
+//!   it: the [`Report`]s pilots send, and what the operator did about a
+//!   flight, a live track or an account.
 //!
 //! It knows nothing about providers, about HTTP or about how a password or
 //! a flight file is read: it is handed hashes and finished records.
@@ -34,6 +37,7 @@ mod live;
 mod memory;
 mod month;
 mod postgres;
+mod report;
 mod site;
 pub mod testing;
 
@@ -45,12 +49,13 @@ use venti_domain::{
 
 pub use account::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
+    Suspension,
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
     OutdatedFlight, Place, PublicFlights, PublicOrder, Room, Saved, Score, ScoreKey, ScoreKind,
-    Visibility,
+    Visibility, VisibilityChange,
 };
 pub use forecast::ForecastModel;
 pub use live::{
@@ -60,6 +65,10 @@ pub use live::{
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use postgres::PgStore;
+pub use report::{
+    NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
+    ReportSubject,
+};
 pub use site::{SiteDelivery, SiteLayer, SiteSet};
 
 /// Why the store could not do what was asked.
@@ -391,12 +400,45 @@ pub trait Store: Send + Sync + 'static {
 
     /// Removes an account and everything that belongs to it: its password,
     /// its sessions, its flights and their files, the record of the
-    /// flights it deleted, its live tracks and the identifiers they used.
-    /// Nothing is kept. Its handle is free again.
+    /// flights it deleted, its live tracks and the identifiers they used,
+    /// the reports it made and the reports about it. Nothing is kept. Its
+    /// handle is free again.
     fn delete_account(
         &self,
         account_id: &str,
     ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
+    /// Takes from an account the ability to publish, until
+    /// [`Store::resume_publishing`] gives it back. `None` if there is no
+    /// such account.
+    ///
+    /// From this call on the account can make no flight public
+    /// ([`Store::set_visibility`]), and its live tracks are for those with
+    /// their link whatever its batches say ([`Store::save_live_fixes`]).
+    /// What it had made public is taken out of every list at once, all or
+    /// nothing: each public flight becomes unlisted, as a change of its
+    /// own, in the order of the flights' addresses, and each public live
+    /// track becomes one for those with its link. Whoever has a link keeps
+    /// seeing what the link shows. Nothing is deleted, and everything else
+    /// about the account works as before.
+    ///
+    /// Suspending an account that is suspended keeps the moment of the
+    /// first call.
+    fn suspend_publishing(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<Suspension>, StoreError>> + Send;
+
+    /// Gives an account the ability to publish back. `None` if there is no
+    /// such account; otherwise whether it was suspended.
+    ///
+    /// Nothing is made public by this: what the suspension made unlisted
+    /// stays unlisted until its pilot publishes it again.
+    fn resume_publishing(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<bool>, StoreError>> + Send;
 
     /// Stores an invite that one account can be created with.
     fn create_invite(
@@ -532,14 +574,44 @@ pub trait Store: Send + Sync + 'static {
         limit: usize,
     ) -> impl Future<Output = Result<FlightChanges, StoreError>> + Send;
 
-    /// Sets who may see a flight of an account, and returns the flight as it
-    /// then is. `None` if the account has no such flight. Setting what is
-    /// already set changes nothing and counts as no change.
+    /// Sets who may see a flight of an account, and says what became of
+    /// it; see [`VisibilityChange`]. Setting what is already set changes
+    /// nothing and counts as no change.
+    ///
+    /// Two things only whoever runs the server can lift stand in the way.
+    /// A flight that was taken down ([`Store::take_down_flight`]) stays
+    /// private. And an account whose publishing is suspended
+    /// ([`Store::suspend_publishing`]) can make no flight public; it can
+    /// still share one with those who have its link.
     fn set_visibility(
         &self,
         account_id: &str,
         id: &str,
         visibility: Visibility,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<VisibilityChange, StoreError>> + Send;
+
+    /// Makes a flight private, whoever it belongs to and whatever its
+    /// pilot had set, and keeps it so until [`Store::release_flight`].
+    /// Returns the flight as it then is; `None` if there is no flight with
+    /// this address.
+    ///
+    /// The flight counts as changed, so its pilot's devices hear of it.
+    /// Taking down a flight that is taken down changes nothing and keeps
+    /// the moment of the first call.
+    fn take_down_flight(
+        &self,
+        id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<Flight>, StoreError>> + Send;
+
+    /// Lets a flight that was taken down go: its pilot may share it again.
+    /// It stays private until its pilot does. Returns the flight as it
+    /// then is; `None` if there is no flight with this address. Releasing a
+    /// flight that is not taken down changes nothing.
+    fn release_flight(
+        &self,
+        id: &str,
         now: Timestamp,
     ) -> impl Future<Output = Result<Option<Flight>, StoreError>> + Send;
 
@@ -597,6 +669,10 @@ pub trait Store: Send + Sync + 'static {
     ///   whose newest fix is older than `room.expired_before` is removed
     ///   by this call as [`Store::prune_live_tracks`] would.
     /// - Two calls that race to begin the same track begin one.
+    /// - A batch of an account whose publishing is suspended
+    ///   ([`Store::suspend_publishing`]) is taken as one for those with the
+    ///   link, whatever it says: the fixes are kept, and the track is in no
+    ///   list.
     ///
     /// A batch without a fix, with fixes that are not in order or not at
     /// whole seconds, or for an account that does not exist is refused
@@ -660,6 +736,16 @@ pub trait Store: Send + Sync + 'static {
         may_retire: bool,
     ) -> impl Future<Output = Result<LiveRemoval, StoreError>> + Send;
 
+    /// Removes a live track with its fixes, whoever it belongs to, and
+    /// takes its identifier out of use, as its pilot's own deletion would.
+    /// Returns whether there was such a track. An identifier nothing is
+    /// known under is left alone.
+    fn remove_live_track(
+        &self,
+        id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
     /// Removes every live track whose newest fix is older than
     /// `ended_before`, with its fixes, and returns how many there were.
     /// Their identifiers stay out of use.
@@ -667,5 +753,50 @@ pub trait Store: Send + Sync + 'static {
         &self,
         ended_before: Timestamp,
         now: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Reports ----------------------------------------------------------
+
+    /// Stores a report, unless its reporter has an open report about the
+    /// same subject already; see [`ReportSaved`]. Of two calls that race
+    /// with the same report, one stores it.
+    ///
+    /// The store does not ask whether the subject exists or may be seen by
+    /// the reporter: that is the caller's to know. It does ask for both
+    /// accounts.
+    fn save_report(
+        &self,
+        new: &NewReport,
+    ) -> impl Future<Output = Result<ReportSaved, StoreError>> + Send;
+
+    /// One page of the reports, oldest first: by the moment they were
+    /// made, and by identifier among reports of the same moment. `after`
+    /// is the [`Report::key`] of the last report of the page before;
+    /// `None` starts at the oldest. At most `limit` are returned.
+    ///
+    /// Each report names the accounts as they are now. This is for whoever
+    /// runs the server: nothing here is ever shown to a pilot.
+    fn reports(
+        &self,
+        listing: ReportListing,
+        after: Option<&ReportKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Report>, StoreError>> + Send;
+
+    /// Closes a report with a note; see [`ReportClosing`]. Closing does
+    /// nothing to what was reported.
+    fn close_report(
+        &self,
+        id: &str,
+        note: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<ReportClosing, StoreError>> + Send;
+
+    /// Removes the reports that were closed before `closed_before`, and
+    /// returns how many there were. An open report is never removed by
+    /// this.
+    fn prune_reports(
+        &self,
+        closed_before: Timestamp,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 }

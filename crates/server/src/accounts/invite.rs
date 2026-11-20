@@ -116,6 +116,7 @@ mod tests {
                 handle: handle.to_owned(),
                 display_name: handle.to_owned(),
                 created_at,
+                publishing_suspended_at: None,
             },
             password_hash: "$argon2id$x".to_owned(),
             invite: Some(invite.hash()),

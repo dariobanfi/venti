@@ -7,6 +7,7 @@ use venti_domain::SourceId;
 
 use crate::accounts::invite;
 use crate::ingest::oneshot;
+use crate::moderation::{self, Action};
 
 /// What `venti-server --help` prints.
 pub const USAGE: &str = "\
@@ -30,6 +31,37 @@ usage: venti-server <command>
       Make invite codes and print them, one per line. Each creates one
       account on a server whose registration is by invite. Uses the
       database from FILE or the environment, as serve does.
+
+  reports [--all] [--config FILE]
+      List what pilots reported, oldest first: the open reports, or with
+      --all the closed ones too. Each names what is reported, the reason,
+      the reporter's words and who reported. Changes nothing.
+
+  close-report <ID> --note TEXT [--config FILE]
+      Close a report with a note that says what was done, or why nothing
+      was. Changes nothing about what was reported.
+
+  take-down <FLIGHT> [--config FILE]
+      Make a flight private, whatever its pilot had set, and keep it so:
+      its pilot cannot share it again until it is released. FLIGHT is the
+      flight's address or a link to its page. Deletes nothing.
+
+  release <FLIGHT> [--config FILE]
+      Let a flight that was taken down go. It stays private until its
+      pilot shares it.
+
+  remove-live-track <TRACK> [--config FILE]
+      Remove a live track with its positions and take its identifier out
+      of use. TRACK is the track's identifier or a link to its page.
+
+  suspend-publishing <HANDLE> [--config FILE]
+      Take from an account the ability to publish: its public flights
+      become unlisted, it can make none public, and its live tracks are
+      for those with their link. The account is not deleted and works
+      otherwise.
+
+  resume-publishing <HANDLE> [--config FILE]
+      Give it back. Makes nothing public again.
 
   ingest <region.toml> [--source ID] [--archive DIR] [--json]
       Run a region's sources once against the live providers and print a
@@ -61,6 +93,9 @@ pub enum Command {
     Ingest(oneshot::Args),
     /// Make invite codes.
     Invite(invite::Args),
+    /// Read the reports, or act on a flight, a live track or an account,
+    /// as whoever runs the server.
+    Moderate(moderation::Args),
     /// Analyse the flight file on standard input.
     Derive,
     /// Print the usage.
@@ -78,6 +113,8 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "dev" => parse_dev(args),
         "ingest" => parse_ingest(args),
         "invite" => parse_invite(args),
+        "reports" | "close-report" | "take-down" | "release" | "remove-live-track"
+        | "suspend-publishing" | "resume-publishing" => parse_moderation(&command, args),
         "derive" => match args.next() {
             None => Ok(Command::Derive),
             Some(other) => Err(format!("derive does not take {other:?}")),
@@ -185,6 +222,58 @@ fn parse_invite(mut args: impl Iterator<Item = String>) -> Result<Command, Strin
         }
     }
     Ok(Command::Invite(parsed))
+}
+
+/// Reads one of the operator's subcommands: the one thing each is pointed
+/// at, `--config`, and what only one of them takes (`--all`, `--note`).
+fn parse_moderation(
+    command: &str,
+    mut args: impl Iterator<Item = String>,
+) -> Result<Command, String> {
+    let mut config = None;
+    let mut target = None;
+    let mut all = false;
+    let mut note = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--config" => config = Some(PathBuf::from(value("--config", &mut args)?)),
+            "--all" if command == "reports" => all = true,
+            "--note" if command == "close-report" => note = Some(value("--note", &mut args)?),
+            _ if arg.starts_with("--") => return Err(format!("{command} does not take {arg:?}")),
+            _ if command == "reports" => return Err(format!("reports does not take {arg:?}")),
+            _ if target.is_none() => target = Some(arg),
+            _ => {
+                return Err(format!(
+                    "{command} takes one thing to act on, not {arg:?} too"
+                ));
+            }
+        }
+    }
+    let mut target = |what: &str| target.take().ok_or(format!("{command} needs {what}"));
+    let action = match command {
+        "reports" => Action::Reports { all },
+        "close-report" => Action::CloseReport {
+            id: target("the identifier of a report")?,
+            note: note.ok_or("close-report needs --note with what was done, or why nothing was")?,
+        },
+        "take-down" => Action::TakeDown {
+            flight: target("a flight's address or link")?,
+        },
+        "release" => Action::Release {
+            flight: target("a flight's address or link")?,
+        },
+        "remove-live-track" => Action::RemoveLiveTrack {
+            track: target("a live track's identifier or link")?,
+        },
+        "suspend-publishing" => Action::SuspendPublishing {
+            handle: target("an account's handle")?,
+        },
+        "resume-publishing" => Action::ResumePublishing {
+            handle: target("an account's handle")?,
+        },
+        other => return Err(format!("unknown command {other:?}")),
+    };
+    Ok(Command::Moderate(moderation::Args { config, action }))
 }
 
 #[cfg(test)]
@@ -300,6 +389,111 @@ mod tests {
         assert!(parse_line("invite --expires-in-days 0").is_err());
         assert!(parse_line("invite --expires-in-days").is_err());
         assert!(parse_line("invite dario").is_err());
+    }
+
+    #[test]
+    fn the_operators_commands_each_take_the_one_thing_they_act_on() {
+        let moderate = |line: &str| match parse_line(line) {
+            Ok(Command::Moderate(args)) => Ok(args),
+            Ok(other) => panic!("{line}: {other:?}"),
+            Err(error) => Err(error),
+        };
+        let action = |line: &str| moderate(line).unwrap().action;
+
+        assert_eq!(action("reports"), Action::Reports { all: false });
+        assert_eq!(action("reports --all"), Action::Reports { all: true });
+        let flight = "5t1eshypdtvrq7rxw39a18vsrg".to_owned();
+        assert_eq!(
+            action("take-down 5t1eshypdtvrq7rxw39a18vsrg"),
+            Action::TakeDown {
+                flight: flight.clone()
+            }
+        );
+        // A link is taken as it is; what it leads to is looked at later.
+        assert_eq!(
+            action("release https://venti.example/f/5t1eshypdtvrq7rxw39a18vsrg"),
+            Action::Release {
+                flight: format!("https://venti.example/f/{flight}")
+            }
+        );
+        assert_eq!(
+            action("remove-live-track 11111111111111111111111111"),
+            Action::RemoveLiveTrack {
+                track: "1".repeat(26)
+            }
+        );
+        assert_eq!(
+            action("suspend-publishing mara"),
+            Action::SuspendPublishing {
+                handle: "mara".to_owned()
+            }
+        );
+        assert_eq!(
+            action("resume-publishing mara"),
+            Action::ResumePublishing {
+                handle: "mara".to_owned()
+            }
+        );
+        // A note is one argument, whatever stands in it; the configuration
+        // file may be named before or after.
+        let closing = parse(
+            [
+                "close-report",
+                "--config",
+                "var/venti-server.toml",
+                "0123456789abcdefghjkmnpqrs",
+                "--note",
+                "Taken down. Told nobody --all.",
+            ]
+            .map(str::to_owned),
+        );
+        assert_eq!(
+            closing,
+            Ok(Command::Moderate(moderation::Args {
+                config: Some(PathBuf::from("var/venti-server.toml")),
+                action: Action::CloseReport {
+                    id: "0123456789abcdefghjkmnpqrs".to_owned(),
+                    note: "Taken down. Told nobody --all.".to_owned(),
+                },
+            }))
+        );
+        assert_eq!(
+            moderate("take-down x --config f.toml").unwrap().config,
+            Some(PathBuf::from("f.toml"))
+        );
+
+        for mistake in [
+            "reports demo",
+            "reports --note x",
+            "close-report",
+            "close-report 0123456789abcdefghjkmnpqrs",
+            "close-report --note done",
+            "close-report 0123456789abcdefghjkmnpqrs --note",
+            "take-down",
+            "take-down a b",
+            "take-down a --all",
+            "release",
+            "remove-live-track",
+            "suspend-publishing",
+            "suspend-publishing mara jonas",
+            "resume-publishing --config",
+            "suspend mara",
+            "delete-account mara",
+        ] {
+            assert!(parse_line(mistake).is_err(), "{mistake}");
+        }
+        // Every one of them is in the usage.
+        for command in [
+            "reports [--all]",
+            "close-report <ID> --note TEXT",
+            "take-down <FLIGHT>",
+            "release <FLIGHT>",
+            "remove-live-track <TRACK>",
+            "suspend-publishing <HANDLE>",
+            "resume-publishing <HANDLE>",
+        ] {
+            assert!(USAGE.contains(command), "{command}");
+        }
     }
 
     #[test]

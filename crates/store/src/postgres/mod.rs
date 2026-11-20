@@ -7,6 +7,7 @@ mod forecasts;
 mod live;
 mod migrate;
 mod partitions;
+mod reports;
 mod sites;
 
 use std::time::Duration;
@@ -23,9 +24,10 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
-    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Visibility, batch,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Suspension, Visibility, VisibilityChange, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -575,6 +577,18 @@ impl Store for PgStore {
         accounts::delete(&self.client().await?, account_id).await
     }
 
+    async fn suspend_publishing(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Suspension>, StoreError> {
+        accounts::suspend_publishing(&mut self.client().await?, account_id, now).await
+    }
+
+    async fn resume_publishing(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
+        accounts::resume_publishing(&mut self.client().await?, account_id).await
+    }
+
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
         accounts::create_invite(&self.client().await?, invite).await
     }
@@ -659,9 +673,21 @@ impl Store for PgStore {
         id: &str,
         visibility: Visibility,
         now: Timestamp,
-    ) -> Result<Option<Flight>, StoreError> {
+    ) -> Result<VisibilityChange, StoreError> {
         let mut client = self.client().await?;
         flights::set_visibility(&mut client, account_id, id, visibility, now).await
+    }
+
+    async fn take_down_flight(
+        &self,
+        id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
+        flights::take_down(&mut self.client().await?, id, now).await
+    }
+
+    async fn release_flight(&self, id: &str, now: Timestamp) -> Result<Option<Flight>, StoreError> {
+        flights::release(&mut self.client().await?, id, now).await
     }
 
     async fn delete_flight(
@@ -736,11 +762,41 @@ impl Store for PgStore {
         live::delete(&mut self.client().await?, account_id, id, now, may_retire).await
     }
 
+    async fn remove_live_track(&self, id: &str, now: Timestamp) -> Result<bool, StoreError> {
+        live::remove(&mut self.client().await?, id, now).await
+    }
+
     async fn prune_live_tracks(
         &self,
         ended_before: Timestamp,
         now: Timestamp,
     ) -> Result<u64, StoreError> {
         live::prune(&self.client().await?, ended_before, now).await
+    }
+
+    async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {
+        reports::save(&self.client().await?, new).await
+    }
+
+    async fn reports(
+        &self,
+        listing: ReportListing,
+        after: Option<&ReportKey>,
+        limit: usize,
+    ) -> Result<Vec<Report>, StoreError> {
+        reports::list(&self.client().await?, listing, after, limit).await
+    }
+
+    async fn close_report(
+        &self,
+        id: &str,
+        note: &str,
+        now: Timestamp,
+    ) -> Result<ReportClosing, StoreError> {
+        reports::close(&self.client().await?, id, note, now).await
+    }
+
+    async fn prune_reports(&self, closed_before: Timestamp) -> Result<u64, StoreError> {
+        reports::prune(&self.client().await?, closed_before).await
     }
 }

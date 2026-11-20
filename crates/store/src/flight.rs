@@ -226,6 +226,53 @@ pub struct Flight {
     /// The number of the change that last touched the flight; see
     /// [`FlightChanges`].
     pub change: i64,
+    /// Since when the flight is taken down, if whoever runs the server has
+    /// done that. A flight that is taken down is private, and stays so
+    /// whatever its pilot asks for, until it is released.
+    pub taken_down_at: Option<Timestamp>,
+}
+
+/// What became of a call that sets who may see a flight.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VisibilityChange {
+    /// The flight is as was asked for, whether or not the call changed
+    /// it. This is the flight as it now is.
+    Set(Box<Flight>),
+    /// The account has no such flight.
+    NoSuchFlight,
+    /// The flight is taken down and stays private. Nothing was changed.
+    TakenDown,
+    /// The account may not publish, and the flight was to be made public.
+    /// Nothing was changed.
+    PublishingSuspended,
+}
+
+impl VisibilityChange {
+    /// The flight as it now is, if it is as was asked for.
+    pub fn flight(self) -> Option<Flight> {
+        match self {
+            Self::Set(flight) => Some(*flight),
+            Self::NoSuchFlight | Self::TakenDown | Self::PublishingSuspended => None,
+        }
+    }
+}
+
+/// Whether a flight of an account may be given a visibility.
+///
+/// Both stores ask this, with the flight and its account read under one
+/// lock, so that neither rule can be raced past.
+pub(crate) fn may_be_set(
+    taken_down: bool,
+    publishing_suspended: bool,
+    visibility: Visibility,
+) -> Result<(), VisibilityChange> {
+    if taken_down && visibility != Visibility::Private {
+        return Err(VisibilityChange::TakenDown);
+    }
+    if publishing_suspended && visibility == Visibility::Public {
+        return Err(VisibilityChange::PublishingSuspended);
+    }
+    Ok(())
 }
 
 /// A flight that was deleted, kept so that the pilot's other devices can

@@ -14,9 +14,10 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
-    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Visibility,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Suspension, Visibility, VisibilityChange,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -164,6 +165,18 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn suspend_publishing(
+        &self,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<Option<Suspension>, StoreError> {
+        self.fail().await
+    }
+
+    async fn resume_publishing(&self, _: &str) -> Result<Option<bool>, StoreError> {
+        self.fail().await
+    }
+
     async fn create_invite(&self, _: &NewInvite) -> Result<(), StoreError> {
         self.fail().await
     }
@@ -243,7 +256,15 @@ impl Store for TroubledStore {
         _: &str,
         _: Visibility,
         _: Timestamp,
-    ) -> Result<Option<Flight>, StoreError> {
+    ) -> Result<VisibilityChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn take_down_flight(&self, _: &str, _: Timestamp) -> Result<Option<Flight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn release_flight(&self, _: &str, _: Timestamp) -> Result<Option<Flight>, StoreError> {
         self.fail().await
     }
 
@@ -305,7 +326,37 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn remove_live_track(&self, _: &str, _: Timestamp) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
     async fn prune_live_tracks(&self, _: Timestamp, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_report(&self, _: &NewReport) -> Result<ReportSaved, StoreError> {
+        self.fail().await
+    }
+
+    async fn reports(
+        &self,
+        _: ReportListing,
+        _: Option<&ReportKey>,
+        _: usize,
+    ) -> Result<Vec<Report>, StoreError> {
+        self.fail().await
+    }
+
+    async fn close_report(
+        &self,
+        _: &str,
+        _: &str,
+        _: Timestamp,
+    ) -> Result<ReportClosing, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_reports(&self, _: Timestamp) -> Result<u64, StoreError> {
         self.fail().await
     }
 }

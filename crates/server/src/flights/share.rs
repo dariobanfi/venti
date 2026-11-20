@@ -687,6 +687,7 @@ pub(crate) mod tests {
             visibility: Visibility::Public,
             uploaded_at: start,
             file_bytes: 64_000,
+            taken_down_at: None,
             derived: Derived {
                 version: 1,
                 start,

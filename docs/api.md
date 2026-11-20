@@ -7,7 +7,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 Everything here is version 1. It has three parts:
 
 - **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
-- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), and [the page a shared flight has](#the-page-a-shared-flight-has).
+- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 
 ## Try it
@@ -65,7 +65,7 @@ curl http://127.0.0.1:8080/live/11111111111111111111111111             # the pag
 
 Every fix of these tracks but the first of each says how fast the glider moved, how fast it climbed and where it was heading; the first says only where it was, and a glider that stands still has no heading. That is what a real app sends too.
 
-None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots and the identifiers of the demo live tracks are the same on every start.
+None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. [Reports](#reports) are taken and kept, and nobody reads them: no flight of this mode is taken down and no account's publishing is suspended, because the commands that do that work on a real server's database. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots and the identifiers of the demo live tracks are the same on every start.
 
 Because its clock stands still, this mode takes live fixes of **any time**, where a real server refuses those from the future and those more than 12 hours old, and it never treats a track as too old to read or to add to. An app under test can therefore send the fixes of a replayed flight of last summer, or of its own clock. Two things stay as on a real server: an answer says when a track would be removed (`expires_at`), and the list of public tracks holds a track only while its newest fix is no older than half an hour by this mode's clock. A track sent with the times of a replayed flight is thus read by its identifier and is not on the list.
 
@@ -126,12 +126,15 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
+| 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
 | 401 | `unauthorized` | The request needs an account and carries no valid session token. The answer has `WWW-Authenticate: Bearer` |
 | 401 | `invalid_credentials` | Signing in: the handle or the password is wrong |
 | 403 | `wrong_password` | The password sent to confirm a change to the account is wrong |
 | 403 | `registration_closed`, `invalid_invite` | The server takes no new accounts, or takes them by invite and the code is not good |
 | 403 | `account_full` | An upload: the account keeps as many flights, or as many megabytes of flight files, as the server gives one account room for |
 | 403 | `live_track_full` | The live track holds as many fixes as one track may. Begin a new track with a new identifier |
+| 403 | `flight_taken_down` | The pilot asked to share a flight that whoever runs the server [took down](#what-whoever-runs-the-server-can-do). It stays private until they release it |
+| 403 | `publishing_suspended` | The pilot asked to make a flight public, and whoever runs the server has [suspended the account's publishing](#what-whoever-runs-the-server-can-do). Sharing by link works |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
@@ -1211,6 +1214,25 @@ Needs a token. The account the token belongs to.
 }
 ```
 
+| Field | Meaning |
+|---|---|
+| `handle`, `display_name` | As the account was created with |
+| `created_at` | When it was created |
+| `publishing_suspended_at` | Since when the account may publish nothing, because whoever runs the server [suspended its publishing](#what-whoever-runs-the-server-can-do). Left out for every account that may, which is nearly every account |
+
+The answers to creating an account and to signing in carry the same `account`. This is the demo account after its publishing was suspended:
+
+```json
+{
+  "account": {
+    "handle": "demo",
+    "display_name": "Demo Pilot",
+    "created_at": "2026-11-18T19:05:00Z",
+    "publishing_suspended_at": "2026-11-18T19:05:00Z"
+  }
+}
+```
+
 ### `PUT /v1/account/password`
 
 Needs a token. Changes the password, and signs out every device except the asking one: whoever knew the old password is out.
@@ -1257,6 +1279,8 @@ The server keeps a pilot's flight files exactly as they were uploaded, and works
 | `public` | Anyone. It is listed on its pilot's page |
 
 To everyone but its pilot, a private flight does not exist: the answer is the one for an address that belongs to no flight, `404` with `flight_not_found`, the same in every detail. A client must expect further values of `visibility` in answers; one for followers is planned.
+
+The pilot chooses, with two exceptions that whoever runs the server can make by hand: a single flight can be [taken down](#what-whoever-runs-the-server-can-do), which makes it private until they release it, and an account's publishing can be suspended, which leaves `unlisted` as the most it can share with. The flight and the account say so to their pilot (`taken_down_at`, `publishing_suspended_at`), and to nobody else.
 
 **Caching.** An answer to a request that carried a token is made for that account: `Cache-Control: no-store`, no `ETag`. An answer about a public or unlisted flight to a request without a token carries an `ETag` and `Cache-Control: public, no-cache` or `private, no-cache`: it may be kept, and must be checked with `If-None-Match` before every reuse, which is how a flight that was made private disappears at once.
 
@@ -1610,6 +1634,7 @@ curl http://127.0.0.1:8080/v1/flights/5t1eshypdtvrq7rxw39a18vsrg
 | `outline` | The shape of the track for a thumbnail: at most 96 points, each a latitude and a longitude. Circles in thermals are smoothed away, so nothing may be measured on it |
 | `file_bytes` | The size of the flight file |
 | `analysis_version` | Which version of the server's analysis produced the numbers. When the analysis improves, the server works every flight out again, and the flight shows up in `/v1/flights/changes` |
+| `taken_down_at` | Since when the flight is [taken down](#what-whoever-runs-the-server-can-do). Left out for a flight that is not, which is nearly every flight. Only the pilot ever reads it: a flight that is taken down is private |
 
 A client must expect values of `kind` it does not know.
 
@@ -1629,9 +1654,18 @@ Needs a token. Changes who may see a flight of the account.
 
 The answer is `200` with the flight as it then is, in the shape of `GET /v1/flights/{id}`. A value other than `private`, `unlisted` and `public` gives `400` with `invalid_visibility`. A flight of another pilot is no flight of this account, whoever may see it: `404` with `flight_not_found`.
 
+Two answers say that whoever runs the server stands in the way, and nothing changed:
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `flight_taken_down` | The flight is taken down, and the request asked for `unlisted` or `public`. Asking for `private`, which it is, is answered `200` |
+| 403 | `publishing_suspended` | The account's publishing is suspended, and the request asked for `public`. `unlisted` and `private` work |
+
+Neither goes away by asking again, and neither is a fault in the app: show the pilot what it is, and that the person to talk to is whoever runs the server. A flight that is both gets `flight_taken_down`.
+
 ### `DELETE /v1/flights/{id}`
 
-Needs a token. Deletes a flight of the account and its file, at once and for good. The answer is `204` with no body. The server remembers only that the flight was deleted, with its `id` and `identity`, so that the pilot's other devices can be told. Uploading the file again makes the flight again, private, under the same address.
+Needs a token. Deletes a flight of the account and its file, at once and for good. The answer is `204` with no body. The server remembers only that the flight was deleted, with its `id` and `identity`, so that the pilot's other devices can be told. Uploading the file again makes the flight again, private, under the same address. A flight that was taken down when it was deleted comes back taken down, since the same moment.
 
 ## Pilots
 
@@ -1655,13 +1689,13 @@ curl http://127.0.0.1:8080/v1/pilots/demo
 
 Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`, `limit` and `next` work as for `GET /v1/flights`.
 
-A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart.
+A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart. A pilot whose only public flight was taken down, and one whose publishing is suspended, shares nothing publicly and has no page either.
 
 ## Public flights
 
 ### `GET /v1/flights/public?bbox=&from=&to=&sort=&after=&limit=`
 
-Everyone's public flights in one list: what pilots flew, the newest first. Anyone may ask, without a token, and the answer is the same for everyone. The list holds the flights their pilots made `public` and no others. A flight that is private or unlisted is in no page of it, whatever is asked for, and that includes the asker's own: a pilot's own flights are at [`GET /v1/flights`](#get-v1flightsafterlimit).
+Everyone's public flights in one list: what pilots flew, the newest first. Anyone may ask, without a token, and the answer is the same for everyone. The list holds the flights their pilots made `public` and no others. A flight that is private or unlisted is in no page of it, whatever is asked for, and that includes the asker's own: a pilot's own flights are at [`GET /v1/flights`](#get-v1flightsafterlimit). A flight that was [taken down](#what-whoever-runs-the-server-can-do) is private, and the flights of an account whose publishing is suspended are unlisted at most: neither is here.
 
 | Parameter | Meaning | Default |
 |---|---|---|
@@ -1944,6 +1978,8 @@ There is no value for "nobody": a track nobody may see is one the app does not s
 
 Making a public track `link` takes it off the list at once. It does not take it away from someone who copied its identifier while it was listed: the identifier is the key. To cut everyone off, delete the track and begin a new one.
 
+**An account whose publishing is suspended has no public track.** Whoever runs the server can [suspend an account's publishing](#what-whoever-runs-the-server-can-do). Its public tracks are `link` from that moment, and every batch it sends afterwards is taken as before and makes a track that is `link`, whatever `visibility` the request names. No batch is refused for it: positions are not lost, and the people who were given the link still see the glider. The answer's `track.visibility` says what the track is, so an app that asked for `public` and reads `link` there knows that the track is not on the map; the account says why (`publishing_suspended_at` in [`GET /v1/account`](#get-v1account)).
+
 **A fix** is where the glider was at one moment:
 
 | Field | Meaning |
@@ -1962,6 +1998,7 @@ Making a public track `link` takes it off the list at once. It does not take it 
 - Either way the track goes on when newer fixes arrive.
 - **48 hours after its newest fix a track is removed**, with every fix. From that moment it answers as if it had never been, whether or not the server has got round to deleting the rows, which it does within the hour. `expires_at` in every answer says when that moment is; each newer fix moves it. Whoever runs a server can set another number of hours (`retention.live_hours`), which `expires_at` and the page then follow.
 - The pilot can delete a track at any time, and deleting the account deletes its tracks.
+- Whoever runs the server can [remove a track](#what-whoever-runs-the-server-can-do). To everyone who reads, it then answers as a track that never was. To the app that sends, its identifier is used up: `410` with `live_track_gone`, as after the pilot's own deletion.
 - Live tracks are not in the server's nightly backups ([deploy/README.md](../deploy/README.md#backup)): what is gone from the server after 48 hours is gone.
 
 **How an app sends.** What the server takes is in the reference below; this is what it is built for.
@@ -2112,7 +2149,7 @@ The answer is `201` when the request began the track and `200` when the track wa
 | 400 | `invalid_request` | The body is not JSON of this shape. A position that is not a place on the globe, an altitude with a fraction and a time that is not a time end here |
 | 403 | `live_track_full` | The track holds 43,200 fixes and none of the request's new ones fits |
 | 409 | `live_track_taken` | The identifier is that of another account's track |
-| 410 | `live_track_gone` | The identifier's track was deleted, was removed 48 hours after its newest fix, or the identifier was taken out of use before a track began |
+| 410 | `live_track_gone` | The identifier's track was deleted, was removed 48 hours after its newest fix or by whoever runs the server, or the identifier was taken out of use before a track began |
 | 413 | `payload_too_large` | The body is larger than 32 kB |
 | 422 | `fixes_out_of_time` | Every fix of the request was left out for its time. `message` says how many lie in the future and how many are too old, and what the server's clock shows |
 | 429 | `rate_limited` | The account has sent 300 fixes within a minute, or has begun 30 live tracks within a day. `Retry-After` says when to try again |
@@ -2299,6 +2336,178 @@ Needs a token. Deletes a live track of the account with all its fixes, at once a
 - That holds for a track that never began as well. An app that deletes an identifier whose first fixes have not arrived yet, because the pilot switched live tracking off again at once, gets `204`, and the fixes begin nothing when they arrive. The server has to remember such an identifier, so this counts as one of the account's 30 live tracks a day, and is answered `429` when those are used up.
 - A track of another pilot is no track of this account, whoever may see it: `404` with `live_track_not_found`.
 
+## Reports
+
+A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track. That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
+
+What a client has to know:
+
+- **Nobody learns from the server who reported them.** The API has no way to read a report back, to list reports or to count them, not for the reporter and not for the pilot who was reported. No answer to the reported pilot changes in anything when a report arrives or is closed.
+- **Whoever runs the server does see who reported.** The report is kept with the reporter's handle, and the operator reads it beside the report. Say so where the report is written: a report is not anonymous.
+- **What can be reported is what the reporter can see**: a public flight, a flight or a live track the reporter has the link to, the page of a pilot who has one, and anything of the reporter's own. Everything else gets the answer it gets everywhere, `404` in the same words, so that reporting is no way to find out whether a private flight or a quiet account exists.
+- **One open report about one thing.** While an account has an open report about a thing, a second one about the same thing stores nothing and changes nothing, whatever reason and text it has: `200` with `"created": false`. Once the operator has closed the first, the thing can be reported again.
+- **Nothing comes back.** The reporter is not told what was decided, and cannot ask. The server knows no address to write to.
+- **Reports are counted**: an account may send 20 in a day. See the errors below.
+
+### `POST /v1/reports`
+
+Needs a token.
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/reports \
+  -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000' \
+  -H 'Content-Type: application/json' \
+  -d '{"subject":{"flight":"fbyw03atd9qdt5bfe177ra1k94"},"reason":"not_a_flight","text":"I flew there that day. This is my track, not hers."}'
+```
+
+The body of that request:
+
+```json
+{
+  "subject": {
+    "flight": "fbyw03atd9qdt5bfe177ra1k94"
+  },
+  "reason": "not_a_flight",
+  "text": "I flew there that day. This is my track, not hers."
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `subject` | What is reported: an object with exactly one of the three members below |
+| `subject.flight` | A flight, by its address: the `id` of the flight, which is the end of its share link |
+| `subject.pilot` | A pilot's page, by the pilot's handle, in upper or lower case |
+| `subject.live_track` | A live track, by its identifier, which is the end of its link |
+| `reason` | Why; one of the values below |
+| `text` | What the reporter wants to add, in their own words: at most 1,000 characters. May be left out, except with the reason `other` |
+
+| `reason` | Meaning |
+|---|---|
+| `offensive` | A name, a glider's name or another text that insults, threatens or harasses |
+| `impersonation` | The account passes itself off as another person or as an organisation |
+| `privacy` | It shows something about a person who did not agree to that: a flight that is someone else's, a name, where someone lives |
+| `not_a_flight` | The flight was not flown as it is shown: a track that is made up or altered, or not this pilot's own |
+| `spam` | Advertising, or something that has nothing to do with flying |
+| `other` | Anything else. The report must then say what, in `text` |
+
+The list is short on purpose and is the server's: a reason that is not on it is refused, so a client offers these six and no field for another. There is no reason for "flew through airspace": a report is about what should not be shown, not about how someone flew. `venti_api_types::v1::ReportReason::ALL` is the list in the order a form shows it.
+
+**The text** is cleaned before it is kept and never refused for what stands in it: line breaks stay, every other control character goes, and so do the characters that hide text or turn its direction round; white space at both ends goes. What is left is counted, and more than 1,000 characters is refused. `venti_api_types::v1::parse_report_text` does the same on the device, for a client that wants to count while the pilot types. The text is read by whoever runs the server and by nobody else.
+
+The answer is `201` when the request stored the report, and `200` when the account had an open report about the same thing already:
+
+```json
+{
+  "created": true
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `created` | `true` when this request stored the report, `false` when the account's earlier report about the same thing is still open. Either way a person will read one |
+
+The answer carries `Cache-Control: no-store`, like every answer to a request with a token.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_report` | `reason` is not one of the six, `text` has more than 1,000 characters after cleaning, or `reason` is `other` and nothing is left of `text`. `message` says which, and repeats nothing that was sent |
+| 400 | `invalid_request` | The body is not JSON of this shape: no `subject`, two subjects in one, a kind of subject the server does not know, no `reason` |
+| 401 | `unauthorized` | No valid token |
+| 404 | `flight_not_found` | `subject.flight` is no flight the reporter may see: nobody's address, text that is no address, or another pilot's private flight. The answer is the one `GET /v1/flights/{id}` gives the reporter |
+| 404 | `pilot_not_found` | `subject.pilot` is the handle of nobody, or of a pilot who shares nothing publicly and so has no page |
+| 404 | `live_track_not_found` | `subject.live_track` leads to no live track: none ever, deleted, or removed for its age |
+| 413 | `payload_too_large` | The body is larger than 16 kB |
+| 415 | `unsupported_media_type` | The request does not say `Content-Type: application/json`. Such a request is not counted |
+| 429 | `rate_limited` | The account has sent 20 reports within a day. `Retry-After` says when the day is over, in seconds; asking again in between does not put it off |
+
+**The count.** Every request that says it is JSON and carries a valid token counts as one of the 20, whatever becomes of it: one that is stored, one about a thing that was reported already, one that is refused, one that names nothing. A report is something a person has to read, and trying addresses through this endpoint must not be cheaper than through any other. Twenty is an estimate of more than a pilot who means it sends in a day, and it bounds what one account can put in front of the operator. The count is in the server's memory, like the others, and the development mode has no such limit.
+
+**The development mode** takes reports like a real server and keeps them in its memory until it stops. Nobody reads them there: the operator's commands work on a real server's database.
+
+## What whoever runs the server can do
+
+The person who runs a server reads the reports and can do four things about what is shared on it. They do them by hand, with commands on the server's own machine ([deploy/README.md](../deploy/README.md#reports-and-taking-things-down)); the API offers none of them, and the server does none of them by itself. This is what each looks like from an app.
+
+**Take a flight down.** The flight becomes `private` and stays so until the operator releases it.
+
+- To everyone but its pilot it is no flight from that moment: `404` in every answer, on its page, for its file and its preview picture, and it is in no list.
+- Its pilot keeps it, with its file, and reads on it since when it is taken down: `taken_down_at`. The flight shows up in [`/v1/flights/changes`](#get-v1flightschangessincelimit) like any change, so the pilot's other devices hear of it.
+- The pilot cannot share it again: [`PATCH /v1/flights/{id}`](#patch-v1flightsid) with `unlisted` or `public` is `403` with `flight_taken_down`. Deleting the flight and uploading its file again brings it back taken down.
+- The server says **that** the operator did this and since when. It does not say **why**: it does not know. The pilot is not told otherwise either, so an app shows it on the flight.
+- Released, the flight is private, without `taken_down_at`, and the pilot's to share again. Nothing is made public by releasing.
+
+This is the demo account's public flight after it was taken down, as its pilot reads it with `GET /v1/flights/{id}` (the `outline` is cut to two points here):
+
+```json
+{
+  "flight": {
+    "id": "5t1eshypdtvrq7rxw39a18vsrg",
+    "identity": "0f0d88442e01f52f291d25b2660b8bed",
+    "pilot": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "visibility": "private",
+    "uploaded_at": "2026-11-18T19:05:00Z",
+    "start": "2026-08-15T10:30:00Z",
+    "airtime_s": 1752,
+    "takeoff": {
+      "time": "2026-08-15T10:30:00Z",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "altitude_m": 1620
+    },
+    "landing": {
+      "time": "2026-08-15T10:59:12Z",
+      "position": {
+        "lat": 47.692167,
+        "lon": 11.767483
+      },
+      "altitude_m": 786
+    },
+    "track_length_m": 18402.3,
+    "max_altitude_m": 2117,
+    "max_climb_ms": 2.4,
+    "score": {
+      "kind": "free_flight",
+      "closed": false,
+      "distance_m": 11975.7,
+      "points": 11.98
+    },
+    "glider": "Sample Wing",
+    "outline": [
+      [
+        47.6642,
+        11.7967
+      ],
+      [
+        47.6697,
+        11.78986
+      ]
+    ],
+    "file_bytes": 68008,
+    "analysis_version": 1,
+    "taken_down_at": "2026-11-18T19:05:00Z"
+  }
+}
+```
+
+**Suspend an account's publishing.** The account can make nothing public until the operator lets it again.
+
+- Its public flights become `unlisted` at that moment, each as a change the pilot's devices hear of: they leave [the pilot's page](#pilots), which is then gone, and [the list of everyone's flights](#public-flights), and whoever has a link to one still opens it. Its public live tracks become `link`.
+- The account reads since when: `publishing_suspended_at` in [`GET /v1/account`](#get-v1account) and in the answer to signing in.
+- `PATCH /v1/flights/{id}` with `public` is `403` with `publishing_suspended`. Live fixes are taken, and their track is `link` whatever the request asks; see [live tracks](#live-tracks).
+- Everything else works as before: signing in, uploading, the logbook, sharing by link, deleting.
+- When the suspension is lifted, `publishing_suspended_at` is gone and the account may publish. Nothing becomes public by itself: the flights stay `unlisted` until the pilot changes them, and a live track is public again when the app next says so with a newer fix.
+
+**Remove a live track.** The track and its fixes are deleted and its identifier is taken out of use, exactly as if the pilot had deleted it: `404` for everyone who reads, `410` with `live_track_gone` for the app that sends. An app that follows [the rules for sending](#live-tracks) then goes on under a new identifier, so removing one track takes one link away and does not keep the glider off the map; suspending the account's publishing does that.
+
+**Close a report**, with a note of their own. That changes nothing an app can see.
+
+None of the four deletes a flight or an account, and none tells anyone anything beyond what is said here.
+
 ## The page a shared flight has
 
 These two addresses are not part of `/v1`. They answer browsers and the preview fetchers of chat apps, which send no token, so they show public and unlisted flights only. A private flight and an address that belongs to no flight get the same `404` page.
@@ -2337,4 +2546,4 @@ What is left to build: a map under the line, and one that moves without the page
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)), and a way to report a track or to take one down, which a server that lets strangers register needs before it lets them put gliders on everyone's map. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here and no app sends one yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

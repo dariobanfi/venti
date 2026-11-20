@@ -1,0 +1,6 @@
+demo (Demo Pilot) may not publish from now on.
+  Public flights that are for those with their link now: 1
+  Live tracks taken off everyone's map, for those with their link now: 2
+None of it is in a list any more. Whoever has a link still sees what the link shows.
+The account can make no flight public, and its live tracks are shared by link whatever its app asks for. Everything else works: signing in, the logbook, sharing by link. The server tells the pilot's apps that publishing is suspended and since when, and not why.
+Nothing was deleted. To take one flight away from those who have its link as well, `venti-server take-down`. `venti-server resume-publishing demo` undoes this; it makes nothing public again.

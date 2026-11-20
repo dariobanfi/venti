@@ -168,6 +168,17 @@ pub struct Flight {
     /// server works them out again when its analysis improves; the flight
     /// then shows up as changed.
     pub analysis_version: u32,
+    /// Since when the flight is taken down, if whoever runs the server has
+    /// done that. Left out otherwise, which is the usual case.
+    ///
+    /// A flight that is taken down is private, and only its pilot is ever
+    /// shown this. While it is there the flight cannot be shared: asking
+    /// for `unlisted` or `public` is refused, and deleting the flight and
+    /// uploading its file again brings it back taken down. Only the
+    /// operator can lift it. An app says so on the flight, in place of the
+    /// choice of who sees it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taken_down_at: Option<Timestamp>,
 }
 
 /// A moment at one end of a flight.
@@ -353,12 +364,13 @@ mod tests {
             outline: vec![[47.6642, 11.7967], [47.67, 11.79]],
             file_bytes: 2300,
             analysis_version: 1,
+            taken_down_at: None,
         };
 
         let json = serde_json::to_value(&flight).unwrap();
         let object = json.as_object().unwrap();
 
-        for absent in ["takeoff", "landing", "score", "glider"] {
+        for absent in ["takeoff", "landing", "score", "glider", "taken_down_at"] {
             assert!(!object.contains_key(absent), "{absent}");
         }
         assert_eq!(json["outline"][0][0], 47.6642);

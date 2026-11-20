@@ -5,10 +5,10 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::flight::{Kept, Room, Saved, cut, score_order};
+use crate::flight::{Kept, Room, Saved, cut, may_be_set, score_order};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    PublicFlights, PublicOrder, ScoreKey, StoreError, Visibility,
+    PublicFlights, PublicOrder, ScoreKey, StoreError, Visibility, VisibilityChange,
 };
 
 #[derive(Debug, Default)]
@@ -17,6 +17,10 @@ pub(super) struct Flights {
     flights: BTreeMap<String, Entry>,
     /// Deleted flights by account and address.
     deleted: BTreeMap<(String, String), DeletedFlight>,
+    /// Of the deleted flights, the ones that were taken down when they
+    /// were deleted, with the moment they had been taken down at: a
+    /// flight that comes back under its address comes back taken down.
+    deleted_taken_down: BTreeMap<(String, String), Timestamp>,
 }
 
 #[derive(Debug)]
@@ -63,6 +67,8 @@ impl Flights {
         let change = accounts
             .next_flight_change(&new.account_id, new.uploaded_at)
             .expect("the account was found above");
+        let place = (new.account_id.clone(), new.id.clone());
+        self.deleted.remove(&place);
         let entry = Entry {
             flight: Flight {
                 id: new.id.clone(),
@@ -75,12 +81,13 @@ impl Flights {
                 file_bytes: new.file_bytes,
                 derived: new.derived.clone(),
                 change,
+                // Deleting a flight and uploading it again does not undo
+                // that it was taken down.
+                taken_down_at: self.deleted_taken_down.remove(&place),
             },
             file: new.file.clone(),
         };
         let flight = Self::read(&entry, accounts);
-        self.deleted
-            .remove(&(new.account_id.clone(), new.id.clone()));
         self.flights.insert(new.id.clone(), entry);
         Ok(Saved::Created(flight))
     }
@@ -206,16 +213,87 @@ impl Flights {
         visibility: Visibility,
         now: Timestamp,
         accounts: &mut Accounts,
-    ) -> Option<Flight> {
-        let entry = self
+    ) -> VisibilityChange {
+        let owned = self
             .flights
             .get_mut(id)
-            .filter(|entry| entry.flight.account_id == account_id)?;
+            .filter(|entry| entry.flight.account_id == account_id);
+        let Some(entry) = owned else {
+            return VisibilityChange::NoSuchFlight;
+        };
+        let taken_down = entry.flight.taken_down_at.is_some();
+        if let Err(refused) = may_be_set(taken_down, accounts.is_suspended(account_id), visibility)
+        {
+            return refused;
+        }
         if entry.flight.visibility != visibility {
+            let Some(change) = accounts.next_flight_change(account_id, now) else {
+                return VisibilityChange::NoSuchFlight;
+            };
             entry.flight.visibility = visibility;
-            entry.flight.change = accounts.next_flight_change(account_id, now)?;
+            entry.flight.change = change;
+        }
+        VisibilityChange::Set(Box::new(Self::read(entry, accounts)))
+    }
+
+    /// Makes a flight private and keeps it so, whoever it belongs to.
+    pub(super) fn take_down(
+        &mut self,
+        id: &str,
+        now: Timestamp,
+        accounts: &mut Accounts,
+    ) -> Option<Flight> {
+        let entry = self.flights.get_mut(id)?;
+        if entry.flight.taken_down_at.is_none() {
+            let change = accounts.next_flight_change(&entry.flight.account_id, now)?;
+            entry.flight.visibility = Visibility::Private;
+            entry.flight.taken_down_at = Some(now);
+            entry.flight.change = change;
         }
         Some(Self::read(entry, accounts))
+    }
+
+    /// Lets a flight that was taken down go. It stays private.
+    pub(super) fn release(
+        &mut self,
+        id: &str,
+        now: Timestamp,
+        accounts: &mut Accounts,
+    ) -> Option<Flight> {
+        let entry = self.flights.get_mut(id)?;
+        if entry.flight.taken_down_at.is_some() {
+            let change = accounts.next_flight_change(&entry.flight.account_id, now)?;
+            entry.flight.taken_down_at = None;
+            entry.flight.change = change;
+        }
+        Some(Self::read(entry, accounts))
+    }
+
+    /// Makes every public flight of an account unlisted, each as a change
+    /// of its own in the order of the flights' addresses, and returns how
+    /// many there were.
+    pub(super) fn unlist_public(
+        &mut self,
+        account_id: &str,
+        now: Timestamp,
+        accounts: &mut Accounts,
+    ) -> u64 {
+        let mut unlisted = 0;
+        // The map is sorted by address.
+        for entry in self.flights.values_mut() {
+            let public = entry.flight.account_id == account_id
+                && entry.flight.visibility == Visibility::Public;
+            if !public {
+                continue;
+            }
+            let Some(change) = accounts.next_flight_change(account_id, now) else {
+                break;
+            };
+            entry.flight.visibility = Visibility::Unlisted;
+            entry.flight.change = change;
+            unlisted += 1;
+        }
+        unlisted
     }
 
     pub(super) fn delete(
@@ -241,8 +319,11 @@ impl Flights {
             identity: entry.flight.identity,
             change,
         };
-        self.deleted
-            .insert((account_id.to_owned(), id.to_owned()), deleted);
+        let place = (account_id.to_owned(), id.to_owned());
+        if let Some(taken_down_at) = entry.flight.taken_down_at {
+            self.deleted_taken_down.insert(place.clone(), taken_down_at);
+        }
+        self.deleted.insert(place, deleted);
         true
     }
 
@@ -251,6 +332,8 @@ impl Flights {
         self.flights
             .retain(|_, entry| entry.flight.account_id != account_id);
         self.deleted.retain(|(account, _), _| account != account_id);
+        self.deleted_taken_down
+            .retain(|(account, _), _| account != account_id);
     }
 
     pub(super) fn outdated(

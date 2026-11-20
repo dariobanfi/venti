@@ -116,6 +116,7 @@ mod tests {
             handle: "dario".to_owned(),
             display_name: "Dario".to_owned(),
             created_at: uploaded,
+            publishing_suspended_at: None,
         };
         let new = NewAccount {
             account: account.clone(),

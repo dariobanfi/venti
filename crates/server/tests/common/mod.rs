@@ -55,6 +55,13 @@ pub async fn recorded() -> Router {
     api.router(&Cors::Origins(vec![WEB_APP.to_owned()]))
 }
 
+/// The same router, and the store behind it: for tests that also do what
+/// only whoever runs a server can do.
+pub async fn recorded_with_its_store() -> (Router, Arc<MemoryStore>) {
+    let (api, store) = dev::recorded_with_its_store(settings()).await.unwrap();
+    (api.router(&Cors::Origins(vec![WEB_APP.to_owned()])), store)
+}
+
 /// A clock a test moves by hand.
 #[derive(Debug, Clone)]
 pub struct TestClock(Arc<Mutex<Timestamp>>);

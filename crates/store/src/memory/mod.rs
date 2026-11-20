@@ -1,6 +1,7 @@
 mod accounts;
 mod flights;
 mod live;
+mod reports;
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
@@ -14,9 +15,10 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
-    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
-    StationLatest, Store, StoreError, Visibility, airspace, batch, forecast, site,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
+    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
+    Store, StoreError, Suspension, Visibility, VisibilityChange, airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -45,6 +47,7 @@ struct Inner {
     accounts: accounts::Accounts,
     flights: flights::Flights,
     live: live::Live,
+    reports: reports::Reports,
 }
 
 #[derive(Debug)]
@@ -428,7 +431,30 @@ impl Store for MemoryStore {
         inner.accounts.delete(account_id);
         inner.flights.delete_account(account_id);
         inner.live.delete_account(account_id);
+        inner.reports.delete_account(account_id);
         Ok(())
+    }
+
+    async fn suspend_publishing(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Suspension>, StoreError> {
+        let inner = &mut *self.lock();
+        let Some(since) = inner.accounts.suspend(account_id, now) else {
+            return Ok(None);
+        };
+        Ok(Some(Suspension {
+            since,
+            flights: inner
+                .flights
+                .unlist_public(account_id, now, &mut inner.accounts),
+            live_tracks: inner.live.narrow_all(account_id),
+        }))
+    }
+
+    async fn resume_publishing(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
+        Ok(self.lock().accounts.resume(account_id))
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {
@@ -527,11 +553,25 @@ impl Store for MemoryStore {
         id: &str,
         visibility: Visibility,
         now: Timestamp,
-    ) -> Result<Option<Flight>, StoreError> {
+    ) -> Result<VisibilityChange, StoreError> {
         let inner = &mut *self.lock();
         Ok(inner
             .flights
             .set_visibility(account_id, id, visibility, now, &mut inner.accounts))
+    }
+
+    async fn take_down_flight(
+        &self,
+        id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Flight>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.flights.take_down(id, now, &mut inner.accounts))
+    }
+
+    async fn release_flight(&self, id: &str, now: Timestamp) -> Result<Option<Flight>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.flights.release(id, now, &mut inner.accounts))
     }
 
     async fn delete_flight(
@@ -620,11 +660,43 @@ impl Store for MemoryStore {
             .delete(account_id, id, may_retire, &inner.accounts)
     }
 
+    async fn remove_live_track(&self, id: &str, _now: Timestamp) -> Result<bool, StoreError> {
+        Ok(self.lock().live.remove(id))
+    }
+
     async fn prune_live_tracks(
         &self,
         ended_before: Timestamp,
         _now: Timestamp,
     ) -> Result<u64, StoreError> {
         Ok(self.lock().live.prune(ended_before))
+    }
+
+    async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {
+        let inner = &mut *self.lock();
+        inner.reports.save(new, &inner.accounts)
+    }
+
+    async fn reports(
+        &self,
+        listing: ReportListing,
+        after: Option<&ReportKey>,
+        limit: usize,
+    ) -> Result<Vec<Report>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.reports.list(listing, after, limit, &inner.accounts))
+    }
+
+    async fn close_report(
+        &self,
+        id: &str,
+        note: &str,
+        now: Timestamp,
+    ) -> Result<ReportClosing, StoreError> {
+        self.lock().reports.close(id, note, now)
+    }
+
+    async fn prune_reports(&self, closed_before: Timestamp) -> Result<u64, StoreError> {
+        Ok(self.lock().reports.prune(closed_before))
     }
 }

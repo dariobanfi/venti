@@ -54,6 +54,14 @@ impl Live {
                 "live fixes for an account that does not exist".to_owned(),
             ));
         }
+        // An account that may not publish shares by link, whatever it asks.
+        let narrowed;
+        let batch = if accounts.is_suspended(&batch.account_id) {
+            narrowed = batch.for_those_with_the_link();
+            &narrowed
+        } else {
+            batch
+        };
 
         if let Some(entry) = self.tracks.get(&batch.id) {
             // A track that ended too long ago is gone, whether or not the
@@ -199,6 +207,31 @@ impl Live {
         }
         self.retired.insert(id.to_owned(), account_id.to_owned());
         Ok(LiveRemoval::Retired)
+    }
+
+    /// Removes a track, whoever it belongs to, and takes its identifier out
+    /// of use. Says whether there was such a track.
+    pub(super) fn remove(&mut self, id: &str) -> bool {
+        match self.tracks.remove(id) {
+            Some(entry) => {
+                self.retired.insert(id.to_owned(), entry.account_id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Makes every public track of an account one for those with its link,
+    /// and returns how many there were.
+    pub(super) fn narrow_all(&mut self, account_id: &str) -> u64 {
+        let mut narrowed = 0;
+        for entry in self.tracks.values_mut() {
+            if entry.account_id == account_id && entry.held.visibility == LiveVisibility::Public {
+                entry.held.visibility = LiveVisibility::Link;
+                narrowed += 1;
+            }
+        }
+        narrowed
     }
 
     pub(super) fn prune(&mut self, ended_before: Timestamp) -> u64 {

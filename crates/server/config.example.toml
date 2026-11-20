@@ -101,3 +101,8 @@ archive_days = 14
 # newest position and then removed, with its positions. Answers of the API
 # say when (`expires_at`), and the page a link opens names this number.
 live_hours = 48
+
+# A report that a pilot sent is kept for this many days   VENTI_REPORT_DAYS
+# after it was closed with `venti-server close-report`, and then removed.
+# A report that is still open is kept until it is closed.
+report_days = 90

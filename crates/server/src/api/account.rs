@@ -275,6 +275,7 @@ pub(crate) async fn create<S: Store>(
         handle: handle.as_str().to_owned(),
         display_name,
         created_at: now,
+        publishing_suspended_at: None,
     };
     let new = NewAccount {
         account: account.clone(),

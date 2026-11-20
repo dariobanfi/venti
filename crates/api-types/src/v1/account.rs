@@ -238,6 +238,16 @@ pub struct Account {
     pub display_name: String,
     /// When the account was created.
     pub created_at: Timestamp,
+    /// Since when the account may not publish, if whoever runs the server
+    /// has suspended that. Left out otherwise, which is the usual case.
+    ///
+    /// While it is there, the account can make no flight public (its
+    /// flights can still be shared by link), and its live tracks are
+    /// shown to those with their link whatever the app asks for. Only the
+    /// operator can lift it. An app says so where the pilot chooses who
+    /// sees a flight.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publishing_suspended_at: Option<Timestamp>,
 }
 
 /// The body of `POST /v1/accounts`: creates an account and signs this
@@ -452,6 +462,7 @@ mod tests {
                 handle: Handle::new("dario_b").unwrap(),
                 display_name: "Dario".to_owned(),
                 created_at: now,
+                publishing_suspended_at: None,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -464,5 +475,33 @@ mod tests {
         };
         let printed = format!("{answer:?}");
         assert!(!printed.contains("venti_secret"), "{printed}");
+    }
+
+    #[test]
+    fn an_account_says_that_it_may_not_publish_only_when_that_is_so() {
+        let now = chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap();
+        let account = Account {
+            handle: Handle::new("dario_b").unwrap(),
+            display_name: "Dario".to_owned(),
+            created_at: now,
+            publishing_suspended_at: None,
+        };
+        let json = serde_json::to_value(&account).unwrap();
+        assert!(
+            !json
+                .as_object()
+                .unwrap()
+                .contains_key("publishing_suspended_at")
+        );
+        // An answer of a server from before the field reads as before.
+        assert_eq!(serde_json::from_value::<Account>(json).unwrap(), account);
+
+        let suspended = Account {
+            publishing_suspended_at: Some(now),
+            ..account
+        };
+        let json = serde_json::to_value(&suspended).unwrap();
+        assert_eq!(json["publishing_suspended_at"], "2026-11-18T11:06:40Z");
+        assert_eq!(serde_json::from_value::<Account>(json).unwrap(), suspended);
     }
 }

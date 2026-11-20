@@ -77,7 +77,19 @@ pub struct Retention {
     pub archive_days: u32,
     /// A live track is kept for this many hours after its newest fix.
     pub live_hours: u32,
+    /// A report is kept for this many days after it was closed. An open
+    /// report is kept until it is closed.
+    pub report_days: u32,
 }
+
+/// For how many days a closed report is kept unless the configuration says
+/// otherwise.
+///
+/// Long enough to see that the same thing is reported again, or that the
+/// same account keeps being reported, and to answer someone who asks what
+/// became of their report. Not for ever: a report names two people and
+/// what one of them thought of the other.
+pub const DEFAULT_REPORT_DAYS: u32 = 90;
 
 /// A database URL. It contains a password, so it does not print itself.
 #[derive(Clone, PartialEq, Eq)]
@@ -163,6 +175,7 @@ struct FileRetention {
     observation_months: Option<u32>,
     archive_days: Option<u32>,
     live_hours: Option<u32>,
+    report_days: Option<u32>,
 }
 
 /// One setting: its name in the file and the variable that overrides it.
@@ -240,6 +253,10 @@ const ARCHIVE_DAYS: Setting = Setting {
 const LIVE_HOURS: Setting = Setting {
     key: "retention.live_hours",
     variable: "VENTI_LIVE_HOURS",
+};
+const REPORT_DAYS: Setting = Setting {
+    key: "retention.report_days",
+    variable: "VENTI_REPORT_DAYS",
 };
 const ACCOUNT_FLIGHTS: Setting = Setting {
     key: "accounts.flights",
@@ -403,6 +420,11 @@ impl Config {
                 file.retention.live_hours,
                 DEFAULT_RETENTION_HOURS,
             )?,
+            report_days: number(
+                &REPORT_DAYS,
+                file.retention.report_days,
+                DEFAULT_REPORT_DAYS,
+            )?,
         };
         let room = Room {
             flights: number(
@@ -505,6 +527,7 @@ mod tests {
                 observation_months: 13,
                 archive_days: 14,
                 live_hours: 48,
+                report_days: 90,
             }
         );
         assert_eq!(config.registration, Registration::Invite);
@@ -647,6 +670,7 @@ mod tests {
                 ("VENTI_LOG_LEVEL", "debug"),
                 ("VENTI_OBSERVATION_MONTHS", "24"),
                 ("VENTI_LIVE_HOURS", "24"),
+                ("VENTI_REPORT_DAYS", "30"),
                 ("VENTI_REGISTRATION", "open"),
                 ("VENTI_PUBLIC_URL", "https://venti.example"),
                 ("VENTI_TRUSTED_PROXIES", "172.18.0.0/16, ::1"),
@@ -672,6 +696,7 @@ mod tests {
         assert_eq!(config.retention.observation_months, 24);
         assert_eq!(config.retention.archive_days, 14);
         assert_eq!(config.retention.live_hours, 24);
+        assert_eq!(config.retention.report_days, 30);
     }
 
     #[test]
@@ -714,6 +739,7 @@ mod tests {
         assert!(with("VENTI_OVERPASS_URL", "overpass-api.de").contains("overpass_url"));
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
         assert!(with("VENTI_LIVE_HOURS", "0").contains("retention.live_hours"));
+        assert!(with("VENTI_REPORT_DAYS", "0").contains("retention.report_days"));
         assert!(with("VENTI_ACCOUNT_FLIGHTS", "0").contains("accounts.flights"));
         assert!(with("VENTI_ACCOUNT_STORAGE_MB", "plenty").contains("accounts.storage_mb"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));

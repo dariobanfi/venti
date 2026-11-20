@@ -1,0 +1,23 @@
+3 reports are open, oldest first.
+
+Report 0000000000000000000000rep1, open, made 2026-11-17 17:05 UTC
+  About:        flight fbyw03atd9qdt5bfe177ra1k94 of mara (Mara Muster); now public
+                https://venti.example/f/fbyw03atd9qdt5bfe177ra1k94
+  Reason:       not_a_flight
+  Text:         I flew there that day.
+                This is my track, not hers.
+  Reported by:  demo
+
+Report 0000000000000000000000rep2, open, made 2026-11-18 16:05 UTC
+  About:        the page of mara (Mara Muster)
+  Reason:       impersonation
+  Reported by:  jonas
+
+Report 0000000000000000000000rep3, open, made 2026-11-18 18:55 UTC
+  About:        live track 11111111111111111111111111 of demo (Demo Pilot); now on everyone's map
+                https://venti.example/live/11111111111111111111111111
+  Reason:       other
+  Text:         Nobody is flying there. It is night.
+  Reported by:  mara
+
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing and close-report.

@@ -16,7 +16,9 @@ use venti_api_types::v1::{
     DeletedFlight, ErrorCode, FlightChangesResponse, FlightId, FlightResponse, FlightsResponse,
     MAX_FLIGHT_FILE_BYTES, UpdateFlightRequest, UploadResponse,
 };
-use venti_store::{Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility};
+use venti_store::{
+    Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility, VisibilityChange,
+};
 
 use super::auth::{Signed, Viewer};
 use super::cache::Keeper;
@@ -588,13 +590,33 @@ pub(crate) async fn update<S: Store>(
     })?;
     let id: FlightId = id.parse().map_err(|_| no_such_flight())?;
 
-    // A flight of someone else is no flight of this account, whoever may
-    // see it.
-    let flight = api
+    let change = api
         .store
         .set_visibility(&signed.account.id, id.as_str(), visibility, api.clock.now())
-        .await?
-        .ok_or_else(no_such_flight)?;
+        .await?;
+    let flight = match change {
+        VisibilityChange::Set(flight) => *flight,
+        // A flight of someone else is no flight of this account, whoever
+        // may see it.
+        VisibilityChange::NoSuchFlight => return Err(no_such_flight()),
+        // What whoever runs the server did, only they undo. The pilot is
+        // told that it was them, and not why: the server does not know.
+        VisibilityChange::TakenDown => {
+            return Err(ApiError::forbidden(
+                ErrorCode::FlightTakenDown,
+                "whoever runs this server has taken the flight down; it stays private until \
+                 they release it",
+            ));
+        }
+        VisibilityChange::PublishingSuspended => {
+            return Err(ApiError::forbidden(
+                ErrorCode::PublishingSuspended,
+                "whoever runs this server has suspended this account's publishing: it can \
+                 make no flight public; a flight can still be shared with those who have its \
+                 link",
+            ));
+        }
+    };
     let answer = FlightResponse {
         flight: wire::flight(&flight)?,
     };

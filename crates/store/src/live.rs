@@ -83,6 +83,17 @@ pub struct LiveBatch {
     pub fixes: Vec<LiveFix>,
 }
 
+impl LiveBatch {
+    /// The same batch, saying that only those with the link may see the
+    /// track: what a batch of an account that may not publish is taken as.
+    pub(crate) fn for_those_with_the_link(&self) -> Self {
+        Self {
+            visibility: LiveVisibility::Link,
+            ..self.clone()
+        }
+    }
+}
+
 /// What a call that adds fixes may do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiveRoom {

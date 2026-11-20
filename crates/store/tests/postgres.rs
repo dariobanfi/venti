@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 }
 
 #[tokio::test]
@@ -433,6 +433,91 @@ async fn the_questions_about_live_tracks_use_their_indexes() {
     .await;
     assert!(plan.contains("live_fixes_pkey"), "{plan}");
     assert!(!plan.contains("Sort"), "{plan}");
+}
+
+#[tokio::test]
+async fn a_database_from_before_reports_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_7").await else {
+        return;
+    };
+    // A database as the server left it before there was a list of public
+    // flights, a report or a take-down: with an account, a public flight
+    // and a flight that was deleted.
+    let old = look(&url).await;
+    for migration in [
+        include_str!("../migrations/0001_stations_observations_runs.sql"),
+        include_str!("../migrations/0002_accounts_sessions_flights.sql"),
+        include_str!("../migrations/0003_airspace.sql"),
+        include_str!("../migrations/0004_airspace_coverage.sql"),
+        include_str!("../migrations/0005_sites.sql"),
+        include_str!("../migrations/0006_forecast_models.sql"),
+        include_str!("../migrations/0007_live_tracks.sql"),
+    ] {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f'), (7, 'g');
+         INSERT INTO accounts (id, handle, display_name, created_at, flight_change)
+             VALUES ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00', 7);
+         INSERT INTO flights
+             (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
+              analysis_version, started_at, airtime_s, takeoff_at, takeoff_lat, takeoff_lon,
+              takeoff_altitude_m, track_length_m, max_altitude_m, max_climb_ms, score_kind,
+              score_closed, score_distance_m, score_points, outline, profile)
+         VALUES ('0000000000000000000flight1', '000000000000000000000dario',
+                 '00000000000000000000000000000001', 'public', '2026-11-18 12:00+00', 5,
+                 '\\x1f8b'::bytea, 60000, 1, '2026-08-15 10:30+00', 1752,
+                 '2026-08-15 10:30+00', 47.6642, 11.7967, 1620, 18402.3, 2117, 2.4,
+                 'free_flight', false, 11975.7, 11.98, '{47.6642,11.7967}', '{0,1620}');
+         INSERT INTO flight_deletions (account_id, flight_id, identity, change, deleted_at)
+         VALUES ('000000000000000000000dario', '0000000000000000000flight2',
+                 '00000000000000000000000000000002', 7, '2026-11-18 13:00+00');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    // What was there is still there, and nothing was done to it: the
+    // account may publish, and the flight is public and not taken down.
+    let dario = store.account("dario").await.unwrap().unwrap();
+    assert_eq!(dario.publishing_suspended_at, None);
+    let flight = store
+        .flight("0000000000000000000flight1")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(flight.visibility, venti_store::Visibility::Public);
+    assert_eq!(flight.taken_down_at, None);
+    assert_eq!(flight.change, 5);
+    let changes = store.flight_changes(&dario.id, 0, 10).await.unwrap();
+    assert_eq!(changes.deleted.len(), 1);
+    // The flight is in the list of public flights, found by where it took
+    // off: the point of its take-off was filled in for it.
+    let around = venti_store::PublicFlights {
+        area: Some(venti_domain::BoundingBox::new(47.6, 11.7, 47.7, 11.9).unwrap()),
+        ..venti_store::PublicFlights::default()
+    };
+    let newest = venti_store::PublicOrder::Newest(None);
+    let listed = store.public_flights(&around, &newest, 10).await.unwrap();
+    assert_eq!(listed, std::slice::from_ref(&flight));
+    // Nothing is reported, and the new operations work on the old rows.
+    let reports = store
+        .reports(venti_store::ReportListing::All, None, 10)
+        .await
+        .unwrap();
+    assert!(reports.is_empty());
+    let now = chrono::DateTime::from_timestamp(1_795_100_000, 0).unwrap();
+    let down = store.take_down_flight(&flight.id, now).await.unwrap();
+    assert_eq!(down.unwrap().taken_down_at, Some(now));
+    let listed = store.public_flights(&around, &newest, 10).await.unwrap();
+    assert!(listed.is_empty());
 }
 
 /// The store's question for a page of public flights, as it writes it,

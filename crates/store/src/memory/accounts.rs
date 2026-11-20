@@ -57,7 +57,11 @@ impl Accounts {
         self.handles
             .insert(new.account.handle.clone(), new.account.id.clone());
         let entry = Entry {
-            account: new.account.clone(),
+            // Nobody is suspended before they exist.
+            account: Account {
+                publishing_suspended_at: None,
+                ..new.account.clone()
+            },
             password_hash: new.password_hash.clone(),
             flight_change: 0,
         };
@@ -102,6 +106,28 @@ impl Accounts {
             used: false,
         };
         self.invites.entry(invite.code).or_insert(stored);
+    }
+
+    /// Whether an account's publishing is suspended; `false` for an
+    /// account that is not there.
+    pub(super) fn is_suspended(&self, account_id: &str) -> bool {
+        self.by_id(account_id)
+            .is_some_and(|account| account.publishing_suspended_at.is_some())
+    }
+
+    /// Marks an account as suspended since `now`, or leaves the mark it
+    /// has, and returns the moment it then carries. `None` for an account
+    /// that is not there.
+    pub(super) fn suspend(&mut self, account_id: &str, now: Timestamp) -> Option<Timestamp> {
+        let entry = self.accounts.get_mut(account_id)?;
+        Some(*entry.account.publishing_suspended_at.get_or_insert(now))
+    }
+
+    /// Takes the mark off, and says whether there was one. `None` for an
+    /// account that is not there.
+    pub(super) fn resume(&mut self, account_id: &str) -> Option<bool> {
+        let entry = self.accounts.get_mut(account_id)?;
+        Some(entry.account.publishing_suspended_at.take().is_some())
     }
 
     /// The latest change number of an account's flights.

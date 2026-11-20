@@ -26,6 +26,7 @@ pub(crate) fn account(account: &Account) -> Result<v1::Account, ApiError> {
         handle: handle(&account.handle)?,
         display_name: account.display_name.clone(),
         created_at: account.created_at,
+        publishing_suspended_at: account.publishing_suspended_at,
     })
 }
 
@@ -107,6 +108,7 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
         outline: derived.outline.clone(),
         file_bytes: flight.file_bytes,
         analysis_version: derived.version,
+        taken_down_at: flight.taken_down_at,
     })
 }
 

@@ -394,6 +394,7 @@ async fn add_demo_account(
         handle: DEMO_HANDLE.to_owned(),
         display_name: DEMO_NAME.to_owned(),
         created_at: now,
+        publishing_suspended_at: None,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
     for (pilot, flights) in DEMO_PILOTS.iter().zip(further_flights()) {
@@ -402,6 +403,7 @@ async fn add_demo_account(
             handle: pilot.handle.to_owned(),
             display_name: pilot.name.to_owned(),
             created_at: now,
+            publishing_suspended_at: None,
         };
         add_pilot(store, &further, flights, password_cost).await?;
     }
@@ -449,6 +451,14 @@ fn demo_token_hash() -> Result<SecretHash, String> {
 /// The API tests use this too, so what they check is what the development
 /// mode serves.
 pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String> {
+    Ok(recorded_with_its_store(settings).await?.0)
+}
+
+/// The same API, and the store behind it: for tests that also do what only
+/// whoever runs a server can do, which the API offers nobody.
+pub async fn recorded_with_its_store(
+    settings: Settings,
+) -> Result<(Api<MemoryStore>, Arc<MemoryStore>), String> {
     let registry = adapters::registry_for(&Providers::recorded())?;
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
@@ -481,7 +491,7 @@ pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(
         registry,
-        store,
+        store.clone(),
         adapters::recorded_payloads(),
         None::<DirArchive>,
         clock,
@@ -496,7 +506,7 @@ pub async fn recorded_api(settings: Settings) -> Result<Api<MemoryStore>, String
             ));
         }
     }
-    Ok(api)
+    Ok((api, store))
 }
 
 /// Serves the recorded data on `address` until the process is told to stop.

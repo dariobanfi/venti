@@ -9,7 +9,7 @@ use venti_server::cli::{self, Command, USAGE};
 use venti_server::config::{Config, default_user_agent, providers_from_env};
 use venti_server::flights::analyser;
 use venti_server::ingest::oneshot;
-use venti_server::{dev, serve};
+use venti_server::{dev, moderation, serve};
 
 /// Exit status for a command line or configuration that cannot be used.
 const USAGE_ERROR: u8 = 2;
@@ -50,6 +50,7 @@ async fn main() -> ExitCode {
             return oneshot::run(args, &user_agent, &providers).await;
         }
         Command::Invite(args) => return invite::run(args).await,
+        Command::Moderate(args) => return moderation::run(args).await,
         Command::Derive => {
             return match analyser::run_child() {
                 Ok(()) => ExitCode::SUCCESS,

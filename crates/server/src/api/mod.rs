@@ -26,7 +26,11 @@
 //! flight that does not exist get the same answer. Only a flight its pilot
 //! made public is in a list that others read: the pilot's page and the list
 //! of everyone's public flights ([`feed`]). What may keep an answer is said
-//! in [`cache`].
+//! in [`cache`]. A pilot who is signed in can report what others share
+//! ([`reports`]); what whoever runs the server does about it is done from
+//! the command line and shows here in two places: a flight that was taken
+//! down stays private, and an account whose publishing is suspended makes
+//! nothing public.
 //!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
@@ -47,6 +51,7 @@ mod log;
 mod mcp;
 mod observations;
 mod pilots;
+mod reports;
 mod shape;
 mod share;
 mod sites;
@@ -68,7 +73,8 @@ use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    MAX_LIVE_BODY_BYTES, PUBLIC_FLIGHTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    MAX_LIVE_BODY_BYTES, PUBLIC_FLIGHTS_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH,
+    STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -189,6 +195,8 @@ pub struct Api<S> {
     registrations: Throttle,
     /// Uploaded files, by account.
     uploads: Throttle,
+    /// Reports sent, by account.
+    reports: Throttle,
     /// Uploads under way.
     uploading: flights::Uploading,
     /// The preview pictures of shared flights: the turns at drawing one,
@@ -258,6 +266,11 @@ impl<S: Store> Api<S> {
             ),
             uploads: Throttle::new(
                 "accounts that uploaded flights",
+                chrono::Duration::days(1),
+                limits.watched_keys,
+            ),
+            reports: Throttle::new(
+                "accounts that sent reports",
                 chrono::Duration::days(1),
                 limits.watched_keys,
             ),
@@ -373,6 +386,7 @@ impl<S: Store> Api<S> {
             .route("/v1/flights/{id}/igc", get(flights::file::<S>))
             .route("/v1/pilots/{handle}", get(pilots::show::<S>))
             .route(LIVE_PATH, get(live::list::<S>))
+            .route(REPORTS_PATH, post(reports::create::<S>))
             .route(
                 "/v1/live/{id}",
                 get(live::show::<S>).delete(live::delete::<S>),

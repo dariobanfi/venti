@@ -3,8 +3,8 @@
 use chrono::Duration;
 use venti_domain::Timestamp;
 use venti_store::{
-    Account, AccountCreation, Listing, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash,
-    Session, Store,
+    Account, AccountCreation, Listing, NewAccount, NewInvite, ReportListing, SESSION_TOUCH_MINUTES,
+    SecretHash, Session, Store,
 };
 
 use super::at;
@@ -12,6 +12,7 @@ use super::flights::new_flight;
 use super::live::{
     begin_live_tracks_for, has_its_live_tracks, nothing_is_left_of_the_live_tracks_of,
 };
+use super::moderation::{about_flight, names, stored};
 
 // --- Helpers -------------------------------------------------------------
 
@@ -26,6 +27,7 @@ pub(crate) fn account(handle: &str) -> Account {
         handle: handle.to_owned(),
         display_name: format!("Pilot {handle}"),
         created_at: at(9, 0),
+        publishing_suspended_at: None,
     }
 }
 
@@ -484,6 +486,32 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
     // Each has a live track, and an identifier that takes nothing more.
     begin_live_tracks_for(store, &dario).await;
     begin_live_tracks_for(store, &anna).await;
+    // Each reported the other, one report is closed, and whoever runs the
+    // server took a flight of the account down and suspended its
+    // publishing.
+    let bernd = create(store, "bernd").await;
+    for new in [
+        about_flight("r1", &dario, &anna, 1, at(13, 10)),
+        about_flight("r2", &anna, &dario, 1, at(13, 20)),
+        about_flight("r3", &anna, &dario, 2, at(13, 30)),
+        about_flight("r4", &bernd, &anna, 1, at(13, 40)),
+    ] {
+        stored(store, &new).await;
+    }
+    store
+        .close_report(&id("r2"), "taken down", at(13, 50))
+        .await
+        .unwrap();
+    store
+        .take_down_flight(&kept.id, at(13, 50))
+        .await
+        .unwrap()
+        .unwrap();
+    store
+        .suspend_publishing(&dario.id, at(13, 55))
+        .await
+        .unwrap()
+        .unwrap();
 
     store.delete_account(&dario.id).await.unwrap();
 
@@ -514,6 +542,9 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
     // Of the deleted account's live tracks nothing is left, not even that
     // their identifiers were used.
     assert!(nothing_is_left_of_the_live_tracks_of(store, &dario, &anna).await);
+    // Nor of what it reported, or of what was reported about it. A report
+    // between two others is still there.
+    assert_eq!(names(store, ReportListing::All).await, ["r4"]);
 
     // The handle is free, the invite stays used, and deleting again is
     // harmless.

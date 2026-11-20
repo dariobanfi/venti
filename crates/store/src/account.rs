@@ -21,6 +21,23 @@ pub struct Account {
     pub display_name: String,
     /// When the account was created.
     pub created_at: Timestamp,
+    /// Since when the account may not publish, if whoever runs the server
+    /// has suspended that: it can make no flight public, and its live
+    /// tracks are shown to those with their link only. Everything else
+    /// about the account works. A new account is created with `None`.
+    pub publishing_suspended_at: Option<Timestamp>,
+}
+
+/// What became of suspending an account's publishing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Suspension {
+    /// Since when the account is suspended: the moment of this call, or of
+    /// the earlier one if it was suspended already.
+    pub since: Timestamp,
+    /// Flights that were public and are now for those with their link.
+    pub flights: u64,
+    /// Live tracks that were public and are now for those with their link.
+    pub live_tracks: u64,
 }
 
 /// An account to create.

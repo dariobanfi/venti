@@ -4,12 +4,54 @@ use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use venti_api_types::v1::{ErrorCode, Handle, PilotResponse};
-use venti_store::{Listing, Store};
+use venti_store::{Account, Listing, Store};
 
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::flights::PageParams;
 use super::{Api, cache, wire};
+
+/// The answer for a handle that leads to no page: nobody has it, or its
+/// pilot shares nothing publicly. The two must not differ in anything.
+pub(crate) fn no_such_pilot() -> ApiError {
+    ApiError::missing(
+        ErrorCode::PilotNotFound,
+        "there is no pilot with this handle",
+    )
+}
+
+impl<S: Store> Api<S> {
+    /// The account behind a handle, whether or not it has a page.
+    async fn account_of(&self, handle: &str) -> Result<Account, ApiError> {
+        // Text that cannot be a handle is the handle of no pilot.
+        let handle = Handle::new(handle).map_err(|_| no_such_pilot())?;
+        self.store
+            .account(handle.as_str())
+            .await?
+            .ok_or_else(no_such_pilot)
+    }
+
+    /// Whether an account has a page: whether it has made a flight public.
+    async fn has_a_page(&self, account: &Account) -> Result<bool, ApiError> {
+        let any = self
+            .store
+            .flights_of(&account.id, Listing::Public, None, 1)
+            .await?;
+        Ok(!any.is_empty())
+    }
+
+    /// The account whose page a handle leads to.
+    ///
+    /// A pilot has a page once they have made a flight public. One who has
+    /// not gets the answer for a handle nobody has.
+    pub(crate) async fn pilot_with_a_page(&self, handle: &str) -> Result<Account, ApiError> {
+        let account = self.account_of(handle).await?;
+        if !self.has_a_page(&account).await? {
+            return Err(no_such_pilot());
+        }
+        Ok(account)
+    }
+}
 
 /// `GET /v1/pilots/{handle}`: a pilot and their public flights, newest
 /// first.
@@ -26,19 +68,7 @@ pub(crate) async fn show<S: Store>(
     Query(params): Query<PageParams>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let unknown = || {
-        ApiError::missing(
-            ErrorCode::PilotNotFound,
-            "there is no pilot with this handle",
-        )
-    };
-    // Text that cannot be a handle is the handle of no pilot.
-    let handle = Handle::new(&handle).map_err(|_| unknown())?;
-    let account = api
-        .store
-        .account(handle.as_str())
-        .await?
-        .ok_or_else(unknown)?;
+    let account = api.account_of(&handle).await?;
 
     let (flights, next) = api
         .flight_page(
@@ -49,14 +79,8 @@ pub(crate) async fn show<S: Store>(
         )
         .await?;
     // An empty page is the end of the list only if there is a list.
-    if flights.is_empty() {
-        let any = api
-            .store
-            .flights_of(&account.id, Listing::Public, None, 1)
-            .await?;
-        if any.is_empty() {
-            return Err(unknown());
-        }
+    if flights.is_empty() && !api.has_a_page(&account).await? {
+        return Err(no_such_pilot());
     }
     let answer = PilotResponse {
         pilot: wire::pilot(&account.handle, &account.display_name)?,

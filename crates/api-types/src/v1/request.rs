@@ -330,6 +330,11 @@ impl PilotRequest {
     }
 }
 
+/// Path that takes a report about a flight, a pilot's page or a live
+/// track. What is reported is named in the body, not in the path: the
+/// identifier of a live track is the key to it and belongs in no log.
+pub const REPORTS_PATH: &str = "/v1/reports";
+
 /// Path of everyone's public flights in one list.
 pub const PUBLIC_FLIGHTS_PATH: &str = "/v1/flights/public";
 

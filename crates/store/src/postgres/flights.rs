@@ -12,10 +12,10 @@ use tokio_postgres::{IsolationLevel, Row};
 use venti_domain::{GeoPoint, Timestamp};
 
 use super::{corrupt, db_error};
-use crate::flight::{Kept, Room, Saved, cut, next_change};
+use crate::flight::{Kept, Room, Saved, cut, may_be_set, next_change};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, PublicFlights, PublicOrder, Score, ScoreKind, StoreError, Visibility,
+    Place, PublicFlights, PublicOrder, Score, ScoreKind, StoreError, Visibility, VisibilityChange,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -26,7 +26,7 @@ const FLIGHT_COLUMNS: &str = "
     f.landing_at, f.landing_lat, f.landing_lon, f.landing_altitude_m,
     f.track_length_m, f.max_altitude_m, f.max_climb_ms,
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
-    f.glider, f.outline, f.profile";
+    f.glider, f.outline, f.profile, f.taken_down_at";
 
 const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
@@ -114,6 +114,7 @@ fn flight_from(row: &Row) -> Result<Flight, StoreError> {
             profile: pairs(&profile, "flight profile")?,
         },
         change: row.get("change"),
+        taken_down_at: row.get("taken_down_at"),
     })
 }
 
@@ -183,17 +184,32 @@ impl PlaceValues {
     }
 }
 
-/// Locks an account's row for the rest of the transaction and returns the
-/// latest change number of its flights. `None` if there is no such account.
-async fn lock_account(tx: &Transaction<'_>, account_id: &str) -> Result<Option<i64>, StoreError> {
+/// What an account's locked row says.
+struct Locked {
+    /// The latest change number of its flights.
+    latest: i64,
+    /// Whether its publishing is suspended.
+    publishing_suspended: bool,
+}
+
+/// Locks an account's row for the rest of the transaction and returns what
+/// it says. `None` if there is no such account.
+async fn lock_account(
+    tx: &Transaction<'_>,
+    account_id: &str,
+) -> Result<Option<Locked>, StoreError> {
     let row = tx
         .query_opt(
-            "SELECT flight_change FROM accounts WHERE id = $1 FOR UPDATE",
+            "SELECT flight_change, publishing_suspended_at IS NOT NULL
+             FROM accounts WHERE id = $1 FOR UPDATE",
             &[&account_id],
         )
         .await
         .map_err(db_error)?;
-    Ok(row.map(|row| row.get(0)))
+    Ok(row.map(|row| Locked {
+        latest: row.get(0),
+        publishing_suspended: row.get(1),
+    }))
 }
 
 /// Takes the next change number of an account whose row is locked.
@@ -233,7 +249,7 @@ pub(super) async fn save(
     room: &Room,
 ) -> Result<Saved, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
-    let Some(latest) = lock_account(&tx, &new.account_id).await? else {
+    let Some(Locked { latest, .. }) = lock_account(&tx, &new.account_id).await? else {
         return Err(StoreError::Invalid(
             "a flight for an account that does not exist".to_owned(),
         ));
@@ -322,12 +338,25 @@ pub(super) async fn save(
     )
     .await
     .map_err(db_error)?;
-    tx.execute(
-        "DELETE FROM flight_deletions WHERE account_id = $1 AND flight_id = $2",
-        &[&new.account_id, &new.id],
-    )
-    .await
-    .map_err(db_error)?;
+    let deletion = tx
+        .query_opt(
+            "DELETE FROM flight_deletions WHERE account_id = $1 AND flight_id = $2
+             RETURNING taken_down_at",
+            &[&new.account_id, &new.id],
+        )
+        .await
+        .map_err(db_error)?;
+    // Deleting a flight and uploading it again does not undo that it was
+    // taken down.
+    let taken_down_at: Option<Timestamp> = deletion.and_then(|row| row.get(0));
+    if taken_down_at.is_some() {
+        tx.execute(
+            "UPDATE flights SET taken_down_at = $2 WHERE id = $1",
+            &[&new.id, &taken_down_at],
+        )
+        .await
+        .map_err(db_error)?;
+    }
 
     let flight = one(&tx, "f.id = $1", &[&new.id])
         .await?
@@ -552,20 +581,27 @@ pub(super) async fn set_visibility(
     id: &str,
     visibility: Visibility,
     now: Timestamp,
-) -> Result<Option<Flight>, StoreError> {
+) -> Result<VisibilityChange, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
-    let Some(latest) = lock_account(&tx, account_id).await? else {
-        return Ok(None);
+    let Some(account) = lock_account(&tx, account_id).await? else {
+        return Ok(VisibilityChange::NoSuchFlight);
     };
     let owned = "f.id = $1 AND f.account_id = $2";
     let Some(flight) = one(&tx, owned, &[&id, &account_id]).await? else {
-        return Ok(None);
+        return Ok(VisibilityChange::NoSuchFlight);
     };
+    // The account's row is locked. Whoever takes this flight down or
+    // suspends the account locks it too, so neither can slip in between
+    // this look and the change below.
+    let taken_down = flight.taken_down_at.is_some();
+    if let Err(refused) = may_be_set(taken_down, account.publishing_suspended, visibility) {
+        return Ok(refused);
+    }
     if flight.visibility == visibility {
-        return Ok(Some(flight));
+        return Ok(VisibilityChange::Set(Box::new(flight)));
     }
 
-    let change = take_change(&tx, account_id, latest, now).await?;
+    let change = take_change(&tx, account_id, account.latest, now).await?;
     tx.execute(
         "UPDATE flights SET visibility = $2, change = $3 WHERE id = $1",
         &[&id, &visibility.as_str(), &change],
@@ -573,6 +609,83 @@ pub(super) async fn set_visibility(
     .await
     .map_err(db_error)?;
     let flight = one(&tx, owned, &[&id, &account_id]).await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(flight.map_or(VisibilityChange::NoSuchFlight, |flight| {
+        VisibilityChange::Set(Box::new(flight))
+    }))
+}
+
+/// The flight with this address, with its account's row locked for the
+/// rest of the transaction; `None` if there is no such flight.
+async fn locked_with_its_account(
+    tx: &Transaction<'_>,
+    id: &str,
+) -> Result<Option<(Flight, i64)>, StoreError> {
+    // PostgreSQL takes no zero byte in text. No address holds one, so the
+    // answer is known.
+    if id.contains('\0') {
+        return Ok(None);
+    }
+    let owner = tx
+        .query_opt("SELECT account_id FROM flights WHERE id = $1", &[&id])
+        .await
+        .map_err(db_error)?;
+    let Some(owner) = owner else {
+        return Ok(None);
+    };
+    let Some(account) = lock_account(tx, owner.get(0)).await? else {
+        return Ok(None);
+    };
+    // Read under the lock: the flight as nothing can change it now.
+    let flight = one(tx, "f.id = $1", &[&id]).await?;
+    Ok(flight.map(|flight| (flight, account.latest)))
+}
+
+pub(super) async fn take_down(
+    client: &mut Client,
+    id: &str,
+    now: Timestamp,
+) -> Result<Option<Flight>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let Some((flight, latest)) = locked_with_its_account(&tx, id).await? else {
+        return Ok(None);
+    };
+    if flight.taken_down_at.is_some() {
+        return Ok(Some(flight));
+    }
+    let change = take_change(&tx, &flight.account_id, latest, now).await?;
+    tx.execute(
+        "UPDATE flights SET visibility = 'private', taken_down_at = $2, change = $3
+         WHERE id = $1",
+        &[&id, &now, &change],
+    )
+    .await
+    .map_err(db_error)?;
+    let flight = one(&tx, "f.id = $1", &[&id]).await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(flight)
+}
+
+pub(super) async fn release(
+    client: &mut Client,
+    id: &str,
+    now: Timestamp,
+) -> Result<Option<Flight>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let Some((flight, latest)) = locked_with_its_account(&tx, id).await? else {
+        return Ok(None);
+    };
+    if flight.taken_down_at.is_none() {
+        return Ok(Some(flight));
+    }
+    let change = take_change(&tx, &flight.account_id, latest, now).await?;
+    tx.execute(
+        "UPDATE flights SET taken_down_at = NULL, change = $2 WHERE id = $1",
+        &[&id, &change],
+    )
+    .await
+    .map_err(db_error)?;
+    let flight = one(&tx, "f.id = $1", &[&id]).await?;
     tx.commit().await.map_err(db_error)?;
     Ok(flight)
 }
@@ -584,12 +697,13 @@ pub(super) async fn delete(
     now: Timestamp,
 ) -> Result<bool, StoreError> {
     let tx = client.transaction().await.map_err(db_error)?;
-    let Some(latest) = lock_account(&tx, account_id).await? else {
+    let Some(Locked { latest, .. }) = lock_account(&tx, account_id).await? else {
         return Ok(false);
     };
     let removed = tx
         .query_opt(
-            "DELETE FROM flights WHERE id = $1 AND account_id = $2 RETURNING identity",
+            "DELETE FROM flights WHERE id = $1 AND account_id = $2
+             RETURNING identity, taken_down_at",
             &[&id, &account_id],
         )
         .await
@@ -598,16 +712,21 @@ pub(super) async fn delete(
         return Ok(false);
     };
     let identity: &str = removed.get(0);
+    // Kept with the deletion, so that the flight comes back taken down if
+    // its file is uploaded again.
+    let taken_down_at: Option<Timestamp> = removed.get(1);
 
     let change = take_change(&tx, account_id, latest, now).await?;
     tx.execute(
-        "INSERT INTO flight_deletions (account_id, flight_id, identity, change, deleted_at)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO flight_deletions
+             (account_id, flight_id, identity, change, deleted_at, taken_down_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (account_id, flight_id) DO UPDATE
          SET identity = EXCLUDED.identity,
              change = EXCLUDED.change,
-             deleted_at = EXCLUDED.deleted_at",
-        &[&account_id, &id, &identity, &change, &now],
+             deleted_at = EXCLUDED.deleted_at,
+             taken_down_at = EXCLUDED.taken_down_at",
+        &[&account_id, &id, &identity, &change, &now, &taken_down_at],
     )
     .await
     .map_err(db_error)?;
@@ -673,7 +792,7 @@ pub(super) async fn set_derived(
         return Ok(false);
     };
     let account_id: &str = owner.get(0);
-    let Some(latest) = lock_account(&tx, account_id).await? else {
+    let Some(Locked { latest, .. }) = lock_account(&tx, account_id).await? else {
         return Ok(false);
     };
     let change = take_change(&tx, account_id, latest, now).await?;

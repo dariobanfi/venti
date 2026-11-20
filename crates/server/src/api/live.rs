@@ -66,7 +66,7 @@ impl Live {
 /// The answer for an identifier that leads to no live track: none was ever
 /// there, it was deleted, or it ended long enough ago to be gone. They
 /// must not differ in anything.
-fn no_such_track() -> ApiError {
+pub(crate) fn no_such_track() -> ApiError {
     ApiError::missing(
         ErrorCode::LiveTrackNotFound,
         "there is no live track with this identifier",
@@ -92,7 +92,7 @@ impl<S: Store> Api<S> {
     ///
     /// A track that ended longer ago than tracks are kept is not there,
     /// whether or not the cleanup has removed it yet.
-    async fn live_track(&self, id: &str, now: Timestamp) -> Result<LiveTrack, ApiError> {
+    pub(crate) async fn live_track(&self, id: &str, now: Timestamp) -> Result<LiveTrack, ApiError> {
         // Text of another form is the identifier of no track.
         let id: LiveTrackId = id.parse().map_err(|_| no_such_track())?;
         let track = self

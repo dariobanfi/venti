@@ -6,9 +6,10 @@ use tokio_postgres::Row;
 use venti_domain::Timestamp;
 
 use super::db_error;
+use crate::flight::next_change;
 use crate::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
-    StoreError,
+    StoreError, Suspension,
 };
 
 fn account_from(row: &Row) -> Account {
@@ -17,6 +18,7 @@ fn account_from(row: &Row) -> Account {
         handle: row.get("handle"),
         display_name: row.get("display_name"),
         created_at: row.get("account_created_at"),
+        publishing_suspended_at: row.get("publishing_suspended_at"),
     }
 }
 
@@ -31,8 +33,8 @@ fn session_from(row: &Row) -> Session {
 }
 
 /// The columns [`account_from`] reads, for an `accounts` table named `a`.
-const ACCOUNT_COLUMNS: &str =
-    "a.id AS account_id, a.handle, a.display_name, a.created_at AS account_created_at";
+const ACCOUNT_COLUMNS: &str = "a.id AS account_id, a.handle, a.display_name, \
+     a.created_at AS account_created_at, a.publishing_suspended_at";
 
 pub(super) async fn create(
     client: &mut Client,
@@ -162,6 +164,106 @@ pub(super) async fn delete(client: &Client, account_id: &str) -> Result<(), Stor
     Ok(())
 }
 
+pub(super) async fn suspend_publishing(
+    client: &mut Client,
+    account_id: &str,
+    now: Timestamp,
+) -> Result<Option<Suspension>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    // The account's row is locked for the rest of the transaction, as it
+    // is by everything that changes one of its flights: no flight is made
+    // public beside this, and the change numbers given out here are the
+    // account's next.
+    let row = tx
+        .query_opt(
+            "SELECT flight_change, publishing_suspended_at FROM accounts
+             WHERE id = $1 FOR UPDATE",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let latest: i64 = row.get(0);
+    let since = row.get::<_, Option<Timestamp>>(1).unwrap_or(now);
+    tx.execute(
+        "UPDATE accounts SET publishing_suspended_at = $2 WHERE id = $1",
+        &[&account_id, &since],
+    )
+    .await
+    .map_err(db_error)?;
+
+    // Each public flight becomes unlisted as a change of its own, in the
+    // order of the flights' addresses.
+    let first = next_change(latest, now);
+    let flights = tx
+        .execute(
+            "WITH public AS (
+                 SELECT id, row_number() OVER (ORDER BY id) AS place
+                 FROM flights WHERE account_id = $1 AND visibility = 'public'
+             )
+             UPDATE flights f SET visibility = 'unlisted', change = $2 + public.place - 1
+             FROM public WHERE f.id = public.id",
+            &[&account_id, &first],
+        )
+        .await
+        .map_err(db_error)?;
+    if flights > 0 {
+        let last = first.saturating_add(i64::try_from(flights - 1).unwrap_or(i64::MAX));
+        tx.execute(
+            "UPDATE accounts SET flight_change = $2 WHERE id = $1",
+            &[&account_id, &last],
+        )
+        .await
+        .map_err(db_error)?;
+    }
+    // A track that takes in a batch at this moment holds its row locked;
+    // this waits for it, looks at the row again and narrows it.
+    let live_tracks = tx
+        .execute(
+            "UPDATE live_tracks SET visibility = 'link'
+             WHERE account_id = $1 AND visibility = 'public'",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(Suspension {
+        since,
+        flights,
+        live_tracks,
+    }))
+}
+
+pub(super) async fn resume_publishing(
+    client: &mut Client,
+    account_id: &str,
+) -> Result<Option<bool>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let row = tx
+        .query_opt(
+            "SELECT publishing_suspended_at IS NOT NULL FROM accounts WHERE id = $1 FOR UPDATE",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let was_suspended: bool = row.get(0);
+    if was_suspended {
+        tx.execute(
+            "UPDATE accounts SET publishing_suspended_at = NULL WHERE id = $1",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    }
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(was_suspended))
+}
+
 pub(super) async fn create_invite(client: &Client, invite: &NewInvite) -> Result<(), StoreError> {
     client
         .execute(
@@ -225,7 +327,8 @@ const USE_SESSION: &str = "
     )
     SELECT s.id, s.account_id, s.device, s.created_at,
            CASE WHEN s.last_used_at < $4 THEN $2 ELSE s.last_used_at END AS last_used_at,
-           a.handle, a.display_name, a.created_at AS account_created_at
+           a.handle, a.display_name, a.created_at AS account_created_at,
+           a.publishing_suspended_at
     FROM sessions s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.token_hash = $1 AND s.last_used_at >= $3";

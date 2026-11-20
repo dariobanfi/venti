@@ -84,6 +84,15 @@ pub enum ErrorCode {
     /// files, as this server gives one account room for. Deleting flights
     /// makes room; sending the same file again does not help.
     AccountFull,
+    /// Whoever runs the server has taken the flight down. It stays private
+    /// until they release it; asking again does not help.
+    FlightTakenDown,
+    /// Whoever runs the server has suspended the account's publishing: it
+    /// can make no flight public. Sharing by link still works.
+    PublishingSuspended,
+    /// A report names a reason the server does not know, has a text that
+    /// is too long, or gives `other` as its reason without a text.
+    InvalidReport,
     /// The identifier of a live track is not 26 characters of its
     /// alphabet.
     InvalidLiveTrackId,

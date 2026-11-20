@@ -20,12 +20,14 @@
 //! 4. **Cleans up.** Data older than the configured retention is removed
 //!    ([`maintenance`]).
 //!
-//! The program has four subcommands ([`cli`]): `serve` is the above against
+//! The program's subcommands ([`cli`]): `serve` is the above against
 //! PostgreSQL ([`serve`]); `dev` serves the same API over recorded payloads
 //! and a demo account from an in-memory store, with no network and no
 //! database ([`dev`]); `ingest` runs a region's sources once and prints
-//! what they deliver ([`ingest::oneshot`]); and `invite` makes invite codes
-//! ([`accounts::invite`]).
+//! what they deliver ([`ingest::oneshot`]); `invite` makes invite codes
+//! ([`accounts::invite`]); and a handful are for whoever runs the server
+//! to read what pilots reported and to take a flight down, remove a live
+//! track or suspend an account's publishing ([`moderation`]).
 //!
 //! This crate is where the pieces are assembled, and the only one that names
 //! a provider's adapter ([`adapters`]). It holds no rules about weather or
@@ -43,5 +45,6 @@ pub mod forecast;
 pub mod ingest;
 pub mod live;
 pub mod maintenance;
+pub mod moderation;
 pub mod plan;
 pub mod serve;

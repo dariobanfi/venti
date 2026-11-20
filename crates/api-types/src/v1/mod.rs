@@ -27,6 +27,7 @@
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
 //! | [`live_track_path`] | DELETE | | nothing |
+//! | [`REPORTS_PATH`] | POST | [`ReportRequest`] | [`ReportResponse`] |
 //!
 //! A request that cannot be answered gets an [`ErrorResponse`] with a 4xx or
 //! 5xx status.
@@ -52,6 +53,7 @@ mod forecast;
 mod health;
 mod live;
 mod observations;
+mod report;
 mod request;
 mod sites;
 mod stations;
@@ -81,15 +83,19 @@ pub use live::{
     MAX_LIVE_BATCH_FIXES, MAX_LIVE_BODY_BYTES, MAX_LIVE_FIXES, MAX_LIVE_TRACKS,
 };
 pub use observations::{ObservationsResponse, Reading};
+pub use report::{
+    MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,
+    ReportTextError, parse_report_text,
+};
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort,
     FlightSortError, FlightsRequest, ForecastRequest, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
     LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PUBLIC_FLIGHTS_PATH, PilotRequest,
-    PositionError, PublicFlightsRequest, SESSIONS_PATH, SITES_PATH, STATIONS_PATH, SitesRequest,
-    StationsRequest, TimeError, flight_file_path, flight_path, format_bbox, format_time,
-    live_page_path, live_track_path, observations_path, parse_bbox, parse_position, parse_time,
-    pilot_path, session_path, share_image_path, share_path,
+    PositionError, PublicFlightsRequest, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    SitesRequest, StationsRequest, TimeError, flight_file_path, flight_path, format_bbox,
+    format_time, live_page_path, live_track_path, observations_path, parse_bbox, parse_position,
+    parse_time, pilot_path, session_path, share_image_path, share_path,
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};

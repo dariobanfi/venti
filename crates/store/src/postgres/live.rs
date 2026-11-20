@@ -220,9 +220,15 @@ pub(super) async fn save(
         if !room.may_create {
             return Ok(LiveSaved::NotCreated);
         }
+        // The account's row is held against a change until this track is
+        // stored. Whoever suspends the account's publishing changes the
+        // row and narrows its public tracks after that: with the row held,
+        // the suspension waits and finds this track, and with the
+        // suspension first, this waits and reads that it is suspended.
         let account = tx
             .query_opt(
-                "SELECT handle, display_name FROM accounts WHERE id = $1",
+                "SELECT handle, display_name, publishing_suspended_at IS NOT NULL
+                 FROM accounts WHERE id = $1 FOR KEY SHARE",
                 &[&batch.account_id],
             )
             .await
@@ -233,6 +239,14 @@ pub(super) async fn save(
             ));
         };
         let (handle, name): (&str, &str) = (account.get(0), account.get(1));
+        // An account that may not publish shares by link, whatever it asks.
+        let narrowed;
+        let batch = if account.get::<_, bool>(2) {
+            narrowed = batch.for_those_with_the_link();
+            &narrowed
+        } else {
+            batch
+        };
 
         let merged = merge(None, batch, &BTreeSet::new(), room);
         let held = &merged.held;
@@ -285,6 +299,25 @@ pub(super) async fn save(
     if stored.account_id != batch.account_id {
         return Ok(LiveSaved::Taken);
     }
+    // Asked now, with the track's row locked, and not together with the
+    // track: a suspension that narrowed this track a moment ago has
+    // finished, and this reads what it left. One that comes after waits for
+    // the row and narrows what this batch writes.
+    let suspended: bool = tx
+        .query_one(
+            "SELECT publishing_suspended_at IS NOT NULL FROM accounts WHERE id = $1",
+            &[&batch.account_id],
+        )
+        .await
+        .map_err(db_error)?
+        .get(0);
+    let narrowed;
+    let batch = if suspended {
+        narrowed = batch.for_those_with_the_link();
+        &narrowed
+    } else {
+        batch
+    };
 
     let times: Vec<Timestamp> = batch.fixes.iter().map(|fix| fix.time).collect();
     let statement = tx
@@ -520,6 +553,33 @@ pub(super) async fn delete(
     }
     tx.commit().await.map_err(db_error)?;
     Ok(LiveRemoval::Retired)
+}
+
+pub(super) async fn remove(
+    client: &mut Client,
+    id: &str,
+    now: Timestamp,
+) -> Result<bool, StoreError> {
+    // PostgreSQL takes no zero byte in text. No identifier holds one, so
+    // the answer is known.
+    if id.contains('\0') {
+        return Ok(false);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    lock_identifier(&tx, id).await?;
+    let track = tx
+        .query_opt(
+            "SELECT key FROM live_tracks WHERE id = $1 FOR UPDATE",
+            &[&id],
+        )
+        .await
+        .map_err(db_error)?;
+    let Some(track) = track else {
+        return Ok(false);
+    };
+    retire(&tx, track.get(0), now).await?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(true)
 }
 
 pub(super) async fn prune(

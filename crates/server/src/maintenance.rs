@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 use venti_domain::Timestamp;
-use venti_store::{Month, Store};
+use venti_store::{Month, ReportListing, Store};
 
 use crate::clock::Clock;
 use crate::config::Retention;
@@ -24,7 +24,8 @@ const LIVE_INTERVAL: Duration = Duration::from_secs(3600);
 /// Cleans up when the server starts and once a day after that, and removes
 /// ended live tracks once an hour, until `shutdown` is cancelled. A session
 /// that was not used for `session_idle` has stopped working already; this
-/// removes it.
+/// removes it. Once a day it also removes the reports that were closed long
+/// enough ago, and says how many are open.
 pub async fn run<S: Store>(
     store: Arc<S>,
     archive: Option<DirArchive>,
@@ -44,6 +45,7 @@ pub async fn run<S: Store>(
                 Ok(sessions) => tracing::info!("removed {sessions} sessions that had expired"),
                 Err(error) => tracing::warn!("expired sessions could not be removed: {error}"),
             }
+            look_at_reports(&*store, retention, now).await;
         }
         remove_live_tracks(&*store, retention, now).await;
         round += 1;
@@ -67,6 +69,52 @@ async fn remove_live_tracks<S: Store>(store: &S, retention: Retention, now: Time
             retention.live_hours
         ),
         Err(error) => tracing::warn!("ended live tracks could not be removed: {error}"),
+    }
+}
+
+/// The most open reports the daily line counts. Beyond it the line says
+/// "more than".
+const REPORTS_COUNTED: usize = 100;
+
+/// What the log says once a day while reports wait, so that whoever runs
+/// the server hears of them without looking: how many, and nothing about
+/// which, whose or why. `None` while none waits.
+fn waiting_reports(open: usize) -> Option<String> {
+    let how_many = match open {
+        0 => return None,
+        1 => "1 report is".to_owned(),
+        open if open > REPORTS_COUNTED => format!("more than {REPORTS_COUNTED} reports are"),
+        open => format!("{open} reports are"),
+    };
+    Some(format!(
+        "{how_many} open: `venti-server reports` lists them"
+    ))
+}
+
+/// Removes the reports that were closed longer ago than the retention's
+/// days, counted back from `now`, and says in the log how many reports are
+/// open. A report that is open is never removed.
+async fn look_at_reports<S: Store>(store: &S, retention: Retention, now: Timestamp) {
+    let closed_before = now - chrono::Duration::days(i64::from(retention.report_days));
+    match store.prune_reports(closed_before).await {
+        Ok(0) => {}
+        Ok(reports) => tracing::info!(
+            "removed {reports} reports that were closed more than {} days ago",
+            retention.report_days
+        ),
+        Err(error) => tracing::warn!("old reports could not be removed: {error}"),
+    }
+    // One more than is counted, to know whether there are more.
+    let open = store
+        .reports(ReportListing::Open, None, REPORTS_COUNTED + 1)
+        .await;
+    match open {
+        Ok(open) => {
+            if let Some(line) = waiting_reports(open.len()) {
+                tracing::info!("{line}");
+            }
+        }
+        Err(error) => tracing::warn!("the open reports could not be counted: {error}"),
     }
 }
 
@@ -172,6 +220,7 @@ mod tests {
             observation_months: 2,
             archive_days: 2,
             live_hours: 48,
+            report_days: 90,
         };
         clean(&store, Some(&archive), retention, now).await;
 
@@ -207,6 +256,7 @@ mod tests {
             handle: "dario".to_owned(),
             display_name: "Dario B.".to_owned(),
             created_at: now,
+            publishing_suspended_at: None,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -244,6 +294,7 @@ mod tests {
             observation_months: 13,
             archive_days: 14,
             live_hours: 48,
+            report_days: 90,
         };
 
         remove_live_tracks(&store, retention, now).await;
@@ -265,5 +316,96 @@ mod tests {
         // What was removed takes nothing more.
         let saved = store.save_live_fixes(&track(49), &room).await.unwrap();
         assert_eq!(saved, LiveSaved::Gone);
+    }
+
+    #[tokio::test]
+    async fn closed_reports_are_removed_when_their_days_are_up_and_open_ones_never() {
+        use venti_store::{
+            Account, NewAccount, NewReport, ReportListing, ReportSaved, ReportSubject,
+        };
+
+        let now = noon(2026, 11, 18);
+        let store = MemoryStore::new();
+        let account = |handle: &str| Account {
+            id: format!("{handle:0>26}"),
+            handle: handle.to_owned(),
+            display_name: handle.to_owned(),
+            created_at: noon(2026, 1, 1),
+            publishing_suspended_at: None,
+        };
+        for handle in ["dario", "anna"] {
+            let new = NewAccount {
+                account: account(handle),
+                password_hash: "$argon2id$hash".to_owned(),
+                invite: None,
+            };
+            store.create_account(&new).await.unwrap();
+        }
+        // Three reports made half a year ago. One was closed 91 days ago,
+        // one exactly 90 days ago, and one is still open.
+        let days = chrono::Duration::days;
+        for (name, closed_days_ago) in [("r1", Some(91)), ("r2", Some(90)), ("r3", None)] {
+            let new = NewReport {
+                id: format!("{name:0>26}"),
+                created_at: now - days(180),
+                reporter_id: account("dario").id,
+                about_account_id: account("anna").id,
+                subject: ReportSubject::Flight(format!("{name:0>26}")),
+                reason: "spam".to_owned(),
+                text: None,
+            };
+            assert_eq!(store.save_report(&new).await.unwrap(), ReportSaved::Stored);
+            if let Some(ago) = closed_days_ago {
+                let closed_at = now - days(ago);
+                store
+                    .close_report(&new.id, "done", closed_at)
+                    .await
+                    .unwrap();
+            }
+        }
+        let retention = Retention {
+            observation_months: 13,
+            archive_days: 14,
+            live_hours: 48,
+            report_days: 90,
+        };
+
+        look_at_reports(&store, retention, now).await;
+
+        async fn left(store: &MemoryStore) -> Vec<String> {
+            let reports = store.reports(ReportListing::All, None, 10).await.unwrap();
+            reports
+                .iter()
+                .map(|report| report.id.trim_start_matches('0').to_owned())
+                .collect()
+        }
+        assert_eq!(left(&store).await, ["r2", "r3"], "90 days are kept in full");
+        // A day later the next one has had its time; the open one stays,
+        // however old it is.
+        look_at_reports(&store, retention, now + days(1)).await;
+        assert_eq!(left(&store).await, ["r3"]);
+        look_at_reports(&store, retention, now + days(3650)).await;
+        assert_eq!(left(&store).await, ["r3"]);
+    }
+
+    #[test]
+    fn the_daily_line_says_how_many_reports_wait_and_nothing_else() {
+        assert_eq!(waiting_reports(0), None);
+        assert_eq!(
+            waiting_reports(1).unwrap(),
+            "1 report is open: `venti-server reports` lists them"
+        );
+        assert_eq!(
+            waiting_reports(17).unwrap(),
+            "17 reports are open: `venti-server reports` lists them"
+        );
+        assert_eq!(
+            waiting_reports(REPORTS_COUNTED).unwrap(),
+            "100 reports are open: `venti-server reports` lists them"
+        );
+        assert_eq!(
+            waiting_reports(REPORTS_COUNTED + 1).unwrap(),
+            "more than 100 reports are open: `venti-server reports` lists them"
+        );
     }
 }

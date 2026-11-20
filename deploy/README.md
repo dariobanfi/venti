@@ -133,7 +133,7 @@ What to know as the person who runs this:
 
 - **A forgotten password cannot be recovered**, by the pilot or by you. The database holds a hash from which the password cannot be read back, and there is no email address to send a link to. If a pilot is locked out for good, the only way on is a new account and a fresh upload of their flights from their phone.
 - **A pilot deletes their own account** in the app, with their password. It is gone from the database at once, with its flights. It is still in the dumps taken before, until they rotate out (see [Backup](#backup)). If someone asks you to delete an account for them and cannot do it themselves, that is a manual `DELETE FROM accounts WHERE handle = '...'` in the database; everything that belongs to the account goes with it.
-- **There is no way yet to report or take down a shared flight** other than by hand: `UPDATE flights SET visibility = 'private' WHERE id = '...'` hides one. Keep registration by invite until that exists.
+- **Pilots can report what others share, and you can take it down**: see [Reports and taking things down](#reports-and-taking-things-down). Nothing there acts by itself: a report waits until you read it. Do not hide a flight with an `UPDATE` by hand any more; its pilot would simply share it again.
 - **Attempts to sign in are counted** per account and per visitor's address, in the server's memory: restarting the server forgets the counts. The log has a line for every wrong password, with the address it came from and never the password.
 - **Anyone can close signing in to an account for an hour** by sending ten wrong passwords for its handle, and can keep it closed by doing so every hour. That is the price of stopping guesses from many addresses, and it is the owner's decision ([architecture.md](../docs/architecture.md#decision-log)). A pilot who is already signed in on a device notices nothing and can still change the password or delete the account there. A pilot who is locked out of a new device this way has to wait, or you restart the server, which forgets the counts: `docker compose restart server`. The log shows who is guessing: `docker compose logs --since 2h server | grep 'wrong password'`.
 
@@ -173,6 +173,82 @@ The server counts by the address a request came from. Every request reaches it t
    `"seen"` is right. `"hidden"` means that in the last hour twenty or more requests, and at least a tenth of all, came from one private address and from no other private one; the log has a line then that names the address (`does not see its visitors' addresses`). Nothing at all means fewer than twenty requests have arrived. A server that one person uses at home, on a private network, says `"hidden"` and is fine.
 
 Where the addresses are hidden, every visitor counts as one: thirty wrong passwords by anyone lock everyone out of signing in for an hour, and the connector answers 120 requests a minute in total. Fix the setup before letting people in.
+
+## Reports and taking things down
+
+A pilot who is signed in can report to you a flight, a pilot's page or a live track, with one of six reasons and some words of their own ([api.md](../docs/api.md#reports)). The server stores the report and does nothing else. You read the reports and decide, with the commands below. There is no web page for any of this, and the API offers none of it: whoever can run `venti-server` on the server's machine, with the server's database, is the operator.
+
+```bash
+cd /opt/venti/deploy
+docker compose exec server venti-server reports                      # the open reports, oldest first
+docker compose exec server venti-server reports --all                # the closed ones too
+docker compose exec server venti-server close-report <ID> --note "Compared the two files: hers."
+docker compose exec server venti-server take-down <FLIGHT>           # a flight's address, or the link to its page
+docker compose exec server venti-server release <FLIGHT>
+docker compose exec server venti-server remove-live-track <TRACK>    # a track's identifier, or the link to its page
+docker compose exec server venti-server suspend-publishing <HANDLE>
+docker compose exec server venti-server resume-publishing <HANDLE>
+```
+
+Each command does one thing, says in words what it did and what it did not, and takes effect at once, while the server runs. A command that was pointed at something that is not there says so and ends with a failure status, so that a script notices. None deletes a flight or an account. None closes a report: taking a flight down and closing the report about it are two commands, in whichever order.
+
+This is what `reports` prints, here for three made-up pilots:
+
+```
+3 reports are open, oldest first.
+
+Report 0000000000000000000000rep1, open, made 2026-11-17 17:05 UTC
+  About:        flight fbyw03atd9qdt5bfe177ra1k94 of mara (Mara Muster); now public
+                https://venti.example/f/fbyw03atd9qdt5bfe177ra1k94
+  Reason:       not_a_flight
+  Text:         I flew there that day.
+                This is my track, not hers.
+  Reported by:  demo
+
+Report 0000000000000000000000rep2, open, made 2026-11-18 16:05 UTC
+  About:        the page of mara (Mara Muster)
+  Reason:       impersonation
+  Reported by:  jonas
+
+Report 0000000000000000000000rep3, open, made 2026-11-18 18:55 UTC
+  About:        live track 11111111111111111111111111 of demo (Demo Pilot); now on everyone's map
+                https://venti.example/live/11111111111111111111111111
+  Reason:       other
+  Text:         Nobody is flying there. It is night.
+  Reported by:  mara
+
+A report is one pilot's word about another. Nothing was done about any of them: see `venti-server --help` for take-down, remove-live-track, suspend-publishing and close-report.
+```
+
+| Command | What it does | What it does not do |
+|---|---|---|
+| `reports` | Prints the open reports, oldest first. For each: what is reported and whose it is; what that is now (a flight: public, shared by link, private, taken down or deleted; a live track: on everyone's map, for those with its link, or gone); the link to look at it, when `VENTI_PUBLIC_URL` is set; the reason; the reporter's words; the reporter's handle. `--all` adds the closed reports with their notes | Changes nothing, and writes nothing to the log |
+| `close-report <ID> --note TEXT` | Closes a report with your note of 1 to 1,000 characters: what you did, or why nothing. The report leaves the list of open ones. The same pilot can then report the same thing again | Nothing about what was reported. It tells neither the reporter nor the reported pilot |
+| `take-down <FLIGHT>` | Makes one flight private, whatever its pilot had set, and keeps it so. Nobody but its pilot sees it, its link shows the page for no flight, and it is in no list. Its pilot cannot share it again, also not by deleting it and uploading the same file. The server tells the pilot's apps that the flight was taken down, and since when | It does not delete the flight or its file: the pilot keeps both. It does not say why: the server does not know. It does not touch the pilot's other flights. It does not stop the pilot from uploading the track as a changed file, which is another flight to the server: for that, suspend the account's publishing |
+| `release <FLIGHT>` | Undoes `take-down`: the pilot may share the flight again | It shares nothing. The flight stays private until its pilot changes that |
+| `remove-live-track <TRACK>` | Deletes one live track with its positions and takes its identifier out of use, as if its pilot had deleted it. Its link shows no track from then on | It does not stop the pilot's app, which is told that the identifier is used up and goes on under a new one, with a new link. To keep an account's gliders off everyone's map, suspend its publishing. A removed track cannot be brought back |
+| `suspend-publishing <HANDLE>` | Takes from an account the ability to publish. Its public flights become shared by link, and so do its public live tracks. From then on it can make no flight public, and every live track it sends is shared by link, whatever its app asks for. The server tells the pilot's apps that publishing is suspended, and since when | It does not delete the account or sign it out, and the account goes on uploading, sharing by link and sending live tracks. It takes nothing away from those who have a link: for a flight use `take-down`, for a live track `remove-live-track`. It does not keep the person from making another account where registration allows it |
+| `resume-publishing <HANDLE>` | Gives the ability back | It makes nothing public again. What the suspension made shared by link stays so until its pilot publishes it |
+
+What to know as the person who runs this:
+
+- **A report is one pilot's word about another.** The server checked nothing of it, and anyone with an account can send one. Look at what was reported before you act.
+- **What `reports` prints is for your eyes.** It names who reported, which the server tells nobody else, and for a live track its identifier, which is the key to where a person is. It goes to your terminal and to no log. Do not paste it where others read.
+- **The pilot is told the fact, and nothing else.** The server knows no email address and sends no message. A flight that was taken down says so to its pilot through the API, with the moment, and so does an account whose publishing is suspended; no app shows either yet. Why, and what to do about it, the pilot learns only if you tell them some other way.
+- **The server says once a day that reports wait.** The line is ``3 reports are open: `venti-server reports` lists them``, written with the daily cleanup and left out while no report is open. It names nothing and nobody. Nothing is sent anywhere: if reports matter to you, look at the log or run `reports` yourself.
+- **How long a report is kept.** An open report stays until you close it. A closed one is removed 90 days after it was closed (`VENTI_REPORT_DAYS`). A report goes with either of its two accounts: when the reporter or the reported pilot deletes their account, the report is deleted too. Reports are in the dumps, with the reporters' words, for as long as dumps are kept.
+- **What bounds the reports.** An account sends at most 20 a day, a report's text has at most 1,000 characters, and an account has one open report about one thing. An account that sends reports to annoy you is one more thing registration by invite keeps small; there is no command that stops one account from reporting.
+- **What is allowed on your server is yours to say.** The software has no rules of conduct, and the project has written none for pilots yet ([plan.md](../docs/plan.md#needed-from-the-owner)).
+
+What you took down or suspended is in the database, and no command lists it:
+
+```sql
+SELECT f.id, a.handle, f.taken_down_at FROM flights f JOIN accounts a ON a.id = f.account_id
+WHERE f.taken_down_at IS NOT NULL ORDER BY f.taken_down_at;
+SELECT handle, publishing_suspended_at FROM accounts WHERE publishing_suspended_at IS NOT NULL;
+```
+
+None of this has run on a real server. It was tried on 2026-11-20 on a development machine, with the server's debug build and PostgreSQL 16 with PostGIS in a container: two accounts, a public flight, a live track and three reports, then every command above, the two queries, and what the API answered after each. Not tried: the commands through `docker compose exec`, in the image a server runs *(to verify on the first real install)*.
 
 ## The connector
 
@@ -294,7 +370,7 @@ The optional forecast service (`open-meteo`, profile `forecasts`) is not confine
 
 `backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything. It takes the dump as the database's superuser, from inside the database's container, and the dump says which role owns each table.
 
-The dump holds everything the server knows: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
+The dump holds everything the server knows: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files, and the reports pilots sent, with who sent them and what they wrote. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
 
 One thing is left out of the dump on purpose: **live tracks**, the positions pilots share while they fly. The server removes each one 48 hours after its flight (`VENTI_LIVE_HOURS`), and a dump that held them would keep them for as long as dumps are kept. The dump has the two tables and none of their rows; it does keep the list of identifiers that live tracks have used, which holds no position. After a restore, nobody's live track is there; a flight that is under way begins its track anew with the next positions its app sends. Tried on 2026-11-19 on a development database with a track of 43,200 positions: the dump shrank from 698 kB to 74 kB, restored without complaint into an empty database, and the restored tables took a new track. *(To verify on the first real install, with `backup.sh` itself: that test ran `pg_dump` by hand with the script's two `--exclude-table-data` options.)*
 
@@ -417,7 +493,7 @@ SELECT count(*) FILTER (WHERE used_at IS NULL AND (expires_at IS NULL OR expires
 FROM invites;
 ```
 
-The log also has a line when an account is created or deleted, when a password is changed, for every wrong password, and when an uploaded file had to be given up on. No line holds a password or a session token.
+The log also has a line when an account is created or deleted, when a password is changed, for every wrong password, when an uploaded file had to be given up on, and once a day while reports are open, with their number. No line holds a password or a session token, and none holds anything of a report: not who sent it, not what or whom it is about, not a word of it.
 
 **How much log there is.** Docker keeps five files of ten megabytes for each of the three services and drops the oldest (`logging:` in `docker-compose.yml`), so the logs take 150 MB at most and `docker compose logs` reaches back as far as that goes. The server itself writes nothing per request. A refusal for too many requests is one line per address and window. A failure that repeats with every request (the database is away, the server is busy, requests run out of time) is written once, and then as one line every ten seconds that says how many more there were. The server's tests hold it to that: 2,500 refused requests and 40 that time out may leave 4 kB of log, and leave a handful of lines. Caddy's own log holds no line per request either, because the `Caddyfile` has no `log` directive; if you add one, the rotation above still bounds it.
 
@@ -444,11 +520,12 @@ All settings are described in `env.example`. The ones that deserve a second thou
 - **`VENTI_PUBLIC_URL`** is the address people reach the site at. The page of a shared flight names itself and its preview picture with it, and a chat app can only fetch a preview from a complete, correct address. Without it the server falls back to the address it listens on and says so in its log at start. It is also the one address whose pages may call the connector from a browser without being named in `VENTI_CORS_ORIGINS`.
 - **`VENTI_REGISTRATION`** is who may create an account; see [Accounts](#accounts).
 - **`VENTI_ACCOUNT_FLIGHTS`** and **`VENTI_ACCOUNT_STORAGE_MB`** are how much one account may keep: 25,000 flights and 4,096 MB of flight files unless set. A pilot does not reach either by flying; they are what keeps one account from filling the disk. The database stores the files compressed, in about a third of their size, so an account that is full takes about 1.4 GB there. With the query under [Looking inside](#looking-inside) you see what each account keeps. Lowering a number deletes nothing: an account above it keeps what it has and cannot add to it.
+- **`VENTI_REPORT_DAYS`** is for how many days a report is kept after you closed it: 90 unless set. An open report is kept until it is closed, whatever this says. Lowering the number removes the closed reports that are older, at the next daily cleanup.
 - **`VENTI_NETWORK`** moves the services' private network; see [The visitor's address](#the-visitors-address).
 
-Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), how many forecasts one address may make the server fetch (12 places an hour; forecasts that are at hand are not counted), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
+Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), how many forecasts one address may make the server fetch (12 places an hour; forecasts that are at hand are not counted), how many reports one account may send (20 a day), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
 
-**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, accounts, devices), 11 MB when full; there are seven. A server with a few hundred pilots uses a few hundred places. If the log says
+**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, accounts, devices), 11 MB when full; there are ten. A server with a few hundred pilots uses a few hundred places. If the log says
 
 ```
 the table of addresses that asked the connector is full: 100000 are being counted

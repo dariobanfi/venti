@@ -93,6 +93,13 @@ pub struct Limits {
     /// What a file that could not be analysed in time counts as. Such a
     /// file costs the full time allowed, so few are tolerated.
     pub slow_upload_weight: u32,
+    /// Reports one account may send within a day, whatever becomes of
+    /// them. Each one that is stored is something a person has to read:
+    /// twenty is more than anyone comes across in a day who reports in
+    /// good faith (an estimate), and few enough that one account cannot
+    /// bury whoever runs the server. It also bounds how fast an account
+    /// can try addresses through this endpoint.
+    pub reports_per_day: u32,
     /// Requests to the connector from one address within
     /// [`connector_window`](Self::connector_window). The connector is open
     /// to the internet without sign-in. An assistant's provider sends the
@@ -123,7 +130,7 @@ pub struct Limits {
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
-    /// has nine. The size is not what the server expects to need, which is
+    /// has ten. The size is not what the server expects to need, which is
     /// some hundreds: it is what someone who wants to fill a table has to
     /// bring. With IPv6 counted at two levels that is 100,000 IPv4
     /// addresses within a window, or some hundreds to thousands of IPv6
@@ -150,6 +157,7 @@ impl Default for Limits {
             registration_window: Duration::hours(1),
             uploads_per_day: 1000,
             slow_upload_weight: 50,
+            reports_per_day: 20,
             connector_requests_per_address: 120,
             connector_requests_per_network: 480,
             connector_window: Duration::minutes(1),
@@ -179,6 +187,7 @@ impl Limits {
             registrations_per_address: u32::MAX,
             registrations_per_network: u32::MAX,
             uploads_per_day: u32::MAX,
+            reports_per_day: u32::MAX,
             connector_requests_per_address: u32::MAX,
             connector_requests_per_network: u32::MAX,
             forecast_fetches_per_address: u32::MAX,

@@ -814,9 +814,9 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("wind-4-assistant")
 
         // What the pilots of the server share with everyone: on the
-        // Logbook tab, beside the pilot's own flights. The server's
-        // development mode has public flights of three made-up pilots.
-        openTab("Logbook", in: app)
+        // League tab. The server's development mode has public flights
+        // of three made-up pilots.
+        openTab("League", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
@@ -1159,6 +1159,7 @@ final class VentiUITests: XCTestCase {
         // development mode takes the report and keeps it nowhere.
         app.buttons["Done"].tap()
         app.navigationBars.buttons.firstMatch.tap()
+        openTab("League", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()
@@ -1258,7 +1259,7 @@ final class VentiUITests: XCTestCase {
         }
         let app = launch(bundledMap: true, extra: ["--server", server])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
-        openTab("Logbook", in: app)
+        openTab("League", in: app)
         let everyone = app.buttons["Everyone"]
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
         everyone.tap()

@@ -2,20 +2,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VentiCore
 
-/// The pilot's flights, newest first, by year.
+/// The pilot's flights, newest first, by year. What everyone shares, and
+/// the ranking, are on the League tab.
 struct LogbookScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account
     @Environment(AppNavigation.self) private var navigation
-    @Environment(WindModel.self) private var wind
 
-    /// Whose flights the tab shows: the pilot's own, what everyone on the
-    /// server shares, or the ranking of the pilots who shared.
-    private enum Whose: Hashable {
-        case mine, everyone, ranking
-    }
-
-    @State private var whose = Whose.mine
     @State private var isChoosingFiles = false
     @State private var notice: ImportNotice?
     @State private var flightToDelete: LogbookEntry?
@@ -24,11 +17,7 @@ struct LogbookScreen: View {
         @Bindable var navigation = navigation
         NavigationStack(path: $navigation.logbookPath) {
             Group {
-                if whose == .everyone, wind.server != nil {
-                    PublicFlightsList()
-                } else if whose == .ranking, wind.server != nil {
-                    RankingList()
-                } else if logbook.view.years.isEmpty {
+                if logbook.view.years.isEmpty {
                     emptyState
                 } else {
                     list
@@ -36,28 +25,12 @@ struct LogbookScreen: View {
             }
             .navigationTitle("Logbook")
             .toolbar {
-                // With a Venti server set: the pilot's own flights, what
-                // everyone there shares, or the ranking of its pilots.
-                if wind.server != nil {
-                    ToolbarItem(placement: .principal) {
-                        Picker("Whose flights", selection: $whose) {
-                            Text("Mine").tag(Whose.mine)
-                            Text("Everyone").tag(Whose.everyone)
-                            Text("Ranking").tag(Whose.ranking)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 280)
-                    }
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Import flights", systemImage: "plus") {
                         isChoosingFiles = true
                     }
                     .disabled(logbook.importProgress != nil)
                 }
-            }
-            .navigationDestination(for: PublicFlight.self) { flight in
-                PublicFlightScreen(flight: flight)
             }
             .navigationDestination(for: FlightRoute.self) { route in
                 FlightScreen(id: route.id)

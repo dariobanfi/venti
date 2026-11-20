@@ -2,16 +2,19 @@ import Charts
 import SwiftUI
 import VentiCore
 
-/// The flight's altitude over time. Dragging along it sets the cursor.
+/// The flight's altitude over time, over the ground it was flown over
+/// where the iPhone has that. Dragging along it sets the cursor.
 struct AltitudeChart: View {
     let flight: FlightView
+    /// The ground under the flight, in order of time. Empty without it.
+    var ground: [GroundUnderFlight] = []
     @Binding var cursor: Int?
 
     /// The time under the finger while it is down.
     @State private var touched: Date?
 
     var body: some View {
-        let range = Self.altitudeRange(of: flight)
+        let range = Self.altitudeRange(of: flight, over: ground)
         let marked = cursor.map { flight.track[$0] }
 
         Chart {
@@ -19,7 +22,8 @@ struct AltitudeChart: View {
                 AreaMark(
                     x: .value("Time", time(point.seconds)),
                     yStart: .value("Altitude", range.lowerBound),
-                    yEnd: .value("Altitude", point.altitudeM)
+                    yEnd: .value("Altitude", point.altitudeM),
+                    series: .value("Layer", "Flight")
                 )
                 .foregroundStyle(
                     LinearGradient(
@@ -34,6 +38,17 @@ struct AltitudeChart: View {
                 )
                 .foregroundStyle(Palette.accent)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+            // The ground under the glider, over the foot of the flight's
+            // own shape: the room between the two is the height over it.
+            ForEach(ground, id: \.seconds) { moment in
+                AreaMark(
+                    x: .value("Time", time(moment.seconds)),
+                    yStart: .value("Altitude", range.lowerBound),
+                    yEnd: .value("Altitude", min(max(moment.elevationM, range.lowerBound), range.upperBound)),
+                    series: .value("Layer", "Ground")
+                )
+                .foregroundStyle(Self.groundColor)
             }
             if let marked {
                 RuleMark(x: .value("Time", time(marked.seconds)))
@@ -110,9 +125,18 @@ struct AltitudeChart: View {
 
     /// The vertical extent of the chart: the flight's altitudes widened to
     /// whole hundreds of metres, and never flat.
-    nonisolated static func altitudeRange(of flight: FlightView) -> ClosedRange<Double> {
-        let low = (flight.minAltitudeM / 100).rounded(.down) * 100
+    /// The heights the chart shows: the flight's, and with the ground
+    /// under it the lowest ground too.
+    nonisolated static func altitudeRange(
+        of flight: FlightView, over ground: [GroundUnderFlight] = []
+    ) -> ClosedRange<Double> {
+        let lowest = ground.map(\.elevationM).min().map { min($0, flight.minAltitudeM) } ?? flight.minAltitudeM
+        let low = (lowest / 100).rounded(.down) * 100
         let high = (flight.maxAltitudeM / 100).rounded(.up) * 100
         return low...max(high, low + 100)
     }
+
+    /// The ground: the colour of earth, solid enough to cover the foot of
+    /// the flight's own shape.
+    static let groundColor = Color(red: 0.55, green: 0.48, blue: 0.4).opacity(0.85)
 }

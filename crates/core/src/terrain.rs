@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use venti_domain::GeoPoint;
 use venti_flight::terrain::{self as model, TileAddress};
 
-use crate::CoreError;
+use crate::{Bounds, CoreError, TrackPoint};
 
 /// The zoom level of the tiles the cockpit works with. A pixel of a tile
 /// of 512 pixels is 13 m wide at the latitude of the Alps: fine enough to
@@ -35,6 +35,17 @@ const RINGS_KEPT: u32 = 4;
 /// under one glider.
 const COARSEST_ZOOM: u8 = 10;
 
+/// For the ground under an area, such as a whole flight, no more tiles
+/// than this are asked for: the zoom level is made coarser until they are
+/// enough. Thirty-six tiles of zoom 12 cover some 40 km by 40 km, and are
+/// about 5 MB to fetch.
+const AREA_TILES_AT_MOST: usize = 36;
+
+/// And no coarser than this: at zoom 8 a pixel is 200 m wide, which still
+/// shows the valleys and ridges of a flight of several hundred
+/// kilometres, and nothing finer.
+const AREA_COARSEST_ZOOM: u8 = 8;
+
 /// An image larger than this is no elevation tile.
 const IMAGE_AT_MOST_BYTES: usize = 4 * 1024 * 1024;
 
@@ -55,6 +66,18 @@ pub struct TerrainTile {
     /// Zoom, column and row as a tile server's address has them:
     /// "12/2182/1429".
     pub path: String,
+}
+
+/// The ground under one moment of a flight.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct GroundUnderFlight {
+    /// Seconds since the first point of the track.
+    pub seconds: u32,
+    /// The height of the ground under the glider then, metres above mean
+    /// sea level.
+    pub elevation_m: f64,
+    /// How high over it the glider was, metres.
+    pub height_above_m: f64,
 }
 
 /// The height of the ground, as far as tiles for it were handed over.
@@ -92,6 +115,66 @@ impl Terrain {
                 path: format!("{}/{}/{}", tile.z, tile.x, tile.y),
             })
             .collect()
+    }
+
+    /// The tiles to have for the ground under an area, such as the
+    /// bounds of a flight, without those that are held already: at the
+    /// finest zoom level at which the area needs no more than a few dozen.
+    /// Empty when all are there, and for an area that is none.
+    pub fn tiles_covering(&self, area: Bounds) -> Vec<TerrainTile> {
+        let model = self.lock();
+        for z in (AREA_COARSEST_ZOOM..=ZOOM).rev() {
+            let tiles = TileAddress::covering(area.south, area.west, area.north, area.east, z);
+            if tiles.len() > AREA_TILES_AT_MOST && z > AREA_COARSEST_ZOOM {
+                continue;
+            }
+            return tiles
+                .into_iter()
+                // An area larger than a country gets its middle and no
+                // more; nobody flies it in a day.
+                .take(4 * AREA_TILES_AT_MOST)
+                .filter(|tile| !model.has(*tile))
+                .map(|tile| TerrainTile {
+                    z: tile.z,
+                    x: tile.x,
+                    y: tile.y,
+                    path: format!("{}/{}/{}", tile.z, tile.x, tile.y),
+                })
+                .collect();
+        }
+        Vec::new()
+    }
+
+    /// The ground under a flight's track, at up to `places` moments
+    /// spread evenly over it, in order. A moment whose place no tile
+    /// covers is left out.
+    pub fn ground_under(&self, track: Vec<TrackPoint>, places: u32) -> Vec<GroundUnderFlight> {
+        let model = self.lock();
+        let wanted = (places as usize).clamp(2, track.len().max(2));
+        let last = track.len().saturating_sub(1);
+        let mut ground = Vec::with_capacity(wanted);
+        let mut before = None;
+        for place in 0..wanted {
+            let index = place * last / (wanted - 1);
+            if before == Some(index) {
+                continue;
+            }
+            before = Some(index);
+            let Some(point) = track.get(index) else {
+                break;
+            };
+            let elevation = GeoPoint::new(point.lat, point.lon)
+                .ok()
+                .and_then(|position| model.elevation_m(position));
+            if let Some(elevation_m) = elevation {
+                ground.push(GroundUnderFlight {
+                    seconds: point.seconds,
+                    elevation_m,
+                    height_above_m: point.altitude_m - elevation_m,
+                });
+            }
+        }
+        ground
     }
 
     /// Takes one tile as a tile server sends it: a WebP image in the
@@ -499,6 +582,70 @@ mod tests {
         // Far from the glider the tiles are let go, at every zoom level.
         terrain.keep_around(46.0, 8.0);
         assert_eq!(terrain.tile_count(), 0);
+    }
+
+    #[test]
+    fn the_ground_under_a_flight_is_read_along_its_track() {
+        let flight = crate::flight_from_file(venti_flight::igc::write(
+            &venti_flight::testing::synthetic_flight(),
+        ))
+        .unwrap();
+        let terrain = Terrain::new();
+
+        // The tiles under the flight: a handful at zoom 12, the flight
+        // being some six kilometres across. A country's worth of area is
+        // asked for at a coarser zoom, and never by the hundred.
+        let wanted = terrain.tiles_covering(flight.bounds);
+        assert!((2..=12).contains(&wanted.len()), "{}", wanted.len());
+        assert!(wanted.iter().all(|tile| tile.z == 12));
+        let alps = Bounds {
+            south: 45.5,
+            west: 6.0,
+            north: 48.0,
+            east: 14.0,
+        };
+        let wanted = terrain.tiles_covering(alps);
+        assert!(wanted.iter().all(|tile| tile.z == 8));
+        assert!(!wanted.is_empty() && wanted.len() <= 36, "{}", wanted.len());
+        assert!(terrain.ground_under(flight.track.clone(), 240).is_empty());
+
+        // With the region that comes with the app, all of them are there.
+        terrain.add_archive(bundled()).unwrap();
+        assert!(terrain.tiles_covering(flight.bounds).is_empty());
+
+        // The flight takes off from the Wallberg at 1,620 m and ends over
+        // the valley floor: the ground under it falls from the one to the
+        // other.
+        let ground = terrain.ground_under(flight.track.clone(), 240);
+        assert_eq!(ground.len(), 240);
+        assert_eq!(ground[0].seconds, 0);
+        assert_eq!(ground[239].seconds, flight.track.last().unwrap().seconds);
+        assert!(
+            (ground[0].elevation_m - 1620.0).abs() < 10.0,
+            "{:?}",
+            ground[0]
+        );
+        assert!(ground[0].height_above_m.abs() < 10.0);
+        let last = ground[239];
+        assert!((700.0..800.0).contains(&last.elevation_m), "{last:?}");
+        // The sample flight is made up, and in its first half minute it
+        // is drawn through the mountain's summit, north of its take-off:
+        // there it is under the ground. Nowhere else.
+        assert!(
+            ground
+                .iter()
+                .all(|moment| moment.height_above_m > -10.0 || moment.seconds < 60)
+        );
+        let highest_over = ground
+            .iter()
+            .map(|moment| moment.height_above_m)
+            .fold(0.0, f64::max);
+        assert!((1000.0..1500.0).contains(&highest_over), "{highest_over}");
+
+        // A track of three points asked for at ten places gives three.
+        let short: Vec<TrackPoint> = flight.track.iter().take(3).copied().collect();
+        assert_eq!(terrain.ground_under(short, 10).len(), 3);
+        assert!(terrain.ground_under(Vec::new(), 10).is_empty());
     }
 
     #[test]

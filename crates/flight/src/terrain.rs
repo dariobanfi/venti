@@ -44,6 +44,36 @@ impl TileAddress {
         })
     }
 
+    /// The tiles of a zoom level that cover a box of latitudes and
+    /// longitudes, row by row from the north-west. A box that reaches
+    /// beyond the grid's edge near a pole is cut off there. Empty for a
+    /// zoom the grid does not have, for numbers that are none, and for a
+    /// box whose west lies east of its east: one across the date line is
+    /// not put together here.
+    pub fn covering(south: f64, west: f64, north: f64, east: f64, z: u8) -> Vec<Self> {
+        if !(south <= north && west <= east) || z > 22 {
+            return Vec::new();
+        }
+        let corner = |lat: f64, lon: f64| {
+            GeoPoint::new(lat.clamp(-GRID_EDGE_DEG, GRID_EDGE_DEG), lon)
+                .ok()
+                .and_then(|place| Self::holding(place, z))
+        };
+        let (Some(first), Some(last)) = (corner(north, west), corner(south, east)) else {
+            return Vec::new();
+        };
+        // The east edge of the grid belongs to its first column: a box
+        // that ends there ends in the last.
+        let last_x = if last.x < first.x {
+            (1_u32 << z) - 1
+        } else {
+            last.x
+        };
+        (first.y..=last.y)
+            .flat_map(|y| (first.x..=last_x).map(move |x| Self { z, x, y }))
+            .collect()
+    }
+
     /// The tiles of this tile's zoom level around it, itself included: a
     /// square of `2 × rings + 1` tiles a side, the nearest first. Tiles
     /// beyond the grid's north or south edge are left out; east and west
@@ -337,6 +367,37 @@ mod tests {
         // Beyond the grid's edge there is no tile.
         assert_eq!(TileAddress::holding(place(89.0, 0.0), 5), None);
         assert_eq!(TileAddress::holding(wallberg, 30), None);
+    }
+
+    #[test]
+    fn the_tiles_that_cover_a_box_are_listed_row_by_row() {
+        // The sample flight's valley: two tiles wide and two high at
+        // zoom 12, one tile at zoom 10.
+        let fine = TileAddress::covering(47.66, 11.74, 47.70, 11.80, 12);
+        assert_eq!(
+            fine.iter().map(|tile| (tile.x, tile.y)).collect::<Vec<_>>(),
+            [(2181, 1428), (2182, 1428), (2181, 1429), (2182, 1429)]
+        );
+        assert_eq!(
+            TileAddress::covering(47.66, 11.74, 47.70, 11.80, 10),
+            [TileAddress {
+                z: 10,
+                x: 545,
+                y: 357
+            }]
+        );
+        // A place is covered by its own tile.
+        assert_eq!(
+            TileAddress::covering(47.6642, 11.7967, 47.6642, 11.7967, 12).len(),
+            1
+        );
+        // A box up to the pole is cut off at the grid's edge, and one
+        // that ends at the date line ends in the last column.
+        assert_eq!(TileAddress::covering(80.0, 170.0, 90.0, 180.0, 3).len(), 1);
+        // Nothing for a box that is none.
+        assert!(TileAddress::covering(48.0, 11.0, 47.0, 12.0, 12).is_empty());
+        assert!(TileAddress::covering(47.0, 12.0, 48.0, 11.0, 12).is_empty());
+        assert!(TileAddress::covering(f64::NAN, 11.0, 48.0, 12.0, 12).is_empty());
     }
 
     #[test]

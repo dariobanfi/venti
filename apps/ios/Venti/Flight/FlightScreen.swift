@@ -138,8 +138,12 @@ struct FlightDetail: View {
     let airspaceCheck: FlightAirspace?
     let airspace: [AirspaceShape]
 
+    @Environment(TerrainModel.self) private var terrain
+
     /// The position in the track the pilot is inspecting, if any.
     @State private var cursor: Int?
+    /// The ground under the flight, once its tiles are there.
+    @State private var ground: [GroundUnderFlight] = []
     /// Whether the marker is running along the track by itself.
     @State private var isPlaying = false
     @State private var panelHeight: CGFloat = 0
@@ -168,7 +172,7 @@ struct FlightDetail: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     FlightPanel(
-                        flight: flight, score: analysis?.score,
+                        flight: flight, score: analysis?.score, ground: ground,
                         cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
                     )
                         .onGeometryChange(for: CGFloat.self) { panel in
@@ -182,6 +186,11 @@ struct FlightDetail: View {
                 // its own padding keeps its content clear of the home bar.
                 .ignoresSafeArea(.container, edges: .bottom)
             }
+        }
+        // The ground under the flight, for its profile: fetched once per
+        // flight, and drawn when it is there.
+        .task(id: flight.startUnixS) {
+            ground = await terrain.ground(under: flight)
         }
         // Playing moves the marker from where it is to the end of the
         // flight in about half a minute, whatever the flight's length.

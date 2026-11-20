@@ -10,7 +10,7 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community
+                let live, let community, let ground
             ):
                 RootScreen()
                     .environment(logbook)
@@ -24,6 +24,7 @@ struct VentiApp: App {
                     .environment(tasks)
                     .environment(live)
                     .environment(community)
+                    .environment(ground)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -42,7 +43,7 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel, LiveModel, CommunityModel
+        TaskModel, LiveModel, CommunityModel, TerrainModel
     )
     case failed(String)
 
@@ -124,7 +125,9 @@ enum Session {
             // server, with the account's token.
             fly.server = { account.isSignedIn ? account.account?.server : nil }
             fly.carry = { request in await account.carry(request) }
-            return .ready(logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community)
+            return .ready(
+                logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground
+            )
         } catch {
             return .failed(error.words)
         }

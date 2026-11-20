@@ -12,6 +12,8 @@ struct FlightPanel: View {
     let flight: FlightView
     /// How the flight scores, once that is worked out.
     var score: FlightScore?
+    /// The ground under the flight, where the iPhone has it.
+    var ground: [GroundUnderFlight] = []
     @Binding var cursor: Int?
     @Binding var isPlaying: Bool
     @Binding var isShowingDetails: Bool
@@ -24,7 +26,7 @@ struct FlightPanel: View {
             } else {
                 totals
             }
-            AltitudeChart(flight: flight, cursor: $cursor)
+            AltitudeChart(flight: flight, ground: ground, cursor: $cursor)
                 .frame(height: 124)
             ClimbLegend()
         }
@@ -88,10 +90,47 @@ struct FlightPanel: View {
     private func moment(_ point: TrackPoint) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Metric(caption: "Time", value: Format.time(unixSeconds: flight.startUnixS + Int64(point.seconds)))
-            Metric(caption: "In the air", value: Format.hoursMinutes(seconds: Int64(point.seconds)), unit: "h")
+            // How high over the ground the glider was, where the ground
+            // is known; else how long it had been in the air.
+            if let above = Self.heightAboveGround(at: point.seconds, in: ground) {
+                Metric(caption: "Over ground", value: Format.metres(max(above, 0)), unit: "m")
+            } else {
+                Metric(caption: "In the air", value: Format.hoursMinutes(seconds: Int64(point.seconds)), unit: "h")
+            }
             Metric(caption: "Altitude", value: Format.metres(point.altitudeM), unit: "m")
             Metric(caption: "Climb", value: Format.climb(metresPerSecond: point.climbMs), unit: "m/s")
         }
+    }
+}
+
+extension FlightPanel {
+    /// The height over the ground at a moment of the flight: that of the
+    /// moment the ground was read at nearest to it. The ground is read at
+    /// a few hundred moments, the track has thousands. `nil` where the
+    /// nearest lies further off than those moments lie apart: there the
+    /// iPhone has no ground.
+    nonisolated static func heightAboveGround(at seconds: UInt32, in ground: [GroundUnderFlight]) -> Double? {
+        guard let first = ground.first, let last = ground.last else { return nil }
+        // In order of time: the first that is not earlier, by halving.
+        var low = 0
+        var high = ground.count - 1
+        while low < high {
+            let middle = (low + high) / 2
+            if ground[middle].seconds < seconds {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+        func gap(_ moment: GroundUnderFlight) -> Int64 {
+            abs(Int64(moment.seconds) - Int64(seconds))
+        }
+        var nearest = ground[low]
+        if low > 0, gap(ground[low - 1]) < gap(nearest) {
+            nearest = ground[low - 1]
+        }
+        let apart = max(1, (Int64(last.seconds) - Int64(first.seconds)) / Int64(max(ground.count - 1, 1)))
+        return gap(nearest) <= apart ? nearest.heightAboveM : nil
     }
 }
 

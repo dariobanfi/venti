@@ -77,3 +77,46 @@ final class TerrainTests: XCTestCase {
         XCTAssertNil(model.terrain.elevation(lat: 47.6642, lon: 11.7967))
     }
 }
+
+extension TerrainTests {
+    func testTheGroundUnderAFlightIsReadForItsProfile() async throws {
+        let region = try MapStyle.bundledRegion()
+        let model = TerrainModel(
+            source: .archive(region.appendingPathComponent("terrain.pmtiles", isDirectory: false)),
+            folder: nil,
+            transport: { _ in (500, Data()) }
+        )
+        let sample = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let flight = try flightFromFile(igcText: try String(contentsOf: sample, encoding: .utf8))
+
+        let ground = await model.ground(under: flight)
+
+        // At 240 moments, from the take-off on the Wallberg at 1,620 m to
+        // the valley floor.
+        XCTAssertEqual(ground.count, 240)
+        XCTAssertEqual(try XCTUnwrap(ground.first).elevationM, 1620, accuracy: 10)
+        XCTAssertLessThan(try XCTUnwrap(ground.last).elevationM, 800)
+
+        // The chart makes room for the lowest ground, and the panel reads
+        // the height over the ground at any moment of the track.
+        let range = AltitudeChart.altitudeRange(of: flight, over: ground)
+        XCTAssertLessThanOrEqual(range.lowerBound, 700)
+        XCTAssertEqual(AltitudeChart.altitudeRange(of: flight).lowerBound, 700, accuracy: 100)
+        let middle = flight.track[flight.track.count / 2]
+        let above = try XCTUnwrap(FlightPanel.heightAboveGround(at: middle.seconds, in: ground))
+        XCTAssertGreaterThan(above, 500)
+        XCTAssertNil(FlightPanel.heightAboveGround(at: middle.seconds, in: []))
+        // Where the ground was read at two moments far apart only, a
+        // moment between them has none.
+        let sparse = [try XCTUnwrap(ground.first), try XCTUnwrap(ground.last)]
+        XCTAssertNotNil(FlightPanel.heightAboveGround(at: 0, in: sparse))
+
+        // Without a source there is no ground, and nothing is asked.
+        let none = TerrainModel(source: .nowhere, folder: nil, transport: { _ in
+            XCTFail("Nothing is fetched without a source")
+            return (500, Data())
+        })
+        let nothing = await none.ground(under: flight)
+        XCTAssertTrue(nothing.isEmpty)
+    }
+}

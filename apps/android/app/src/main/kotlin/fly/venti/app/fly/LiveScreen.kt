@@ -47,6 +47,7 @@ import fly.venti.app.SharedFiles
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Group
+import fly.venti.app.design.Palette
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -281,8 +282,8 @@ fun LiveButton(live: LiveShareView?, modifier: Modifier = Modifier, onOpen: () -
             contentColor = Color.White,
         )
         LiveShareState.WAITING -> IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = LiveLook.WAITING,
-            contentColor = LiveLook.INK_ON_WAITING,
+            containerColor = Palette.amber,
+            contentColor = Palette.inkOnAmber,
         )
         else -> IconButtonDefaults.filledTonalIconButtonColors()
     }
@@ -302,10 +303,6 @@ fun LiveButton(live: LiveShareView?, modifier: Modifier = Modifier, onOpen: () -
 object LiveLook {
     /** The green of a glider that is flying on the map of who is in the air. */
     val GOING_OUT = Color(0xFF157F4B)
-
-    /** The amber of an airspace warning that is very near: something waits for the pilot's eye. */
-    val WAITING = Color(0xFFFAB31A)
-    val INK_ON_WAITING = Color(0xFF0A0A0A)
 
     @DrawableRes
     fun icon(state: LiveShareState?): Int = when (state) {

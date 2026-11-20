@@ -32,6 +32,7 @@ import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
+import fly.venti.core.WaypointKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -182,6 +183,9 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // The cockpit names the landing within reach among the
+            // pilot's own waypoints.
+            fly.landings = { waypoints.all.filter { it.kind == WaypointKind.LANDING } }
             // A flight shared while it is under way goes to the pilot's
             // server, with the account's token.
             fly.server = { account.account?.server.takeIf { account.isSignedIn } }

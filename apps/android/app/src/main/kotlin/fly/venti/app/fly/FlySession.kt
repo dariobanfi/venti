@@ -6,16 +6,19 @@ import androidx.compose.runtime.setValue
 import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
+import fly.venti.app.waypoints.place
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightSession
+import fly.venti.core.LandingOption
 import fly.venti.core.LiveAudience
 import fly.venti.core.LiveScore
 import fly.venti.core.LiveShareState
 import fly.venti.core.LiveShareView
 import fly.venti.core.PendingRecording
+import fly.venti.core.ReachView
 import fly.venti.core.FaiAreas
 import fly.venti.core.Replay
 import fly.venti.core.ServerRequest
@@ -24,6 +27,7 @@ import fly.venti.core.TaskFile
 import fly.venti.core.TaskStatusView
 import fly.venti.core.ToneView
 import fly.venti.core.WayToTarget
+import fly.venti.core.WaypointView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -180,6 +184,20 @@ class FlySession(
      */
     var chosenPlace: String? by mutableStateOf(null)
         private set
+
+    /**
+     * The landing to think of first, among the pilot's own: the one the
+     * glider would arrive highest above. Absent on the ground, and for a
+     * pilot who keeps no landings with a height.
+     */
+    var landing: LandingOption? by mutableStateOf(null)
+        private set
+
+    /**
+     * The pilot's landings, asked for every second or two in the air. The
+     * app sets this to the waypoints that are places to land.
+     */
+    var landings: () -> List<WaypointView> = { emptyList() }
 
     /**
      * How the flight is shared with others while it is under way. Absent
@@ -361,6 +379,16 @@ class FlySession(
         refresh(elapsed = 0.0)
     }
 
+    /**
+     * How each of some places lies within the glider's reach now, in their
+     * order: for the list of places to fly to. Empty without a position.
+     */
+    @Synchronized
+    fun reach(places: List<WaypointView>): List<ReachView> {
+        val session = session ?: return emptyList()
+        return session.reach(places.map { it.place }, replay?.now() ?: clock())
+    }
+
     /** Moves the task on to its next turnpoint, or back to the one before. */
     @Synchronized
     fun stepTask(forward: Boolean) {
@@ -432,6 +460,7 @@ class FlySession(
         replay = null
         mode = null
         live = null
+        landing = null
         view = null
         way = null
         score = null
@@ -522,6 +551,11 @@ class FlySession(
             val areas = session.faiAreas()
             if (areas != faiAreas) {
                 faiAreas = areas
+            }
+            // Which of the pilot's landings the glider could go to now.
+            val option = session.landingOption(landings().map { it.place }, now)
+            if (option != landing) {
+                landing = option
             }
         }
         // Files brought in or removed in the middle of a session reach the

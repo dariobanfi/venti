@@ -48,6 +48,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,10 +56,14 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.SharedFiles
 import fly.venti.app.design.numbers
+import fly.venti.app.fly.ReachTone
+import fly.venti.app.fly.ReachWords
+import fly.venti.app.fly.type
 import fly.venti.app.logbook.FlightFiles
 import fly.venti.app.logbook.ImportNotice
 import fly.venti.app.logbook.ImportNoticeDialog
 import fly.venti.app.pilotMessage
+import fly.venti.core.ReachView
 import fly.venti.core.WaypointView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -279,8 +284,15 @@ private fun DeletableRow(waypoint: WaypointView, onDelete: () -> Unit) {
  * known about it.
  */
 @Composable
-fun WaypointRow(waypoint: WaypointView, modifier: Modifier = Modifier, isChosen: Boolean = false) {
+fun WaypointRow(
+    waypoint: WaypointView,
+    modifier: Modifier = Modifier,
+    isChosen: Boolean = false,
+    /** How it lies within the glider's reach, in the cockpit's list. */
+    reach: ReachView? = null,
+) {
     val detail = waypoint.detail
+    val spoken = listOfNotNull("Chosen.".takeIf { isChosen }, detail, ReachWords.spoken(reach)).joinToString(" ")
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -289,7 +301,7 @@ fun WaypointRow(waypoint: WaypointView, modifier: Modifier = Modifier, isChosen:
             // One element for a screen reader: the name, then the rest.
             .clearAndSetSemantics {
                 contentDescription = waypoint.name
-                stateDescription = if (isChosen) "Chosen. $detail" else detail
+                stateDescription = spoken
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -310,6 +322,18 @@ fun WaypointRow(waypoint: WaypointView, modifier: Modifier = Modifier, isChosen:
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        // The height the glider would arrive with: plain with height to
+        // spare, amber with little, red when it comes down before.
+        ReachWords.beside(reach)?.let { height ->
+            Spacer(Modifier.width(8.dp))
+            Text(
+                height,
+                style = MaterialTheme.typography.bodyLarge.numbers,
+                fontWeight = FontWeight.Medium,
+                color = ReachTone.of(checkNotNull(reach).reach).type,
+                maxLines = 1,
+            )
         }
         if (isChosen) {
             Spacer(Modifier.width(8.dp))

@@ -23,6 +23,24 @@ object Palette {
     /** The near-black of dots and dashes drawn on the map. */
     val inkOnMap = Color(0xFF1F1F1D)
 
+    /**
+     * The ground of something that warns without being the worst: an
+     * airspace that is very near, a wind that leaves little way, a landing
+     * only just within reach. The same in both appearances, with dark type
+     * on it: a warning is not themed.
+     */
+    val amber = Color(0xFFFAB31A)
+    val inkOnAmber = Color(0xFF0A0A0A)
+
+    /** The ground of the worst: inside an airspace, no landing in reach. White type on it. */
+    val red = Color(0xFFB82429)
+
+    /**
+     * Amber as the colour of type on a plain surface. The ground's amber
+     * cannot be read on a light one, so it is darker there.
+     */
+    fun amberType(dark: Boolean): Color = if (dark) amber else Color(0xFF8A5A00)
+
     /** Mean wind in a chart: one blue, a step lighter on a dark ground. */
     fun wind(dark: Boolean): Color = if (dark) Color(0xFF6DA7EC) else Color(0xFF256ABF)
 

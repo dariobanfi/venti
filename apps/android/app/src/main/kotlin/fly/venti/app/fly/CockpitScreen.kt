@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
@@ -66,6 +68,7 @@ import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.airspace.AirspaceWarningsSheet
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
+import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.app.map.MapSurface
 import fly.venti.app.settings.Preferences
@@ -74,6 +77,7 @@ import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightPhase
+import fly.venti.core.LandingOption
 import fly.venti.core.LiftCentreView
 import fly.venti.core.LiveScore
 import fly.venti.core.RouteKind
@@ -199,6 +203,18 @@ fun CockpitScreen(
                     // Clear of the map's own credits button in the corner.
                     modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
                 )
+                // The landing to think of first, and whether the glide
+                // reaches it. A tap lists the places to fly to, each with
+                // its reach.
+                fly.landing?.let { landing ->
+                    LandingBadge(
+                        landing,
+                        onOpen = { isChoosingTarget = true },
+                        // A badge that can be pressed stands in the middle
+                        // of a taller touch target, as the wind's does.
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 6.dp),
+                    )
+                }
                 if (view.phase != FlightPhase.FLYING) {
                     Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
                         Text(
@@ -270,6 +286,7 @@ fun CockpitScreen(
             waypoints = waypoints,
             position = view.position,
             chosen = fly.chosenPlace,
+            reach = fly::reach,
             onChoose = { waypoint -> fly.goTo(waypoint?.place) },
             onDismiss = { isChoosingTarget = false },
         )
@@ -599,7 +616,7 @@ private fun Badge(
     onClick: (() -> Unit)? = null,
     ground: Color? = null,
     ink: Color? = null,
-    content: @Composable () -> Unit,
+    content: @Composable RowScope.() -> Unit,
 ) {
     val row = @Composable {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -607,12 +624,13 @@ private fun Badge(
         }
     }
     val colour = ground ?: MaterialTheme.colorScheme.surfaceContainerLow
+    val content = ink ?: contentColorFor(colour)
     if (onClick == null) {
         Surface(
             modifier = modifier,
             shape = CircleShape,
             color = colour,
-            contentColor = ink ?: contentColorFor(colour),
+            contentColor = content,
             shadowElevation = 3.dp,
             content = row,
         )
@@ -623,6 +641,7 @@ private fun Badge(
             modifier = modifier,
             shape = CircleShape,
             color = colour,
+            contentColor = content,
             shadowElevation = 3.dp,
             content = row,
         )
@@ -656,6 +675,65 @@ private fun LiftBadge(centre: LiftCentreView, modifier: Modifier = Modifier) {
 }
 
 /**
+ * The landing to think of first: its name and the height the glider is
+ * expected to arrive above it, or that none of the pilot's landings is
+ * within reach. By the glider's own numbers and the wind last measured, in
+ * a straight line: the ground in between is not looked at.
+ *
+ * Plain while there is height to spare, on amber when there is little, on
+ * red when no landing is within reach: grounds, not type, as with the other
+ * warnings over the map.
+ */
+@Composable
+private fun LandingBadge(landing: LandingOption, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val height = ReachWords.height(landing)
+    val tone = ReachTone.of(landing.reach.reach)
+    val (ground, ink) = when (tone) {
+        ReachTone.Plain -> null to null
+        ReachTone.Amber -> Palette.amber to Palette.inkOnAmber
+        ReachTone.Red -> Palette.red to Color.White
+        ReachTone.Quiet -> null to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Badge(
+        modifier
+            // Room for the wind's badge at the other corner of a narrow phone.
+            .widthIn(max = 210.dp)
+            .testTag("landing-badge")
+            .clearAndSetSemantics {
+                contentDescription = "Landing"
+                stateDescription = ReachWords.spoken(landing)
+                role = Role.Button
+                onClick(label = "List the places to fly to") {
+                    onOpen()
+                    true
+                }
+            },
+        onClick = onOpen,
+        ground = ground,
+        ink = ink,
+    ) {
+        Icon(painterResource(R.drawable.ic_flight_land), contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        val style = MaterialTheme.typography.titleSmall.numbers
+        if (height != null) {
+            // The name gives way; the height is always whole.
+            Text(
+                landing.name,
+                style = style,
+                color = Color.Unspecified,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(height, style = style, color = Color.Unspecified, maxLines = 1)
+        } else {
+            Text(ReachWords.NO_LANDING, style = style, color = Color.Unspecified, maxLines = 1)
+        }
+    }
+}
+
+/**
  * A wind that leaves the glider little way into it, in the core's words:
  * "Into the wind 4 km/h". On the amber of an airspace warning that is very
  * near, in both appearances: a warning is not themed.
@@ -669,8 +747,8 @@ private fun StrongWindBadge(words: String, modifier: Modifier = Modifier) {
                 contentDescription = "Strong wind"
                 stateDescription = words
             },
-        ground = Color(0xFFFAB31A),
-        ink = Color(0xFF0A0A0A),
+        ground = Palette.amber,
+        ink = Palette.inkOnAmber,
     ) {
         Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))

@@ -242,6 +242,11 @@ class VentiUiTest {
         assertTrue(exists(described("Thermal")))
         waitFor(hasTestTag("lift-badge"))
         waitFor(described("Lift") and saying("Centred"))
+        // At the map's other corner, the landing to think of first: the
+        // one landing among the sample waypoints, well within reach from
+        // up here, with the height the glider would arrive with.
+        val landing = hasTestTag("landing-badge")
+        waitFor(landing and saying("Sample landing field, arriving +"))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-2-thermal")
 
@@ -274,13 +279,25 @@ class VentiUiTest {
         tap(described("Follow the glider"))
         waitFor(described("Show the whole flight"))
 
+        // A tap on the landing's badge lists the places to fly to.
+        waitFor(landing)
+        tap(landing)
+        waitFor(hasText("Fly to"))
+        tap(hasText("Cancel"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Fly to")) }
+
         // The cockpit shows the way back to the take-off until the pilot
-        // chooses a place; the waypoints are listed nearest first.
+        // chooses a place; the waypoints are listed nearest first, each
+        // with the height the glider is expected to arrive with, and the
+        // list says how that is worked out. The summit sixty kilometres
+        // away is out of reach.
         val strip = hasTestTag("target-strip")
         assertTrue(exists(strip and saying("Take-off")))
         tap(strip)
         waitFor(hasText("Fly to"))
         waitFor(described("Sample landing field"))
+        assertTrue(exists(described("Sample summit far away") and saying("Out of reach.")))
+        assertTrue(exists(hasTestTag("reach-footer")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-4-fly-to")
         tap(described("Sample landing field"))

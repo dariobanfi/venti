@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +60,7 @@ import fly.venti.app.waypoints.WaypointSearch
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.matching
 import fly.venti.core.Coordinate
+import fly.venti.core.ReachView
 import fly.venti.core.WayToTarget
 import fly.venti.core.WaypointView
 import kotlinx.coroutines.launch
@@ -205,6 +206,8 @@ fun TargetPicker(
     position: Coordinate?,
     /** The place the cockpit is navigating to now; `null` for the take-off. */
     chosen: String?,
+    /** How each of some places lies within the glider's reach now, in their order. */
+    reach: (List<WaypointView>) -> List<ReachView>,
     /** Called with the chosen place; `null` for the take-off. */
     onChoose: (WaypointView?) -> Unit,
     onDismiss: () -> Unit,
@@ -224,6 +227,8 @@ fun TargetPicker(
     val all = waypoints.all
     val near = remember(all, position) { waypoints.near(position) }
     val shown = remember(near, search) { near.matching(search) }
+    // Asked for again with every new position, while the list is open.
+    val reaches = remember(shown, position) { reach(shown) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -252,7 +257,7 @@ fun TargetPicker(
                 )
                 SectionHeader("Waypoints", Modifier.padding(horizontal = 16.dp))
             }
-            items(shown, key = { it.id }) { waypoint ->
+            itemsIndexed(shown, key = { _, waypoint -> waypoint.id }) { index, waypoint ->
                 WaypointRow(
                     waypoint,
                     Modifier.testTag("target-row").clickable(role = Role.Button) {
@@ -260,6 +265,7 @@ fun TargetPicker(
                         onDismiss()
                     },
                     isChosen = waypoint.name == chosen,
+                    reach = reaches.getOrNull(index),
                 )
                 RowDivider()
             }
@@ -268,6 +274,12 @@ fun TargetPicker(
                     Hint("You have no waypoints yet. $WAYPOINT_FILES")
                 } else if (shown.isEmpty()) {
                     Hint("No waypoint matches “${search.trim()}”.")
+                } else {
+                    // What the heights beside the places are, and are not.
+                    SectionFooter(
+                        ReachWords.HOW_IT_IS_WORKED_OUT,
+                        Modifier.padding(horizontal = 16.dp).testTag("reach-footer"),
+                    )
                 }
                 TextButton(
                     onClick = { chooseFiles.launch(arrayOf("*/*")) },

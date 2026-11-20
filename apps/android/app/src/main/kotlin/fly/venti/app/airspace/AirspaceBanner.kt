@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
+import fly.venti.app.design.Palette
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.numbers
@@ -188,8 +189,8 @@ private fun colours(warning: AirspaceWarning): Pair<Color, Color> {
     val plain = MaterialTheme.colorScheme.surfaceContainerHigh
     if (warning.silenced) return plain to MaterialTheme.colorScheme.onSurfaceVariant
     return when (warning.level) {
-        AirspaceLevel.INSIDE, AirspaceLevel.ENTERING -> Color(0xFFB82429) to Color.White
-        AirspaceLevel.VERY_NEAR -> Color(0xFFFAB31A) to Color(0xFF0A0A0A)
+        AirspaceLevel.INSIDE, AirspaceLevel.ENTERING -> Palette.red to Color.White
+        AirspaceLevel.VERY_NEAR -> Palette.amber to Palette.inkOnAmber
         AirspaceLevel.NEAR -> plain to MaterialTheme.colorScheme.onSurface
     }
 }

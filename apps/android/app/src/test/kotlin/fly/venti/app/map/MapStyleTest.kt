@@ -118,12 +118,10 @@ class MapStyleTest {
     @Test
     fun theAerialViewIsHiddenUntilItIsAskedFor() {
         val views = MapStyle.views(template)
-        // Austria's photographs, through Venti, join between the world's and
-        // Bavaria's: to be tightened to the exact list once the style has them.
-        assertEquals("aerial-world", views.aerial.first())
-        assertEquals(listOf("aerial-road", "aerial-aerialway-casing"), views.aerial.takeLast(2))
-        assertTrue(views.aerial.toString(), "aerial-bavaria" in views.aerial)
-        assertTrue(views.aerial.toString(), views.aerial.all { it.startsWith("aerial-") })
+        assertEquals(
+            listOf("aerial-world", "aerial-austria", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"),
+            views.aerial,
+        )
         assertEquals(listOf("path", "track", "road-minor", "road-major", "rail"), views.drawn)
         // Every aerial layer is hidden in every prepared style: nothing is
         // fetched from the photographs' providers until the view is on.
@@ -142,6 +140,26 @@ class MapStyleTest {
             }
         }
         assertThrows(MapStyle.StyleError::class.java) { MapStyle.views("{}") }
+    }
+
+    @Test
+    fun austriasPhotographsAreAskedOfVentiAndLeftOutWithoutIt() {
+        for (source in MapStyle.Source.entries) {
+            val with = style(source)
+            assertEquals(
+                listOf("https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}"),
+                with.getValue("sources").jsonObject.getValue("aerial-austria").jsonObject.getValue("tiles").jsonArray
+                    .map { it.jsonPrimitive.content },
+            )
+            assertTrue("aerial-austria" in layerNames(with))
+
+            val text = MapStyle.json(source, template, region, server = null)
+            assertFalse(text, text.contains("__"))
+            val without = Json.parseToJsonElement(text).jsonObject
+            assertFalse("aerial-austria" in without.getValue("sources").jsonObject)
+            assertFalse("aerial-austria" in layerNames(without))
+            assertEquals(layerNames(with) - "aerial-austria", layerNames(without))
+        }
     }
 
     /** A style of its own that asks Venti for one source, drawn by one layer, beside the two every style has. */

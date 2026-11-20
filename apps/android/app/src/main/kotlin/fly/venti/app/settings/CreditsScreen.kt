@@ -83,6 +83,21 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
+                        "Aerial view in Austria",
+                        "Datenquelle: basemap.at",
+                        link = "https://basemap.at",
+                    )
+                }
+                row {
+                    // Our own wording, until BEV's own is found: to verify.
+                    Credit(
+                        "Austria's border, for the aerial view",
+                        "Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV), Verwaltungsgrenzen 1:50 000, " +
+                            "Stichtag 01.10.2022, CC BY 4.0; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht",
+                    )
+                }
+                row {
+                    Credit(
                         "Aerial view in Bavaria",
                         "© Datenquellen: Bayerische Vermessungsverwaltung, Europäische Union, enthält Copernicus " +
                             "Sentinel-2 Daten 2018, verarbeitet durch das Bundesamt für Kartographie und Geodäsie (BKG)",
@@ -176,7 +191,7 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun Credit(title: String, text: String, link: String) {
+private fun Credit(title: String, text: String, link: String? = null) {
     val links = LocalUriHandler.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
@@ -186,6 +201,7 @@ private fun Credit(title: String, text: String, link: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
         )
+        if (link == null) return@Column
         Text(
             link.toUri().host ?: link,
             style = MaterialTheme.typography.bodyMedium,

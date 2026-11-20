@@ -453,6 +453,18 @@ fn wind_in_words(sectors: &[WindSector]) -> String {
         .join(", ")
 }
 
+/// The same for the spans a shell hands back: "N to NE".
+pub(crate) fn wind_spans_in_words(spans: &[WindSpan]) -> String {
+    let sectors: Vec<WindSector> = spans
+        .iter()
+        .map(|span| WindSector {
+            from_deg: span.from_deg,
+            to_deg: span.to_deg,
+        })
+        .collect();
+    wind_in_words(&sectors)
+}
+
 /// One of sixteen compass points: sites are tagged that finely.
 fn compass(degrees: f64) -> &'static str {
     const POINTS: [&str; 16] = [

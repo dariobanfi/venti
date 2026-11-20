@@ -188,6 +188,26 @@ In charts the mean wind is a line in `#256ABF` (light) or `#6DA7EC` (dark), and 
 
 To verify with pilots: whether the single hue is read as quickly as the green-to-red they know from other apps.
 
+### Flyable, marginal, not flyable
+
+The design language's Today screen says of a take-off whether the day is for flying: a status of icon, word and colour ("Flyable", "Marginal", "Not flyable"), the day in a line ("Good from noon") and what limits it ("Gusts to 31 km/h after 15:00"). The words are made in the core (`core::today`, `site_outlook`) from the forecast of the take-off's place and what the site's source says of it, the wind directions it works in and its height. It never says "safe" or "go", and it names the model, its run and its grid cell: it is a reading of a weather model for a cell kilometres wide, and knows nothing of the take-off itself.
+
+Each daylight hour, from an hour after sunrise to an hour before sunset, is judged by the worst thing the finest model has against it:
+
+| What the model says | Marginal from | Not flyable from |
+|---|---|---|
+| Rain or snow in the hour | | 0.2 mm |
+| Wind 10 m above the model's ground | 20 km/h | 30 km/h |
+| Gusts | 30 km/h | 40 km/h |
+| Wind from a direction the take-off does not work in | 8 km/h | 15 km/h |
+| Wind at the model's levels up to 1,500 m above the take-off | 35 km/h | 50 km/h |
+| Base of convective cloud | less than 200 m above the take-off | below the take-off |
+| CAPE | 800 J/kg ("Showers or thunderstorms can grow") | |
+
+A day is flyable when two hours in a row are, and its line says when: "Good all day", "Good from noon", "Good until 15:00", "Good from 11:00 to 15:00", with what ends or delays the stretch beside it. It is marginal when two hours in a row are at least marginal, with the reason met most often. A take-off whose source names no directions is not judged by the direction, one without a height not by the cloud or the wind higher up. There is no thermal forecast in it: the models the server reads give none, and none is made up.
+
+The limits are our own, round numbers a cautious pilot would nod to, the same for every pilot and every wing. To verify with pilots, all of them; the owner decides them.
+
 ## Icon
 
 A white paraglider on the accent violet; the pilot is a dot in the colour a climb has on a track. It is drawn by `tools/app-icon/make_icon.py`, so it can be changed as text like everything else.

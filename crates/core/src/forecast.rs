@@ -201,6 +201,24 @@ pub fn forecast(status: u16, body: Vec<u8>, utc_offset_s: i32) -> Result<Forecas
     })
 }
 
+/// Where a model stands among those the app knows, the finest first. A
+/// model the app does not know comes after them all.
+pub(crate) fn model_rank(model: &str) -> usize {
+    MODELS
+        .iter()
+        .position(|(id, _, _)| *id == model)
+        .unwrap_or(MODELS.len())
+}
+
+/// The name pilots know a model by: "ICON-D2". Its identifier in capitals
+/// for one the app does not know.
+pub(crate) fn model_name(model: &str) -> String {
+    MODELS
+        .iter()
+        .find(|(id, _, _)| *id == model)
+        .map_or_else(|| model.to_uppercase(), |(_, name, _)| (*name).to_owned())
+}
+
 fn coordinate(point: GeoPoint) -> Coordinate {
     Coordinate {
         lat: point.lat(),

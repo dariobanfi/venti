@@ -1,5 +1,6 @@
 package fly.venti.app
 
+import fly.venti.app.flight.CompareSources
 import androidx.compose.foundation.layout.Column
 import fly.venti.app.design.VentiTheme
 import fly.venti.app.design.Venti
@@ -304,6 +305,7 @@ private fun Sections(
                         requests = session.scope,
                         fly = session.fly,
                         leagues = session.leagues,
+                        compareSources = CompareSources(logbook, session.community),
                         onBack = { navigation.back() },
                     )
                 }
@@ -322,6 +324,7 @@ private fun Sections(
                                 session.account,
                                 server = (session.wind.server as? WindServer.Usable)?.url,
                                 requests = session.scope,
+                                compareSources = CompareSources(logbook, session.community),
                                 // Everything else this pilot shares with everyone.
                                 onPilot = { navigation.open(LogbookRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },

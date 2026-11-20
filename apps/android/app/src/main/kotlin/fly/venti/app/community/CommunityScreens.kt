@@ -316,7 +316,7 @@ private fun NoFlights(title: String, text: String, @DrawableRes icon: Int) {
  * logbook has the day.
  */
 @Composable
-private fun PublicFlightRow(
+internal fun PublicFlightRow(
     flight: PublicFlight,
     shape: Shape,
     /** What a test finds the row by: which list it is a row of. */

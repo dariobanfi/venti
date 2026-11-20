@@ -70,6 +70,8 @@ fun PublicFlightScreen(
     requests: CoroutineScope,
     /** Called to list everything else this pilot shares with everyone. */
     onPilot: () -> Unit,
+    /** Where a flight to lay beside this one comes from. */
+    compareSources: CompareSources? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -100,6 +102,7 @@ fun PublicFlightScreen(
                 // that is a help for one's own review.
                 airspaceCheck = null,
                 airspace = remember(shown.flight, all) { airspace.shapes(shown.flight.bounds.grown(0.2)) },
+                compareSources = compareSources,
             )
             failure != null -> Failure(failure, Modifier.align(Alignment.Center))
             else -> CircularProgressIndicator(Modifier.align(Alignment.Center))

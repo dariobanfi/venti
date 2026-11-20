@@ -1775,6 +1775,71 @@ class VentiUiTest {
     @Test
     fun theLeaguesInDarkAppearance() = sendAFlightToALeague("dark", dark = true)
 
+    /**
+     * Two flights side by side: the sample flight and the same flight ten
+     * minutes later on the same day, brought in together. They were in
+     * the air together, so they are laid over each other by the clock.
+     */
+    private fun layTwoFlightsSideBySide(prefix: String, dark: Boolean) {
+        val sample = context.assets.open(AppFiles.SAMPLE_FLIGHT).use { it.readBytes() }.decodeToString()
+        val later = sample.lines().joinToString("\n") { line ->
+            if (!line.startsWith("B")) return@joinToString line
+            val time = line.substring(1, 7)
+            val total = time.substring(0, 2).toInt() * 3600 + time.substring(2, 4).toInt() * 60 +
+                time.substring(4, 6).toInt() + 600
+            "B%02d%02d%02d".format(total / 3600, total / 60 % 60, total % 60) + line.substring(7)
+        }
+        val folder = File(context.cacheDir, "compare-${System.nanoTime()}").apply { mkdirs() }
+        val files = listOf(File(folder, "sample.igc").apply { writeText(sample) }, File(folder, "later.igc").apply { writeText(later) })
+        launch(dark = dark) {
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "application/octet-stream"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files.map(Uri::fromFile)))
+        }
+        waitFor(hasText("2 flights added"))
+        tap(hasText("OK") and hasClickAction())
+        waitFor(hasTestTag("logbook-row"))
+        tap(hasTestTag("logbook-row"))
+        waitFor(described("Flight details"))
+
+        tap(described("Flight details"))
+        waitFor(hasTestTag("compare-row"))
+        tap(hasTestTag("compare-row"))
+        waitFor(hasTestTag("compare-own-row"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-compare-1-choose")
+        tap(hasTestTag("compare-own-row"))
+
+        // The other flight is on the map and in the profile, and a line in
+        // the panel says whose it is and how the two lie to each other.
+        val line = hasTestTag("compare-line")
+        waitFor(line and saying("In the air together for"))
+        letTheMapDraw(4)
+        keepScreenshot("$prefix-compare-2-beside")
+
+        tap(line)
+        waitForAll(hasText("Side by side"), hasTestTag("comparison-rows"))
+        assertTrue(exists(hasText("Go to where they were nearest")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-compare-3-side-by-side")
+        tap(hasText("Go to where they were nearest"))
+        waitFor(line and saying(" m away"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-compare-4-nearest")
+
+        tap(line)
+        waitFor(hasTestTag("compare-end"))
+        tap(hasTestTag("compare-end"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(line) }
+        folder.deleteRecursively()
+    }
+
+    @Test
+    fun twoFlightsAreLaidSideBySide() = layTwoFlightsSideBySide("light", dark = false)
+
+    @Test
+    fun twoFlightsSideBySideInDarkAppearance() = layTwoFlightsSideBySide("dark", dark = true)
+
     @Test
     fun theCockpitShowsAReplayedFlight() = flyAReplayAndVisitTheSettings("light", dark = false)
 

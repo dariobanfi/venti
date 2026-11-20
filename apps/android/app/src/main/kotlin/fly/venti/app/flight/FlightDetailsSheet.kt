@@ -1,5 +1,6 @@
 package fly.venti.app.flight
 
+import fly.venti.app.design.LinkRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,10 @@ fun FlightDetailsSheet(
     /** Called with a position in the flight's track to mark. */
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
+    /** Whether a second flight lies beside this one. */
+    isCompared: Boolean = false,
+    /** Called to lay a flight beside this one, or to open the two side by side; `null` where neither can be. */
+    onCompare: (() -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -82,6 +87,22 @@ fun FlightDetailsSheet(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
         ) {
             item { FlightSection(flight) }
+            if (onCompare != null) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Group {
+                        row {
+                            LinkRow(
+                                if (isCompared) CompareWords.SIDE_BY_SIDE_ROW else CompareWords.LAY_BESIDE,
+                                icon = R.drawable.ic_chevron_right,
+                                leading = R.drawable.venti_track,
+                                modifier = Modifier.testTag("compare-row"),
+                                onClick = onCompare,
+                            )
+                        }
+                    }
+                }
+            }
             analysis?.score?.let { score ->
                 item { ScoreSection(score) }
             }

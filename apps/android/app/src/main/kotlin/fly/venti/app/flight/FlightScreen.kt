@@ -92,6 +92,8 @@ fun FlightScreen(
     fly: FlySession,
     /** Sending the flight to a league. */
     leagues: Leagues,
+    /** Where a flight to lay beside this one comes from. */
+    compareSources: CompareSources? = null,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -143,6 +145,7 @@ fun FlightScreen(
                 airspaceCheck,
                 // The airspace around the flight, for its map.
                 airspace = remember(current.flight, all) { airspace.shapes(current.flight.bounds.grown(0.2)) },
+                compareSources = compareSources,
             )
         }
         TopButtons(
@@ -339,7 +342,13 @@ internal fun FlightDetail(
     analysis: FlightAnalysis?,
     airspaceCheck: FlightAirspace?,
     airspace: List<AirspaceShape>,
+    /** Where a flight to lay beside this one comes from; `null` where none can be. */
+    compareSources: CompareSources? = null,
 ) {
+    // A second flight laid beside this one, and the sheets that choose it and show the two.
+    var compared by remember(flight.id) { mutableStateOf<ComparedFlight?>(null) }
+    var isChoosingCompared by remember { mutableStateOf(false) }
+    var isShowingComparison by remember { mutableStateOf(false) }
     // The position in the track the pilot is inspecting, if any.
     var cursor by rememberSaveable(flight.id) { mutableStateOf<Int?>(null) }
     // Whether the marker is running along the track by itself.
@@ -360,7 +369,17 @@ internal fun FlightDetail(
         MapSurface(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map of the flight" },
-            onUpdate = { map.update(cursor?.let { flight.track.getOrNull(it) }, covered, analysis?.score, airspace) },
+            onUpdate = {
+                val point = cursor?.let { flight.track.getOrNull(it) }
+                map.update(
+                    point,
+                    covered,
+                    analysis?.score,
+                    airspace,
+                    other = compared?.flight,
+                    otherCursor = point?.let { compared?.point(it.seconds) },
+                )
+            },
         )
         StatusBarScrim()
         FlightPanel(
@@ -371,6 +390,8 @@ internal fun FlightDetail(
             isPlaying = isPlaying,
             onPlaying = { isPlaying = it },
             onDetails = { isShowingDetails = true },
+            compared = compared,
+            onShowComparison = { isShowingComparison = true },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -411,6 +432,38 @@ internal fun FlightDetail(
                 isShowingDetails = false
             },
             onDismiss = { isShowingDetails = false },
+            isCompared = compared != null,
+            onCompare = compareSources?.let {
+                {
+                    isShowingDetails = false
+                    if (compared == null) isChoosingCompared = true else isShowingComparison = true
+                }
+            },
+        )
+    }
+
+    if (isChoosingCompared && compareSources != null) {
+        CompareChooser(
+            flight,
+            analysis,
+            compareSources,
+            onChosen = { chosen ->
+                isPlaying = false
+                compared = chosen
+            },
+            onDismiss = { isChoosingCompared = false },
+        )
+    }
+
+    compared?.takeIf { isShowingComparison }?.let { shown ->
+        ComparisonSheet(
+            shown,
+            onNearest = {
+                isPlaying = false
+                cursor = shown.nearestIndex(flight.track)
+            },
+            onEnd = { compared = null },
+            onDismiss = { isShowingComparison = false },
         )
     }
 }

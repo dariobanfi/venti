@@ -1,5 +1,12 @@
 package fly.venti.app.flight
 
+import fly.venti.app.design.numbers
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +65,10 @@ fun FlightPanel(
     onPlaying: (Boolean) -> Unit,
     onDetails: () -> Unit,
     modifier: Modifier = Modifier,
+    /** A second flight laid beside this one, if any. */
+    compared: ComparedFlight? = null,
+    /** Called to open the two flights side by side. */
+    onShowComparison: () -> Unit = {},
 ) {
     Surface(
         modifier = modifier,
@@ -70,6 +81,10 @@ fun FlightPanel(
             Spacer(Modifier.height(10.dp))
             val moment = cursor?.let { flight.track.getOrNull(it) }
             if (moment != null) Moment(flight, moment) else Totals(flight, score)
+            if (compared != null) {
+                Spacer(Modifier.height(8.dp))
+                Beside(compared, moment, cursor != null, onShowComparison)
+            }
             Spacer(Modifier.height(14.dp))
             AltitudeChart(
                 flight = flight,
@@ -80,6 +95,7 @@ fun FlightPanel(
                     onCursor(it)
                 },
                 modifier = Modifier.fillMaxWidth().height(124.dp),
+                compared = compared,
             )
             Spacer(Modifier.height(12.dp))
             ClimbLegend()
@@ -163,6 +179,45 @@ private fun Moment(flight: FlightView, point: TrackPoint) {
     }
 }
 
+/**
+ * The line that names the flight laid beside this one, and says where its
+ * glider was at the marked moment, or how the two lie to each other. A tap
+ * opens the two side by side.
+ */
+@Composable
+private fun Beside(compared: ComparedFlight, moment: TrackPoint?, isMarked: Boolean, onShow: () -> Unit) {
+    val colour = CompareColours.onScreen
+    val words = moment?.let { compared.words(it) }
+        ?: if (isMarked) CompareWords.NOT_IN_THE_AIR else compared.comparison.words
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .testTag("compare-line")
+            .clickable(role = Role.Button, onClick = onShow)
+            .clearAndSetSemantics {
+                contentDescription = compared.name
+                stateDescription = words
+                role = Role.Button
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(18.dp).height(4.dp).background(colour, CircleShape))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(compared.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                words,
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 /** An icon button in the panel's corner, with a full-size touch target. */
 @Composable
 private fun PanelButton(
@@ -181,8 +236,8 @@ private fun PanelButton(
 fun ClimbLegend(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth().clearAndSetSemantics {
-            contentDescription = "Track colours: blue where the glider sank, grey where it held its " +
-                "height, orange and red where it climbed."
+            contentDescription = "Track colours: teal where the glider sank, grey where it held its " +
+                "height, coral and red where it climbed."
         },
         verticalAlignment = Alignment.CenterVertically,
     ) {

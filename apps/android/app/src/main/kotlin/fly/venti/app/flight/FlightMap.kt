@@ -1,5 +1,10 @@
 package fly.venti.app.flight
 
+import androidx.compose.ui.graphics.toArgb
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.Feature
+import fly.venti.core.Bounds
 import fly.venti.app.airspace.AirspaceLayers
 import fly.venti.app.map.Covered
 import fly.venti.app.map.MapContent
@@ -35,6 +40,10 @@ class FlightMap(private val flight: FlightView) : MapContent {
     /** The airspace around the flight that the app has, to draw under it. */
     private var airspace: List<AirspaceShape> = emptyList()
 
+    /** A second flight laid beside this one, and where its glider was at the marked moment. */
+    private var other: FlightView? = null
+    private var otherCursor: TrackPoint? = null
+
     private var map: MapLibreMap? = null
     private var style: Style? = null
     private var view: MapView? = null
@@ -44,7 +53,23 @@ class FlightMap(private val flight: FlightView) : MapContent {
      * of the map the bars and the panel cover; and the scored route, once
      * the flight has been analysed.
      */
-    fun update(cursor: TrackPoint?, covered: Covered, score: FlightScore?, airspace: List<AirspaceShape> = emptyList()) {
+    fun update(
+        cursor: TrackPoint?,
+        covered: Covered,
+        score: FlightScore?,
+        airspace: List<AirspaceShape> = emptyList(),
+        other: FlightView? = null,
+        otherCursor: TrackPoint? = null,
+    ) {
+        if (other != this.other) {
+            this.other = other
+            drawOther()
+            frame()
+        }
+        if (otherCursor != this.otherCursor) {
+            this.otherCursor = otherCursor
+            markOtherCursor()
+        }
         if (airspace != this.airspace) {
             this.airspace = airspace
             drawAirspace()
@@ -77,12 +102,16 @@ class FlightMap(private val flight: FlightView) : MapContent {
         AirspaceLayers.add(style)
         drawAirspace()
         addRoute(style)
+        addOther(style)
         addTrack(style)
         addEnds(style)
+        addOtherCursor(style)
         addCursor(style)
         // The map may not have its size yet when the style arrives.
         view.post { if (!view.isDestroyed) frame() }
         drawRoute()
+        drawOther()
+        markOtherCursor()
         markCursor()
     }
 
@@ -101,7 +130,17 @@ class FlightMap(private val flight: FlightView) : MapContent {
         val density = view.resources.displayMetrics.density
         // The map's credits button moves up with the panel.
         map.uiSettings.setAttributionMargins((8 * density).roundToInt(), 0, 0, covered.bottom)
-        MapSetup.show(flight.bounds, map, view, covered)
+        // Room for both tracks when a second flight lies beside this one.
+        val bounds = other?.bounds?.let { theirs ->
+            val mine = flight.bounds
+            Bounds(
+                south = minOf(mine.south, theirs.south),
+                west = minOf(mine.west, theirs.west),
+                north = maxOf(mine.north, theirs.north),
+                east = maxOf(mine.east, theirs.east),
+            )
+        } ?: flight.bounds
+        MapSetup.show(bounds, map, view, covered)
     }
 
     private fun addTrack(style: Style) {
@@ -138,6 +177,36 @@ class FlightMap(private val flight: FlightView) : MapContent {
         style.addLayer(MapSetup.dot("flight-end-dot", END, 5f, MapSetup.ink, MapSetup.WHITE))
     }
 
+    /** The second flight: a line of one colour under the first, and its glider at the marked moment. */
+    private fun addOther(style: Style) {
+        style.addSource(GeoJsonSource(OTHER))
+        style.addLayer(MapSetup.line("flight-other-edge", OTHER, MapSetup.WHITE, 5f))
+        style.addLayer(MapSetup.line("flight-other-line", OTHER, CompareColours.onMap.toArgb(), 3f))
+    }
+
+    private fun drawOther() {
+        val style = style ?: return
+        val source = style.getSourceAs<GeoJsonSource>(OTHER) ?: return
+        val track = other?.track.orEmpty()
+        val line = if (track.size >= 2) listOf(Feature.fromGeometry(LineString.fromLngLats(track.map { Point.fromLngLat(it.lon, it.lat) }))) else emptyList()
+        source.setGeoJson(FeatureCollection.fromFeatures(line))
+    }
+
+    private fun addOtherCursor(style: Style) {
+        style.addSource(GeoJsonSource(OTHER_CURSOR))
+        style.addLayer(MapSetup.dot("flight-other-cursor-dot", OTHER_CURSOR, 7f, CompareColours.onMap.toArgb(), MapSetup.WHITE))
+    }
+
+    private fun markOtherCursor() {
+        val source = style?.getSourceAs<GeoJsonSource>(OTHER_CURSOR) ?: return
+        val point = otherCursor
+        source.setGeoJson(
+            FeatureCollection.fromFeatures(
+                if (point != null) listOf(Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat))) else emptyList(),
+            ),
+        )
+    }
+
     private fun addCursor(style: Style) {
         style.addSource(GeoJsonSource(CURSOR))
         val dot = MapSetup.dot(CURSOR_DOT, CURSOR, 8f, MapSetup.accent, MapSetup.WHITE)
@@ -160,5 +229,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
         const val END = "flight-end"
         const val CURSOR = "flight-cursor"
         const val CURSOR_DOT = "flight-cursor-dot"
+        const val OTHER = "flight-other"
+        const val OTHER_CURSOR = "flight-other-cursor"
     }
 }

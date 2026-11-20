@@ -1,5 +1,6 @@
 package fly.venti.app.flight
 
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -43,7 +44,15 @@ import kotlin.math.max
  * on the trailing edge and times of day along the bottom.
  */
 @Composable
-fun AltitudeChart(flight: FlightView, cursor: Int?, onCursor: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun AltitudeChart(
+    flight: FlightView,
+    cursor: Int?,
+    onCursor: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    /** A second flight laid beside this one: a thinner line of its own colour. */
+    compared: ComparedFlight? = null,
+) {
+    val otherColour = CompareColours.onScreen
     val accent = MaterialTheme.colorScheme.primary
     val grid = MaterialTheme.colorScheme.outlineVariant
     val rule = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
@@ -51,7 +60,7 @@ fun AltitudeChart(flight: FlightView, cursor: Int?, onCursor: (Int) -> Unit, mod
     val labels = MaterialTheme.typography.labelSmall.numbers.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val measurer = rememberTextMeasurer()
 
-    val range = remember(flight) { AltitudeAxis.range(flight) }
+    val range = remember(flight, compared) { AltitudeAxis.range(flight, compared?.flight) }
     val duration = max(flight.durationS, 1L).toDouble()
     val marked = cursor?.let { flight.track.getOrNull(it) }
     val setCursor by rememberUpdatedState(onCursor)
@@ -123,6 +132,25 @@ fun AltitudeChart(flight: FlightView, cursor: Int?, onCursor: (Int) -> Unit, mod
             drawPath(line, accent, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
 
+        // The other flight on this flight's time, cut at the chart's edges.
+        if (compared != null && compared.flight.profile.size >= 2) {
+            val offset = compared.comparison.offsetS.toDouble()
+            clipRect(plot.left, plot.top, plot.right, plot.bottom) {
+                val line = Path()
+                compared.flight.profile.forEachIndexed { index, point ->
+                    val at = Offset(x(point.seconds.toDouble() + offset), y(point.altitudeM))
+                    if (index == 0) line.moveTo(at.x, at.y) else line.lineTo(at.x, at.y)
+                }
+                drawPath(line, otherColour, style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            val theirs = marked?.let { compared.point(it.seconds) }
+            if (marked != null && theirs != null) {
+                val at = Offset(x(marked.seconds.toDouble()), y(theirs.altitudeM))
+                drawCircle(ring, 6.dp.toPx(), at)
+                drawCircle(otherColour, 4.dp.toPx(), at)
+            }
+        }
+
         if (marked != null) {
             val at = Offset(x(marked.seconds.toDouble()), y(marked.altitudeM))
             drawLine(rule, Offset(at.x, plot.top), Offset(at.x, plot.bottom), 1.dp.toPx())
@@ -143,9 +171,9 @@ object AltitudeAxis {
      * The vertical extent of the chart: the flight's altitudes widened to
      * whole hundreds of metres, and never flat.
      */
-    fun range(flight: FlightView): ClosedFloatingPointRange<Double> {
-        val low = floor(flight.minAltitudeM / 100) * 100
-        val high = ceil(flight.maxAltitudeM / 100) * 100
+    fun range(flight: FlightView, other: FlightView? = null): ClosedFloatingPointRange<Double> {
+        val low = floor(minOf(flight.minAltitudeM, other?.minAltitudeM ?: flight.minAltitudeM) / 100) * 100
+        val high = ceil(maxOf(flight.maxAltitudeM, other?.maxAltitudeM ?: flight.maxAltitudeM) / 100) * 100
         return low..max(high, low + 100)
     }
 }

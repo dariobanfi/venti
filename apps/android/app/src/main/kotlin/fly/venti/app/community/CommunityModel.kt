@@ -8,6 +8,7 @@ import fly.venti.app.HttpAnswer
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
+import fly.venti.core.Bounds
 import fly.venti.core.CoreException
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
@@ -168,6 +169,20 @@ class CommunityModel(
         } finally {
             isLoading = false
         }
+    }
+
+    /**
+     * The flights pilots show to everyone in an area and a span of time,
+     * newest first: the first page, which is as many as a list to choose
+     * from needs. Nothing of it is kept for the lists; what goes wrong is
+     * thrown, to be put into words by [words].
+     */
+    suspend fun flightsAround(area: Bounds, fromUnixS: Long, toUnixS: Long): List<PublicFlight> {
+        val server = server() ?: throw NoLongerPublic()
+        val answer = transport(server + publicFlightsPath(PublicFlightsOrder.NEWEST, area, fromUnixS, toUnixS, null))
+        val page = withContext(background) { publicFlights(answer.status16, answer.body) }
+        known += page.flights.associateBy { it.id }
+        return page.flights
     }
 
     /** A flight one of the lists has shown, by its address on the server. */

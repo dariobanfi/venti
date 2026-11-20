@@ -7,10 +7,19 @@
 
 import type { Page } from '@playwright/test';
 import { AERIAL_HOSTS } from './bundled-map';
-import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
+import {
+	addSampleFlight,
+	BETWEEN_THE_MOUNTAINS,
+	expect,
+	mapTabDrawn,
+	showTheValley,
+	test
+} from './helpers';
 
 const chip = (page: Page, name: string) =>
 	page.getByRole('group', { name: 'Layers on the map' }).getByRole('button', { name });
+/** The short line that names the photographs' makers. */
+const PHOTOS = 'Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX';
 const shown = (page: Page) => page.getByText(/^Flying sites on this part of the map/);
 
 test('the chips switch the map’s layers, and the browser remembers them', async ({
@@ -78,6 +87,12 @@ test('the layers button lays photographs from above under the map, and the brows
 	expect(new Set(photographs)).toContain('tiles.maps.eox.at');
 	// Whoever made the photographs is named on the map while they show.
 	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('EOX IT Services');
+	// A phone folds the map's own credits behind their button: a short line
+	// names the photographs' makers beside the others. A wide map writes the
+	// credits out and needs none.
+	const photos = page.getByText(PHOTOS);
+	if (wide) await expect(photos).toHaveCount(0);
+	else await expect(photos).toBeVisible();
 	await keep('101-map-aerial');
 
 	// A reload keeps the view, and the button switches back to the drawn map.
@@ -87,6 +102,8 @@ test('the layers button lays photographs from above under the map, and the brows
 	await aerial.click();
 	await expect(aerial).toHaveAttribute('aria-pressed', 'false');
 	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).not.toContainText('EOX');
+	// On the drawn map the short line is gone.
+	await expect(page.getByText(PHOTOS)).toHaveCount(0);
 	expect(problems).toEqual([]);
 });
 
@@ -116,4 +133,43 @@ test('a take-off’s sheet has the forecast’s status and its line, a landing h
 	});
 	await expect(site.getByText(/^(Today|Tomorrow|Mon|Tue|Wed|Thu|Fri|Sat|Sun): /)).toBeVisible();
 	await keep('100-site-outlook');
+});
+
+test('a flight’s page names the photographs too, and its buttons keep apart', async ({
+	page,
+	keep,
+	wide
+}) => {
+	await addSampleFlight(page);
+	const aerial = page.getByRole('button', { name: 'Aerial view' });
+	await aerial.click();
+	await expect(aerial).toHaveAttribute('aria-pressed', 'true');
+	const photos = page.getByText(PHOTOS);
+	if (wide) await expect(photos).toHaveCount(0);
+	else await expect(photos).toBeVisible();
+	await page.waitForTimeout(800);
+	await keep('102-flight-aerial');
+
+	// At a phone's width the button lies clear of the back and menu buttons
+	// and of the panel.
+	if (!wide) {
+		const box = (await aerial.boundingBox())!;
+		for (const other of [
+			page.getByRole('link', { name: 'Logbook' }).first(),
+			page.getByRole('button', { name: 'More' }).first(),
+			// The flight's panel.
+			page.locator('.dock .side').first()
+		]) {
+			const them = await other.boundingBox();
+			if (!them) continue;
+			const apart =
+				box.x + box.width <= them.x ||
+				them.x + them.width <= box.x ||
+				box.y + box.height <= them.y ||
+				them.y + them.height <= box.y;
+			expect(apart).toBe(true);
+		}
+	}
+	await aerial.click();
+	await expect(photos).toHaveCount(0);
 });

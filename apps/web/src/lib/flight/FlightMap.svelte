@@ -15,6 +15,7 @@
 		PAPER_ON_MAP,
 		ROUTE_ON_MAP
 	} from '#lib/design/palette.ts';
+	import { addLine } from '#lib/map/casing.ts';
 	import type { Map } from '#lib/map/setup.ts';
 	import { NOTHING, place, routeLines, trackByBand } from '#lib/map/shapes.ts';
 
@@ -82,7 +83,7 @@
 				addRoute(module, styled);
 				// The other flight lies under this one, in one colour.
 				styled.addSource('other-track', { type: 'geojson', data: NOTHING });
-				styled.addLayer(module.line('other-track-edge', 'other-track', INK_ON_MAP, 4.5));
+				addLine(styled, module.line('other-track-edge', 'other-track', INK_ON_MAP, 4.5));
 				styled.addLayer(module.line('other-track-line', 'other-track', OTHER_ON_MAP, 2.5));
 				addTrack(module, styled);
 				addEnds(module, styled);
@@ -107,7 +108,7 @@
 	function addRoute(module: typeof import('#lib/map/setup.ts'), map: Map) {
 		map.addSource('flight-route', { type: 'geojson', data: NOTHING });
 		const route = module.line('flight-route-line', 'flight-route', ROUTE_ON_MAP, 1.5);
-		map.addLayer({ ...route, paint: { ...route.paint, 'line-dasharray': [4, 3] } });
+		addLine(map, { ...route, paint: { ...route.paint, 'line-dasharray': [4, 3] } });
 	}
 
 	function addTrack(module: typeof import('#lib/map/setup.ts'), map: Map) {

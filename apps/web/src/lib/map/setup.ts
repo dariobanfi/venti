@@ -7,6 +7,7 @@
  * not wait for it.
  */
 
+import { casingsOn } from './casing';
 import {
 	addProtocol,
 	AttributionControl,
@@ -215,6 +216,8 @@ export function setAerial(map: Map, on: boolean): void {
 	};
 	show(AERIAL_LAYERS, on);
 	show(DRAWN_LAYERS, !on);
+	// The light casings under the app's dark lines, for the photographs.
+	show(casingsOn(map), on);
 }
 
 /** How many zoom levels the camera steps away as it leans back. */

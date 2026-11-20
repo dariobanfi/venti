@@ -23,7 +23,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
-	import { aerialOn, keepAerial } from '#lib/map/layers.ts';
+	import { AERIAL_CREDIT, aerialOn, keepAerial } from '#lib/map/layers.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import { type Beside, otherAt } from './beside';
 	import { nearestIndex } from './chart';
@@ -231,8 +231,13 @@
 				Airspace on this part of the map, as it is today: {text.count(airspaceDrawn)}.
 			</p>
 		{/if}
-		{#if airspaceCredit}
-			<p class="credits">{airspaceCredit}</p>
+		<!-- Whose the photographs are, while they show and the map's own
+		     credits are folded behind their button. -->
+		{#if airspaceCredit || (aerial && !wide)}
+			<p class="credits">
+				{#if aerial && !wide}<span>{AERIAL_CREDIT}</span>{/if}
+				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
+			</p>
 		{/if}
 
 		<div class="bar" bind:clientHeight={barHeight}>
@@ -349,6 +354,11 @@
 
 	.wide .credits {
 		bottom: 2.375rem;
+	}
+
+	/* Each credit a line of its own. */
+	.credits span {
+		display: block;
 	}
 
 	.bar {

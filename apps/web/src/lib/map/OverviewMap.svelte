@@ -4,6 +4,7 @@
 	pilot's own position when asked for.
 -->
 <script lang="ts">
+	import { addLine } from './casing';
 	import type { MapLayer } from './layers';
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
@@ -157,14 +158,14 @@
 
 		map.addSource('logbook-tracks', { type: 'geojson', data: NOTHING });
 		// A white edge keeps the lines readable over any ground colour.
-		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', INK_ON_MAP, 5));
+		addLine(map, module.line('logbook-tracks-edge', 'logbook-tracks', INK_ON_MAP, 5));
 		map.addLayer(module.line('logbook-tracks-line', 'logbook-tracks', ACCENT_ON_MAP, 2.5));
 
 		// The flight of a pilot who is being followed: a line in the colours
 		// of climb, like a flight of the logbook when it is opened, over the
 		// logbook's own lines.
 		map.addSource(LIVE_TRACK_SOURCE, { type: 'geojson', data: NOTHING });
-		map.addLayer(module.line('live-track-edge', LIVE_TRACK_SOURCE, INK_ON_MAP, 5.5));
+		addLine(map, module.line('live-track-edge', LIVE_TRACK_SOURCE, INK_ON_MAP, 5.5));
 		CLIMB_BANDS.forEach((band, index) => {
 			map.addLayer({
 				...module.line(`live-track-${index}`, LIVE_TRACK_SOURCE, band.color, 3),

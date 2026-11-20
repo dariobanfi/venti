@@ -30,6 +30,7 @@
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
 	import {
+		AERIAL_CREDIT,
 		aerialOn,
 		keepAerial,
 		keepLayersOff,
@@ -64,6 +65,11 @@
 	}
 	/** Whether the ground is photographs from above: the pilot's choice for every map. */
 	let aerial = $state(aerialOn(globalThis.localStorage));
+	/**
+	 * Whose the photographs are, while they show on a map whose own credits
+	 * are folded behind their button. A wide map writes them out itself.
+	 */
+	const photosCredit = $derived(aerial && !wide.current ? AERIAL_CREDIT : '');
 	const CHIP_ICONS = {
 		wind: 'wind',
 		airspace: 'airspace',
@@ -342,8 +348,9 @@
 	<!-- Whose wind, airspace and flying sites are on the map. Their licences
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
-	{#if credits || airspaceCredit || sitesCredit}
+	{#if credits || airspaceCredit || sitesCredit || photosCredit}
 		<p class="credits">
+			{#if photosCredit}<span>{photosCredit}</span>{/if}
 			{#if credits}<span>Wind: {credits}</span>{/if}
 			{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
 			{#if sitesCredit}<span>{sitesCredit}</span>{/if}

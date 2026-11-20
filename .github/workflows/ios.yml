@@ -184,6 +184,16 @@ jobs:
           done
           curl -sf http://127.0.0.1:8080/v1/health
 
+      # The server as it runs on a Mac, for the same Mac: started with
+      # `dev --maps apps/ios/Venti/Resources` it is what the tests talk to.
+      - uses: actions/upload-artifact@v4
+        if: matrix.part == 1
+        with:
+          name: venti-server-mac
+          path: target/debug/venti-server
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Choose this part's tests
         run: |
           # Every test function, sorted by name, dealt out in turn.
@@ -338,6 +348,18 @@ jobs:
         run: |
           brew install xcodegen
           cd apps/ios && xcodegen generate
+
+      # The core as Xcode links it, for a Mac whose Rust cannot build it
+      # (a registry mirror that is behind, for one): put into
+      # apps/ios/Packages/VentiCore, it stands in for build-core.sh.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: venti-core-apple
+          path: |
+            apps/ios/Packages/VentiCore/VentiCoreFFI.xcframework
+            apps/ios/Packages/VentiCore/Sources/VentiCore/Generated
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build the app for an iPhone, unsigned
         run: |

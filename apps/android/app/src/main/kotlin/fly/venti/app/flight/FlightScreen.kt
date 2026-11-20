@@ -1,5 +1,8 @@
 package fly.venti.app.flight
 
+import app.venti.design.VentiSpace
+import fly.venti.app.design.AerialButton
+import fly.venti.app.settings.Preferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,6 +95,8 @@ fun FlightScreen(
     /** Where a flight to lay beside this one comes from. */
     compareSources: CompareSources? = null,
     onBack: () -> Unit,
+    /** Where the choice of the aerial view is kept. */
+    preferences: Preferences? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -144,6 +149,7 @@ fun FlightScreen(
                 airspace = remember(current.flight, all) { airspace.shapes(current.flight.bounds.grown(0.2)) },
                 compareSources = compareSources,
                 onSendToLeague = { isSendingToALeague = true },
+                preferences = preferences,
             )
         }
         TopButtons(
@@ -335,7 +341,10 @@ internal fun FlightDetail(
     compareSources: CompareSources? = null,
     /** Hands the flight to a league: for the pilot's own flight only. */
     onSendToLeague: (() -> Unit)? = null,
+    /** Where the choice of the aerial view is kept; `null` for none. */
+    preferences: Preferences? = null,
 ) {
+    var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
     // A second flight laid beside this one, and the sheets that choose it and show the two.
     var compared by remember(flight.id) { mutableStateOf<ComparedFlight?>(null) }
     var isChoosingCompared by remember { mutableStateOf(false) }
@@ -363,6 +372,7 @@ internal fun FlightDetail(
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map of the flight" },
             onUpdate = {
                 val point = cursor?.let { flight.track.getOrNull(it) }
+                map.showAerial(aerial)
                 map.update(
                     point,
                     covered,
@@ -374,6 +384,17 @@ internal fun FlightDetail(
             },
         )
         StatusBarScrim()
+        // The ground under the flight: the drawn map, or photographs from above.
+        if (preferences != null) {
+            AerialButton(
+                aerial,
+                onChange = { on ->
+                    aerial = on
+                    preferences.mapShowsAerial = on
+                },
+                Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = TOP_BUTTONS + VentiSpace.s2, end = VentiSpace.s3),
+            )
+        }
         FlightPanel(
             flight = flight,
             score = analysis?.score,

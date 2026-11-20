@@ -419,6 +419,7 @@ private fun Sections(
                         leagues = session.leagues,
                         compareSources = CompareSources(logbook, session.community),
                         onBack = { navigation.back() },
+                        preferences = session.preferences,
                     )
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
@@ -458,6 +459,7 @@ private fun Sections(
                                 // Everything else this pilot shares with everyone.
                                 onPilot = { navigation.open(LeagueRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },
+                                preferences = session.preferences,
                             )
                         }
                     }

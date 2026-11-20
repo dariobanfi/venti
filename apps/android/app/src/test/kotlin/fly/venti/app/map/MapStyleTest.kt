@@ -112,6 +112,30 @@ class MapStyleTest {
     }
 
     @Test
+    fun theAerialViewIsHiddenUntilItIsAskedFor() {
+        val views = MapStyle.views(template)
+        assertEquals(listOf("aerial-world", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"), views.aerial)
+        assertEquals(listOf("path", "track", "road-minor", "road-major", "rail"), views.drawn)
+        // Every aerial layer is hidden in every prepared style: nothing is
+        // fetched from the photographs' providers until the view is on.
+        for (source in MapStyle.Source.entries) {
+            val layers = style(source).getValue("layers").jsonArray.map { it.jsonObject }
+            for (name in views.aerial) {
+                val layer = layers.single { it.getValue("id").jsonPrimitive.content == name }
+                assertEquals(name, "none", layer["layout"]?.jsonObject?.get("visibility")?.jsonPrimitive?.content)
+            }
+            // The photographs are raster tiles, and each names whose they are.
+            val sources = style(source).getValue("sources").jsonObject
+            for (name in listOf("aerial-world", "aerial-bavaria")) {
+                val photographs = sources.getValue(name).jsonObject
+                assertEquals("raster", photographs.getValue("type").jsonPrimitive.content)
+                assertTrue(name, photographs.getValue("attribution").jsonPrimitive.content.isNotBlank())
+            }
+        }
+        assertThrows(MapStyle.StyleError::class.java) { MapStyle.views("{}") }
+    }
+
+    @Test
     fun aStyleWithoutItsSourcesIsRefused() {
         assertThrows(MapStyle.StyleError::class.java) { MapStyle.json(MapStyle.Source.Online, "{}", region) }
         assertThrows(MapStyle.StyleError::class.java) { MapStyle.json(MapStyle.Source.Online, "not json", region) }

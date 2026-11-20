@@ -96,6 +96,38 @@ object MapStyle {
         ).toString()
     }
 
+    /**
+     * The layers that belong to one of the map's two views only: the drawn
+     * ground, or the aerial view, photographs from above. Every other layer
+     * is in both.
+     */
+    data class Views(val aerial: List<String>, val drawn: List<String>)
+
+    /**
+     * Which layers of the shared style belong to which view. The style says
+     * so itself, as `venti:view` in a layer's metadata, and stands in the
+     * drawn view: the aerial view's layers are hidden in the file.
+     */
+    fun views(template: String): Views {
+        val layers = (
+            try {
+                Json.parseToJsonElement(template) as? JsonObject
+            } catch (_: SerializationException) {
+                null
+            }
+            )?.get("layers") as? JsonArray ?: throw StyleError("The map style has no layers.")
+        fun names(view: String): List<String> = layers.mapNotNull { layer ->
+            val fields = layer as? JsonObject ?: return@mapNotNull null
+            val metadata = fields["metadata"] as? JsonObject
+            if ((metadata?.get("venti:view") as? JsonPrimitive)?.content == view) {
+                (fields["id"] as? JsonPrimitive)?.content
+            } else {
+                null
+            }
+        }
+        return Views(aerial = names("aerial"), drawn = names("drawn"))
+    }
+
     /** A file's location the way the map engine wants it: `file:///data/...`. */
     private fun url(file: File): String = "file://" + file.absolutePath
 

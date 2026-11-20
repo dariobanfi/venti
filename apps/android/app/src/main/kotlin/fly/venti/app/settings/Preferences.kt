@@ -68,6 +68,9 @@ interface Preferences {
     var mapHidesSites: Boolean
     var mapHidesPilots: Boolean
 
+    /** Whether the maps show the aerial view, photographs from above. One choice for every map of the app. */
+    var mapShowsAerial: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -155,6 +158,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapHidesPilots", false)
         set(value) = store.edit { putBoolean("VentiMapHidesPilots", value) }
 
+    override var mapShowsAerial: Boolean
+        get() = store.getBoolean("VentiMapShowsAerial", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -196,4 +203,5 @@ class MemoryPreferences : Preferences {
     override var mapHidesAirspace = false
     override var mapHidesSites = false
     override var mapHidesPilots = false
+    override var mapShowsAerial = false
 }

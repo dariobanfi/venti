@@ -2252,10 +2252,26 @@ class VentiUiTest {
         letTheMapDraw(12)
         keepScreenshot("online-1-map")
 
+        // The aerial view: photographs from above under the names and
+        // everything Venti draws. Off until the pilot switches it on.
+        val aerial = hasTestTag("map-aerial")
+        waitFor(aerial and isSelected().not())
+        tap(aerial)
+        waitFor(aerial and isSelected())
+        letTheMapDraw(12)
+        keepScreenshot("online-1b-map-aerial")
+
         tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
         tap(hasText("Add a sample flight"))
         waitFor(described("Flight details"))
+        // One choice for every map: the flight's map shows the photographs too.
+        waitFor(aerial and isSelected())
+        letTheMapDraw(12)
+        keepScreenshot("online-2b-flight-aerial")
+        // Off again, as the test found it.
+        tap(aerial)
+        waitFor(aerial and isSelected().not())
         letTheMapDraw(12)
         keepScreenshot("online-2-flight")
     }

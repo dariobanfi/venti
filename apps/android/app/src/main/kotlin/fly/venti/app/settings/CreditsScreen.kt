@@ -76,6 +76,21 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 }
                 row {
                     Credit(
+                        "Aerial view",
+                        "EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)",
+                        link = "https://cloudless.eox.at",
+                    )
+                }
+                row {
+                    Credit(
+                        "Aerial view in Bavaria",
+                        "© Datenquellen: Bayerische Vermessungsverwaltung, Europäische Union, enthält Copernicus " +
+                            "Sentinel-2 Daten 2018, verarbeitet durch das Bundesamt für Kartographie und Geodäsie (BKG)",
+                        link = "https://www.geodaten.bayern.de",
+                    )
+                }
+                row {
+                    Credit(
                         "Labels",
                         "Noto Sans, under the SIL Open Font License.",
                         link = "https://openfontlicense.org",

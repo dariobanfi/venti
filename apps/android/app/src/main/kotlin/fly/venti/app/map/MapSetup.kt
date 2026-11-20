@@ -162,6 +162,33 @@ object MapSetup {
     private fun installedAt(context: Context): Long =
         context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
 
+    /** The layers of the map's two views, read from the shared style once. */
+    @Volatile
+    private var views: MapStyle.Views? = null
+
+    private fun views(context: Context): MapStyle.Views? =
+        views ?: runCatching { MapStyle.views(AssetFiles(context).text(AppFiles.MAP_STYLE)) }.getOrNull()?.also { views = it }
+
+    /**
+     * Switches a map between the drawn ground and the aerial view:
+     * photographs from above, under the map's names and under everything
+     * the app draws. The photographs are fetched only while they show, as
+     * a hidden layer asks for no tiles. The credits button turns light on
+     * the photographs, which are dark.
+     */
+    fun showAerial(aerial: Boolean, style: Style, view: MapView) {
+        val views = views(view.context) ?: return
+        for (name in views.aerial) {
+            style.getLayer(name)?.setProperties(PropertyFactory.visibility(if (aerial) Property.VISIBLE else Property.NONE))
+        }
+        for (name in views.drawn) {
+            style.getLayer(name)?.setProperties(PropertyFactory.visibility(if (aerial) Property.NONE else Property.VISIBLE))
+        }
+        view.getMapAsync { map ->
+            map.uiSettings.setAttributionTintColor(if (aerial) Palette.haloOnMap.toArgb() else Color.argb(190, 64, 64, 64))
+        }
+    }
+
     /** A map view with the app's style and no camera yet. */
     fun makeMapView(context: Context, content: MapContent, kept: KeptMap? = null): MapView {
         MapLibre.getInstance(context.applicationContext)

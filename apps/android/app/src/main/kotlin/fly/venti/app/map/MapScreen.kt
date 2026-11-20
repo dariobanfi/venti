@@ -55,6 +55,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import app.venti.design.VentiSpace
+import fly.venti.app.design.AerialButton
 import fly.venti.app.design.LayerChip
 import fly.venti.app.design.RoundButton
 import fly.venti.app.design.Venti
@@ -118,6 +119,8 @@ fun MapScreen(
     var hidesAirspace by remember { mutableStateOf(preferences?.mapHidesAirspace == true) }
     var hidesSites by remember { mutableStateOf(preferences?.mapHidesSites == true) }
     var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
+    // The ground: the drawn map, or photographs from above. One choice for every map.
+    var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var showsStations by remember { mutableStateOf(false) }
@@ -225,6 +228,7 @@ fun MapScreen(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
+                map.showAerial(aerial)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
@@ -291,6 +295,11 @@ fun MapScreen(
                 // of the pilot's groups.
                 MapButton(R.drawable.ic_calendar_month, "Flying plans") { showsPlans = true }
             }
+            // The ground under everything: the drawn map, or photographs from above.
+            AerialButton(aerial, onChange = { on ->
+                aerial = on
+                preferences?.mapShowsAerial = on
+            })
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
                 icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,

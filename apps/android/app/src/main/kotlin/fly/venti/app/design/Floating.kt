@@ -18,7 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
@@ -80,18 +83,38 @@ fun RoundButton(
     description: String,
     modifier: Modifier = Modifier,
     tint: Color = Venti.colours.text,
+    /** For a button that switches something on: then its sign is in the link colour, and it says it is selected. */
+    isOn: Boolean? = null,
     onClick: () -> Unit,
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(VentiSize.touch),
+        modifier = modifier.size(VentiSize.touch).then(
+            if (isOn != null) Modifier.semantics { selected = isOn } else Modifier,
+        ),
         shape = PillShape,
         color = Venti.colours.surface,
-        contentColor = tint,
+        contentColor = if (isOn == true) Venti.colours.link else tint,
         shadowElevation = FloatElevation,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), contentDescription = description)
         }
     }
+}
+
+/**
+ * The round button that switches the maps between the drawn ground and the
+ * aerial view: photographs from above, with the names and everything the
+ * app draws left on them. One choice for every map of the app.
+ */
+@Composable
+fun AerialButton(isOn: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    RoundButton(
+        fly.venti.app.R.drawable.venti_layers,
+        "Aerial view",
+        modifier.testTag("map-aerial"),
+        isOn = isOn,
+        onClick = { onChange(!isOn) },
+    )
 }

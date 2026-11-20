@@ -90,6 +90,18 @@ class OverviewMap : MapContent {
     private var style: Style? = null
     private var view: MapView? = null
 
+    /** Whether the map shows the aerial view, photographs from above, in place of the drawn ground. */
+    private var aerial = false
+
+    /** Switches between the drawn ground and the aerial view; at once if the style is there, else when it comes. */
+    fun showAerial(aerial: Boolean) {
+        if (aerial == this.aerial) return
+        this.aerial = aerial
+        val style = style ?: return
+        val view = view ?: return
+        MapSetup.showAerial(aerial, style, view)
+    }
+
     override fun prepare(map: MapLibreMap, view: MapView) {
         // The northern Alps between Lake Constance and Salzburg.
         map.cameraPosition = CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
@@ -107,6 +119,7 @@ class OverviewMap : MapContent {
         this.map = map
         this.style = style
         this.view = view
+        MapSetup.showAerial(aerial, style, view)
         // What this map draws on top of the base map: airspace lowest,
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.

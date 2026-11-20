@@ -48,6 +48,18 @@ class FlightMap(private val flight: FlightView) : MapContent {
     private var style: Style? = null
     private var view: MapView? = null
 
+    /** Whether the map shows the aerial view, photographs from above, in place of the drawn ground. */
+    private var aerial = false
+
+    /** Switches between the drawn ground and the aerial view; at once if the style is there, else when it comes. */
+    fun showAerial(aerial: Boolean) {
+        if (aerial == this.aerial) return
+        this.aerial = aerial
+        val style = style ?: return
+        val view = view ?: return
+        MapSetup.showAerial(aerial, style, view)
+    }
+
     /**
      * What the screen wants shown now: the moment to mark, if any; how much
      * of the map the bars and the panel cover; and the scored route, once
@@ -98,6 +110,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
         this.map = map
         this.style = style
         this.view = view
+        MapSetup.showAerial(aerial, style, view)
         // Airspace lowest of all, under the route and the track.
         AirspaceLayers.add(style)
         drawAirspace()

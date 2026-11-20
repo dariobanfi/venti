@@ -25,11 +25,17 @@ enum Preferences {
     /// Whether the pilot has switched off airspace from the server.
     static let airspaceWithoutServer = "VentiAirspaceWithoutServer"
 
-    /// What the core assumes of a glider until the pilot says otherwise.
     /// Whom flights are shown to while they are under way: "link",
     /// "public", or nothing for nobody.
     static let liveAudience = "VentiLiveAudience"
+    /// Whether the cockpit leaves the screen's brightness as it is. By
+    /// itself it turns it all the way up for as long as it is open.
+    static let cockpitKeepsBrightness = "VentiCockpitKeepsBrightness"
+    /// Whether the cockpit is drawn for bright sun: light, whatever the
+    /// iPhone's appearance, and in bold type.
+    static let cockpitForSun = "VentiCockpitForSun"
 
+    /// What the core assumes of a glider until the pilot says otherwise.
     static let defaultTrimSpeed = 38.0
     static let defaultGlideRatio = 8.0
 }

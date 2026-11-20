@@ -92,6 +92,8 @@ final class FlySession {
     @ObservationIgnored private var handedAirspace: AirspaceSet?
     /// Refreshes of the screen since the score was last asked for.
     @ObservationIgnored private var ticksSinceScore = 0
+    /// How bright the screen was before the cockpit turned it up.
+    @ObservationIgnored private var brightnessBefore: CGFloat?
 
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
@@ -136,6 +138,11 @@ final class FlySession {
     func reach(of places: [WaypointView]) -> [ReachView] {
         guard let session else { return [] }
         return session.reach(places: places.map(\.place), nowUnixS: replay?.now() ?? Date().timeIntervalSince1970)
+    }
+
+    /// The screen the app is on.
+    private static var screen: UIScreen? {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.screen }.first
     }
 
     // MARK: Live tracking
@@ -296,6 +303,10 @@ final class FlySession {
         sound.stop()
         voice.stop()
         UIApplication.shared.isIdleTimerDisabled = false
+        if let before = brightnessBefore {
+            Self.screen?.brightness = before
+            brightnessBefore = nil
+        }
 
         var recording: PendingRecording?
         do {
@@ -348,8 +359,16 @@ final class FlySession {
             problem = error.words
         }
         sound.isMuted = isMuted
-        // A cockpit that dims and locks is no use.
+        // A cockpit that dims and locks is no use, and one that cannot be
+        // read in the sun is not much more: the screen goes all the way
+        // up, unless the pilot would rather keep the battery.
         UIApplication.shared.isIdleTimerDisabled = true
+        if !LaunchOptions.isUnderTest, !UserDefaults.standard.bool(forKey: Preferences.cockpitKeepsBrightness),
+           let screen = Self.screen
+        {
+            brightnessBefore = screen.brightness
+            screen.brightness = 1
+        }
         if !LaunchOptions.isUnderTest {
             sound.start()
         }

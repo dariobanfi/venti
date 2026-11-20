@@ -322,7 +322,9 @@ What the apps pilots already fly with teach, and what the next versions should t
 - burnair shortens the pilot's own track to the last minute and a half while circling, to clear the map.
 - ForeFlight fixes its hazard colours (red within 100 ft, yellow within 1,000 ft) and repeats every alert in sound.
 
-Still to design: a high-contrast theme for sun, layouts the pilot can change, routes of more than one place, and the airspace side view.
+**In the sun.** While the cockpit is open the screen is turned all the way up, and back to where it was afterwards; a switch in the settings leaves the brightness alone for a pilot who would rather keep the battery. A second switch, "Cockpit for bright sun", draws the cockpit light whatever the iPhone's appearance and sets every letter and number in bold. It is a first step and not the high-contrast theme: the greys are still greys and the map is the same map. Neither has been tried in the sun.
+
+Still to design: a high-contrast theme for sun with a map drawn for it, layouts the pilot can change, routes of more than one place, and the airspace side view.
 
 ### A task in the cockpit
 

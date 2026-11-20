@@ -23,6 +23,7 @@ struct CockpitScreen: View {
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
+    @AppStorage(Preferences.cockpitForSun) private var isForSun = false
 
     var body: some View {
         @Bindable var fly = fly
@@ -180,6 +181,16 @@ struct CockpitScreen: View {
                 .padding(.vertical, 10)
             }
             .background(Color(.systemBackground))
+            // For bright sun: dark type on a light ground whatever the
+            // iPhone's appearance, and every letter and number in bold.
+            // A pilot who has bold text switched on in the system keeps it
+            // either way.
+            .transformEnvironment(\.legibilityWeight) { weight in
+                if isForSun {
+                    weight = .bold
+                }
+            }
+            .preferredColorScheme(isForSun ? .light : nil)
             // With the first position, and a network, the airspace around
             // it is fetched if what the iPhone keeps is old or from
             // elsewhere. A change reaches the running session by itself.

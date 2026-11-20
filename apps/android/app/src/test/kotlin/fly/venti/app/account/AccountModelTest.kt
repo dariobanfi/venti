@@ -430,8 +430,8 @@ class AccountModelTest {
         server.instead = { request -> if (request.method == "PATCH") refusal(403, "flight_taken_down") else null }
         assertNull(account.share(flight, FlightVisibility.PUBLIC))
         assertEquals(
-            "Whoever runs this server has taken this flight down. " +
-                "It stays in your logbook, and cannot be shared from this server.",
+            "This flight was taken down on Venti. " +
+                "It stays in your logbook, and cannot be shared from it.",
             account.problem,
         )
         assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
@@ -466,7 +466,7 @@ class AccountModelTest {
         account.signIn(SERVER, "demo", "a password of the test")
         val flight = ReportSubject.Flight("fbyw03atd9qdt5bfe177ra1k94")
         val outcome = account.report(flight, ReportReason.NOT_A_FLIGHT, " This is my track. ")
-        assertEquals("Sent. Whoever runs this server will read it.", outcome.sent)
+        assertEquals("Sent. Whoever runs Venti will read it.", outcome.sent)
         assertNull(outcome.problem)
 
         val report = reports().single()

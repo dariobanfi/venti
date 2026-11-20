@@ -605,7 +605,7 @@ describe('reporting what another pilot shares', () => {
 		const [asked] = browser.server.asked;
 		expect(asked).toMatchObject({ method: 'POST', path: '/v1/reports', token: TOKEN });
 		expect(JSON.parse(asked.body)).toEqual(JSON.parse(text(recorded('report_request.json'))));
-		expect(said).toBe('Sent. Whoever runs this server will read it.');
+		expect(said).toBe('Sent. Whoever runs Venti will read it.');
 	});
 
 	it('names a pilot’s page and a live track as the server wants them named', async () => {

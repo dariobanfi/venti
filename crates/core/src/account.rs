@@ -1461,7 +1461,7 @@ mod tests {
         let full_core = super::tests::core(&folder_full);
         full_core.import_flight(sample()).unwrap();
         signed_in(&full_core);
-        let words = "Your account on this server is full. Delete flights you no longer need to make room; what was not sent stays on this device.";
+        let words = "Your account on Venti is full. Delete flights you no longer need to make room; what was not sent stays on this device.";
         let no_room = json!({"error": {"code": "account_full", "message": "x"}});
         let sync = full_core.clone().sync();
         sync.start(NOW);

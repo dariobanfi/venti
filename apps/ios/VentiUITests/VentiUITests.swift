@@ -1235,7 +1235,7 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("community-4-report")
         app.buttons["Send"].tap()
         XCTAssertTrue(element("report-outcome", in: app).waitForExistence(timeout: 20))
-        XCTAssertTrue(labelled(containing: "Whoever runs this server will read it", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Whoever runs Venti will read it", in: app).exists)
         sleep(1)
         keepScreenshot("community-5-reported")
         app.buttons["Done"].tap()

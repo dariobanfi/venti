@@ -265,7 +265,7 @@ final class AccountModelTests: XCTestCase {
         let outcome = try await account.report(
             .flight(id: "fbyw03atd9qdt5bfe177ra1k94"), reason: .notAFlight, text: " This is my track. "
         )
-        XCTAssertEqual(outcome, "Sent. Whoever runs this server will read it.")
+        XCTAssertEqual(outcome, "Sent. Whoever runs Venti will read it.")
 
         // Signing in may have set a sync going: only the reports count.
         let reports = await sent.requests.filter { $0.url?.path == "/v1/reports" }

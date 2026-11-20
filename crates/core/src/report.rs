@@ -138,7 +138,7 @@ pub fn report_form() -> ReportForm {
             ),
         ],
         text_at_most: u32::try_from(MAX_REPORT_TEXT_LENGTH).unwrap_or(u32::MAX),
-        notice: "Whoever runs this server reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back."
+        notice: "Whoever runs Venti reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back."
             .to_owned(),
     }
 }
@@ -222,7 +222,7 @@ pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
     }
     let response: ReportResponse = answer(status, &body)?;
     Ok(if response.created {
-        "Sent. Whoever runs this server will read it.".to_owned()
+        "Sent. Whoever runs Venti will read it.".to_owned()
     } else {
         "You reported this before. Your report is still waiting to be read.".to_owned()
     })
@@ -332,7 +332,7 @@ mod tests {
     fn what_became_of_a_report_is_said_in_a_line() {
         assert_eq!(
             report_sent(201, br#"{"created":true}"#.to_vec()).unwrap(),
-            "Sent. Whoever runs this server will read it."
+            "Sent. Whoever runs Venti will read it."
         );
         assert_eq!(
             report_sent(200, br#"{"created":false}"#.to_vec()).unwrap(),

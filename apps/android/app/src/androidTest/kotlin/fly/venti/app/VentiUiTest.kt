@@ -1068,7 +1068,7 @@ class VentiUiTest {
         tap(hasTestTag("report-send"))
         waitFor(hasTestTag("report-outcome"))
         assertTrue(
-            exists(hasText("Whoever runs this server will read it", substring = true)) ||
+            exists(hasText("Whoever runs Venti will read it", substring = true)) ||
                 exists(hasText("You reported this before", substring = true)),
         )
         assertFalse(exists(hasTestTag("report-send")))

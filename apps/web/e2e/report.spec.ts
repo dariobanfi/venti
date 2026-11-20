@@ -18,7 +18,7 @@ const FLIGHT = 'nfmvgygyr34epnfbcekb04nwqc';
 const BETWEEN = { latitude: 47.678, longitude: 11.755 };
 
 const NOTICE =
-	'Whoever runs this server reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back.';
+	'Whoever runs Venti reads the report and sees that it came from you. The pilot you report is not told, and no answer comes back.';
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 
@@ -80,7 +80,7 @@ test('a pilot reports another pilot’s flight, and is told beforehand what happ
 	await send.click();
 
 	// Sent: one line, and nothing more to fill in.
-	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs this server will read it.');
+	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
 	await expect(form.getByRole('radio')).toHaveCount(0);
 	await expect(send).toBeHidden();
 	await keep('68-report-sent');
@@ -129,7 +129,7 @@ test('a pilot’s page is reported from the pilot’s flights', async ({ page })
 	await expect(form.getByText(NOTICE)).toBeVisible();
 	await form.getByRole('radio', { name: 'Pretends to be someone else' }).check();
 	await form.getByRole('button', { name: 'Send report' }).click();
-	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs this server will read it.');
+	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
 });
 
 test('a live track is reported from its glider’s page on the map', async ({
@@ -160,7 +160,7 @@ test('a live track is reported from its glider’s page on the map', async ({
 	await form.getByRole('radio', { name: 'Shows something private' }).check();
 	await keep('70-report-track');
 	await form.getByRole('button', { name: 'Send report' }).click();
-	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs this server will read it.');
+	await expect(form.getByRole('status')).toHaveText('Sent. Whoever runs Venti will read it.');
 	// The glider's page is still there behind the form.
 	await form.getByRole('button', { name: 'Done' }).click();
 	await expect(glider).toBeVisible();

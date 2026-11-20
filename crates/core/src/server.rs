@@ -92,15 +92,15 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
         }
         (_, Some("invalid_day")) => "The server could not read the day.".to_owned(),
         (_, Some("flight_taken_down")) => {
-            "Whoever runs this server has taken this flight down. It stays in your logbook, and cannot be shared from this server."
+            "This flight was taken down on Venti. It stays in your logbook, and cannot be shared from it."
                 .to_owned()
         }
         (_, Some("publishing_suspended")) => {
-            "Whoever runs this server has stopped this account from sharing with everyone. A flight can still be shared with a link."
+            "This account was stopped from sharing with everyone on Venti. A flight can still be shared with a link."
                 .to_owned()
         }
         (_, Some("account_full")) => {
-            "Your account on this server is full. Delete flights you no longer need to make room; what was not sent stays on this device."
+            "Your account on Venti is full. Delete flights you no longer need to make room; what was not sent stays on this device."
                 .to_owned()
         }
         (_, Some("box_too_large")) => {
@@ -164,7 +164,7 @@ mod tests {
                 403,
                 r#"{"error":{"code":"flight_taken_down","message":"x"}}"#
             )
-            .contains("has taken this flight down")
+            .contains("was taken down on Venti")
         );
         assert!(
             words(
@@ -179,7 +179,7 @@ mod tests {
     fn a_full_account_is_said_in_words() {
         assert!(
             words(403, r#"{"error":{"code":"account_full","message":"x"}}"#)
-                .starts_with("Your account on this server is full.")
+                .starts_with("Your account on Venti is full.")
         );
     }
 }

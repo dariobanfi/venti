@@ -397,6 +397,53 @@ pub struct TargetPlace {
     pub elevation_m: Option<f64>,
 }
 
+/// Whether the glider is expected to reach a place by gliding to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+pub enum Reach {
+    /// Expected to arrive at least a hundred metres above it.
+    Within,
+    /// Expected to arrive, with less than that to spare.
+    Just,
+    /// Not expected to arrive: too far for the height, or the wind is too
+    /// strong to make way towards it.
+    Beyond,
+    /// Not known: the place has no height, or the glider has none yet.
+    Unknown,
+}
+
+/// How one place lies within the glider's reach, by the glider's trim
+/// speed and glide ratio and the wind last measured, in a straight line.
+/// The ground in between is not looked at: a ridge in the way is not seen.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct ReachView {
+    /// How far it is, metres.
+    pub distance_m: f64,
+    /// The direction to it, degrees clockwise from north.
+    pub bearing_deg: f64,
+    /// How far above the place the glider is expected to arrive, metres;
+    /// negative when it is expected to come down before it. Absent when
+    /// that cannot be worked out.
+    pub arrival_height_m: Option<f64>,
+    /// Whether that is within reach.
+    pub reach: Reach,
+}
+
+/// The best of the landings the glider could go to, for one line in the
+/// cockpit.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct LandingOption {
+    /// Which of the places given it is, counted from zero.
+    pub index: u32,
+    /// Its name.
+    pub name: String,
+    /// How it lies within reach. `Beyond` means that no landing given is
+    /// within reach, and this is the one that misses by least.
+    pub reach: ReachView,
+    /// How many of the places given are within reach, the ones that are
+    /// only just so included.
+    pub in_reach: u32,
+}
+
 /// The way to the place the cockpit navigates to.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct WayToTarget {
@@ -778,6 +825,61 @@ impl FlightSession {
                 elevation_m: place.elevation_m.filter(|elevation| elevation.is_finite()),
             })
         });
+    }
+
+    /// How each of some places lies within the glider's reach, in the
+    /// order given. Empty until there is a position.
+    pub fn reach(&self, places: Vec<TargetPlace>, now_unix_s: f64) -> Vec<ReachView> {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        let Some(position) = state.position else {
+            return Vec::new();
+        };
+        places
+            .iter()
+            .map(|place| reach_of(place, position, &state, &inner.glider))
+            .collect()
+    }
+
+    /// The landing to think of first, among the places given: the one the
+    /// glider is expected to arrive highest above. `None` on the ground,
+    /// without a position, and when none of the places has a height.
+    pub fn landing_option(
+        &self,
+        landings: Vec<TargetPlace>,
+        now_unix_s: f64,
+    ) -> Option<LandingOption> {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        if state.phase != Phase::Flying {
+            return None;
+        }
+        let position = state.position?;
+        let reaches: Vec<ReachView> = landings
+            .iter()
+            .map(|place| reach_of(place, position, &state, &inner.glider))
+            .collect();
+        let (index, best) = reaches
+            .iter()
+            .enumerate()
+            .filter(|(_, reach)| reach.arrival_height_m.is_some())
+            .max_by(|a, b| {
+                a.1.arrival_height_m
+                    .unwrap_or(f64::MIN)
+                    .total_cmp(&b.1.arrival_height_m.unwrap_or(f64::MIN))
+            })?;
+        Some(LandingOption {
+            index: u32::try_from(index).ok()?,
+            name: landings[index].name.clone(),
+            reach: *best,
+            in_reach: u32::try_from(
+                reaches
+                    .iter()
+                    .filter(|reach| matches!(reach.reach, Reach::Within | Reach::Just))
+                    .count(),
+            )
+            .unwrap_or(u32::MAX),
+        })
     }
 
     /// Sets the task to fly, from its file's text as the core keeps it
@@ -1481,6 +1583,59 @@ impl Replay {
     }
 }
 
+/// A place counts as within reach when the glider is expected to arrive
+/// at least this far above it, metres: room for a circuit and for the
+/// prediction being a little wrong. To verify in the air.
+const REACH_RESERVE_M: f64 = 100.0;
+
+fn reach_of(
+    place: &TargetPlace,
+    position: GeoPoint,
+    state: &live::LiveState,
+    glider: &Glider,
+) -> ReachView {
+    let unknown = ReachView {
+        distance_m: 0.0,
+        bearing_deg: 0.0,
+        arrival_height_m: None,
+        reach: Reach::Unknown,
+    };
+    let Ok(there) = GeoPoint::new(place.position.lat, place.position.lon) else {
+        return unknown;
+    };
+    let way = navigation::navigate(
+        position,
+        state.altitude_m,
+        state.wind,
+        &Target {
+            name: String::new(),
+            position: there,
+            elevation_m: place.elevation_m.filter(|elevation| elevation.is_finite()),
+        },
+        glider,
+    );
+    ReachView {
+        distance_m: way.distance_m,
+        bearing_deg: way.bearing_deg,
+        arrival_height_m: way.arrival_height_m,
+        reach: reach_in_words(way.height_above_m, way.arrival_height_m),
+    }
+}
+
+/// Whether a place is within reach, from how far the glider is above it
+/// now and how far above it the glide is expected to end.
+fn reach_in_words(height_above_m: Option<f64>, arrival_height_m: Option<f64>) -> Reach {
+    match (height_above_m, arrival_height_m) {
+        (None, _) => Reach::Unknown,
+        // The heights are known and no arrival can be worked out: the wind
+        // lets the glider make no way towards the place.
+        (Some(_), None) => Reach::Beyond,
+        (Some(_), Some(arrival)) if arrival >= REACH_RESERVE_M => Reach::Within,
+        (Some(_), Some(arrival)) if arrival >= 0.0 => Reach::Just,
+        (Some(_), Some(_)) => Reach::Beyond,
+    }
+}
+
 /// A wind older than this, seconds, is not warned from: it was measured
 /// somewhere else by now.
 const STRONG_WIND_FRESH_S: f64 = 20.0 * 60.0;
@@ -1700,6 +1855,86 @@ mod tests {
             .advance(session.clone(), 300.0);
         assert_eq!(session.live_share(0.0), None);
         assert_eq!(session.live_request(1e10), None);
+    }
+
+    #[test]
+    fn the_landings_within_reach_are_told_from_the_ones_beyond() {
+        let folder = TempFolder::new();
+        // Nothing to say before there is a position.
+        let nowhere = FlightSession::new(folder_text(&folder));
+        assert!(nowhere.reach(Vec::new(), 0.0).is_empty());
+        assert_eq!(nowhere.landing_option(Vec::new(), 0.0), None);
+
+        // Five minutes in: above the first thermal, west wind 3 m/s, the
+        // default glider (38 km/h, a glide of 8).
+        let (session, replay) = fly(&folder, 300.0, false);
+        let view = session.view(replay.now());
+        let (here, altitude) = (view.position.unwrap(), view.altitude_m.unwrap());
+        let place = |name: &str, east_km: f64, below_m: Option<f64>| TargetPlace {
+            name: name.to_owned(),
+            position: Coordinate {
+                lat: here.lat,
+                lon: here.lon + east_km / 75.0,
+            },
+            elevation_m: below_m.map(|below| altitude - below),
+        };
+        let places = vec![
+            // 4 km downwind and 900 m below: about 510 m to spare.
+            place("Downwind", 4.0, Some(900.0)),
+            // The same distance into the wind: a glide of 5.7 over the
+            // ground does not make it.
+            place("Upwind", -4.0, Some(600.0)),
+            // 6 km downwind and 660 m below: arrives, with little to spare.
+            place("Far", 6.0, Some(660.0)),
+            place("No height", 1.0, None),
+        ];
+        let reach = session.reach(places.clone(), replay.now());
+        assert_eq!(reach.len(), 4);
+        assert_eq!(reach[0].reach, Reach::Within);
+        assert!(
+            (reach[0].arrival_height_m.unwrap() - 510.0).abs() < 40.0,
+            "{:?}",
+            reach[0]
+        );
+        assert!((reach[0].distance_m - 4000.0).abs() < 100.0);
+        assert!((reach[0].bearing_deg - 90.0).abs() < 1.0);
+        assert_eq!(reach[1].reach, Reach::Beyond);
+        assert!(reach[1].arrival_height_m.unwrap() < 0.0, "{:?}", reach[1]);
+        assert_eq!(reach[2].reach, Reach::Just);
+        let spare = reach[2].arrival_height_m.unwrap();
+        assert!((0.0..100.0).contains(&spare), "{spare}");
+        assert_eq!(reach[3].reach, Reach::Unknown);
+        assert_eq!(reach[3].arrival_height_m, None);
+
+        // The landing to think of first is the one with most to spare, and
+        // two of the four can be reached.
+        let best = session
+            .landing_option(places.clone(), replay.now())
+            .unwrap();
+        assert_eq!((best.index, best.name.as_str()), (0, "Downwind"));
+        assert_eq!(best.in_reach, 2);
+        assert_eq!(best.reach, reach[0]);
+
+        // With only the one upwind there is no landing in reach, and it is
+        // said by how much it is missed.
+        let none = session
+            .landing_option(vec![places[1].clone(), places[3].clone()], replay.now())
+            .unwrap();
+        assert_eq!((none.index, none.in_reach), (0, 0));
+        assert_eq!(none.reach.reach, Reach::Beyond);
+        // Places without a height say nothing at all.
+        assert_eq!(
+            session.landing_option(vec![places[3].clone()], replay.now()),
+            None
+        );
+
+        // A wind the glider makes no way into gives no arrival to work
+        // out, whatever the height: beyond reach, not unknown.
+        assert_eq!(reach_in_words(Some(900.0), None), Reach::Beyond);
+        assert_eq!(reach_in_words(None, None), Reach::Unknown);
+        assert_eq!(reach_in_words(Some(900.0), Some(100.0)), Reach::Within);
+        assert_eq!(reach_in_words(Some(900.0), Some(99.0)), Reach::Just);
+        assert_eq!(reach_in_words(Some(900.0), Some(-1.0)), Reach::Beyond);
     }
 
     #[test]

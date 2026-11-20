@@ -116,6 +116,7 @@ struct TargetPicker: View {
     let choose: (WaypointView?) -> Void
 
     @Environment(WaypointsModel.self) private var waypoints
+    @Environment(FlySession.self) private var fly
     @Environment(\.dismiss) private var dismiss
 
     @State private var search = ""
@@ -154,14 +155,19 @@ struct TargetPicker: View {
                     )
                 }
 
-                Section("Waypoints") {
+                Section {
                     let places = shown
-                    ForEach(places, id: \.id) { waypoint in
+                    // How each lies within the glider's reach right now.
+                    let reach = fly.reach(of: places)
+                    ForEach(Array(places.enumerated()), id: \.element.id) { index, waypoint in
                         Button {
                             choose(waypoint)
                             dismiss()
                         } label: {
-                            WaypointRow(waypoint: waypoint, isChosen: waypoint.name == chosen)
+                            WaypointRow(
+                                waypoint: waypoint, isChosen: waypoint.name == chosen,
+                                reach: reach.indices.contains(index) ? reach[index] : nil
+                            )
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("target-row")
@@ -175,6 +181,12 @@ struct TargetPicker: View {
                     }
                     Button("Add waypoints from a file", systemImage: "square.and.arrow.down") {
                         isChoosingFiles = true
+                    }
+                } header: {
+                    Text("Waypoints")
+                } footer: {
+                    if !waypoints.all.isEmpty {
+                        Text("The height beside a place is what the glider is expected to arrive with, by its trim speed and glide ratio from the settings and the wind last measured, in a straight line. The ground in between is not looked at.")
                     }
                 }
             }

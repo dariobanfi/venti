@@ -99,6 +99,7 @@ enum Session {
             let fly = FlySession(dataFolder: folder)
             fly.airspace = { airspace.set }
             fly.taskFile = { tasks.file }
+            fly.landings = { waypoints.all.filter { $0.kind == .landing } }
             // A test starts signed out, whatever an earlier one left in
             // the simulator's Keychain.
             if LaunchOptions.isUITesting {

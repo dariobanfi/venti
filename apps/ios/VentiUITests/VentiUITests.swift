@@ -228,6 +228,9 @@ final class VentiUITests: XCTestCase {
         // Most of a circle later the map pictures the thermal: the circles
         // flown, moved with the wind, and where among them the lift is.
         XCTAssertTrue(element("lift-badge", in: app).waitForExistence(timeout: 20))
+        // The sample waypoints hold one landing, well within reach from
+        // up here: the cockpit names it with the height to spare.
+        XCTAssertTrue(element("landing-badge", in: app).waitForExistence(timeout: 15))
         sleep(2)
         keepScreenshot("fly-2-thermal")
 

@@ -100,9 +100,35 @@ struct WaypointsScreen: View {
 }
 
 /// One waypoint in a line.
+extension WaypointRow {
+    /// What a row says to someone who cannot see it.
+    static func spoken(_ waypoint: WaypointView, isChosen: Bool, reach: ReachView?) -> String {
+        var parts: [String] = []
+        if isChosen {
+            parts.append("Chosen.")
+        }
+        parts.append(waypoint.detail)
+        if let reach, let arrival = reach.arrivalHeightM {
+            switch reach.reach {
+            case .within, .just:
+                parts.append("Arriving \(Format.signedMetres((arrival / 10).rounded() * 10)) metres above it.")
+            case .beyond:
+                parts.append("Out of reach.")
+            case .unknown:
+                break
+            }
+        } else if reach?.reach == .beyond {
+            parts.append("Out of reach.")
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
 struct WaypointRow: View {
     let waypoint: WaypointView
     var isChosen = false
+    /// How it lies within the glider's reach, in the cockpit's list.
+    var reach: ReachView?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -122,6 +148,14 @@ struct WaypointRow: View {
                 }
             }
             Spacer(minLength: 8)
+            // The height the glider would arrive with: plain with height
+            // to spare, amber with little, red when it comes down before.
+            if let reach, let arrival = reach.arrivalHeightM, reach.reach != .unknown {
+                Text("\(Format.signedMetres((arrival / 10).rounded() * 10)) m")
+                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(LandingBadge.color(reach.reach))
+            }
             if isChosen {
                 Image(systemName: "checkmark")
                     .font(.body.weight(.semibold))
@@ -131,6 +165,6 @@ struct WaypointRow: View {
         .contentShape(.rect)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(waypoint.name)
-        .accessibilityValue(isChosen ? "Chosen. \(waypoint.detail)" : waypoint.detail)
+        .accessibilityValue(Self.spoken(waypoint, isChosen: isChosen, reach: reach))
     }
 }

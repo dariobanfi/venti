@@ -55,6 +55,13 @@ final class FlySession {
     /// How the flight is shared with others while it is under way. Absent
     /// while it is not.
     private(set) var live: LiveShareView?
+    /// The landing to think of first, among the pilot's own: the one the
+    /// glider would arrive highest above. Absent on the ground, and for a
+    /// pilot who keeps no landings with a height.
+    private(set) var landing: LandingOption?
+    /// The pilot's landings, asked for every few seconds in the air. The
+    /// app sets this to the waypoints that are places to land.
+    @ObservationIgnored var landings: () -> [WaypointView] = { [] }
     /// The address of the pilot's Venti server, if this iPhone is signed
     /// in to one. The app sets this.
     @ObservationIgnored var server: () -> String? = { nil }
@@ -121,6 +128,14 @@ final class FlySession {
         begin(session, mode: .live)
         // Shown to others from take-off, if the pilot chose so.
         share(with: LiveChoice.stored.audience)
+    }
+
+    /// How each of some places lies within the glider's reach now, in
+    /// their order: for the list of places to fly to. Empty without a
+    /// position.
+    func reach(of places: [WaypointView]) -> [ReachView] {
+        guard let session else { return [] }
+        return session.reach(places: places.map(\.place), nowUnixS: replay?.now() ?? Date().timeIntervalSince1970)
     }
 
     // MARK: Live tracking
@@ -293,6 +308,7 @@ final class FlySession {
         replay = nil
         mode = nil
         live = nil
+        landing = nil
         view = nil
         way = nil
         score = nil
@@ -399,6 +415,11 @@ final class FlySession {
             let light = session.daylight(nowUnixS: now)
             if light != daylight {
                 daylight = light
+            }
+            // Which of the pilot's landings the glider could go to now.
+            let option = session.landingOption(landings: landings().map(\.place), nowUnixS: now)
+            if option != landing {
+                landing = option
             }
         }
 

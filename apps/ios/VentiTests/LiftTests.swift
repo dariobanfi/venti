@@ -1,3 +1,4 @@
+import SwiftUI
 import VentiCore
 import XCTest
 
@@ -67,6 +68,48 @@ final class LiftTests: XCTestCase {
         XCTAssertEqual(wind.fromDeg, 270, accuracy: 8)
         XCTAssertEqual(try XCTUnwrap(view.windAgeS), 257, accuracy: 20)
         XCTAssertNil(view.strongWind)
+    }
+
+    func testTheLandingToThinkOfFirstIsSaidWithItsHeightToSpare() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-lift-test-\(UUID().uuidString)", isDirectory: true)
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let session = FlightSession(dataFolder: folder.path)
+        let replay = try Replay(igcText: try String(contentsOf: url, encoding: .utf8))
+        XCTAssertNil(session.landingOption(landings: [], nowUnixS: 0))
+
+        // Five minutes in: above the first thermal, 11 km/h from the west.
+        _ = replay.advance(session: session, seconds: 300)
+        let view = session.view(nowUnixS: replay.now())
+        let here = try XCTUnwrap(view.position)
+        let altitude = try XCTUnwrap(view.altitudeM)
+        let downwind = TargetPlace(
+            name: "Downwind", position: Coordinate(lat: here.lat, lon: here.lon + 4.0 / 75.0),
+            elevationM: altitude - 900
+        )
+        let upwind = TargetPlace(
+            name: "Upwind", position: Coordinate(lat: here.lat, lon: here.lon - 4.0 / 75.0),
+            elevationM: altitude - 600
+        )
+
+        let best = try XCTUnwrap(session.landingOption(landings: [upwind, downwind], nowUnixS: replay.now()))
+        XCTAssertEqual(best.name, "Downwind")
+        XCTAssertEqual(best.index, 1)
+        XCTAssertEqual(best.inReach, 1)
+        XCTAssertEqual(LandingBadge.height(best), "+510 m")
+        XCTAssertEqual(LandingBadge.color(best.reach.reach), .primary)
+        XCTAssertEqual(LandingBadge.spoken(best), "Downwind, arriving +510 m above it")
+
+        // Only the one into the wind: none in reach, and that is what the
+        // badge says, in red.
+        let none = try XCTUnwrap(session.landingOption(landings: [upwind], nowUnixS: replay.now()))
+        XCTAssertNil(LandingBadge.height(none))
+        XCTAssertEqual(LandingBadge.spoken(none), "No landing in reach")
+        XCTAssertEqual(LandingBadge.color(none.reach.reach), .red)
+
+        // The same for a list: one answer for each place, in its order.
+        let reach = session.reach(places: [upwind, downwind], nowUnixS: replay.now())
+        XCTAssertEqual(reach.map(\.reach), [.beyond, .within])
     }
 
     func testADotGrowsWithTheLift() {

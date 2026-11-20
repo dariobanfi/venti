@@ -89,10 +89,24 @@ struct CockpitScreen: View {
                         .padding(10)
                     }
                     .overlay(alignment: .topLeading) {
-                        if let daylight = fly.daylight {
-                            DaylightBadge(daylight: daylight)
-                                .padding(10)
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let daylight = fly.daylight {
+                                DaylightBadge(daylight: daylight)
+                            }
+                            // The landing to think of first, and whether
+                            // the glide reaches it. A tap lists the places
+                            // to fly to, each with its reach.
+                            if let landing = fly.landing {
+                                LandingBadge(landing: landing)
+                                    .contentShape(.capsule)
+                                    .onTapGesture {
+                                        isChoosingTarget = true
+                                    }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityHint("Lists the places to fly to")
+                            }
                         }
+                        .padding(10)
                     }
                     .overlay(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -601,6 +615,66 @@ struct WindBadge: View {
         guard let seconds, seconds >= 300 else { return nil }
         let minutes = Int(seconds / 60)
         return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h"
+    }
+}
+
+/// The landing to think of first: its name and the height the glider is
+/// expected to arrive above it, or that none of the pilot's landings is
+/// within reach. By the glider's own numbers and the wind last measured,
+/// in a straight line: the ground in between is not looked at.
+struct LandingBadge: View {
+    let landing: LandingOption
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "airplane.arrival")
+            if let height = Self.height(landing) {
+                Text(landing.name)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(height)
+                    .layoutPriority(1)
+            } else {
+                Text("No landing in reach")
+            }
+        }
+        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+        .monospacedDigit()
+        .foregroundStyle(Self.color(landing.reach.reach))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .glassEffect(.regular, in: .capsule)
+        .frame(maxWidth: 210, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Landing")
+        .accessibilityValue(Self.spoken(landing))
+        .accessibilityIdentifier("landing-badge")
+    }
+
+    /// The height to spare on arrival, "+320 m", for a landing within
+    /// reach; none for one that is not.
+    static func height(_ landing: LandingOption) -> String? {
+        guard landing.reach.reach == .within || landing.reach.reach == .just,
+              let arrival = landing.reach.arrivalHeightM
+        else { return nil }
+        // To ten metres: the prediction is no finer.
+        return "\(Format.signedMetres((arrival / 10).rounded() * 10)) m"
+    }
+
+    /// Plain while there is height to spare, amber when there is little,
+    /// red when no landing is within reach.
+    static func color(_ reach: Reach) -> Color {
+        switch reach {
+        case .within: .primary
+        case .just: .orange
+        case .beyond: .red
+        case .unknown: .secondary
+        }
+    }
+
+    static func spoken(_ landing: LandingOption) -> String {
+        guard let height = height(landing) else { return "No landing in reach" }
+        return "\(landing.name), arriving \(height) above it"
     }
 }
 

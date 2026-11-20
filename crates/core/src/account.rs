@@ -448,6 +448,11 @@ impl Core {
         self.read_account().map_err(storage_error)
     }
 
+    /// The handle of the pilot this device is signed in as, if it is.
+    pub(crate) fn my_handle(&self) -> Result<Option<String>, CoreError> {
+        Ok(self.stored_account()?.map(|stored| stored.handle))
+    }
+
     /// The stored account, with the storage's own error: a caller that
     /// must leave everything as it was when the file has yet to be fetched
     /// ([`io::ErrorKind::WouldBlock`]) can tell.
@@ -978,7 +983,7 @@ fn invalid(message: &str) -> CoreError {
     }
 }
 
-fn not_signed_in() -> CoreError {
+pub(crate) fn not_signed_in() -> CoreError {
     CoreError::Server {
         message: "This device is not signed in.".to_owned(),
     }

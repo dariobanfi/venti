@@ -33,6 +33,7 @@ mod community;
 mod export;
 mod flight_airspace;
 mod forecast;
+mod groups;
 mod kept_airspace;
 mod live;
 mod logbook;
@@ -58,6 +59,7 @@ pub use community::*;
 pub use export::*;
 pub use flight_airspace::*;
 pub use forecast::*;
+pub use groups::*;
 pub use kept_airspace::*;
 pub use live::*;
 pub use report::*;
@@ -140,7 +142,10 @@ impl From<LogbookError> for CoreError {
 
 /// A place on the ground.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Coordinate {
     /// Latitude in degrees.

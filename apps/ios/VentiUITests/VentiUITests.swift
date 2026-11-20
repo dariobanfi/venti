@@ -885,6 +885,50 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("community-5-reported")
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 15))
+
+        // Who flies where: the plans of the pilot's groups, from the map.
+        // The development mode's demo pilot keeps a made-up group.
+        app.navigationBars.buttons.firstMatch.tap()
+        openTab("Map", in: app)
+        let plans = app.buttons["Flying plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 15))
+        plans.tap()
+        XCTAssertTrue(element("plans-groups", in: app).waitForExistence(timeout: 30))
+
+        // A plan for today, posted to the group.
+        app.buttons["New plan"].tap()
+        let place = element("plan-place", in: app)
+        XCTAssertTrue(place.waitForExistence(timeout: 10))
+        place.tap()
+        place.typeText("Musterberg Nord")
+        app.buttons["Save"].tap()
+        let posted = labelled(containing: "Musterberg Nord", in: app)
+        XCTAssertTrue(posted.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Today"].exists || labelled(containing: "Today", in: app).exists)
+        sleep(1)
+        keepScreenshot("plans-1-board")
+
+        // The plan itself: its author is in from the start, and can step
+        // out again.
+        posted.tap()
+        XCTAssertTrue(element("plan-in", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "I am out", in: app).exists)
+        sleep(1)
+        keepScreenshot("plans-2-plan")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // The groups, and one of them with its members and what its
+        // keeper can do.
+        let toGroups = element("plans-groups", in: app)
+        XCTAssertTrue(toGroups.waitForExistence(timeout: 10))
+        toGroups.tap()
+        let group = element("group-row", in: app)
+        XCTAssertTrue(group.waitForExistence(timeout: 15))
+        group.tap()
+        XCTAssertTrue(element("group-member", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["New invite code"].exists)
+        sleep(1)
+        keepScreenshot("plans-3-group")
     }
 
     /// The same screens with tiles fetched from the public servers, as a

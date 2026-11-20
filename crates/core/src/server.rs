@@ -62,6 +62,35 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
             "The server does not accept this password. It needs at least 15 characters.".to_owned()
         }
         (_, Some("flight_not_found")) => "The server no longer has this flight.".to_owned(),
+        (_, Some("group_not_found")) => {
+            "This group is no longer there, or you are no longer in it.".to_owned()
+        }
+        (_, Some("plan_not_found")) => "This plan is no longer there.".to_owned(),
+        (_, Some("group_member_not_found")) => {
+            "This pilot is no longer in the group.".to_owned()
+        }
+        (_, Some("not_group_keeper")) => "Only the group's keeper can do this.".to_owned(),
+        (_, Some("not_plan_author")) => {
+            "Only the member who posted a plan can change it; to delete it, its author or the group's keeper."
+                .to_owned()
+        }
+        (_, Some("invalid_group_invite")) => {
+            "This is not a group's invite code: it is mistyped, or the group's keeper has replaced it. Ask them for the one that works now."
+                .to_owned()
+        }
+        (_, Some("group_full")) => "This group is full.".to_owned(),
+        (_, Some("too_many_groups")) => {
+            "You are in as many groups as an account can be. Leave one first.".to_owned()
+        }
+        (_, Some("group_plans_full")) => {
+            "This group holds as many plans as it can. Delete an old one first.".to_owned()
+        }
+        (_, Some("invalid_group_name")) => "The server does not accept this name.".to_owned(),
+        (_, Some("invalid_plan")) => {
+            "The server does not accept this plan. A plan is for today or a day within a year."
+                .to_owned()
+        }
+        (_, Some("invalid_day")) => "The server could not read the day.".to_owned(),
         (_, Some("flight_taken_down")) => {
             "Whoever runs this server has taken this flight down. It stays in your logbook, and cannot be shared from this server."
                 .to_owned()

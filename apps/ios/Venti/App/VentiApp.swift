@@ -10,7 +10,7 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community, let ground
+                let live, let community, let ground, let groups
             ):
                 RootScreen()
                     .environment(logbook)
@@ -25,6 +25,7 @@ struct VentiApp: App {
                     .environment(live)
                     .environment(community)
                     .environment(ground)
+                    .environment(groups)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -43,7 +44,7 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel, LiveModel, CommunityModel, TerrainModel
+        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel
     )
     case failed(String)
 
@@ -125,8 +126,12 @@ enum Session {
             // server, with the account's token.
             fly.server = { account.isSignedIn ? account.account?.server : nil }
             fly.carry = { request in await account.carry(request) }
+            // Groups and their plans for a flying day, on the pilot's
+            // server, with the account's token.
+            let groups = GroupsModel(core: core, account: account)
             return .ready(
-                logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground
+                logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
+                groups
             )
         } catch {
             return .failed(error.words)

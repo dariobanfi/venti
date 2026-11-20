@@ -273,6 +273,18 @@ final class AccountModel {
         }
     }
 
+    /// Sends a request of another part of the app to the pilot's server,
+    /// with the session's token, and returns the answer: the groups and
+    /// their plans go this way. Throws when the iPhone is not signed in
+    /// and when no answer came.
+    func answer(to request: ServerRequest) async throws -> Answer {
+        guard let account, isSignedIn else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let (status, body, retryAfter) = try await ask(request, of: account.server, timeout: 30)
+        return Answer(status: status, body: body, retryAfter: retryAfter)
+    }
+
     // MARK: Requests
 
     /// Sends one of the core's requests to the server, with the session

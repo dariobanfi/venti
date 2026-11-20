@@ -10,8 +10,10 @@ struct MapScreen: View {
     @Environment(AirspaceModel.self) private var airspace
     @Environment(SitesModel.self) private var sites
     @Environment(LiveModel.self) private var live
+    @Environment(AccountModel.self) private var account
 
     @State private var isFollowing = false
+    @State private var showsPlans = false
     @State private var problem: String?
     @State private var chosen: ChosenStation?
     @State private var showsStations = false
@@ -105,6 +107,13 @@ struct MapScreen: View {
                         showsGliders = true
                     }
                 }
+                if account.isSignedIn || wind.server != nil {
+                    // Who flies where today and on the days ahead: the
+                    // plans of the pilot's groups.
+                    mapButton("Flying plans", systemImage: "calendar") {
+                        showsPlans = true
+                    }
+                }
                 mapButton("Show my position", systemImage: isFollowing ? "location.fill" : "location") {
                     isFollowing.toggle()
                 }
@@ -123,6 +132,9 @@ struct MapScreen: View {
                 StationScreen(station: chosen.station)
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showsPlans) {
+            PlansSheet()
         }
         .sheet(isPresented: $showsStations) {
             StationList()

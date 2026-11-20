@@ -11,6 +11,8 @@ The binding rules for AI sessions are in [CLAUDE.md](CLAUDE.md): what the owner 
 
 ## Across the repository
 
+- **The owner's Mac takes its crates from a registry mirror that lags crates.io by about two weeks.** A version published more recently than that cannot be built there (`cargo` says "failed to select a version" and names the mirror). When adding or updating a dependency, take a version that is at least three weeks old, or check with the owner; on 2026-11-20 the lockfile was moved back to what the mirror had (flate2 1.1.10, toml 1.2.0, zip 9.4.1 and 25 others by a patch version or two).
+
 - **A README is a page for people**: what the folder is in a few sentences, how to build and run it in the fewest commands that work, and links with a few words each. No feature lists, no history, no lists of what is not verified, no layout tables, nothing another document already says. Working knowledge goes into the `AGENTS.md` beside it; what a feature does goes into `docs/`. `deploy/README.md` is the operator's manual and holds the steps an operator carries out.
 - **`apps/web` is formatted by Prettier, its Markdown included**: `npm run format:check` there covers `README.md` and `AGENTS.md`, and fails on a table whose columns are not lined up.
 - **Other files point at sections of the READMEs and AGENTS.md files by their headings**: code comments, `deploy/env.example`, `deploy/docker-compose.yml`, `deploy/backup.sh`, `crates/server/config.example.toml` and the documents under `docs/`. Search for the file's name before renaming or removing a heading. `crates/server/tests/moderation.rs` reads `deploy/README.md` itself (see [deploy/AGENTS.md](deploy/AGENTS.md#reports)).

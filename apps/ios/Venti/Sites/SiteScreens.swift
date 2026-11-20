@@ -88,7 +88,7 @@ struct SiteList: View {
                     }
                 } footer: {
                     if !sites.sites.isEmpty {
-                        Text(SiteScreen.caution + "\n" + sites.credits.map(\.text).joined(separator: "\n"))
+                        Text(footnote)
                     }
                 }
             }
@@ -117,6 +117,19 @@ struct SiteList: View {
                 }
             }
         }
+    }
+
+    /// What a site on the map is worth, how old the list is, whether it is
+    /// all the server's sources have, and whose data it is.
+    private var footnote: String {
+        var lines = [SiteScreen.caution]
+        if let asOf = sites.asOfUnixS {
+            lines.append("As of \(Format.dayShort(unixSeconds: asOf)): a site added to the source since then is not here yet.")
+        }
+        if !sites.isWhole {
+            lines.append("The server does not hold every site its sources have for this part of the map.")
+        }
+        return (lines + sites.credits.map(\.text)).joined(separator: "\n")
     }
 
     /// Those with a name first, by name; then the rest by what they are.

@@ -154,7 +154,7 @@ struct LiveGliderScreen: View {
                             Label("Follow the flight in the browser", systemImage: "safari")
                         }
                     } footer: {
-                        Text("The server's page shows the whole track and keeps itself up to date.")
+                        Text("The server's page draws the track, the newest half hour or so of a long one, and keeps itself up to date.")
                     }
                 }
                 // For a track that should not be here: to whoever runs

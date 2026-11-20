@@ -30,6 +30,9 @@ final class SitesModel {
     /// Whether the server holds everything its sources have for the area.
     /// If not, a map without sites says nothing.
     private(set) var isWhole = false
+    /// The day of the oldest source's data, seconds since 1970-01-01 UTC:
+    /// a site added to the source since then is not here yet.
+    private(set) var asOfUnixS: Int64?
     /// Why the sites are missing, in words for the pilot.
     private(set) var problem: String?
 
@@ -84,6 +87,7 @@ final class SitesModel {
             sites = map.sites
             credits = map.credits
             isWhole = map.isWhole
+            asOfUnixS = map.asOfUnixS
             answered = (area, server, Date())
             problem = nil
         } catch is CancellationError {
@@ -104,6 +108,7 @@ final class SitesModel {
             sites = []
             credits = []
             isWhole = false
+            asOfUnixS = nil
             answered = nil
         }
         problem = nil

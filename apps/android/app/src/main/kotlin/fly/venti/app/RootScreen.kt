@@ -303,6 +303,7 @@ private fun Sections(
                         session.account,
                         requests = session.scope,
                         fly = session.fly,
+                        leagues = session.leagues,
                         onBack = { navigation.back() },
                     )
                 }

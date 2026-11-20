@@ -1,5 +1,8 @@
 package fly.venti.app
 
+import fly.venti.app.flight.KeystoreUploadPasswordStore
+import fly.venti.app.flight.MemoryUploadPasswordStore
+import fly.venti.app.flight.Leagues
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -68,6 +71,8 @@ sealed interface Session {
         val account: AccountModel,
         val groups: GroupsModel,
         val tasks: TaskModel,
+        /** Sending a flight to a league, from this phone. */
+        val leagues: Leagues,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -221,9 +226,17 @@ sealed interface Session {
                 tasks.keep(LaunchOptions.SAMPLE_TASK_FILE)
             }
             fly.taskFile = { tasks.file }
+            // A flight goes to a league from this phone. The DHV-XC's upload
+            // password is kept where the phone keeps secrets; a test keeps
+            // none and never sends.
+            val leagues = Leagues(
+                logbook,
+                preferences,
+                if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
+            )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                preferences, files, scope,
+                leagues, preferences, files, scope,
             )
         }
     }

@@ -3,9 +3,10 @@
   What Android may copy out of the app, from Android 12 on. Nothing goes to a
   cloud backup: the app tells the pilot that flights stay on the phone. A
   transfer from this phone straight to a new one takes everything along but
-  the session on the pilot's Venti server: the logbook moves with its pilot,
-  and the new phone signs in for itself. The token is sealed with a key that
-  stays in the old phone's keystore, so it could not be read there anyway.
+  the session on Venti and the DHV-XC upload password: the logbook moves with
+  its pilot, and the new phone signs in for itself. Both are sealed with keys
+  that stay in the old phone's keystore, so they could not be read there
+  anyway.
 
   To verify on real phones: nobody has moved a logbook this way yet.
 -->
@@ -31,5 +32,8 @@
         <exclude
             domain="sharedpref"
             path="venti-session.xml" />
+        <exclude
+            domain="sharedpref"
+            path="venti-dhvxc.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -90,11 +90,14 @@ fun FlightScreen(
     requests: CoroutineScope,
     /** The cockpit, to play the flight through it once more. */
     fly: FlySession,
+    /** Sending the flight to a league. */
+    leagues: Leagues,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isSharing by remember { mutableStateOf(false) }
+    var isSendingToALeague by remember { mutableStateOf(false) }
     var phase by remember(id) { mutableStateOf<Phase>(Phase.Loading) }
     // Arrives a moment after the flight itself; the screen does not wait
     // for it.
@@ -145,6 +148,7 @@ fun FlightScreen(
         TopButtons(
             onBack = onBack,
             onShareWithALink = { isSharing = true },
+            onLeague = { isSendingToALeague = true },
             onShare = {
                 scope.launch {
                     try {
@@ -179,6 +183,10 @@ fun FlightScreen(
         ShareFlightSheet(id, account, requests, onDismiss = { isSharing = false })
     }
 
+    if (isSendingToALeague) {
+        LeagueSheet(id, leagues, onDismiss = { isSendingToALeague = false })
+    }
+
     if (isConfirmingDelete) {
         DeleteFlightDialog(
             warning = remember(id) { logbook.deletionWarning },
@@ -208,6 +216,7 @@ val REPLAY_SPEEDS: List<Pair<String, Double>> = listOf(
 private fun TopButtons(
     onBack: () -> Unit,
     onShareWithALink: () -> Unit,
+    onLeague: () -> Unit,
     onShare: () -> Unit,
     /** Called with how many times faster than it was flown the flight is to be replayed. */
     onReplay: (Double) -> Unit,
@@ -257,6 +266,14 @@ private fun TopButtons(
                     onClick = {
                         isShowingMenu = false
                         onShareWithALink()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(LeagueWords.TITLE) },
+                    leadingIcon = { Icon(painterResource(R.drawable.venti_league), contentDescription = null) },
+                    onClick = {
+                        isShowingMenu = false
+                        onLeague()
                     },
                 )
                 DropdownMenuItem(

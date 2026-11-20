@@ -1,5 +1,7 @@
 package fly.venti.app.logbook
 
+import fly.venti.core.LeagueRequest
+import fly.venti.core.LeagueHandover
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -189,6 +191,20 @@ class LogbookModel(
         into.mkdirs()
         into.resolve(file.name).also { it.writeText(file.igcText) }
     }
+
+    /**
+     * What to tell the pilot before a flight goes to a league, with the file
+     * to hand over: until when the leagues take it and whether it is signed.
+     */
+    suspend fun leagueHandover(id: String, nowUnixS: Long = System.currentTimeMillis() / 1000): LeagueHandover =
+        withContext(background) { core.leagueHandover(id, nowUnixS) }
+
+    /**
+     * The request that sends a flight to the DHV-XC, for the phone to send
+     * as it is. It holds the pilot's upload password: nothing keeps it.
+     */
+    suspend fun dhvxcRequest(id: String, user: String, uploadPassword: String, glider: String?, publish: Boolean): LeagueRequest =
+        withContext(background) { core.dhvxcUploadRequest(id, user, uploadPassword, glider, publish) }
 
     /** The text of a flight's own file, as it was imported or recorded: to play it through the cockpit. */
     suspend fun fileText(id: String): String = withContext(background) { core.flightFile(id).igcText }

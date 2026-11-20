@@ -1730,6 +1730,51 @@ class VentiUiTest {
     @Test
     fun theWindOnTheGroundInDarkAppearance() = lookAtTheWindOnTheGround("dark", dark = true)
 
+    /**
+     * "Send to a league" on a flight: what both leagues ask about, XContest's
+     * way with the file and its page, and the DHV-XC's form. Nothing is ever
+     * sent: the test fills the form with made-up words and never presses
+     * "Send to the DHV-XC".
+     */
+    private fun sendAFlightToALeague(prefix: String, dark: Boolean) {
+        launch(dark = dark)
+        waitFor(described("Show my position"))
+        tap(tab("Logbook"))
+        waitFor(hasText("Add a sample flight"))
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"))
+        tap(described("More"))
+        waitFor(hasText("Send to a league"))
+        tap(hasText("Send to a league"))
+        // The sample was recorded by Venti and flown in July: unsigned, and late.
+        waitForAll(hasTestTag("league-deadline"), hasTestTag("league-signature"))
+        assertTrue(exists(hasText("Venti recorded this flight and does not sign its files yet", substring = true)))
+        assertTrue(exists(hasTestTag("xcontest-claim")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-league-1-before")
+
+        // Without a user name and a password nothing can be sent.
+        val send = hasTestTag("dhvxc-send")
+        screen.onNode(send).performScrollTo()
+        assertTrue(exists(send and isNotEnabled()))
+        screen.onNode(hasTestTag("dhvxc-user")).performTextInput("made-up-pilot")
+        screen.onNode(hasTestTag("dhvxc-password")).performTextInput("made-up-password")
+        waitFor(send and isEnabled())
+        screen.onNode(send).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-league-2-dhvxc")
+
+        tap(hasTestTag("league-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("league-sheet")) }
+        assertTrue(exists(described("Flight details")))
+    }
+
+    @Test
+    fun aFlightIsOfferedToTheLeagues() = sendAFlightToALeague("light", dark = false)
+
+    @Test
+    fun theLeaguesInDarkAppearance() = sendAFlightToALeague("dark", dark = true)
+
     @Test
     fun theCockpitShowsAReplayedFlight() = flyAReplayAndVisitTheSettings("light", dark = false)
 

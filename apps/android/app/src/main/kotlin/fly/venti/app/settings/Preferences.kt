@@ -47,6 +47,13 @@ interface Preferences {
      */
     var liveAudience: String
 
+    /** What the pilot signs in to the DHV-XC with, and the glider as it is set up there. Not the password. */
+    var dhvxcUser: String
+    var dhvxcGlider: String
+
+    /** Whether the DHV-XC is asked to publish a flight at once. Off until the pilot turns it on. */
+    var dhvxcPublishes: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -102,6 +109,18 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getString(LIVE_AUDIENCE, null).orEmpty()
         set(value) = store.edit { putString(LIVE_AUDIENCE, value) }
 
+    override var dhvxcUser: String
+        get() = store.getString(DHVXC_USER, null).orEmpty()
+        set(value) = store.edit { putString(DHVXC_USER, value) }
+
+    override var dhvxcGlider: String
+        get() = store.getString(DHVXC_GLIDER, null).orEmpty()
+        set(value) = store.edit { putString(DHVXC_GLIDER, value) }
+
+    override var dhvxcPublishes: Boolean
+        get() = store.getBoolean(DHVXC_PUBLISHES, false)
+        set(value) = store.edit { putBoolean(DHVXC_PUBLISHES, value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -115,6 +134,9 @@ class StoredPreferences(context: Context) : Preferences {
         const val AIRSPACE_WITHOUT_SERVER = "VentiAirspaceWithoutServer"
         const val HIDES_FAI_AREAS = "VentiCockpitHidesFaiAreas"
         const val LIVE_AUDIENCE = "VentiLiveAudience"
+        const val DHVXC_USER = "dhvxc-user"
+        const val DHVXC_GLIDER = "dhvxc-glider"
+        const val DHVXC_PUBLISHES = "dhvxc-publishes"
     }
 }
 
@@ -131,4 +153,7 @@ class MemoryPreferences : Preferences {
     override var airspaceWithoutServer = false
     override var hidesFaiAreas = false
     override var liveAudience = ""
+    override var dhvxcUser = ""
+    override var dhvxcGlider = ""
+    override var dhvxcPublishes = false
 }

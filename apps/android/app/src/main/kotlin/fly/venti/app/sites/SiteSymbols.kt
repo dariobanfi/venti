@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +22,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
+import app.venti.design.VentiLight
 import fly.venti.app.R
 import fly.venti.app.design.Palette
 import fly.venti.core.SiteKind
@@ -42,21 +45,23 @@ val SiteKind.icon: Int
 /** The name the map knows the kind's picture by. */
 val SiteKind.picture: String get() = "site-${name.lowercase()}"
 
-/**
- * A landing is the light one: where the flight ends. Everything else is a
- * dark disc with a white sign.
- */
+/** A landing is the light one: where the flight ends. */
 private val SiteKind.isLight: Boolean get() = this == SiteKind.LANDING
 
 /**
- * The pictures the map draws flying sites with: a dark disc with a white
- * sign for a take-off, a white disc with a dark sign for a landing, so that
- * the two are told apart at a glance and neither is taken for wind,
- * airspace or a track, which have the colours.
+ * The pictures the map draws flying sites with: the design language's pin,
+ * its tip on the site. A dark pin with a cream dot is a place to take off
+ * from; the same turned round, cream with a dark dot, a place to land, so
+ * that the two are told apart at a glance and neither is taken for wind,
+ * airspace or a track, which have the colours. A ring in place of the dot
+ * is a training hill or a site of another kind. The map is light in both
+ * appearances, so the pin takes the light theme's pair.
  */
 object SiteSymbols {
-    /** The side of a picture, in the screen's own units. */
-    private const val SIDE = 26f
+    /** The picture's width and height, in the screen's own units: a disc for a head, the tip at the bottom edge. */
+    private const val WIDTH = 28f
+    private const val HEIGHT = 34f
+    private const val RADIUS = 10f
 
     /** Every picture under the name the map knows it by, drawn for this screen. */
     fun all(context: Context): Map<String, Bitmap> = SiteKind.entries.associate { it.picture to picture(it, context) }
@@ -64,49 +69,51 @@ object SiteSymbols {
     private fun picture(kind: SiteKind, context: Context): Bitmap {
         val metrics = context.resources.displayMetrics
         val scale = metrics.density
-        val side = (SIDE * scale).roundToInt()
-        val bitmap = createBitmap(side, side)
+        val bitmap = createBitmap((WIDTH * scale).roundToInt(), (HEIGHT * scale).roundToInt())
         // The map reads from this how many pixels of the picture make one of its own units.
         bitmap.density = metrics.densityDpi
         val canvas = Canvas(bitmap)
-        val ink = Palette.inkOnMap.toArgb()
-        val white = android.graphics.Color.WHITE
-        val (ground, sign) = if (kind.isLight) white to ink else ink to white
-        val middle = side / 2f
-        val radius = (SIDE - 4) / 2 * scale
-        canvas.drawCircle(
-            middle,
-            middle,
-            radius,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-                color = ground
-                setShadowLayer(1.5f * scale, 0f, 0.5f * scale, android.graphics.Color.argb(90, 0, 0, 0))
-            },
-        )
-        // The ring is the sign's colour: it parts a dark disc from dark
-        // forest and a white one from snow.
-        canvas.drawCircle(
-            middle,
-            middle,
-            radius - 0.75f * scale,
+        val dark = VentiLight.primary.toArgb()
+        val cream = VentiLight.onPrimary.toArgb()
+        val (ground, sign) = if (kind.isLight) cream to dark else dark to cream
+        val centreX = WIDTH / 2 * scale
+        val centreY = (RADIUS + 3) * scale
+        val radius = RADIUS * scale
+        // The head, and from where its sides leave the circle two straight
+        // lines to the tip.
+        val pin = Path().apply {
+            arcTo(RectF(centreX - radius, centreY - radius, centreX + radius, centreY + radius), 150f, 240f)
+            lineTo(centreX, centreY + 2 * radius)
+            close()
+        }
+        canvas.drawPath(pin, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = ground })
+        canvas.drawPath(
+            pin,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
-                strokeWidth = 1.5f * scale
+                strokeWidth = 2 * scale
+                strokeJoin = Paint.Join.ROUND
                 color = sign
             },
         )
-        val glyph = (GLYPH * scale / 2).roundToInt()
-        ContextCompat.getDrawable(context, kind.icon)?.mutate()?.apply {
-            setTint(sign)
-            setBounds(side / 2 - glyph, side / 2 - glyph, side / 2 + glyph, side / 2 + glyph)
-            draw(canvas)
+        val dot = 4 * scale
+        when (kind) {
+            SiteKind.TAKEOFF, SiteKind.TOWING, SiteKind.LANDING ->
+                canvas.drawCircle(centreX, centreY, dot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = sign })
+            SiteKind.TRAINING, SiteKind.OTHER ->
+                canvas.drawCircle(
+                    centreX,
+                    centreY,
+                    dot,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 2 * scale
+                        color = sign
+                    },
+                )
         }
         return bitmap
     }
-
-    /** The side of the sign inside the disc. */
-    private const val GLYPH = 15f
 }
 
 /** One site as the map's symbol layer reads it: a place with what to draw there. */

@@ -110,7 +110,7 @@ object AirspaceLayers {
             PropertyFactory.textFont(arrayOf("noto-sans-regular")),
             PropertyFactory.textSize(11f),
             PropertyFactory.textColor(VentiAirspaceLight.prohibited.toArgb()),
-            PropertyFactory.textHaloColor(MapSetup.WHITE),
+            PropertyFactory.textHaloColor(MapSetup.halo),
             PropertyFactory.textHaloWidth(1.4f),
         )
         // Airspace open to a paraglider is drawn, but not named.

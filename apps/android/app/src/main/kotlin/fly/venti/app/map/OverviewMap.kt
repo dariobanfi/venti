@@ -1,5 +1,7 @@
 package fly.venti.app.map
 
+import androidx.compose.ui.graphics.toArgb
+import fly.venti.app.design.Palette
 import fly.venti.app.groups.PlanPin
 import android.annotation.SuppressLint
 import android.graphics.PointF
@@ -170,7 +172,7 @@ class OverviewMap : MapContent {
      */
     private fun addPlans(style: Style) {
         style.addSource(GeoJsonSource(PLANS))
-        style.addLayer(MapSetup.dot(PLANS, PLANS, 7f, MapSetup.accent, MapSetup.WHITE))
+        style.addLayer(MapSetup.dot(PLANS, PLANS, 7f, MapSetup.accent, MapSetup.halo))
         style.addLayer(
             SymbolLayer("$PLANS-names", PLANS).withProperties(
                 PropertyFactory.textField(Expression.get(PLAN_LABEL)),
@@ -179,7 +181,7 @@ class OverviewMap : MapContent {
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                 PropertyFactory.textOffset(arrayOf(0f, 0.9f)),
                 PropertyFactory.textColor(MapSetup.ink),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(MapSetup.halo),
                 PropertyFactory.textHaloWidth(1.6f),
                 PropertyFactory.textAllowOverlap(true),
             ),
@@ -213,7 +215,7 @@ class OverviewMap : MapContent {
     /** The layers that draw the flights, empty at first. */
     private fun addTracks(style: Style) {
         style.addSource(GeoJsonSource(TRACKS))
-        style.addLayer(MapSetup.line("logbook-tracks-edge", TRACKS, MapSetup.WHITE, 5f))
+        style.addLayer(MapSetup.line("logbook-tracks-edge", TRACKS, MapSetup.halo, 5f))
         style.addLayer(MapSetup.line("logbook-tracks-line", TRACKS, MapSetup.accent, 2.5f))
     }
 
@@ -329,7 +331,7 @@ class OverviewMap : MapContent {
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                 PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
                 PropertyFactory.textColor(MapSetup.ink),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(MapSetup.halo),
                 PropertyFactory.textHaloWidth(1.6f),
                 // Where stations crowd, the windiest are placed first and
                 // the others give way; a station keeps its arrow when only
@@ -362,13 +364,15 @@ class OverviewMap : MapContent {
             SymbolLayer(SITES, SITES).withProperties(
                 PropertyFactory.iconImage(Expression.get(SiteFeature.PICTURE)),
                 PropertyFactory.iconAllowOverlap(true),
+                // A pin stands on the site with its tip; the name is under it.
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
                 PropertyFactory.textField(Expression.get(SiteFeature.LABEL)),
                 PropertyFactory.textFont(arrayOf("noto-sans-regular")),
-                PropertyFactory.textSize(11f),
+                PropertyFactory.textSize(12f),
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
-                PropertyFactory.textOffset(arrayOf(0f, 1.1f)),
+                PropertyFactory.textOffset(arrayOf(0f, 0.2f)),
                 PropertyFactory.textColor(MapSetup.ink),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(Palette.haloOnMap.toArgb()),
                 PropertyFactory.textHaloWidth(1.4f),
                 PropertyFactory.textOptional(true),
             ).apply { minZoom = SITES_FROM_ZOOM },
@@ -446,7 +450,7 @@ class OverviewMap : MapContent {
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                 PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
                 PropertyFactory.textColor(MapSetup.ink),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(MapSetup.halo),
                 PropertyFactory.textHaloWidth(1.6f),
                 PropertyFactory.textOptional(true),
             ),

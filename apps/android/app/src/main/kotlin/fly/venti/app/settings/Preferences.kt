@@ -62,6 +62,12 @@ interface Preferences {
      */
     var todayNearPilot: Boolean
 
+    /** The layers of the map tab the pilot has switched off with its chips. All are shown until then. */
+    var mapHidesWind: Boolean
+    var mapHidesAirspace: Boolean
+    var mapHidesSites: Boolean
+    var mapHidesPilots: Boolean
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -133,6 +139,22 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean(TODAY_NEAR_PILOT, false)
         set(value) = store.edit { putBoolean(TODAY_NEAR_PILOT, value) }
 
+    override var mapHidesWind: Boolean
+        get() = store.getBoolean("VentiMapHidesWind", false)
+        set(value) = store.edit { putBoolean("VentiMapHidesWind", value) }
+
+    override var mapHidesAirspace: Boolean
+        get() = store.getBoolean("VentiMapHidesAirspace", false)
+        set(value) = store.edit { putBoolean("VentiMapHidesAirspace", value) }
+
+    override var mapHidesSites: Boolean
+        get() = store.getBoolean("VentiMapHidesSites", false)
+        set(value) = store.edit { putBoolean("VentiMapHidesSites", value) }
+
+    override var mapHidesPilots: Boolean
+        get() = store.getBoolean("VentiMapHidesPilots", false)
+        set(value) = store.edit { putBoolean("VentiMapHidesPilots", value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -170,4 +192,8 @@ class MemoryPreferences : Preferences {
     override var dhvxcGlider = ""
     override var dhvxcPublishes = false
     override var todayNearPilot = false
+    override var mapHidesWind = false
+    override var mapHidesAirspace = false
+    override var mapHidesSites = false
+    override var mapHidesPilots = false
 }

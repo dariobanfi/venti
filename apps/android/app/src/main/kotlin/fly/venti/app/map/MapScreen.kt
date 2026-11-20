@@ -51,6 +51,15 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import app.venti.design.VentiSpace
+import fly.venti.app.design.LayerChip
+import fly.venti.app.design.RoundButton
+import fly.venti.app.design.Venti
+import fly.venti.app.settings.Preferences
+import fly.venti.app.sites.SiteActions
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
@@ -98,8 +107,17 @@ fun MapScreen(
     community: CommunityModel? = null,
     /** Opens a flight another pilot shares, on its own page. */
     onOpenFlight: (PublicFlight) -> Unit = {},
+    /** Where the layers the pilot switched off are remembered. */
+    preferences: Preferences? = null,
+    /** The pages of a site that lead elsewhere: planning a route from it, and starting a flight there. */
+    siteActions: SiteActions? = null,
 ) {
     val context = LocalContext.current
+    // The layers the chips switch, as the pilot left them.
+    var hidesWind by remember { mutableStateOf(preferences?.mapHidesWind == true) }
+    var hidesAirspace by remember { mutableStateOf(preferences?.mapHidesAirspace == true) }
+    var hidesSites by remember { mutableStateOf(preferences?.mapHidesSites == true) }
+    var hidesPilots by remember { mutableStateOf(preferences?.mapHidesPilots == true) }
     var isFollowing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var showsStations by remember { mutableStateOf(false) }
@@ -176,17 +194,17 @@ fun MapScreen(
 
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
-    val stations = wind.stations
+    val stations = if (hidesWind) emptyList() else wind.stations
     // The airspace in the part of the map in view. Zoomed far out, a
     // country's airspace is a tangle and is not drawn, so it is not asked
     // for either.
     val all = airspace.set
     val showsAirspace = region?.let { it.east - it.west < 6 } == true
     val airspaceInView = remember(region, all) {
-        region?.takeIf { showsAirspace }?.let(airspace::shapes).orEmpty()
+        region?.takeIf { showsAirspace && !hidesAirspace }?.let(airspace::shapes).orEmpty()
     }
-    val flyingSites = sites.sites
-    val gliders = live.gliders
+    val flyingSites = if (hidesSites) emptyList() else sites.sites
+    val gliders = if (hidesPilots) emptyList() else live.gliders
     // Where the pilot's groups plan to fly today and tomorrow.
     val pins = groups.pins()
     // The flight of the glider whose page is open, as far as the server
@@ -196,10 +214,11 @@ fun MapScreen(
     // the credit next to the data; the full wording is on each station's
     // and each site's page and on the airspace screen.
     val credits = listOfNotNull(
-        wind.creditLine,
-        airspace.mapCredit.takeIf { showsAirspace },
-        sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true },
+        wind.creditLine.takeIf { !hidesWind },
+        airspace.mapCredit.takeIf { showsAirspace && !hidesAirspace },
+        sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
     )
+    val hasServer = wind.server is WindServer.Usable
 
     Box(Modifier.fillMaxSize().padding(bottom = bars.calculateBottomPadding())) {
         MapSurface(
@@ -212,8 +231,37 @@ fun MapScreen(
         )
         StatusBarScrim()
 
-        wind.notice?.let { text ->
-            Notice(text, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(16.dp, 8.dp))
+        Column(Modifier.align(Alignment.TopCenter).statusBarsPadding()) {
+            // The chips that switch the map's layers: what Venti gives the
+            // map, each only where there is something to switch.
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+            ) {
+                if (hasServer) {
+                    LayerChip("Wind", R.drawable.venti_wind, !hidesWind, onChange = { on ->
+                        hidesWind = !on
+                        preferences?.mapHidesWind = !on
+                    }, Modifier.testTag("layer-wind"))
+                }
+                LayerChip("Airspace", R.drawable.venti_airspace, !hidesAirspace, onChange = { on ->
+                    hidesAirspace = !on
+                    preferences?.mapHidesAirspace = !on
+                }, Modifier.testTag("layer-airspace"))
+                if (hasServer) {
+                    LayerChip("Sites", R.drawable.venti_site, !hidesSites, onChange = { on ->
+                        hidesSites = !on
+                        preferences?.mapHidesSites = !on
+                    }, Modifier.testTag("layer-sites"))
+                    LayerChip("Pilots", R.drawable.venti_live, !hidesPilots, onChange = { on ->
+                        hidesPilots = !on
+                        preferences?.mapHidesPilots = !on
+                    }, Modifier.testTag("layer-pilots"))
+                }
+            }
+            wind.notice?.takeIf { !hidesWind }?.let { text ->
+                Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
+            }
         }
         if (credits.isNotEmpty()) {
             // Clear of the map's own credits button on the left and of
@@ -225,7 +273,7 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (wind.server is WindServer.Usable) {
+            if (hasServer && !hidesWind) {
                 // Everything the arrows say, as a list: for reading the
                 // numbers side by side, and for pilots who use TalkBack.
                 MapButton(R.drawable.venti_wind, "Wind stations") { showsStations = true }
@@ -247,7 +295,7 @@ fun MapScreen(
             MapButton(
                 icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,
                 description = "Show my position",
-                tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                tint = if (isFollowing) Venti.colours.accentText else Venti.colours.text,
             ) {
                 when {
                     isFollowing -> isFollowing = false
@@ -291,6 +339,23 @@ fun MapScreen(
                 chosenSite = null
                 showsSites = false
                 onOpenFlight(flight)
+            },
+            // The sheet closes behind what its buttons open.
+            actions = siteActions?.let { given ->
+                SiteActions(
+                    outlook = given.outlook,
+                    canStartFlight = given.canStartFlight,
+                    onPlanRoute = { site ->
+                        chosenSite = null
+                        showsSites = false
+                        given.onPlanRoute(site)
+                    },
+                    onStartFlight = { site ->
+                        chosenSite = null
+                        showsSites = false
+                        given.onStartFlight(site)
+                    },
+                )
             },
         )
     }
@@ -353,17 +418,10 @@ fun MapScreen(
 private fun MapButton(
     @DrawableRes icon: Int,
     description: String,
-    tint: Color = MaterialTheme.colorScheme.onSurface,
+    tint: Color = Venti.colours.text,
     onClick: () -> Unit,
 ) {
-    FloatingActionButton(
-        onClick = onClick,
-        shape = CircleShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = tint,
-    ) {
-        Icon(painterResource(icon), contentDescription = description)
-    }
+    RoundButton(icon, description, tint = tint, onClick = onClick)
 }
 
 /** A line over the top of the map about wind that is missing or not current. */

@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +77,10 @@ fun FlyScreen(
     /** Called to show the maps for flying without a network. */
     onOpenMaps: () -> Unit,
     bars: PaddingValues,
+    /** Whether "Start flight" was tapped on another tab, a site's page for one: the cockpit opens. */
+    wantsCockpit: Boolean = false,
+    /** Called once the cockpit asked for from elsewhere is on its way. */
+    onCockpitTaken: () -> Unit = {},
 ) {
     var isChoosingVario by remember { mutableStateOf(false) }
     var isChoosingReplay by remember { mutableStateOf(false) }
@@ -86,6 +91,16 @@ fun FlyScreen(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) {
         fly.startFlight()
+    }
+    // "Start flight" on a site's page: this tab came to the front for it,
+    // and starts as its own button does, asking first for what the
+    // cockpit needs. The cockpit opens once the answer is in, so no word
+    // of the app's own stands over the system's question.
+    LaunchedEffect(wantsCockpit) {
+        if (wantsCockpit) {
+            onCockpitTaken()
+            if (fly.mode == null) askThenStart.launch(permissionsToFly(vario))
+        }
     }
 
     fun startReplay(speed: Double) {

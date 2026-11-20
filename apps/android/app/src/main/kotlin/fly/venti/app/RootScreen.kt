@@ -55,7 +55,10 @@ import fly.venti.app.settings.SettingsScreen
 import fly.venti.app.task.TaskModel
 import fly.venti.app.task.TaskScreen
 import fly.venti.app.waypoints.WaypointsScreen
+import fly.venti.app.sites.SiteActions
 import fly.venti.app.sites.SiteSheet
+import fly.venti.app.task.RouteMapPlanner
+import fly.venti.core.Coordinate
 import fly.venti.app.today.TodayScreen
 import fly.venti.app.wind.WindServer
 import fly.venti.core.Bounds
@@ -219,6 +222,15 @@ private fun Sections(
     BackHandler(enabled = navigation.canGoBack) { navigation.back() }
     // A take-off opened from the Today tab: its page, in a sheet over it.
     var todaySite by remember { mutableStateOf<SiteView?>(null) }
+    // A route being drawn from a site's page, from that site.
+    var routeFrom by remember { mutableStateOf<Coordinate?>(null) }
+    // What a site's page leads to: its forecast, a route from it, a flight.
+    val siteActions = SiteActions(
+        outlook = { site -> session.today.outlook(site) },
+        canStartFlight = { session.fly.mode == null },
+        onPlanRoute = { site -> routeFrom = site.position },
+        onStartFlight = { navigation.startFlight() },
+    )
 
     Scaffold(
         bottomBar = {
@@ -318,11 +330,26 @@ private fun Sections(
                                 todaySite = null
                                 navigation.showPublic(flight.id)
                             },
+                            actions = SiteActions(
+                                outlook = siteActions.outlook,
+                                canStartFlight = siteActions.canStartFlight,
+                                onPlanRoute = { site ->
+                                    todaySite = null
+                                    navigation.tab = AppTab.Map
+                                    routeFrom = site.position
+                                },
+                                onStartFlight = {
+                                    todaySite = null
+                                    navigation.startFlight()
+                                },
+                            ),
                         )
                     }
                 }
             }
-            AppTab.Map -> kept.SaveableStateProvider("map") {
+            AppTab.Map -> routeFrom?.let { from ->
+                RouteMapPlanner(session.tasks, onDismiss = { routeFrom = null }, from = from)
+            } ?: kept.SaveableStateProvider("map") {
                 MapScreen(
                     logbook,
                     session.wind,
@@ -337,6 +364,8 @@ private fun Sections(
                     community = session.community,
                     // A flight flown from a site opens like one of everyone's, on the League tab.
                     onOpenFlight = { flight -> navigation.showPublic(flight.id) },
+                    preferences = session.preferences,
+                    siteActions = siteActions,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {
@@ -364,6 +393,8 @@ private fun Sections(
                         offlineMaps = session.maps.inALine,
                         onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
                         bars = bars,
+                        wantsCockpit = navigation.wantsCockpit,
+                        onCockpitTaken = { navigation.wantsCockpit = false },
                     )
                 }
             }

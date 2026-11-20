@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiMapLight
 import fly.venti.core.LiveGlider
 import fly.venti.app.live.LiveSymbols
 import fly.venti.app.live.GliderFeature
@@ -160,7 +161,7 @@ class CockpitMap : MapContent {
         // is. Low in the pile: it is there to be glanced at, under
         // everything the pilot steers by.
         style.addSource(GeoJsonSource(RANGE))
-        val rangeEdge = MapSetup.line("cockpit-range-edge", RANGE, MapSetup.WHITE, 4f)
+        val rangeEdge = MapSetup.line("cockpit-range-edge", RANGE, MapSetup.halo, 4f)
         rangeEdge.setProperties(PropertyFactory.lineOpacity(0.7f))
         style.addLayer(rangeEdge)
         style.addLayer(MapSetup.line("cockpit-range-line", RANGE, RANGE_GREEN, 2f))
@@ -206,7 +207,7 @@ class CockpitMap : MapContent {
         course.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
         style.addLayer(course)
         style.addSource(GeoJsonSource(TARGET))
-        style.addLayer(MapSetup.dot("cockpit-target-dot", TARGET, 6f, MapSetup.ink, MapSetup.WHITE))
+        style.addLayer(MapSetup.dot("cockpit-target-dot", TARGET, 6f, MapSetup.ink, MapSetup.halo))
 
         style.addSource(GeoJsonSource(FLIGHT))
         MapSetup.addBandLayers(style, FLIGHT, edgeWidth = 6f)
@@ -219,7 +220,7 @@ class CockpitMap : MapContent {
         // again. A number that has no room gives way; its dot stays.
         style.addSource(GeoJsonSource(THERMALS))
         style.addLayer(
-            MapSetup.dot("cockpit-thermal-dot", THERMALS, 5f, MapSetup.colour(ClimbBand.Climb), MapSetup.WHITE),
+            MapSetup.dot("cockpit-thermal-dot", THERMALS, 5f, MapSetup.colour(ClimbBand.Climb), MapSetup.halo),
         )
         style.addLayer(
             SymbolLayer("cockpit-thermal-climb", THERMALS).withProperties(
@@ -229,7 +230,7 @@ class CockpitMap : MapContent {
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_LEFT),
                 PropertyFactory.textOffset(arrayOf(0.7f, 0f)),
                 PropertyFactory.textColor(Palette.inkOnMap.toArgb()),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(MapSetup.halo),
                 PropertyFactory.textHaloWidth(1.6f),
             ),
         )
@@ -245,7 +246,7 @@ class CockpitMap : MapContent {
         // All of it is part of the glider's own source. The map draws each
         // source in its own time, and a ring that waits for its dots, or a
         // picture that waits for its glider, is a wrong picture.
-        val ringEdge = MapSetup.line("cockpit-lift-ring-edge", FLIGHT, MapSetup.WHITE, 4.5f)
+        val ringEdge = MapSetup.line("cockpit-lift-ring-edge", FLIGHT, MapSetup.halo, 4.5f)
         ringEdge.setFilter(part(RING))
         style.addLayer(ringEdge)
         val circle = MapSetup.line("cockpit-lift-ring-line", FLIGHT, MapSetup.ink, 2f)
@@ -256,7 +257,7 @@ class CockpitMap : MapContent {
             val dots = CircleLayer("cockpit-lift-${band.ordinal}", FLIGHT).withProperties(
                 PropertyFactory.circleRadius(Expression.get(RADIUS)),
                 PropertyFactory.circleColor(MapSetup.colour(band)),
-                PropertyFactory.circleStrokeColor(MapSetup.WHITE),
+                PropertyFactory.circleStrokeColor(MapSetup.halo),
                 PropertyFactory.circleStrokeWidth(1f),
             )
             dots.setFilter(
@@ -267,14 +268,14 @@ class CockpitMap : MapContent {
         val centre = CircleLayer("cockpit-lift-centre-dot", FLIGHT).withProperties(
             PropertyFactory.circleRadius(4f),
             PropertyFactory.circleColor(MapSetup.ink),
-            PropertyFactory.circleStrokeColor(MapSetup.WHITE),
+            PropertyFactory.circleStrokeColor(MapSetup.halo),
             PropertyFactory.circleStrokeWidth(2f),
         )
         centre.setFilter(part(CENTRE))
         style.addLayer(centre)
 
         style.addSource(GeoJsonSource(TAKEOFF))
-        style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
+        style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.halo, MapSetup.ink))
 
         // Other pilots in the air: the map tab's wings, turned the way they
         // fly, with name and altitude where there is room. Under the
@@ -295,15 +296,21 @@ class CockpitMap : MapContent {
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                 PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
                 PropertyFactory.textColor(MapSetup.ink),
-                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloColor(MapSetup.halo),
                 PropertyFactory.textHaloWidth(1.6f),
                 PropertyFactory.textOptional(true),
             ),
         )
         drawnGliders = null
-        // The glider goes on top: the same mark as the one a finished
-        // flight's map puts at the moment being inspected.
-        val glider = MapSetup.dot("cockpit-glider-dot", FLIGHT, 8f, MapSetup.accent, MapSetup.WHITE)
+        // The glider goes on top, in the design language's pairing for the
+        // pilot's own position: cream with the dark ring, the dot of the logo.
+        val glider = MapSetup.dot(
+            "cockpit-glider-dot",
+            FLIGHT,
+            8f,
+            VentiMapLight.ownPosition.toArgb(),
+            VentiMapLight.ownPositionRing.toArgb(),
+        )
         // The one place in the source that is no part of the thermal's picture.
         glider.setFilter(
             Expression.all(

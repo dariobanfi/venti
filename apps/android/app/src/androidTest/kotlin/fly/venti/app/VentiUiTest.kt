@@ -1587,11 +1587,32 @@ class VentiUiTest {
         val sign = checkNotNull(TestDevice.onScreen(scenario, lat = 47.6791413, lon = 11.9051032))
         TestDevice.tap(sign)
         waitFor(hasText(takeoff))
-        waitFor(hasText("What it is"))
+        // The pack's sheet: the site in a line, what the forecast says of
+        // its first day with flying hours with the status beside the name,
+        // and the two things to do from here.
+        waitFor(hasTestTag("site-in-a-line") and hasText("Take-off", substring = true))
+        waitFor(hasTestTag("site-outlook"))
+        assertTrue(exists(hasTestTag("site-status")))
+        assertTrue(exists(hasTestTag("site-plan-route")))
+        assertTrue(exists(hasTestTag("site-start-flight")))
         letTheMapDraw(2)
         keepScreenshot("$prefix-sites-2-site-from-the-map")
-        tap(hasText("Done"))
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("What it is")) }
+        // "Plan route": the route map, with the site as its first place.
+        tap(hasTestTag("site-plan-route"))
+        waitFor(hasText("Draw a route"))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-sites-2b-plan-route")
+        tap(described("Cancel"))
+        waitFor(described("Flying sites"))
+
+        // The chips switch the sites off and on again, and the map
+        // remembers.
+        tap(hasTestTag("layer-sites"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(described("Flying sites")) }
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-2c-sites-off")
+        tap(hasTestTag("layer-sites"))
+        waitFor(described("Flying sites"))
 
         // The same signs as a list: those with a name first.
         tap(described("Flying sites"))

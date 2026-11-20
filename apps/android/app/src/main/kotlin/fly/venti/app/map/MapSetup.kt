@@ -261,7 +261,7 @@ object MapSetup {
      * on top.
      */
     fun addBandLayers(style: Style, source: String, edgeWidth: Float) {
-        style.addLayer(line("$source-edge", source, WHITE, edgeWidth))
+        style.addLayer(line("$source-edge", source, halo, edgeWidth))
         for (band in ClimbBand.entries) {
             val layer = line("$source-${band.ordinal}", source, colour(band), 3.5f)
             layer.setFilter(Expression.eq(Expression.get(BAND), Expression.literal(band.ordinal)))
@@ -274,7 +274,8 @@ object MapSetup {
     // The app's colours as the map engine takes them.
     val accent: Int = Palette.accentOnMap.toArgb()
     val ink: Int = Palette.inkOnMap.toArgb()
-    const val WHITE: Int = Color.WHITE
+    /** The map's cream halo, around words and under lines and signs: the map is light in both appearances. */
+    val halo: Int = Palette.haloOnMap.toArgb()
 
     fun colour(band: ClimbBand): Int = band.color.toArgb()
 }

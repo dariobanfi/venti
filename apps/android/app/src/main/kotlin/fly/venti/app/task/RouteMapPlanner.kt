@@ -93,11 +93,16 @@ object RouteDrawing {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RouteMapPlanner(tasks: TaskModel, onDismiss: () -> Unit) {
-    var places by remember { mutableStateOf<List<Coordinate>>(emptyList()) }
+fun RouteMapPlanner(
+    tasks: TaskModel,
+    onDismiss: () -> Unit,
+    /** Where the route begins, if it begins at a place: a take-off whose page the pilot came from. */
+    from: Coordinate? = null,
+) {
+    var places by remember { mutableStateOf(listOfNotNull(from)) }
     var problem by remember { mutableStateOf<String?>(null) }
     val plan = remember(places) { planRoute(places) }
-    val map = remember { RouteDrawingMap { place ->
+    val map = remember { RouteDrawingMap(from) { place ->
         problem = null
         places = RouteDrawing.add(places, place)
     } }
@@ -197,7 +202,7 @@ fun RouteMapPlanner(tasks: TaskModel, onDismiss: () -> Unit) {
  * the line through them, the route as it would be scored, and with one leg
  * the areas in which a third place makes an FAI triangle of it.
  */
-private class RouteDrawingMap(private val onTap: (Coordinate) -> Unit) : MapContent {
+private class RouteDrawingMap(private val start: Coordinate?, private val onTap: (Coordinate) -> Unit) : MapContent {
     private var style: Style? = null
     private var view: MapView? = null
     private var places: List<Coordinate> = emptyList()
@@ -205,8 +210,13 @@ private class RouteDrawingMap(private val onTap: (Coordinate) -> Unit) : MapCont
     private var drawn: Pair<List<Coordinate>, RoutePlan?>? = null
 
     override fun prepare(map: MapLibreMap, view: MapView) {
-        // The northern Alps between Lake Constance and Salzburg, as the map tab begins.
-        map.cameraPosition = CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
+        map.cameraPosition = if (start != null) {
+            // A route that begins at a place: the country around it.
+            CameraPosition.Builder().target(LatLng(start.lat, start.lon)).zoom(9.5).build()
+        } else {
+            // The northern Alps between Lake Constance and Salzburg, as the map tab begins.
+            CameraPosition.Builder().target(LatLng(47.45, 11.6)).zoom(7.4).build()
+        }
         map.addOnMapClickListener { at ->
             onTap(Coordinate(at.latitude, at.longitude))
             true
@@ -224,7 +234,7 @@ private class RouteDrawingMap(private val onTap: (Coordinate) -> Unit) : MapCont
             ),
         )
         style.addSource(GeoJsonSource(DRAWN))
-        style.addLayer(MapSetup.line("route-drawn-edge", DRAWN, MapSetup.WHITE, 6f))
+        style.addLayer(MapSetup.line("route-drawn-edge", DRAWN, MapSetup.halo, 6f))
         style.addLayer(MapSetup.line("route-drawn-line", DRAWN, MapSetup.ink, 3f))
         style.addSource(GeoJsonSource(SCORED))
         style.addLayer(
@@ -232,7 +242,7 @@ private class RouteDrawingMap(private val onTap: (Coordinate) -> Unit) : MapCont
                 .withProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f))),
         )
         style.addSource(GeoJsonSource(PLACES))
-        style.addLayer(MapSetup.dot("route-places-dot", PLACES, 11f, MapSetup.WHITE, MapSetup.ink))
+        style.addLayer(MapSetup.dot("route-places-dot", PLACES, 11f, MapSetup.halo, MapSetup.ink))
         style.addLayer(
             SymbolLayer("route-places-number", PLACES).withProperties(
                 PropertyFactory.textField(Expression.get(LABEL)),

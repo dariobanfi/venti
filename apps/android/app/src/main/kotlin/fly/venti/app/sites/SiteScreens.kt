@@ -59,6 +59,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
+import fly.venti.app.design.StatusChip
+import fly.venti.app.design.Venti
+import fly.venti.app.design.status
+import fly.venti.core.OutlookDay
+import fly.venti.core.SiteOutlook
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
@@ -103,6 +115,8 @@ fun SiteSheet(
     community: CommunityModel? = null,
     /** Opens a flight flown from the site, on its own page. */
     onOpenFlight: (PublicFlight) -> Unit = {},
+    /** What the site's page leads to beyond itself; `null` where it leads nowhere. */
+    actions: SiteActions? = null,
 ) {
     // What the pilot has opened from the site's page, the newest last: a
     // wind station near the site, a forecast. Back takes the last away.
@@ -155,9 +169,60 @@ fun SiteSheet(
                     onDone = onDismiss,
                     community = community,
                     onOpenFlight = onOpenFlight,
+                    actions = actions,
                 )
             } else {
                 SiteList(sites, onOpen = onChoose, onDone = onDismiss)
+            }
+        }
+    }
+}
+
+/**
+ * What a site's page leads to beyond itself: what the forecast says of the
+ * site, the route map with the site as its first place, and the cockpit.
+ */
+class SiteActions(
+    /** What the forecast says about flying from a site; `null` without an answer. */
+    val outlook: suspend (SiteView) -> SiteOutlook?,
+    /** Whether a flight can be started now: not while one is on. */
+    val canStartFlight: () -> Boolean,
+    val onPlanRoute: (SiteView) -> Unit,
+    /** Opens the cockpit, which waits for the take-off. */
+    val onStartFlight: (SiteView) -> Unit,
+)
+
+/**
+ * The head of a site's page, as the design language's sheet has it: the
+ * site in a line, what the forecast says of its first day with flying
+ * hours, and the two things to do from here.
+ */
+@Composable
+private fun SiteHead(site: SiteView, day: Pair<OutlookDay, Boolean>?, isForTakingOff: Boolean, actions: SiteActions?) {
+    val colours = Venti.colours
+    Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+        Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+            Text(SiteWords.inALine(site), color = colours.textSecondary, modifier = Modifier.testTag("site-in-a-line"))
+            day?.let { (shown, isToday) ->
+                Text(SiteWords.outlook(shown, isToday), color = colours.textSecondary, modifier = Modifier.testTag("site-outlook"))
+            }
+        }
+        if (actions != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+                OutlinedButton(
+                    onClick = { actions.onPlanRoute(site) },
+                    modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch).testTag("site-plan-route"),
+                ) { Text("Plan route") }
+                if (isForTakingOff && actions.canStartFlight()) {
+                    Button(
+                        onClick = { actions.onStartFlight(site) },
+                        modifier = Modifier.weight(1f).heightIn(min = VentiSize.touch).testTag("site-start-flight"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor = MaterialTheme.colorScheme.onTertiary,
+                        ),
+                    ) { Text("Start flight") }
+                }
             }
         }
     }
@@ -315,8 +380,19 @@ private fun SitePage(
     onDone: () -> Unit,
     community: CommunityModel?,
     onOpenFlight: (PublicFlight) -> Unit,
+    actions: SiteActions?,
 ) {
     val links = LocalUriHandler.current
+    // Whether flights begin here: the forecast's verdict and "Start
+    // flight" are for such a place.
+    val isForTakingOff = SiteKind.TAKEOFF in site.uses && !site.discouraged
+    // What the forecast says about flying from here. Absent for a place
+    // to land, without a server, and until the server has answered.
+    var outlook by remember(site.id) { mutableStateOf<SiteOutlook?>(null) }
+    LaunchedEffect(site.id) {
+        if (isForTakingOff && actions != null) outlook = actions.outlook(site)
+    }
+    val day = outlook?.let(SiteWords::firstFlyingDay)
     // What was flown from a place to take off from; a landing field has no
     // flights that began there. A site nobody shared a flight from has no
     // such section, and neither has one whose flights could not be asked for.
@@ -353,10 +429,13 @@ private fun SitePage(
             Text(
                 site.name,
                 style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).semantics { heading() },
             )
+            day?.let { (shown, _) ->
+                StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
+            }
             TextButton(onClick = onDone) { Text("Done") }
         }
         LazyColumn(
@@ -365,11 +444,10 @@ private fun SitePage(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
+                SiteHead(site, day, isForTakingOff, actions)
+            }
+            item {
                 Group {
-                    row { ValueRow("What it is", site.kindInWords) }
-                    site.elevationM?.let { elevation ->
-                        row { ValueRow("Height", "${Format.metres(elevation)} m") }
-                    }
                     row { ValueRow("Where", Format.place(site.position.lat, site.position.lon)) }
                     row { WindRow(site) }
                 }
@@ -598,6 +676,30 @@ fun WindRose(spans: List<WindSpan>, modifier: Modifier = Modifier) {
 
 /** What the sites' screens say, apart from what the core has worded. */
 object SiteWords {
+    /** "Take-off 1550 m, wind from N to NE" */
+    fun inALine(site: SiteView): String {
+        var line = site.kindInWords
+        site.elevationM?.let { line += " ${Format.metres(it)} m" }
+        if (site.windInWords.isNotEmpty()) line += ", wind from ${site.windInWords}"
+        return line
+    }
+
+    /**
+     * The first day the forecast has flying hours for, and whether that is
+     * today; today where it has none at all.
+     */
+    fun firstFlyingDay(outlook: SiteOutlook): Pair<OutlookDay, Boolean>? {
+        val first = outlook.days.firstOrNull() ?: return null
+        val index = outlook.days.indexOfFirst { it.hours.isNotEmpty() }
+        return if (index >= 0) outlook.days[index] to (index == 0) else first to true
+    }
+
+    /** "Good from noon. Gusts to 26 km/h after 15:00", with the day's name before it when it is not today. */
+    fun outlook(day: OutlookDay, isToday: Boolean): String {
+        val name = if (isToday) "" else "${Format.weekday(day.startUnixS)}: "
+        return if (day.why.isEmpty()) "$name${day.headline}" else "$name${day.headline}. ${day.why}"
+    }
+
     const val FLOWN_FROM_HERE = "Flown from here"
     const val FLOWN_FOOTER =
         "The newest flights that pilots share with everyone on Venti and that took off within a kilometre and " +

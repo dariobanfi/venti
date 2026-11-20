@@ -1,0 +1,97 @@
+package fly.venti.app.design
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
+
+/**
+ * How high what floats over a map stands: the pack's float shadow. Only
+ * what floats over a map has one.
+ */
+val FloatElevation: Dp = VentiSpace.s1
+
+/** The height the pack draws a chip at; its tap area is the touch target's. */
+private val CHIP_HEIGHT = VentiSpace.s6 + VentiSpace.s1
+
+/**
+ * The pack's chip (`.v-chip`): switches a layer of the map on and off.
+ * Drawn 36 high, a pill, the primary ground with its ink when on, the
+ * surface with the float shadow when off, and 48 high to the finger.
+ */
+@Composable
+fun LayerChip(
+    title: String,
+    @DrawableRes icon: Int,
+    isOn: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colours = Venti.colours
+    Box(
+        modifier = modifier
+            .heightIn(min = VentiSize.touch)
+            .toggleable(value = isOn, role = Role.Switch, onValueChange = onChange),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            shape = PillShape,
+            color = if (isOn) colours.primary else colours.surface,
+            contentColor = if (isOn) colours.onPrimary else colours.text,
+            shadowElevation = FloatElevation,
+        ) {
+            Row(
+                modifier = Modifier.height(CHIP_HEIGHT).padding(start = VentiSpace.s3, end = VentiSpace.s4),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+            ) {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(VentiSize.icon - VentiSpace.s1 - VentiSpace.s1 / 2))
+                Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            }
+        }
+    }
+}
+
+/**
+ * The pack's round button (`.v-btn--round`): a sign alone on the surface,
+ * floating over a map, 48 across. Its description is said to TalkBack.
+ */
+@Composable
+fun RoundButton(
+    @DrawableRes icon: Int,
+    description: String,
+    modifier: Modifier = Modifier,
+    tint: Color = Venti.colours.text,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(VentiSize.touch),
+        shape = PillShape,
+        color = Venti.colours.surface,
+        contentColor = tint,
+        shadowElevation = FloatElevation,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), contentDescription = description)
+        }
+    }
+}

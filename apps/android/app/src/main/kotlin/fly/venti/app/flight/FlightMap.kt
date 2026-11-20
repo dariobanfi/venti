@@ -172,15 +172,15 @@ class FlightMap(private val flight: FlightView) : MapContent {
         val first = flight.track.firstOrNull() ?: return
         val last = flight.track.last()
         style.addSource(GeoJsonSource(START, Point.fromLngLat(first.lon, first.lat)))
-        style.addLayer(MapSetup.dot("flight-start-dot", START, 5f, MapSetup.WHITE, MapSetup.ink))
+        style.addLayer(MapSetup.dot("flight-start-dot", START, 5f, MapSetup.halo, MapSetup.ink))
         style.addSource(GeoJsonSource(END, Point.fromLngLat(last.lon, last.lat)))
-        style.addLayer(MapSetup.dot("flight-end-dot", END, 5f, MapSetup.ink, MapSetup.WHITE))
+        style.addLayer(MapSetup.dot("flight-end-dot", END, 5f, MapSetup.ink, MapSetup.halo))
     }
 
     /** The second flight: a line of one colour under the first, and its glider at the marked moment. */
     private fun addOther(style: Style) {
         style.addSource(GeoJsonSource(OTHER))
-        style.addLayer(MapSetup.line("flight-other-edge", OTHER, MapSetup.WHITE, 5f))
+        style.addLayer(MapSetup.line("flight-other-edge", OTHER, MapSetup.halo, 5f))
         style.addLayer(MapSetup.line("flight-other-line", OTHER, CompareColours.onMap.toArgb(), 3f))
     }
 
@@ -194,7 +194,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
 
     private fun addOtherCursor(style: Style) {
         style.addSource(GeoJsonSource(OTHER_CURSOR))
-        style.addLayer(MapSetup.dot("flight-other-cursor-dot", OTHER_CURSOR, 7f, CompareColours.onMap.toArgb(), MapSetup.WHITE))
+        style.addLayer(MapSetup.dot("flight-other-cursor-dot", OTHER_CURSOR, 7f, CompareColours.onMap.toArgb(), MapSetup.halo))
     }
 
     private fun markOtherCursor() {
@@ -209,7 +209,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
 
     private fun addCursor(style: Style) {
         style.addSource(GeoJsonSource(CURSOR))
-        val dot = MapSetup.dot(CURSOR_DOT, CURSOR, 8f, MapSetup.accent, MapSetup.WHITE)
+        val dot = MapSetup.dot(CURSOR_DOT, CURSOR, 8f, MapSetup.accent, MapSetup.halo)
         dot.setProperties(PropertyFactory.visibility(Property.NONE))
         style.addLayer(dot)
     }

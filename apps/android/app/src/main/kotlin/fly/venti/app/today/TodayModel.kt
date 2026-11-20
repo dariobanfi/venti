@@ -110,6 +110,23 @@ class TodayModel(
             deviceClock() - asked.at < KEEP_MILLISECONDS
     }
 
+    /** What was asked about single sites, for their own pages, and when by this device's clock. */
+    private val askedSites = mutableMapOf<String, Pair<SiteOutlook, Long>>()
+
+    /**
+     * What the forecast says about one site, for its own page: what the
+     * list already has, what was asked not long ago, or a new answer.
+     * `null` without a server and when no answer could be read.
+     */
+    suspend fun outlook(site: SiteView): SiteOutlook? {
+        places.firstOrNull { it.site.id == site.id }?.outlook?.let { return it }
+        askedSites[site.id]?.let { (kept, at) -> if (deviceClock() - at < KEEP_MILLISECONDS) return kept }
+        val server = server() ?: return null
+        val outlook = outlook(site, server, clock()) ?: return null
+        askedSites[site.id] = outlook to deviceClock()
+        return outlook
+    }
+
     /** Asks for the take-offs around a place and the forecast of each. */
     suspend fun load(around: Coordinate) {
         val server = server()

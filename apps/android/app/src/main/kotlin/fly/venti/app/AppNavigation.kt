@@ -138,6 +138,19 @@ class AppNavigation {
         tab = chosen
     }
 
+    /**
+     * Set when the cockpit was asked for from another tab, a site's page
+     * for one: the Fly tab opens it and takes this back.
+     */
+    var wantsCockpit: Boolean by mutableStateOf(false)
+
+    /** "Start flight" outside the Fly tab: that tab comes to the front and opens the cockpit, which waits for the take-off. */
+    fun startFlight() {
+        tab = AppTab.Fly
+        flyRoute = null
+        wantsCockpit = true
+    }
+
     /** Opens the settings, from the Today tab's corner or from a screen that needs one set. */
     fun showSettings() {
         tab = AppTab.Today

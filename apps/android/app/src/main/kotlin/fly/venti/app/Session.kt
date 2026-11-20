@@ -185,6 +185,8 @@ sealed interface Session {
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }
+            // The cockpit's map shows them too, around the glider.
+            fly.others = { place -> live.around(place) }
             // And everyone's public flights, on the Logbook tab.
             val community = CommunityModel()
             community.server = { (wind.server as? WindServer.Usable)?.url }

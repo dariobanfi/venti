@@ -1675,7 +1675,8 @@ class VentiUiTest {
     fun theSameInDarkAppearance() = importInspectAndDelete("dark", dark = true)
 
     /**
-     * The wind on the ground in the cockpit, from Venti's wind stations: the
+     * The other gliders on the cockpit's map, and the wind on the ground in
+     * the cockpit, from Venti's wind stations: the
      * nearest in a badge, and all of them in the wind's sheet, which begins
      * with them when it is opened from that badge. The development mode's
      * stations stand fifty kilometres off and more, and the badge says so.
@@ -1696,6 +1697,19 @@ class VentiUiTest {
         waitFor(badge and saying(" km/h"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-ground-wind-1-badge")
+
+        // Who else is in the air: the development mode's demo gliders fly
+        // the sample flight too, and the whole flight's view has them.
+        val scenario = checkNotNull(app)
+        tap(described("Show the whole flight"))
+        waitFor(described("Follow the glider"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "cockpit-gliders") ?: 0) > 0
+        }
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-fly-others-in-the-air")
+        tap(described("Follow the glider"))
+        waitFor(described("Show the whole flight"))
 
         tap(badge)
         waitForAll(hasText("Wind on the ground"), hasText("On the ground"), hasTestTag("ground-wind-row"))

@@ -16,6 +16,7 @@ import fly.venti.core.Replay
 import fly.venti.core.TargetPlace
 import fly.venti.core.ToneView
 import fly.venti.core.pendingRecordings
+import fly.venti.core.liveMap
 import fly.venti.core.windMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -300,6 +301,26 @@ class FlySessionTest {
     }
 
     @Test
+    fun inFlightTheCockpitShowsWhoElseIsInTheAirAround() {
+        val fly = makeSession(TestSupport.newFolder("fly"))
+        // Who is in the air, as Venti's own tests keep its answer.
+        val answer = liveMap(200u, TestSupport.recordedAnswers.resolve("live.json").readBytes()).gliders
+        assertTrue(answer.isNotEmpty())
+        val asked = java.util.Collections.synchronizedList(mutableListOf<Coordinate>())
+        fly.others = { place ->
+            asked += place
+            answer
+        }
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        Thread.sleep(1500)
+        // Asked once, around the glider, in flight; the next in a quarter of a minute.
+        assertEquals(1, asked.size)
+        assertEquals(answer, fly.gliders)
+        fly.finish()
+        assertTrue(fly.gliders.isEmpty())
+    }
+
+    @Test
     fun withoutAnAnswerTheCockpitSaysNothingAboutTheGroundsWind() {
         val fly = makeSession(TestSupport.newFolder("fly"))
         fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
@@ -326,7 +347,8 @@ class FlySessionTest {
         fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
         var waited = 0
         // Seconds on a machine at rest; a minute's patience for one that is building beside the test.
-        while (fly.airspaceWarnings.isEmpty() && waited < 60_000) {
+        // The warning is on the list a moment before it is said, in the same refresh.
+        while ((fly.airspaceWarnings.isEmpty() || voice.said.isEmpty()) && waited < 60_000) {
             Thread.sleep(50)
             waited += 50
         }

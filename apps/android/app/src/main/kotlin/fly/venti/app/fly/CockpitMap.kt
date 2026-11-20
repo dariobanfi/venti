@@ -1,5 +1,8 @@
 package fly.venti.app.fly
 
+import fly.venti.core.LiveGlider
+import fly.venti.app.live.LiveSymbols
+import fly.venti.app.live.GliderFeature
 import app.venti.design.VentiLight
 import androidx.compose.ui.graphics.toArgb
 import fly.venti.app.design.Palette
@@ -90,6 +93,10 @@ class CockpitMap : MapContent {
         }
     private var airspaceDrawnAt: Coordinate? = null
     private var airspaceIsNew = false
+
+    /** Other pilots in the air around the glider, and those last drawn. */
+    var gliders: List<LiveGlider> = emptyList()
+    private var drawnGliders: List<LiveGlider>? = null
 
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
@@ -268,6 +275,32 @@ class CockpitMap : MapContent {
 
         style.addSource(GeoJsonSource(TAKEOFF))
         style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
+
+        // Other pilots in the air: the map tab's wings, turned the way they
+        // fly, with name and altitude where there is room. Under the
+        // pilot's own glider, which goes on top.
+        for ((name, picture) in LiveSymbols.all(view.context)) {
+            style.addImage(name, picture)
+        }
+        style.addSource(GeoJsonSource(GLIDERS))
+        style.addLayer(
+            SymbolLayer(GLIDERS, GLIDERS).withProperties(
+                PropertyFactory.iconImage(Expression.get(GliderFeature.PICTURE)),
+                PropertyFactory.iconRotate(Expression.get(GliderFeature.HEADING)),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.textField(Expression.get(GliderFeature.LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(13f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloWidth(1.6f),
+                PropertyFactory.textOptional(true),
+            ),
+        )
+        drawnGliders = null
         // The glider goes on top: the same mark as the one a finished
         // flight's map puts at the moment being inspected.
         val glider = MapSetup.dot("cockpit-glider-dot", FLIGHT, 8f, MapSetup.accent, MapSetup.WHITE)
@@ -332,6 +365,7 @@ class CockpitMap : MapContent {
         // A map that has been taken down must not be touched: the map
         // engine throws when a style that is gone is asked for a source.
         if (mapView.isDestroyed || !style.isFullyLoaded) return
+        drawGliders(style)
         val view = wanted ?: return
         val position = view.position ?: return
         if (view === shown) return
@@ -385,6 +419,13 @@ class CockpitMap : MapContent {
             val glide = sinceLastStep.coerceIn(SHORTEST_GLIDE_MILLISECONDS, LONGEST_GLIDE_MILLISECONDS).toInt()
             map.easeCamera(move, glide, false)
         }
+    }
+
+    /** Draws the other gliders, when they have changed. */
+    private fun drawGliders(style: Style) {
+        if (gliders == drawnGliders) return
+        drawnGliders = gliders
+        style.getSourceAs<GeoJsonSource>(GLIDERS)?.setGeoJson(FeatureCollection.fromFeatures(gliders.map(GliderFeature::of)))
     }
 
     /** Draws the task's cylinders and the way still to fly, when either has changed. */
@@ -492,6 +533,7 @@ class CockpitMap : MapContent {
     companion object {
         private const val FLIGHT = "cockpit-flight"
         private const val TAKEOFF = "cockpit-takeoff"
+        private const val GLIDERS = "cockpit-gliders"
         private const val COURSE = "cockpit-course"
         private const val ROUTE = "cockpit-route"
         private const val TARGET = "cockpit-target"

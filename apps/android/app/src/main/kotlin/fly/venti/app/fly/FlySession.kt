@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import fly.venti.core.LiveGlider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -278,6 +279,20 @@ class FlySession(
         isWindWarningPutAway = true
     }
 
+    /**
+     * Other pilots in the air around the glider who show their flight to
+     * everyone, as Venti last listed them.
+     */
+    var gliders: List<LiveGlider> by mutableStateOf(emptyList())
+        private set
+
+    /** Asks Venti who is in the air around a place. The app sets this; `null` when there is no answer. */
+    var others: suspend (Coordinate) -> List<LiveGlider>? = { null }
+
+    /** When the other gliders were last asked for, by the phone's clock, and whether an answer is awaited. */
+    private var askedForOthers = Double.NEGATIVE_INFINITY
+    private var isAskingForOthers = false
+
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
 
@@ -541,6 +556,8 @@ class FlySession(
         handedAirspace = null
         task = null
         chosenPlace = null
+        gliders = emptyList()
+        isAskingForOthers = false
         windBelow = null
         windBelowCredits = emptyList()
         isWindWarningPutAway = false
@@ -571,6 +588,8 @@ class FlySession(
         // The wind on the ground is asked for as soon as the glider flies.
         askedForWindBelow = Double.NEGATIVE_INFINITY
         isAskingForWindBelow = false
+        askedForOthers = Double.NEGATIVE_INFINITY
+        isAskingForOthers = false
         askedForLiveRequest = 0.0
         sending = null
         sound.isMuted = isMuted
@@ -692,6 +711,25 @@ class FlySession(
                 take(groundWind(found.stations, position, place, trimSpeedMs), found.credits)
             }
         }
+        // Who else is in the air around the glider, in flight only: on the
+        // ground the map tab shows them. Every quarter of a minute by the
+        // phone's own clock, which is what Venti asks for.
+        if (position != null && view.phase == FlightPhase.FLYING && !isAskingForOthers &&
+            wallClock - askedForOthers >= OTHERS_SECONDS
+        ) {
+            askedForOthers = wallClock
+            isAskingForOthers = true
+            // The pilot's own glider, if the flight is shown to everyone, is
+            // on Venti's list too: it is not another pilot.
+            val own = live?.link?.substringAfterLast('/')
+            scope.launch {
+                val found = others(position)
+                isAskingForOthers = false
+                if (found == null || this@FlySession.session !== session) return@launch
+                val around = found.filter { it.id != own }
+                if (around != gliders) gliders = around
+            }
+        }
         // Files brought in or removed in the middle of a session reach the
         // core at once; what the pilot silenced stays silenced.
         val latest = airspace()
@@ -754,6 +792,9 @@ class FlySession(
     companion object {
         /** How often the wind on the ground is asked for in flight, seconds. */
         const val WIND_BELOW_SECONDS = 120.0
+
+        /** How often the other gliders around are asked for in flight, seconds. */
+        const val OTHERS_SECONDS = 15.0
 
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L

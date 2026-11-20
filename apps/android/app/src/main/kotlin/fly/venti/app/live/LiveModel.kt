@@ -1,5 +1,6 @@
 package fly.venti.app.live
 
+import fly.venti.core.Coordinate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -148,6 +149,24 @@ class LiveModel(
             if (asked == null && server == this.server()) {
                 asked = Asked(area, server)
             }
+        }
+    }
+
+    /**
+     * Who is in the air around a place, for the cockpit's map: some thirty
+     * kilometres every way. Nothing of it is kept for the map tab. `null`
+     * without a server or an answer.
+     */
+    suspend fun around(place: Coordinate, reach: Double = 0.35): List<LiveGlider>? {
+        val server = server() ?: return null
+        return try {
+            val path = liveMapPath(place.lat - reach, place.lon - reach * 1.5, place.lat + reach, place.lon + reach * 1.5)
+            val answer = transport(server + path)
+            withContext(background) { liveMap(answer.status16, answer.body) }.gliders
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
         }
     }
 

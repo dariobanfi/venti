@@ -185,6 +185,7 @@ fun CockpitScreen(
                         onUpdate = {
                             map.airspace = fly.airspace()
                             map.range = fly.range
+                            map.gliders = fly.gliders
                             map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                         },
                     )

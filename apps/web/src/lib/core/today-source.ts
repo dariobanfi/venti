@@ -121,6 +121,17 @@ export class TodaySource {
 	}
 
 	/**
+	 * What the forecast says about flying from a site, by Venti's clock now:
+	 * for a site's page on the map. Nothing if this site has no server.
+	 */
+	async outlookFor(
+		site: Pick<SiteView, 'position' | 'wind' | 'elevationM'>
+	): Promise<SiteOutlook | undefined> {
+		if (!(await this.#present())) return undefined;
+		return this.#read(site, await this.#now());
+	}
+
+	/**
 	 * What the forecast says about flying from one of the take-offs last
 	 * listed, from `nowUnixS` on. A forecast the server is still fetching is
 	 * asked for again a few times. Throws in words when there is none.
@@ -128,6 +139,13 @@ export class TodaySource {
 	async outlook(id: string, nowUnixS: number): Promise<SiteOutlook> {
 		const site = this.#sites.get(id);
 		if (!site) throw unreachable('This take-off is no longer listed.');
+		return this.#read(site, nowUnixS);
+	}
+
+	async #read(
+		site: Pick<SiteView, 'position' | 'wind' | 'elevationM'>,
+		nowUnixS: number
+	): Promise<SiteOutlook> {
 		const path = forecastPath(site.position.lat, site.position.lon);
 		for (let tries = 1; ; tries += 1) {
 			const answer = await this.#get(path);

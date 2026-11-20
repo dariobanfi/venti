@@ -8,7 +8,8 @@
  * thing.
  */
 
-import type { Credit, SiteView } from '#lib/core/index.ts';
+import type { Credit, OutlookDay, SiteView } from '#lib/core/index.ts';
+import type { Format } from '#lib/design/format.ts';
 import type { SitesState } from './watch';
 
 /** How the screens write numbers, dates and lists: the reader's own way. */
@@ -101,4 +102,21 @@ export function nothingListed(state: SitesState): string {
 	return state.isWhole
 		? 'The source knows none on this part of the map. A place without a sign may still be a site.'
 		: 'Venti has no flying sites for this part of the map.';
+}
+
+/** The site in a line, as the pack's site sheet has it: "Take-off 1550 m, wind from N to NE". */
+export function siteLine(site: SiteView, text: Pick<Format, 'metres'>): string {
+	let line = site.kindInWords;
+	if (site.elevationM !== undefined) line += ` ${text.metres(site.elevationM)} m`;
+	if (site.windInWords) line += `, wind from ${site.windInWords}`;
+	return line;
+}
+
+/**
+ * The forecast's line for a day, with the day's name: "Fri: Not flyable.
+ * Gusts to 52 km/h". The day's name is the core's ("Today", "Fri").
+ */
+export function forecastLine(day: Pick<OutlookDay, 'name' | 'headline' | 'why'>): string {
+	const why = day.why ? ` ${day.why}` : '';
+	return `${day.name}: ${day.headline}.${why}`;
 }

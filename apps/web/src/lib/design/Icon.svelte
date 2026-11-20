@@ -63,7 +63,8 @@
 		good: drawing('good'),
 		danger: drawing('danger'),
 		arrowWind: drawing('arrow-wind'),
-		takeoff: drawing('takeoff')
+		takeoff: drawing('takeoff'),
+		airspace: drawing('airspace')
 	} as const;
 
 	export type IconName = keyof typeof shapes | keyof typeof pack;

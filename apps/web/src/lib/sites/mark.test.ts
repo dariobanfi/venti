@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { countIn, flownFrom, listed, siteFeatures, sitesLayer, SITES_SOURCE } from './mark';
 import { wedges } from './rose';
-import { colours, pictureName, SIGNS, SITE_KINDS } from './symbols';
+import { colours, pictureName, ringed, SITE_KINDS } from './symbols';
 import { site } from './testing';
 import { SITES_MIN_ZOOM } from './watch';
 
@@ -47,7 +47,7 @@ describe('flying sites on the map', () => {
 		expect(layer.layout).toMatchObject({ 'icon-allow-overlap': true, 'text-optional': true });
 	});
 
-	it('have a picture for every kind, the landing light and the rest dark', () => {
+	it('have a pin for every kind, the landing light and the rest dark', () => {
 		expect(SITE_KINDS.map(pictureName)).toEqual([
 			'site-takeoff',
 			'site-landing',
@@ -55,7 +55,8 @@ describe('flying sites on the map', () => {
 			'site-training',
 			'site-other'
 		]);
-		for (const kind of SITE_KINDS) expect(SIGNS[kind]).toMatch(/^M/);
+		// A ring in place of the dot for a training slope and the rest.
+		expect(SITE_KINDS.filter(ringed)).toEqual(['training', 'other']);
 		expect(colours('landing')).toEqual({ ground: '#FFF8E8', sign: '#221640' });
 		expect(colours('takeoff')).toEqual({ ground: '#221640', sign: '#FFF8E8' });
 		expect(colours('other')).toEqual(colours('takeoff'));

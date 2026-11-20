@@ -19,7 +19,9 @@ import {
 	CoreClient,
 	type FlightView,
 	type ForecastView,
-	type GroundUnderFlight
+	type GroundUnderFlight,
+	type SiteOutlook,
+	type SiteView
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
@@ -119,6 +121,15 @@ export class App {
 	async forecast(place: Coordinate): Promise<ForecastView | undefined> {
 		await this.#started;
 		return this.#core?.forecast(place);
+	}
+
+	/**
+	 * What the forecast says about flying from a site, by Venti's clock
+	 * now. Nothing from a site without Venti behind it. Not kept.
+	 */
+	async siteOutlook(site: SiteView): Promise<SiteOutlook | undefined> {
+		await this.#started;
+		return this.#core?.siteOutlook(site);
 	}
 
 	/** Numbers the questions about the ground under a flight. */

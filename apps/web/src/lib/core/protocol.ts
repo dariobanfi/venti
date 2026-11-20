@@ -54,6 +54,7 @@ import type {
 	SiteAtPlace,
 	SiteOutlook,
 	SitesMap,
+	SiteView,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
@@ -154,6 +155,11 @@ export interface Calls {
 	todayTakeoffs: { given: Coordinate; answer: TodayTakeoffs | undefined };
 	/** What the forecast says about flying from one of them, from a moment on. */
 	todayOutlook: { given: { id: string; nowUnixS: number }; answer: SiteOutlook };
+	/** What the forecast says about flying from a site, by Venti's clock now. */
+	siteOutlook: {
+		given: Pick<SiteView, 'position' | 'wind' | 'elevationM'>;
+		answer: SiteOutlook | undefined;
+	};
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -305,6 +311,7 @@ export async function answer<Name extends CallName>(
 		openPublicFlight: (id) => community.open(id),
 		todayTakeoffs: (place) => today.takeoffs(place),
 		todayOutlook: ({ id, nowUnixS }) => today.outlook(id, nowUnixS),
+		siteOutlook: (site) => today.outlookFor(site),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

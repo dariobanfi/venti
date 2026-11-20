@@ -1,32 +1,32 @@
 /**
- * The signs the map draws flying sites with: a dark disc with a white sign
- * for a take-off, a white disc with a dark sign for a landing, so that the
- * two are told apart at a glance and neither is taken for wind, airspace or
- * a track, which have the colours. The iPhone app draws the same in
- * `SiteScreens.swift`.
+ * The pins the map draws flying sites with, as the design pack draws them:
+ * the pack's indigo and cream, with the tip on the site, so that a site is
+ * never taken for wind, airspace or a track, which have the colours. The
+ * iPhone and Android draw the same.
  *
- * `SIGNS` is also what `SiteGlyph.svelte` draws in a list, so the map and
- * the list show one sign.
+ * `SiteGlyph.svelte` draws the same pin in a list, so the map and the list
+ * show one sign.
  */
 
 import type { SiteKind } from '#lib/core/index.ts';
 import { INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import type { Picture } from '#lib/wind/symbols.ts';
 
-/** The side of a picture, in CSS pixels. */
-export const SIDE = 26;
+/** The pin's box, in points: a little narrower than tall. */
+export const PIN_WIDTH = 24;
+export const PIN_HEIGHT = 32;
 
-/** The radius of the disc, and the width of its edge. */
-export const DISC_RADIUS = 11;
+/**
+ * The design pack's pin, with its tip at the bottom middle of the box, on
+ * the site: a round head over a point.
+ */
+export const PIN = 'M12 31C12 31 2.5 20 2.5 11.5a9.5 9.5 0 0 1 19 0C21.5 20 12 31 12 31Z';
+/** Where the mark in the pin's head sits, and how large it is. */
+export const MARK = { x: 12, y: 11.5, radius: 4 } as const;
+/** The width of the pin's edge, and of a ring. */
 export const EDGE_WIDTH = 1.5;
+export const RING_WIDTH = 2.2;
 
-/** The side of the box the signs are drawn in, and how wide a sign is on the disc. */
-export const SIGN_BOX = 24;
-export const SIGN_SIDE = 14;
-/** The width of a sign's lines, in the box's own units. */
-export const SIGN_LINE = 3.6;
-
-/** Every kind, for making the map's pictures. */
 export const SITE_KINDS: readonly SiteKind[] = [
 	'takeoff',
 	'landing',
@@ -35,33 +35,28 @@ export const SITE_KINDS: readonly SiteKind[] = [
 	'other'
 ];
 
-/** What stands on the disc of each kind: lines in a box of 24, as SVG paths. */
-export const SIGNS: Readonly<Record<SiteKind, string>> = {
-	// An arrow up and away, and one down to the ground.
-	takeoff: 'M7 17 17 7M9 7h8v8',
-	landing: 'M7 7l10 10M17 9v8H9',
-	// An arrow up to a line: pulled into the air on a rope.
-	towing: 'M6.5 5h11M12 19.5V10M7.5 14 12 9.5l4.5 4.5',
-	// A graduate's cap.
-	training:
-		'M3 10l9-4.5 9 4.5-9 4.5-9-4.5ZM7.5 13.5v3.2c1.2 1.1 2.7 1.8 4.5 1.8s3.3-.7 4.5-1.8v-3.2',
-	// A pin: a place, and no more is known.
-	other: 'M12 20.5c-3.7-3.6-5.5-6.8-5.5-9.5a5.5 5.5 0 0 1 11 0c0 2.7-1.8 5.9-5.5 9.5ZM12 10.9h.01'
-};
-
-/** The name the map knows a kind's picture by. */
 export function pictureName(kind: SiteKind): string {
 	return `site-${kind}`;
 }
 
-/** The disc's colour, and the colour of its sign and its edge. A landing is the light one. */
+/**
+ * How a kind of site is drawn, in the pack's indigo and cream: a place to
+ * take off from is a dark pin with a cream dot, a landing the same turned
+ * round, cream with a dark dot; a training slope or a site of another kind
+ * has a ring in place of the dot.
+ */
 export function colours(kind: SiteKind): { ground: string; sign: string } {
 	return kind === 'landing'
 		? { ground: PAPER_ON_MAP, sign: INK_ON_MAP }
 		: { ground: INK_ON_MAP, sign: PAPER_ON_MAP };
 }
 
-/** Every picture the sites layer uses, drawn sharp for dense screens. */
+/** Whether the pin's head holds a ring rather than a dot. */
+export function ringed(kind: SiteKind): boolean {
+	return kind === 'training' || kind === 'other';
+}
+
+/** The pictures of every kind of site, for the map, at the screen's pixel ratio. */
 export function sitePictures(pixelRatio = 2): Picture[] {
 	return SITE_KINDS.map((kind) => ({
 		name: pictureName(kind),
@@ -72,32 +67,27 @@ export function sitePictures(pixelRatio = 2): Picture[] {
 
 function draw(kind: SiteKind, pixelRatio: number): ImageData {
 	const canvas = document.createElement('canvas');
-	canvas.width = canvas.height = SIDE * pixelRatio;
+	canvas.width = PIN_WIDTH * pixelRatio;
+	canvas.height = PIN_HEIGHT * pixelRatio;
 	const context = canvas.getContext('2d', { willReadFrequently: true })!;
 	context.scale(pixelRatio, pixelRatio);
 	const { ground, sign } = colours(kind);
 
-	const disc = new Path2D();
-	disc.arc(SIDE / 2, SIDE / 2, DISC_RADIUS, 0, 2 * Math.PI);
-	// A soft shadow lifts the disc off any ground.
-	context.shadowColor = 'rgb(0 0 0 / 0.35)';
-	context.shadowBlur = 1.5 * pixelRatio;
-	context.shadowOffsetY = 0.5 * pixelRatio;
+	const pin = new Path2D(PIN);
 	context.fillStyle = ground;
-	context.fill(disc);
-	context.shadowColor = 'transparent';
+	context.fill(pin);
 	context.lineWidth = EDGE_WIDTH;
 	context.strokeStyle = sign;
-	context.stroke(disc);
+	context.stroke(pin);
 
-	const scale = SIGN_SIDE / SIGN_BOX;
-	context.translate(SIDE / 2, SIDE / 2);
-	context.scale(scale, scale);
-	context.translate(-SIGN_BOX / 2, -SIGN_BOX / 2);
-	context.lineWidth = SIGN_LINE;
-	context.lineCap = 'round';
-	context.lineJoin = 'round';
-	context.stroke(new Path2D(SIGNS[kind]));
-
+	const mark = new Path2D();
+	mark.arc(MARK.x, MARK.y, MARK.radius, 0, 2 * Math.PI);
+	if (ringed(kind)) {
+		context.lineWidth = RING_WIDTH;
+		context.stroke(mark);
+	} else {
+		context.fillStyle = sign;
+		context.fill(mark);
+	}
 	return context.getImageData(0, 0, canvas.width, canvas.height);
 }

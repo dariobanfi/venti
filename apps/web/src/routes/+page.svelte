@@ -8,7 +8,14 @@
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { placeHref } from '#lib/app/routes.ts';
-	import type { Bounds, Coordinate, Credit, SiteView, WindStation } from '#lib/core/index.ts';
+	import type {
+		Bounds,
+		Coordinate,
+		Credit,
+		SiteOutlook,
+		SiteView,
+		WindStation
+	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
@@ -22,6 +29,7 @@
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
+	import { keepLayersOff, type MapLayer, MAP_LAYERS, layersOff } from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteList from '#lib/sites/SiteList.svelte';
@@ -40,6 +48,19 @@
 	let map = $state<OverviewMap>();
 	/** How far the navigation reaches in from the bottom edge, measured in pixels. */
 	let navigationHeight = $state(0);
+
+	/** The layers the pilot switched off with the chips, as this browser remembers them. */
+	let off = $state<MapLayer[]>(layersOff(globalThis.localStorage));
+	function toggle(layer: MapLayer) {
+		off = off.includes(layer) ? off.filter((one) => one !== layer) : [...off, layer];
+		keepLayersOff(globalThis.localStorage, off);
+	}
+	const CHIP_ICONS = {
+		wind: 'wind',
+		airspace: 'airspace',
+		sites: 'pin',
+		pilots: 'glider'
+	} as const;
 
 	const wind = $derived(app.wind);
 	const current = $derived(wind?.state ?? NO_WIND);
@@ -101,6 +122,24 @@
 		asOfUnixS: number | undefined;
 	}>();
 	let listingSites = $state(false);
+
+	/** What the forecast says about flying from the chosen site, for a place to take off from. */
+	let siteOutlook = $state.raw<SiteOutlook>();
+	$effect(() => {
+		const site = chosenSite?.site;
+		siteOutlook = undefined;
+		if (!site || !site.uses.includes('takeoff')) return;
+		let current = true;
+		app.siteOutlook(site).then(
+			(found) => {
+				if (current) siteOutlook = found;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
 
 	/**
 	 * The place whose forecast is looked at, with what it is called: a
@@ -192,7 +231,24 @@
 		onsite={(id) => openSite(sites?.site(id))}
 		onglider={openGlider}
 		onairspace={(count) => (airspaceDrawn = count)}
+		hidden={off}
 	/>
+	<!-- The design pack's chips: what the map shows, switched on and off. -->
+	{#if app.account?.hasServer}
+		<div class="chips" role="group" aria-label="Layers on the map">
+			{#each MAP_LAYERS as { layer, name } (layer)}
+				<button
+					class="chip"
+					type="button"
+					aria-pressed={!off.includes(layer)}
+					onclick={() => toggle(layer)}
+				>
+					<Icon name={CHIP_ICONS[layer]} />
+					{name}
+				</button>
+			{/each}
+		</div>
+	{/if}
 	<!-- A map says nothing to a screen reader: this much it can be told. -->
 	{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
 		<p class="visually-hidden">
@@ -246,6 +302,7 @@
 					{...chosenSite}
 					onforecast={() => (forecastFor = { place: site.position, name: site.name })}
 					flightsHref={flownFrom(site) ? placeHref(site.position, site.id) : undefined}
+					outlook={siteOutlook}
 				/>
 			{/if}
 		</MapPanel>
@@ -365,6 +422,49 @@
 
 	/* Measures the navigation's reach, which the stylesheet knows and the map
 	   needs in pixels. */
+	/* Along the top of the map, as the pack's map screen has them. */
+	.chips {
+		position: absolute;
+		top: calc(var(--space-3) + var(--safe-top));
+		left: calc(var(--space-3) + var(--safe-left));
+		right: calc(var(--space-3) + var(--safe-right));
+		display: flex;
+		gap: var(--space-2);
+		overflow-x: auto;
+		pointer-events: none;
+	}
+
+	/* The pack's `.v-chip`: 36 px drawn, with its tap area padded to 48. */
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		height: 2.25rem;
+		margin: 0.375rem 0;
+		padding: 0 0.875rem 0 0.625rem;
+		border-radius: var(--radius-pill);
+		background: var(--surface);
+		color: var(--text);
+		box-shadow:
+			inset 0 0 0 1px var(--separator),
+			var(--shadow-float);
+		font-size: var(--subheadline);
+		font-weight: 500;
+		white-space: nowrap;
+		pointer-events: auto;
+	}
+
+	.chip :global(svg) {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.chip[aria-pressed='true'] {
+		background: var(--accent);
+		color: var(--on-accent);
+		box-shadow: var(--shadow-float);
+	}
+
 	.navigation-height {
 		position: absolute;
 		visibility: hidden;

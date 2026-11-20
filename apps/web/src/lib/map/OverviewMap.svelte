@@ -4,6 +4,7 @@
 	pilot's own position when asked for.
 -->
 <script lang="ts">
+	import type { MapLayer } from './layers';
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type {
@@ -71,6 +72,8 @@
 		 * or with nothing while the map is zoomed too far out to draw any.
 		 */
 		onairspace: (count: number | undefined) => void;
+		/** The layers the pilot switched off with the map's chips. */
+		hidden?: readonly MapLayer[];
 	}
 
 	let {
@@ -88,7 +91,8 @@
 		onstation,
 		onsite,
 		onglider,
-		onairspace
+		onairspace,
+		hidden = []
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -274,6 +278,27 @@
 
 	// Draws the airspace again when the app gets it, and when it changes:
 	// a file was brought in, or the server's airspace was fetched.
+	/** The map's own layers each chip switches, by the start of their names. */
+	const LAYERS: Record<MapLayer, string[]> = {
+		wind: [WIND],
+		airspace: ['airspace-'],
+		sites: [SITES_SOURCE],
+		pilots: [LIVE_SOURCE, LIVE_TRACK_SOURCE, 'live-track']
+	};
+
+	$effect(() => {
+		if (!map) return;
+		const off = hidden.flatMap((layer) => LAYERS[layer]);
+		for (const layer of map.getStyle().layers ?? []) {
+			const mine = Object.values(LAYERS).some((starts) =>
+				starts.some((start) => layer.id.startsWith(start))
+			);
+			if (!mine) continue;
+			const hide = off.some((start) => layer.id.startsWith(start));
+			map.setLayoutProperty(layer.id, 'visibility', hide ? 'none' : 'visible');
+		}
+	});
+
 	$effect(() => {
 		if (!map || airspace?.revision === undefined) return;
 		airspaceOnMap?.look();

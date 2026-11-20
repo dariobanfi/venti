@@ -4,10 +4,11 @@
 	can also keep a site as a waypoint for its cockpit; a browser has neither.
 -->
 <script lang="ts">
-	import type { Credit, SiteView } from '#lib/core/index.ts';
+	import type { Credit, SiteOutlook, SiteView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
-	import { asOf, CAUTION, marks, withLinks } from './words';
+	import StatusChip from '#lib/today/StatusChip.svelte';
+	import { asOf, CAUTION, forecastLine, marks, siteLine, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
 
 	interface Props {
@@ -23,15 +24,33 @@
 		 * shows the site alone. Nothing for a site that is only a landing.
 		 */
 		flightsHref?: string;
+		/**
+		 * What the forecast says about flying from the site, for a place to
+		 * take off from, once Venti has answered.
+		 */
+		outlook?: SiteOutlook;
 	}
 
-	let { site, credit, asOfUnixS, onforecast, flightsHref }: Props = $props();
+	let { site, credit, asOfUnixS, onforecast, flightsHref, outlook }: Props = $props();
+
+	/** The first day that still has flying hours: the one the forecast's line is about. */
+	const day = $derived(outlook?.days.find((one) => one.hours.length > 0) ?? outlook?.days[0]);
 
 	const text = format();
 	const marked = $derived(marks(site));
 </script>
 
 <div class="site">
+	<!-- The pack's site sheet: its status, the site in a line, the forecast's line. -->
+	<div class="head">
+		{#if day}
+			<StatusChip verdict={day.verdict} status={day.status} />
+		{/if}
+		<p>{siteLine(site, text)}</p>
+		{#if day}
+			<p class="lesser">{forecastLine(day)}</p>
+		{/if}
+	</div>
 	<dl class="card">
 		<div class="row">
 			<dt>What it is</dt>
@@ -106,6 +125,17 @@
 </div>
 
 <style>
+	.head {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-1);
+	}
+
+	.lesser {
+		color: var(--text-secondary);
+	}
+
 	.site {
 		display: flex;
 		flex-direction: column;

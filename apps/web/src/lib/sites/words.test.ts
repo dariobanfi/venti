@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createFormat } from '#lib/design/format.ts';
 import { CREDIT, site } from './testing';
 import { NO_SITES, type SitesState } from './watch';
-import { asOf, creditLine, detail, marks, nothingListed, withLinks } from './words';
+import {
+	asOf,
+	creditLine,
+	detail,
+	forecastLine,
+	marks,
+	nothingListed,
+	siteLine,
+	withLinks
+} from './words';
 
 const text = createFormat('en-GB', 'Europe/Berlin');
 
@@ -110,6 +119,21 @@ describe('an empty list of sites', () => {
 		);
 		expect(nothingListed({ ...close, known: true, isWhole: false })).toBe(
 			'Venti has no flying sites for this part of the map.'
+		);
+	});
+});
+
+describe('the site sheet’s lines', () => {
+	it('say the site in a line and the forecast’s day by its name', () => {
+		expect(
+			siteLine(site({ elevationM: 1550, windInWords: 'N to NE', kindInWords: 'Take-off' }), text)
+		).toBe('Take-off 1550 m, wind from N to NE');
+		expect(siteLine(site({ kindInWords: 'Landing' }), text)).toBe('Landing');
+		expect(forecastLine({ name: 'Fri', headline: 'Not flyable', why: 'Gusts to 52 km/h' })).toBe(
+			'Fri: Not flyable. Gusts to 52 km/h'
+		);
+		expect(forecastLine({ name: 'Today', headline: 'Good from noon', why: '' })).toBe(
+			'Today: Good from noon.'
 		);
 	});
 });

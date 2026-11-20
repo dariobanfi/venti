@@ -13,7 +13,8 @@ import type {
 	FlightVisibility,
 	PlanDraft,
 	ReportReason,
-	ReportSubject
+	ReportSubject,
+	SiteView
 } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
@@ -209,6 +210,15 @@ export class CoreClient {
 	/** The take-offs around a place, for Today. Nothing if this site has no server. */
 	todayTakeoffs(place: Coordinate) {
 		return this.#call('todayTakeoffs', place);
+	}
+
+	/** What the forecast says about flying from a site, by Venti's clock now. */
+	siteOutlook(site: SiteView) {
+		return this.#call('siteOutlook', {
+			position: site.position,
+			wind: site.wind,
+			elevationM: site.elevationM
+		});
 	}
 
 	/** What the forecast says about flying from one of the take-offs last listed. */

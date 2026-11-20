@@ -25,13 +25,16 @@ export function sitesLayer(font: string): LayerSpecification {
 		minzoom: SITES_MIN_ZOOM,
 		layout: {
 			'icon-image': ['get', 'picture'],
-			// Two ramps on one mountain are two signs, also where they touch.
+			// The pin's tip on the site.
+			'icon-anchor': 'bottom',
+			// Two ramps on one mountain are two pins, also where they touch.
 			'icon-allow-overlap': true,
 			'text-field': ['get', 'label'],
 			'text-font': [font],
 			'text-size': 11,
 			'text-anchor': 'top',
-			'text-offset': [0, 1.1],
+			// The name under the pin's tip.
+			'text-offset': [0, 0.2],
 			// A name where there is room for one.
 			'text-optional': true
 		},

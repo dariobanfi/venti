@@ -88,6 +88,21 @@ object TestDevice {
         File(kept(), "$name.png").outputStream().use { picture.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /**
+     * Keeps a picture of the screen as the app last asked for it. The last
+     * frame is asked for and the map's own thread is given its time to
+     * draw it. Between that and the picture no frame is asked for, so the
+     * map and what stands around it show the same moment: taken straight
+     * after the frame, a picture of the cockpit in a replay could show the
+     * numbers of one refresh over the map of the one before, with the
+     * glider beside the line that starts at it.
+     */
+    fun keepScreenshot(screen: ComposeTestRule, name: String) {
+        screen.waitForIdle()
+        Thread.sleep(MAP_FRAME_MILLISECONDS)
+        keepScreenshot(name)
+    }
+
     /** The folder the build collects after the tests. */
     private fun kept(): File {
         val folder = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)

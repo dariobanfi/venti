@@ -90,8 +90,7 @@ class VentiUiTest {
     }
 
     private fun keepScreenshot(name: String) {
-        screen.waitForIdle()
-        TestDevice.keepScreenshot(name)
+        TestDevice.keepScreenshot(screen, name)
     }
 
     /**

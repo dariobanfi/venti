@@ -71,6 +71,8 @@ const DIRECTORY_LEVELS: usize = 4;
 
 /// One elevation tile to fetch.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TerrainTile {
     /// The zoom level.
     pub z: u8,
@@ -85,6 +87,8 @@ pub struct TerrainTile {
 
 /// The ground under one moment of a flight.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct GroundUnderFlight {
     /// Seconds since the first point of the track.
     pub seconds: u32,

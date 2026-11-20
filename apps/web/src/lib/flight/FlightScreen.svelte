@@ -12,7 +12,12 @@
 	import { untrack } from 'svelte';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { FlightAirspace, FlightAnalysis, FlightView } from '#lib/core/index.ts';
+	import type {
+		FlightAirspace,
+		FlightAnalysis,
+		FlightView,
+		GroundUnderFlight
+	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
@@ -74,6 +79,30 @@
 		);
 		return () => {
 			current = false;
+		};
+	});
+
+	/**
+	 * The ground under the flight, for its profile: read from the map's
+	 * elevation tiles, which are fetched when the flight opens. Until they
+	 * are there, and where there are none, the profile is as it was.
+	 */
+	let ground = $state.raw<readonly GroundUnderFlight[]>([]);
+	$effect(() => {
+		ground = [];
+		// Only the answer about this flight counts, and a flight that is
+		// closed has no more tiles fetched for it.
+		let current = true;
+		const asked = app.groundUnder(flight);
+		asked.ground.then(
+			(found) => {
+				if (current) ground = found;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+			asked.letGo();
 		};
 	});
 
@@ -192,6 +221,7 @@
 			<div class="summary">
 				<FlightPanel
 					{flight}
+					{ground}
 					bind:cursor
 					bind:playing
 					{whose}

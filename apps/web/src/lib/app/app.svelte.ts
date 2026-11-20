@@ -17,7 +17,9 @@ import {
 	askToKeepStorage,
 	type Coordinate,
 	CoreClient,
-	type ForecastView
+	type FlightView,
+	type ForecastView,
+	type GroundUnderFlight
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import {
@@ -104,6 +106,35 @@ export class App {
 	async forecast(place: Coordinate): Promise<ForecastView | undefined> {
 		await this.#started;
 		return this.#core?.forecast(place);
+	}
+
+	/** Numbers the questions about the ground under a flight. */
+	#groundAsked = 0;
+
+	/**
+	 * The ground under a flight, for its altitude profile: read by the core
+	 * from the map's elevation tiles, which are fetched for it. Empty where
+	 * there is none to be had. Not kept: it is asked for when a flight is
+	 * looked at. `letGo` says that the answer is no longer wanted, so that
+	 * tiles not fetched yet are left where they are.
+	 */
+	groundUnder(flight: Pick<FlightView, 'bounds' | 'track'>): {
+		ground: Promise<GroundUnderFlight[]>;
+		letGo: () => void;
+	} {
+		const asking = (this.#groundAsked += 1);
+		return {
+			ground: (async () => {
+				await this.#started;
+				const found = await this.#core?.flightGround({
+					asking,
+					bounds: flight.bounds,
+					track: flight.track
+				});
+				return found ?? [];
+			})(),
+			letGo: () => void this.#core?.forgetFlightGround(asking).catch(() => {})
+		};
 	}
 
 	/**

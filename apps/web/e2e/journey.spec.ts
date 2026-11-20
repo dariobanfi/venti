@@ -14,6 +14,7 @@ import {
 	addSampleFlight,
 	expect,
 	flightDetails,
+	groundDrawn,
 	mapTabDrawn,
 	metric,
 	panel,
@@ -56,6 +57,9 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(metric(totals, 'Best climb')).toHaveText('+2.4 m/s');
 	await expect(page.getByRole('img', { name: /Track colours/ })).toBeVisible();
 	await expect(page.getByRole('region', { name: 'Map of the flight' })).toBeVisible();
+	// The profile is drawn over the ground the flight was flown over, once
+	// the elevation tiles under it are there.
+	await groundDrawn(page);
 	await mapDrawn();
 	await keep('03-flight');
 
@@ -66,10 +70,13 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	const along = (share: number) => [plot.x + plot.width * share, plot.y + plot.height / 2] as const;
 	await page.mouse.move(...along(0.15));
 	await page.mouse.down();
-	await expect(metric(moment, 'In the air')).toHaveText('0:04 h');
+	await expect(metric(moment, 'Time')).toHaveText('12:34');
 	await page.mouse.move(...along(0.3), { steps: 6 });
 	await expect(metric(moment, 'Time')).toHaveText('12:38');
-	await expect(metric(moment, 'In the air')).toHaveText('0:09 h');
+	// With the ground under the flight, the height over it stands where
+	// the time in the air would.
+	await expect(metric(moment, 'Over ground')).toHaveText(/^[\d,]+\sm$/);
+	await expect(metric(moment, 'In the air')).toBeHidden();
 	await page.mouse.up();
 	// Moving on without pressing changes nothing: the mark is where it was left.
 	await page.mouse.move(...along(0.8));
@@ -78,7 +85,10 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(metric(moment, 'Altitude')).toHaveText(/^\d,\d{3}\sm$/);
 	await expect(metric(moment, 'Climb')).toHaveText(/^[+-]?\d\.\d\sm\/s$/);
 	await expect(metric(totals, 'Airtime')).toBeHidden();
-	await expect(chart).toHaveAttribute('aria-valuetext', /^12:38, [\d,]+ metres, /);
+	await expect(chart).toHaveAttribute(
+		'aria-valuetext',
+		/^12:38, [\d,]+ metres, [\d,]+ metres over the ground, /
+	);
 	await keep('04-flight-moment');
 
 	// The button in the panel's corner returns to the totals.
@@ -89,7 +99,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	// Playing moves the mark through the flight by itself, until it is paused.
 	await page.getByRole('button', { name: 'Play the flight' }).click();
 	await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
-	await expect(metric(moment, 'In the air')).toHaveText(/^0:0[1-9]\sh$/);
+	await expect(metric(moment, 'Time')).toHaveText(/^12:3[1-9]$/);
 	await page.getByRole('button', { name: 'Pause' }).click();
 	await expect(page.getByRole('button', { name: 'Play the flight' })).toBeVisible();
 	const paused = (await metric(moment, 'Altitude').textContent())!;
@@ -270,7 +280,7 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	await expect(metric(moment, 'Time')).toHaveText('12:30');
 	await page.keyboard.press('PageUp');
 	await page.keyboard.press('ArrowRight');
-	await expect(metric(moment, 'In the air')).toHaveText('0:03 h');
+	await expect(metric(moment, 'Time')).toHaveText('12:33');
 	await page.keyboard.press('End');
 	await expect(metric(moment, 'Time')).toHaveText('12:59');
 	await page.keyboard.press('Home');

@@ -16,6 +16,7 @@ import { type Answering, answer, describeFailure, type Reply, type Request } fro
 import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
+import { TerrainSource } from './terrain-source';
 import { WindSource } from './wind-source';
 
 const send = (reply: Reply) => postMessage(reply);
@@ -46,7 +47,8 @@ const starting: Promise<Answering> = (async () => {
 		sites: new SitesSource(() => wind.present()),
 		forecast: new ForecastSource(() => wind.present()),
 		live: new LiveSource(() => wind.present()),
-		community: new CommunitySource(() => wind.present())
+		community: new CommunitySource(() => wind.present()),
+		terrain: new TerrainSource()
 	};
 })();
 

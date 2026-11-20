@@ -10,6 +10,7 @@ import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { MemoryStore } from './store';
+import { TerrainSource } from './terrain-source';
 import { sampleFlight, startCore } from './testing';
 import { WindSource } from './wind-source';
 
@@ -47,7 +48,9 @@ class SameProcess implements Channel {
 						sites: new SitesSource(async () => false),
 						forecast: new ForecastSource(async () => false),
 						live: new LiveSource(async () => false),
-						community: new CommunitySource(async () => false)
+						community: new CommunitySource(async () => false),
+						// A browser that is offline: no elevation tile is to be had.
+						terrain: new TerrainSource(unreachable)
 					},
 					call,
 					given
@@ -66,19 +69,17 @@ class SameProcess implements Channel {
 	}
 }
 
+const unreachable = async (): Promise<never> => {
+	throw new Error('No server in this test.');
+};
+
 /** An account on a server that is never asked in these tests. */
 function account(session: CoreSession): AccountSource {
-	const unreachable = async () => {
-		throw new Error('No server in this test.');
-	};
 	return new AccountSource(session, unreachable, 'https://venti.example', 'Test browser');
 }
 
 /** Airspace from a site that has no server: nothing is ever asked for. */
 function airspace(session: CoreSession): AirspaceSource {
-	const unreachable = async () => {
-		throw new Error('No server in this test.');
-	};
 	return new AirspaceSource(session, async () => false, unreachable, 'https://venti.example');
 }
 
@@ -173,6 +174,22 @@ describe('the core as the page calls it', () => {
 		await expect(core.signIn('demo', 'demo-pilot-password')).rejects.toThrow(
 			'No server in this test.'
 		);
+	});
+
+	it('hands a flight’s track over for the ground under it, and has none without tiles', async () => {
+		const { core } = await open();
+		const { id } = await core.importFlight(bytes(sampleFlight()));
+		const flight = await core.flight(id);
+
+		const ground = await core.flightGround({
+			asking: 1,
+			bounds: flight.bounds,
+			track: flight.track
+		});
+
+		// No tile could be fetched: the profile stays as it was.
+		expect(ground).toEqual([]);
+		await core.forgetFlightGround(1);
 	});
 
 	it('passes on that another tab changed the logbook', async () => {

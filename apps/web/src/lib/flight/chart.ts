@@ -5,7 +5,7 @@
  * their grid lines from here too.
  */
 
-import type { FlightView, TrackPoint } from '#lib/core/index.ts';
+import type { FlightView, GroundUnderFlight, TrackPoint } from '#lib/core/index.ts';
 
 /**
  * The position in the track closest to a moment, given in seconds since the
@@ -25,13 +25,19 @@ export function nearestIndex(track: readonly TrackPoint[], seconds: number): num
 }
 
 /**
- * The vertical extent of the chart: the flight's altitudes widened to whole
- * hundreds of metres, and never flat.
+ * The vertical extent of the chart: the flight's altitudes, and with the
+ * ground under the flight the lowest ground too, widened to whole hundreds
+ * of metres, and never flat.
  */
 export function altitudeRange(
-	flight: Pick<FlightView, 'minAltitudeM' | 'maxAltitudeM'>
+	flight: Pick<FlightView, 'minAltitudeM' | 'maxAltitudeM'>,
+	ground: readonly GroundUnderFlight[] = []
 ): [low: number, high: number] {
-	const low = Math.floor(flight.minAltitudeM / 100) * 100;
+	const lowest = ground.reduce(
+		(lowest, moment) => Math.min(lowest, moment.elevationM),
+		flight.minAltitudeM
+	);
+	const low = Math.floor(lowest / 100) * 100;
 	const high = Math.ceil(flight.maxAltitudeM / 100) * 100;
 	return [low, Math.max(high, low + 100)];
 }

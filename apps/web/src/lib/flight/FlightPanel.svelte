@@ -8,15 +8,18 @@
 	to the totals.
 -->
 <script lang="ts">
-	import type { FlightView } from '#lib/core/index.ts';
+	import type { FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
 	import AltitudeChart from './AltitudeChart.svelte';
 	import ClimbLegend from './ClimbLegend.svelte';
+	import { heightAboveGround } from './ground';
 
 	interface Props {
 		flight: FlightView;
+		/** The ground under the flight, where the app has it. Empty without it. */
+		ground?: readonly GroundUnderFlight[];
 		/** The position in the track the pilot is inspecting, if any. */
 		cursor: number | undefined;
 		/** Whether the marker is moving through the flight by itself. */
@@ -27,10 +30,19 @@
 		whose?: { name: string; href: string };
 	}
 
-	let { flight, cursor = $bindable(), playing = $bindable(), ondetails, whose }: Props = $props();
+	let {
+		flight,
+		ground = [],
+		cursor = $bindable(),
+		playing = $bindable(),
+		ondetails,
+		whose
+	}: Props = $props();
 
 	const text = format();
 	const moment = $derived(cursor === undefined ? undefined : flight.track[cursor]);
+	/** How high over the ground the glider was at the marked moment, where the ground is known. */
+	const above = $derived(moment ? heightAboveGround(moment.seconds, ground) : undefined);
 	const times = $derived(
 		`${text.time(flight.startUnixS)} – ${text.time(flight.startUnixS + flight.durationS)}`
 	);
@@ -90,7 +102,13 @@
 	>
 		{#if moment}
 			<Metric caption="Time" value={text.time(flight.startUnixS + moment.seconds)} />
-			<Metric caption="In the air" value={text.hoursMinutes(moment.seconds)} unit="h" />
+			<!-- How high over the ground the glider was, where the ground is
+			     known; else how long it had been in the air. -->
+			{#if above !== undefined}
+				<Metric caption="Over ground" value={text.metres(Math.max(above, 0))} unit="m" />
+			{:else}
+				<Metric caption="In the air" value={text.hoursMinutes(moment.seconds)} unit="h" />
+			{/if}
 			<Metric caption="Altitude" value={text.metres(moment.altitudeM)} unit="m" />
 			<Metric caption="Climb" value={text.climb(moment.climbMs)} unit="m/s" />
 		{:else}
@@ -102,7 +120,7 @@
 	</dl>
 
 	<div class="profile">
-		<AltitudeChart {flight} bind:cursor />
+		<AltitudeChart {flight} {ground} bind:cursor />
 	</div>
 	<ClimbLegend />
 </div>

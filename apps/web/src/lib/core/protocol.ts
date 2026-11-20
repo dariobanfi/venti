@@ -26,6 +26,7 @@ import type {
 	FlightView,
 	FlightVisibility,
 	ForecastView,
+	GroundUnderFlight,
 	ImportedFlight,
 	KeptAirspace,
 	LogbookStatistics,
@@ -43,6 +44,7 @@ import type { ForecastSource } from './forecast-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
+import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
@@ -65,6 +67,14 @@ export interface Calls {
 	flightAnalysis: { given: string; answer: FlightAnalysis };
 	flightFile: { given: string; answer: FlightFile };
 	deleteFlight: { given: string; answer: undefined };
+	/**
+	 * The ground under a flight's track, read from the map's elevation
+	 * tiles, which are fetched for it. Empty where there is none to be
+	 * had, and when the page has asked about another flight by now.
+	 */
+	flightGround: { given: GroundAsked; answer: GroundUnderFlight[] };
+	/** Given the number of a question about the ground: lets go of it. */
+	forgetFlightGround: { given: number; answer: undefined };
 	/** The wind stations in a box of the map. Nothing if this site has no server. */
 	wind: { given: Bounds; answer: WindAnswer | undefined };
 	/** Given a station's identifier: what it measured over the last 24 hours. */
@@ -175,11 +185,12 @@ export interface Answering {
 	forecast: ForecastSource;
 	live: LiveSource;
 	community: CommunitySource;
+	terrain: TerrainSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace, sites, forecast, live, community }: Answering,
+	{ session, wind, account, airspace, sites, forecast, live, community, terrain }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -192,6 +203,8 @@ export async function answer<Name extends CallName>(
 		flightAnalysis: (id) => session.flightAnalysis(id),
 		flightFile: (id) => session.flightFile(id),
 		deleteFlight: (id) => session.deleteFlight(id),
+		flightGround: (asked) => terrain.under(asked),
+		forgetFlightGround: (asking) => terrain.forget(asking),
 		wind: (box) => wind.windMap(box),
 		stationHistory: (id) => wind.stationHistory(id),
 		sites: (box) => sites.sites(box),

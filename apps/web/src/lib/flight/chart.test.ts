@@ -37,6 +37,23 @@ describe('the altitude axis', () => {
 		expect(altitudeRange({ minAltitudeM: 1200, maxAltitudeM: 1200 })).toEqual([1200, 1300]);
 	});
 
+	it('reaches down to the lowest ground under the flight, where that is known', () => {
+		const ground = [1620.7, 735.2, 632.8].map((elevationM, index) => ({
+			seconds: index * 60,
+			elevationM,
+			heightAboveM: 0
+		}));
+		// A flight that ended over a valley: with the ground, the chart
+		// shows the valley's floor.
+		expect(altitudeRange({ minAltitudeM: 786, maxAltitudeM: 2117 }, ground)).toEqual([600, 2200]);
+		expect(altitudeRange({ minAltitudeM: 1650, maxAltitudeM: 2117 }, ground)).toEqual([600, 2200]);
+		// Ground that is nowhere lower than the flight changes nothing, and
+		// ground above the flight's highest point does not raise the chart.
+		expect(altitudeRange({ minAltitudeM: 550, maxAltitudeM: 2117 }, ground)).toEqual([500, 2200]);
+		expect(altitudeRange({ minAltitudeM: 786, maxAltitudeM: 1500 }, ground)).toEqual([600, 1500]);
+		expect(altitudeRange({ minAltitudeM: 786, maxAltitudeM: 2117 }, [])).toEqual([700, 2200]);
+	});
+
 	it('has a few round grid lines inside the range', () => {
 		expect(roundTicks(700, 2200)).toEqual([1000, 1500, 2000]);
 		expect(roundTicks(1200, 1300)).toEqual([1250]);

@@ -160,6 +160,19 @@ export function panel(page: Page) {
 	};
 }
 
+/**
+ * Waits until a flight's altitude profile is drawn over the ground it was
+ * flown over. The elevation tiles under a flight are fetched when it
+ * opens, so the ground comes a moment after the profile; the chart says
+ * in words when it has it.
+ */
+export async function groundDrawn(page: Page): Promise<void> {
+	await expect(page.getByRole('slider', { name: 'Altitude over time' })).toHaveAttribute(
+		'aria-valuetext',
+		/over ground from [\d,]+ to [\d,]+ metres/
+	);
+}
+
 /** Everything else known about the flight: in a sheet on a phone, on screen on a desktop. */
 export function flightDetails(page: Page): Locator {
 	return page.getByRole('group', { name: 'Flight details' });
@@ -225,11 +238,16 @@ export async function showTheValley(
 	await map.blur();
 }
 
-/** Adds the sample flight to an empty logbook and waits for its screen. */
+/**
+ * Adds the sample flight to an empty logbook and waits for its screen,
+ * with the ground under its profile: the test map has the valley it was
+ * flown in.
+ */
 export async function addSampleFlight(page: Page): Promise<void> {
 	await page.goto('/logbook/');
 	await page.getByRole('button', { name: 'Add a sample flight' }).click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await groundDrawn(page);
 }
 
 /**

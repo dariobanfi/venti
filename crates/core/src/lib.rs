@@ -156,9 +156,13 @@ pub struct Coordinate {
     pub lon: f64,
 }
 
-/// One point of a track, for drawing.
+/// One point of a track, for drawing. The browser also hands a track
+/// back, to have the ground under it read.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct TrackPoint {
     /// Latitude in degrees.

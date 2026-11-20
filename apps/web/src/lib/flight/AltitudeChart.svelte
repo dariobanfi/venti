@@ -1,23 +1,28 @@
 <!--
-	The flight's altitude over time. Dragging along it sets the cursor: the
-	moment of the flight the pilot is looking at. The cursor stays where the
-	finger left it.
+	The flight's altitude over time, over the ground it was flown over where
+	the app has that: the earth as a filled shape along the foot of the
+	chart, and the room between it and the flight's line the height over the
+	ground. Dragging along the chart sets the cursor: the moment of the
+	flight the pilot is looking at. The cursor stays where the finger left it.
 
 	To the keyboard and to a screen reader it is a slider over the flight's
 	duration: the arrow keys move through the flight, Escape lets go of it.
 -->
 <script lang="ts">
-	import type { FlightView } from '#lib/core/index.ts';
+	import type { FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import { altitudeRange, roundTicks, nearestIndex, scale, timeTicks } from './chart';
+	import { groundRuns, heightAboveGround } from './ground';
 
 	interface Props {
 		flight: FlightView;
+		/** The ground under the flight, in order of time. Empty without it. */
+		ground?: readonly GroundUnderFlight[];
 		/** The position in the track that is marked, if any. */
 		cursor: number | undefined;
 	}
 
-	let { flight, cursor = $bindable() }: Props = $props();
+	let { flight, ground = [], cursor = $bindable() }: Props = $props();
 
 	const text = format();
 
@@ -26,7 +31,7 @@
 	let height = $state(0);
 
 	const duration = $derived(Math.max(flight.durationS, 1));
-	const [low, high] = $derived(altitudeRange(flight));
+	const [low, high] = $derived(altitudeRange(flight, ground));
 	const x = $derived(scale([0, duration], [0, width]));
 	const y = $derived(scale([low, high], [height, 0]));
 
@@ -44,7 +49,28 @@
 	);
 	const area = $derived(line ? `${line}L${x(duration).toFixed(1)},${height}L0,${height}Z` : '');
 
+	/**
+	 * The ground under the glider, from the foot of the chart up to its
+	 * height: one shape for each stretch it is known along.
+	 */
+	const earth = $derived(
+		groundRuns(ground)
+			.map((run) => {
+				const top = run
+					.map(
+						(moment) =>
+							`L${x(moment.seconds).toFixed(1)},${y(Math.min(Math.max(moment.elevationM, low), high)).toFixed(1)}`
+					)
+					.join('');
+				const [from, to] = [x(run[0].seconds).toFixed(1), x(run.at(-1)!.seconds).toFixed(1)];
+				return `M${from},${height}${top}L${to},${height}Z`;
+			})
+			.join('')
+	);
+
 	const marked = $derived(cursor === undefined ? undefined : flight.track[cursor]);
+	/** How high over the ground the glider was at the marked moment, where that is known. */
+	const above = $derived(marked ? heightAboveGround(marked.seconds, ground) : undefined);
 
 	/** Marks the moment that lies under a place on the plot. */
 	function mark(event: PointerEvent) {
@@ -90,10 +116,39 @@
 		cursor = nearestIndex(flight.track, Math.min(Math.max(to, 0), duration));
 	}
 
+	/** The lowest and the highest ground under the flight, where the app has the ground. */
+	const groundSpan = $derived(
+		ground.length === 0
+			? undefined
+			: ground.reduce(
+					([lowest, highest], moment) => [
+						Math.min(lowest, moment.elevationM),
+						Math.max(highest, moment.elevationM)
+					],
+					[Infinity, -Infinity]
+				)
+	);
+
+	// What the picture shows, in words: the drawing itself says nothing to
+	// a screen reader.
 	const spoken = $derived(
 		marked
-			? `${text.time(flight.startUnixS + marked.seconds)}, ${text.metres(marked.altitudeM)} metres, ${text.climb(marked.climbMs)} metres per second`
-			: `From ${text.metres(flight.minAltitudeM)} to ${text.metres(flight.maxAltitudeM)} metres. Nothing marked.`
+			? [
+					text.time(flight.startUnixS + marked.seconds),
+					`${text.metres(marked.altitudeM)} metres`,
+					...(above === undefined
+						? []
+						: [`${text.metres(Math.max(above, 0))} metres over the ground`]),
+					`${text.climb(marked.climbMs)} metres per second`
+				].join(', ')
+			: [
+					`From ${text.metres(flight.minAltitudeM)} to ${text.metres(flight.maxAltitudeM)} metres`,
+					...(groundSpan
+						? [
+								`over ground from ${text.metres(groundSpan[0])} to ${text.metres(groundSpan[1])} metres`
+							]
+						: [])
+				].join(', ') + '. Nothing marked.'
 	);
 </script>
 
@@ -129,6 +184,10 @@
 			{/each}
 			{#if width > 0}
 				<path class="area" d={area} />
+				<!-- Over the foot of the flight's own shape, and under its line. -->
+				{#if earth}
+					<path class="ground" d={earth} />
+				{/if}
 				<path class="line" d={line} />
 			{/if}
 			{#if marked}
@@ -193,6 +252,12 @@
 
 	.area {
 		fill: url(#altitude-fill);
+	}
+
+	/* The ground: the colour of earth, the same in both appearances as on
+	   the iPhone, solid enough to cover the foot of the flight's own shape. */
+	.ground {
+		fill: rgb(140 122 102 / 0.85);
 	}
 
 	.line {

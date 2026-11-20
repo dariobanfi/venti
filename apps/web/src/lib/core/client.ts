@@ -6,6 +6,7 @@
 
 import type { NewAccount } from './account-source';
 import type { PublicFlightsAsked } from './community-source';
+import type { GroundAsked } from './terrain-source';
 import type {
 	Bounds,
 	Coordinate,
@@ -95,6 +96,20 @@ export class CoreClient {
 
 	deleteFlight(id: string) {
 		return this.#call('deleteFlight', id);
+	}
+
+	/**
+	 * The ground under a flight's track, from the map's elevation tiles,
+	 * which are fetched for it. Empty where there is none to be had, and
+	 * when another flight has been asked about by now.
+	 */
+	flightGround(asked: GroundAsked) {
+		return this.#call('flightGround', asked);
+	}
+
+	/** Lets go of a question about the ground under a flight, by its number. */
+	forgetFlightGround(asking: number) {
+		return this.#call('forgetFlightGround', asking);
 	}
 
 	/** The wind stations in a box of the map. Nothing if this site has no server. */

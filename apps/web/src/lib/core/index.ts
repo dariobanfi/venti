@@ -24,6 +24,8 @@
  *   server when the core says it is time, for the core to keep.
  * - `community-source.ts` asks it for the flights other pilots share with
  *   everyone, and fetches one of them to show.
+ * - `terrain-source.ts` fetches the map's elevation tiles under a flight,
+ *   from the map's tile server, for the core to read the ground from.
  */
 
 export type {
@@ -55,6 +57,7 @@ export type {
 	ForecastWind,
 	GliderStatistics,
 	GlideSummary,
+	GroundUnderFlight,
 	ImportedFlight,
 	KeptAirspace,
 	LiveFollowView,

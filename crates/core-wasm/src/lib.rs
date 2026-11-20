@@ -9,7 +9,8 @@
 //! Rust definitions, so there is nothing to keep in step by hand. Live wind,
 //! flying sites, forecasts, who is in the air and other pilots' public
 //! flights are a handful of plain functions beside it, as they are in the
-//! core, and [`LiveFollow`] is the core's reader of one live track.
+//! core, [`LiveFollow`] is the core's reader of one live track, and
+//! [`Terrain`] its reader of the map's elevation tiles.
 //!
 //! The core never talks to a server. For the pilot's account it hands out a
 //! [`ServerRequest`] and reads the answer; the page sends the request in
@@ -43,10 +44,11 @@ use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ForecastView, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics,
-    LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder, ReportForm,
-    ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage,
-    StationHistory, Storage, SyncStep, SyncSummary, WindMap,
+    ForecastView, GroundUnderFlight, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap,
+    LogbookStatistics, LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder,
+    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap,
+    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint,
+    WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -683,6 +685,78 @@ impl LiveFollow {
     #[wasm_bindgen(js_name = isOver)]
     pub fn is_over(&self) -> bool {
         self.follow.is_over()
+    }
+}
+
+/// The height of the ground, read from the map's own elevation tiles: the
+/// ones the map shades its relief from.
+///
+/// The page asks which tiles cover a flight, fetches them from the map's
+/// tile server and hands them over as they came; the core reads the pixels
+/// and says how high the ground was under the flight. It holds the heights
+/// of every tile it was given, so the page frees it once it has its
+/// answer.
+#[wasm_bindgen]
+#[derive(Debug, Default)]
+pub struct Terrain {
+    terrain: Arc<venti_core::Terrain>,
+}
+
+#[wasm_bindgen]
+impl Terrain {
+    /// A terrain that knows no ground yet.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The tiles to have for the ground under an area, such as the bounds
+    /// of a flight, without those that are held already: at the finest
+    /// zoom level at which the area needs no more than a few dozen. Empty
+    /// when all are there, and for an area that is none.
+    #[wasm_bindgen(js_name = tilesCovering)]
+    pub fn tiles_covering(
+        &self,
+        south: f64,
+        west: f64,
+        north: f64,
+        east: f64,
+    ) -> Result<Vec<Ts<TerrainTile>>, JsValue> {
+        let area = Bounds {
+            south,
+            west,
+            north,
+            east,
+        };
+        self.terrain
+            .tiles_covering(area)
+            .iter()
+            .map(to_js)
+            .collect()
+    }
+
+    /// Takes one tile as the tile server sends it: a WebP image in the
+    /// Terrarium encoding. Throws when the bytes are no such image.
+    #[wasm_bindgen(js_name = addTile)]
+    pub fn add_tile(&self, z: u8, x: u32, y: u32, image: Vec<u8>) -> Result<(), JsValue> {
+        self.terrain.add_tile(z, x, y, image).map_err(thrown)
+    }
+
+    /// The ground under a flight's track, at up to `places` moments spread
+    /// evenly over it, in order. A moment whose place no tile covers is
+    /// left out.
+    #[wasm_bindgen(js_name = groundUnder)]
+    pub fn ground_under(
+        &self,
+        track: Vec<Ts<TrackPoint>>,
+        places: u32,
+    ) -> Result<Vec<Ts<GroundUnderFlight>>, JsValue> {
+        let track = track.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+        self.terrain
+            .ground_under(track, places)
+            .iter()
+            .map(to_js)
+            .collect()
     }
 }
 

@@ -1,6 +1,6 @@
 # Design
 
-Last revised: 2026-11-19
+Last revised: 2026-11-20
 
 How Venti looks and behaves, on every platform. The iOS app is the first place these rules are built; Android and the web follow the same structure, colours and wording with their own platform's components. The web app is the second and the Android app the third; what is particular to each is under [Web](#web) and [Android](#android).
 
@@ -79,7 +79,7 @@ A flight that its pilot shares has a page on the web, made by the server, which 
 
 To verify: how the preview looks in the chat apps pilots use (WhatsApp, Signal, Telegram, iMessage). It was built to the Open Graph and Twitter-card conventions and has been looked at in a browser only. The names of the Open Graph lines were checked against <https://ogp.me/> on 2026-11-19. The names of the `twitter:` lines were not checked against X's own documentation, whose page for them could not be reached that day; they are the ones in common use.
 
-**The ground under a flight.** A flight's altitude profile is drawn over the ground it was flown over: the earth as a filled shape along the foot of the chart, the flight's line above it, and the room between them the height over the ground. With the marker on the track, the panel reads that height in place of the time in the air. The ground is read at 240 moments of the flight from the map's elevation tiles under it, fetched when the flight is opened (a few megabytes for a flight of some tens of kilometres, coarser tiles for a longer one) and kept on the iPhone; until they are there, and where there are none, the chart is as it was. The same holds for another pilot's flight. Built on the iPhone on 2026-11-20.
+**The ground under a flight.** A flight's altitude profile is drawn over the ground it was flown over: the earth as a filled shape along the foot of the chart, the flight's line above it, and the room between them the height over the ground. With the marker on the track, the panel reads that height in place of the time in the air. The ground is read at 240 moments of the flight from the map's elevation tiles under it, fetched when the flight is opened (a few megabytes for a flight of some tens of kilometres, coarser tiles for a longer one) and kept on the iPhone; until they are there, and where there are none, the chart is as it was. The same holds for another pilot's flight. Built on the iPhone on 2026-11-20, and on the web the same day; what differs there is under [Web](#web).
 
 **Height over the ground.** Under the altitude the cockpit says how high the glider is over the ground, in place of the height over the take-off, wherever the iPhone has the ground: the elevation tiles the map draws its relief from, fetched for the five by five tiles around the glider (some thirteen kilometres every way) every ten seconds if any are missing, and kept on the iPhone, so that the ground of a place flown at before is there without a network. Where it has none the line says the height over the take-off as before. Nothing warns of the ground: the number is there to be read. The ground does change what the cockpit says of the places it could glide to: where the straight line to a place meets a ridge first, the line under the map says "Ground in the way" with how far off, in place of the arrival height, the list of places shows a mountain in red beside it, and the landing named over the map is one with nothing in the way.
 
@@ -303,6 +303,13 @@ Where everyone's flights differ on the web from the iPhone's:
 - **No map beside the list** yet, and so no narrowing by the part of a map in view.
 - **What another pilot wrote** is set as text: a name or a glider is never read as markup.
 
+Where the ground under a flight differs on the web from the iPhone's:
+
+- **Fetched when the flight is opened, and kept by the browser's own cache only.** The tiles under the flight are asked of the tile server the map shades its relief from, by the same addresses, so what the map has fetched the ground need not fetch again, and the other way round. The app itself stores none: a flight opened without a network has the ground only if the browser still has its tiles. Leaving the flight stops the fetching.
+- **The flight's line lies over the ground**, not under it as on the iPhone: where a recorder's altitude runs a few metres under the model's ground, at a take-off or a landing, the line stays in sight.
+- **Not drawn across a gap.** Where a tile could not be had, the ground is left out for that stretch of the flight instead of being drawn straight across it, and the marker there reads the time in the air as before.
+- **In words for a screen reader.** Unmarked, the chart says between which heights the flight and the ground under it lie ("From 786 to 2,117 metres, over ground from 731 to 1,710 metres."); with the marker set it reads the height over the ground between the altitude and the climb.
+
 Where reporting differs on the web from the iPhone's:
 
 - **Where it is reached.** "Report this flight" is the last entry of another pilot's flight's menu. "Report this pilot" is a button under a pilot's flights, which have no menu. "Report this track" is the last row of a glider's page on the map.
@@ -337,7 +344,7 @@ What stands in for the system:
 | The switch | The browser's checkbox, drawn as a switch and announced as one. |
 | Accessibility settings | "Reduce motion" stops the animations; "reduce transparency" and "increase contrast" turn glass into a solid surface. |
 
-Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.
+Keyboard and screen reader: everything can be reached and used from the keyboard. The altitude profile is a slider over the flight: the arrow keys move the mark, Page Up and Page Down move it further, Escape lets go of it, and it reads out time, altitude, the height over the ground where the app has the ground, and climb. The numbers under the cursor are announced as they change. Maps take the keyboard as MapLibre provides.
 
 Times are shown in the time zone of the browser, as the iPhone shows them in the phone's. The words are English; dates and numbers follow the reader's region, so a pilot in Germany gets a 24-hour clock. A time of day is written as the region writes one, which is what the iPhone asks its system for: on a 24-hour clock the hour has two digits, "00:05" and "09:30", and never "0:05", which is how an airtime is written.
 

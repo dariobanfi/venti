@@ -225,7 +225,11 @@ final class FlySession {
                     } else {
                         session.liveNoAnswer(nowUnixS: Date().timeIntervalSince1970)
                     }
-                } else if session.liveShare(nowUnixS: now)?.state == .waiting {
+                } else if let share = session.liveShare(nowUnixS: now),
+                          share.state == .waiting || (share.state == .sharing && share.waiting > 0)
+                {
+                    // Asked to wait, or positions from a gap in the network
+                    // are still to go out, a batch every quarter minute.
                     try? await Task.sleep(for: .seconds(2))
                 } else {
                     break

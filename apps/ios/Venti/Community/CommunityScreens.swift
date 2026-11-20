@@ -127,6 +127,7 @@ struct PublicFlightScreen: View {
     @Environment(CommunityModel.self) private var community
     @Environment(AirspaceModel.self) private var airspace
     @Environment(WindModel.self) private var wind
+    @Environment(AppNavigation.self) private var navigation
 
     private enum Phase {
         case loading
@@ -158,11 +159,17 @@ struct PublicFlightScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
-            // The flight's page on the server, to hand on.
-            if let server = wind.server, let page = URL(string: server.absoluteString + flight.pagePath) {
-                ToolbarItem(placement: .primaryAction) {
-                    ShareLink(item: page) {
-                        Label("Share the flight's page", systemImage: "square.and.arrow.up")
+            ToolbarItem(placement: .primaryAction) {
+                Menu("More", systemImage: "ellipsis") {
+                    // Everything else this pilot shares with everyone.
+                    Button("Flights of \(flight.pilot)", systemImage: "person") {
+                        navigation.logbookPath.append(PilotRoute(handle: flight.handle, name: flight.pilot))
+                    }
+                    // The flight's page on the server, to hand on.
+                    if let server = wind.server, let page = URL(string: server.absoluteString + flight.pagePath) {
+                        ShareLink(item: page) {
+                            Label("Share the flight's page", systemImage: "square.and.arrow.up")
+                        }
                     }
                 }
             }
@@ -174,6 +181,83 @@ struct PublicFlightScreen: View {
             } catch {
                 phase = .failed(CommunityModel.words(for: error))
             }
+        }
+    }
+}
+
+/// A pilot, as a step in a navigation stack: to their public flights.
+struct PilotRoute: Hashable {
+    let handle: String
+    let name: String
+}
+
+/// One pilot's public flights, the newest first.
+struct PilotFlightsScreen: View {
+    let pilot: PilotRoute
+
+    @Environment(CommunityModel.self) private var community
+
+    @State private var flights: [PublicFlight] = []
+    @State private var next: String?
+    @State private var isLoading = true
+    @State private var problem: String?
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(flights, id: \.id) { flight in
+                    NavigationLink(value: flight) {
+                        PublicFlightRow(flight: flight)
+                    }
+                    .accessibilityIdentifier("pilot-flight-row")
+                    .onAppear {
+                        if flight.id == flights.last?.id, next != nil, !isLoading {
+                            Task {
+                                await load()
+                            }
+                        }
+                    }
+                }
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                }
+            } header: {
+                Text("@\(pilot.handle)")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .overlay {
+            if flights.isEmpty, !isLoading {
+                ContentUnavailableView(
+                    "No public flights",
+                    systemImage: "person",
+                    description: Text(problem ?? "This pilot shares no flight with everyone at the moment.")
+                )
+            }
+        }
+        .navigationTitle(pilot.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: pilot.handle) {
+            flights = []
+            next = nil
+            await load()
+        }
+    }
+
+    /// The first page, or the one after what is listed.
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let page = try await community.pilot(pilot.handle, after: flights.isEmpty ? nil : next)
+            flights += page.flights
+            next = page.next
+            problem = nil
+        } catch {
+            problem = error is CoreError
+                ? error.words
+                : "The server could not be reached. \(error.localizedDescription)"
         }
     }
 }

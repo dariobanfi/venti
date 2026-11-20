@@ -128,6 +128,17 @@ final class CommunityModel {
         }.value
     }
 
+    /// One page of a pilot's public flights, the newest first. `after` is
+    /// the `next` of the page before.
+    func pilot(_ handle: String, after: String? = nil) async throws -> PilotPage {
+        let path = try pilotPagePath(handle: handle, after: after)
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try pilotPage(status: UInt16(clamping: status), body: body)
+    }
+
     /// Why a flight could not be opened, in words.
     static func words(for error: any Error) -> String {
         if error is CoreError {

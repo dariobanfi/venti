@@ -19,6 +19,11 @@ final class CommunityTests: XCTestCase {
         { url in
             await asked.add(url)
             let address = url.absoluteString
+            if address.contains("/v1/pilots/") {
+                return address.contains("nobody")
+                    ? (404, Data(#"{"error": {"code": "pilot_not_found", "message": "x"}}"#.utf8))
+                    : (200, Data(CommunityAnswers.pilot(ids: ["aaaaaaaaaaaaaaaaaaaaaaaaaa"]).utf8))
+            }
             if address.hasSuffix("/igc") {
                 return address.contains("gone") ? (404, Data()) : (200, Data(sample.utf8))
             }
@@ -107,6 +112,37 @@ final class CommunityTests: XCTestCase {
         XCTAssertEqual(analysis?.thermals.count, 2)
     }
 
+    func testAPilotsPublicFlightsAreListed() async throws {
+        let asked = Asked()
+        let community = CommunityModel(transport: server(noting: asked, sample: try sampleText()))
+        let address = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        community.server = { address }
+
+        let page = try await community.pilot("mara")
+        let lookedUp = await asked.addresses.last
+        XCTAssertEqual(lookedUp?.absoluteString, "http://127.0.0.1:8080/v1/pilots/mara")
+        XCTAssertEqual(page.name, "Mara Muster")
+        XCTAssertEqual(page.flights.map(\.id), ["aaaaaaaaaaaaaaaaaaaaaaaaaa"])
+        XCTAssertNil(page.next)
+
+        // A handle the server does not know is said in words, and what
+        // can be no handle is not asked for at all.
+        do {
+            _ = try await community.pilot("nobody")
+            XCTFail("A pilot the server does not know was listed.")
+        } catch {
+            XCTAssertTrue(error.words.contains("no pilot"))
+        }
+        let before = await asked.addresses.count
+        do {
+            _ = try await community.pilot("../accounts")
+            XCTFail("A path was taken for a handle.")
+        } catch {
+            let after = await asked.addresses.count
+            XCTAssertEqual(after, before)
+        }
+    }
+
     func testAFlightThatIsNoLongerPublicIsSaidSo() async throws {
         let asked = Asked()
         let community = CommunityModel(transport: server(noting: asked, sample: try sampleText()))
@@ -127,6 +163,11 @@ final class CommunityTests: XCTestCase {
 /// What a server says. Outside the test class, so that the stand-in for
 /// the network may read it from wherever it runs.
 private enum CommunityAnswers {
+    static func pilot(ids: [String]) -> String {
+        let flights = page(ids: ids, next: nil).dropFirst()
+        return "{\"pilot\": {\"handle\": \"mara\", \"display_name\": \"Mara Muster\"}, \(flights)"
+    }
+
     static func page(ids: [String], next: String?) -> String {
         let flights = ids.map { id in
             """

@@ -12,7 +12,10 @@
 //! line before it reaches a screen.
 
 use chrono::DateTime;
-use venti_api_types::v1::{self as api, Flight, FlightSort, FlightsResponse, PublicFlightsRequest};
+use venti_api_types::v1::{
+    self as api, Flight, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
+    PublicFlightsRequest,
+};
 use venti_domain::BoundingBox;
 
 use crate::live::one_line;
@@ -139,6 +142,54 @@ pub fn public_flights_path(
 pub fn public_flights(status: u16, body: Vec<u8>) -> Result<PublicFlights, CoreError> {
     let response: FlightsResponse = answer(status, &body)?;
     Ok(PublicFlights {
+        flights: response.flights.iter().map(row).collect(),
+        next: response.next,
+    })
+}
+
+/// One pilot and a page of the flights they share with everyone.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PilotPage {
+    /// The pilot's handle.
+    pub handle: String,
+    /// The name the pilot is shown by, on one line.
+    pub name: String,
+    /// The pilot's public flights, the newest first.
+    pub flights: Vec<PublicFlight>,
+    /// What to pass as `after` for the next page. Absent on the last.
+    pub next: Option<String>,
+}
+
+/// The path and query to `GET` from the server for a pilot and their
+/// public flights. `after` is the `next` of the page before.
+#[uniffi::export]
+pub fn pilot_page_path(handle: String, after: Option<String>) -> Result<String, CoreError> {
+    let handle = handle.parse().map_err(|_| CoreError::Server {
+        message: "This is not the handle of a pilot.".to_owned(),
+    })?;
+    Ok(PilotRequest {
+        handle,
+        after: after.filter(|after| !after.is_empty()),
+        limit: None,
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`pilot_page_path`]. A pilot the server
+/// does not know is said in words.
+#[uniffi::export]
+pub fn pilot_page(status: u16, body: Vec<u8>) -> Result<PilotPage, CoreError> {
+    if status == 404 {
+        return Err(CoreError::Server {
+            message: "The server knows no pilot by this handle.".to_owned(),
+        });
+    }
+    let response: PilotResponse = answer(status, &body)?;
+    Ok(PilotPage {
+        handle: response.pilot.handle.to_string(),
+        name: one_line(&response.pilot.display_name, 40),
         flights: response.flights.iter().map(row).collect(),
         next: response.next,
     })
@@ -285,6 +336,34 @@ mod tests {
 
         // A refusal comes in words.
         assert!(public_flights(503, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn a_pilots_page_is_the_pilot_and_their_public_flights() {
+        assert_eq!(
+            pilot_page_path("demo".to_owned(), None).unwrap(),
+            "/v1/pilots/demo"
+        );
+        assert_eq!(
+            pilot_page_path("demo".to_owned(), Some("abc".to_owned())).unwrap(),
+            "/v1/pilots/demo?after=abc"
+        );
+        // What cannot be a handle is not asked for: it would be a path of
+        // the asker's making.
+        assert!(pilot_page_path("../accounts".to_owned(), None).is_err());
+        assert!(pilot_page_path(String::new(), None).is_err());
+
+        let page = pilot_page(200, golden("pilot.json")).unwrap();
+        assert_eq!(
+            (page.handle.as_str(), page.name.as_str()),
+            ("demo", "Demo Pilot")
+        );
+        assert!(!page.flights.is_empty());
+        assert!(page.flights.iter().all(|flight| flight.handle == "demo"));
+
+        let unknown = pilot_page(404, b"{}".to_vec()).unwrap_err();
+        assert!(unknown.to_string().contains("no pilot"), "{unknown}");
+        assert!(pilot_page(503, Vec::new()).is_err());
     }
 
     #[test]

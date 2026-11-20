@@ -178,7 +178,7 @@ private fun EmptyList(title: String, text: String) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            painterResource(R.drawable.ic_air),
+            painterResource(R.drawable.venti_wind),
             contentDescription = null,
             modifier = Modifier.size(40.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,

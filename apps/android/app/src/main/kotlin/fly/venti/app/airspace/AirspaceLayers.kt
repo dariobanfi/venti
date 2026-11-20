@@ -1,5 +1,7 @@
 package fly.venti.app.airspace
 
+import androidx.compose.ui.graphics.toArgb
+import app.venti.design.VentiAirspaceLight
 import fly.venti.app.map.MapSetup
 import fly.venti.core.AirspacePolicy
 import fly.venti.core.AirspaceShape
@@ -107,7 +109,7 @@ object AirspaceLayers {
             PropertyFactory.textField(Expression.get(LABEL)),
             PropertyFactory.textFont(arrayOf("noto-sans-regular")),
             PropertyFactory.textSize(11f),
-            PropertyFactory.textColor(0xFF7A1F48.toInt()),
+            PropertyFactory.textColor(VentiAirspaceLight.prohibited.toArgb()),
             PropertyFactory.textHaloColor(MapSetup.WHITE),
             PropertyFactory.textHaloWidth(1.4f),
         )

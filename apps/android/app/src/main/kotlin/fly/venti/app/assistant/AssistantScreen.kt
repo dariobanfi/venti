@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -234,7 +233,7 @@ private fun Conversation(chat: AssistantChat, hasWind: Boolean) {
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Ask about your flying") },
                 maxLines = 5,
-                shape = RoundedCornerShape(24.dp),
+                shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             )
             Spacer(Modifier.width(8.dp))
@@ -260,7 +259,7 @@ private fun Bubble(entry: TranscriptEntry) {
         horizontalAlignment = if (fromPilot) Alignment.End else Alignment.Start,
     ) {
         Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = MaterialTheme.shapes.medium,
             color = if (fromPilot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = if (fromPilot) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         ) {

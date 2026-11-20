@@ -1,5 +1,7 @@
 package fly.venti.app.live
 
+import androidx.compose.ui.graphics.toArgb
+import app.venti.design.VentiLight
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -22,13 +24,13 @@ object LiveSymbols {
     const val LANDED = "live-landed"
 
     /**
-     * Green for a glider that is flying: none of the colours of wind,
-     * airspace or the pilot's own tracks. `0xRRGGBB`.
+     * Green for a glider that is flying: the pack's "good", none of the
+     * colours of wind, airspace or the pilot's own tracks. `0xRRGGBB`.
      */
-    const val GREEN = 0x157F4B
+    val GREEN: Int = VentiLight.good.toArgb() and 0xFFFFFF
 
     /** Grey for one that is on the ground, or that nothing was heard of for a while. */
-    const val GREY = 0x85847F
+    val GREY: Int = VentiLight.borderStrong.toArgb() and 0xFFFFFF
 
     /** The side of a picture, in the screen's own units. */
     private const val SIDE = 30f

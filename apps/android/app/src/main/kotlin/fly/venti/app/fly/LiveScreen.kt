@@ -1,5 +1,7 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiSize
+import fly.venti.app.design.Venti
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -81,7 +83,7 @@ enum class LiveChoice(
         "public",
         "Everyone",
         "Everyone",
-        "Everyone who looks at your server's map sees your glider on it, with your name, and can follow the flight.",
+        "Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight.",
     ),
     ;
 
@@ -109,17 +111,16 @@ enum class LiveChoice(
 
 /** What the page says apart from the choices. */
 object LiveWords {
-    const val NEEDS_ACCOUNT = "Sharing a flight needs an account on a Venti server. Sign in under Settings."
+    const val NEEDS_ACCOUNT = "Sharing a flight needs a Venti account. Sign in under Settings."
 
     const val WHAT_IS_SENT =
-        "Your positions go from this phone to your Venti server from take-off on, every quarter of a minute, " +
-            "and nowhere else. The server removes the track two days after its last position, unless whoever " +
-            "runs it set another time. A track is not a flight in your logbook: that is the recording, which " +
-            "stays on this phone until you sync."
+        "Your positions go from this phone to Venti from take-off on, every quarter of a minute, and " +
+            "nowhere else. Venti removes the track two days after its last position. A track is not a flight " +
+            "in your logbook: that is the recording, which stays on this phone until you sync."
 
     const val DELETION =
         "Nobody can watch this flight any more, with or without the link, and what was sent is removed from " +
-            "the server. Your recording is not touched."
+            "Venti. Your recording is not touched."
 }
 
 /**
@@ -278,19 +279,19 @@ fun LiveButton(live: LiveShareView?, modifier: Modifier = Modifier, onOpen: () -
     val state = live?.state
     val colours = when (state) {
         LiveShareState.SHARING -> IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = LiveLook.GOING_OUT,
-            contentColor = Color.White,
+            containerColor = Venti.colours.goodSoft,
+            contentColor = Venti.colours.good,
         )
         LiveShareState.WAITING -> IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = Palette.amber,
-            contentColor = Palette.inkOnAmber,
+            containerColor = Venti.colours.cautionSoft,
+            contentColor = Venti.colours.caution,
         )
         else -> IconButtonDefaults.filledTonalIconButtonColors()
     }
     FilledTonalIconButton(
         onClick = onOpen,
         modifier = modifier
-            .size(56.dp)
+            .size(VentiSize.touchFlight)
             .testTag("live-button")
             .semantics { stateDescription = live?.words ?: "Off" },
         colors = colours,
@@ -301,12 +302,9 @@ fun LiveButton(live: LiveShareView?, modifier: Modifier = Modifier, onOpen: () -
 
 /** How the cockpit's button shows where the sharing stands. */
 object LiveLook {
-    /** The green of a glider that is flying on the map of who is in the air. */
-    val GOING_OUT = Color(0xFF157F4B)
-
     @DrawableRes
     fun icon(state: LiveShareState?): Int = when (state) {
-        LiveShareState.SHARING, LiveShareState.ENDED -> R.drawable.ic_share_location
+        LiveShareState.SHARING, LiveShareState.ENDED -> R.drawable.venti_live
         LiveShareState.WAITING -> R.drawable.ic_sync_problem
         LiveShareState.STOPPED, null -> R.drawable.ic_location_off
     }

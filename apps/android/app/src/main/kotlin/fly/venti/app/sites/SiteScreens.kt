@@ -355,7 +355,7 @@ private fun SitePage(
                         if (site.discouraged) {
                             row {
                                 MarkRow(
-                                    R.drawable.ic_warning,
+                                    R.drawable.venti_caution,
                                     "Marked as unsafe or discouraged",
                                     MaterialTheme.colorScheme.error,
                                 )
@@ -385,7 +385,7 @@ private fun SitePage(
                             "Forecast for this place",
                             R.drawable.ic_chevron_right,
                             Modifier.testTag("site-forecast"),
-                            leading = R.drawable.ic_partly_cloudy_day,
+                            leading = R.drawable.venti_forecast,
                             onClick = onForecast,
                         )
                     }

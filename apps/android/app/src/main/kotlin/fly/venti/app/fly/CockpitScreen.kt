@@ -1,5 +1,13 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiSpace
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.BorderStroke
+import fly.venti.app.design.text
+import app.venti.design.VentiSize
+import app.venti.design.VentiTypeStyle
+import app.venti.design.VentiType
+import fly.venti.app.design.Venti
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -200,7 +208,7 @@ fun CockpitScreen(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                             ) {
-                                Icon(painterResource(R.drawable.ic_elevation), contentDescription = AheadWords.TITLE)
+                                Icon(painterResource(R.drawable.venti_glide), contentDescription = AheadWords.TITLE)
                             }
                         }
                     }
@@ -268,14 +276,15 @@ fun CockpitScreen(
                 ) {
                     OutlinedButton(
                         onClick = { isConfirmingFinish = true },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).height(VentiSize.touchFlight),
+                        contentPadding = PaddingValues(horizontal = VentiSpace.s3),
                     ) {
                         Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
                     }
                     // Nothing on the screen answers a touch until it is
                     // unlocked by holding a finger on the lock.
                     Spacer(Modifier.width(12.dp))
-                    FilledTonalIconButton(onClick = { isLocked = true }, modifier = Modifier.size(56.dp)) {
+                    FilledTonalIconButton(onClick = { isLocked = true }, modifier = Modifier.size(VentiSize.touchFlight)) {
                         Icon(painterResource(R.drawable.ic_lock_open), contentDescription = "Lock the screen")
                     }
                     // Who watches the flight, and whether it is going out. Not
@@ -288,7 +297,7 @@ fun CockpitScreen(
                     FilledTonalIconToggleButton(
                         checked = fly.isMuted,
                         onCheckedChange = { fly.isMuted = it },
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(VentiSize.touchFlight),
                     ) {
                         Icon(
                             painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
@@ -431,7 +440,7 @@ private fun StatusLine(
             ) {
                 Icon(
                     painterResource(
-                        if (score.kind == RouteKind.FREE_FLIGHT) R.drawable.ic_arrow_outward else R.drawable.ic_triangle,
+                        if (score.kind == RouteKind.FREE_FLIGHT) R.drawable.ic_arrow_outward else R.drawable.venti_triangle,
                     ),
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
@@ -587,7 +596,9 @@ private fun Instrument(
     isLarge: Boolean = false,
 ) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
-    val valueSize = if (isLarge) 46.dp else 32.dp
+    // The pack's instrument styles: the two readings that never change
+    // place large, the row under them as readings in a card.
+    val valueStyle = if (isLarge) VentiType.instrumentL else VentiType.instrumentM
     Column(
         modifier
             .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -604,19 +615,19 @@ private fun Instrument(
                 ).joinToString(", ")
             },
     ) {
-        Text(title, style = fixed(12.dp, FontWeight.SemiBold), color = quiet, maxLines = 1)
+        Text(title, style = fixed(VentiType.label), color = quiet, maxLines = 1)
         Row {
             Text(
                 value ?: "–",
                 modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
-                style = fixed(valueSize, FontWeight.SemiBold).numbers,
+                style = fixed(valueStyle).numbers,
                 maxLines = 1,
                 softWrap = false,
                 // A long value is set smaller before it is cut off; the
                 // row keeps its height.
                 autoSize = TextAutoSize.StepBased(
-                    minFontSize = fixedSize(valueSize / 2),
-                    maxFontSize = fixedSize(valueSize),
+                    minFontSize = fixedSize(valueStyle.sizePx.dp / 2),
+                    maxFontSize = fixedSize(valueStyle.sizePx.dp),
                     stepSize = fixedSize(1.dp),
                 ),
             )
@@ -624,7 +635,7 @@ private fun Instrument(
                 Text(
                     unit,
                     modifier = Modifier.padding(start = 4.dp).alignByBaseline(),
-                    style = fixed(if (isLarge) 17.dp else 14.dp, FontWeight.Medium),
+                    style = fixed(VentiType.label),
                     color = quiet,
                     maxLines = 1,
                     softWrap = false,
@@ -634,7 +645,7 @@ private fun Instrument(
         if (isLarge) {
             Text(
                 detail ?: " ",
-                style = fixed(13.dp, FontWeight.Normal).numbers,
+                style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal).numbers,
                 color = quiet,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -647,9 +658,13 @@ private fun Instrument(
 @Composable
 private fun fixedSize(size: Dp): TextUnit = with(LocalDensity.current) { size.toSp() }
 
+/**
+ * One of the pack's type styles at a size that ignores the phone's
+ * text-size setting: its pixels taken as the screen's own units.
+ */
 @Composable
-private fun fixed(size: Dp, weight: FontWeight): TextStyle =
-    TextStyle(fontSize = fixedSize(size), lineHeight = fixedSize(size * 1.2f), fontWeight = weight)
+private fun fixed(style: VentiTypeStyle): TextStyle =
+    style.text.copy(fontSize = fixedSize(style.sizePx.dp), lineHeight = fixedSize(style.lineHeightPx.dp))
 
 /**
  * Climb and sink as a bar that grows up or down from the middle, in the
@@ -658,6 +673,7 @@ private fun fixed(size: Dp, weight: FontWeight): TextStyle =
 @Composable
 private fun VarioBar(climb: Double?) {
     val groove = MaterialTheme.colorScheme.surfaceContainerHighest
+    val vario = Venti.colours.vario
     Canvas(Modifier.width(10.dp).fillMaxHeight().padding(vertical = 10.dp).clearAndSetSemantics {}) {
         val half = size.height / 2
         val rate = climb ?: 0.0
@@ -665,7 +681,7 @@ private fun VarioBar(climb: Double?) {
         val round = CornerRadius(size.width / 2)
         drawRoundRect(groove, cornerRadius = round)
         drawRoundRect(
-            ClimbBand.of(rate).color,
+            vario[ClimbBand.of(rate).ordinal],
             topLeft = Offset(0f, if (rate >= 0) half - length else half),
             size = Size(size.width, length),
             cornerRadius = CornerRadius(3.dp.toPx()),
@@ -698,7 +714,8 @@ private fun Badge(
             shape = CircleShape,
             color = colour,
             contentColor = content,
-            shadowElevation = 3.dp,
+            // Flight mode has no shadows: a line in the ink sets it off the map.
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             content = row,
         )
     } else {
@@ -709,7 +726,8 @@ private fun Badge(
             shape = CircleShape,
             color = colour,
             contentColor = content,
-            shadowElevation = 3.dp,
+            // Flight mode has no shadows: a line in the ink sets it off the map.
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             content = row,
         )
     }
@@ -757,8 +775,8 @@ private fun LandingBadge(landing: LandingOption, onOpen: () -> Unit, modifier: M
     val tone = ReachTone.of(landing.reach.reach)
     val (ground, ink) = when (tone) {
         ReachTone.Plain -> null to null
-        ReachTone.Amber -> Palette.amber to Palette.inkOnAmber
-        ReachTone.Red -> Palette.red to Color.White
+        ReachTone.Amber -> Venti.colours.cautionSoft to Venti.colours.caution
+        ReachTone.Red -> Venti.colours.dangerFill to Venti.colours.onDangerFill
         ReachTone.Quiet -> null to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Badge(
@@ -779,7 +797,7 @@ private fun LandingBadge(landing: LandingOption, onOpen: () -> Unit, modifier: M
         ground = ground,
         ink = ink,
     ) {
-        Icon(painterResource(R.drawable.ic_flight_land), contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(painterResource(R.drawable.venti_landing), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         val style = MaterialTheme.typography.titleSmall.numbers
         if (height != null) {
@@ -814,10 +832,10 @@ private fun StrongWindBadge(words: String, modifier: Modifier = Modifier) {
                 contentDescription = "Strong wind"
                 stateDescription = words
             },
-        ground = Palette.amber,
-        ink = Palette.inkOnAmber,
+        ground = Venti.colours.cautionSoft,
+        ink = Venti.colours.caution,
     ) {
-        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(painterResource(R.drawable.venti_caution), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(words, style = MaterialTheme.typography.titleSmall.numbers, color = Color.Unspecified)
     }

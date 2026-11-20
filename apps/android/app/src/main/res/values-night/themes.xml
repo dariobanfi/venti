@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The same in dark appearance. -->
+<!-- The same in dark appearance; venti_bg has the dark theme's value here. -->
 <resources>
-    <color name="window_background">#131316</color>
-
     <style name="Theme.Venti" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowBackground">@color/venti_bg</item>
     </style>
 </resources>

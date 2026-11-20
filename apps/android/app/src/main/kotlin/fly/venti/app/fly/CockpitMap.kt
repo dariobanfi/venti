@@ -1,5 +1,8 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiLight
+import androidx.compose.ui.graphics.toArgb
+import fly.venti.app.design.Palette
 import android.graphics.PointF
 import android.os.SystemClock
 import fly.venti.app.airspace.AirspaceLayers
@@ -218,7 +221,7 @@ class CockpitMap : MapContent {
                 PropertyFactory.textSize(13f),
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_LEFT),
                 PropertyFactory.textOffset(arrayOf(0.7f, 0f)),
-                PropertyFactory.textColor(0xFF0B0B0B.toInt()),
+                PropertyFactory.textColor(Palette.inkOnMap.toArgb()),
                 PropertyFactory.textHaloColor(MapSetup.WHITE),
                 PropertyFactory.textHaloWidth(1.6f),
             ),
@@ -497,7 +500,7 @@ class CockpitMap : MapContent {
         private const val RANGE = "cockpit-range"
 
         /** The green of the line around what a glide reaches: the iPhone's. */
-        private const val RANGE_GREEN = 0xFF1B7F5C.toInt()
+        private val RANGE_GREEN = VentiLight.good.toArgb()
 
         /**
          * The edge of what a straight glide reaches, as the map draws it:

@@ -130,8 +130,8 @@ class WaypointsModel(
 @get:DrawableRes
 val WaypointView.icon: Int
     get() = when (kind) {
-        WaypointKind.TAKEOFF -> R.drawable.ic_flight_takeoff
-        WaypointKind.LANDING -> R.drawable.ic_flight_land
+        WaypointKind.TAKEOFF -> R.drawable.venti_takeoff
+        WaypointKind.LANDING -> R.drawable.venti_landing
         WaypointKind.OTHER -> R.drawable.ic_location_on
     }
 

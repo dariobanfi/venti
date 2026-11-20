@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import androidx.compose.material3.ButtonDefaults
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -108,7 +109,7 @@ fun FlyScreen(
             Group {
                 row {
                     ChoiceRow(
-                        icon = R.drawable.ic_sensors,
+                        icon = R.drawable.venti_vario,
                         title = "Vario",
                         value = varioSummary(vario),
                         onClick = { isChoosingVario = true },
@@ -118,7 +119,7 @@ fun FlyScreen(
                 // take-off and not found out in the air.
                 row {
                     ChoiceRow(
-                        icon = R.drawable.ic_activity_zone,
+                        icon = R.drawable.venti_airspace,
                         title = "Airspace",
                         value = airspace.inALine,
                         onClick = onOpenAirspace,
@@ -140,7 +141,7 @@ fun FlyScreen(
                 // choice is kept, so it is shown before every start.
                 row {
                     ChoiceRow(
-                        icon = R.drawable.ic_share_location,
+                        icon = R.drawable.venti_live,
                         title = "Live tracking",
                         value = LiveChoice.stored(preferences).summary(account.isSignedIn),
                         onClick = onOpenLive,
@@ -158,9 +159,14 @@ fun FlyScreen(
             )
 
             Spacer(Modifier.height(28.dp))
+            // The screen's one accent: the action that starts a flight.
             Button(
                 onClick = { askThenStart.launch(permissionsToFly(vario)) },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                ),
             ) {
                 Text("Start flight", style = MaterialTheme.typography.titleMedium)
             }

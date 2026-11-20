@@ -1,6 +1,9 @@
 package fly.venti.app.wind
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import app.venti.design.VentiDark
+import app.venti.design.VentiLight
 import fly.venti.core.WindBand
 import fly.venti.core.WindStation
 import fly.venti.core.WindSymbol
@@ -12,41 +15,34 @@ import org.maplibre.geojson.Point
 // mean wind and gusts are written. Every station comes with its mark. What
 // is here is how this app draws a mark: the colours and the sizes.
 //
-// One hue from light to dark: strength is shown as a magnitude, not as a
-// verdict. Whether 25 km/h is too much depends on the pilot, the wing and
-// the place, and the app does not decide that from one number. The steps
-// were checked to be told apart by colour-blind pilots.
+// The colours are the design pack's wind scale, one purple from light to
+// dark: strength is shown as a magnitude, not as a verdict. The core sorts
+// a speed into four bands (below 10, 10 to 20, 20 to 30, 30 km/h and more);
+// each takes the pack's step for the middle of its span: the second, fourth,
+// sixth and seventh of seven. The pack's own breaks every 5 km/h wait for
+// the core to sort by them.
 
-/** The band's colour as red, green and blue: `0xRRGGBB`. */
-val WindBand.rgb: Int
+/** Which of the pack's seven steps of wind a band is drawn in, from 0. */
+val WindBand.step: Int
     get() = when (this) {
-        WindBand.LIGHT -> 0x86B6EF
-        WindBand.MODERATE -> 0x3987E5
-        WindBand.FRESH -> 0x1C5CAB
-        WindBand.STRONG -> 0x0D366B
+        WindBand.LIGHT -> 1
+        WindBand.MODERATE -> 3
+        WindBand.FRESH -> 5
+        WindBand.STRONG -> 6
     }
 
-val WindBand.color: Color get() = Color(0xFF000000 or rgb.toLong())
+/** The band's colour on the map, which is light in both appearances. */
+val WindBand.color: Color get() = VentiLight.wind[step]
+
+/** The band's colour as red, green and blue: `0xRRGGBB`. */
+val WindBand.rgb: Int get() = color.toArgb() and 0xFFFFFF
 
 /**
  * The band's colour for a table, which follows the phone's appearance: on
- * a dark surface the scale runs the other way, dim for light wind and
- * bright for strong, so that every step still stands out. Both ramps were
- * checked as ordered ramps against their surface (`docs/design.md`). The
- * map keeps [color]: its arrows have a white edge and lie on a map that is
- * light in both appearances.
+ * a dark surface the pack's scale runs the other way, dim for light wind
+ * and bright for strong. The map keeps [color].
  */
-fun WindBand.ink(dark: Boolean): Color =
-    if (!dark) {
-        color
-    } else {
-        when (this) {
-            WindBand.LIGHT -> Color(0xFF256ABF)
-            WindBand.MODERATE -> Color(0xFF5598E7)
-            WindBand.FRESH -> Color(0xFF9CC4F3)
-            WindBand.STRONG -> Color(0xFFE3EEFC)
-        }
-    }
+fun WindBand.ink(dark: Boolean): Color = if (dark) VentiDark.wind[step] else color
 
 /** How large the band's arrow is drawn, relative to the smallest. */
 val WindBand.arrowScale: Double

@@ -1,5 +1,6 @@
 package fly.venti.app.wind
 
+import fly.venti.app.design.Venti
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -36,7 +37,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import fly.venti.app.design.Axis
 import fly.venti.app.design.Format
-import fly.venti.app.design.LocalDarkAppearance
 import fly.venti.app.design.Palette
 import fly.venti.app.design.numbers
 import fly.venti.core.StationHistory
@@ -96,7 +96,8 @@ fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) 
     // The moment under the finger, while it is down.
     var touched by remember { mutableStateOf<Long?>(null) }
     val marked = touched?.let { WindSample.nearest(it, samples) }
-    val dark = LocalDarkAppearance.current
+    val windColour = Venti.colours.wind[5]
+    val gustColour = Venti.colours.wind[2]
     val look = ChartLook(
         grid = MaterialTheme.colorScheme.outlineVariant,
         rule = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
@@ -157,7 +158,7 @@ fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) 
                 }
                 known.asReversed().forEach { sample -> span.lineTo(x(sample.time), y(sample.wind ?: 0.0)) }
                 span.close()
-                drawPath(span, Palette.gusts(dark))
+                drawPath(span, gustColour)
 
                 val line = Path()
                 known.forEachIndexed { index, sample ->
@@ -166,7 +167,7 @@ fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) 
                 }
                 drawPath(
                     line,
-                    Palette.wind(dark),
+                    windColour,
                     style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
                 )
             }
@@ -191,7 +192,7 @@ fun WindHistoryCharts(samples: List<WindSample>, modifier: Modifier = Modifier) 
             hours(look, plot, start, end, ::x)
             for (sample in samples) {
                 val from = sample.from ?: continue
-                drawCircle(Palette.wind(dark), 2.dp.toPx(), Offset(x(sample.time), y(from)))
+                drawCircle(windColour, 2.dp.toPx(), Offset(x(sample.time), y(from)))
             }
             marked?.let { drawLine(look.rule, Offset(x(it.time), plot.top), Offset(x(it.time), plot.bottom), 1.dp.toPx()) }
         }

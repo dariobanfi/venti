@@ -1,5 +1,13 @@
 package fly.venti.app
 
+import androidx.compose.foundation.layout.Column
+import fly.venti.app.design.VentiTheme
+import fly.venti.app.design.Venti
+import fly.venti.app.design.Appearance
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.NavigationBarItemDefaults
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.AlertDialog
@@ -138,7 +146,9 @@ fun RootScreen(
 
     if (fly.mode != null) {
         // A full-screen cover, not a tab: nothing can be navigated to by
-        // accident in the air.
+        // accident in the air. In the design pack's flight theme, whatever
+        // the phone is set to.
+        VentiTheme(Appearance.Flight) {
         CockpitScreen(
             fly = fly,
             waypoints = session.waypoints,
@@ -163,6 +173,7 @@ fun RootScreen(
                 }
             },
         )
+        }
     } else {
         Sections(session, navigation, onNotice = { notice = it })
     }
@@ -196,15 +207,35 @@ private fun Sections(
             // The tab bar shows on the sections' first screens only: a
             // flight or the statistics have the whole screen.
             if (navigation.isAtTopLevel) {
-                NavigationBar {
+                // The pack's tab bar: on the surface under a line, the
+                // section in front in the text's colour with its icon in
+                // coral, the others muted. No pill behind the icon.
+                val colours = Venti.colours
+                Column {
+                HorizontalDivider(color = colours.border)
+                NavigationBar(containerColor = colours.surface) {
                     for (tab in AppTab.entries) {
+                        val selected = navigation.tab == tab
                         NavigationBarItem(
-                            selected = navigation.tab == tab,
+                            selected = selected,
                             onClick = { navigation.tab = tab },
                             icon = { Icon(painterResource(tab.icon), contentDescription = null) },
-                            label = { Text(tab.title) },
+                            label = {
+                                Text(
+                                    tab.title,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = colours.accentText,
+                                selectedTextColor = colours.text,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = colours.textMuted,
+                                unselectedTextColor = colours.textMuted,
+                            ),
                         )
                     }
+                }
                 }
             }
         },

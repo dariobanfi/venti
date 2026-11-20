@@ -289,7 +289,7 @@ private fun AirspaceCrossingRow(crossing: AirspaceCrossing, flightStart: Long, o
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
-            painterResource(if (crossing.uncertain == null) R.drawable.ic_warning else R.drawable.ic_help),
+            painterResource(if (crossing.uncertain == null) R.drawable.venti_caution else R.drawable.ic_help),
             contentDescription = null,
             tint = Color(0xFF000000 or AirspaceLayers.rgb(crossing.policy).toLong()),
         )

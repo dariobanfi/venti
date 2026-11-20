@@ -1,10 +1,10 @@
 package fly.venti.app.fly
 
+import fly.venti.app.design.Venti
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import fly.venti.app.design.Format
-import fly.venti.app.design.LocalDarkAppearance
 import fly.venti.app.design.Palette
 import fly.venti.core.LandingOption
 import fly.venti.core.Reach
@@ -39,7 +39,7 @@ enum class ReachTone {
 val ReachTone.type: Color
     @Composable get() = when (this) {
         ReachTone.Plain -> MaterialTheme.colorScheme.onSurface
-        ReachTone.Amber -> Palette.amberType(LocalDarkAppearance.current)
+        ReachTone.Amber -> Venti.colours.caution
         ReachTone.Red -> MaterialTheme.colorScheme.error
         ReachTone.Quiet -> MaterialTheme.colorScheme.onSurfaceVariant
     }

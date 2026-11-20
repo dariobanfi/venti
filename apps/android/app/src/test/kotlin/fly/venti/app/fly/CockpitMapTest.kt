@@ -156,10 +156,10 @@ class CockpitMapTest {
 
     @Test
     fun aDotOfTheThermalsPictureHasTheColourOfItsClimbAndGrowsWithItsStrength() {
-        val climbs = listOf(-3.0, -1.0, 0.0, 1.0, 3.0)
+        val climbs = listOf(-3.5, -2.0, -1.0, 0.0, 1.0, 2.0, 3.5)
         val lift = LiftView(
             points = climbs.mapIndexed { index, climb ->
-                LiftPointView(lat = 47.7, lon = 11.8 + index * 0.001, climbMs = climb, strength = index / 4.0)
+                LiftPointView(lat = 47.7, lon = 11.8 + index * 0.001, climbMs = climb, strength = index / 6.0)
             },
             centre = null,
             drifted = false,
@@ -167,10 +167,9 @@ class CockpitMapTest {
         val dots = CockpitMap.liftFeatures(lift)
         // One band each, from sinking fast to climbing fast, as the trail has them.
         assertEquals(ClimbBand.entries.map { it.ordinal }, dots.map { it.getNumberProperty(CockpitMap.BAND).toInt() })
-        assertEquals(
-            listOf(2.0, 2.75, 3.5, 4.25, 5.0),
-            dots.map { it.getNumberProperty(CockpitMap.RADIUS).toDouble() },
-        )
+        listOf(2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+            .zip(dots.map { it.getNumberProperty(CockpitMap.RADIUS).toDouble() })
+            .forEach { (expected, radius) -> assertEquals(expected, radius, 1e-9) }
 
         // A strength the core would not give draws no dot smaller or larger than the others.
         assertEquals(2.0, CockpitMap.liftDotRadius(-1.0), 0.0)

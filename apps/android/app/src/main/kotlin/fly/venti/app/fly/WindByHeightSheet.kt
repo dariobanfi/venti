@@ -169,7 +169,7 @@ private fun WindByHeightRow(band: WindAtHeightView) {
                     climb,
                     style = MaterialTheme.typography.bodyMedium.numbers,
                     fontWeight = FontWeight.Medium,
-                    color = ClimbBand.of(band.climbMs ?: 0.0).color,
+                    color = ClimbBand.of(band.climbMs ?: 0.0).ink,
                 )
             }
         }

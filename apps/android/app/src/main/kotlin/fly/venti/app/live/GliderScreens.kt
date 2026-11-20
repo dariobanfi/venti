@@ -1,5 +1,6 @@
 package fly.venti.app.live
 
+import fly.venti.app.design.Venti
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,7 +117,7 @@ fun GliderListSheet(live: LiveModel, onChoose: (String) -> Unit, onDismiss: () -
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    painterResource(R.drawable.ic_paragliding),
+                    painterResource(R.drawable.venti_wing),
                     contentDescription = null,
                     modifier = Modifier.size(40.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -168,13 +169,13 @@ private fun GliderRow(glider: LiveGlider, age: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painterResource(if (glider.landed) R.drawable.ic_man else R.drawable.ic_paragliding),
+            painterResource(if (glider.landed) R.drawable.ic_man else R.drawable.venti_wing),
             contentDescription = null,
             // The map's own green for one that flies, in both appearances.
             tint = if (glider.landed || glider.quiet) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             } else {
-                Color(0xFF000000 or LiveSymbols.GREEN.toLong())
+                Venti.colours.good
             },
         )
         Spacer(Modifier.width(16.dp))

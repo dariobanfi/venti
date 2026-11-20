@@ -1,10 +1,19 @@
+<!-- Lucide "flag", lucide-static 0.460.0, ISC licence. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="960"
-    android:viewportHeight="960"
-    android:autoMirrored="true">
+    android:viewportWidth="24"
+    android:viewportHeight="24">
   <path
-      android:fillColor="#FF000000"
-      android:pathData="M200,840L200,160L560,160L576,240L800,240L800,640L520,640L504,560L280,560L280,840L200,840ZM500,400L500,400L500,400L500,400L500,400L500,400L500,400L500,400L500,400ZM586,560L720,560L720,320L510,320L494,240L280,240L280,480L570,480L586,560Z"/>
+      android:pathData="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"/>
+  <path
+      android:pathData="M4,22L4,15"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"/>
 </vector>

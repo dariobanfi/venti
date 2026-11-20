@@ -152,7 +152,7 @@ fun StationPage(
                             "Forecast for this place",
                             R.drawable.ic_chevron_right,
                             Modifier.testTag("station-forecast"),
-                            leading = R.drawable.ic_partly_cloudy_day,
+                            leading = R.drawable.venti_forecast,
                             onClick = onForecast,
                         )
                     }

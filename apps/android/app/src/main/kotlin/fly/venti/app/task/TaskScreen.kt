@@ -215,7 +215,7 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
                         "Plan a route from your waypoints",
                         R.drawable.ic_chevron_right,
                         Modifier.testTag("task-plan-route"),
-                        leading = R.drawable.ic_route,
+                        leading = R.drawable.venti_track,
                     ) {
                         isPlanningRoute = true
                     }
@@ -227,7 +227,7 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
                     verticalAlignment = Alignment.Top,
                 ) {
                     Icon(
-                        painterResource(R.drawable.ic_warning),
+                        painterResource(R.drawable.venti_caution),
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.error,

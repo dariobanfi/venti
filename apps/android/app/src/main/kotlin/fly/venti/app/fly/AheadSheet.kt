@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiMapLight
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -191,8 +192,8 @@ fun AheadSheet(fly: FlySession, onDismiss: () -> Unit) {
 /** An airspace's colour by how the app treats it: the map's. */
 private fun colour(policy: AirspacePolicy) = Color(0xFF000000 or AirspaceLayers.rgb(policy).toLong())
 
-/** The ground: the colour of earth, quiet under the airspace's. */
-private val GROUND = Color(0xFF857057).copy(alpha = 0.55f)
+/** The ground: the map's shade of the slopes, quiet under the airspace's. */
+private val GROUND = VentiMapLight.hillshadeShadow.copy(alpha = 0.45f)
 
 /** Room for the heights at the picture's trailing edge, and for the distances under it. */
 private val HEIGHT_LABELS = 56.dp

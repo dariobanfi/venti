@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -421,7 +420,7 @@ private fun Cell(cell: ForecastCell) {
                     .size(side)
                     .background(
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f + 0.5f * share),
-                        RoundedCornerShape(4.dp),
+                        MaterialTheme.shapes.extraSmall,
                     ),
                 contentAlignment = Alignment.Center,
             ) {

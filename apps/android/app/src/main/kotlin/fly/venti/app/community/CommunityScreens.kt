@@ -361,7 +361,7 @@ private fun PublicFlightRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (triangle != null) {
                         Icon(
-                            painterResource(R.drawable.ic_triangle),
+                            painterResource(R.drawable.venti_triangle),
                             contentDescription = triangle,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,

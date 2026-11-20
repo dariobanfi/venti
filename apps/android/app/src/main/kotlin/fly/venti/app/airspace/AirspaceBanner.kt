@@ -1,5 +1,6 @@
 package fly.venti.app.airspace
 
+import fly.venti.app.design.Venti
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.clickable
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -126,7 +126,7 @@ fun AirspaceBanner(
         AirspaceWords.notChecking(check)?.let { notice ->
             Surface(
                 modifier = Modifier.fillMaxWidth().testTag("airspace-notice"),
-                shape = RoundedCornerShape(14.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shadowElevation = 2.dp,
             ) {
@@ -159,14 +159,14 @@ private fun Warning(warnings: List<AirspaceWarning>, onOpen: () -> Unit) {
                     true
                 }
             },
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         color = ground,
         contentColor = ink,
         shadowElevation = 3.dp,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Icon(
-                painterResource(if (warning.silenced) R.drawable.ic_notifications_off else R.drawable.ic_warning),
+                painterResource(if (warning.silenced) R.drawable.ic_notifications_off else R.drawable.venti_caution),
                 contentDescription = null,
             )
             Spacer(Modifier.width(10.dp))
@@ -183,14 +183,14 @@ private fun Warning(warnings: List<AirspaceWarning>, onOpen: () -> Unit) {
     }
 }
 
-/** The banner's ground and the colour of what is written on it. The same in light and dark: a warning is a warning. */
+/** The banner's ground and the colour of what is written on it. In the theme in use: the cockpit always has the flight theme. */
 @Composable
 private fun colours(warning: AirspaceWarning): Pair<Color, Color> {
     val plain = MaterialTheme.colorScheme.surfaceContainerHigh
     if (warning.silenced) return plain to MaterialTheme.colorScheme.onSurfaceVariant
     return when (warning.level) {
-        AirspaceLevel.INSIDE, AirspaceLevel.ENTERING -> Palette.red to Color.White
-        AirspaceLevel.VERY_NEAR -> Palette.amber to Palette.inkOnAmber
+        AirspaceLevel.INSIDE, AirspaceLevel.ENTERING -> Venti.colours.dangerFill to Venti.colours.onDangerFill
+        AirspaceLevel.VERY_NEAR -> Venti.colours.cautionSoft to Venti.colours.caution
         AirspaceLevel.NEAR -> plain to MaterialTheme.colorScheme.onSurface
     }
 }

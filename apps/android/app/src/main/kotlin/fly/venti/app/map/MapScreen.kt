@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -210,7 +209,7 @@ fun MapScreen(
             if (wind.server is WindServer.Usable) {
                 // Everything the arrows say, as a list: for reading the
                 // numbers side by side, and for pilots who use TalkBack.
-                MapButton(R.drawable.ic_air, "Wind stations") { showsStations = true }
+                MapButton(R.drawable.venti_wind, "Wind stations") { showsStations = true }
             }
             if (flyingSites.isNotEmpty()) {
                 // The signs on the map, as a list.
@@ -336,13 +335,13 @@ private fun MapButton(
 private fun Notice(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("wind-notice"),
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shadowElevation = 2.dp,
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                painterResource(R.drawable.ic_warning),
+                painterResource(R.drawable.venti_caution),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -361,7 +360,7 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
 private fun Credits(lines: List<String>, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.testTag("wind-credits"),
-        shape = RoundedCornerShape(10.dp),
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
     ) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {

@@ -3,7 +3,6 @@ package fly.venti.app.logbook
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -31,7 +30,7 @@ fun TrackThumbnail(outline: List<Coordinate>, modifier: Modifier = Modifier) {
     Canvas(
         modifier
             .size(52.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small)
             // Decoration: the row says in words what the flight was.
             .clearAndSetSemantics {},
     ) {

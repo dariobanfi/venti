@@ -1,5 +1,7 @@
 package fly.venti.app.wind
 
+import fly.venti.app.design.Palette
+import app.venti.design.VentiLight
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -31,7 +33,7 @@ object WindSymbols {
     private const val SIDE = 30f
 
     /** The grey of a station with nothing current to say. */
-    val old = Color(0xFFA9A8A2)
+    val old = VentiLight.borderStrong
 
     /** Every picture under the name the map knows it by, drawn for a screen of this density. */
     fun all(density: Float, densityDpi: Int): Map<String, Bitmap> = buildMap {
@@ -58,7 +60,7 @@ object WindSymbols {
     }
 
     /**
-     * A dart pointing up, with a white edge so it stands out on any ground.
+     * A dart pointing up, with the map's dark casing so that the pale steps stand out on the pale map.
      * The map turns it to where the wind blows.
      */
     private fun arrow(canvas: Canvas, scale: Float, colour: Color) {
@@ -74,7 +76,7 @@ object WindSymbols {
         canvas.drawPath(dart, fill(colour))
     }
 
-    /** A small disc with a white edge. */
+    /** A small disc with the map's dark casing. */
     private fun dot(canvas: Canvas, scale: Float, colour: Color) {
         val middle = SIDE * scale / 2
         canvas.drawCircle(middle, middle, 4.5f * scale, edge(scale))
@@ -85,7 +87,7 @@ object WindSymbols {
         style = Paint.Style.STROKE
         strokeWidth = 3.5f * scale
         strokeJoin = Paint.Join.ROUND
-        color = android.graphics.Color.WHITE
+        color = Palette.inkOnMap.toArgb()
         setShadowLayer(1.5f * scale, 0f, 0.5f * scale, android.graphics.Color.argb(90, 0, 0, 0))
     }
 
@@ -115,9 +117,9 @@ fun WindGlyph(mark: WindMark, modifier: Modifier = Modifier) {
         when (val symbol = mark.symbol) {
             is WindSymbol.Arrow -> {
                 val dart = windDart(size.minDimension)
-                // The white edge the arrows have on the map: without it the
-                // two dark blues are lost on a dark list.
-                drawPath(dart, Color.White, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round))
+                // The casing the arrows have on the map: without it the
+                // pale steps are lost on a light list and the dark on a dark one.
+                drawPath(dart, Palette.inkOnMap, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round))
                 drawPath(dart, symbol.band.color)
             }
             WindSymbol.Calm -> drawCircle(WindBand.LIGHT.color, 4.5.dp.toPx(), Offset(size.width / 2, size.height / 2))

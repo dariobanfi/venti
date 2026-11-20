@@ -425,7 +425,7 @@ private fun TotalsCard(totals: Totals, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().testTag("logbook-totals"),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
@@ -524,7 +524,7 @@ private fun LogbookRow(entry: LogbookEntry, shape: Shape, onOpen: () -> Unit, on
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (score != null && score.kind != RouteKind.FREE_FLIGHT) {
                             Icon(
-                                painterResource(R.drawable.ic_triangle),
+                                painterResource(R.drawable.venti_triangle),
                                 contentDescription = if (score.kind == RouteKind.FAI_TRIANGLE) {
                                     "FAI triangle"
                                 } else {

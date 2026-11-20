@@ -135,7 +135,7 @@ object SiteFeature {
 @Composable
 fun SiteGlyph(kind: SiteKind, modifier: Modifier = Modifier) {
     val ink = Palette.inkOnMap
-    val (ground, sign) = if (kind.isLight) Color.White to ink else ink to Color.White
+    val (ground, sign) = if (kind.isLight) Palette.haloOnMap to ink else ink to Palette.haloOnMap
     Box(
         modifier = modifier
             .size(28.dp)

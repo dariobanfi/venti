@@ -97,7 +97,7 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 if (wind.credits.isEmpty()) {
                     row {
                         Text(
-                            "Wind stations come from the Venti server set in the settings. Each " +
+                            "Wind stations come from Venti. Each " +
                                 "station's page names whose data it is and under which licence.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -128,10 +128,24 @@ fun CreditsScreen(wind: WindModel, onBack: () -> Unit) {
                 row {
                     Credit(
                         "Interface",
-                        "Jetpack Compose and AndroidX, Kotlin and its libraries, the Material Symbols " +
-                            "icons, JNA, and OkHttp, Gson and Timber inside the map engine, under the " +
-                            "Apache License 2.0.",
+                        "Jetpack Compose and AndroidX, Kotlin and its libraries, JNA, and OkHttp, Gson " +
+                            "and Timber inside the map engine, under the Apache License 2.0.",
                         link = "https://www.apache.org/licenses/LICENSE-2.0",
+                    )
+                }
+                row {
+                    Credit(
+                        "Icons",
+                        "Lucide, under the ISC License, beside Venti's own flying icons.",
+                        link = "https://lucide.dev/license",
+                    )
+                }
+                row {
+                    Credit(
+                        "Typeface",
+                        "Fira Sans, by the Mozilla Foundation and Telefonica, under the SIL Open " +
+                            "Font License 1.1, which comes with the app.",
+                        link = "https://openfontlicense.org",
                     )
                 }
                 row {

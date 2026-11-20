@@ -31,17 +31,20 @@ Working notes: what to know before changing the app or its tests. What the app d
 - A number reaches the screen through `Format` (`design/Format.kt`), which names the locale numbers are written in. Never format a number with the phone's own locale: beside the core's words a screen then shows "2,5 km" next to "10.0 km NE" on a phone set to German.
 - Words that are not the core's stand in an object beside the screen (`PlanWords`, `GroupWords`, `ReportWords`, `AheadWords`, `ReachWords`), so that a unit test can hold them.
 - Talking to the pilot's server is one way round: the core puts the request together, `AccountModel.answer` sends it with the session's token, the core reads the answer. Nothing of groups, plans or reports is kept on the phone.
-- Icons are Material Symbols, outlined, 24 px, taken as Android vector drawables from `google/material-design-icons` (`symbols/android/<name>/materialsymbolsoutlined/<name>_24px.xml`), with the tint removed and the fill set to `#FF000000`, named `ic_<name>.xml`.
+- The look is the design pack's (`design/`, read `design/AGENTS.md`). Colours come from `Venti.colours` (the theme in use: light, dark, or flight in the cockpit) or `MaterialTheme`, sizes from `VentiSpace`, `VentiSize`, `VentiType` and `MaterialTheme.shapes`; none is written in a composable. What is drawn on the map takes the light theme's values (`Palette`), since the map is light in both appearances.
+- Icons: the pack's flying icons are `R.drawable.venti_<name>`, made at build time from `design/assets/icons`. Every other icon is Lucide (lucide-static 0.460.0), stroke 2, 24 px, converted once into `res/drawable/ic_<role>.xml` with a comment naming the Lucide icon; the role names are those the app used before, which were Material Symbols' names.
+- The `designPack` task (in `app/build.gradle.kts`) takes `VentiTheme.kt` as it is and writes `VentiTokens.kt` from `tokens.json`; both are in the package `app.venti.design`. A token the pack lacks is noted for the owner in `docs/design.md`, never added to the pack.
 
 ## How the build makes the core
 
-Three tasks in `app/build.gradle.kts` run again only when something under `crates/` has changed:
+Four tasks in `app/build.gradle.kts` build what the app takes from the rest of the repository; each runs again only when what it reads has changed:
 
 | Task | What it does |
 |---|---|
 | `coreForAndroid` | `cargo ndk` builds `libventi_core.so` for each ABI in `venti.abis` (`gradle.properties`): `arm64-v8a` and `x86_64`. |
 | `coreBindings` | Builds the core for the build machine and runs UniFFI's generator (the `uniffi-bindgen` program in `tools/uniffi-bindgen-swift`) on it to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
-| `sharedAssets` | Gathers the sample flight, the map style and the bundled map region from where the repository keeps them. |
+| `sharedAssets` | Gathers the sample flight, the map style, the bundled map region and the fonts' licence from where the repository keeps them. |
+| `designPack` | Takes the design pack into the build: its Kotlin tokens, the rest of its tokens as Kotlin, its fonts, its flying icons as vector drawables, the launcher and notification icons. |
 
 Nothing they produce is committed: no generated Kotlin, no compiled core, no second copy of a shared file.
 

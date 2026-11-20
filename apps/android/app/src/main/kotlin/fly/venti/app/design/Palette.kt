@@ -1,82 +1,63 @@
 package fly.venti.app.design
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import app.venti.design.VentiLight
+import app.venti.design.VentiMapLight
+import app.venti.design.VentiScaleBreaks
 
 /**
- * The app's colours. `docs/design.md` explains the choices.
- *
- * Everything else on screen uses Material's own neutral colours, so the app
- * follows light and dark appearance without a colour of ours in the way.
+ * The colours drawn on the map, from the design pack's tokens. The map is
+ * light in both appearances, so what is drawn on it takes the light theme's
+ * values.
  */
 object Palette {
-    /**
-     * The one accent: the main button, selected controls, and a flight's
-     * line in lists, charts and on the overview map. Violet, because it is
-     * none of the colours that carry meaning on a track.
-     */
-    val accentLight = Color(0xFF6250D6)
-    val accentDark = Color(0xFF9085E9)
+    /** A flight's line on the overview map: the light theme's primary. */
+    val accentOnMap: Color = VentiLight.primary
 
-    /** The accent as drawn on the map, which is light in both appearances. */
-    val accentOnMap = accentLight
+    /** The near-black of dots, dashes and casings drawn on the map. */
+    val inkOnMap: Color = VentiMapLight.trackCasing
 
-    /** The near-black of dots and dashes drawn on the map. */
-    val inkOnMap = Color(0xFF1F1F1D)
-
-    /**
-     * The ground of something that warns without being the worst: an
-     * airspace that is very near, a wind that leaves little way, a landing
-     * only just within reach. The same in both appearances, with dark type
-     * on it: a warning is not themed.
-     */
-    val amber = Color(0xFFFAB31A)
-    val inkOnAmber = Color(0xFF0A0A0A)
-
-    /** The ground of the worst: inside an airspace, no landing in reach. White type on it. */
-    val red = Color(0xFFB82429)
-
-    /**
-     * Amber as the colour of type on a plain surface. The ground's amber
-     * cannot be read on a light one, so it is darker there.
-     */
-    fun amberType(dark: Boolean): Color = if (dark) amber else Color(0xFF8A5A00)
-
-    /** Mean wind in a chart: one blue, a step lighter on a dark ground. */
-    fun wind(dark: Boolean): Color = if (dark) Color(0xFF6DA7EC) else Color(0xFF256ABF)
-
-    /** The span from mean wind up to the gusts, in the same blue held back. */
-    fun gusts(dark: Boolean): Color = if (dark) Color(0xFF1C5CAB) else Color(0xFFB7D3F6)
+    /** The halo around words written on the map. */
+    val haloOnMap: Color = VentiMapLight.labelHalo
 }
 
 /**
- * How fast the glider was climbing or sinking, in five bands.
- *
- * A track is coloured by band: blue where it sank, grey where it held its
- * height, orange and red where it climbed. Two hues with a neutral middle
- * stay distinguishable for colour-blind pilots; the palette was checked for
- * that.
+ * How fast the glider was climbing or sinking: the pack's vario scale, seven
+ * steps at its breaks (−3, −1.5, −0.5, +0.5, +1.5, +3 m/s). Cool is down,
+ * warm is up: teal where it sank, grey where it held its height, coral and
+ * gold where it climbed.
  */
 enum class ClimbBand(
-    /** The colour as red, green and blue: `0xRRGGBB`. */
-    val rgb: Int,
     /** The band in words, for the legend. */
     val label: String,
 ) {
-    StrongSink(0x184F95, "Sinking faster than 2 m/s"),
-    Sink(0x3987E5, "Sinking 0.5 to 2 m/s"),
-    Level(0x85847F, "Within 0.5 m/s of level"),
-    Climb(0xEB6834, "Climbing 0.5 to 2 m/s"),
-    StrongClimb(0xB8242B, "Climbing faster than 2 m/s");
+    StrongSink("Sinking faster than 3 m/s"),
+    Sink("Sinking 1.5 to 3 m/s"),
+    LightSink("Sinking 0.5 to 1.5 m/s"),
+    Level("Within 0.5 m/s of level"),
+    Climb("Climbing 0.5 to 1.5 m/s"),
+    GoodClimb("Climbing 1.5 to 3 m/s"),
+    StrongClimb("Climbing faster than 3 m/s"),
+    ;
 
-    val color: Color get() = Color(0xFF000000 or rgb.toLong())
+    /** The band's colour on the map, which is light in both appearances. */
+    val color: Color get() = VentiLight.vario[ordinal]
+
+    /** The band's colour as red, green and blue: `0xRRGGBB`. */
+    val rgb: Int get() = color.toArgb() and 0xFFFFFF
+
+    /** The band's colour on the screen's own surface, in the theme in use. */
+    val ink: Color
+        @Composable @ReadOnlyComposable
+        get() = Venti.colours.vario[ordinal]
 
     companion object {
-        fun of(metresPerSecond: Double): ClimbBand = when {
-            metresPerSecond < -2.0 -> StrongSink
-            metresPerSecond < -0.5 -> Sink
-            metresPerSecond < 0.5 -> Level
-            metresPerSecond < 2.0 -> Climb
-            else -> StrongClimb
+        fun of(metresPerSecond: Double): ClimbBand {
+            val step = VentiScaleBreaks.vario.count { metresPerSecond >= it }
+            return entries[step]
         }
     }
 }

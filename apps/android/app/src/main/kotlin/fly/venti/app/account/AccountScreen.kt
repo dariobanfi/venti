@@ -269,7 +269,7 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
         if (account.needsSignIn) {
             row {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
-                    Icon(painterResource(R.drawable.ic_warning), contentDescription = null)
+                    Icon(painterResource(R.drawable.venti_caution), contentDescription = null)
                     Spacer(Modifier.width(16.dp))
                     Text(
                         "This phone was signed out. Sign out here and sign in again.",

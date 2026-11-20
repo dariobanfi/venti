@@ -114,7 +114,7 @@ private fun Unavailable(reason: String) {
         row {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painterResource(R.drawable.ic_warning),
+                    painterResource(R.drawable.venti_caution),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                 )

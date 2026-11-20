@@ -87,7 +87,7 @@ class RecordingService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         val builder = Notification.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_paragliding)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Recording your flight")
             .setContentText("Open Venti to see the cockpit or to finish the flight.")
             .setContentIntent(open)

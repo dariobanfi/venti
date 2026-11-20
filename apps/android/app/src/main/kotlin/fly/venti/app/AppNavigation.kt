@@ -12,9 +12,9 @@ import androidx.compose.runtime.setValue
  * next. Five is as many as a Material navigation bar takes.
  */
 enum class AppTab(val title: String, @param:DrawableRes val icon: Int) {
-    Map("Map", R.drawable.ic_map),
-    Fly("Fly", R.drawable.ic_paragliding),
-    Logbook("Logbook", R.drawable.ic_book),
+    Map("Map", R.drawable.venti_map),
+    Fly("Fly", R.drawable.venti_wing),
+    Logbook("Logbook", R.drawable.venti_track),
     Assistant("Assistant", R.drawable.ic_auto_awesome),
     Settings("Settings", R.drawable.ic_settings),
 }

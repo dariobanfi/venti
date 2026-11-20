@@ -1,5 +1,6 @@
 package fly.venti.app.design
 
+import androidx.compose.foundation.BorderStroke
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,21 +65,22 @@ class GroupRows {
     }
 }
 
-/** Rows on one rounded surface, with a hairline between them. */
+/** Rows on one card of the design pack: flat, with a line round it and a hairline between rows. */
 @Composable
 fun Group(modifier: Modifier = Modifier, rows: GroupRows.() -> Unit) {
     val content = GroupRows().apply(rows).rows
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
             content.forEachIndexed { index, row ->
                 if (index > 0) {
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.outlineVariant,
                     )
                 }
                 row()

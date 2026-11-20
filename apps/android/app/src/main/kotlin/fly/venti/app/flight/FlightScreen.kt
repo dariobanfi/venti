@@ -290,7 +290,7 @@ private fun TopButtons(
 internal fun Failure(message: String, modifier: Modifier = Modifier) {
     Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
-            painterResource(R.drawable.ic_warning),
+            painterResource(R.drawable.venti_caution),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,

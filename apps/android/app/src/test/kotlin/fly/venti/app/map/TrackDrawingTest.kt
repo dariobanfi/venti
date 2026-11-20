@@ -32,19 +32,23 @@ class TrackDrawingTest {
 
     @Test
     fun climbBandsSplitAtTheDocumentedRates() {
-        assertEquals(ClimbBand.StrongSink, ClimbBand.of(-3.0))
+        // The design pack's breaks: a value on a break belongs to the step above it.
+        assertEquals(ClimbBand.StrongSink, ClimbBand.of(-3.1))
+        assertEquals(ClimbBand.Sink, ClimbBand.of(-3.0))
         assertEquals(ClimbBand.Sink, ClimbBand.of(-2.0))
-        assertEquals(ClimbBand.Sink, ClimbBand.of(-1.2))
+        assertEquals(ClimbBand.LightSink, ClimbBand.of(-1.2))
         assertEquals(ClimbBand.Level, ClimbBand.of(-0.5))
         assertEquals(ClimbBand.Level, ClimbBand.of(0.4))
         assertEquals(ClimbBand.Climb, ClimbBand.of(0.5))
-        assertEquals(ClimbBand.StrongClimb, ClimbBand.of(2.0))
+        assertEquals(ClimbBand.GoodClimb, ClimbBand.of(2.0))
+        assertEquals(ClimbBand.StrongClimb, ClimbBand.of(3.0))
     }
 
     @Test
     fun theClimbColoursAreTheOnesOfTheDesign() {
         assertEquals(
-            listOf(0x184F95, 0x3987E5, 0x85847F, 0xEB6834, 0xB8242B),
+            // The pack's vario scale, light: teal for sink, grey, coral and red for lift.
+            listOf(0x0A5F6C, 0x1F93A1, 0x86C9CC, 0xCBC6C2, 0xF3A682, 0xE56954, 0xB02A45),
             ClimbBand.entries.map { it.rgb },
         )
     }
@@ -55,9 +59,9 @@ class TrackDrawingTest {
 
         assertEquals(
             listOf(
-                TrackBands.Run(ClimbBand.Sink, 0..2),
+                TrackBands.Run(ClimbBand.LightSink, 0..2),
                 TrackBands.Run(ClimbBand.StrongClimb, 2..5),
-                TrackBands.Run(ClimbBand.Sink, 5..6),
+                TrackBands.Run(ClimbBand.LightSink, 5..6),
             ),
             runs,
         )

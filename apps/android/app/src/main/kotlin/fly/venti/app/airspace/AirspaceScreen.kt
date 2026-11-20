@@ -105,7 +105,7 @@ fun AirspaceScreen(
             airspace.problem?.let { problem ->
                 Row(Modifier.padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
                     Icon(
-                        painterResource(R.drawable.ic_warning),
+                        painterResource(R.drawable.venti_caution),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
                     )
@@ -218,11 +218,11 @@ private fun KeptRow(layer: KeptAirspace) {
             Text(note, style = MaterialTheme.typography.bodyMedium)
         }
         if (!layer.saysWhatItCovers) {
-            Note(AirspaceModel.COVERS_UNKNOWN, R.drawable.ic_warning, MaterialTheme.colorScheme.error, inRow = true)
+            Note(AirspaceModel.COVERS_UNKNOWN, R.drawable.venti_caution, MaterialTheme.colorScheme.error, inRow = true)
         }
         layer.credit?.let { credit ->
             credit.notice?.let { notice ->
-                Note(notice, R.drawable.ic_warning, MaterialTheme.colorScheme.onSurface, inRow = true)
+                Note(notice, R.drawable.venti_caution, MaterialTheme.colorScheme.onSurface, inRow = true)
             }
             Text(
                 "${credit.text} Licence: ${credit.licence}.",
@@ -272,7 +272,7 @@ private fun FileRow(file: AirspaceFile, onDelete: () -> Unit) {
             AirspaceModel.leftOutNote(file)?.let { note ->
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.Top) {
                     Icon(
-                        painterResource(R.drawable.ic_warning),
+                        painterResource(R.drawable.venti_caution),
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.error,

@@ -361,8 +361,8 @@ class LiveSharingTest {
 
         // The cockpit's button: one sign while positions go out or have
         // gone, one while they wait, one when nothing is shared.
-        assertEquals(R.drawable.ic_share_location, LiveLook.icon(LiveShareState.SHARING))
-        assertEquals(R.drawable.ic_share_location, LiveLook.icon(LiveShareState.ENDED))
+        assertEquals(R.drawable.venti_live, LiveLook.icon(LiveShareState.SHARING))
+        assertEquals(R.drawable.venti_live, LiveLook.icon(LiveShareState.ENDED))
         assertEquals(R.drawable.ic_sync_problem, LiveLook.icon(LiveShareState.WAITING))
         assertEquals(R.drawable.ic_location_off, LiveLook.icon(LiveShareState.STOPPED))
         assertEquals(R.drawable.ic_location_off, LiveLook.icon(null))

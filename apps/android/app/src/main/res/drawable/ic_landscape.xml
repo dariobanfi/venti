@@ -1,9 +1,13 @@
+<!-- Lucide "mountain", lucide-static 0.460.0, ISC licence. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="960"
-    android:viewportHeight="960">
+    android:viewportWidth="24"
+    android:viewportHeight="24">
   <path
-      android:fillColor="#FF000000"
-      android:pathData="M40,720L280,400L460,640L760,640L560,374L460,506L410,440L560,240L920,720L40,720ZM561,640L561,640L561,640L561,640L561,640ZM200,640L360,640L280,533L200,640ZM200,640L280,640L360,640L200,640Z"/>
+      android:pathData="m8 3 4 8 5-5 5 15H2L8 3z"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"/>
 </vector>

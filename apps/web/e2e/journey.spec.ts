@@ -52,7 +52,9 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await expect(page.getByText('12:30 – 12:59 · Sample Wing')).toBeVisible();
 	await expect(metric(totals, 'Airtime')).toHaveText('0:29 h');
-	await expect(metric(totals, 'Track')).toHaveText('18.4 km');
+	// The flight in one number: its scored distance, in the hero style.
+	await expect(page.getByLabel('Distance: 12.0 kilometres')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Free flight, Sat, 4 Jul 2026' })).toBeVisible();
 	await expect(metric(totals, 'Highest')).toHaveText('2,117 m');
 	await expect(metric(totals, 'Best climb')).toHaveText('+2.4 m/s');
 	await expect(page.getByRole('img', { name: /Track colours/ })).toBeVisible();
@@ -307,8 +309,6 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	await more.focus();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('menuitem', { name: 'Share with a link' })).toBeFocused();
-	await page.keyboard.press('ArrowDown');
-	await expect(page.getByRole('menuitem', { name: 'Send to a league' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Lay another flight beside it' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');

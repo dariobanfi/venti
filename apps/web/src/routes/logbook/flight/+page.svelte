@@ -49,7 +49,6 @@
 	/** What can be done with the flight besides looking at it. */
 	const actions: MenuItem[] = [
 		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
-		{ label: 'Send to a league', icon: 'league', onselect: () => void sendToALeague() },
 		{ label: 'Lay another flight beside it', icon: 'track', onselect: () => (choosing = true) },
 		{ label: 'Download flight file', icon: 'download', onselect: () => void downloadFlight() },
 		{
@@ -190,6 +189,7 @@
 			inLogbook
 			{beside}
 			onendbeside={() => layBeside(undefined)}
+			onleague={() => void sendToALeague()}
 		/>
 		<CompareChooser
 			open={choosing}

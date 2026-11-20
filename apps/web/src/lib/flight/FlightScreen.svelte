@@ -52,10 +52,22 @@
 		beside?: Beside;
 		/** Takes the second flight away again. */
 		onendbeside?: () => void;
+		/** Hands the flight to a league: for a flight of the pilot's own. */
+		onleague?: () => void;
 	}
 
-	let { flight, analysis, wide, back, actions, inLogbook, whose, beside, onendbeside }: Props =
-		$props();
+	let {
+		flight,
+		analysis,
+		wide,
+		back,
+		actions,
+		inLogbook,
+		whose,
+		beside,
+		onendbeside,
+		onleague
+	}: Props = $props();
 
 	const app = getApp();
 	const text = format();
@@ -256,6 +268,8 @@
 					{whose}
 					{beside}
 					onbeside={() => (sideBySide = true)}
+					score={analysis?.score}
+					{onleague}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
 				/>
 			</div>

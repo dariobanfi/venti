@@ -8,7 +8,7 @@
 	to the totals.
 -->
 <script lang="ts">
-	import type { FlightView, GroundUnderFlight } from '#lib/core/index.ts';
+	import type { FlightScore, FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
@@ -33,6 +33,10 @@
 		beside?: Beside;
 		/** Opens the two flights side by side in numbers. */
 		onbeside?: () => void;
+		/** How the flight scores, once worked out: its distance is the flight's one number. */
+		score?: FlightScore;
+		/** Hands the flight to a league: for a flight of the pilot's own. */
+		onleague?: () => void;
 	}
 
 	let {
@@ -43,8 +47,22 @@
 		ondetails,
 		whose,
 		beside,
-		onbeside
+		onbeside,
+		score,
+		onleague
 	}: Props = $props();
+
+	/** What kind of flight it was, by its score, and the day: "FAI triangle, Sat, 4 Jul 2026". */
+	const kindAndDay = $derived.by(() => {
+		const day = text.day(flight.startUnixS);
+		if (!score) return day;
+		const kind = {
+			freeFlight: 'Free flight',
+			freeTriangle: score.closed ? 'Closed triangle' : 'Triangle',
+			faiTriangle: score.closed ? 'Closed FAI triangle' : 'FAI triangle'
+		}[score.kind];
+		return `${kind}, ${day}`;
+	});
 
 	const text = format();
 	const moment = $derived(cursor === undefined ? undefined : flight.track[cursor]);
@@ -61,7 +79,17 @@
 			{#if whose}
 				<a class="whose" href={whose.href}>{whose.name}</a>
 			{/if}
-			<h1>{text.day(flight.startUnixS)}</h1>
+			<!-- The flight in one number, as the logbook's list has it: the
+			     scored distance, or the track's length until it is scored. -->
+			<p
+				class="hero numeric"
+				aria-label="{score ? 'Distance' : 'Track'}: {text.kilometres(
+					score?.distanceM ?? flight.trackLengthM
+				)} kilometres"
+			>
+				{text.kilometres(score?.distanceM ?? flight.trackLengthM)}<small>km</small>
+			</p>
+			<h1>{kindAndDay}</h1>
 			<p>{flight.glider ? `${times} · ${flight.glider}` : times}</p>
 		</div>
 		{#if moment}
@@ -120,31 +148,37 @@
 			<Metric caption="Climb" value={text.climb(moment.climbMs)} unit="m/s" />
 		{:else}
 			<Metric caption="Airtime" value={text.hoursMinutes(flight.durationS)} unit="h" />
-			<Metric caption="Track" value={text.kilometres(flight.trackLengthM)} unit="km" />
 			<Metric caption="Highest" value={text.metres(flight.maxAltitudeM)} unit="m" />
 			<Metric caption="Best climb" value={text.climb(flight.maxClimbMs)} unit="m/s" />
 		{/if}
 	</dl>
 
-	<div class="profile">
-		<AltitudeChart {flight} {ground} bind:cursor other={beside} />
-	</div>
-	{#if beside}
-		<!-- Whose the second line is, and where its glider was at the marked moment. -->
-		<button class="beside" type="button" onclick={onbeside}>
-			<span class="swatch" aria-hidden="true"></span>
-			<span class="who">
-				<span class="name">{beside.name}</span>
-				<span class="said" aria-live={playing ? 'off' : 'polite'}>
-					{cursor === undefined
-						? beside.comparison.words
-						: otherInWords(beside, flight.track[cursor], text)}
+	<div class="chart-card">
+		<div class="profile">
+			<AltitudeChart {flight} {ground} bind:cursor other={beside} />
+		</div>
+		{#if beside}
+			<!-- Whose the second line is, and where its glider was at the marked moment. -->
+			<button class="beside" type="button" onclick={onbeside}>
+				<span class="swatch" aria-hidden="true"></span>
+				<span class="who">
+					<span class="name">{beside.name}</span>
+					<span class="said" aria-live={playing ? 'off' : 'polite'}>
+						{cursor === undefined
+							? beside.comparison.words
+							: otherInWords(beside, flight.track[cursor], text)}
+					</span>
 				</span>
-			</span>
-			<span class="open">Side by side</span>
+				<span class="open">Side by side</span>
+			</button>
+		{/if}
+		<ClimbLegend />
+	</div>
+	{#if onleague}
+		<button class="button-prominent league" type="button" onclick={onleague}>
+			Send to a league
 		</button>
 	{/if}
-	<ClimbLegend />
 </div>
 
 <style>
@@ -213,9 +247,39 @@
 		min-width: 0;
 	}
 
+	/* The pack's hero style, in rem so that the reader's text size counts. */
+	.when .hero {
+		font-size: 2.25rem;
+		white-space: nowrap;
+		font-style: italic;
+		font-weight: 900;
+		line-height: 1.05;
+		letter-spacing: -0.01em;
+		color: var(--text);
+	}
+
+	.hero small {
+		margin-left: 0.15em;
+		font-size: 0.6em;
+	}
+
 	h1 {
 		font-size: var(--body);
-		font-weight: 600;
+		font-weight: 500;
+	}
+
+	/* The altitude profile and its legend, on a card of their own. */
+	.chart-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 0.75rem;
+		border: 1px solid var(--separator);
+		border-radius: var(--radius-card);
+	}
+
+	.league {
+		width: 100%;
 	}
 
 	/* Whose flight it is, for another pilot's: over the day, and the way to

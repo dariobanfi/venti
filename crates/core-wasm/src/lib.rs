@@ -12,10 +12,11 @@
 //! core, [`LiveFollow`] is the core's reader of one live track, and
 //! [`Terrain`] its reader of the map's elevation tiles.
 //!
-//! The core never talks to a server. For the pilot's account it hands out a
-//! [`ServerRequest`] and reads the answer; the page sends the request in
-//! between and keeps the session token. Keeping the logbook in step with
-//! the server is a run of such requests, [`FlightSync`].
+//! The core never talks to a server. For the pilot's account, and for the
+//! pilot's groups and their plans, it hands out a [`ServerRequest`] and
+//! reads the answer; the page sends the request in between and keeps the
+//! session token. Keeping the logbook in step with the server is a run of
+//! such requests, [`FlightSync`].
 //!
 //! What differs in a browser is storage. A page cannot read or write
 //! anything without waiting, and the core's interface does not wait. So the
@@ -44,11 +45,11 @@ use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ForecastView, GroundUnderFlight, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap,
-    LogbookStatistics, LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder,
-    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap,
-    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint,
-    WindMap,
+    ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
+    KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics, LogbookView, PilotPage, PlanBoard,
+    PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, ReportForm, ReportReason,
+    ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory,
+    Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -478,6 +479,225 @@ impl Core {
             .call(|core| Ok(core.airspace()?.in_area(area)))
             .map_err(thrown)?;
         shapes.iter().map(to_js).collect()
+    }
+
+    // Groups of pilots and the plans their members make for a flying day,
+    // on the Venti server. The core says what to send and reads the answer;
+    // the page sends it with the session token. Nothing of it is kept.
+    //
+    // Every request is refused in words while this browser is signed out.
+    // The list of the pilot's groups alone (`groups_request`) is not bound:
+    // the board carries the groups, and no page asks for them without it.
+
+    /// The request for the plans of every group the pilot is in, from a
+    /// day on and, if given, up to one: both written `2026-11-21`. The
+    /// first day is the pilot's own today, which the browser knows and the
+    /// server does not.
+    #[wasm_bindgen(js_name = planBoardRequest)]
+    pub fn plan_board_request(
+        &self,
+        from_day: String,
+        to_day: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.plan_board_request(from_day, to_day))
+    }
+
+    /// Reads the server's answer to `planBoardRequest`: the pilot's groups
+    /// and their plans, day by day.
+    #[wasm_bindgen(js_name = planBoard)]
+    pub fn plan_board(&self, status: u16, body: Vec<u8>) -> Result<Ts<PlanBoard>, JsValue> {
+        let board = self
+            .session
+            .call_as_the_pilot(|core| core.plan_board(status, body))
+            .map_err(thrown)?;
+        to_js(&board)
+    }
+
+    /// The request that makes a group, with the pilot as its keeper.
+    #[wasm_bindgen(js_name = createGroupRequest)]
+    pub fn create_group_request(&self, name: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.create_group_request(name))
+    }
+
+    /// Reads the server's answer to `createGroupRequest`: the group and
+    /// its invite code, which the server shows this once.
+    #[wasm_bindgen(js_name = groupMade)]
+    pub fn group_made(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupMade>, JsValue> {
+        let made = self
+            .session
+            .call_as_the_pilot(|core| core.group_made(status, body))
+            .map_err(thrown)?;
+        to_js(&made)
+    }
+
+    /// The request that takes the pilot into the group an invite code
+    /// belongs to. Hyphens, spaces and capitals in the code do not matter.
+    #[wasm_bindgen(js_name = joinGroupRequest)]
+    pub fn join_group_request(&self, code: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.join_group_request(code))
+    }
+
+    /// Reads the server's answer to `joinGroupRequest`.
+    #[wasm_bindgen(js_name = groupJoined)]
+    pub fn group_joined(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupJoined>, JsValue> {
+        let joined = self
+            .session
+            .call_as_the_pilot(|core| core.group_joined(status, body))
+            .map_err(thrown)?;
+        to_js(&joined)
+    }
+
+    /// The request for one group with its members.
+    #[wasm_bindgen(js_name = groupRequest)]
+    pub fn group_request(&self, id: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.group_request(id))
+    }
+
+    /// Reads a group with its members: the server's answer to
+    /// `groupRequest`, `renameGroupRequest` and `handOverGroupRequest`.
+    pub fn group(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupDetail>, JsValue> {
+        let detail = self
+            .session
+            .call_as_the_pilot(|core| core.group(status, body))
+            .map_err(thrown)?;
+        to_js(&detail)
+    }
+
+    /// The request that renames a group. Its keeper's to send.
+    #[wasm_bindgen(js_name = renameGroupRequest)]
+    pub fn rename_group_request(
+        &self,
+        id: String,
+        name: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.rename_group_request(id, name))
+    }
+
+    /// The request that hands the keeping of a group to another member.
+    /// Its keeper's to send.
+    #[wasm_bindgen(js_name = handOverGroupRequest)]
+    pub fn hand_over_group_request(
+        &self,
+        id: String,
+        handle: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.hand_over_group_request(id, handle))
+    }
+
+    /// The request that makes a new invite code for a group. The code
+    /// before it stops working. Its keeper's to send.
+    #[wasm_bindgen(js_name = newGroupInviteRequest)]
+    pub fn new_group_invite_request(&self, id: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.new_group_invite_request(id))
+    }
+
+    /// Reads the server's answer to `newGroupInviteRequest`: the new code,
+    /// shown this once.
+    #[wasm_bindgen(js_name = groupInvite)]
+    pub fn group_invite(&self, status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+        self.session.core.group_invite(status, body).map_err(thrown)
+    }
+
+    /// The request that takes the pilot out of a group. What the pilot put
+    /// into it goes with them: their plans, and their word on the plans of
+    /// others.
+    #[wasm_bindgen(js_name = leaveGroupRequest)]
+    pub fn leave_group_request(&self, id: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.leave_group_request(id))
+    }
+
+    /// The request that removes a member from a group. Its keeper's to
+    /// send; it also ends the invite code, which the removed member knows.
+    #[wasm_bindgen(js_name = removeGroupMemberRequest)]
+    pub fn remove_group_member_request(
+        &self,
+        id: String,
+        handle: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.remove_group_member_request(id, handle))
+    }
+
+    /// The request that deletes a group with everything in it. Its
+    /// keeper's to send.
+    #[wasm_bindgen(js_name = deleteGroupRequest)]
+    pub fn delete_group_request(&self, id: String) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.delete_group_request(id))
+    }
+
+    /// Reads the server's answer to a request that gives nothing back:
+    /// leaving, removing a member, deleting a group or a plan.
+    #[wasm_bindgen(js_name = groupDone)]
+    pub fn group_done(&self, status: u16, body: Vec<u8>) -> Result<(), JsValue> {
+        self.session.core.group_done(status, body).map_err(thrown)
+    }
+
+    /// The request that posts a plan to a group. Its author is in from the
+    /// start.
+    #[wasm_bindgen(js_name = postPlanRequest)]
+    pub fn post_plan_request(
+        &self,
+        group: String,
+        draft: Ts<PlanDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.post_plan_request(group, draft))
+    }
+
+    /// The request that changes a plan: the whole plan as it is to be. Its
+    /// author's to send.
+    #[wasm_bindgen(js_name = changePlanRequest)]
+    pub fn change_plan_request(
+        &self,
+        group: String,
+        plan: String,
+        draft: Ts<PlanDraft>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let draft = from_js(&draft)?;
+        self.request(|core| core.change_plan_request(group, plan, draft))
+    }
+
+    /// The request that deletes a plan. Its author's and the group's
+    /// keeper's to send.
+    #[wasm_bindgen(js_name = deletePlanRequest)]
+    pub fn delete_plan_request(
+        &self,
+        group: String,
+        plan: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.delete_plan_request(group, plan))
+    }
+
+    /// The request that says the pilot is in on a plan, or takes that back.
+    #[wasm_bindgen(js_name = planInRequest)]
+    pub fn plan_in_request(
+        &self,
+        group: String,
+        plan: String,
+        is_in: bool,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.plan_in_request(group, plan, is_in))
+    }
+
+    /// Reads one plan: the server's answer to posting it, changing it and
+    /// to the pilot's word on it. The group's name is not in such an
+    /// answer.
+    pub fn plan(&self, status: u16, body: Vec<u8>) -> Result<Ts<PlanView>, JsValue> {
+        let plan = self
+            .session
+            .call_as_the_pilot(|core| core.plan(status, body))
+            .map_err(thrown)?;
+        to_js(&plan)
+    }
+}
+
+impl Core {
+    /// One of the core's requests about the pilot's groups. Each of them
+    /// reads the account first, which may have to be fetched.
+    fn request(
+        &self,
+        make: impl FnOnce(&venti_core::Core) -> Result<ServerRequest, CoreError>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        to_js(&self.session.call(make).map_err(thrown)?)
     }
 }
 
@@ -962,6 +1182,21 @@ impl Session {
         settle(&self.staged, call(&self.core))
     }
 
+    /// Reads an answer in which the pilot is "you": an answer about the
+    /// pilot's groups and their plans. Who that is, is the handle of the
+    /// account, so the account is looked at first. The core's own readers
+    /// take "not fetched from the store yet" for "signed out", and would
+    /// call no plan the pilot's own and no group one the pilot keeps.
+    fn call_as_the_pilot<T>(
+        &self,
+        read: impl FnOnce(&venti_core::Core) -> Result<T, CoreError>,
+    ) -> Result<T, CoreError> {
+        self.call(|core| {
+            core.account()?;
+            read(core)
+        })
+    }
+
     /// Takes in the flight files fetched since the last time and drops them
     /// from memory. Files still not fetched are wanted again, which is how
     /// the page learns what is left.
@@ -1219,6 +1454,80 @@ mod tests {
             .call(|core| core.flight_airspace(id.clone()))
             .unwrap_err();
         assert_eq!(session.staged.take_wanted(), [format!("flights/{id}.igc")]);
+    }
+
+    /// One of the server's own recorded answers.
+    fn recorded(name: &str) -> Vec<u8> {
+        std::fs::read(format!(
+            "{}/../server/tests/golden/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn the_pilot_is_you_on_the_board_also_while_the_account_has_yet_to_be_fetched() {
+        let mut store = Store::new();
+        let session = open(&store);
+        session
+            .call(|core| {
+                core.signed_in(
+                    "https://venti.example".to_owned(),
+                    201,
+                    recorded("sign_in.json"),
+                )
+            })
+            .unwrap();
+        commit(&session.staged, &mut store);
+
+        // A reload: the account is in the store and not in memory.
+        let session = open(&store);
+        let board = recorded("plan_board.json");
+
+        // Read as the core reads it by itself, the demo pilot is nobody:
+        // the plan they posted is not theirs, and they are not in on it.
+        let unknowing = session
+            .call(|core| core.plan_board(200, board.clone()))
+            .unwrap();
+        assert!(!unknowing.days[0].plans[0].is_mine);
+        assert!(!unknowing.groups[0].is_kept_by_me);
+        // The account was wanted, but a call that succeeds is not made
+        // again for it.
+        assert_eq!(session.staged.take_wanted().len(), 1);
+
+        // Read as the binding reads it, the account is asked for first.
+        let error = session
+            .call_as_the_pilot(|core| core.plan_board(200, board.clone()))
+            .unwrap_err();
+        assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Storage);
+        assert_eq!(fetch(&session.staged, &store, usize::MAX), 1);
+        let board = session
+            .call_as_the_pilot(|core| core.plan_board(200, board.clone()))
+            .unwrap();
+        let plan = &board.days[0].plans[0];
+        assert!(plan.is_mine && plan.am_in && plan.can_delete);
+        assert_eq!(plan.in_words, "You, Mara Muster and Jonas Beispiel");
+        assert!(board.groups[0].is_kept_by_me);
+        assert_eq!(board.groups[0].summary, "3 members · kept by you");
+
+        // A request about a group reads the account too, and is refused
+        // in words in a browser that is signed out.
+        session
+            .call(|core| core.plan_board_request("2026-11-18".to_owned(), None))
+            .unwrap_err();
+        assert_eq!(fetch(&session.staged, &store, usize::MAX), 1);
+        let request = session
+            .call(|core| core.plan_board_request("2026-11-18".to_owned(), None))
+            .unwrap();
+        assert_eq!(request.path, "/v1/groups/plans?from=2026-11-18");
+        assert!(request.needs_token);
+
+        let signed_out = open(&Store::new());
+        let error = signed_out
+            .call(|core| core.plan_board_request("2026-11-18".to_owned(), None))
+            .unwrap_err();
+        assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Server);
+        assert_eq!(error.to_string(), "This device is not signed in.");
     }
 
     #[test]

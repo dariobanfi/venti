@@ -9,11 +9,13 @@
 	import { asset } from '$app/paths';
 	import { page } from '$app/state';
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
-	import { logbookHref, mapHref, settingsHref } from './routes';
+	import { logbookHref, mapHref, plansHref, settingsHref } from './routes';
 
 	const sections: { name: string; icon: IconName; href: () => string; root: string }[] = [
 		{ name: 'Map', icon: 'map', href: mapHref, root: '/' },
 		{ name: 'Logbook', icon: 'book', href: logbookHref, root: '/logbook' },
+		// Who means to fly where: the plans of the pilot's groups.
+		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans' },
 		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings' }
 	];
 
@@ -71,9 +73,17 @@
 		display: flex;
 		gap: 0.125rem;
 		height: var(--nav-height);
+		/* Four sections fit a phone's width. On a narrower screen, or with
+		   larger text, they share what there is. */
+		width: min(20.5rem, 100% - 1.5rem);
 		padding: 0.25rem;
 		border-radius: 999px;
 		pointer-events: auto;
+	}
+
+	li {
+		flex: 1 1 0;
+		min-width: 0;
 	}
 
 	a {
@@ -82,12 +92,18 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.0625rem;
-		min-width: 5.5rem;
 		height: 100%;
-		padding: 0 0.75rem;
+		padding: 0 0.25rem;
 		border-radius: 999px;
 		font-size: var(--caption);
 		font-weight: 600;
+	}
+
+	a span:last-child {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	/* Where the pilot is: a filled shape and an accent icon. The name stays
@@ -134,6 +150,7 @@
 		ul.glass {
 			flex-direction: column;
 			gap: 0.375rem;
+			width: auto;
 			height: auto;
 			padding: 0;
 			border: 0;
@@ -144,8 +161,11 @@
 			backdrop-filter: none;
 		}
 
+		li {
+			flex: none;
+		}
+
 		a {
-			min-width: 0;
 			width: 4.5rem;
 			height: 3.75rem;
 			padding: 0;

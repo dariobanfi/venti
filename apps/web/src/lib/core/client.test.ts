@@ -5,6 +5,7 @@ import { CommunitySource } from './community-source';
 import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { ForecastSource } from './forecast-source';
+import { GroupsSource } from './groups-source';
 import { LiveSource } from './live-source';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
@@ -49,6 +50,7 @@ class SameProcess implements Channel {
 						forecast: new ForecastSource(async () => false),
 						live: new LiveSource(async () => false),
 						community: new CommunitySource(async () => false),
+						groups: new GroupsSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable)
 					},
@@ -174,6 +176,28 @@ describe('the core as the page calls it', () => {
 		await expect(core.signIn('demo', 'demo-pilot-password')).rejects.toThrow(
 			'No server in this test.'
 		);
+	});
+
+	it('has no groups and no plans to ask for until the pilot signs in', async () => {
+		const { core } = await open();
+
+		// Refused by the core, in words, before any server is asked.
+		await expect(core.planBoard('2026-11-20')).rejects.toMatchObject({
+			name: 'Server',
+			message: 'This device is not signed in.'
+		});
+		await expect(core.joinGroup('5555-5555-5555-5555')).rejects.toThrow(
+			'This device is not signed in.'
+		);
+		await expect(
+			core.postPlan('44444444444444444444444444', {
+				day: '2026-11-21',
+				place: 'Musterberg',
+				position: undefined,
+				meetAt: undefined,
+				note: ''
+			})
+		).rejects.toThrow('This device is not signed in.');
 	});
 
 	it('hands a flight’s track over for the ground under it, and has none without tiles', async () => {

@@ -11,6 +11,7 @@ import type {
 	Bounds,
 	Coordinate,
 	FlightVisibility,
+	PlanDraft,
 	ReportReason,
 	ReportSubject
 } from './pkg/venti_core_wasm.js';
@@ -238,6 +239,72 @@ export class CoreClient {
 	 */
 	report(subject: ReportSubject, reason: ReportReason, text: string) {
 		return this.#call('report', { subject, reason, text });
+	}
+
+	/**
+	 * The pilot's groups and their plans from a day on: the board.
+	 * `fromDay` is the pilot's own today, written `2026-11-21`.
+	 */
+	planBoard(fromDay: string) {
+		return this.#call('planBoard', fromDay);
+	}
+
+	/** Makes a group, kept by the pilot. The answer has its invite code, this once. */
+	makeGroup(name: string) {
+		return this.#call('makeGroup', name);
+	}
+
+	/** Takes the pilot into the group an invite code belongs to. */
+	joinGroup(code: string) {
+		return this.#call('joinGroup', code);
+	}
+
+	/** One group with its members. */
+	group(id: string) {
+		return this.#call('group', id);
+	}
+
+	renameGroup(id: string, name: string) {
+		return this.#call('renameGroup', { id, name });
+	}
+
+	/** Hands the keeping of a group to another member. */
+	handOverGroup(id: string, handle: string) {
+		return this.#call('handOverGroup', { id, handle });
+	}
+
+	/** A new invite code for a group. The one before it stops working. */
+	newGroupInvite(id: string) {
+		return this.#call('newGroupInvite', id);
+	}
+
+	removeGroupMember(id: string, handle: string) {
+		return this.#call('removeGroupMember', { id, handle });
+	}
+
+	leaveGroup(id: string) {
+		return this.#call('leaveGroup', id);
+	}
+
+	deleteGroup(id: string) {
+		return this.#call('deleteGroup', id);
+	}
+
+	postPlan(group: string, draft: PlanDraft) {
+		return this.#call('postPlan', { group, draft });
+	}
+
+	changePlan(group: string, plan: string, draft: PlanDraft) {
+		return this.#call('changePlan', { group, plan, draft });
+	}
+
+	deletePlan(group: string, plan: string) {
+		return this.#call('deletePlan', { group, plan });
+	}
+
+	/** Says that the pilot is in on a plan, or takes that back. */
+	planIn(group: string, plan: string, isIn: boolean) {
+		return this.#call('planIn', { group, plan, isIn });
 	}
 
 	/** Takes in an airspace file. Its bytes are handed over, not copied. */

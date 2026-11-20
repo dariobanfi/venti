@@ -283,45 +283,6 @@
 		font-size: 0.875em;
 	}
 
-	/* A switch: the browser's checkbox, drawn as the iPhone draws its toggle. */
-	.toggle {
-		cursor: pointer;
-	}
-
-	.toggle input {
-		appearance: none;
-		flex: none;
-		position: relative;
-		width: 3.1875rem;
-		height: 1.9375rem;
-		margin: 0;
-		border-radius: 999px;
-		background: var(--fill-strong);
-		cursor: pointer;
-		transition: background 0.2s;
-	}
-
-	.toggle input::after {
-		content: '';
-		position: absolute;
-		top: 0.125rem;
-		left: 0.125rem;
-		width: 1.6875rem;
-		height: 1.6875rem;
-		border-radius: 50%;
-		background: #ffffff;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
-		transition: transform 0.2s;
-	}
-
-	.toggle input:checked {
-		background: var(--accent);
-	}
-
-	.toggle input:checked::after {
-		transform: translateX(1.25rem);
-	}
-
 	/* Dragging files is something a mouse does. */
 	.with-mouse {
 		display: none;

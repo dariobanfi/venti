@@ -24,6 +24,8 @@
  *   server when the core says it is time, for the core to keep.
  * - `community-source.ts` asks it for the flights other pilots share with
  *   everyone, and fetches one of them to show.
+ * - `groups-source.ts` talks to it about the pilot's groups and their plans
+ *   for a flying day, from the pilot's account.
  * - `terrain-source.ts` fetches the map's elevation tiles under a flight,
  *   from the map's tile server, for the core to read the ground from.
  */
@@ -58,6 +60,11 @@ export type {
 	GliderStatistics,
 	GlideSummary,
 	GroundUnderFlight,
+	GroupDetail,
+	GroupJoined,
+	GroupMade,
+	GroupMember,
+	GroupView,
 	ImportedFlight,
 	KeptAirspace,
 	LiveFollowView,
@@ -70,6 +77,10 @@ export type {
 	ModelForecast,
 	MonthStatistics,
 	PilotPage,
+	PlanBoard,
+	PlanDay,
+	PlanDraft,
+	PlanView,
 	ProfilePoint,
 	PublicFlight,
 	PublicFlights,

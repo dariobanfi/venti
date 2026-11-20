@@ -1,8 +1,8 @@
 /**
  * What the app holds for as long as the page is open: the logbook, the
- * wind, the flying sites, who is in the air, the pilot's account and
- * airspace, once the core has started, and whatever the pilot has to be
- * told.
+ * wind, the flying sites, who is in the air, the pilot's account, groups
+ * and airspace, once the core has started, and whatever the pilot has to
+ * be told.
  *
  * It is created once, in the root layout, and reached from every screen
  * through {@link getApp}.
@@ -22,6 +22,7 @@ import {
 	type GroundUnderFlight
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
+import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import {
 	flightToShow,
 	importNotice,
@@ -52,6 +53,12 @@ export class App {
 
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
+
+	/**
+	 * The pilot's groups and their plans for a flying day. Nothing until
+	 * the core has started.
+	 */
+	groups = $state.raw<GroupsModel>();
 
 	/** The pilot's airspace, for the maps. Nothing until the core has started. */
 	airspace = $state.raw<AirspaceModel>();
@@ -90,6 +97,7 @@ export class App {
 				};
 				this.logbook = logbook;
 				this.account = account;
+				this.groups = new GroupsModel(core, account);
 				this.airspace = airspace;
 			})
 			.catch((error) => {

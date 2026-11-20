@@ -27,11 +27,17 @@ import type {
 	FlightVisibility,
 	ForecastView,
 	GroundUnderFlight,
+	GroupDetail,
+	GroupJoined,
+	GroupMade,
 	ImportedFlight,
 	KeptAirspace,
 	LogbookStatistics,
 	LogbookView,
 	PilotPage,
+	PlanBoard,
+	PlanDraft,
+	PlanView,
 	PublicFlights,
 	Registration,
 	ReportForm,
@@ -41,6 +47,7 @@ import type {
 	StationHistory
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
+import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
@@ -138,6 +145,33 @@ export interface Calls {
 		given: { subject: ReportSubject; reason: ReportReason; text: string };
 		answer: string;
 	};
+	/**
+	 * The pilot's groups and their plans from a day on: the board. Given
+	 * the pilot's own today, written `2026-11-21`. This and the calls after
+	 * it, down to `planIn`, are sent from the pilot's account and fail in
+	 * the core's words where the server refuses.
+	 */
+	planBoard: { given: string; answer: PlanBoard };
+	/** Given a name: makes a group. The answer has its invite code, this once. */
+	makeGroup: { given: string; answer: GroupMade };
+	/** Given an invite code: takes the pilot into its group. */
+	joinGroup: { given: string; answer: GroupJoined };
+	/** Given a group's identifier: the group with its members. */
+	group: { given: string; answer: GroupDetail };
+	renameGroup: { given: { id: string; name: string }; answer: GroupDetail };
+	/** Hands the keeping of a group to the member of that handle. */
+	handOverGroup: { given: { id: string; handle: string }; answer: GroupDetail };
+	/** Given a group's identifier: a new invite code, which ends the one before. */
+	newGroupInvite: { given: string; answer: string };
+	removeGroupMember: { given: { id: string; handle: string }; answer: undefined };
+	/** Given a group's identifier: takes the pilot out of it. */
+	leaveGroup: { given: string; answer: undefined };
+	deleteGroup: { given: string; answer: undefined };
+	postPlan: { given: { group: string; draft: PlanDraft }; answer: PlanView };
+	changePlan: { given: { group: string; plan: string; draft: PlanDraft }; answer: PlanView };
+	deletePlan: { given: { group: string; plan: string }; answer: undefined };
+	/** Says that the pilot is in on a plan, or takes that back. */
+	planIn: { given: { group: string; plan: string; isIn: boolean }; answer: PlanView };
 	/** An airspace file's name and bytes, as the pilot picked or dropped it. */
 	importAirspace: { given: { name: string; bytes: ArrayBuffer }; answer: AirspaceImport };
 	airspaceFiles: { given: undefined; answer: AirspaceFile[] };
@@ -185,12 +219,24 @@ export interface Answering {
 	forecast: ForecastSource;
 	live: LiveSource;
 	community: CommunitySource;
+	groups: GroupsSource;
 	terrain: TerrainSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace, sites, forecast, live, community, terrain }: Answering,
+	{
+		session,
+		wind,
+		account,
+		airspace,
+		sites,
+		forecast,
+		live,
+		community,
+		groups,
+		terrain
+	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -228,6 +274,20 @@ export async function answer<Name extends CallName>(
 		shareFlight: ({ id, visibility }) => account.share(id, visibility),
 		reportForm: () => account.reportForm(),
 		report: ({ subject, reason, text }) => account.report(subject, reason, text),
+		planBoard: (fromDay) => groups.board(fromDay),
+		makeGroup: (name) => groups.make(name),
+		joinGroup: (code) => groups.join(code),
+		group: (id) => groups.group(id),
+		renameGroup: ({ id, name }) => groups.rename(id, name),
+		handOverGroup: ({ id, handle }) => groups.handOver(id, handle),
+		newGroupInvite: (id) => groups.newInvite(id),
+		removeGroupMember: ({ id, handle }) => groups.remove(id, handle),
+		leaveGroup: (id) => groups.leave(id),
+		deleteGroup: (id) => groups.delete(id),
+		postPlan: ({ group, draft }) => groups.postPlan(group, draft),
+		changePlan: ({ group, plan, draft }) => groups.changePlan(group, plan, draft),
+		deletePlan: ({ group, plan }) => groups.deletePlan(group, plan),
+		planIn: ({ group, plan, isIn }) => groups.setIn(group, plan, isIn),
 		importAirspace: ({ name, bytes }) =>
 			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
 		airspaceFiles: () => session.airspaceFiles(),

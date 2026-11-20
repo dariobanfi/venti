@@ -55,6 +55,17 @@ export interface Format {
 	weekdayAndDay(unixSeconds: number): string;
 	/** The hour of the day where the reader is, for the head of a column: "9", "14". */
 	hourOfDay(unixSeconds: number): string;
+	/**
+	 * A day of the calendar by its weekday and date: "Saturday, 21 Nov". It
+	 * is a date as written at a place, not a moment, so it reads the same
+	 * in every time zone.
+	 */
+	calendarDay(year: number, month: number, day: number): string;
+	/**
+	 * A place in degrees with four decimals, which is to about ten metres:
+	 * "47.6642° N, 11.7967° E".
+	 */
+	place(lat: number, lon: number): string;
 }
 
 /**
@@ -100,6 +111,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const signedWhole = number(0, { signDisplay: 'exceptZero' });
 	const percent = number(0, { style: 'percent' });
 	const hundredths = number(2);
+	const tenThousandths = number(4);
 	const plain = new Intl.NumberFormat(locale);
 	const at = (unixSeconds: number) => new Date(unixSeconds * 1000);
 	// The core counts months in UTC. The middle of a month is in that month
@@ -111,6 +123,13 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		timeZone: 'UTC'
 	});
 	const midMonth = (year: number, month: number) => new Date(Date.UTC(year, month - 1, 15));
+	const calendarDay = new Intl.DateTimeFormat(locale, {
+		weekday: 'long',
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+		timeZone: 'UTC'
+	});
 	// Always the English "and": the app's words are English whatever the region.
 	const list = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 	const secondsIntoDay = (unixSeconds: number) => {
@@ -149,6 +168,12 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		list: (items) => list.format(items),
 		weekdayAndDay: (unixSeconds) => weekdayAndDay.format(at(unixSeconds)),
 		hourOfDay: (unixSeconds) => String(Math.floor(secondsIntoDay(unixSeconds) / 3600)),
+		// Noon of that date in UTC is that date in UTC, whatever the reader's zone.
+		place: (lat, lon) =>
+			`${tenThousandths.format(Math.abs(lat))}° ${lat < 0 ? 'S' : 'N'}, ` +
+			`${tenThousandths.format(Math.abs(lon))}° ${lon < 0 ? 'W' : 'E'}`,
+		calendarDay: (year, month, day) =>
+			withoutYear(calendarDay.formatToParts(new Date(Date.UTC(year, month - 1, day, 12)))),
 		secondsIntoDay
 	};
 }

@@ -51,6 +51,19 @@ describe('dates and times', () => {
 		expect(american.monthName(2026, 1)).toBe('January 2026');
 	});
 
+	it('writes a day of the calendar with its weekday in full, the same in every time zone', () => {
+		// A date as written at a place, not a moment: no zone moves it.
+		expect(british.calendarDay(2026, 11, 21)).toBe('Saturday, 21 Nov');
+		expect(american.calendarDay(2026, 11, 21)).toBe('Saturday, Nov 21');
+		expect(createFormat('en-NZ', 'Pacific/Auckland').calendarDay(2027, 1, 1)).toBe('Friday, 1 Jan');
+		expect(createFormat('en-US', 'Pacific/Honolulu').calendarDay(2027, 1, 1)).toBe('Friday, Jan 1');
+	});
+
+	it('writes a place in degrees to about ten metres', () => {
+		expect(british.place(47.6642, 11.7967)).toBe('47.6642° N, 11.7967° E');
+		expect(british.place(-33.86785, -70.5)).toBe('33.8679° S, 70.5000° W');
+	});
+
 	it('knows how far into the reader’s day a moment is', () => {
 		expect(british.secondsIntoDay(TAKE_OFF)).toBe(12 * 3600 + 30 * 60);
 		expect(american.secondsIntoDay(TAKE_OFF + 7)).toBe(4 * 3600 + 30 * 60 + 7);

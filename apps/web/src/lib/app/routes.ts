@@ -49,6 +49,26 @@ export function publicFlightHref(id: string): string {
 	return `${resolve('/logbook/everyone/flight')}?id=${encodeURIComponent(id)}`;
 }
 
+/** The board: who means to fly where, in the pilot's groups. */
+export function plansHref(): string {
+	return resolve('/plans');
+}
+
+/** One plan, by its identifier on the server. */
+export function planHref(id: string): string {
+	return `${resolve('/plans/plan')}?id=${encodeURIComponent(id)}`;
+}
+
+/** The pilot's groups. */
+export function groupsHref(): string {
+	return resolve('/plans/groups');
+}
+
+/** One group, by its identifier on the server. */
+export function groupHref(id: string): string {
+	return `${resolve('/plans/groups/group')}?id=${encodeURIComponent(id)}`;
+}
+
 export function flightHref(id: string): string {
 	return `${resolve('/logbook/flight')}?id=${encodeURIComponent(id)}`;
 }

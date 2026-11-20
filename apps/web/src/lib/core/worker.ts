@@ -8,6 +8,7 @@ import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
 import { CommunitySource } from './community-source';
 import { ForecastSource } from './forecast-source';
+import { GroupsSource } from './groups-source';
 import { IdbStore } from './idb-store';
 import { LiveSource } from './live-source';
 import init from './pkg/venti_core_wasm.js';
@@ -48,6 +49,7 @@ const starting: Promise<Answering> = (async () => {
 		forecast: new ForecastSource(() => wind.present()),
 		live: new LiveSource(() => wind.present()),
 		community: new CommunitySource(() => wind.present()),
+		groups: new GroupsSource(session),
 		terrain: new TerrainSource()
 	};
 })();

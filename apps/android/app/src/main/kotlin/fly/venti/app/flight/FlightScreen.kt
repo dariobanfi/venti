@@ -287,7 +287,7 @@ private fun TopButtons(
 }
 
 @Composable
-private fun Failure(message: String, modifier: Modifier = Modifier) {
+internal fun Failure(message: String, modifier: Modifier = Modifier) {
     Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
             painterResource(R.drawable.ic_warning),
@@ -317,7 +317,7 @@ private fun Failure(message: String, modifier: Modifier = Modifier) {
  * covers so the track is fitted into the part that shows.
  */
 @Composable
-private fun FlightDetail(
+internal fun FlightDetail(
     flight: FlightView,
     analysis: FlightAnalysis?,
     airspaceCheck: FlightAirspace?,

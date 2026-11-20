@@ -1153,6 +1153,72 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-age")) }
     }
 
+    /**
+     * Everyone's flights: with a server set, the Logbook tab also lists
+     * what the pilots of that server share with everyone, the newest first
+     * or the best. The development mode has five public flights of three
+     * made-up pilots. One opens like a flight of the logbook, from its
+     * file, and nothing of it is kept. Skipped without a server.
+     */
+    private fun lookAtEveryonesFlights(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+        tap(tab("Logbook"))
+        // The pilot's own logbook is empty. The switch is there because a
+        // server is set.
+        waitFor(hasText("No flights yet"))
+        waitFor(hasTestTag("logbook-everyone"))
+        tap(hasTestTag("logbook-everyone"))
+
+        // The newest first: the one of September, then August's.
+        val row = hasTestTag("public-flight-row")
+        waitFor(row)
+        assertTrue(exists(row and described("Jonas Beispiel")))
+        assertTrue(exists(row and described("Mara Muster")))
+        assertTrue(exists(row and described("Demo Pilot")))
+        assertTrue(screen.onAllNodes(row).fetchSemanticsNodes().first().config[SemanticsProperties.ContentDescription] == listOf("Jonas Beispiel"))
+        // Under the list: whose reckoning the distances and points are.
+        screen.onNode(hasTestTag("public-flights")).performScrollToNode(hasTestTag("public-flights-reckoning"))
+        assertTrue(exists(hasText("not a league's", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-everyone-1-newest")
+
+        // The best by points, from the top.
+        screen.onNode(hasTestTag("public-flights")).performScrollToNode(hasTestTag("public-flights-best"))
+        tap(hasTestTag("public-flights-best"))
+        waitFor(hasTestTag("public-flights-best") and isSelected())
+        waitFor(row)
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-everyone-2-best")
+
+        // A flight opens like one of the pilot's own, with its pilot's
+        // name over it and its page on the server to hand on. It has no
+        // menu: there is nothing of the pilot's to share, replay or delete.
+        screen.onAllNodes(row).onFirst().performClick()
+        waitFor(hasTestTag("public-flight-pilot"))
+        waitFor(described("Flight details"))
+        assertTrue(exists(described("Airtime")))
+        assertTrue(exists(described("Share the flight's page")))
+        assertFalse(exists(described("More")))
+        letTheMapDraw(6)
+        keepScreenshot("$prefix-everyone-3-flight")
+
+        // Back to the list, in the order it was left in; and the pilot's
+        // own logbook is as empty as before.
+        tap(described("Back"))
+        waitFor(hasTestTag("public-flights-best") and isSelected())
+        tap(hasTestTag("logbook-mine"))
+        waitFor(hasText("No flights yet"))
+    }
+
+    @Test
+    fun theLogbookTabListsEveryonesFlights() = lookAtEveryonesFlights("light", dark = false)
+
+    @Test
+    fun everyonesFlightsInDarkAppearance() = lookAtEveryonesFlights("dark", dark = true)
+
     @Test
     fun theMapShowsWhoIsInTheAir() = lookAtWhoIsInTheAir("light", dark = false)
 

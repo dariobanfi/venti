@@ -15,6 +15,7 @@ import fly.venti.app.assistant.AssistantHttp
 import fly.venti.app.assistant.EncryptedKeyStore
 import fly.venti.app.assistant.FixedKey
 import fly.venti.app.assistant.ScriptedProvider
+import fly.venti.app.community.CommunityModel
 import fly.venti.app.design.Format
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.PhoneSensors
@@ -60,6 +61,7 @@ sealed interface Session {
         val airspace: AirspaceModel,
         val sites: SitesModel,
         val live: LiveModel,
+        val community: CommunityModel,
         val account: AccountModel,
         val tasks: TaskModel,
         val preferences: Preferences,
@@ -177,6 +179,9 @@ sealed interface Session {
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }
+            // And everyone's public flights, on the Logbook tab.
+            val community = CommunityModel()
+            community.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's account on that server, if there is one. A test
             // starts signed out, and its token stays out of the keystore.
             val account = logbook.makeAccount(
@@ -197,8 +202,8 @@ sealed interface Session {
             }
             fly.taskFile = { tasks.file }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, account, tasks, preferences, files,
-                scope,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, tasks, preferences,
+                files, scope,
             )
         }
     }

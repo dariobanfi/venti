@@ -26,11 +26,17 @@ class HttpAnswer(val status: Int, val body: ByteArray, val retryAfterSeconds: UI
 object Http {
     private const val CONNECT_MILLISECONDS = 20_000
 
-    /** Fetches an address and returns the answer, whatever its status. */
-    suspend fun get(url: String, answerWithinMilliseconds: Int = 20_000): HttpAnswer =
+    /**
+     * Fetches an address and returns the answer, whatever its status.
+     * `accept` is what the answer may be; `null` says nothing about it,
+     * for what is no JSON: a flight's file.
+     */
+    suspend fun get(url: String, answerWithinMilliseconds: Int = 20_000, accept: String? = "application/json"): HttpAnswer =
         request(url, answerWithinMilliseconds) { connection ->
             connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "application/json")
+            if (accept != null) {
+                connection.setRequestProperty("Accept", accept)
+            }
         }
 
     /** Posts a body with the given headers and returns the answer, whatever its status. */

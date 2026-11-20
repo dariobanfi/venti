@@ -28,6 +28,7 @@ import fly.venti.app.account.AccountScreen
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
 import fly.venti.app.flight.FlightScreen
+import fly.venti.app.flight.PublicFlightScreen
 import fly.venti.app.fly.CockpitScreen
 import fly.venti.app.fly.FlyScreen
 import fly.venti.app.fly.LiveScreen
@@ -249,7 +250,15 @@ private fun Sections(
             }
             AppTab.Logbook -> when (val route = navigation.logbookPath.lastOrNull()) {
                 null -> kept.SaveableStateProvider("logbook") {
-                    LogbookScreen(logbook, navigation, imports = session.scope, onNotice = onNotice, bars = bars)
+                    LogbookScreen(
+                        logbook,
+                        navigation,
+                        imports = session.scope,
+                        onNotice = onNotice,
+                        community = session.community,
+                        hasServer = hasServer,
+                        bars = bars,
+                    )
                 }
                 is LogbookRoute.Flight -> kept.SaveableStateProvider("flight-${route.id}") {
                     FlightScreen(
@@ -261,6 +270,24 @@ private fun Sections(
                         fly = session.fly,
                         onBack = { navigation.back() },
                     )
+                }
+                is LogbookRoute.PublicFlight -> {
+                    val flight = session.community.flight(route.id)
+                    if (flight == null) {
+                        // The list it was opened from is gone: the app was
+                        // started anew in between. Back to the list.
+                        LaunchedEffect(route) { navigation.back() }
+                    } else {
+                        kept.SaveableStateProvider("public-flight-${route.id}") {
+                            PublicFlightScreen(
+                                flight,
+                                session.community,
+                                session.airspace,
+                                server = (session.wind.server as? WindServer.Usable)?.url,
+                                onBack = { navigation.back() },
+                            )
+                        }
+                    }
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
                     StatisticsScreen(

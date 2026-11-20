@@ -26,6 +26,9 @@ sealed interface LogbookRoute {
 
     /** The statistics. */
     data object Statistics : LogbookRoute
+
+    /** Another pilot's public flight, by its address on the server. */
+    data class PublicFlight(val id: String) : LogbookRoute
 }
 
 /** A screen reached from the settings. */
@@ -116,6 +119,7 @@ class AppNavigation {
     companion object {
         private const val STATISTICS = "statistics"
         private const val FLIGHT = "flight:"
+        private const val PUBLIC_FLIGHT = "public-flight:"
 
         /** Keeps the pilot's place when Android rebuilds the screen. */
         val Saver = listSaver<AppNavigation, String>(
@@ -128,6 +132,7 @@ class AppNavigation {
                     navigation.logbookPath.map { route ->
                         when (route) {
                             is LogbookRoute.Flight -> FLIGHT + route.id
+                            is LogbookRoute.PublicFlight -> PUBLIC_FLIGHT + route.id
                             LogbookRoute.Statistics -> STATISTICS
                         }
                     }
@@ -138,10 +143,10 @@ class AppNavigation {
                     settingsRoute = SettingsRoute.entries.firstOrNull { it.name == saved[1] }
                     flyRoute = FlyRoute.entries.firstOrNull { it.name == saved[2] }
                     saved.drop(3).forEach { route ->
-                        logbookPath += if (route == STATISTICS) {
-                            LogbookRoute.Statistics
-                        } else {
-                            LogbookRoute.Flight(route.removePrefix(FLIGHT))
+                        logbookPath += when {
+                            route == STATISTICS -> LogbookRoute.Statistics
+                            route.startsWith(PUBLIC_FLIGHT) -> LogbookRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
+                            else -> LogbookRoute.Flight(route.removePrefix(FLIGHT))
                         }
                     }
                 }

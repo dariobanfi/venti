@@ -4,8 +4,10 @@ This folder runs Venti on one Linux machine with Docker Compose. It is the opera
 
 | File | What it is |
 |---|---|
-| `docker-compose.yml` | The services: Caddy, the Venti server, PostgreSQL with PostGIS, and an optional forecast service |
+| `docker-compose.yml` | The services: Caddy, the web app's files, the Venti server, PostgreSQL with PostGIS, and an optional forecast service |
 | `Dockerfile` | Builds the `venti-server` image from this repository |
+| `web.Dockerfile` | Builds the web app from this repository into an image that puts the site's files where Caddy serves them |
+| `setup.sh` | First install in one command: settings, build, start |
 | `Caddyfile` | TLS, the web app's files, map tiles, and the way in to the API, the map regions, the pages of shared flights and live tracks, and the connector |
 | `env.example` | Every setting, with comments. Copy it to `.env` |
 | `db-init.sh` | Run once by the database when it is first created: makes the role the server signs in as |
@@ -37,20 +39,23 @@ All commands run on the server.
    cd /opt/venti/deploy
    ```
 
-3. **Write the settings.**
+3. **Run the setup.** With the site's domain name, whose DNS already points at this machine:
+
+   ```bash
+   ./setup.sh venti.example
+   ```
+
+   It writes the settings to `.env` with a database password it makes up, builds the two images from this checkout (the server and the web app; the first build compiles both and takes several minutes) and starts everything. With a domain the site gets HTTPS by itself and takes accounts by invite. Without one, `./setup.sh` alone serves plain HTTP on port 80 for a first look: **nothing is encrypted then**, and registration stays closed. `./setup.sh --forecasts …` also switches on the forecast service ([Forecasts](#forecasts); it wants 8 GB of memory or more).
+
+   Run again, the script changes no setting that is there: it builds what has changed and starts it. Every setting is explained in `env.example`; to change one, edit `.env` and run `docker compose up -d`.
+
+4. **By hand instead**, if you would rather see each step:
 
    ```bash
    cp env.example .env
    chmod 600 .env
    openssl rand -hex 24      # paste the output as POSTGRES_PASSWORD
-   nano .env
-   ```
-
-   Set `POSTGRES_PASSWORD`. Set `VENTI_SITE_ADDRESS` to the domain name, or leave `:80` to try the stack without one. **With `:80` nothing is encrypted**, so keep `VENTI_REGISTRATION=closed`. With a domain, set `VENTI_REGISTRATION=invite` and `VENTI_PUBLIC_URL` to the address people will use, such as `https://venti.example`. Everything else has a working default. `.env` holds the database password: keep it out of any repository, chat or ticket.
-
-4. **Build and start.** The first build compiles the server and takes several minutes.
-
-   ```bash
+   nano .env                 # VENTI_SITE_ADDRESS, VENTI_PUBLIC_URL, VENTI_REGISTRATION
    docker compose build
    docker compose up -d
    ```
@@ -63,7 +68,7 @@ All commands run on the server.
    curl -s http://localhost/v1/health        # with a domain: https://<domain>/v1/health
    ```
 
-   Within seconds the log has one line per data source with what it delivered, and the health answer lists each source with `"stale": false`. The server creates the database schema itself.
+   Within seconds the log has one line per data source with what it delivered, and the health answer lists each source with `"stale": false`. The server creates the database schema itself. `web` is listed as exited: it has put the web app's files where Caddy serves them and is done. The site's front page is the app.
 
 6. **Schedule the backup**: see [Backup](#backup). An install without a backup is not finished.
 
@@ -79,12 +84,13 @@ All commands run on the server.
 | Raw provider payloads, about 240 MB a day, kept 14 days | Docker volume `venti_archive` | Nothing breaks; old parsing bugs can no longer be replayed |
 | Tiles of map imagery, up to 20 GB (`VENTI_IMAGERY_CACHE_MB`) | Docker volume `venti_imagery` | Nothing breaks; the server asks the provider for each tile again |
 | TLS certificates | Docker volume `venti_caddy-data` | Caddy asks for new ones, which the issuers rate-limit |
-| Web app, map tiles | `deploy/data/web`, `deploy/data/tiles` (or the folders named in `.env`) | Copy them there again |
+| Web app | Docker volume `venti_web`, filled from the image `venti-web` at every start | Nothing: start again |
+| Map tiles | `deploy/data/tiles` (or the folder named in `.env`) | Copy them there again |
 | Map regions for download | `deploy/data/maps` (or `VENTI_MAPS_DIR`) | Copy or build them again: [Map regions](#map-regions) |
 | Settings | `deploy/.env` | Write them again; the database password must be the one the database was created with |
 | Database dumps | `deploy/backups` (or `VENTI_BACKUP_DIR`) | There is nothing to restore from |
 
-Flight files are in the database: one dump holds everything. Until the web app and map tiles are put in their folders, the site's front page is empty and only `/v1`, `/f/` and `/live/` answer. Files in `data/tiles` are served under `/tiles/` with range requests, as PMTiles archives need.
+Flight files are in the database: one dump holds everything. Until map tiles are put in their folder the apps draw their maps from the public tile services, as they do in development. Files in `data/tiles` are served under `/tiles/` with range requests, as PMTiles archives need.
 
 ## Update
 
@@ -93,7 +99,7 @@ cd /opt/venti
 git pull
 cd deploy
 ./backup.sh
-docker compose build server
+docker compose build
 docker compose up -d
 docker compose logs --tail 20 server
 curl -s http://localhost/v1/health

@@ -1,0 +1,25 @@
+# What the web app's image is built from: the Rust workspace, the web app,
+# the design pack, the map style and two folders of the iPhone app's
+# resources. Everything large that it does not read stays out of the
+# build's context. See deploy/web.Dockerfile.
+.git
+.github
+.claude
+target
+var
+docs
+deploy
+**/.DS_Store
+**/node_modules
+apps/android
+apps/ios/Packages
+apps/ios/Venti.xcodeproj
+apps/ios/VentiTests
+apps/ios/VentiUITests
+apps/ios/Venti/Resources/Design.xcassets
+apps/ios/Venti/Resources/MapDemo/*.pmtiles
+apps/web/build
+apps/web/.svelte-kit
+apps/web/screenshots
+apps/web/test-results
+apps/web/src/lib/core/pkg

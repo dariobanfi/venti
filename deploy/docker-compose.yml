@@ -1,6 +1,8 @@
 # Venti on one Linux server.
 #
 #   caddy   TLS, the web app's static files, map tiles, and the way in to the API
+#   web     the web app, built from this repository; runs once at each start
+#           to put the site's files where caddy serves them, and ends
 #   server  venti-server: collects the data sources, keeps accounts and
 #           flights, serves /v1 and the share pages under /f, and hands
 #           out the map regions for download
@@ -44,7 +46,10 @@ services:
     mem_limit: ${VENTI_CADDY_MEMORY:-256m}
     pids_limit: 256
     depends_on:
-      - server
+      server:
+        condition: service_started
+      web:
+        condition: service_completed_successfully
     # Published on the machine's IPv4 addresses and on no other. Without
     # the "0.0.0.0" Docker also listens on IPv6 and hands such connections
     # to this IPv4-only network through its own forwarder (its
@@ -71,8 +76,26 @@ services:
       - caddy-config:/config
       # Static files, kept on the host so that a build job or rsync can
       # replace them: the web app, and map tiles as PMTiles archives.
-      - ${VENTI_WEB_DIR:-./data/web}:/srv/web:ro
+      - web:/srv/web:ro
       - ${VENTI_TILES_DIR:-./data/tiles}:/srv/tiles:ro
+
+  # The site's files come out of an image built from this repository
+  # (web.Dockerfile). It holds a shell and the files, talks to nobody, and
+  # at each start empties the volume caddy serves and fills it again.
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    image: venti-web:local
+    restart: "no"
+    logging: *logging
+    <<: *confined
+    read_only: true
+    mem_limit: 128m
+    pids_limit: 64
+    network_mode: none
+    volumes:
+      - web:/srv/web
 
   server:
     build:
@@ -214,3 +237,4 @@ volumes:
   imagery:
   caddy-data:
   caddy-config:
+  web:

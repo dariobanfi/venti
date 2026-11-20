@@ -4,7 +4,11 @@ Working notes: what to know before changing how Venti is run on a server, with t
 
 ## What has run where
 
-Nothing here has run on a real server: the project has none. The stack was built and used on a development machine on 2026-11-19: the image built and started, the API through Caddy, a backup, and a restore into an empty database. A second run the same day, with accounts, used the server's debug build in a plain container rather than the image: an invite, an account, a flight and its share page through Caddy, a backup, and a restore that brought the account and the flight file back byte for byte. CI builds the image and starts it on every push. No image is published anywhere; publishing to a registry is the owner's decision ([architecture.md](../docs/architecture.md#deployment)).
+Nothing here has run on a real server: the project has none. The stack was built and used on a development machine on 2026-11-19: the image built and started, the API through Caddy, a backup, and a restore into an empty database. A second run the same day, with accounts, used the server's debug build in a plain container rather than the image: an invite, an account, a flight and its share page through Caddy, a backup, and a restore that brought the account and the flight file back byte for byte. CI builds the image and starts it on every push.
+
+Since 2026-11-21 the whole stack runs on the owner's Mac, by the owner's word ("run the server on my MacBook for now"): Caddy, the web app's image, the server, PostGIS and the forecast service, under OrbStack, started with `setup.sh` and reached at `http://127.0.0.1:8088`. It differs from a server in one file that is not in the repository (`deploy/data/local/compose.mac.yml`): Caddy's port is published on `127.0.0.1` only, and because nothing then crosses a network, `.env` there takes accounts by invite without HTTPS. Seen that night: the five sources collecting (50 and 267 wind stations, 516 airspaces, ICON-D2's newest run), a forecast for a place, Austria's photographs through `/v1/imagery`, the web app's pages from the volume the `web` image fills, an invite code made. Not tried there: HTTPS with a domain, the backup and a restore of this stack, a restart of the machine.
+
+No image is published anywhere; publishing to a registry is the owner's decision ([architecture.md](../docs/architecture.md#deployment)).
 
 ## Accounts and the visitor's address
 

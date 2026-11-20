@@ -155,19 +155,29 @@ jobs:
           # through Docker's forwarder with their address hidden.
           docker compose --file deploy/docker-compose.yml config --format json \
             | jq --exit-status '[.services[].ports // [] | .[] | .host_ip == "0.0.0.0"] | length == 3 and all'
-          # The three services are confined: no capability but those named,
+          # The four services are confined: no capability but those named,
           # no new privileges, a read-only root, bounds on memory and
           # processes.
           docker compose --file deploy/docker-compose.yml config --format json \
-            | jq --exit-status '[.services[] | (.cap_drop == ["ALL"]) and (.security_opt | index("no-new-privileges:true") != null) and .read_only and (.mem_limit != null) and (.pids_limit > 0)] | length == 3 and all'
+            | jq --exit-status '[.services[] | (.cap_drop == ["ALL"]) and (.security_opt | index("no-new-privileges:true") != null) and .read_only and (.mem_limit != null) and (.pids_limit > 0)] | length == 4 and all'
           docker compose --file deploy/docker-compose.yml config --format json \
             | jq --exit-status '.services | (.server.cap_add // []) == [] and .caddy.cap_add == ["NET_BIND_SERVICE"] and (.db.environment.POSTGRES_USER == "postgres")'
           # Every service's log is rotated: none can fill the disk.
           docker compose --file deploy/docker-compose.yml config --format json \
-            | jq --exit-status '[.services[] | .logging | .driver == "json-file" and (.options["max-size"] | type == "string") and (.options["max-file"] | type == "string")] | length == 3 and all'
+            | jq --exit-status '[.services[] | .logging | .driver == "json-file" and (.options["max-size"] | type == "string") and (.options["max-file"] | type == "string")] | length == 4 and all'
           docker run --rm --env VENTI_SITE_ADDRESS=:80 \
             --volume "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Build the web app's image and let it fill a folder
+        run: |
+          docker build --file deploy/web.Dockerfile --tag venti-web:ci .
+          # Started as Compose starts it: no network, a read-only root, the
+          # volume to fill. An older build's file must be gone afterwards.
+          docker volume create venti-web-check
+          docker run --rm --volume venti-web-check:/srv/web busybox:1.37 sh -c 'echo old > /srv/web/left-over.txt'
+          docker run --rm --network none --read-only --cap-drop ALL --volume venti-web-check:/srv/web venti-web:ci
+          docker run --rm --volume venti-web-check:/srv/web:ro busybox:1.37 sh -c \
+            'test -s /srv/web/index.html && test -s /srv/web/logbook/index.html && test ! -e /srv/web/left-over.txt && ls /srv/web/_app/immutable/workers | grep -q .'
       - name: Caddy sends the web app's pages, each with its policy
         run: |
           # A site of the shape the web app is built in: every page a

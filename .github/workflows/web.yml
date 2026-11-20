@@ -39,7 +39,10 @@ jobs:
   web:
     name: Core for the browser, site and tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The browser tests are most of it. With 232 tests they took 26 to 35
+    # minutes on 20 November 2026 and the job up to 38; with 260 tests the
+    # 45 minutes it had would leave little room.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/web

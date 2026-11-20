@@ -8,7 +8,7 @@ Working notes: what to know before changing the app or its tests. What the app d
 - The browser tests take about a quarter of an hour on four cores, for 260 tests at four widths and appearances. One file at one width is quick: `npx playwright test e2e/plans.spec.ts --project=phone-light`.
 - They start `venti-server dev` with `cargo run` and use one that is already running. Another session's server on port 8080 holds what that session's tests left in it: name a port of your own for the tests, `VENTI_DEV_SERVER=http://127.0.0.1:18431`. Build the server with the same `CARGO_PROFILE_…` settings in the environment as the tests run with, or `cargo run` builds it again.
 - The preview the tests start listens on port 4173 and on no other (`playwright.config.ts`), so two sessions cannot run the browser tests on one machine at the same time. Not tried.
-- The `Web` workflow lets a run that has started finish; of the runs waiting behind it only the newest is kept, so a push is often tested together with later commits. Look for the newest finished run that holds the commit, not for the commit's own.
+- The `Web` workflow takes 35 to 45 minutes, most of it the browser tests, which are slower on GitHub's machines than here. It lets a run that has started finish; of the runs waiting behind it only the newest is kept, so a push is often tested together with later commits. Look for the newest finished run that holds the commit, not for the commit's own.
 
 ## The core for the browser
 

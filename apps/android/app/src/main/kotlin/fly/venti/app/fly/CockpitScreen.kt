@@ -260,69 +260,84 @@ fun CockpitScreen(
                 }
                 CockpitRule()
                 // The map alone gives way when a warning takes room at the
-                // top: the readings keep their size and their place.
-                Box(Modifier.weight(1f).fillMaxWidth().heightIn(min = 120.dp)) {
-                    MapSurface(
-                        content = map,
-                        modifier = Modifier.fillMaxSize(),
-                        kept = keptMap,
-                        onUpdate = {
-                            map.airspace = fly.airspace()
-                            map.range = fly.range
-                            map.gliders = fly.gliders
-                            map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
-                        },
-                    )
-                    // The landing to think of first, and daylight, at the
-                    // upper left.
-                    Column(
-                        modifier = Modifier.align(Alignment.TopStart).padding(VentiSpace.s2),
-                        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
-                    ) {
-                        fly.daylight?.let { DaylightBadge(it) }
-                        fly.landing?.let { landing ->
-                            LandingBadge(landing, onOpen = { isChoosingTarget = true })
-                        }
+                // top: the readings keep their size and their place. On the
+                // first page the thermal view stands beside it, on the left.
+                Row(Modifier.weight(1f).fillMaxWidth().heightIn(min = 120.dp)) {
+                    if (page == CockpitPage.Instruments) {
+                        ThermalView(
+                            view,
+                            Modifier.weight(THERMAL_VIEW_SHARE).fillMaxHeight().padding(start = VentiSpace.s2, top = VentiSpace.s2, bottom = VentiSpace.s2),
+                        )
                     }
-                    Column(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(VentiSpace.s2),
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
-                    ) {
-                        // On the first page the wind is among the readings.
-                        if (page != CockpitPage.Instruments) {
-                            view.wind?.let { wind -> WindBadge(wind, view.windAgeS, onOpen = openWinds) }
-                        }
-                        // A wind that leaves the glider little way into it.
-                        view.strongWind?.let { words -> StrongWindBadge(words) }
-                        // The wind on the ground: the station that speaks
-                        // for the landing, else the nearest.
-                        fly.windBelow?.stations?.firstOrNull()?.let { station ->
-                            GroundWindBadge(station, onOpen = openGroundWinds)
-                        }
-                        // While circling: which way the lift is stronger.
-                        view.lift?.centre?.let { centre -> LiftBadge(centre) }
-                    }
-                    if (page == CockpitPage.Map) {
-                        Row(
-                            // Clear of the map's own credits in the corner.
-                            modifier = Modifier.align(Alignment.BottomStart).padding(
-                                start = VentiSpace.s2,
-                                bottom = VentiSpace.s6,
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                    Box(Modifier.weight(if (page == CockpitPage.Instruments) 1 - THERMAL_VIEW_SHARE else 1f).fillMaxHeight()) {
+                        MapSurface(
+                            content = map,
+                            modifier = Modifier.fillMaxSize(),
+                            kept = keptMap,
+                            onUpdate = {
+                                map.airspace = fly.airspace()
+                                map.range = fly.range
+                                map.gliders = fly.gliders
+                                // Beside the thermal view the map keeps to the glide:
+                                // the circle is looked at in the close-up.
+                                map.closeUp = page == CockpitPage.Instruments
+                                map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
+                            },
+                        )
+                        // The landing to think of first, and daylight, at the
+                        // upper left.
+                        Column(
+                            modifier = Modifier.align(Alignment.TopStart).padding(VentiSpace.s2),
+                            verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                         ) {
-                            // The whole flight at a glance; again for the
-                            // close view that follows the glider.
-                            MapButton(
-                                if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
-                                if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full,
-                            ) { showsWholeFlight = !showsWholeFlight }
-                            // With airspace to warn from, or the ground to
-                            // draw: what lies on the line ahead, seen from
-                            // the side.
-                            if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
-                                MapButton(AheadWords.TITLE, R.drawable.venti_glide) { isShowingAhead = true }
+                            fly.daylight?.let { DaylightBadge(it) }
+                            fly.landing?.let { landing ->
+                                LandingBadge(landing, onOpen = { isChoosingTarget = true })
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.align(Alignment.TopEnd).padding(VentiSpace.s2),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                        ) {
+                            // On the first page the wind is among the readings.
+                            if (page != CockpitPage.Instruments) {
+                                view.wind?.let { wind -> WindBadge(wind, view.windAgeS, onOpen = openWinds) }
+                            }
+                            // A wind that leaves the glider little way into it.
+                            view.strongWind?.let { words -> StrongWindBadge(words) }
+                            // The wind on the ground: the station that speaks
+                            // for the landing, else the nearest.
+                            fly.windBelow?.stations?.firstOrNull()?.let { station ->
+                                GroundWindBadge(station, onOpen = openGroundWinds)
+                            }
+                            // While circling: which way the lift is stronger. On
+                            // the first page the thermal view says so under it.
+                            if (page != CockpitPage.Instruments) {
+                                view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                            }
+                        }
+                        if (page == CockpitPage.Map) {
+                            Row(
+                                // Clear of the map's own credits in the corner.
+                                modifier = Modifier.align(Alignment.BottomStart).padding(
+                                    start = VentiSpace.s2,
+                                    bottom = VentiSpace.s6,
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                            ) {
+                                // The whole flight at a glance; again for the
+                                // close view that follows the glider.
+                                MapButton(
+                                    if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
+                                    if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full,
+                                ) { showsWholeFlight = !showsWholeFlight }
+                                // With airspace to warn from, or the ground to
+                                // draw: what lies on the line ahead, seen from
+                                // the side.
+                                if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
+                                    MapButton(AheadWords.TITLE, R.drawable.venti_glide) { isShowingAhead = true }
+                                }
                             }
                         }
                     }
@@ -1373,3 +1388,6 @@ private fun LockCover(onUnlock: () -> Unit) {
         }
     }
 }
+
+/** The share of the width the thermal view takes beside the first page's map. */
+private const val THERMAL_VIEW_SHARE = 0.48f

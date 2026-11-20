@@ -356,6 +356,20 @@ class CockpitMap : MapContent {
      * far, and how far the airspace of the loudest warning is, if one
      * warns.
      */
+    /**
+     * Whether the thermal view stands beside this map: then the map keeps to
+     * the glide's zoom while circling and draws no lift dots, since the
+     * close-up is where the circle is looked at.
+     */
+    var closeUp: Boolean = false
+        set(value) {
+            if (value != field) {
+                field = value
+                shown = null
+                chosenZoom = null
+            }
+        }
+
     fun show(
         view: CockpitView,
         way: WayToTarget?,
@@ -439,7 +453,7 @@ class CockpitMap : MapContent {
         // warning is about comes into or goes out of reach, so a zoom level
         // the pilot pinched to is kept until then.
         val density = mapView.resources.displayMetrics.density
-        val zoom = zoom(view.circling, airspaceDistance, position.lat, mapView.width / density, mapView.height / density)
+        val zoom = zoom(view.circling && !closeUp, airspaceDistance, position.lat, mapView.width / density, mapView.height / density)
         val move = if (zoom != chosenZoom) {
             chosenZoom = zoom
             CameraUpdateFactory.newLatLngZoom(position.latLng, zoom)
@@ -522,7 +536,9 @@ class CockpitMap : MapContent {
         // Once the thermal is left the core hands out no picture, and
         // nothing of it is in the source.
         style.getSourceAs<GeoJsonSource>(FLIGHT)?.setGeoJson(
-            FeatureCollection.fromFeatures(trail.features().orEmpty() + liftPicture(view.lift) + glider),
+            FeatureCollection.fromFeatures(
+                trail.features().orEmpty() + (if (closeUp) emptyList() else liftPicture(view.lift)) + glider,
+            ),
         )
 
         if (range?.outline != drawnRange) {

@@ -304,8 +304,8 @@ class VentiUiTest {
 
         // Circling in lift, the cockpit changes to its thermal numbers by
         // itself, and its map pictures the thermal: the last circles as
-        // dots around the circle to fly, and a badge that says where the
-        // lift is stronger. The sample's thermal lifts evenly all around.
+        // dots around the circle to fly, in the thermal view beside the
+        // map, and under it the words about where the lift is stronger. The sample's thermal lifts evenly all around.
         // At the map's other corner, the landing to think of first: the
         // one landing among the sample waypoints, well within reach from
         // up here, with the height the glider would arrive with. Under
@@ -318,8 +318,10 @@ class VentiUiTest {
             described("Altitude") and saying(" m over ground"),
             described("Gained"),
             described("Thermal"),
-            hasTestTag("lift-badge"),
-            described("Lift") and saying("Centred"),
+            // Beside the map the thermal view, with the core's words about
+            // the centre under it; the map keeps to the glide.
+            hasTestTag("thermal-view") and saying("The lift of the circles flown"),
+            hasTestTag("thermal-words") and saying("Centred"),
             landing and saying("Sample landing field, arriving +"),
         )
         letTheMapDraw(3)
@@ -344,7 +346,13 @@ class VentiUiTest {
         // On the glide after the thermal it changes back, now with the wind
         // it worked out while circling. Beside the glide it is making, the
         // glide it needs to get home.
-        waitForAll(described("Glide") and saying("Needs "), described("Ground speed"), described("Wind"))
+        waitForAll(
+            described("Glide") and saying("Needs "),
+            described("Ground speed"),
+            described("Wind"),
+            // The thermal view shows the track behind the glider now.
+            hasTestTag("thermal-view") and saying("The track behind the glider"),
+        )
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 

@@ -141,7 +141,8 @@ final class WindModelTests: XCTestCase {
         // speak for the landing, and nothing is warned of.
         XCTAssertEqual(below.stations.map(\.name), ["Zugspitze"])
         let summit = try XCTUnwrap(below.stations.first)
-        XCTAssertEqual(summit.wind, "W 54/93 km/h · 45 min ago")
+        XCTAssertEqual(summit.wind, "W 54/93 km/h")
+        XCTAssertEqual(summit.age, "45 min ago")
         XCTAssertTrue(summit.isStrong)
         XCTAssertFalse(summit.isAtLanding)
         XCTAssertNil(below.alert)

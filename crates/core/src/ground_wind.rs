@@ -83,8 +83,10 @@ pub struct GroundWindStation {
     pub age_min: i64,
     /// Where it stands, in words: "4.2 km SW · 740 m".
     pub place: String,
-    /// What it measured, in words: "NW 12/25 km/h · 6 min ago".
+    /// What it measured, in words: "NW 12/25 km/h".
     pub wind: String,
+    /// How long ago, in words: "6 min ago", "just now".
+    pub age: String,
     /// The few characters of the cockpit's badge: mean and gusts in
     /// km/h, "12/25", and for a station that neither speaks for the
     /// landing nor stands near the glider how far off it is, "12/25 ·
@@ -217,11 +219,8 @@ pub fn ground_wind(
                 gust_ms,
                 age_min: *age_min,
                 place,
-                wind: format!(
-                    "{} · {}",
-                    wind_in_words(from_deg, *speed_ms, gust_ms),
-                    age_in_words(*age_min)
-                ),
+                wind: wind_in_words(from_deg, *speed_ms, gust_ms),
+                age: age_in_words(*age_min),
                 badge,
                 is_at_landing,
                 is_strong: is_strong(*speed_ms, gust_ms, trim_speed_ms),
@@ -415,13 +414,15 @@ mod tests {
             "{near:?}"
         );
         assert_eq!(near.place, "690 m N · 1600 m");
-        assert_eq!(near.wind, "NW 12/25 km/h · 6 min ago");
+        assert_eq!(near.wind, "NW 12/25 km/h");
+        assert_eq!(near.age, "6 min ago");
         // Near the glider its wind stands for itself; the one fifteen
         // kilometres to the north says how far off it is.
         assert_eq!(near.badge, "12/25");
         assert_eq!(wind.stations[1].badge, "10 · 15 km");
         assert!(!near.is_at_landing && !near.is_strong);
-        assert_eq!(wind.stations[1].wind, "NW 10 km/h · 5 min ago");
+        assert_eq!(wind.stations[1].wind, "NW 10 km/h");
+        assert_eq!(wind.stations[1].age, "5 min ago");
         // Without a place to land nothing speaks for one.
         assert!(wind.stations.iter().all(|station| !station.is_at_landing));
     }

@@ -1,6 +1,6 @@
 [package]
 name = "venti-server"
-description = "The Venti server: collects observations and airspace from the data sources on a schedule, stores them and serves them over a versioned HTTP API."
+description = "The Venti server: collects wind, airspace, sites and forecasts from the data sources on a schedule, keeps pilots' accounts, flights, groups, plans and live tracks, hands out offline maps, and serves all of it over a versioned HTTP API."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

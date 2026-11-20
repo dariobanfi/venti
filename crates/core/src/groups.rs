@@ -191,7 +191,7 @@ impl Core {
     /// the one the pilot has been in longest first.
     pub fn groups(&self, status: u16, body: Vec<u8>) -> Result<Vec<GroupView>, CoreError> {
         let response: GroupsResponse = answer(status, &body)?;
-        let me = self.me_or_nobody();
+        let me = self.me_or_nobody()?;
         Ok(response
             .groups
             .iter()
@@ -216,7 +216,7 @@ impl Core {
     pub fn group_made(&self, status: u16, body: Vec<u8>) -> Result<GroupMade, CoreError> {
         let response: CreateGroupResponse = answer(status, &body)?;
         Ok(GroupMade {
-            group: group_view(&response.group, &self.me_or_nobody()),
+            group: group_view(&response.group, &self.me_or_nobody()?),
             invite_code: response.invite_code.expose().to_owned(),
         })
     }
@@ -245,7 +245,7 @@ impl Core {
     /// Reads the server's answer to [`Core::join_group_request`].
     pub fn group_joined(&self, status: u16, body: Vec<u8>) -> Result<GroupJoined, CoreError> {
         let response: JoinGroupResponse = answer(status, &body)?;
-        let group = group_view(&response.group, &self.me_or_nobody());
+        let group = group_view(&response.group, &self.me_or_nobody()?);
         Ok(GroupJoined {
             words: if response.joined {
                 format!("You are in {} now.", group.name)
@@ -267,7 +267,7 @@ impl Core {
     /// [`Core::hand_over_group_request`].
     pub fn group(&self, status: u16, body: Vec<u8>) -> Result<GroupDetail, CoreError> {
         let response: GroupResponse = answer(status, &body)?;
-        let me = self.me_or_nobody();
+        let me = self.me_or_nobody()?;
         Ok(GroupDetail {
             group: group_view(&response.group, &me),
             members: response
@@ -393,7 +393,7 @@ impl Core {
     /// Reads the server's answer to [`Core::plan_board_request`].
     pub fn plan_board(&self, status: u16, body: Vec<u8>) -> Result<PlanBoard, CoreError> {
         let response: PlanBoardResponse = answer(status, &body)?;
-        let me = self.me_or_nobody();
+        let me = self.me_or_nobody()?;
         let groups: BTreeMap<&GroupId, &Group> = response
             .groups
             .iter()
@@ -490,7 +490,7 @@ impl Core {
     /// answer.
     pub fn plan(&self, status: u16, body: Vec<u8>) -> Result<PlanView, CoreError> {
         let response: PlanResponse = answer(status, &body)?;
-        Ok(plan_view(&response.plan, None, &self.me_or_nobody()))
+        Ok(plan_view(&response.plan, None, &self.me_or_nobody()?))
     }
 }
 
@@ -501,9 +501,11 @@ impl Core {
     }
 
     /// The same for reading an answer, which a device that was signed out
-    /// meanwhile still reads: then nobody is "me".
-    fn me_or_nobody(&self) -> String {
-        self.my_handle().ok().flatten().unwrap_or_default()
+    /// meanwhile still reads: then nobody is "me". A logbook that cannot
+    /// be read is an error, not a pilot who is nobody: the board would
+    /// show the pilot's own plans as somebody else's.
+    fn me_or_nobody(&self) -> Result<String, CoreError> {
+        Ok(self.my_handle()?.unwrap_or_default())
     }
 }
 

@@ -840,7 +840,7 @@ struct GroundWindBadge: View {
         .glassEffect(.regular, in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(station.isAtLanding ? "Wind at the landing" : "Wind on the ground")
-        .accessibilityValue("\(station.name), \(station.wind)")
+        .accessibilityValue("\(station.name), \(station.wind), \(station.age)")
     }
 }
 

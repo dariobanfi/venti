@@ -111,11 +111,20 @@ private struct GroundWindRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text(station.wind)
-                .font(.subheadline)
-                .monospacedDigit()
-                .foregroundStyle(station.isStrong ? Color.red : Color.primary)
-                .multilineTextAlignment(.trailing)
+            // The wind over its age, each on a line of its own: side by
+            // side they broke in the middle of "5 min ago".
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(station.wind)
+                    .font(.subheadline)
+                    .foregroundStyle(station.isStrong ? Color.red : Color.primary)
+                Text(station.age)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .monospacedDigit()
+            .lineLimit(1)
+            // The numbers keep their width; a long name gives way.
+            .layoutPriority(1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("ground-wind-row")

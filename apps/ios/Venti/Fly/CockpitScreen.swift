@@ -40,6 +40,7 @@ struct CockpitScreen: View {
                     route: fly.score?.route ?? [],
                     fai: hidesFaiAreas ? nil : fly.faiAreas,
                     range: fly.range,
+                    gliders: fly.gliders,
                     showsWholeFlight: showsWholeFlight,
                     task: fly.task == nil ? nil : tasks.task,
                     taskStatus: fly.task

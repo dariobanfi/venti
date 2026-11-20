@@ -68,6 +68,12 @@ final class FlySession {
     /// How far the glider glides over the ground as it is, for a line on
     /// the map. Absent on the ground and where the iPhone has no ground.
     private(set) var range: GlideRange?
+    /// Other pilots in the air around the glider who show their flight to
+    /// everyone, as the pilot's server last listed them.
+    private(set) var gliders: [LiveGlider] = []
+    /// Asks the server who is in the air around a place. The app sets
+    /// this; `nil` when there is no answer.
+    @ObservationIgnored var others: (Coordinate) async -> [LiveGlider]? = { _ in nil }
     /// The pilot's landings, asked for every few seconds in the air. The
     /// app sets this to the waypoints that are places to land.
     @ObservationIgnored var landings: () -> [WaypointView] = { [] }
@@ -103,6 +109,10 @@ final class FlySession {
     @ObservationIgnored private var ticksSinceScore = 0
     /// Refreshes of the screen since the ground was last asked for.
     @ObservationIgnored private var ticksSinceTerrain = 0
+    /// Refreshes of the screen since the other gliders were asked for,
+    /// and whether an answer is still awaited.
+    @ObservationIgnored private var ticksSinceOthers = 0
+    @ObservationIgnored private var isAskingForOthers = false
     /// How bright the screen was before the cockpit turned it up.
     @ObservationIgnored private var brightnessBefore: CGFloat?
 
@@ -113,6 +123,10 @@ final class FlySession {
     /// apart: every ten seconds, in which a glider goes two hundred
     /// metres and the tiles reach thirteen kilometres.
     private static let ticksBetweenTerrain = 50
+
+    /// Who else is in the air is asked this many refreshes apart: every
+    /// fifteen seconds, which is what the server asks for.
+    private static let ticksBetweenOthers = 75
 
     /// The longest stretch of the clock a replay moves on by at once, in
     /// seconds. When the phone was busy with something else for longer,
@@ -362,6 +376,8 @@ final class FlySession {
         live = nil
         landing = nil
         range = nil
+        gliders = []
+        ticksSinceOthers = Self.ticksBetweenOthers
         view = nil
         way = nil
         score = nil
@@ -469,6 +485,30 @@ final class FlySession {
         if ticksSinceTerrain >= Self.ticksBetweenTerrain, let position = view.position {
             ticksSinceTerrain = 0
             wantTerrain(position)
+        }
+
+        // Who else is in the air around the glider, in flight only: on
+        // the ground the map tab shows them.
+        ticksSinceOthers += 1
+        if ticksSinceOthers >= Self.ticksBetweenOthers, !isAskingForOthers, view.phase == .flying,
+           let position = view.position
+        {
+            ticksSinceOthers = 0
+            isAskingForOthers = true
+            // The pilot's own glider, if the flight is shown to everyone,
+            // is on the server's list too: it is not another pilot.
+            let own = live?.link.split(separator: "/").last.map(String.init)
+            Task { [weak self] in
+                guard let self else { return }
+                let found = await self.others(position)
+                self.isAskingForOthers = false
+                if let found, self.mode != nil {
+                    let others = found.filter { $0.id != own }
+                    if others != self.gliders {
+                        self.gliders = others
+                    }
+                }
+            }
         }
 
         // The core works the score out anew every half minute of flight;

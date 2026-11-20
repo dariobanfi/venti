@@ -323,26 +323,7 @@ struct OverviewMap: UIViewRepresentable {
             // Other pilots in the air, above everything: a wing turned the
             // way it flies, with the pilot's name and altitude where there
             // is room. Gliders are never left out for want of room.
-            for picture in LiveSymbols.all {
-                style.setImage(picture.image, forName: picture.name)
-            }
-            let gliders = MLNShapeSource(identifier: Self.live, shape: empty, options: nil)
-            style.addSource(gliders)
-            let wings = MLNSymbolStyleLayer(identifier: Self.live, source: gliders)
-            wings.iconImageName = NSExpression(forKeyPath: "picture")
-            wings.iconRotation = NSExpression(forKeyPath: "heading")
-            wings.iconRotationAlignment = NSExpression(forConstantValue: "map")
-            wings.iconAllowsOverlap = NSExpression(forConstantValue: true)
-            wings.text = NSExpression(forKeyPath: "label")
-            wings.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
-            wings.textFontSize = NSExpression(forConstantValue: 12)
-            wings.textAnchor = NSExpression(forConstantValue: "top")
-            wings.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 1.15)))
-            wings.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
-            wings.textHaloColor = NSExpression(forConstantValue: UIColor.white)
-            wings.textHaloWidth = NSExpression(forConstantValue: 1.6)
-            wings.textOptional = NSExpression(forConstantValue: true)
-            style.addLayer(wings)
+            LiveLayers.add(to: style, named: Self.live)
         }
 
         /// Draws the gliders, once the style is there and only when they
@@ -382,15 +363,7 @@ struct OverviewMap: UIViewRepresentable {
         /// One glider as the map's symbol layer reads it. A glider on the
         /// ground points nowhere.
         static func gliderFeature(for glider: LiveGlider) -> MLNPointFeature {
-            let feature = MLNPointFeature()
-            feature.coordinate = glider.position.location
-            feature.attributes = [
-                "id": glider.id,
-                "picture": LiveSymbols.name(for: glider),
-                "heading": glider.landed ? 0 : glider.courseDeg ?? 0,
-                "label": glider.label,
-            ]
-            return feature
+            LiveLayers.feature(for: glider)
         }
 
         /// Draws the flights, once the style is there and only when they

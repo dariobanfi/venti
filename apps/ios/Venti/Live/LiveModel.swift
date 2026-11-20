@@ -106,6 +106,23 @@ final class LiveModel {
         }
     }
 
+    /// Who is in the air around a place: for the cockpit, which asks by
+    /// itself while a flight is on. Nothing of the answer is kept here.
+    /// `nil` without a server, and when no answer came: the cockpit then
+    /// leaves the gliders it has where they were.
+    func around(_ place: Coordinate, withinDeg reach: Double = 0.35) async -> [LiveGlider]? {
+        guard let server = server(),
+              let path = try? liveMapPath(
+                  south: place.lat - reach, west: place.lon - reach * 1.5,
+                  north: place.lat + reach, east: place.lon + reach * 1.5
+              ),
+              let url = URL(string: server.absoluteString + path),
+              let (status, body) = try? await transport(url),
+              let map = try? liveMap(status: UInt16(clamping: status), body: body)
+        else { return nil }
+        return map.gliders
+    }
+
     /// How often a followed flight is asked for again, seconds. The
     /// server asks for five to ten.
     static let followEvery = 10.0

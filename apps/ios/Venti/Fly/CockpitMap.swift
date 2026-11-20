@@ -24,6 +24,9 @@ struct CockpitMap: UIViewRepresentable {
     var fai: FaiAreas?
     /// How far the glider glides over the ground as it is, every way.
     var range: GlideRange?
+    /// Other pilots in the air around the glider, who show their flight
+    /// to everyone.
+    var gliders: [LiveGlider] = []
     /// Whether the map shows the whole flight, with the scored route and
     /// the FAI triangle areas, instead of following the glider closely.
     var showsWholeFlight = false
@@ -54,6 +57,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.airspaceDistance = airspaceDistance
         context.coordinator.fai = fai
         context.coordinator.range = range
+        context.coordinator.gliders = gliders
         context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
@@ -87,6 +91,8 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnFaiSide: [Coordinate]?
         var range: GlideRange?
         private var drawnRange: [Coordinate]?
+        var gliders: [LiveGlider] = []
+        private var drawnGliders: [LiveGlider]?
         var showsWholeFlight = false
         /// The box the map shows while it shows the whole flight.
         private var wholeFlight: Bounds?
@@ -237,6 +243,10 @@ struct CockpitMap: UIViewRepresentable {
                 )
             )
 
+            // Other pilots in the air, as on the map tab: over everything
+            // but the pilot's own glider.
+            LiveLayers.add(to: style, named: "cockpit-gliders")
+
             let glider = MLNShapeSource(identifier: "cockpit-glider", shape: nil, options: nil)
             style.addSource(glider)
             style.addLayer(
@@ -249,6 +259,8 @@ struct CockpitMap: UIViewRepresentable {
             drawnThermals = nil
             drawnLift = nil
             drawnFaiSide = nil
+            drawnRange = nil
+            drawnGliders = nil
             drawnRoute = nil
             drawnTask = nil
             drawnTaskNext = nil
@@ -331,6 +343,11 @@ struct CockpitMap: UIViewRepresentable {
                         source.shape = nil
                     }
                 }
+            }
+
+            if gliders != drawnGliders {
+                drawnGliders = gliders
+                LiveLayers.show(gliders, in: style, named: "cockpit-gliders")
             }
 
             if range?.outline != drawnRange, let source = style.source(withIdentifier: "cockpit-range") as? MLNShapeSource {

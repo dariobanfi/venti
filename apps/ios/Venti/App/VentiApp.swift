@@ -106,6 +106,9 @@ enum Session {
             fly.airspace = { airspace.set }
             fly.taskFile = { tasks.file }
             fly.landings = { waypoints.all.filter { $0.kind == .landing } }
+            // Other pilots in the air around the glider, from the same
+            // server as the map tab's.
+            fly.others = { place in await live.around(place) }
             // The ground under the glider, from the map's elevation tiles:
             // brought as the glider moves, and kept on the iPhone.
             let ground = TerrainModel()

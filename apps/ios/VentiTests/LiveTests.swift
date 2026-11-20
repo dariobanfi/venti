@@ -42,6 +42,36 @@ final class LiveTests: XCTestCase {
         func add(_ url: URL) { addresses.append(url) }
     }
 
+    func testTheCockpitAsksWhoIsInTheAirAroundTheGlider() async throws {
+        let asked = Asked()
+        let live = LiveModel { url in
+            await asked.add(url)
+            return (200, Data(LiveAnswers.inTheAir.utf8))
+        }
+        // Without a server nothing is asked.
+        let nothing = await live.around(Coordinate(lat: 47.68, lon: 11.77))
+        XCTAssertNil(nothing)
+        let before = await asked.addresses
+        XCTAssertTrue(before.isEmpty)
+
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        live.server = { server }
+        let found = await live.around(Coordinate(lat: 47.68, lon: 11.77))
+        XCTAssertEqual(found?.count, 2)
+        // Some thirty kilometres every way around the glider.
+        let first = await asked.addresses.first
+        let address = try XCTUnwrap(first)
+        XCTAssertTrue(address.absoluteString.hasPrefix("http://127.0.0.1:8080/v1/live?bbox=11.2"), address.absoluteString)
+        // What the cockpit asks leaves the map tab's gliders alone.
+        XCTAssertTrue(live.gliders.isEmpty)
+
+        // A server that does not answer leaves the cockpit with what it has.
+        let silent = LiveModel { _ in throw URLError(.timedOut) }
+        silent.server = { server }
+        let none = await silent.around(Coordinate(lat: 47.68, lon: 11.77))
+        XCTAssertNil(none)
+    }
+
     func testWhoIsInTheAirComesFromTheServerForThePartOfTheMapInView() async throws {
         let asked = Asked()
         let live = LiveModel { url in

@@ -1521,6 +1521,15 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-sites-4-site")
 
+        // What was flown from here, where the server has public flights
+        // that took off at this site: the development mode's flights took
+        // off at the sample's take-off, which may or may not be this one.
+        letTheMapDraw(2)
+        if (runCatching { screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-flight")) }.isSuccess) {
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-sites-4b-flown-from-here")
+        }
+
         // The same server's forecast for the place: the wind at each
         // height through the day, and the sky, with what it is worth.
         screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-forecast"))

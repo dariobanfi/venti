@@ -259,6 +259,12 @@ private fun Sections(
                     session.groups,
                     requests = session.scope,
                     bars,
+                    community = session.community,
+                    // A flight flown from a site opens like one of everyone's, on the Logbook tab.
+                    onOpenFlight = { flight ->
+                        navigation.showLogbook()
+                        navigation.open(LogbookRoute.PublicFlight(flight.id))
+                    },
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

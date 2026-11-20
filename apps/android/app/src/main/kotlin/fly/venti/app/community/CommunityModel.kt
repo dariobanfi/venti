@@ -1,5 +1,7 @@
 package fly.venti.app.community
 
+import fly.venti.core.publicFlightsNearPath
+import fly.venti.core.Coordinate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -180,6 +182,18 @@ class CommunityModel(
     suspend fun flightsAround(area: Bounds, fromUnixS: Long, toUnixS: Long): List<PublicFlight> {
         val server = server() ?: throw NoLongerPublic()
         val answer = transport(server + publicFlightsPath(PublicFlightsOrder.NEWEST, area, fromUnixS, toUnixS, null))
+        val page = withContext(background) { publicFlights(answer.status16, answer.body) }
+        known += page.flights.associateBy { it.id }
+        return page.flights
+    }
+
+    /**
+     * The public flights that took off near a place, the newest first: what
+     * was flown from a flying site. The first page of them.
+     */
+    suspend fun flightsNear(place: Coordinate, withinM: Double = 1500.0): List<PublicFlight> {
+        val server = server() ?: throw NoLongerPublic()
+        val answer = transport(server + publicFlightsNearPath(place.lat, place.lon, withinM))
         val page = withContext(background) { publicFlights(answer.status16, answer.body) }
         known += page.flights.associateBy { it.id }
         return page.flights

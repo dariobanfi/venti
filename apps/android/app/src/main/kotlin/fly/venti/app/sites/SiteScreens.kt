@@ -1,5 +1,10 @@
 package fly.venti.app.sites
 
+import kotlinx.coroutines.CancellationException
+import fly.venti.core.SiteKind
+import fly.venti.core.PublicFlight
+import fly.venti.app.community.PublicFlightRow
+import fly.venti.app.community.CommunityModel
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -94,6 +99,10 @@ fun SiteSheet(
     chosen: SiteView?,
     onChoose: (SiteView?) -> Unit,
     onDismiss: () -> Unit,
+    /** Everyone's flights on Venti, for what was flown from a site; `null` for none. */
+    community: CommunityModel? = null,
+    /** Opens a flight flown from the site, on its own page. */
+    onOpenFlight: (PublicFlight) -> Unit = {},
 ) {
     // What the pilot has opened from the site's page, the newest last: a
     // wind station near the site, a forecast. Back takes the last away.
@@ -144,6 +153,8 @@ fun SiteSheet(
                     onForecast = { opened = opened + FromASite.Forecast(ForecastPlace(chosen.name, chosen.position)) },
                     onBack = if (showsList) ({ onChoose(null) }) else null,
                     onDone = onDismiss,
+                    community = community,
+                    onOpenFlight = onOpenFlight,
                 )
             } else {
                 SiteList(sites, onOpen = onChoose, onDone = onDismiss)
@@ -302,8 +313,25 @@ private fun SitePage(
     /** Back to the list of sites, if that is where the pilot came from. */
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
+    community: CommunityModel?,
+    onOpenFlight: (PublicFlight) -> Unit,
 ) {
     val links = LocalUriHandler.current
+    // What was flown from a place to take off from; a landing field has no
+    // flights that began there. A site nobody shared a flight from has no
+    // such section, and neither has one whose flights could not be asked for.
+    var flown by remember(site.id) { mutableStateOf(emptyList<PublicFlight>()) }
+    LaunchedEffect(site.id) {
+        if (community == null || community.server() == null) return@LaunchedEffect
+        if (site.kind != SiteKind.TAKEOFF && site.kind != SiteKind.TOWING) return@LaunchedEffect
+        flown = try {
+            community.flightsNear(site.position).take(SiteWords.FLOWN_AT_MOST)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
     // The wind measured around the site now, from the stations the map
     // already has, and for each whether it comes from a direction the site
     // works in. Which stations, and whether a wind fits, is the core's.
@@ -376,6 +404,17 @@ private fun SitePage(
                         }
                     }
                     SectionFooter(SiteWords.NEARBY_CAUTION)
+                }
+            }
+            if (flown.isNotEmpty()) {
+                item {
+                    SectionHeader(SiteWords.FLOWN_FROM_HERE)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (flight in flown) {
+                            PublicFlightRow(flight, MaterialTheme.shapes.medium, tag = "site-flight") { onOpenFlight(flight) }
+                        }
+                    }
+                    SectionFooter(SiteWords.FLOWN_FOOTER)
                 }
             }
             item {
@@ -559,6 +598,14 @@ fun WindRose(spans: List<WindSpan>, modifier: Modifier = Modifier) {
 
 /** What the sites' screens say, apart from what the core has worded. */
 object SiteWords {
+    const val FLOWN_FROM_HERE = "Flown from here"
+    const val FLOWN_FOOTER =
+        "The newest flights that pilots share with everyone on Venti and that took off within a kilometre and " +
+            "a half of this place."
+
+    /** The most flights a site's page lists. */
+    const val FLOWN_AT_MOST = 5
+
     /** What a site on the map is worth, said wherever sites are listed. */
     const val CAUTION =
         "A site on the map is not permission to fly there. Ask the club or the owner, and look at the place."

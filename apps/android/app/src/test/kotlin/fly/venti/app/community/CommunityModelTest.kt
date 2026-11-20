@@ -3,6 +3,8 @@ package fly.venti.app.community
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.app.design.Format
+import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
 import kotlinx.coroutines.runBlocking
@@ -98,6 +100,28 @@ class CommunityModelTest {
 
     private fun model(server: Server, address: () -> String? = { BASE }) =
         CommunityModel(transport = server::answer).also { it.server = address }
+
+    @Test
+    fun whatWasFlownFromASiteAndAroundAFlightIsAskedForByPlaceAndTime() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        val near = community.flightsNear(Coordinate(lat = 47.6642, lon = 11.7967))
+        assertEquals(listOf("Jonas Beispiel", "Mara Muster"), near.map { it.pilot })
+        val asked = server.asked.single()
+        assertTrue(asked, asked.startsWith("$BASE/v1/flights/public?") && "bbox=" in asked)
+        // Each opens like a flight of the lists.
+        assertEquals(near.first(), community.flight(near.first().id))
+        // Nothing of it is in the list of everyone's flights.
+        assertTrue(community.flights.isEmpty())
+
+        val around = community.flightsAround(
+            Bounds(south = 47.6, west = 11.7, north = 47.7, east = 11.9),
+            fromUnixS = 1_783_000_000,
+            toUnixS = 1_783_086_400,
+        )
+        assertEquals(2, around.size)
+        assertTrue(server.asked.last().contains("from="))
+    }
 
     @Test
     fun theNewestFlightsAreListedAndMoreFollowsWhenTheEndComesIntoView() = runBlocking {

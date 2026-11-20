@@ -1,5 +1,7 @@
 package fly.venti.app.map
 
+import fly.venti.core.PublicFlight
+import fly.venti.app.community.CommunityModel
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -92,6 +94,10 @@ fun MapScreen(
     /** Where a report is sent from, so that it goes on when its form is closed. */
     requests: CoroutineScope,
     bars: PaddingValues,
+    /** Everyone's flights on Venti, for what was flown from a site. */
+    community: CommunityModel? = null,
+    /** Opens a flight another pilot shares, on its own page. */
+    onOpenFlight: (PublicFlight) -> Unit = {},
 ) {
     val context = LocalContext.current
     var isFollowing by remember { mutableStateOf(false) }
@@ -266,6 +272,12 @@ fun MapScreen(
             onDismiss = {
                 chosenSite = null
                 showsSites = false
+            },
+            community = community,
+            onOpenFlight = { flight ->
+                chosenSite = null
+                showsSites = false
+                onOpenFlight(flight)
             },
         )
     }

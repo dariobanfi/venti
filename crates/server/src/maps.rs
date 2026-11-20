@@ -201,7 +201,9 @@ impl Maps {
     /// to stop; what was listed by then stays listed.
     pub fn read(&self, folder: &Path) -> Reading {
         let stop = &self.stop;
-        let (described, mut left_out) = describe_all(folder);
+        let Some((described, mut left_out)) = describe_all(folder) else {
+            return Reading::default();
+        };
         let mut reading = Reading::default();
         for region in described {
             if stop.is_cancelled() {
@@ -290,8 +292,9 @@ struct Described {
 
 /// The regions in `folder` whose descriptions keep the rules, sorted by
 /// identifier, and how many were left out. Each one left out is written
-/// to the log with the reason.
-fn describe_all(folder: &Path) -> (Vec<Described>, usize) {
+/// to the log with the reason. `None` if the folder itself cannot be read,
+/// which the log then says.
+fn describe_all(folder: &Path) -> Option<(Vec<Described>, usize)> {
     let folders = match region_folders(folder) {
         Ok(folders) => folders,
         Err(error) => {
@@ -299,7 +302,7 @@ fn describe_all(folder: &Path) -> (Vec<Described>, usize) {
                 "maps: the folder {} cannot be read, so no region is handed out: {error}",
                 folder.display()
             );
-            return (Vec::new(), 0);
+            return None;
         }
     };
 
@@ -339,7 +342,7 @@ fn describe_all(folder: &Path) -> (Vec<Described>, usize) {
             folders.join(", ")
         );
     }
-    (described, left_out)
+    Some((described, left_out))
 }
 
 /// The folders in `folder` that hold a description, sorted by name.

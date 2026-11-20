@@ -113,7 +113,7 @@ class SitesModelTest {
         val takeoff = sites.sites.first { it.name == "Fluggelände Jägerkamp/Nagelspitz" }
         assertEquals(SiteKind.TAKEOFF, takeoff.kind)
         assertTrue(takeoff.isNamed)
-        assertEquals("Take-off · 1,560 m", SiteWords.detail(takeoff))
+        assertEquals("Take-off · 1560 m", SiteWords.detail(takeoff))
         // A site the source has no name for is named by what it is, and its row says no more.
         val bare = sites.sites.first { !it.isNamed && it.kind == SiteKind.LANDING }
         assertEquals("Landing", bare.name)
@@ -291,7 +291,7 @@ class SitesModelTest {
             wind = listOf(WindSpan(fromDeg = 180.0, toDeg = 225.0)),
             windInWords = "S to SW",
         )
-        assertEquals("Take-off and landing · 1,234 m · wind S to SW", SiteWords.detail(site))
+        assertEquals("Take-off and landing · 1234 m · wind S to SW", SiteWords.detail(site))
     }
 
     @Test

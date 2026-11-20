@@ -137,11 +137,11 @@ class ForecastTest {
             rows.map { it.id },
         )
         // A pressure surface is named by about how high it lies.
-        assertEquals("3,100 m", rows[0].name)
+        assertEquals("3100 m", rows[0].name)
         assertEquals("700 hPa", rows[0].detail)
         assertEquals("80 m", rows[2].name)
         assertEquals("above ground", rows[2].detail)
-        assertEquals("3,100 m, 700 hPa", ForecastRows.spokenName(rows[0]))
+        assertEquals("3100 m, 700 hPa", ForecastRows.spokenName(rows[0]))
 
         // An hour without a level is a gap in its row, not a shift.
         val high = (rows[0].cells[0] as ForecastCell.Wind).wind
@@ -153,7 +153,7 @@ class ForecastTest {
         // The ground wind carries its gusts.
         assertEquals("9/25", (rows[3].cells[0] as ForecastCell.Wind).wind.label)
 
-        assertEquals(listOf(ForecastCell.Number("2,400"), ForecastCell.Empty, ForecastCell.Empty), rows[4].cells)
+        assertEquals(listOf(ForecastCell.Number("2400"), ForecastCell.Empty, ForecastCell.Empty), rows[4].cells)
         assertEquals(listOf(ForecastCell.Cloud(30.0), ForecastCell.Cloud(80.0), ForecastCell.Empty), rows[5].cells)
         // A dry hour is a dot, so that the wet ones stand out.
         assertEquals(
@@ -161,7 +161,7 @@ class ForecastTest {
             rows[6].cells,
         )
         assertEquals(listOf(ForecastCell.Number("24"), ForecastCell.Number("25"), ForecastCell.Empty), rows[7].cells)
-        assertEquals(listOf(ForecastCell.Number("3,900"), ForecastCell.Empty, ForecastCell.Empty), rows[8].cells)
+        assertEquals(listOf(ForecastCell.Number("3900"), ForecastCell.Empty, ForecastCell.Empty), rows[8].cells)
     }
 
     @Test

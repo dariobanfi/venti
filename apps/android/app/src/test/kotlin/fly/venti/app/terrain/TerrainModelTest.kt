@@ -85,7 +85,7 @@ class TerrainModelTest {
         model.load(TAKEOFF)
 
         // The Tegernsee lies at 725 m, and the sample flight takes off on
-        // the Wallberg at 1,620 m.
+        // the Wallberg at 1620 m.
         assertEquals(725.0, checkNotNull(model.terrain.elevation(LAKE.lat, LAKE.lon)), 1.0)
         assertEquals(1620.0, checkNotNull(model.terrain.elevation(TAKEOFF.lat, TAKEOFF.lon)), 5.0)
         // The archive is read once, and nothing is fetched when the
@@ -112,7 +112,7 @@ class TerrainModelTest {
 
     @Test
     fun underTheAltitudeStandsTheHeightOverTheGroundWhereItIsKnown() {
-        assertEquals("1,155 m over ground", AltitudeWords.under(aboveGroundM = 1155.4, aboveTakeoffM = 389.0))
+        assertEquals("1155 m over ground", AltitudeWords.under(aboveGroundM = 1155.4, aboveTakeoffM = 389.0))
         // The ground is a model's: a glider it puts under the ground stands on it.
         assertEquals("0 m over ground", AltitudeWords.under(aboveGroundM = -3.0, aboveTakeoffM = 12.0))
         // Without the ground, the height over the take-off as before.

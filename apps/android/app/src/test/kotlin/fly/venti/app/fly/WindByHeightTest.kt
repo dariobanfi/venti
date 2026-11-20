@@ -37,10 +37,10 @@ class WindByHeightTest {
             isHere = true,
             climbMs = null,
         )
-        assertEquals("1,600 to 1,800 m", WindByHeightWords.heights(here))
+        assertEquals("1600 to 1800 m", WindByHeightWords.heights(here))
         assertEquals("You are here · measured 3 minutes ago", WindByHeightWords.detail(here))
         assertEquals("11 km/h W", WindByHeightWords.wind(here))
-        assertEquals("1,600 to 1,800 metres, where you are", WindByHeightWords.spokenHeights(here))
+        assertEquals("1600 to 1800 metres, where you are", WindByHeightWords.spokenHeights(here))
         assertEquals("11 kilometres per hour from W, measured 3 minutes ago", WindByHeightWords.spokenWind(here))
 
         // A band the glider circled in only briefly has no climb to show.
@@ -48,7 +48,7 @@ class WindByHeightTest {
 
         val above = here.copy(floorM = 1800.0, ceilingM = 2000.0, ageS = 20.0, isHere = false)
         assertEquals("Measured just now", WindByHeightWords.detail(above))
-        assertEquals("1,800 to 2,000 metres", WindByHeightWords.spokenHeights(above))
+        assertEquals("1800 to 2000 metres", WindByHeightWords.spokenHeights(above))
 
         // How fast the glider climbed through a band stands under its
         // wind, and a screen reader says it after the wind.

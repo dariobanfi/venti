@@ -82,11 +82,32 @@ object Format {
     /** Whole kilometres, for totals. */
     fun wholeKilometres(metres: Double): String = number(metres / 1000, decimals = 0)
 
-    /** Whole metres. */
-    fun metres(metres: Double): String = number(metres, decimals = 0)
+    /**
+     * Whole metres, as a height is written: "2410", with no mark between
+     * the thousands. The design language writes heights so, an altimeter
+     * does, and a comma there reads as a decimal to half of Europe. A loss
+     * has the true minus.
+     */
+    fun metres(metres: Double): String {
+        val text = height(abs(metres))
+        return if (text != "0" && metres < 0) "−$text" else text
+    }
 
-    /** Whole metres with a sign, for a gain or a loss. */
-    fun signedMetres(metres: Double): String = signed(metres, decimals = 0)
+    /** Whole metres with a sign, for a gain or a loss: "+1140", "−135". */
+    fun signedMetres(metres: Double): String {
+        val text = height(abs(metres))
+        return when {
+            text == "0" -> text
+            metres > 0 -> "+$text"
+            else -> "−$text"
+        }
+    }
+
+    private fun height(value: Double): String =
+        NumberFormat.getNumberInstance(numbers).apply {
+            maximumFractionDigits = 0
+            isGroupingUsed = false
+        }.format(value)
 
     /** Metres per second with one decimal and always a sign, except for zero. */
     fun climb(metresPerSecond: Double): String = signed(metresPerSecond, decimals = 1)

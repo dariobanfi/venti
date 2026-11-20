@@ -1302,7 +1302,7 @@ class VentiUiTest {
         val landed = hasTestTag("live-row") and saying("Landed 9 min ago")
         val flying = hasTestTag("live-row") and !saying("Landed")
         assertTrue(exists(landed and described("Demo Pilot")))
-        assertTrue(exists(flying and saying("1,596 m")))
+        assertTrue(exists(flying and saying("1596 m")))
         assertTrue(exists(hasText("it is not known to have landed", substring = true)))
         letTheMapDraw(1)
         keepScreenshot("$prefix-air-2-list")

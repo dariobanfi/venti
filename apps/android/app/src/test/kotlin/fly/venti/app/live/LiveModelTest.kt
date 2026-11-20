@@ -129,7 +129,7 @@ class LiveModelTest {
         assertEquals(4.0, live.age(flying), 0.001)
         assertEquals("Now", live.ageInWords(flying))
         assertEquals("Landed 9 min ago", live.ageInWords(landed))
-        assertEquals("1,596 m · −1.0 m/s · Now", GliderWords.detail(flying, live.ageInWords(flying)))
+        assertEquals("1596 m · −1.0 m/s · Now", GliderWords.detail(flying, live.ageInWords(flying)))
         // A glider on the ground does not climb.
         assertEquals("786 m · Landed 9 min ago", GliderWords.detail(landed, live.ageInWords(landed)))
         assertEquals("@demo", GliderWords.title(flying))

@@ -126,7 +126,7 @@ class LiveFlightTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
-    /** What an instrument shows, as a screen reader would read it: "1,472 m". */
+    /** What an instrument shows, as a screen reader would read it: "1472 m". */
     private fun reading(instrument: String): String? =
         screen.onAllNodes(hasContentDescription(instrument)).fetchSemanticsNodes().firstOrNull()
             ?.config?.getOrNull(SemanticsProperties.StateDescription)
@@ -161,7 +161,7 @@ class LiveFlightTest {
         // The receiver reported height above the ellipsoid; the cockpit
         // shows height above the sea, some 46 m less in this valley.
         TestDevice.letTheAppRun(screen, seconds = 5)
-        // Read as "1,453 m, 238 m over ground": the altitude comes first.
+        // Read as "1453 m, 238 m over ground": the altitude comes first.
         val altitude = checkNotNull(reading("Altitude")).substringBefore(" m").filter { it.isDigit() }.toInt()
         assertTrue("altitude $altitude", altitude in 1440..1470)
         // Under it stands the height over the ground, also in a flight

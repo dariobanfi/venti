@@ -33,7 +33,7 @@ class FormatTest {
         Locale.setDefault(Locale.GERMANY)
 
         assertEquals("2.5", Format.kilometres(2_500.0))
-        assertEquals("3,100", Format.metres(3_100.0))
+        assertEquals("3100", Format.metres(3_100.0))
         assertEquals("+2.4", Format.climb(2.4))
         assertEquals("1,745", Format.count(1_745))
         assertEquals("1.4", Format.plain(1.4))
@@ -44,7 +44,7 @@ class FormatTest {
     @Test
     fun formattingUsesMetricUnits() {
         assertEquals("950", Format.metres(950.4))
-        assertEquals("2,117", Format.metres(2117.0))
+        assertEquals("2117", Format.metres(2117.0))
         assertEquals("0:29", Format.hoursMinutes(1744))
         assertEquals("5:42", Format.hoursMinutes(5 * 3600 + 42 * 60))
         assertEquals("4:12", Format.minutesSeconds(252))
@@ -77,6 +77,10 @@ class FormatTest {
     fun gainsAndLossesCarryTheirSignAndZeroCarriesNone() {
         assertEquals("+2.4", Format.climb(2.4))
         assertEquals("+244", Format.signedMetres(244.0))
+        // Heights have no mark between the thousands, and a loss the true minus.
+        assertEquals("+1140", Format.signedMetres(1140.0))
+        assertEquals("−135", Format.signedMetres(-135.0))
+        assertEquals("−135", Format.metres(-135.0))
         assertTrue(Format.climb(-1.5).endsWith("1.5"))
         assertFalse(Format.climb(-1.5).startsWith("+"))
         assertEquals("0.0", Format.climb(0.04))

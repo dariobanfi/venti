@@ -82,7 +82,7 @@ class ReachTest {
         assertEquals("+10 m", ReachWords.height(5.0))
         assertEquals("0 m", ReachWords.height(4.9))
         assertEquals("−10 m", ReachWords.height(-5.0))
-        assertEquals("+1,240 m", ReachWords.height(1_236.0))
+        assertEquals("+1240 m", ReachWords.height(1_236.0))
     }
 
     @Test

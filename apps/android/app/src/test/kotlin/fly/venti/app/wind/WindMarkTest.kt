@@ -120,7 +120,7 @@ class WindMarkTest {
     @Test
     fun aRowSaysTheHeightAndTheAgeOnlyWhenItMatters() {
         val summit = station("Zugspitze")
-        assertEquals("2,956 m", StationWords.detail(summit, recordedAt).substringBefore(" ·"))
+        assertEquals("2956 m", StationWords.detail(summit, recordedAt).substringBefore(" ·"))
         assertEquals(
             "Wind 54 kilometres per hour, gusts 93, from W",
             StationWords.spoken(summit, summit.mark, StationWords.detail(summit, recordedAt)),

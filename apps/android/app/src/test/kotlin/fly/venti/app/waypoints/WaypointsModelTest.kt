@@ -70,7 +70,7 @@ class WaypointsModelTest {
         // A flying site, kept from its page on the map.
         assertTrue(waypoints.add("Sample take-off (not real)", place, 1560.0))
         assertEquals(listOf("Sample take-off (not real)"), waypoints.all.map { it.name })
-        assertEquals("1,560 m", waypoints.all.single().detail)
+        assertEquals("1560 m", waypoints.all.single().detail)
 
         // Kept again, it is there once.
         assertTrue(waypoints.add("Sample take-off (not real)", place, 1560.0))

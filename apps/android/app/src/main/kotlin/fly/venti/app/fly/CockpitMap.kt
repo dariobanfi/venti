@@ -1,5 +1,12 @@
 package fly.venti.app.fly
 
+import kotlin.math.roundToInt
+import androidx.core.graphics.createBitmap
+import android.graphics.Path
+import android.graphics.Paint
+import android.graphics.Canvas
+import android.graphics.Bitmap
+import android.content.Context
 import app.venti.design.VentiMapLight
 import fly.venti.core.LiveGlider
 import fly.venti.app.live.LiveSymbols
@@ -302,8 +309,11 @@ class CockpitMap : MapContent {
             ),
         )
         drawnGliders = null
-        // The glider goes on top, in the design language's pairing for the
-        // pilot's own position: cream with the dark ring, the dot of the logo.
+        // The glider goes on top, as the design language has the pilot's
+        // own position: a cream arrow with a dark ring, pointing where the
+        // glider goes over the ground. Without a course, standing on the
+        // ground or with a receiver that gives none, it is a dot in the
+        // same pair.
         val glider = MapSetup.dot(
             "cockpit-glider-dot",
             FLIGHT,
@@ -316,9 +326,26 @@ class CockpitMap : MapContent {
             Expression.all(
                 Expression.eq(Expression.geometryType(), Expression.literal("Point")),
                 Expression.not(Expression.has(PART)),
+                Expression.not(Expression.has(OWN_COURSE)),
             ),
         )
         style.addLayer(glider)
+        style.addImage(OWN_POSITION, ownPositionArrow(view.context))
+        style.addLayer(
+            SymbolLayer("cockpit-glider-arrow", FLIGHT).withProperties(
+                PropertyFactory.iconImage(OWN_POSITION),
+                PropertyFactory.iconRotate(Expression.get(OWN_COURSE)),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+            ).withFilter(
+                Expression.all(
+                    Expression.eq(Expression.geometryType(), Expression.literal("Point")),
+                    Expression.not(Expression.has(PART)),
+                    Expression.has(OWN_COURSE),
+                ),
+            ),
+        )
 
         update()
     }
@@ -487,7 +514,9 @@ class CockpitMap : MapContent {
             places = view.trail.map { Point.fromLngLat(it.lon, it.lat) },
             climbs = view.trail.map { it.climbMs },
         )
-        val glider = Feature.fromGeometry(position.point)
+        val glider = Feature.fromGeometry(position.point).apply {
+            view.courseDeg?.let { addNumberProperty(OWN_COURSE, it) }
+        }
         // The glider, its trail and, while circling, the thermal's picture:
         // one piece of data, so none of them is drawn without the others.
         // Once the thermal is left the core hands out no picture, and
@@ -539,6 +568,40 @@ class CockpitMap : MapContent {
 
     companion object {
         private const val FLIGHT = "cockpit-flight"
+
+        /** The glider's course over the ground, on its feature, where there is one. */
+        private const val OWN_COURSE = "own-course"
+
+        /** The name the map knows the own glider's arrow by. */
+        private const val OWN_POSITION = "cockpit-own-position"
+
+        /** The arrow of the pilot's own glider, pointing up: the map turns it to the glider's course. */
+        private fun ownPositionArrow(context: Context): Bitmap {
+            val metrics = context.resources.displayMetrics
+            val side = 34 * metrics.density
+            val bitmap = createBitmap(side.roundToInt(), side.roundToInt())
+            bitmap.density = metrics.densityDpi
+            val arrow = Path().apply {
+                moveTo(side * 0.5f, side * 0.1f)
+                lineTo(side * 0.82f, side * 0.86f)
+                lineTo(side * 0.5f, side * 0.68f)
+                lineTo(side * 0.18f, side * 0.86f)
+                close()
+            }
+            val canvas = Canvas(bitmap)
+            canvas.drawPath(arrow, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = VentiMapLight.ownPosition.toArgb() })
+            canvas.drawPath(
+                arrow,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = 3 * metrics.density
+                    strokeJoin = Paint.Join.ROUND
+                    color = VentiMapLight.ownPositionRing.toArgb()
+                },
+            )
+            return bitmap
+        }
+
         private const val TAKEOFF = "cockpit-takeoff"
         private const val GLIDERS = "cockpit-gliders"
         private const val COURSE = "cockpit-course"

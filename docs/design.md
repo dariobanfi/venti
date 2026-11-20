@@ -215,7 +215,7 @@ The limits are our own, round numbers a cautious pilot would nod to, the same fo
 
 ## Icon
 
-A white paraglider on the accent violet; the pilot is a dot in the colour a climb has on a track. It is drawn by `tools/app-icon/make_icon.py`, so it can be changed as text like everything else.
+The app icon is the design pack's, the thermal spiral over the valley (`design/assets/app-icon`), and no app keeps a copy or a drawing of its own. The iPhone's build takes the pack's `AppIcon.appiconset`, with its tinted variant, into the asset catalogue it gathers (`apps/ios/scripts/build-design.sh`); Android's build copies the pack's launcher icons, adaptive and monochrome, with its other resources; the web serves the pack's favicon, touch icon and manifest as they are.
 
 ## Type
 

@@ -42,7 +42,7 @@ Working notes: what to know before changing the iPhone app or its tests. How to 
 | `Venti/Maps/` | Maps for flying without a network: downloading a region from the server, keeping it, and which map draws from it. |
 | `Venti/Assistant/` | The chat screen, sending requests, the key in the Keychain. |
 | `Venti/Settings/` | The settings tab and the credits. |
-| `Venti/Assets.xcassets/` | The app icon, drawn by `tools/app-icon/make_icon.py`. |
+| `Venti/Resources/Design.xcassets/` | The design pack's app icon, icons, logo and art, gathered by `scripts/build-design.sh`. Generated and not committed: the pack is the one copy. The app has no other asset catalogue; a second one with an `AppIcon` of its own would win over the pack's. |
 | `Venti/Info.plist` | Declares the flight-file type the app opens. Xcode generates the rest. |
 | `Venti/Resources/MapDemo/` | Label fonts and a small map region (base map and terrain) for tests and offline development, rebuilt by `tools/demo-map/build.sh`. The Android and the web app take their sample flight, fonts and region from `Venti/Resources` too. |
 | `VentiTests/` | Unit tests that run inside the app on a simulator. |

@@ -161,8 +161,15 @@ class LiveFlightTest {
         // The receiver reported height above the ellipsoid; the cockpit
         // shows height above the sea, some 46 m less in this valley.
         TestDevice.letTheAppRun(screen, seconds = 5)
-        val altitude = checkNotNull(reading("Altitude")).filter { it.isDigit() }.toInt()
+        // Read as "1,453 m, 238 m over ground": the altitude comes first.
+        val altitude = checkNotNull(reading("Altitude")).substringBefore(" m").filter { it.isDigit() }.toInt()
         assertTrue("altitude $altitude", altitude in 1440..1470)
+        // Under it stands the height over the ground, also in a flight
+        // that is recorded: the map is drawn from the region that comes
+        // with the app, and the cockpit reads the ground from it.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            reading("Altitude")?.endsWith(" m over ground") == true
+        }
         screen.waitForIdle()
         TestDevice.keepScreenshot("light-fly-7-recording")
 

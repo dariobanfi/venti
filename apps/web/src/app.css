@@ -44,6 +44,8 @@
 	--on-map-ink: var(--brand-ink);
 	--on-map-paper: color-mix(in srgb, var(--brand-cream) 85%, transparent);
 	--on-map-paper-solid: var(--brand-cream);
+	/* A second flight laid beside the one on screen: the pack's fourth series. */
+	--other: var(--series-4);
 	/* The ground under a flight in its altitude chart. */
 	--ground: color-mix(in srgb, var(--color-border-strong) 55%, transparent);
 

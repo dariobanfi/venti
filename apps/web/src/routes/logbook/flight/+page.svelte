@@ -11,12 +11,15 @@
 	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { logbookHref } from '#lib/app/routes.ts';
-	import type { FlightAnalysis, FlightView, LeagueHandover } from '#lib/core/index.ts';
+	import type { FlightAnalysis, FlightRef, FlightView, LeagueHandover } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { MenuItem } from '#lib/design/Menu.svelte';
+	import { type Beside, besideIn, besideValue } from '#lib/flight/beside.ts';
+	import CompareChooser from '#lib/flight/CompareChooser.svelte';
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
+	import { words } from '#lib/community/pages.ts';
 	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
 	import LeagueSheet from '#lib/logbook/LeagueSheet.svelte';
@@ -47,6 +50,7 @@
 	const actions: MenuItem[] = [
 		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
 		{ label: 'Send to a league', icon: 'league', onselect: () => void sendToALeague() },
+		{ label: 'Lay another flight beside it', icon: 'track', onselect: () => (choosing = true) },
 		{ label: 'Download flight file', icon: 'download', onselect: () => void downloadFlight() },
 		{
 			label: 'Delete flight',
@@ -92,6 +96,45 @@
 			current = false;
 		};
 	});
+
+	/** The flight laid beside this one, as the address names it, once compared. */
+	let beside = $state.raw<Beside>();
+	let choosing = $state(false);
+	const besideRef = $derived(browser ? besideIn(page.url.searchParams) : undefined);
+
+	$effect(() => {
+		beside = undefined;
+		const first = id ? { own: id } : undefined;
+		if (!besideRef || !first || !app.everyone) return;
+		let current = true;
+		const ref = besideRef;
+		app.everyone.compare(first, ref).then(
+			(compared) => {
+				if (!current) return;
+				beside = {
+					flight: compared.other,
+					name: compared.pilot ?? `Your flight of ${format().day(compared.other.startUnixS)}`,
+					comparison: compared.comparison
+				};
+			},
+			(error) => {
+				if (!current) return;
+				app.notice = { title: 'This flight could not be laid beside it', lines: [words(error)] };
+			}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** Lays another flight beside this one, or takes it away: the address says which. */
+	function layBeside(ref: FlightRef | undefined) {
+		choosing = false;
+		const url = new URL(page.url.href);
+		if (ref) url.searchParams.set('beside', besideValue(ref));
+		else url.searchParams.delete('beside');
+		void goto(`${url.pathname}${url.search}`, { replace: true, reset: false });
+	}
 
 	/** Saves the flight's file, as it was imported, where the browser keeps downloads. */
 	async function downloadFlight() {
@@ -145,6 +188,14 @@
 			back={{ href: logbookHref(), label: 'Logbook' }}
 			{actions}
 			inLogbook
+			{beside}
+			onendbeside={() => layBeside(undefined)}
+		/>
+		<CompareChooser
+			open={choosing}
+			flight={phase.flight}
+			onchoose={layBeside}
+			onclose={() => (choosing = false)}
 		/>
 		<ShareFlightSheet open={sharing} flight={phase.flight.id} onclose={() => (sharing = false)} />
 		<LeagueSheet

@@ -11,7 +11,10 @@
 
 import { untrack } from 'svelte';
 import type {
+	Bounds,
+	Compared,
 	Coordinate,
+	FlightRef,
 	CoreClient,
 	OpenedFlight,
 	PublicFlight,
@@ -409,6 +412,35 @@ export class CommunityModel {
 			seasons
 		);
 		if (this.#placeRanked === question && this.place) this.place = { ...this.place, ranking };
+	}
+
+	/**
+	 * The public flights begun within twelve hours of a moment around a part
+	 * of the map, the newest first: what others flew there that day, to lay
+	 * beside a flight. Nothing from a site without Venti behind it.
+	 */
+	async flownAround(area: Bounds, startUnixS: number): Promise<PublicFlight[] | undefined> {
+		const HALF_A_DAY_S = 12 * 3600;
+		// A tenth of a degree more on every side: a flight from the next
+		// mountain over is flown around the same place.
+		const grown = {
+			south: area.south - 0.1,
+			west: area.west - 0.1,
+			north: area.north + 0.1,
+			east: area.east + 0.1
+		};
+		const page = await this.#core.publicFlights({
+			order: 'newest',
+			area: grown,
+			fromUnixS: startUnixS - HALF_A_DAY_S,
+			toUnixS: startUnixS + HALF_A_DAY_S
+		});
+		return page?.flights;
+	}
+
+	/** Lays one flight beside another, as `CoreClient.compareFlights` does. */
+	compare(first: FlightRef, other: FlightRef): Promise<Compared> {
+		return this.#core.compareFlights(first, other);
 	}
 
 	/**

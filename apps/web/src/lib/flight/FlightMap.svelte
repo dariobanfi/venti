@@ -4,13 +4,14 @@
 	the airspace the app knows there, as it is today.
 -->
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type { FlightScore, FlightView, TrackPoint } from '#lib/core/index.ts';
 	import {
 		ACCENT_ON_MAP,
 		CLIMB_BANDS,
 		INK_ON_MAP,
+		OTHER_ON_MAP,
 		PAPER_ON_MAP,
 		ROUTE_ON_MAP
 	} from '#lib/design/palette.ts';
@@ -32,10 +33,21 @@
 		airspace: AirspaceForMaps | undefined;
 		/** Called with how many airspaces are drawn, or nothing while none can be. */
 		onairspace: (count: number | undefined) => void;
+		/** A second flight laid beside this one: its track, and where its glider was at the marked moment. */
+		other?: { track: readonly TrackPoint[]; at: TrackPoint | undefined };
 	}
 
-	let { flight, cursor, score, coveredTop, coveredBottom, terrain3d, airspace, onairspace }: Props =
-		$props();
+	let {
+		flight,
+		cursor,
+		score,
+		coveredTop,
+		coveredBottom,
+		terrain3d,
+		airspace,
+		onairspace,
+		other
+	}: Props = $props();
 
 	let container: HTMLDivElement;
 	let setup: typeof import('#lib/map/setup.ts') | undefined;
@@ -65,8 +77,16 @@
 					(count) => onairspace(count)
 				);
 				addRoute(module, styled);
+				// The other flight lies under this one, in one colour.
+				styled.addSource('other-track', { type: 'geojson', data: NOTHING });
+				styled.addLayer(module.line('other-track-edge', 'other-track', INK_ON_MAP, 4.5));
+				styled.addLayer(module.line('other-track-line', 'other-track', OTHER_ON_MAP, 2.5));
 				addTrack(module, styled);
 				addEnds(module, styled);
+				styled.addSource('other-cursor', { type: 'geojson', data: NOTHING });
+				styled.addLayer(
+					module.dot('other-cursor-dot', 'other-cursor', 7, OTHER_ON_MAP, PAPER_ON_MAP)
+				);
 				styled.addSource('flight-cursor', { type: 'geojson', data: NOTHING });
 				styled.addLayer(
 					module.dot('flight-cursor-dot', 'flight-cursor', 8, ACCENT_ON_MAP, PAPER_ON_MAP)
@@ -89,7 +109,7 @@
 
 	function addTrack(module: typeof import('#lib/map/setup.ts'), map: Map) {
 		map.addSource('flight-track', { type: 'geojson', data: trackByBand(flight.track) });
-		// A white edge keeps the track readable over any ground colour.
+		// A dark casing keeps the track readable over any ground colour.
 		map.addLayer(module.line('flight-track-edge', 'flight-track', INK_ON_MAP, 6.5));
 		// Sink first and climbs last, so that where the track crosses itself
 		// the thermals stay on top.
@@ -138,6 +158,52 @@
 		if (!map || !setup) return;
 		setup.shapes(map, 'flight-cursor')?.setData(cursor ? place(cursor) : NOTHING);
 	});
+
+	/** Kept apart from the marked moment, so that moving the marker does not move the map. */
+	const otherTrack = $derived(other?.track);
+	const otherMarked = $derived(other?.at);
+
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, 'other-cursor')?.setData(otherMarked ? place(otherMarked) : NOTHING);
+	});
+
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, 'other-track')?.setData(otherTrack ? trackLine(otherTrack) : NOTHING);
+		// Room for both tracks.
+		if (otherTrack && otherTrack.length > 1) {
+			const lats = otherTrack.map((point) => point.lat);
+			const lons = otherTrack.map((point) => point.lon);
+			setup.showBounds(
+				map,
+				{
+					south: Math.min(flight.bounds.south, ...lats),
+					west: Math.min(flight.bounds.west, ...lons),
+					north: Math.max(flight.bounds.north, ...lats),
+					east: Math.max(flight.bounds.east, ...lons)
+				},
+				{ top: untrack(() => coveredTop), right: 0, bottom: untrack(() => coveredBottom), left: 0 }
+			);
+		}
+	});
+
+	/** A track as one line, without its colours. */
+	function trackLine(track: readonly TrackPoint[]) {
+		return {
+			type: 'FeatureCollection' as const,
+			features: [
+				{
+					type: 'Feature' as const,
+					properties: {},
+					geometry: {
+						type: 'LineString' as const,
+						coordinates: track.map((point) => [point.lon, point.lat])
+					}
+				}
+			]
+		};
+	}
 
 	$effect(() => {
 		if (!map || !setup || terrain3d === tilted) return;

@@ -5,7 +5,7 @@
  */
 
 import type { NewAccount } from './account-source';
-import type { PublicFlightsAsked } from './community-source';
+import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
 import type {
 	Bounds,
@@ -200,6 +200,14 @@ export class CoreClient {
 	 */
 	openPublicFlight(id: string) {
 		return this.#call('openPublicFlight', id);
+	}
+
+	/**
+	 * Lays the flight `other` beside `first`, the one on screen: the other
+	 * flight and how the two lie to each other. Nothing is kept.
+	 */
+	compareFlights(first: FlightRef, other: FlightRef) {
+		return this.#call('compareFlights', { first, other });
 	}
 
 	/** What the server's weather models say about a place. Nothing if this site has no server. */

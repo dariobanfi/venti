@@ -16,6 +16,9 @@
 
 import { flightFileText } from './flight-text';
 import {
+	type Bounds,
+	compareFlightFiles,
+	type ComparedFlight,
 	type Coordinate,
 	flightAnalysisFromFile,
 	flownFromHere,
@@ -71,7 +74,15 @@ export interface PublicFlightsAsked {
 	 * half, as the core counts a flight flown from there.
 	 */
 	near?: Coordinate;
+	/** Only flights that took off inside this part of the map. */
+	area?: Bounds;
 }
+
+/** A flight to lay beside another: one of the pilot's own, or a public one, by its address. */
+export type FlightRef = { own: string } | { public: string };
+
+/** A flight laid beside another, with whose it is when it is another pilot's. */
+export type Compared = ComparedFlight & { pilot?: string };
 
 /** The pilots of a season ranked, with the seasons there are to choose from. */
 export interface SeasonRanking {
@@ -108,7 +119,7 @@ export class CommunitySource {
 	 */
 	async flights(asked: PublicFlightsAsked): Promise<PublicFlights | undefined> {
 		if (!(await this.#present())) return undefined;
-		const area = asked.near ? flownFromHere(asked.near.lat, asked.near.lon) : undefined;
+		const area = asked.near ? flownFromHere(asked.near.lat, asked.near.lon) : asked.area;
 		const answer = await this.#get(
 			publicFlightsPath(asked.order, area, asked.fromUnixS, asked.toUnixS, asked.after)
 		);
@@ -154,15 +165,9 @@ export class CommunitySource {
 	 * its file is not a flight.
 	 */
 	async open(id: string): Promise<OpenedFlight | undefined> {
-		if (!(await this.#present())) return undefined;
-		const about = await this.#get(publicFlightPath(id));
-		const row = publicFlight(about.status, about.body);
-
-		const file = await this.#get(row.filePath);
-		// Not the file: the core puts into words what the server said
-		// instead, which it does by throwing.
-		if (file.status < 200 || file.status > 299) publicFlight(file.status, file.body);
-		const text = flightFileText(file.body);
+		const fetched = await this.file(id);
+		if (!fetched) return undefined;
+		const { row, text } = fetched;
 		const flight = flightFromFile(text);
 		let analysis: FlightAnalysis | undefined;
 		try {
@@ -171,5 +176,48 @@ export class CommunitySource {
 			// Without the analysis the details are shorter, not wrong.
 		}
 		return { row, flight, analysis };
+	}
+
+	/**
+	 * Lays a flight beside another: `first` is the one on screen. A flight of
+	 * the pilot's own is read from the logbook by `ownText`, a public one
+	 * fetched; nothing is kept. Comes back with the other flight, how the
+	 * two lie to each other, and whose the other is when it is a pilot's
+	 * public flight. Throws in words when a flight cannot be had.
+	 */
+	async compare(
+		first: FlightRef,
+		other: FlightRef,
+		ownText: (id: string) => Promise<string>
+	): Promise<Compared> {
+		const read = async (ref: FlightRef): Promise<{ text: string; pilot?: string }> => {
+			if ('own' in ref) return { text: await ownText(ref.own) };
+			const fetched = await this.file(ref.public);
+			if (!fetched) {
+				throw unreachable(
+					'Other pilots’ flights are kept by Venti, and this copy of the app is served without Venti behind it.'
+				);
+			}
+			return { text: fetched.text, pilot: fetched.row.pilot };
+		};
+		const [one, two] = await Promise.all([read(first), read(other)]);
+		return { ...compareFlightFiles(one.text, two.text), pilot: two.pilot };
+	}
+
+	/**
+	 * A public flight's file as text, with what the list says about it.
+	 * Nothing if this site has no server. Throws in words when the flight
+	 * is no longer public.
+	 */
+	async file(id: string): Promise<{ row: PublicFlight; text: string } | undefined> {
+		if (!(await this.#present())) return undefined;
+		const about = await this.#get(publicFlightPath(id));
+		const row = publicFlight(about.status, about.body);
+
+		const file = await this.#get(row.filePath);
+		// Not the file: the core puts into words what the server said
+		// instead, which it does by throwing.
+		if (file.status < 200 || file.status > 299) publicFlight(file.status, file.body);
+		return { row, text: flightFileText(file.body) };
 	}
 }

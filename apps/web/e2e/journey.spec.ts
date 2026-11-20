@@ -310,6 +310,8 @@ test('the flight screen can be used from the keyboard', async ({ page, wide }) =
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Send to a league' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
+	await expect(page.getByRole('menuitem', { name: 'Lay another flight beside it' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Download flight file' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('menuitem', { name: 'Delete flight' })).toBeFocused();

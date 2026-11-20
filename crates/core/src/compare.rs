@@ -24,6 +24,8 @@ const NEARNESS_STEP_S: i64 = 5;
 
 /// Who is ahead in one line of the comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum ComparisonLead {
     /// The flight the pilot opened.
     First,
@@ -35,6 +37,8 @@ pub enum ComparisonLead {
 
 /// One line of the comparison: the same number of both flights.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct ComparisonRow {
     /// What the number is: "Airtime".
     pub label: String,
@@ -48,6 +52,8 @@ pub struct ComparisonRow {
 
 /// The moment the two gliders were nearest to each other.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct NearestMoment {
     /// Seconds since the opened flight's first fix.
     pub seconds: u32,
@@ -60,6 +66,8 @@ pub struct NearestMoment {
 
 /// How two flights lie to each other, and what there is to compare.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FlightComparison {
     /// Whether the two are laid over each other by the clock: they were
     /// in the air at the same time. Otherwise each begins at its first

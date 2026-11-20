@@ -44,13 +44,13 @@ use serde::Serialize;
 use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
-    FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
-    KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics, LogbookView,
-    PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder,
-    Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus,
-    SignedIn, SiteAtPlace, SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary,
-    TerrainTile, TrackPoint, WindMap,
+    FlightAirspace, FlightAnalysis, FlightComparison, FlightFile, FlightSharing, FlightView,
+    FlightVisibility, ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade,
+    ImportedFlight, KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
+    LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
+    PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
+    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SitesMap, StagedStorage, StationHistory,
+    Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1170,6 +1170,35 @@ pub fn flight_from_file(igc_text: String) -> Result<Ts<FlightView>, JsValue> {
 #[wasm_bindgen(js_name = flightAnalysisFromFile)]
 pub fn flight_analysis_from_file(igc_text: String) -> Result<Ts<FlightAnalysis>, JsValue> {
     to_js(&venti_core::flight_analysis_from_file(igc_text).map_err(thrown)?)
+}
+
+/// A flight laid beside another, and how the two lie to each other.
+#[derive(Debug, Clone, PartialEq, Serialize, Tsify)]
+#[serde(rename_all = "camelCase")]
+pub struct ComparedFlight {
+    /// The flight laid beside, prepared for display.
+    pub other: FlightView,
+    /// How the two lie to each other, and the lines of numbers.
+    pub comparison: FlightComparison,
+}
+
+/// Compares two flights from their files' text: the first is the one on
+/// screen, the other the one laid beside it. Both are read whole, with
+/// their thermals and glides where the files allow; nothing is kept.
+#[wasm_bindgen(js_name = compareFlightFiles)]
+pub fn compare_flight_files(first: String, other: String) -> Result<Ts<ComparedFlight>, JsValue> {
+    let first_view = venti_core::flight_from_file(first.clone()).map_err(thrown)?;
+    let other_view = venti_core::flight_from_file(other.clone()).map_err(thrown)?;
+    let comparison = venti_core::compare_flights(
+        first_view,
+        other_view.clone(),
+        venti_core::flight_analysis_from_file(first).ok(),
+        venti_core::flight_analysis_from_file(other).ok(),
+    );
+    to_js(&ComparedFlight {
+        other: other_view,
+        comparison,
+    })
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

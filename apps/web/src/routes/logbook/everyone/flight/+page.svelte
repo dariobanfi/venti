@@ -15,11 +15,14 @@
 	import { queryOf, words } from '#lib/community/pages.ts';
 	import { reportedFlight } from '#lib/community/report.ts';
 	import ReportSheet from '#lib/community/ReportSheet.svelte';
-	import type { OpenedFlight } from '#lib/core/index.ts';
+	import type { FlightRef, OpenedFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { MenuItem } from '#lib/design/Menu.svelte';
+	import { type Beside, besideIn, besideValue } from '#lib/flight/beside.ts';
+	import CompareChooser from '#lib/flight/CompareChooser.svelte';
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
+	import { goto } from '$app/navigation';
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -74,6 +77,45 @@
 	/** Back to everyone's flights as they were asked for. */
 	const back = $derived(everyoneHref(everyone ? queryOf(everyone.asked) : ''));
 
+	/** The flight laid beside this one, as the address names it, once compared. */
+	let beside = $state.raw<Beside>();
+	let choosing = $state(false);
+	const besideRef = $derived(browser ? besideIn(page.url.searchParams) : undefined);
+
+	$effect(() => {
+		beside = undefined;
+		const first = id ? { public: id } : undefined;
+		if (!besideRef || !first || !app.everyone) return;
+		let current = true;
+		const ref = besideRef;
+		app.everyone.compare(first, ref).then(
+			(compared) => {
+				if (!current) return;
+				beside = {
+					flight: compared.other,
+					name: compared.pilot ?? `Your flight of ${format().day(compared.other.startUnixS)}`,
+					comparison: compared.comparison
+				};
+			},
+			(error) => {
+				if (!current) return;
+				app.notice = { title: 'This flight could not be laid beside it', lines: [words(error)] };
+			}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** Lays another flight beside this one, or takes it away: the address says which. */
+	function layBeside(ref: FlightRef | undefined) {
+		choosing = false;
+		const url = new URL(page.url.href);
+		if (ref) url.searchParams.set('beside', besideValue(ref));
+		else url.searchParams.delete('beside');
+		void goto(`${url.pathname}${url.search}`, { replace: true, reset: false });
+	}
+
 	/** The flight's page on the server, which is what to hand on. */
 	function pageOf(opened: OpenedFlight): string {
 		return new URL(opened.row.pagePath, location.origin).href;
@@ -105,6 +147,7 @@
 				onselect: () => window.open(pageOf(opened), '_blank', 'noopener')
 			},
 			{ label: 'Copy the link to its page', icon: 'copy', onselect: () => void copyLink(opened) },
+			{ label: 'Lay another flight beside it', icon: 'track', onselect: () => (choosing = true) },
 			{ label: 'Report this flight', icon: 'warning', onselect: () => (reporting = true) }
 		];
 	}
@@ -131,6 +174,15 @@
 			actions={actions(opened)}
 			inLogbook={false}
 			whose={{ name: opened.row.pilot, href: pilotHref(opened.row.handle) }}
+			{beside}
+			onendbeside={() => layBeside(undefined)}
+		/>
+		<CompareChooser
+			open={choosing}
+			flight={opened.flight}
+			publicId={opened.row.id}
+			onchoose={layBeside}
+			onclose={() => (choosing = false)}
 		/>
 		<ReportSheet
 			open={reporting}

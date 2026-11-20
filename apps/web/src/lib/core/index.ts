@@ -45,6 +45,9 @@ export type {
 	Credit,
 	EntryScore,
 	FlightAirspace,
+	FlightComparison,
+	ComparisonRow,
+	ComparisonLead,
 	FlightAnalysis,
 	FlightFile,
 	FlightMoment,
@@ -119,7 +122,13 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
-export type { OpenedFlight, PublicFlightsAsked, SeasonRanking } from './community-source';
+export type {
+	Compared,
+	FlightRef,
+	OpenedFlight,
+	PublicFlightsAsked,
+	SeasonRanking
+} from './community-source';
 export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 

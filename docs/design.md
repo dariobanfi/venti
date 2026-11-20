@@ -357,6 +357,13 @@ Where everyone's flights differ on the web from the iPhone's:
 - **No map beside the list** of everyone's flights yet, and so no narrowing by the part of a map in view: a place's page is the one way to the flights of a part of the map.
 - **What another pilot wrote** is set as text: a name or a glider is never read as markup.
 
+Where two flights side by side differ on the web from the iPhone's:
+
+- **From the menu, and in the address.** "Lay another flight beside it" is in the menu of the pilot's own flight and of another pilot's public one; the chooser is a sheet with the iPhone's two parts, "Flown here that day" and "Your flights", each a row of buttons. The flight laid beside is in the address (`&beside=public:…` or `&beside=own:…`), so a comparison can be reloaded and handed on; "Take the other flight away" takes it out of the address.
+- **The colour is the design pack's fourth series colour**, an ochre, where the iPhone has a green: the pack's series are the colours for comparing flights, and its green is a status. On the map the other track is one line of that colour with the dark casing, under the flight's own, and its glider a dot at the marked moment; in the chart its altitude is a thinner line.
+- **The line under the chart** is a button with the colour's mark, whose the flight is, and the core's sentence, or at a marked moment the other glider's altitude and distance ("1,620 m · 320 m away", "Not in the air then"); it opens "Side by side", a sheet with the numbers in a table, the one ahead in bold, "Go to where they were nearest" for flights flown together, and "Take the other flight away".
+- **Both files are read in the core's worker**, the other one fetched from Venti when it is another pilot's; nothing of it is kept. Tested with the development mode's flights, none of which were in the air together, so laying out by the clock has been seen in the core's tests only.
+
 Where flying plans differ on the web from the iPhone's:
 
 - **A section of the navigation, "Plans", not a button on the map.** The iPhone opens the board from a round calendar button on its map, as a sheet. The web's map buttons all do something to the map or list what is on it; a board of plans does neither, and the web's navigation, with three sections, has room for a fourth. A section is also what "an empty section explains itself" asks for: signed out, or on a site without a Venti server, it is there and says what plans need. Its sign is the iPhone's calendar. Feed and events, once built, would join this section; what it is called then is open.

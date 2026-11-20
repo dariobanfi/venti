@@ -24,6 +24,9 @@
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import MapButton from '#lib/map/MapButton.svelte';
+	import { type Beside, otherAt } from './beside';
+	import { nearestIndex } from './chart';
+	import ComparisonSheet from './ComparisonSheet.svelte';
 	import FlightDetails from './FlightDetails.svelte';
 	import FlightMap from './FlightMap.svelte';
 	import FlightPanel from './FlightPanel.svelte';
@@ -45,9 +48,14 @@
 		inLogbook: boolean;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
 		whose?: { name: string; href: string };
+		/** A second flight laid beside this one. */
+		beside?: Beside;
+		/** Takes the second flight away again. */
+		onendbeside?: () => void;
 	}
 
-	let { flight, analysis, wide, back, actions, inLogbook, whose }: Props = $props();
+	let { flight, analysis, wide, back, actions, inLogbook, whose, beside, onendbeside }: Props =
+		$props();
 
 	const app = getApp();
 	const text = format();
@@ -124,6 +132,17 @@
 
 	/** The position in the track the pilot is inspecting, if any. */
 	let cursor = $state<number>();
+	/** Whether the two flights are shown side by side in numbers. */
+	let sideBySide = $state(false);
+	/** The other flight on the map: its track, and its glider at the marked moment. */
+	const other = $derived(
+		beside
+			? {
+					track: beside.flight.track,
+					at: cursor === undefined ? undefined : otherAt(beside, flight.track[cursor].seconds)
+				}
+			: undefined
+	);
 	/** Whether the marker is moving through the flight by itself. */
 	let playing = $state(false);
 	let showingDetails = $state(false);
@@ -188,6 +207,7 @@
 			{terrain3d}
 			airspace={app.airspace}
 			onairspace={(count) => (airspaceDrawn = count)}
+			{other}
 		/>
 		<!-- A map says nothing to a screen reader: this much it can be told. -->
 		{#if airspaceDrawn !== undefined && !app.airspace?.isEmpty}
@@ -234,6 +254,8 @@
 					bind:cursor
 					bind:playing
 					{whose}
+					{beside}
+					onbeside={() => (sideBySide = true)}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
 				/>
 			</div>
@@ -248,6 +270,23 @@
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
 		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} {fromHere} />
 	</Sheet>
+{/if}
+
+{#if beside}
+	<ComparisonSheet
+		open={sideBySide}
+		{beside}
+		onnearest={() => {
+			const nearest = beside.comparison.nearest;
+			if (nearest) mark(nearestIndex(flight.track, nearest.seconds));
+			sideBySide = false;
+		}}
+		onend={() => {
+			sideBySide = false;
+			onendbeside?.();
+		}}
+		onclose={() => (sideBySide = false)}
+	/>
 {/if}
 
 <style>

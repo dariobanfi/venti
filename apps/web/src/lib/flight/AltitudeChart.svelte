@@ -12,6 +12,7 @@
 	import type { FlightView, GroundUnderFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import { altitudeRange, roundTicks, nearestIndex, scale, timeTicks } from './chart';
+	import type { Beside } from './beside';
 	import { groundRuns, heightAboveGround } from './ground';
 
 	interface Props {
@@ -20,9 +21,11 @@
 		ground?: readonly GroundUnderFlight[];
 		/** The position in the track that is marked, if any. */
 		cursor: number | undefined;
+		/** A second flight laid beside this one: its altitude is a thinner line. */
+		other?: Beside;
 	}
 
-	let { flight, ground = [], cursor = $bindable() }: Props = $props();
+	let { flight, ground = [], cursor = $bindable(), other }: Props = $props();
 
 	const text = format();
 
@@ -31,7 +34,18 @@
 	let height = $state(0);
 
 	const duration = $derived(Math.max(flight.durationS, 1));
-	const [low, high] = $derived(altitudeRange(flight, ground));
+	/** The chart makes room for both flights in height. */
+	const [low, high] = $derived(
+		altitudeRange(
+			other
+				? {
+						minAltitudeM: Math.min(flight.minAltitudeM, other.flight.minAltitudeM),
+						maxAltitudeM: Math.max(flight.maxAltitudeM, other.flight.maxAltitudeM)
+					}
+				: flight,
+			ground
+		)
+	);
 	const x = $derived(scale([0, duration], [0, width]));
 	const y = $derived(scale([low, high], [height, 0]));
 
@@ -46,6 +60,22 @@
 					`${index ? 'L' : 'M'}${x(point.seconds).toFixed(1)},${y(point.altitudeM).toFixed(1)}`
 			)
 			.join('')
+	);
+	/**
+	 * The other flight's altitude on this flight's time: cut where it began
+	 * before this one or ended after it.
+	 */
+	const otherLine = $derived(
+		other
+			? other.flight.profile
+					.map((point) => ({ ...point, seconds: point.seconds + other.comparison.offsetS }))
+					.filter((point) => point.seconds >= 0 && point.seconds <= duration)
+					.map(
+						(point, index) =>
+							`${index ? 'L' : 'M'}${x(point.seconds).toFixed(1)},${y(point.altitudeM).toFixed(1)}`
+					)
+					.join('')
+			: ''
 	);
 	const area = $derived(line ? `${line}L${x(duration).toFixed(1)},${height}L0,${height}Z` : '');
 
@@ -188,6 +218,9 @@
 				{#if earth}
 					<path class="ground" d={earth} />
 				{/if}
+				{#if otherLine}
+					<path class="other" d={otherLine} />
+				{/if}
 				<path class="line" d={line} />
 			{/if}
 			{#if marked}
@@ -264,6 +297,14 @@
 		fill: none;
 		stroke: var(--accent);
 		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.other {
+		fill: none;
+		stroke: var(--other);
+		stroke-width: 1.5;
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}

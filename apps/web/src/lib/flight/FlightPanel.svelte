@@ -13,6 +13,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
 	import AltitudeChart from './AltitudeChart.svelte';
+	import { type Beside, otherInWords } from './beside';
 	import ClimbLegend from './ClimbLegend.svelte';
 	import { heightAboveGround } from './ground';
 
@@ -28,6 +29,10 @@
 		ondetails?: () => void;
 		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
 		whose?: { name: string; href: string };
+		/** A second flight laid beside this one. */
+		beside?: Beside;
+		/** Opens the two flights side by side in numbers. */
+		onbeside?: () => void;
 	}
 
 	let {
@@ -36,7 +41,9 @@
 		cursor = $bindable(),
 		playing = $bindable(),
 		ondetails,
-		whose
+		whose,
+		beside,
+		onbeside
 	}: Props = $props();
 
 	const text = format();
@@ -120,12 +127,72 @@
 	</dl>
 
 	<div class="profile">
-		<AltitudeChart {flight} {ground} bind:cursor />
+		<AltitudeChart {flight} {ground} bind:cursor other={beside} />
 	</div>
+	{#if beside}
+		<!-- Whose the second line is, and where its glider was at the marked moment. -->
+		<button class="beside" type="button" onclick={onbeside}>
+			<span class="swatch" aria-hidden="true"></span>
+			<span class="who">
+				<span class="name">{beside.name}</span>
+				<span class="said" aria-live={playing ? 'off' : 'polite'}>
+					{cursor === undefined
+						? beside.comparison.words
+						: otherInWords(beside, flight.track[cursor], text)}
+				</span>
+			</span>
+			<span class="open">Side by side</span>
+		</button>
+	{/if}
 	<ClimbLegend />
 </div>
 
 <style>
+	.beside {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		min-height: var(--target);
+		padding: 0.375rem 0.625rem;
+		border: 1px solid var(--separator);
+		border-radius: var(--radius-control);
+		text-align: left;
+		font-size: var(--subheadline);
+	}
+
+	.swatch {
+		flex: none;
+		width: 1rem;
+		height: 0.25rem;
+		border-radius: var(--radius-pill);
+		background: var(--other);
+	}
+
+	.who {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.name {
+		font-weight: 600;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.said {
+		color: var(--metric-secondary, var(--text-secondary));
+		font-variant-numeric: tabular-nums;
+	}
+
+	.open {
+		flex: none;
+		color: var(--link);
+		font-weight: 500;
+	}
+
 	.panel {
 		display: flex;
 		flex-direction: column;

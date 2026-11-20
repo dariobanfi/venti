@@ -12,6 +12,8 @@ import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
 import type { AirspaceSource } from './airspace-source';
 import type {
 	CommunitySource,
+	Compared,
+	FlightRef,
 	OpenedFlight,
 	PublicFlightsAsked,
 	SeasonRanking
@@ -141,6 +143,11 @@ export interface Calls {
 	 * fetched and prepared for display. Nothing of it is kept.
 	 */
 	openPublicFlight: { given: string; answer: OpenedFlight | undefined };
+	/**
+	 * Lays one flight beside another, the first being the one on screen:
+	 * the other flight, and how the two lie to each other. Nothing is kept.
+	 */
+	compareFlights: { given: { first: FlightRef; other: FlightRef }; answer: Compared };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -288,6 +295,8 @@ export async function answer<Name extends CallName>(
 		ranking: ({ season, near }) => community.ranking(season, near),
 		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
+		compareFlights: ({ first, other }) =>
+			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
 		account: () => account.account(),

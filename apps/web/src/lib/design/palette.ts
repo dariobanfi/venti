@@ -31,6 +31,12 @@ export const INK_ON_MAP = light(tokens.map.light, 'track-casing');
 /** The pale edge around what is drawn on the map: the halo of its labels. */
 export const PAPER_ON_MAP = light(tokens.map.light, 'label-halo');
 
+/**
+ * A second flight laid beside the one on screen: the pack's fourth series
+ * colour, an ochre that neither the vario scale nor the wind has.
+ */
+export const OTHER_ON_MAP = light(tokens.series.light, '4');
+
 /** The scored route: the same ink, let through a little so the map shows under it. */
 export const ROUTE_ON_MAP = `${INK_ON_MAP}b3`;
 

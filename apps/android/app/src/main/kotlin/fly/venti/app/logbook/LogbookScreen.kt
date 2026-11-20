@@ -76,6 +76,8 @@ fun LogbookScreen(
     imports: CoroutineScope,
     /** Called with what there is to say about an import or a deletion. */
     onNotice: (ImportNotice?) -> Unit,
+    /** The folder new flights come in from by themselves, if the pilot has chosen one. */
+    watched: WatchedFolder? = null,
     bars: PaddingValues,
 ) {
     val context = LocalContext.current.applicationContext
@@ -113,13 +115,37 @@ fun LogbookScreen(
             }
         }
     }
+    // A folder to look into again whenever the app opens: XCTrack's
+    // tracklogs, as a rule. What is in it now comes in at once.
+    val watchPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
+        if (folder != null && watched != null) {
+            imports.launch {
+                val report = try {
+                    watched.watch(folder)
+                } catch (error: SecurityException) {
+                    onNotice(ImportNotice("The folder cannot be kept", error.pilotMessage))
+                    null
+                }
+                report?.let(::finish)
+            }
+        }
+    }
     val chooseFiles = { filePicker.launch(arrayOf("*/*")) }
     val chooseFolder = { folderPicker.launch(null) }
 
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
-            LogbookBar(progress, isChoosingWhat, onChoosingWhat = { isChoosingWhat = it }, chooseFiles, chooseFolder)
+            LogbookBar(
+                progress,
+                isChoosingWhat,
+                onChoosingWhat = { isChoosingWhat = it },
+                chooseFiles,
+                chooseFolder,
+                watching = watched?.name,
+                onWatch = if (watched != null) ({ watchPicker.launch(null) }) else null,
+                onStopWatching = { watched?.stop() },
+            )
         },
         // The tab bar below already keeps clear of the system's own bar.
         contentWindowInsets = WindowInsets(0),
@@ -176,6 +202,11 @@ private fun LogbookBar(
     onChoosingWhat: (Boolean) -> Unit,
     chooseFiles: () -> Unit,
     chooseFolder: () -> Unit,
+    /** The name of the folder new flights come in from by themselves, if any. */
+    watching: String? = null,
+    /** Chooses that folder; `null` where there is none to choose. */
+    onWatch: (() -> Unit)? = null,
+    onStopWatching: () -> Unit = {},
 ) {
     TopAppBar(
         title = { Text("Logbook") },
@@ -201,6 +232,26 @@ private fun LogbookBar(
                             chooseFolder()
                         },
                     )
+                    if (onWatch != null) {
+                        DropdownMenuItem(
+                            text = { Text(if (watching == null) LogbookWords.WATCH else LogbookWords.watchAnother(watching)) },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_refresh), contentDescription = null) },
+                            onClick = {
+                                onChoosingWhat(false)
+                                onWatch()
+                            },
+                        )
+                    }
+                    if (watching != null) {
+                        DropdownMenuItem(
+                            text = { Text(LogbookWords.stopWatching(watching)) },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_close), contentDescription = null) },
+                            onClick = {
+                                onChoosingWhat(false)
+                                onStopWatching()
+                            },
+                        )
+                    }
                 }
             }
         },
@@ -513,4 +564,13 @@ private fun subtitle(entry: LogbookEntry): String {
     val time = Format.time(entry.startUnixS)
     val glider = entry.glider
     return if (glider.isNullOrEmpty()) time else "$time · $glider"
+}
+
+/** What the logbook says about the folder it brings flights in from by itself. */
+object LogbookWords {
+    const val WATCH = "Bring in new flights from a folder"
+
+    fun watchAnother(name: String): String = "Bring in from another folder than $name"
+
+    fun stopWatching(name: String): String = "Stop bringing in from $name"
 }

@@ -28,6 +28,8 @@ object FlightFiles {
         DocumentsContract.Document.COLUMN_DOCUMENT_ID,
         DocumentsContract.Document.COLUMN_DISPLAY_NAME,
         DocumentsContract.Document.COLUMN_MIME_TYPE,
+        DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+        DocumentsContract.Document.COLUMN_SIZE,
     )
 
     /**
@@ -63,8 +65,15 @@ object FlightFiles {
      * contents takes a while for a large one: call this away from the
      * screen.
      */
-    fun inFolder(context: Context, tree: Uri): List<FlightFileSource> {
-        val found = mutableListOf<Pair<String, Uri>>()
+    fun inFolder(context: Context, tree: Uri): List<FlightFileSource> = keyedInFolder(context, tree).map { it.second }
+
+    /**
+     * The same, each with what tells a file apart from what it was: where
+     * it lies in the folder, its size and when it was last changed. A
+     * watched folder brings in only the files whose key it has not seen.
+     */
+    fun keyedInFolder(context: Context, tree: Uri): List<Pair<String, FlightFileSource>> {
+        val found = mutableListOf<Pair<String, Pair<Uri, String>>>()
 
         fun list(folder: String, path: String, depth: Int) {
             val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, folder)
@@ -82,15 +91,17 @@ object FlightFiles {
                     if (row.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
                         if (depth < DEEPEST_FOLDER) list(id, "$path$name/", depth + 1)
                     } else {
-                        found += "$path$name" to DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                        val key = "$path$name|${row.getLong(4)}|${row.getLong(3)}"
+                        found += "$path$name" to (DocumentsContract.buildDocumentUriUsingTree(tree, id) to key)
                     }
                 }
             }
         }
         list(DocumentsContract.getTreeDocumentId(tree), "", depth = 0)
 
-        return flightFilesAmong(found).map { (path, uri) ->
-            FlightFileSource(path.substringAfterLast('/')) { LogbookModel.decode(read(context, uri, "a flight file")) }
+        return flightFilesAmong(found).map { (path, file) ->
+            val (uri, key) = file
+            key to FlightFileSource(path.substringAfterLast('/')) { LogbookModel.decode(read(context, uri, "a flight file")) }
         }
     }
 

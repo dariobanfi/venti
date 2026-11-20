@@ -38,6 +38,7 @@ import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.SitesModel
 import fly.venti.app.today.TodayModel
+import fly.venti.app.logbook.WatchedFolder
 import fly.venti.app.task.TaskModel
 import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.waypoints.WaypointsModel
@@ -81,6 +82,8 @@ sealed interface Session {
         val maps: OfflineMapsModel,
         /** The take-offs around, and what the forecast says of each. */
         val today: TodayModel,
+        /** The folder new flight files are brought in from whenever the app opens: XCTrack's, as a rule. */
+        val watched: WatchedFolder,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -284,7 +287,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                leagues, maps, today, preferences, files, scope,
+                leagues, maps, today, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }
     }

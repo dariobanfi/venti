@@ -71,6 +71,12 @@ interface Preferences {
     /** Whether the maps show the aerial view, photographs from above. One choice for every map of the app. */
     var mapShowsAerial: Boolean
 
+    /** The folder Venti brings new flight files in from whenever it opens, as Android names it; empty for none. */
+    var watchedFolder: String
+
+    /** The files of that folder already looked at: where each lies, its size and when it changed. */
+    var watchedSeen: Set<String>
+
     companion object {
         // What the core assumes of a glider until the pilot says otherwise.
         const val DEFAULT_TRIM_SPEED = 38.0
@@ -162,6 +168,14 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsAerial", false)
         set(value) = store.edit { putBoolean("VentiMapShowsAerial", value) }
 
+    override var watchedFolder: String
+        get() = store.getString("VentiWatchedFolder", null).orEmpty()
+        set(value) = store.edit { putString("VentiWatchedFolder", value) }
+
+    override var watchedSeen: Set<String>
+        get() = store.getStringSet("VentiWatchedSeen", null).orEmpty().toSet()
+        set(value) = store.edit { putStringSet("VentiWatchedSeen", value) }
+
     // The same names as on the iPhone.
     private companion object {
         const val PILOT = "VentiPilotName"
@@ -204,4 +218,6 @@ class MemoryPreferences : Preferences {
     override var mapHidesSites = false
     override var mapHidesPilots = false
     override var mapShowsAerial = false
+    override var watchedFolder = ""
+    override var watchedSeen: Set<String> = emptySet()
 }

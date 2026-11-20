@@ -141,6 +141,13 @@ fun RootScreen(
             session.scope.launch { account.sync() }
         }
     }
+    // The watched folder, XCTrack's as a rule: what is new there comes in
+    // whenever the app comes to the front, without a word.
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            session.scope.launch { session.watched.bringInNew() }
+        }
+    }
     LaunchedEffect(logbook, account) {
         var seen = logbook.syncs
         snapshotFlow { logbook.view.totals.flights to logbook.syncs }
@@ -405,6 +412,7 @@ private fun Sections(
                         navigation,
                         imports = session.scope,
                         onNotice = onNotice,
+                        watched = session.watched,
                         bars = bars,
                     )
                 }

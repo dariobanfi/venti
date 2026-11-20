@@ -11,7 +11,7 @@ use chrono::DateTime;
 use venti_domain::GeoPoint;
 use venti_flight::igc::Fix;
 use venti_flight::live::navigation::bearing_deg;
-use venti_flight::scoring;
+use venti_flight::{fai, scoring};
 
 use crate::airspace::compass;
 use crate::{Coordinate, RouteKind};
@@ -68,6 +68,10 @@ pub struct RoutePlan {
     pub distance_m: f64,
     /// What it would score. Absent for fewer than two places.
     pub score: Option<PlannedScore>,
+    /// With one leg drawn: the outlines, closed, of the two areas in
+    /// which a third place makes an FAI triangle with that leg as one
+    /// side. Empty otherwise.
+    pub fai_areas: Vec<Vec<Coordinate>>,
     /// In a sentence or two: "42.3 km along the route. Flown like this it
     /// scores as a closed FAI triangle: 40.1 km, 64.2 points."
     pub words: String,
@@ -95,6 +99,11 @@ pub fn plan_route(points: Vec<Coordinate>) -> RoutePlan {
         .collect();
     let distance_m: f64 = legs.iter().map(|leg| leg.distance_m).sum();
     let score = planned_score(&places, distance_m);
+    // With one leg, where a third place would make an FAI triangle of it.
+    let areas = match places.as_slice() {
+        [from, to] => fai::areas(*from, *to),
+        _ => None,
+    };
 
     let words = match (&score, places.len()) {
         (_, 0) => "Tap the map where the route begins.".to_owned(),
@@ -117,11 +126,36 @@ pub fn plan_route(points: Vec<Coordinate>) -> RoutePlan {
         }
         (None, _) => format!("{:.1} km along the route.", distance_m / 1000.0),
     };
+    let words = match &areas {
+        Some(areas) => format!(
+            "{words} A third place inside a dashed area makes an FAI triangle of {:.0} to {:.0} km.",
+            areas.smallest_m / 1000.0,
+            areas.largest_m / 1000.0
+        ),
+        None => words,
+    };
 
     RoutePlan {
         legs,
         distance_m,
         score,
+        fai_areas: areas
+            .map(|areas| {
+                areas
+                    .outlines
+                    .iter()
+                    .map(|outline| {
+                        outline
+                            .iter()
+                            .map(|point| Coordinate {
+                                lat: point.lat(),
+                                lon: point.lon(),
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         words,
     }
 }
@@ -258,9 +292,15 @@ mod tests {
         assert!((score.points - 10.0).abs() < 0.05, "{}", score.points);
         assert_eq!(score.points_per_km, 1.0);
         assert_eq!(score.route.len(), 2);
+        // With one leg drawn the map can show where a third place makes
+        // an FAI triangle of it: one area on each side, and the words say
+        // how large such a triangle is. A leg of ten kilometres is at most
+        // 44% and at least 28% of the way round.
+        assert_eq!(plan.fai_areas.len(), 2);
+        assert!(plan.fai_areas.iter().all(|outline| outline.len() > 8));
         assert_eq!(
             plan.words,
-            "10.0 km along the route. Flown like this it scores as a free flight: 10.0 km, 10.0 points."
+            "10.0 km along the route. Flown like this it scores as a free flight: 10.0 km, 10.0 points. A third place inside a dashed area makes an FAI triangle of 23 to 36 km."
         );
     }
 
@@ -276,6 +316,8 @@ mod tests {
         let plan = plan_route(corners);
 
         assert_eq!(plan.legs.len(), 3);
+        // The areas are for a route of one leg only.
+        assert!(plan.fai_areas.is_empty());
         let score = plan.score.unwrap();
         // Three sides of about ten kilometres: every side is over 28% of
         // the way round, and it ends where it began.

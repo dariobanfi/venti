@@ -107,6 +107,10 @@ final class TaskTests: XCTestCase {
         let line = planRoute(points: [wallberg, east])
         XCTAssertEqual(RouteMapPlanner.legs(of: line), "1  10.0 km E")
         XCTAssertEqual(line.score?.kind, .freeFlight)
+        // With one leg, the map can show where a third place makes an
+        // FAI triangle of it, and the words say how large one is.
+        XCTAssertEqual(line.faiAreas.count, 2)
+        XCTAssertTrue(line.words.hasSuffix("makes an FAI triangle of 23 to 36 km."), line.words)
 
         // Back at its start, it is found to be a closed FAI triangle:
         // nobody has to say that it is one.
@@ -117,6 +121,7 @@ final class TaskTests: XCTestCase {
         XCTAssertEqual(score.route.count, 5)
         XCTAssertTrue(triangle.words.contains("closed FAI triangle"), triangle.words)
         XCTAssertEqual(triangle.legs.count, 3)
+        XCTAssertTrue(triangle.faiAreas.isEmpty)
 
         // One place is no route. Kept, the places are named in order and
         // the cockpit can fly it like a route of waypoints.

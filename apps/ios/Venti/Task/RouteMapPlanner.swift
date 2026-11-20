@@ -27,6 +27,7 @@ struct RouteMapPlanner: View {
                 RouteDrawingMap(
                     places: places,
                     scored: plan.score?.route ?? [],
+                    faiAreas: plan.faiAreas,
                     source: maps.browsingSource(at: nil)
                 ) { place in
                     add(place)
@@ -140,6 +141,9 @@ struct RouteDrawingMap: UIViewRepresentable {
     var places: [Coordinate]
     /// The route as it would be scored: start, turnpoints, finish.
     var scored: [Coordinate]
+    /// With one leg drawn: the outlines of the areas in which a third
+    /// place makes an FAI triangle of it.
+    var faiAreas: [[Coordinate]] = []
     /// What the map is drawn from. Read when the map is made.
     var source: MapStyle.Source = .standard
     /// Called with the place under the finger after a tap.
@@ -168,7 +172,7 @@ struct RouteDrawingMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.onTap = onTap
-        context.coordinator.show(places, scored: scored, on: map)
+        context.coordinator.show(places, scored: scored, faiAreas: faiAreas, on: map)
     }
 
     @MainActor
@@ -176,12 +180,14 @@ struct RouteDrawingMap: UIViewRepresentable {
         var onTap: (Coordinate) -> Void = { _ in }
         private var places: [Coordinate] = []
         private var scored: [Coordinate] = []
-        private var drawn: ([Coordinate], [Coordinate])?
+        private var faiAreas: [[Coordinate]] = []
+        private var drawn: ([Coordinate], [Coordinate], [[Coordinate]])?
         private var isStyleLoaded = false
 
-        func show(_ places: [Coordinate], scored: [Coordinate], on map: MLNMapView) {
+        func show(_ places: [Coordinate], scored: [Coordinate], faiAreas: [[Coordinate]], on map: MLNMapView) {
             self.places = places
             self.scored = scored
+            self.faiAreas = faiAreas
             draw(on: map)
         }
 
@@ -193,6 +199,15 @@ struct RouteDrawingMap: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             let ink = UIColor(hex: 0x1F1F1D)
+
+            // Where a third place makes an FAI triangle of the first leg:
+            // two dashed outlines, under the route, as in the cockpit.
+            let areas = MLNShapeSource(identifier: "route-fai", shape: nil, options: nil)
+            style.addSource(areas)
+            let edges = MapSetup.line("route-fai-line", from: areas, color: Palette.accentOnMap, width: 1.5)
+            edges.lineDashPattern = NSExpression(forConstantValue: [3, 2])
+            edges.lineOpacity = NSExpression(forConstantValue: 0.85)
+            style.addLayer(edges)
 
             // The line through the places, with a white edge that keeps it
             // readable over any ground.
@@ -230,10 +245,18 @@ struct RouteDrawingMap: UIViewRepresentable {
         /// Draws the route when it has changed.
         private func draw(on map: MLNMapView) {
             guard isStyleLoaded, let style = map.style else { return }
-            if let drawn, drawn.0 == places, drawn.1 == scored {
+            if let drawn, drawn.0 == places, drawn.1 == scored, drawn.2 == faiAreas {
                 return
             }
-            drawn = (places, scored)
+            drawn = (places, scored, faiAreas)
+
+            if let source = style.source(withIdentifier: "route-fai") as? MLNShapeSource {
+                let outlines = faiAreas.map { outline in
+                    let corners = outline.map(\.location)
+                    return MLNPolylineFeature(coordinates: corners, count: UInt(corners.count))
+                }
+                source.shape = MLNShapeCollectionFeature(shapes: outlines)
+            }
 
             if let source = style.source(withIdentifier: "route-drawn") as? MLNShapeSource {
                 let corners = places.map(\.location)

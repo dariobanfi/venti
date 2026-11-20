@@ -772,7 +772,12 @@ class VentiUiTest {
         assertTrue(exists(hasText("Replay ×20")))
         assertFalse(exists(hasTestTag("live-button")))
         waitFor(described("Gained"))
-        waitFor(hasTestTag("lift-badge"))
+        // The picture is taken once the thermal is centred and stays so.
+        // At twenty times the speed the map on the emulator is drawn a
+        // good part of a circle behind the numbers; while the circle is
+        // still being found, the ring would stand beside what the badge
+        // says of it.
+        waitFor(described("Lift") and saying("Centred"))
         letTheMapDraw(2)
         keepScreenshot("replay-2-cockpit")
 

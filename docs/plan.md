@@ -49,6 +49,8 @@ This list is a draft. The owner has said more feature input will follow.
 - Airspace with altitude and time filters; cable and obstacle hazards.
 - Thermal hotspots and common cross-country lines.
 - Lifts, public transport stops and hiking trails.
+- **An aerial view of the map** (the owner, 2026-11-20: "very important"): the map switched to photographs from above, in every app, with what Venti draws over it left in place. To do. The catalogue names the imagery ([data-sources.md](data-sources.md#maps-terrain-and-imagery)): Austria's and Bavaria's orthophotos, and a coarser mosaic elsewhere; each is switched on once its terms are read on the provider's own page.
+- **The forecast is built on ICON-D2** (the owner, 2026-11-20), DWD's 2.2 km model, which is also what Burnair's forecasts are made from. It is what Venti reads already; see [data-sources.md](data-sources.md#forecasts).
 - Later: cross-country route planner, hike & fly planner (trail up, glide range down, transit home), alerts such as "tell me when Wallberg is flyable".
 
 ### Fly

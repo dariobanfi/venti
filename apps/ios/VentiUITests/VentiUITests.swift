@@ -494,6 +494,16 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))
         sleep(6)
         keepScreenshot("community-2-flight")
+        // From the flight to everything its pilot shares.
+        app.buttons["More"].tap()
+        let ofPilot = labelled(containing: "Flights of", in: app)
+        XCTAssertTrue(ofPilot.waitForExistence(timeout: 10))
+        ofPilot.tap()
+        XCTAssertTrue(element("pilot-flight-row", in: app).waitForExistence(timeout: 30))
+        sleep(1)
+        keepScreenshot("community-3-pilot")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 20))
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(everyone.waitForExistence(timeout: 15))
     }

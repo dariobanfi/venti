@@ -710,6 +710,37 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("task-sketch", in: app).exists)
         sleep(1)
         keepScreenshot("route-2-kept")
+
+        // Without waypoints: a route drawn on the map, a tap for each
+        // place. Three places and back to the first make a triangle, and
+        // the page says what it would score.
+        let draw = element("task-draw-route", in: app)
+        for _ in 0..<4 where !(draw.exists && draw.isHittable) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(draw.waitForExistence(timeout: 10))
+        draw.tap()
+        let map = element("route-map", in: app)
+        XCTAssertTrue(map.waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "Tap the map where the route begins", in: app).waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Keep"].isEnabled)
+        // Time for the map to draw before it is tapped.
+        sleep(4)
+        for (x, y) in [(0.3, 0.45), (0.7, 0.45), (0.5, 0.2)] {
+            map.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y)).tap()
+            // A single tap waits for the map's double tap to be ruled out.
+            sleep(1)
+        }
+        XCTAssertTrue(labelled(containing: "along the route", in: app).waitForExistence(timeout: 10))
+        app.buttons["Back to the start"].tap()
+        XCTAssertTrue(labelled(containing: "triangle", in: app).waitForExistence(timeout: 10))
+        sleep(2)
+        keepScreenshot("route-3-drawn")
+
+        app.buttons["Keep"].tap()
+        XCTAssertTrue(labelled(containing: "Turnpoint 1", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("route-4-drawn-kept")
     }
 
     /// Airspace from the pilot's server: with a server set, the app has

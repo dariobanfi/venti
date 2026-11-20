@@ -16,6 +16,7 @@ struct TaskScreen: View {
     @State private var isShowingCode = false
     @State private var isConfirmingRemoval = false
     @State private var isPlanningRoute = false
+    @State private var isDrawingRoute = false
     @State private var isScanning = false
     @State private var exported: URL?
 
@@ -70,6 +71,12 @@ struct TaskScreen: View {
                 ) {
                     isPlanningRoute = true
                 }
+                // Without waypoints: tap the places on the map, and see
+                // what the route would score.
+                Button("Draw a route on the map", systemImage: "hand.tap") {
+                    isDrawingRoute = true
+                }
+                .accessibilityIdentifier("task-draw-route")
             } header: {
                 Text(tasks.task == nil ? "Bring a task in" : "Replace it with another")
             } footer: {
@@ -124,6 +131,9 @@ struct TaskScreen: View {
         }
         .sheet(isPresented: $isPlanningRoute) {
             RoutePlanner()
+        }
+        .fullScreenCover(isPresented: $isDrawingRoute) {
+            RouteMapPlanner()
         }
         .sheet(isPresented: $isScanning) {
             TaskScanSheet()

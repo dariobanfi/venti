@@ -96,6 +96,40 @@ final class TaskTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(tasks.code(compressed: false)).hasPrefix("XCTSK:"))
     }
 
+    func testARouteDrawnOnTheMapIsScoredAndKept() throws {
+        let tasks = try makeModel()
+        let wallberg = Coordinate(lat: 47.6642, lon: 11.7967)
+        let east = Coordinate(lat: 47.6642, lon: 11.93)
+        let north = Coordinate(lat: 47.742, lon: 11.863)
+
+        // While it is drawn it says what to do next, then what it comes to.
+        XCTAssertEqual(planRoute(points: []).words, "Tap the map where the route begins.")
+        let line = planRoute(points: [wallberg, east])
+        XCTAssertEqual(RouteMapPlanner.legs(of: line), "1  10.0 km E")
+        XCTAssertEqual(line.score?.kind, .freeFlight)
+
+        // Back at its start, it is found to be a closed FAI triangle:
+        // nobody has to say that it is one.
+        let triangle = planRoute(points: [wallberg, east, north, wallberg])
+        let score = try XCTUnwrap(triangle.score)
+        XCTAssertEqual(score.kind, .faiTriangle)
+        XCTAssertTrue(score.closed)
+        XCTAssertEqual(score.route.count, 5)
+        XCTAssertTrue(triangle.words.contains("closed FAI triangle"), triangle.words)
+        XCTAssertEqual(triangle.legs.count, 3)
+
+        // One place is no route. Kept, the places are named in order and
+        // the cockpit can fly it like a route of waypoints.
+        XCTAssertFalse(tasks.keepDrawnRoute([wallberg]))
+        XCTAssertEqual(tasks.problem, "A route needs at least two places.")
+        XCTAssertNil(tasks.task)
+        XCTAssertTrue(tasks.keepDrawnRoute([wallberg, east, north, wallberg]))
+        let route = try XCTUnwrap(tasks.task)
+        XCTAssertTrue(route.isRoute)
+        XCTAssertEqual(route.turnpoints.map(\.name), ["Start", "Turnpoint 1", "Turnpoint 2", "Finish"])
+        XCTAssertNil(tasks.problem)
+    }
+
     func testLengthsAreWrittenTheWayTaskBoardsWriteThem() {
         XCTAssertEqual(TaskTurnpointView.length(400), "400 m")
         XCTAssertEqual(TaskTurnpointView.length(1000), "1 km")

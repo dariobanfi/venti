@@ -512,6 +512,57 @@ impl Core {
             .map_err(storage_error)
     }
 
+    /// Makes a route of places the pilot drew on a map, in the order
+    /// drawn, and keeps it as the task: a plain route like one made of
+    /// waypoints, its places named "Start", "Turnpoint 1" and so on to
+    /// "Finish". It replaces the task kept before.
+    pub fn keep_drawn_route(&self, points: Vec<Coordinate>) -> Result<(), CoreError> {
+        if points.len() < 2 {
+            return Err(CoreError::InvalidFile {
+                message: "A route needs at least two places.".to_owned(),
+            });
+        }
+        let last = points.len() - 1;
+        let turnpoints = points
+            .iter()
+            .enumerate()
+            .map(|(index, point)| {
+                let position =
+                    GeoPoint::new(point.lat, point.lon).map_err(|_| CoreError::InvalidFile {
+                        message: "A place of the route is not on the map.".to_owned(),
+                    })?;
+                Ok(Turnpoint {
+                    name: match index {
+                        0 => "Start".to_owned(),
+                        index if index == last => "Finish".to_owned(),
+                        index => format!("Turnpoint {index}"),
+                    },
+                    description: None,
+                    position,
+                    // A place tapped on a map has no height; zero stands
+                    // for "not known", see `TaskFlown::aim`.
+                    altitude_m: 0.0,
+                    radius_m: 0.0,
+                    role: None,
+                })
+            })
+            .collect::<Result<Vec<_>, CoreError>>()?;
+        let route = Task {
+            kind: TaskKind::Route,
+            earth: Earth::Wgs84,
+            turnpoints,
+            takeoff_open: None,
+            takeoff_close: None,
+            start: None,
+            goal: Goal::default(),
+        }
+        .checked()
+        .map_err(|error| invalid(&error))?;
+        self.storage
+            .write(FILE, xctsk::write_file(&route).as_bytes())
+            .map_err(storage_error)
+    }
+
     /// The task that is kept, if there is one.
     pub fn kept_task(&self, now_unix_s: i64) -> Result<Option<TaskView>, CoreError> {
         Ok(self.stored_task()?.map(|task| view(&task, now_unix_s)))
@@ -953,6 +1004,51 @@ mod tests {
             flown.step(true);
             let aim = flown.aim().unwrap();
             assert_eq!((aim.name.as_str(), aim.elevation_m), ("A field", None));
+        });
+    }
+
+    #[test]
+    fn a_route_drawn_on_the_map_is_kept_with_its_places_named_in_order() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            let place = |lat: f64, lon: f64| Coordinate { lat, lon };
+
+            // One place is no route, and a place off the map is none.
+            let one = core
+                .keep_drawn_route(vec![place(47.66, 11.80)])
+                .unwrap_err();
+            assert_eq!(one.to_string(), "A route needs at least two places.");
+            let off = core
+                .keep_drawn_route(vec![place(47.66, 11.80), place(95.0, 0.0)])
+                .unwrap_err();
+            assert_eq!(off.to_string(), "A place of the route is not on the map.");
+            assert_eq!(core.kept_task(at(10, 0)).unwrap(), None);
+
+            core.keep_drawn_route(vec![
+                place(47.6642, 11.7967),
+                place(47.6642, 11.9300),
+                place(47.7420, 11.8630),
+                place(47.6642, 11.7967),
+            ])
+            .unwrap();
+
+            let again = Core::with_storage(backing.open()).unwrap();
+            let route = again.kept_task(at(10, 0)).unwrap().unwrap();
+            assert!(route.is_route);
+            let names: Vec<&str> = route.turnpoints.iter().map(|t| t.name.as_str()).collect();
+            assert_eq!(names, ["Start", "Turnpoint 1", "Turnpoint 2", "Finish"]);
+            // Three sides of about ten kilometres.
+            assert!(
+                route.length_m > 29_000.0 && route.length_m < 31_000.0,
+                "{}",
+                route.length_m
+            );
+            // A tapped place has no height, and none is made up for it.
+            let file = again.kept_task_file().unwrap().unwrap();
+            let mut flown = TaskFlown::begin(&file.text, at(10, 0)).unwrap();
+            flown.feed(at(10, 0) as f64, GeoPoint::new(47.6642, 11.7967).unwrap());
+            let aim = flown.aim().unwrap();
+            assert_eq!((aim.name.as_str(), aim.elevation_m), ("Turnpoint 1", None));
         });
     }
 

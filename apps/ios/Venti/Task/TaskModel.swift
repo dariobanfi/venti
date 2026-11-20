@@ -85,6 +85,20 @@ final class TaskModel {
         }
     }
 
+    /// Keeps a route drawn on the map as the task: its places in the
+    /// order they were tapped.
+    func keepDrawnRoute(_ places: [Coordinate]) -> Bool {
+        do {
+            try core.keepDrawnRoute(points: places)
+            problem = nil
+            reload()
+            return true
+        } catch {
+            problem = error.words
+            return false
+        }
+    }
+
     /// Forgets the kept task.
     func forget() {
         do {

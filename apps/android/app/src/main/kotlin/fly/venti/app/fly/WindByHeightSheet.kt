@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.SectionFooter
@@ -56,9 +57,16 @@ object WindByHeightWords {
         "${Format.metres(band.floorM)} to ${Format.metres(band.ceilingM)} metres" +
             if (band.isHere) ", where you are" else ""
 
-    /** Its wind as a screen reader says it. */
+    /**
+     * How fast the glider climbed while it circled through the band:
+     * "+2.4 m/s". Absent for a band it circled in only briefly.
+     */
+    fun climb(band: WindAtHeightView): String? = band.climbMs?.let { "${Format.climb(it)} m/s" }
+
+    /** Its wind as a screen reader says it, and the climb if there is one. */
     fun spokenWind(band: WindAtHeightView): String =
-        "${Format.spokenKilometresPerHour(band.speedMs)} from ${Format.compassPoint(band.fromDeg)}, measured ${age(band)}"
+        "${Format.spokenKilometresPerHour(band.speedMs)} from ${Format.compassPoint(band.fromDeg)}, measured ${age(band)}" +
+            band.climbMs?.let { ", climbed ${Format.climb(it)} metres per second" }.orEmpty()
 
     private fun age(band: WindAtHeightView): String = Format.age((band.ageS / 60).toLong())
 
@@ -66,7 +74,8 @@ object WindByHeightWords {
 
     const val EXPLANATION =
         "Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band " +
-            "you have not circled in has no wind to show, and an old one may have changed."
+            "you have not circled in has no wind to show, and an old one may have changed. Under the wind " +
+            "stands how fast you climbed through the band while circling."
 }
 
 /**
@@ -148,9 +157,21 @@ private fun WindByHeightRow(band: WindAtHeightView) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            WindByHeightWords.wind(band),
-            style = MaterialTheme.typography.titleMedium.numbers,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                WindByHeightWords.wind(band),
+                style = MaterialTheme.typography.titleMedium.numbers,
+            )
+            // How the thermal climbed through this band: where it is
+            // strong, and where it weakens toward the top.
+            WindByHeightWords.climb(band)?.let { climb ->
+                Text(
+                    climb,
+                    style = MaterialTheme.typography.bodyMedium.numbers,
+                    fontWeight = FontWeight.Medium,
+                    color = ClimbBand.of(band.climbMs ?: 0.0).color,
+                )
+            }
+        }
     }
 }

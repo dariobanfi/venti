@@ -20,7 +20,7 @@ struct StationScreen: View {
     @State private var touched: Date?
 
     var body: some View {
-        List {
+        VentiList {
             Section {
                 now
             } footer: {
@@ -59,11 +59,11 @@ struct StationScreen: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(credit.text)
                         Text("\(credit.provider), under \(credit.licence).")
-                            .font(.subheadline)
+                            .font(.venti(.subheadline))
                             .foregroundStyle(.secondary)
                         if let url = URL(string: credit.url) {
                             Link(url.host() ?? credit.url, destination: url)
-                                .font(.subheadline)
+                                .font(.venti(.subheadline))
                         }
                     }
                     .padding(.vertical, 2)
@@ -174,7 +174,7 @@ struct StationScreen: View {
             let marked = touched.flatMap { Self.nearest(to: $0, in: samples) }
             VStack(alignment: .leading, spacing: 10) {
                 Text(caption(for: marked))
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
 
@@ -199,7 +199,7 @@ struct StationScreen: View {
                     }
                     if let marked {
                         RuleMark(x: .value("Time", marked.time))
-                            .foregroundStyle(Color.primary.opacity(0.45))
+                            .foregroundStyle(Color.venti(.text).opacity(0.45))
                             .lineStyle(StrokeStyle(lineWidth: 1))
                     }
                 }
@@ -242,7 +242,7 @@ struct StationScreen: View {
                     }
                     if let marked {
                         RuleMark(x: .value("Time", marked.time))
-                            .foregroundStyle(Color.primary.opacity(0.45))
+                            .foregroundStyle(Color.venti(.text).opacity(0.45))
                             .lineStyle(StrokeStyle(lineWidth: 1))
                     }
                 }

@@ -17,7 +17,7 @@ struct Metric: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(caption)
-                .font(.caption)
+                .font(.venti(.caption))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
@@ -28,12 +28,12 @@ struct Metric: View {
     }
 
     private var valueText: Text {
-        Text(value).font(.system(.title3, design: .rounded, weight: .semibold))
+        Text(value).font(.venti(.title3, .semibold))
     }
 
     private var unitText: Text {
         Text(unit.isEmpty ? "" : " \(unit)")
-            .font(.system(.footnote, design: .rounded, weight: .medium))
+            .font(.venti(.footnote, .medium))
             .foregroundStyle(.secondary)
     }
 }

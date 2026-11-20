@@ -16,7 +16,7 @@ struct GroupsList: View {
     @State private var made: MadeGroup?
 
     var body: some View {
-        List {
+        VentiList {
             if !groups.groups.isEmpty {
                 Section {
                     ForEach(groups.groups, id: \.id) { group in
@@ -26,7 +26,7 @@ struct GroupsList: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(group.name)
                                 Text(group.summary)
-                                    .font(.footnote)
+                                    .font(.venti(.footnote))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -54,7 +54,7 @@ struct GroupsList: View {
             if let problem {
                 Section {
                     Text(problem)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.venti(.danger))
                 }
             }
         }
@@ -123,10 +123,10 @@ struct InviteCodeSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     Text(code)
-                        .font(.system(.title2, design: .monospaced, weight: .semibold))
+                        .font(.venti(.title2, .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .textSelection(.enabled)
@@ -189,7 +189,7 @@ struct GroupScreen: View {
     }
 
     var body: some View {
-        List {
+        VentiList {
             if let detail {
                 Section("Members") {
                     ForEach(detail.members, id: \.handle) { member in
@@ -202,7 +202,7 @@ struct GroupScreen: View {
                                     Button("Remove") {
                                         asking = .remove(member)
                                     }
-                                    .tint(.red)
+                                    .tint(Color.venti(.danger))
                                     Button("Make keeper") {
                                         asking = .handOver(member)
                                     }
@@ -249,7 +249,7 @@ struct GroupScreen: View {
             if let problem {
                 Section {
                     Text(problem)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.venti(.danger))
                 }
             }
         }
@@ -362,13 +362,13 @@ private struct MemberRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.isMe ? "\(member.name) (you)" : member.name)
                 Text(verbatim: "@\(member.handle)")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             if member.isKeeper {
                 Text("Keeper")
-                    .font(.footnote.weight(.medium))
+                    .font(.venti(.footnote, .medium))
                     .foregroundStyle(.secondary)
             }
         }

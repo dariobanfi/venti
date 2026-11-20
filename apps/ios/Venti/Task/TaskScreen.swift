@@ -24,7 +24,7 @@ struct TaskScreen: View {
         // The paste button's closure may run off the main actor; it takes
         // the model with it, not this view.
         let model = tasks
-        List {
+        VentiList {
             if let task = tasks.task {
                 Section {
                     TaskSketch(task: task)
@@ -83,7 +83,7 @@ struct TaskScreen: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if let problem = tasks.problem {
                         Label(problem, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                             .accessibilityIdentifier("task-problem")
                     }
                     Text("Copy a task from a message, or open a file ending in .xctsk: the format XCTrack, Flyskyhy and other instruments exchange. The cockpit then leads from turnpoint to turnpoint, counts down to the start and measures the way to goal. A route of your own waypoints is flown from one to the next.")
@@ -204,15 +204,15 @@ struct TaskTurnpointRow: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(isNext ? Palette.accent : Color(.tertiarySystemFill))
+                    .fill(isNext ? Palette.accent : Color.venti(.surfaceRaised))
                 if isReached == true {
                     Image(systemName: "checkmark")
-                        .font(.footnote.weight(.bold))
+                        .font(.venti(.footnote, .bold))
                 } else {
                     Text(Format.count(turnpoint.number))
-                        .font(.footnote.weight(.semibold))
+                        .font(.venti(.footnote, .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(isNext ? Color.white : Color.primary)
+                        .foregroundStyle(isNext ? Color.white : Color.venti(.text))
                 }
             }
             .frame(width: 28, height: 28)
@@ -221,7 +221,7 @@ struct TaskTurnpointRow: View {
                     .fontWeight(isNext ? .semibold : .regular)
                     .lineLimit(1)
                 Text(turnpoint.detail)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -231,7 +231,7 @@ struct TaskTurnpointRow: View {
                     Text("\(Format.kilometres(metres: turnpoint.alongM)) km")
                         .monospacedDigit()
                     Text("+\(Format.kilometres(metres: turnpoint.legM))")
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
@@ -350,7 +350,7 @@ struct TaskCodeSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     if let text = tasks.code(compressed: isCompressed), let image = Self.image(for: text) {
                         Image(uiImage: image)

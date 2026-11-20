@@ -115,7 +115,7 @@ struct LogbookScreen: View {
             Button("Import flights") {
                 isChoosingFiles = true
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.venti(.primary))
             .controlSize(.large)
 
             Button("Add a sample flight") {
@@ -127,7 +127,7 @@ struct LogbookScreen: View {
     }
 
     private var list: some View {
-        List {
+        VentiList {
             Section {
                 NavigationLink(value: StatisticsRoute()) {
                     TotalsRow(totals: logbook.view.totals)
@@ -147,7 +147,7 @@ struct LogbookScreen: View {
                             Button("Delete", systemImage: "trash") {
                                 flightToDelete = entry
                             }
-                            .tint(.red)
+                            .tint(Color.venti(.danger))
                         }
                     }
                 } header: {
@@ -185,13 +185,13 @@ private struct ImportProgressBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Importing \(Format.count(progress.done)) of \(Format.count(progress.total))")
-                .font(.subheadline.weight(.medium))
+                .font(.venti(.subheadline, .medium))
                 .monospacedDigit()
             ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .ventiFloating(in: .rect(cornerRadius: 18))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
         .accessibilityElement(children: .ignore)
@@ -221,11 +221,11 @@ private struct YearHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(verbatim: String(year.year))
-                .font(.headline)
+                .font(.venti(.headline))
                 .foregroundStyle(.primary)
             Spacer()
             Text("\(Format.flights(year.totals.flights)) · \(Format.hoursMinutes(seconds: year.totals.airtimeS)) h")
-                .font(.subheadline)
+                .font(.venti(.subheadline))
                 .monospacedDigit()
         }
         .textCase(nil)
@@ -241,25 +241,25 @@ private struct LogbookRow: View {
             TrackThumbnail(outline: entry.outline)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Format.dayInYear(unixSeconds: entry.startUnixS))
-                    .font(.headline)
+                    .font(.venti(.headline))
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(Format.hoursMinutes(seconds: entry.durationS)) h")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.venti(.headline))
                 // The scored cross-country distance; a triangle is marked.
                 HStack(spacing: 3) {
                     if let score = entry.score, score.kind != .freeFlight {
                         Image(systemName: "triangle")
-                            .font(.caption2.weight(.semibold))
+                            .font(.venti(.caption2, .semibold))
                             .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
                     }
                     Text("\(Format.kilometres(metres: entry.score?.distanceM ?? entry.trackLengthM)) km")
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.venti(.subheadline))
                 }
                 .foregroundStyle(.secondary)
             }

@@ -10,7 +10,7 @@ struct StationList: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     ForEach(shown, id: \.id) { station in
                         NavigationLink(value: station) {
@@ -76,12 +76,12 @@ struct StationRow: View {
                 Text(station.name)
                     .lineLimit(1)
                 Text(detail)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             if !mark.label.isEmpty {
-                Text("\(Text(mark.label).font(.system(.body, design: .rounded, weight: .semibold)))\(Text(" km/h").font(.footnote).foregroundStyle(.secondary))")
+                Text("\(Text(mark.label).font(.venti(.body, .semibold)))\(Text(" km/h").font(.venti(.footnote)).foregroundStyle(.secondary))")
                     .monospacedDigit()
             }
         }

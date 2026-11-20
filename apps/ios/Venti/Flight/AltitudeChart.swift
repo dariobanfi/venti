@@ -78,7 +78,7 @@ struct AltitudeChart: View {
             }
             if let marked {
                 RuleMark(x: .value("Time", time(marked.seconds)))
-                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .foregroundStyle(Color.venti(.text).opacity(0.45))
                     .lineStyle(StrokeStyle(lineWidth: 1))
                 PointMark(
                     x: .value("Time", time(marked.seconds)),

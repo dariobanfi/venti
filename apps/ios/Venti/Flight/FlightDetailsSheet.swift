@@ -24,7 +24,7 @@ struct FlightDetailsSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section("Flight") {
                     row("Date", Format.day(unixSeconds: flight.startUnixS))
                     row("Take-off", Format.time(unixSeconds: flight.startUnixS))
@@ -220,14 +220,14 @@ private struct AirspaceCrossingRow: View {
                 Text(crossing.name.isEmpty ? "Unnamed airspace" : crossing.name)
                     .foregroundStyle(.primary)
                 Text("\(crossing.kind) · \(crossing.lower) to \(crossing.upper)")
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                 Text("\(Format.time(unixSeconds: flightStart + Int64(crossing.entry.seconds))) · \(Format.metres(crossing.lowestM)) to \(Format.metres(crossing.highestM)) m")
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                 if let uncertain = crossing.uncertain {
                     Text(uncertain)
-                        .font(.subheadline)
+                        .font(.venti(.subheadline))
                 }
             }
             Spacer(minLength: 8)
@@ -248,7 +248,7 @@ private struct ThermalRow: View {
                 Text(Format.time(unixSeconds: flightStart + Int64(thermal.entry.seconds)))
                     .foregroundStyle(.primary)
                 Text(detail)
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
@@ -256,7 +256,7 @@ private struct ThermalRow: View {
                 Text("\(Format.signedMetres(thermal.gainM)) m")
                     .foregroundStyle(.primary)
                 Text("\(Format.climb(metresPerSecond: thermal.climbMs)) m/s")
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
         }
@@ -282,7 +282,7 @@ private struct GlideRow: View {
                 Text(Format.time(unixSeconds: flightStart + Int64(glide.start.seconds)))
                     .foregroundStyle(.primary)
                 Text("\(Format.kilometresPerHour(metresPerSecond: glide.speedMs)) km/h")
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
@@ -290,7 +290,7 @@ private struct GlideRow: View {
                 Text("\(Format.kilometres(metres: glide.distanceM)) km")
                     .foregroundStyle(.primary)
                 Text(glide.glideRatio.map { "glide \(Format.glideRatio($0))" } ?? "no height lost")
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
         }

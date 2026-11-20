@@ -1,6 +1,6 @@
 # XcodeGen project description. The Xcode project is generated, not committed:
 #
-#   scripts/build-core.sh && xcodegen generate
+#   scripts/build-core.sh && scripts/build-design.sh && xcodegen generate
 #
 name: Venti
 options:
@@ -40,6 +40,18 @@ targets:
       # The map style shared by all platforms.
       - path: ../../map/style.json
         buildPhase: resources
+      # The owner's design language (design/, at the repository's root): its
+      # tokens as Swift, compiled into the app as they are; its typeface,
+      # with the licence it comes under; and the asset catalogue that
+      # scripts/build-design.sh gathers from its app icon, icons, logo and
+      # art. Nothing of the pack is copied into this folder and committed.
+      - path: ../../design/tokens/VentiTheme.swift
+      - path: ../../design/fonts
+        includes:
+          - "*.ttf"
+          - "OFL.txt"
+        buildPhase: resources
+      - path: Venti/Resources/Design.xcassets
     dependencies:
       - package: VentiCore
         product: VentiCore

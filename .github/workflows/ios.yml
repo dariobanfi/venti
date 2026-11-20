@@ -17,7 +17,9 @@ on:
     paths:
       - "apps/ios/**"
       - "map/**"
+      - "design/**"
       - "crates/core/**"
+      - "crates/leagues/**"
       - "crates/flight/**"
       - "crates/domain/**"
       - "crates/sensors/**"
@@ -70,6 +72,8 @@ jobs:
       - name: Generate the Xcode project
         run: |
           brew install xcodegen
+          # The design pack's icons, logo and art, gathered for the app.
+          apps/ios/scripts/build-design.sh
           cd apps/ios && xcodegen generate
 
       - name: Pick the newest iPhone simulator
@@ -152,6 +156,8 @@ jobs:
       - name: Generate the Xcode project
         run: |
           brew install xcodegen
+          # The design pack's icons, logo and art, gathered for the app.
+          apps/ios/scripts/build-design.sh
           cd apps/ios && xcodegen generate
 
       - name: Pick the newest iPhone simulator
@@ -347,6 +353,8 @@ jobs:
       - name: Generate the Xcode project
         run: |
           brew install xcodegen
+          # The design pack's icons, logo and art, gathered for the app.
+          apps/ios/scripts/build-design.sh
           cd apps/ios && xcodegen generate
 
       # The core as Xcode links it, for a Mac whose Rust cannot build it

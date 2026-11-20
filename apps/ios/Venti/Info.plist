@@ -88,6 +88,16 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Venti reaches the Venti server on your own network, if you have set one in the settings.</string>
+	<!-- The design language's typeface, from design/fonts. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>FiraSans-Regular.ttf</string>
+		<string>FiraSans-Italic.ttf</string>
+		<string>FiraSans-Medium.ttf</string>
+		<string>FiraSans-SemiBold.ttf</string>
+		<string>FiraSans-Bold.ttf</string>
+		<string>FiraSans-BlackItalic.ttf</string>
+	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<!-- A flight is recorded, the vario sounds and the Bluetooth vario is

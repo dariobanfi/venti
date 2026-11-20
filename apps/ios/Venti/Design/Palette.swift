@@ -11,9 +11,7 @@ enum Palette {
     /// line in lists, charts and on the overview map. Violet, because it is
     /// none of the colours that carry meaning on a track.
     static var accentUI: UIColor {
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(hex: 0x9085E9) : UIColor(hex: 0x6250D6)
-        }
+        UIColor { traits in UIColor(VentiTheme.of(traits).primary) }
     }
 
     static var accent: Color { Color(uiColor: accentUI) }
@@ -36,49 +34,47 @@ enum Palette {
     }
 }
 
-/// How fast the glider was climbing or sinking, in five bands.
+/// How fast the glider was climbing or sinking, in the seven steps of the
+/// design language's vario scale: teal where it sank, grey where it held
+/// its height, coral where it climbed. "Cool is down, warm is up."
 ///
-/// A track is coloured by band: blue where it sank, grey where it held its
-/// height, orange and red where it climbed. Two hues with a neutral middle
-/// stay distinguishable for colour-blind pilots; the palette was checked for
-/// that.
+/// The steps and their colours are the pack's (`VentiScaleBreaks.vario`,
+/// `VentiTheme.vario`): -3, -1.5, -0.5, +0.5, +1.5 and +3 m/s.
 enum ClimbBand: Int, CaseIterable, Sendable {
     case strongSink
     case sink
+    case lightSink
     case level
+    case lightClimb
     case climb
     case strongClimb
 
     init(metresPerSecond rate: Double) {
-        switch rate {
-        case ..<(-2.0): self = .strongSink
-        case ..<(-0.5): self = .sink
-        case ..<0.5: self = .level
-        case ..<2.0: self = .climb
-        default: self = .strongClimb
-        }
+        let breaks = VentiScaleBreaks.vario
+        let step = breaks.firstIndex { rate < $0 } ?? breaks.count
+        self = ClimbBand(rawValue: step) ?? .level
     }
 
-    var uiColor: UIColor {
-        switch self {
-        case .strongSink: UIColor(hex: 0x184F95)
-        case .sink: UIColor(hex: 0x3987E5)
-        case .level: UIColor(hex: 0x85847F)
-        case .climb: UIColor(hex: 0xEB6834)
-        case .strongClimb: UIColor(hex: 0xB8242B)
-        }
-    }
+    /// The step's colour on a map. The map is pale in both appearances,
+    /// so it is the light theme's.
+    var uiColor: UIColor { UIColor(VentiTheme.light.vario[rawValue]) }
 
-    var color: Color { Color(uiColor: uiColor) }
+    /// The step's colour in a chart or a legend, by the appearance of
+    /// where it is drawn.
+    var color: Color {
+        Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).vario[rawValue]) })
+    }
 
     /// The band in words, for the legend.
     var label: String {
         switch self {
-        case .strongSink: "Sinking faster than 2 m/s"
-        case .sink: "Sinking 0.5 to 2 m/s"
+        case .strongSink: "Sinking faster than 3 m/s"
+        case .sink: "Sinking 1.5 to 3 m/s"
+        case .lightSink: "Sinking 0.5 to 1.5 m/s"
         case .level: "Within 0.5 m/s of level"
-        case .climb: "Climbing 0.5 to 2 m/s"
-        case .strongClimb: "Climbing faster than 2 m/s"
+        case .lightClimb: "Climbing 0.5 to 1.5 m/s"
+        case .climb: "Climbing 1.5 to 3 m/s"
+        case .strongClimb: "Climbing faster than 3 m/s"
         }
     }
 }

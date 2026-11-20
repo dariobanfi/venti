@@ -17,7 +17,7 @@ struct FlyScreen: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     Button {
                         isChoosingVario = true
@@ -87,7 +87,7 @@ struct FlyScreen: View {
                     Button("Start flight") {
                         fly.startFlight()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.venti(.primary))
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
@@ -194,7 +194,7 @@ private struct VarioSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if case .unavailable(let reason) = vario.state {
                     Section {
                         Label(reason, systemImage: "exclamationmark.triangle")
@@ -214,7 +214,7 @@ private struct VarioSheet: View {
                         LabeledContent("Received", value: "\(Format.count(vario.report.bytes)) bytes")
                         ForEach(Array(vario.report.lines.enumerated()), id: \.offset) { line in
                             Text(line.element)
-                                .font(.caption.monospaced())
+                                .font(.venti(.caption))
                                 .lineLimit(1)
                         }
                         ShareLink("Share a report", item: vario.reportText)

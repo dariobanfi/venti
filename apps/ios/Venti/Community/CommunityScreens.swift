@@ -7,7 +7,7 @@ struct PublicFlightsList: View {
     @Environment(CommunityModel.self) private var community
 
     var body: some View {
-        List {
+        VentiList {
             Section {
                 Picker(
                     "Order",
@@ -84,10 +84,10 @@ struct PublicFlightRow: View {
             TrackThumbnail(outline: flight.outline)
             VStack(alignment: .leading, spacing: 2) {
                 Text(flight.pilot)
-                    .font(.headline)
+                    .font(.venti(.headline))
                     .lineLimit(1)
                 Text(Self.detail(of: flight))
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -96,14 +96,14 @@ struct PublicFlightRow: View {
                 HStack(spacing: 3) {
                     if let score = flight.score, score.kind != .freeFlight {
                         Image(systemName: "triangle")
-                            .font(.caption.weight(.semibold))
+                            .font(.venti(.caption, .semibold))
                             .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
                     }
                     Text("\(Format.kilometres(metres: flight.score?.distanceM ?? flight.trackLengthM)) km")
-                        .font(.system(.headline, design: .rounded))
+                        .font(.venti(.headline))
                 }
                 Text("\(Format.hoursMinutes(seconds: flight.airtimeS)) h")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
             .monospacedDigit()
@@ -166,11 +166,11 @@ struct PublicFlightScreen: View {
             // it have.
             ToolbarItem(placement: .principal) {
                 Text(flight.pilot)
-                    .font(.headline)
+                    .font(.venti(.headline))
                     .lineLimit(1)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .glassEffect(.regular, in: .capsule)
+                    .ventiFloating(in: .capsule)
                     .accessibilityAddTraits(.isHeader)
             }
             ToolbarItem(placement: .primaryAction) {
@@ -231,7 +231,7 @@ struct PilotFlightsScreen: View {
     @State private var reporting: Reported?
 
     var body: some View {
-        List {
+        VentiList {
             Section {
                 ForEach(flights, id: \.id) { flight in
                     NavigationLink {

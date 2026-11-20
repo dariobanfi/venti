@@ -68,13 +68,13 @@ struct RouteMapPlanner: View {
     private func panel(for plan: RoutePlan) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(problem ?? plan.words)
-                .font(.subheadline)
-                .foregroundStyle(problem == nil ? Color.primary : Color.red)
+                .font(.venti(.subheadline))
+                .foregroundStyle(problem == nil ? Color.venti(.text) : Color.venti(.danger))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("route-words")
             if !plan.legs.isEmpty {
                 Text(Self.legs(of: plan))
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -102,12 +102,12 @@ struct RouteMapPlanner: View {
                 .labelStyle(.iconOnly)
                 .disabled(places.isEmpty)
             }
-            .buttonStyle(.bordered)
-            .font(.subheadline)
+            .buttonStyle(.venti(.quiet))
+            .font(.venti(.subheadline))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 28))
+        .ventiFloating(in: .rect(cornerRadius: 28))
         .padding(12)
     }
 

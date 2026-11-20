@@ -232,13 +232,13 @@ struct ShareFlightSheet: View {
                                         Text(visibility.title)
                                             .foregroundStyle(.primary)
                                         Text(visibility.explanation)
-                                            .font(.footnote)
+                                            .font(.venti(.footnote))
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer(minLength: 8)
                                     if sharing.visibility == visibility {
                                         Image(systemName: "checkmark")
-                                            .font(.body.weight(.semibold))
+                                            .font(.venti(.body, .semibold))
                                             .foregroundStyle(Palette.accent)
                                     }
                                 }
@@ -256,7 +256,7 @@ struct ShareFlightSheet: View {
                     if sharing.visibility != .private, let link = URL(string: sharing.link) {
                         Section("Link") {
                             Text(sharing.link)
-                                .font(.footnote)
+                                .font(.venti(.footnote))
                                 .textSelection(.enabled)
                             ShareLink("Share the link", item: link)
                         }

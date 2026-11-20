@@ -149,7 +149,7 @@ struct CreditsScreen: View {
     @Environment(WindModel.self) private var wind
 
     var body: some View {
-        List {
+        VentiList {
             Section("Map") {
                 credit(
                     "Base map",
@@ -177,7 +177,7 @@ struct CreditsScreen: View {
                 // say: the credits come with its answers.
                 if wind.credits.isEmpty {
                     Text("Wind stations come from the Venti server set in the settings. Each station's page names whose data it is and under which licence.")
-                        .font(.subheadline)
+                        .font(.venti(.subheadline))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(wind.credits, id: \.source) { source in
@@ -200,13 +200,13 @@ struct CreditsScreen: View {
     private func credit(_ title: String, _ text: String, link: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.headline)
+                .font(.venti(.headline))
             Text(text)
-                .font(.subheadline)
+                .font(.venti(.subheadline))
                 .foregroundStyle(.secondary)
             if let url = URL(string: link) {
                 Link(url.host() ?? link, destination: url)
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
             }
         }
         .padding(.vertical, 2)

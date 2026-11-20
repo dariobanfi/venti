@@ -13,7 +13,7 @@ struct WaypointsScreen: View {
     @State private var exported: URL?
 
     var body: some View {
-        List {
+        VentiList {
             ForEach(shown, id: \.id) { waypoint in
                 WaypointRow(waypoint: waypoint)
                     .swipeActions {
@@ -33,7 +33,7 @@ struct WaypointsScreen: View {
                     Button("Choose a file") {
                         isChoosingFiles = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.venti(.primary))
                 }
             } else if shown.isEmpty {
                 ContentUnavailableView.search(text: search)
@@ -135,7 +135,7 @@ struct WaypointRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: waypoint.symbolName)
-                .font(.title3)
+                .font(.venti(.title3))
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
@@ -143,7 +143,7 @@ struct WaypointRow: View {
                     .lineLimit(1)
                 if !waypoint.detail.isEmpty {
                     Text(waypoint.detail)
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .lineLimit(1)
@@ -157,17 +157,17 @@ struct WaypointRow: View {
                 // its way: the height it would arrive with says nothing.
                 Label("Ground in the way", systemImage: "mountain.2.fill")
                     .labelStyle(.iconOnly)
-                    .font(.subheadline)
-                    .foregroundStyle(.red)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.danger))
             } else if let reach, let arrival = reach.arrivalHeightM, reach.reach != .unknown {
                 Text("\(Format.signedMetres((arrival / 10).rounded() * 10)) m")
-                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+                    .font(.venti(.subheadline, .medium))
                     .monospacedDigit()
                     .foregroundStyle(LandingBadge.color(reach.reach))
             }
             if isChosen {
                 Image(systemName: "checkmark")
-                    .font(.body.weight(.semibold))
+                    .font(.venti(.body, .semibold))
                     .foregroundStyle(Palette.accent)
             }
         }

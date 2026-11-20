@@ -37,7 +37,7 @@ struct LeagueSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if let handover {
                     before(handover)
                     xcontest(handover)
@@ -92,18 +92,18 @@ struct LeagueSheet: View {
                 Text(handover.deadline)
             } icon: {
                 Image(systemName: handover.isLate ? "calendar.badge.exclamationmark" : "calendar")
-                    .foregroundStyle(handover.isLate ? Color.orange : Palette.accent)
+                    .foregroundStyle(handover.isLate ? Color.venti(.caution) : Palette.accent)
             }
             .accessibilityIdentifier("league-deadline")
             Label {
                 Text(handover.signature)
             } icon: {
                 Image(systemName: handover.isSigned ? "checkmark.seal" : "seal")
-                    .foregroundStyle(handover.isSigned ? Palette.accent : Color.orange)
+                    .foregroundStyle(handover.isSigned ? Palette.accent : Color.venti(.caution))
             }
             .accessibilityIdentifier("league-signature")
         }
-        .font(.subheadline)
+        .font(.venti(.subheadline))
     }
 
     /// XContest: the file for the pilot, and the page to upload it on.
@@ -165,7 +165,7 @@ struct LeagueSheet: View {
                 }
             }
             // The links in the size of the words they stand under.
-            .font(.footnote)
+            .font(.venti(.footnote))
         }
     }
 

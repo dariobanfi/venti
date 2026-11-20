@@ -57,11 +57,11 @@ struct SiteGlyph: View {
     var body: some View {
         Image(systemName: kind.systemImage)
             .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(kind == .landing ? Color.primary : Color(.systemBackground))
+            .foregroundStyle(kind == .landing ? Color.venti(.text) : Color.venti(.bg))
             .frame(width: 28, height: 28)
-            .background(kind == .landing ? Color(.systemBackground) : Color.primary, in: .circle)
+            .background(kind == .landing ? Color.venti(.bg) : Color.venti(.text), in: .circle)
             .overlay {
-                Circle().strokeBorder(Color.primary, lineWidth: kind == .landing ? 1.5 : 0)
+                Circle().strokeBorder(Color.venti(.text), lineWidth: kind == .landing ? 1.5 : 0)
             }
             .accessibilityHidden(true)
     }
@@ -78,7 +78,7 @@ struct SiteList: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     ForEach(shown, id: \.id) { site in
                         NavigationLink(value: site) {
@@ -156,7 +156,7 @@ private struct SiteRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(site.name)
                 Text(detail)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -205,7 +205,7 @@ struct SiteScreen: View {
     static let caution = "A site on the map is not permission to fly there. Ask the club or the owner, and look at the place."
 
     var body: some View {
-        List {
+        VentiList {
             Section {
                 LabeledContent("What it is", value: site.kindInWords)
                 if let elevation = site.elevationM {
@@ -230,7 +230,7 @@ struct SiteScreen: View {
                     }
                     if site.discouraged {
                         Label("Marked as unsafe or discouraged", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                     }
                     if site.paragliding == false {
                         Label("Marked as not for paragliders", systemImage: "nosign")
@@ -333,21 +333,21 @@ struct StationNearbyRow: View {
                 Text(near.station.name)
                     .lineLimit(1)
                 Text(Self.whereabouts(near))
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                 if let words = Self.fitWords(near) {
                     Text(words)
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
             if !mark.label.isEmpty {
-                Text("\(Text(mark.label).font(.system(.body, design: .rounded, weight: .semibold)))\(Text(" km/h").font(.footnote).foregroundStyle(.secondary))")
+                Text("\(Text(mark.label).font(.venti(.body, .semibold)))\(Text(" km/h").font(.venti(.footnote)).foregroundStyle(.secondary))")
                     .monospacedDigit()
             } else {
                 Text(Self.ageWords(near.station, now: now))
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
         }

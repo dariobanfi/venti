@@ -8,7 +8,7 @@ import SwiftUI
 struct StatusBarScrim: View {
     var body: some View {
         LinearGradient(
-            colors: [Color(.systemBackground).opacity(0.5), Color(.systemBackground).opacity(0)],
+            colors: [Color.venti(.bg).opacity(0.5), Color.venti(.bg).opacity(0)],
             startPoint: .top,
             endPoint: .bottom
         )

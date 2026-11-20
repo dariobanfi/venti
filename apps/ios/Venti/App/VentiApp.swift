@@ -5,6 +5,12 @@ import VentiCore
 struct VentiApp: App {
     @State private var session = Session.start()
 
+    init() {
+        // The bars are UIKit's: their type and ink are set once, before
+        // the first of them is drawn.
+        VentiAppearance.apply()
+    }
+
     var body: some Scene {
         WindowGroup {
             switch session {
@@ -27,7 +33,7 @@ struct VentiApp: App {
                     .environment(ground)
                     .environment(groups)
                     .environment(maps)
-                    .tint(Palette.accent)
+                    .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
                 ContentUnavailableView(

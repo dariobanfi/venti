@@ -17,13 +17,13 @@ struct LiveGliderRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: glider.landed ? "figure.stand" : "paperplane.fill")
-                .foregroundStyle(glider.landed || glider.quiet ? Color.secondary : Color.green)
+                .foregroundStyle(glider.landed || glider.quiet ? Color.venti(.textSecondary) : Color.venti(.good))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(glider.name)
-                    .font(.headline)
+                    .font(.venti(.headline))
                 Text(Self.detail(of: glider, age: live.ageInWords(of: glider)))
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
@@ -53,7 +53,7 @@ struct LiveList: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     ForEach(live.gliders, id: \.id) { glider in
                         Button {
@@ -119,7 +119,7 @@ struct LiveGliderScreen: View {
     }
 
     var body: some View {
-        List {
+        VentiList {
             if let glider {
                 Section {
                     LabeledContent("Pilot", value: glider.name)

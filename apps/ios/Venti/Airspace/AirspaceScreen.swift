@@ -12,11 +12,11 @@ struct AirspaceScreen: View {
     @State private var notice: ImportNotice?
 
     var body: some View {
-        List {
+        VentiList {
             if let problem = airspace.problem {
                 Section {
                     Label(problem, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.venti(.danger))
                 }
             }
             fromServer
@@ -25,7 +25,7 @@ struct AirspaceScreen: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(file.name)
                         Text(detail(of: file))
-                            .font(.footnote)
+                            .font(.venti(.footnote))
                             .foregroundStyle(.secondary)
                         if file.leftOut > 0 {
                             Label(
@@ -34,8 +34,8 @@ struct AirspaceScreen: View {
                                     : "\(file.leftOut) airspaces in this file could not be read. You will not be warned about them.",
                                 systemImage: "exclamationmark.triangle.fill"
                             )
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(.venti(.footnote))
+                            .foregroundStyle(.venti(.danger))
                         }
                     }
                     .padding(.vertical, 2)
@@ -83,29 +83,29 @@ struct AirspaceScreen: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(layer.provider)
                     Text(detail(of: layer))
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                     if !layer.countries.isEmpty {
                         // The kept area reaches across borders, and the
                         // cockpit cannot draw one: say whose airspace this is.
                         Text("The airspace of \(Self.names(of: layer.countries)). Of other countries none is kept, also where the area fetched reaches into them.")
-                            .font(.footnote)
+                            .font(.venti(.footnote))
                     }
                     if !layer.saysWhatItCovers {
                         Label(
                             "The server does not say for which area this is complete, so the cockpit cannot take silence for \"no airspace near\" and says that it is not checking.",
                             systemImage: "exclamationmark.triangle.fill"
                         )
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(.venti(.footnote))
+                        .foregroundStyle(.venti(.danger))
                     }
                     if let credit = layer.credit {
                         if let notice = credit.notice {
                             Label(notice, systemImage: "exclamationmark.triangle")
-                                .font(.footnote)
+                                .font(.venti(.footnote))
                         }
                         Text("\(credit.text) Licence: \(credit.licence).")
-                            .font(.footnote)
+                            .font(.venti(.footnote))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -115,7 +115,7 @@ struct AirspaceScreen: View {
             }
             if let problem = airspace.serverProblem {
                 Label(problem, systemImage: "wifi.exclamationmark")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
             Toggle(

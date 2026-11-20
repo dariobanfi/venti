@@ -29,11 +29,11 @@ struct TaskScanSheet: View {
                     .ignoresSafeArea(edges: .bottom)
                     .overlay(alignment: .bottom) {
                         Text(problem ?? "Hold the task's QR code in view.")
-                            .font(.subheadline.weight(.medium))
+                            .font(.venti(.subheadline, .medium))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
-                            .glassEffect(.regular, in: .capsule)
+                            .ventiFloating(in: .capsule)
                             .padding(24)
                     }
                 } else {

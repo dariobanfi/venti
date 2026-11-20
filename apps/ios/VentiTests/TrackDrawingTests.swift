@@ -21,13 +21,19 @@ final class TrackDrawingTests: XCTestCase {
     }
 
     func testClimbBandsSplitAtTheDocumentedRates() {
-        XCTAssertEqual(ClimbBand(metresPerSecond: -3), .strongSink)
+        // The design language's vario scale: -3, -1.5, -0.5, +0.5, +1.5, +3.
+        XCTAssertEqual(ClimbBand(metresPerSecond: -3.1), .strongSink)
+        XCTAssertEqual(ClimbBand(metresPerSecond: -3), .sink)
         XCTAssertEqual(ClimbBand(metresPerSecond: -2), .sink)
-        XCTAssertEqual(ClimbBand(metresPerSecond: -1.2), .sink)
+        XCTAssertEqual(ClimbBand(metresPerSecond: -1.5), .lightSink)
+        XCTAssertEqual(ClimbBand(metresPerSecond: -1.2), .lightSink)
         XCTAssertEqual(ClimbBand(metresPerSecond: -0.5), .level)
         XCTAssertEqual(ClimbBand(metresPerSecond: 0.4), .level)
-        XCTAssertEqual(ClimbBand(metresPerSecond: 0.5), .climb)
-        XCTAssertEqual(ClimbBand(metresPerSecond: 2), .strongClimb)
+        XCTAssertEqual(ClimbBand(metresPerSecond: 0.5), .lightClimb)
+        XCTAssertEqual(ClimbBand(metresPerSecond: 1.5), .climb)
+        XCTAssertEqual(ClimbBand(metresPerSecond: 2), .climb)
+        XCTAssertEqual(ClimbBand(metresPerSecond: 3), .strongClimb)
+        XCTAssertEqual(ClimbBand.allCases.count, VentiTheme.light.vario.count)
     }
 
     func testATrackIsCutIntoRunsThatShareTheirEndPoints() {
@@ -36,9 +42,9 @@ final class TrackDrawingTests: XCTestCase {
         XCTAssertEqual(
             runs,
             [
-                TrackBands.Run(band: .sink, points: 0...2),
+                TrackBands.Run(band: .lightSink, points: 0...2),
                 TrackBands.Run(band: .strongClimb, points: 2...5),
-                TrackBands.Run(band: .sink, points: 5...6),
+                TrackBands.Run(band: .lightSink, points: 5...6),
             ]
         )
     }
@@ -48,7 +54,7 @@ final class TrackDrawingTests: XCTestCase {
         XCTAssertTrue(TrackBands.runs(in: track(climbs: [1])).isEmpty)
         XCTAssertEqual(
             TrackBands.runs(in: track(climbs: [0, 1])),
-            [TrackBands.Run(band: .climb, points: 0...1)]
+            [TrackBands.Run(band: .lightClimb, points: 0...1)]
         )
     }
 

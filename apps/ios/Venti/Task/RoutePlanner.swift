@@ -17,15 +17,15 @@ struct RoutePlanner: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     ForEach(Array(route.enumerated()), id: \.offset) { index, waypoint in
                         HStack(spacing: 12) {
                             Text(Format.count(index + 1))
-                                .font(.footnote.weight(.semibold))
+                                .font(.venti(.footnote, .semibold))
                                 .monospacedDigit()
                                 .frame(width: 28, height: 28)
-                                .background(Color(.tertiarySystemFill), in: .circle)
+                                .background(.venti(.surfaceRaised), in: .circle)
                             Text(waypoint.name)
                                 .lineLimit(1)
                         }
@@ -47,7 +47,7 @@ struct RoutePlanner: View {
                 } footer: {
                     if let problem {
                         Text(problem)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                     } else if !route.isEmpty {
                         Text("Swipe a waypoint away to take it out.")
                     }

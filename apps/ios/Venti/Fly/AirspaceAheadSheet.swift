@@ -22,22 +22,22 @@ struct AirspaceAheadSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 // Reading the cockpit's view makes this follow each of its
                 // refreshes.
                 if fly.view != nil, let ahead = fly.airspaceAhead() {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(ahead.words)
-                                .font(.headline)
+                                .font(.venti(.headline))
                                 .accessibilityIdentifier("ahead-words")
                             if let ground = ahead.groundWords {
                                 Text(ground)
-                                    .font(.subheadline.weight(.medium))
+                                    .font(.venti(.subheadline, .medium))
                                     .accessibilityIdentifier("ahead-ground")
                             }
                             Text(verbatim: "\(ahead.toward) · \(ahead.lineWords)")
-                                .font(.footnote)
+                                .font(.venti(.footnote))
                                 .foregroundStyle(.secondary)
                         }
                         AheadChart(ahead: ahead)
@@ -117,7 +117,7 @@ private struct AheadChart: View {
                 .foregroundStyle(Self.color(span.policy).opacity(span.uncertain ? 0.2 : 0.36))
                 .annotation(position: .overlay, alignment: .top) {
                     Text(span.name)
-                        .font(.caption2.weight(.semibold))
+                        .font(.venti(.caption2, .semibold))
                         .lineLimit(1)
                         .padding(.top, 3)
                 }
@@ -127,13 +127,13 @@ private struct AheadChart: View {
                     x: .value("Distance", 0.0),
                     y: .value("Height", ahead.altitudeM)
                 )
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(Color.venti(.text))
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [6, 4]))
                 LineMark(
                     x: .value("Distance", lineEnd.km),
                     y: .value("Height", lineEnd.heightM)
                 )
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(Color.venti(.text))
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [6, 4]))
             }
             PointMark(
@@ -196,24 +196,24 @@ private struct AheadRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(span.name)
-                    .font(.body.weight(.semibold))
+                    .font(.venti(.body, .semibold))
                 Text(verbatim: "\(span.kind) · \(span.lower) to \(span.upper)")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                 if span.uncertain {
                     Text("Its height could not be placed exactly.")
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(place)
-                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .font(.venti(.body, .semibold))
                     .monospacedDigit()
                 if span.inTheWay {
                     Text(span.uncertain ? "Possibly on your line" : "On your line")
-                        .font(.footnote.weight(.semibold))
+                        .font(.venti(.footnote, .semibold))
                         .foregroundStyle(AheadChart.color(.avoid))
                 }
             }

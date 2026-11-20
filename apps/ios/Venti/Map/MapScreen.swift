@@ -252,7 +252,7 @@ struct MapScreen: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .labelStyle(.iconOnly)
-                .font(.title3)
+                .font(.venti(.title3))
                 .frame(width: 30, height: 30)
         }
         .buttonStyle(.glass)
@@ -277,10 +277,10 @@ struct MapScreen: View {
     @ViewBuilder private var notice: some View {
         if let noticeText {
             Label(noticeText, systemImage: "exclamationmark.triangle")
-                .font(.footnote)
+                .font(.venti(.footnote))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(.regularMaterial, in: .rect(cornerRadius: 14))
+                .ventiFloating(in: .rect(cornerRadius: 14))
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .accessibilityIdentifier("wind-notice")
@@ -310,12 +310,12 @@ struct MapScreen: View {
     @ViewBuilder private var credits: some View {
         if !creditLine.isEmpty {
             Text(creditLine)
-                .font(.caption2)
+                .font(.venti(.caption2))
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(.thinMaterial, in: .rect(cornerRadius: 10))
+                .ventiFloating(in: .rect(cornerRadius: 10))
                 // Clear of the map's own credits button on the left and of
                 // the round buttons on the right.
                 .padding(.leading, 44)

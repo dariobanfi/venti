@@ -43,13 +43,15 @@ struct RootScreen: View {
     var body: some View {
         @Bindable var navigation = navigation
         TabView(selection: $navigation.tab) {
-            Tab("Map", systemImage: "map", value: AppTab.map) {
+            // The flying icons are the design pack's; it has none for the
+            // assistant and the settings, which keep the system's.
+            Tab("Map", image: "icon-map", value: AppTab.map) {
                 MapScreen()
             }
-            Tab("Fly", systemImage: "paperplane", value: AppTab.fly) {
+            Tab("Fly", image: "icon-wing", value: AppTab.fly) {
                 FlyScreen()
             }
-            Tab("Logbook", systemImage: "book.closed", value: AppTab.logbook) {
+            Tab("Logbook", image: "icon-track", value: AppTab.logbook) {
                 LogbookScreen()
             }
             Tab("Assistant", systemImage: "sparkles", value: AppTab.assistant) {

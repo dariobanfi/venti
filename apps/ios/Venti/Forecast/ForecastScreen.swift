@@ -78,7 +78,7 @@ struct ForecastScreen: View {
     private func loaded(_ forecast: ForecastView, model shown: ModelForecast) -> some View {
         let days = shown.days.filter { $0.hours.contains(where: \.isDaylight) }
         let chosen = days.first { $0.startUnixS == day } ?? Self.today(among: days)
-        List {
+        VentiList {
             if days.count > 1 {
                 Section {
                     Picker("Day", selection: Binding(
@@ -199,10 +199,10 @@ struct ForecastTable: View {
                 ForEach(rows) { row in
                     VStack(alignment: .leading, spacing: 0) {
                         Text(row.name)
-                            .font(.footnote.weight(.medium))
+                            .font(.venti(.footnote, .medium))
                         if !row.detail.isEmpty {
                             Text(row.detail)
-                                .font(.caption2)
+                                .font(.venti(.caption2))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -216,7 +216,7 @@ struct ForecastTable: View {
                     HStack(spacing: 0) {
                         ForEach(hours, id: \.timeUnixS) { hour in
                             Text(Self.clock(hour.timeUnixS))
-                                .font(.caption.weight(.medium))
+                                .font(.venti(.caption, .medium))
                                 .foregroundStyle(.secondary)
                                 .frame(width: Self.cellWidth, height: 22)
                         }
@@ -363,28 +363,28 @@ private struct ForecastCell: View {
                         .frame(height: 15)
                 }
                 Text(wind.label)
-                    .font(.caption2.weight(.medium))
+                    .font(.venti(.caption2, .medium))
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
             }
         case .number(let text):
             Text(text)
-                .font(.caption.weight(.medium))
+                .font(.venti(.caption, .medium))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
         case .cloud(let percent):
             // More sky covered, more of the square filled in.
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.primary.opacity(0.08 + 0.5 * min(max(percent, 0), 100) / 100))
+                .fill(Color.venti(.text).opacity(0.08 + 0.5 * min(max(percent, 0), 100) / 100))
                 .frame(width: 22, height: 22)
                 .overlay {
                     Text(Format.count(Int(percent.rounded())))
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(percent > 55 ? Color(uiColor: .systemBackground) : Color.primary)
+                        .foregroundStyle(percent > 55 ? Color.venti(.bg) : Color.venti(.text))
                 }
         case .empty:
             Text("–")
-                .font(.caption)
+                .font(.venti(.caption))
                 .foregroundStyle(.tertiary)
         }
     }

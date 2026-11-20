@@ -15,7 +15,7 @@ struct PlansSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if !account.isSignedIn {
                     Section {
                         Text("Plans for a flying day are shared in groups on your Venti server. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.")
@@ -127,13 +127,13 @@ struct PlanRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(plan.place)
-                    .font(.body.weight(.semibold))
+                    .font(.venti(.body, .semibold))
                 Text(plan.inWords)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                 if !plan.groupName.isEmpty {
                     Text(plan.groupName)
-                        .font(.footnote)
+                        .font(.venti(.footnote))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -141,7 +141,7 @@ struct PlanRow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 if let time = plan.meetAt {
                     Text(time)
-                        .font(.system(.body, design: .rounded, weight: .semibold))
+                        .font(.venti(.body, .semibold))
                         .monospacedDigit()
                 }
                 if plan.amIn {
@@ -169,7 +169,7 @@ struct PlanScreen: View {
     @State private var isConfirmingDelete = false
 
     var body: some View {
-        List {
+        VentiList {
             if let plan = groups.plan(id) {
                 Section {
                     LabeledContent("Where", value: plan.place)
@@ -232,7 +232,7 @@ struct PlanScreen: View {
                 if let problem {
                     Section {
                         Text(problem)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                     }
                 }
             } else {
@@ -358,7 +358,7 @@ struct PlanForm: View {
                 if let problem {
                     Section {
                         Text(problem)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                     }
                 }
             }

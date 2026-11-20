@@ -13,15 +13,15 @@ struct TaskStrip: View {
         Button(action: open) {
             HStack(spacing: 12) {
                 Image(systemName: status.phase == .inGoal ? "flag.checkered.2.crossed" : "flag.checkered")
-                    .font(.title3)
+                    .font(.venti(.title3))
                     .frame(width: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(Self.headline(status))
-                        .font(.headline)
+                        .font(.venti(.headline))
                         .monospacedDigit()
                         .lineLimit(1)
                     Text(Self.detail(status))
-                        .font(.system(.subheadline, design: .rounded, weight: .medium))
+                        .font(.venti(.subheadline, .medium))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -31,16 +31,16 @@ struct TaskStrip: View {
                 if status.phase != .inGoal {
                     VStack(alignment: .trailing, spacing: 1) {
                         Text("\(Format.kilometres(metres: status.toGoalM)) km")
-                            .font(.system(.headline, design: .rounded))
+                            .font(.venti(.headline))
                             .monospacedDigit()
                         Text(Self.goalDetail(status))
-                            .font(.caption)
+                            .font(.venti(.caption))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                 }
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
+                    .font(.venti(.footnote, .semibold))
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 16)
@@ -141,7 +141,7 @@ struct TaskProgressSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if let task = tasks.task, let status = fly.task {
                     Section {
                         ForEach(task.turnpoints, id: \.number) { turnpoint in

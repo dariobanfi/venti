@@ -16,7 +16,7 @@ struct WindByHeightSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if groundFirst {
                     onTheGround
                     byHeight
@@ -98,15 +98,15 @@ private struct GroundWindRow: View {
                     Image(systemName: "circle.dotted")
                 }
             }
-            .font(.headline.weight(.bold))
+            .font(.venti(.headline, .bold))
             .foregroundStyle(windBand(speedMs: station.speedMs).ink)
             .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(station.name)
-                    .font(.body.weight(station.isAtLanding ? .semibold : .regular))
+                    .font(.venti(.body, station.isAtLanding ? .semibold : .regular))
                     .lineLimit(1)
                 Text(station.isAtLanding ? "At your landing · \(station.place)" : station.place)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -115,10 +115,10 @@ private struct GroundWindRow: View {
             // side they broke in the middle of "5 min ago".
             VStack(alignment: .trailing, spacing: 2) {
                 Text(station.wind)
-                    .font(.subheadline)
-                    .foregroundStyle(station.isStrong ? Color.red : Color.primary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(station.isStrong ? Color.venti(.danger) : Color.venti(.text))
                 Text(station.age)
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
             .monospacedDigit()
@@ -139,29 +139,29 @@ private struct WindByHeightRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.up")
-                .font(.headline.weight(.bold))
+                .font(.venti(.headline, .bold))
                 // The arrow shows where the wind goes, north at the top.
                 .rotationEffect(.degrees(band.fromDeg + 180))
                 .foregroundStyle(windBand(speedMs: band.speedMs).ink)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(Format.metres(band.floorM)) to \(Format.metres(band.ceilingM)) m")
-                    .font(.body.weight(band.isHere ? .semibold : .regular))
+                    .font(.venti(.body, band.isHere ? .semibold : .regular))
                     .monospacedDigit()
                 Text(band.isHere ? "You are here · measured \(age)" : "Measured \(age)")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(Format.kilometresPerHour(metresPerSecond: band.speedMs)) km/h \(Format.compassPoint(degrees: band.fromDeg))")
-                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .font(.venti(.body, .semibold))
                     .monospacedDigit()
                 // How the thermal climbed through this band: where it is
                 // strong, and where it weakens toward the top.
                 if let climb = band.climbMs {
                     Text("\(Format.climb(metresPerSecond: climb)) m/s")
-                        .font(.system(.footnote, design: .rounded, weight: .medium))
+                        .font(.venti(.footnote, .medium))
                         .monospacedDigit()
                         .foregroundStyle(ClimbBand(metresPerSecond: climb).color)
                 }

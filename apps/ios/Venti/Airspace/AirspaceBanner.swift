@@ -38,11 +38,11 @@ struct AirspaceBanner: View {
         VStack(spacing: 6) {
             if let notice {
                 Label(notice, systemImage: "eye.slash")
-                    .font(.footnote.weight(.medium))
+                    .font(.venti(.footnote, .medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 14))
+                    .ventiFloating(in: .rect(cornerRadius: 14))
                     .accessibilityIdentifier("airspace-notice")
             }
             band
@@ -54,24 +54,24 @@ struct AirspaceBanner: View {
             Button(action: open) {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: warning.silenced ? "bell.slash.fill" : "exclamationmark.triangle.fill")
-                        .font(.title3)
+                        .font(.venti(.title3))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(warning.headline)
-                            .font(.headline)
+                            .font(.venti(.headline))
                             .multilineTextAlignment(.leading)
                         Text(warning.detail)
-                            .font(.footnote)
+                            .font(.venti(.footnote))
                             .multilineTextAlignment(.leading)
                         if let uncertain = warning.uncertain {
                             Text(uncertain)
-                                .font(.footnote)
+                                .font(.venti(.footnote))
                                 .multilineTextAlignment(.leading)
                         }
                     }
                     Spacer(minLength: 4)
                     if warnings.count > 1 {
                         Text("+\(warnings.count - 1)")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.venti(.subheadline, .semibold))
                             .monospacedDigit()
                     }
                 }
@@ -94,12 +94,12 @@ struct AirspaceBanner: View {
     /// plain otherwise. A quieted warning is plain whatever its level.
     private static func ground(for warning: AirspaceWarning) -> AnyShapeStyle {
         if warning.silenced {
-            return AnyShapeStyle(.regularMaterial)
+            return AnyShapeStyle(.venti(.surface))
         }
         switch warning.level {
         case .inside, .entering: return AnyShapeStyle(Color(red: 0.72, green: 0.14, blue: 0.17))
         case .veryNear: return AnyShapeStyle(Color(red: 0.98, green: 0.70, blue: 0.10))
-        case .near: return AnyShapeStyle(.regularMaterial)
+        case .near: return AnyShapeStyle(.venti(.surface))
         }
     }
 
@@ -124,18 +124,18 @@ struct AirspaceWarningsSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 ForEach(fly.airspaceWarnings, id: \.id) { warning in
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(warning.headline)
-                                .font(.headline)
+                                .font(.venti(.headline))
                             Text(warning.detail)
-                                .font(.subheadline)
+                                .font(.venti(.subheadline))
                                 .foregroundStyle(.secondary)
                             if let uncertain = warning.uncertain {
                                 Text(uncertain)
-                                    .font(.subheadline)
+                                    .font(.venti(.subheadline))
                             }
                         }
                         .accessibilityElement(children: .combine)

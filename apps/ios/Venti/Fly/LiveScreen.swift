@@ -54,7 +54,7 @@ struct LiveScreen: View {
     private var choice: LiveChoice { LiveChoice(rawValue: stored) ?? .nobody }
 
     var body: some View {
-        List {
+        VentiList {
             if !account.isSignedIn {
                 Section {
                     Label(
@@ -115,7 +115,7 @@ struct LiveScreen: View {
 
             Section {
                 Text("Your positions go from this iPhone to your Venti server from take-off on, every quarter of a minute, and nowhere else. The server removes the track two days after its last position, unless whoever runs it set another time. A track is not a flight in your logbook: that is the recording, which stays on this iPhone until you sync.")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -159,7 +159,7 @@ struct LiveButton: View {
                 .labelStyle(.iconOnly)
                 .frame(width: 30, height: 30)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.venti(.quiet))
         .controlSize(.large)
         .tint(Self.tint(for: live?.state))
         .accessibilityValue(live?.words ?? "Off")

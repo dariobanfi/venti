@@ -18,10 +18,10 @@ struct TargetStrip: View {
                     arrow(way)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(way.name)
-                            .font(.headline)
+                            .font(.venti(.headline))
                             .lineLimit(1)
                         Text("\(Format.kilometres(metres: way.distanceM)) km")
-                            .font(.system(.subheadline, design: .rounded, weight: .medium))
+                            .font(.venti(.subheadline, .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
@@ -29,14 +29,14 @@ struct TargetStrip: View {
                     arrival(way)
                 } else {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.title3)
+                        .font(.venti(.title3))
                         .frame(width: 30)
                     Text("Choose a place to fly to")
-                        .font(.headline)
+                        .font(.venti(.headline))
                     Spacer(minLength: 8)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
+                    .font(.venti(.footnote, .semibold))
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 16)
@@ -55,7 +55,7 @@ struct TargetStrip: View {
     /// means straight ahead. Standing still, up means north.
     private func arrow(_ way: WayToTarget) -> some View {
         Image(systemName: "location.north.fill")
-            .font(.title2)
+            .font(.venti(.title2))
             .foregroundStyle(Palette.accent)
             .rotationEffect(.degrees(way.bearingDeg - (courseDeg ?? 0)))
             .frame(width: 30)
@@ -69,26 +69,26 @@ struct TargetStrip: View {
                 // The straight glide would arrive with height to spare,
                 // and meets a ridge on the way: that is what counts.
                 Text("Ground in the way")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.red)
+                    .font(.venti(.subheadline, .semibold))
+                    .foregroundStyle(.venti(.danger))
                 Text("in \(Format.kilometres(metres: meets)) km")
-                    .font(.caption)
+                    .font(.venti(.caption))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             } else if let height = way.arrivalHeightM {
-                Text("\(Text(Format.signedMetres(height)).font(.system(.title3, design: .rounded, weight: .semibold)))\(Text(" m").font(.system(.footnote, design: .rounded, weight: .medium)).foregroundStyle(.secondary))")
+                Text("\(Text(Format.signedMetres(height)).font(.venti(.title3, .semibold)))\(Text(" m").font(.venti(.footnote, .medium)).foregroundStyle(.secondary))")
                     .monospacedDigit()
                     // Falling short is the one thing here worth a warning colour.
-                    .foregroundStyle(height < 0 ? Color.red : Color.primary)
+                    .foregroundStyle(height < 0 ? Color.venti(.danger) : Color.venti(.text))
                 Text(way.windKnown ? "Arrival" : "Arrival in still air")
-                    .font(.caption)
+                    .font(.venti(.caption))
                     .foregroundStyle(.secondary)
             } else if way.expectedGlide == nil {
                 Text("Wind too strong")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.red)
+                    .font(.venti(.subheadline, .semibold))
+                    .foregroundStyle(.venti(.danger))
                 Text("to get there")
-                    .font(.caption)
+                    .font(.venti(.caption))
                     .foregroundStyle(.secondary)
             }
         }
@@ -137,7 +137,7 @@ struct TargetPicker: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     Button {
                         choose(nil)
@@ -145,14 +145,14 @@ struct TargetPicker: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: fliesTask ? "flag.checkered" : "house.circle")
-                                .font(.title3)
+                                .font(.venti(.title3))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 28)
                             Text(fliesTask ? "Along the task" : "Take-off")
                             Spacer(minLength: 8)
                             if chosen == nil {
                                 Image(systemName: "checkmark")
-                                    .font(.body.weight(.semibold))
+                                    .font(.venti(.body, .semibold))
                                     .foregroundStyle(Palette.accent)
                             }
                         }

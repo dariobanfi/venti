@@ -126,12 +126,12 @@ struct CockpitScreen: View {
                                     systemName: showsWholeFlight
                                         ? "location.fill" : "arrow.up.left.and.arrow.down.right"
                                 )
-                                .font(.headline)
+                                .font(.venti(.headline))
                                 .frame(width: 44, height: 44)
                                 .contentShape(.circle)
                             }
                             .buttonStyle(.plain)
-                            .glassEffect(.regular, in: .circle)
+                            .ventiFloating(in: .circle)
                             .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
                             // With airspace to warn from, or the ground
                             // to draw: what lies on the line ahead, seen
@@ -141,12 +141,12 @@ struct CockpitScreen: View {
                                     isShowingAhead = true
                                 } label: {
                                     Image(systemName: "chart.line.downtrend.xyaxis")
-                                        .font(.headline)
+                                        .font(.venti(.headline))
                                         .frame(width: 44, height: 44)
                                         .contentShape(.circle)
                                 }
                                 .buttonStyle(.plain)
-                                .glassEffect(.regular, in: .circle)
+                                .ventiFloating(in: .circle)
                                 .accessibilityLabel("Ahead, from the side")
                             }
                         }
@@ -179,11 +179,11 @@ struct CockpitScreen: View {
                             // the map's own credits, in the corner.
                             if let credit = Self.airspaceCredit(airspace.credits) {
                                 Text(credit)
-                                    .font(.caption2)
+                                    .font(.venti(.caption2))
                                     .foregroundStyle(.secondary)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(.regularMaterial, in: .rect(cornerRadius: 8))
+                                    .ventiFloating(in: .rect(cornerRadius: 8))
                                     .padding(.leading, 34)
                                     .accessibilityIdentifier("cockpit-airspace-credit")
                             }
@@ -207,10 +207,10 @@ struct CockpitScreen: View {
                     .overlay(alignment: .top) {
                         if view.phase != .flying {
                             Text(view.phase == .ground ? "Waiting for take-off" : "Landed")
-                                .font(.headline)
+                                .font(.venti(.headline))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .glassEffect(.regular, in: .capsule)
+                                .ventiFloating(in: .capsule)
                                 .padding(10)
                         }
                     }
@@ -231,7 +231,7 @@ struct CockpitScreen: View {
                     Button(isReplay ? "End replay" : "Finish flight") {
                         isConfirmingFinish = true
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.venti(.quiet))
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
 
@@ -244,7 +244,7 @@ struct CockpitScreen: View {
                             .labelStyle(.iconOnly)
                             .frame(width: 30, height: 30)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.venti(.quiet))
                     .controlSize(.large)
 
                     // Who watches the flight, and whether it is going
@@ -265,7 +265,7 @@ struct CockpitScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
-            .background(Color(.systemBackground))
+            .background(.venti(.bg))
             // For bright sun: dark type on a light ground whatever the
             // iPhone's appearance, and every letter and number in bold.
             // A pilot who has bold text switched on in the system keeps it
@@ -295,10 +295,10 @@ struct CockpitScreen: View {
                         .accessibilityHidden(true)
                         .overlay(alignment: .bottom) {
                             Label("Locked. Hold to unlock", systemImage: "lock.fill")
-                                .font(.headline)
+                                .font(.venti(.headline))
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 14)
-                                .glassEffect(.regular, in: .capsule)
+                                .ventiFloating(in: .capsule)
                                 .contentShape(.capsule)
                                 .onLongPressGesture(minimumDuration: 0.8) {
                                     isLocked = false
@@ -487,7 +487,7 @@ private struct StatusLine: View {
             Spacer(minLength: 8)
             if positionIsLost {
                 Label("No position", systemImage: "location.slash.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.venti(.danger))
             }
             if mapIsKept {
                 // One glyph: the line is full as it is.
@@ -497,9 +497,9 @@ private struct StatusLine: View {
                     .accessibilityIdentifier("map-kept")
             }
             Text(varioText)
-                .foregroundStyle(varioIsLost ? Color.red : Color.secondary)
+                .foregroundStyle(varioIsLost ? Color.venti(.danger) : Color.venti(.textSecondary))
         }
-        .font(.subheadline.weight(.medium))
+        .font(.venti(.subheadline, .medium))
         .lineLimit(1)
         // With everything on it the line is full; it shrinks a little
         // before anything is cut off.
@@ -644,7 +644,7 @@ private struct Instrument: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.venti(.caption, .semibold))
                 .foregroundStyle(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value ?? "–")
@@ -660,7 +660,7 @@ private struct Instrument: View {
             .lineLimit(1)
             if size == .large {
                 Text(detail ?? " ")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                     .lineLimit(1)
@@ -688,7 +688,7 @@ private struct VarioBar: View {
             let length = min(abs(rate) / 5, 1) * half
             ZStack(alignment: .top) {
                 Capsule()
-                    .fill(Color(.tertiarySystemFill))
+                    .fill(Color.venti(.surfaceRaised))
                 RoundedRectangle(cornerRadius: 3)
                     .fill(ClimbBand(metresPerSecond: rate).color)
                     .frame(height: max(length, 2))
@@ -724,12 +724,12 @@ private struct DaylightBadge: View {
     var body: some View {
         if let text {
             Label(text.words, systemImage: text.isLate ? "moon.fill" : "sunset.fill")
-                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .font(.venti(.subheadline, .semibold))
                 .monospacedDigit()
-                .foregroundStyle(text.isLate ? Color.red : Color.primary)
+                .foregroundStyle(text.isLate ? Color.venti(.danger) : Color.venti(.text))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .glassEffect(.regular, in: .capsule)
+                .ventiFloating(in: .capsule)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Daylight")
                 .accessibilityValue(text.words)
@@ -750,16 +750,16 @@ private struct LiftBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: centre.isCentred ? "scope" : "arrow.up")
-                .font(.subheadline.weight(.bold))
+                .font(.venti(.subheadline, .bold))
                 // The map is north-up, so the arrow points the way to move.
                 .rotationEffect(.degrees(centre.isCentred ? 0 : centre.towardDeg))
             Text(centre.words)
-                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .font(.venti(.subheadline, .semibold))
                 .monospacedDigit()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
+        .ventiFloating(in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Lift")
         .accessibilityValue(centre.words)
@@ -777,24 +777,24 @@ struct WindBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "arrow.up")
-                .font(.headline.weight(.bold))
+                .font(.venti(.headline, .bold))
                 // The arrow shows where the wind goes; the map is north-up.
                 .rotationEffect(.degrees(wind.fromDeg + 180))
             Text("\(Format.kilometresPerHour(metresPerSecond: wind.speedMs)) km/h")
-                .font(.system(.headline, design: .rounded))
+                .font(.venti(.headline))
                 .monospacedDigit()
             // A wind from a while ago is a memory of another place and
             // height: its age stands beside it.
             if let age = Self.age(ageS) {
                 Text(age)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.venti(.subheadline))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
+        .ventiFloating(in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Wind")
         .accessibilityValue(
@@ -821,23 +821,23 @@ struct GroundWindBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "flag.fill")
-                .font(.subheadline)
+                .font(.venti(.subheadline))
                 .foregroundStyle(.secondary)
             if let from = station.fromDeg {
                 Image(systemName: "arrow.up")
-                    .font(.subheadline.weight(.bold))
+                    .font(.venti(.subheadline, .bold))
                     .rotationEffect(.degrees(from + 180))
             }
             // Mean and gusts, and how far off the station is when it is
             // neither the landing's nor near.
             Text(station.badge)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.venti(.subheadline, .semibold))
                 .monospacedDigit()
         }
-        .foregroundStyle(station.isStrong ? Color.red : Color.primary)
+        .foregroundStyle(station.isStrong ? Color.venti(.danger) : Color.venti(.text))
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .glassEffect(.regular, in: .capsule)
+        .ventiFloating(in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(station.isAtLanding ? "Wind at the landing" : "Wind on the ground")
         .accessibilityValue("\(station.name), \(station.wind), \(station.age)")
@@ -856,12 +856,12 @@ struct GroundWindBanner: View {
             Button(action: open) {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "wind")
-                        .font(.title3)
+                        .font(.venti(.title3))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(alert.title)
-                            .font(.headline)
+                            .font(.venti(.headline))
                         Text(alert.detail)
-                            .font(.footnote)
+                            .font(.venti(.footnote))
                     }
                     Spacer(minLength: 0)
                 }
@@ -871,7 +871,7 @@ struct GroundWindBanner: View {
             .accessibilityIdentifier("ground-wind-warning")
             Button("Put the warning away", systemImage: "xmark", action: putAway)
                 .labelStyle(.iconOnly)
-                .font(.headline)
+                .font(.venti(.headline))
                 .frame(width: 36, height: 36)
         }
         .foregroundStyle(.white)
@@ -914,12 +914,12 @@ struct LandingBadge: View {
             }
         }
         .lineLimit(1)
-        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+        .font(.venti(.subheadline, .semibold))
         .monospacedDigit()
         .foregroundStyle(Self.color(landing.reach.reach))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
+        .ventiFloating(in: .capsule)
         .frame(maxWidth: 190, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Landing")
@@ -961,12 +961,12 @@ private struct StrongWindBadge: View {
 
     var body: some View {
         Label(words, systemImage: "exclamationmark.triangle.fill")
-            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .font(.venti(.subheadline, .semibold))
             .monospacedDigit()
-            .foregroundStyle(.orange)
+            .foregroundStyle(.venti(.caution))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .glassEffect(.regular, in: .capsule)
+            .ventiFloating(in: .capsule)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Strong wind")
             .accessibilityValue(words)

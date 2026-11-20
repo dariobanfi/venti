@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 
 command -v xcodegen >/dev/null || brew install xcodegen
 scripts/build-core.sh
+scripts/build-design.sh
 [ -f Config/Local.xcconfig ] || cp Config/Local.example.xcconfig Config/Local.xcconfig
 xcodegen generate
 open Venti.xcodeproj

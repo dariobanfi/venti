@@ -38,16 +38,16 @@ struct FlightPanel: View {
             ClimbLegend()
         }
         .padding(EdgeInsets(top: 18, leading: 18, bottom: 22, trailing: 18))
-        .glassEffect(.regular, in: .rect(cornerRadius: 36))
+        .ventiFloating(in: .rect(cornerRadius: 36))
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 4) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Format.day(unixSeconds: flight.startUnixS))
-                    .font(.headline)
+                    .font(.venti(.headline))
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -94,11 +94,11 @@ struct FlightPanel: View {
                     .monospacedDigit()
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
+                    .font(.venti(.footnote, .semibold))
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .font(.subheadline)
+            .font(.venti(.subheadline))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -186,7 +186,7 @@ private struct PanelButton: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .labelStyle(.iconOnly)
-                .font(.title2)
+                .font(.venti(.title2))
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
         }
@@ -208,9 +208,9 @@ struct ClimbLegend: View {
             }
             Text("Climb")
         }
-        .font(.caption)
+        .font(.venti(.caption))
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Track colours: blue where the glider sank, grey where it held its height, orange and red where it climbed.")
+        .accessibilityLabel("Track colours: teal where the glider sank, grey where it held its height, coral where it climbed.")
     }
 }

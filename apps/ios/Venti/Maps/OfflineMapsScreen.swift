@@ -16,7 +16,7 @@ struct OfflineMapsScreen: View {
     @State private var deleting: MapRegionView?
 
     var body: some View {
-        List {
+        VentiList {
             ForEach(maps.rows, id: \.region.id) { row in
                 Section {
                     MapRegionLines(row: row, progress: maps.progress[row.region.id])
@@ -166,7 +166,7 @@ private struct MapRegionLines: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text(row.region.name)
-                    .font(.body.weight(.semibold))
+                    .font(.venti(.body, .semibold))
                 Spacer()
                 if row.state != .offered {
                     Image(systemName: "checkmark.circle.fill")
@@ -175,24 +175,24 @@ private struct MapRegionLines: View {
                 }
             }
             Text(row.words)
-                .font(.subheadline)
+                .font(.venti(.subheadline))
                 .foregroundStyle(.secondary)
             switch progress {
             case .downloading(let received, let total)?:
                 ProgressView(value: Double(received), total: Double(max(total, 1)))
                 Text(mapDownloadWords(received: UInt64(clamping: received), total: UInt64(clamping: total)))
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             case .checking?:
                 ProgressView()
                 Text("Checking the download")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             case .stopped(let words)?:
                 Text(words)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.danger))
             case nil:
                 EmptyView()
             }

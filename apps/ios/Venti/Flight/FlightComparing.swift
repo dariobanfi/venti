@@ -73,7 +73,7 @@ struct CompareChooser: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 if community.server() != nil {
                     Section {
                         if let others {
@@ -229,19 +229,19 @@ private struct OwnFlightLine: View {
             TrackThumbnail(outline: entry.outline)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Format.day(unixSeconds: entry.startUnixS))
-                    .font(.headline)
+                    .font(.venti(.headline))
                     .lineLimit(1)
                 Text(entry.takeoffName ?? Format.time(unixSeconds: entry.startUnixS))
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(Format.kilometres(metres: entry.score?.distanceM ?? entry.trackLengthM)) km")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.venti(.headline))
                 Text("\(Format.hoursMinutes(seconds: entry.durationS)) h")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
             }
             .monospacedDigit()
@@ -263,7 +263,7 @@ struct ComparisonSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            VentiList {
                 Section {
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                         GridRow {
@@ -271,7 +271,7 @@ struct ComparisonSheet: View {
                             Text("This flight")
                             Text(compared.name)
                         }
-                        .font(.footnote.weight(.semibold))
+                        .font(.venti(.footnote, .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         ForEach(compared.comparison.rows, id: \.label) { row in
@@ -288,7 +288,7 @@ struct ComparisonSheet: View {
                             .accessibilityElement(children: .combine)
                         }
                     }
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .accessibilityIdentifier("comparison-rows")
                 } header: {
                     Text(compared.comparison.words)

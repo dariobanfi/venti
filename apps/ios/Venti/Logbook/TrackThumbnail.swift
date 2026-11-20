@@ -17,7 +17,7 @@ struct TrackThumbnail: View {
             )
         }
         .frame(width: 52, height: 52)
-        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
+        .background(.venti(.surfaceRaised), in: .rect(cornerRadius: VentiRadius.m))
         .accessibilityHidden(true)
     }
 }

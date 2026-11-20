@@ -74,7 +74,7 @@ struct ReportSheet: View {
                                         Text(choice.title)
                                             .foregroundStyle(.primary)
                                         Text(choice.explanation)
-                                            .font(.footnote)
+                                            .font(.venti(.footnote))
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer(minLength: 8)
@@ -103,7 +103,7 @@ struct ReportSheet: View {
                         VStack(alignment: .leading, spacing: 6) {
                             if text.count > Int(form.textAtMost) {
                                 Text(verbatim: "\(text.count) of \(form.textAtMost) characters")
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.venti(.danger))
                             }
                             Text(form.notice)
                         }
@@ -111,7 +111,7 @@ struct ReportSheet: View {
                     if let problem {
                         Section {
                             Text(problem)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.venti(.danger))
                         }
                     }
                 }

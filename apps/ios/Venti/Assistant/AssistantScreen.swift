@@ -126,7 +126,7 @@ struct AssistantScreen: View {
                     ask(draft)
                 }
                 .labelStyle(.iconOnly)
-                .font(.largeTitle)
+                .font(.venti(.largeTitle))
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || chat.isWorking)
             }
             .padding(.horizontal, 12)
@@ -158,7 +158,7 @@ private struct Bubble: View {
                 .textSelection(.enabled)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .foregroundStyle(entry.fromPilot ? Color.white : Color.primary)
+                .foregroundStyle(entry.fromPilot ? Color.white : Color.venti(.text))
                 .background(
                     entry.fromPilot ? Palette.accent : Color(.secondarySystemBackground),
                     in: .rect(cornerRadius: 18)
@@ -166,7 +166,7 @@ private struct Bubble: View {
             if !entry.lookedUp.isEmpty {
                 // Where the answer's numbers came from.
                 Label("Looked up \(entry.lookedUp.formatted(.list(type: .and)))", systemImage: "magnifyingglass")
-                    .font(.caption)
+                    .font(.venti(.caption))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
             }
@@ -206,7 +206,7 @@ private struct Suggestions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Ask about your flying")
-                .font(.title2.weight(.semibold))
+                .font(.venti(.title2, .semibold))
             Text(
                 hasWind
                     ? "The assistant reads your logbook to answer, and on your Venti server the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
@@ -217,7 +217,7 @@ private struct Suggestions: View {
                 Button(question) {
                     ask(question)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.venti(.quiet))
                 .multilineTextAlignment(.leading)
             }
         }
@@ -303,7 +303,7 @@ private struct OtherServiceForm: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if let problem {
                         Label(problem, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.venti(.danger))
                     }
                     Text("Your key and your questions, with what the assistant looks up to answer them, go from this iPhone to that address and nowhere else. The key is kept in the Keychain and sent over an encrypted connection only; without encryption only a computer on your own network is reached. Venti has not been tried with every service: if one answers oddly, tell the project.")
                 }

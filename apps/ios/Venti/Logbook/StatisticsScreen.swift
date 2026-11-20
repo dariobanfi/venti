@@ -28,7 +28,7 @@ struct StatisticsScreen: View {
     var body: some View {
         // Worked out by the core from the logbook as it is now.
         let statistics = logbook.statistics()
-        List {
+        VentiList {
             Section {
                 Picker("Shown", selection: $measure) {
                     ForEach(Measure.allCases) { measure in

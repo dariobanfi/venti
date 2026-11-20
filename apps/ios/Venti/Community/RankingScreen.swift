@@ -12,7 +12,7 @@ struct RankingList: View {
 
     var body: some View {
         let ranked = community.ranked
-        List {
+        VentiList {
             if !ranked.seasons.isEmpty {
                 Section {
                     Picker(
@@ -99,27 +99,27 @@ private struct RankedPilotHead: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(Format.count(pilot.place))
-                .font(.system(.title2, design: .rounded).weight(.bold))
+                .font(.venti(.title2, .bold))
                 .monospacedDigit()
                 // The first three are the ones looked for.
-                .foregroundStyle(pilot.place <= 3 ? Palette.accent : Color.secondary)
+                .foregroundStyle(pilot.place <= 3 ? Palette.accent : Color.venti(.textSecondary))
                 .frame(minWidth: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(pilot.name)
-                    .font(.headline)
+                    .font(.venti(.headline))
                     .lineLimit(1)
                 Text(pilot.counted)
-                    .font(.subheadline)
+                    .font(.venti(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Format.decimal(pilot.points, places: 2))
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.venti(.title3, .bold))
                     .monospacedDigit()
                 Text("points")
-                    .font(.footnote)
+                    .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -142,14 +142,14 @@ private struct RankedFlightLine: View {
             Spacer(minLength: 8)
             if let score = flight.score, score.kind != .freeFlight {
                 Image(systemName: "triangle")
-                    .font(.caption.weight(.semibold))
+                    .font(.venti(.caption, .semibold))
                     .accessibilityLabel(score.kind == .faiTriangle ? "FAI triangle" : "Triangle")
             }
             Text("\(Format.kilometres(metres: flight.score?.distanceM ?? flight.trackLengthM)) km")
             Text(flight.score.map { Format.decimal($0.points, places: 2) } ?? "–")
                 .frame(minWidth: 52, alignment: .trailing)
         }
-        .font(.subheadline)
+        .font(.venti(.subheadline))
         .monospacedDigit()
         .accessibilityElement(children: .combine)
     }

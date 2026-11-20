@@ -28,6 +28,32 @@ final class GroupsModel {
         board?.groups ?? []
     }
 
+    /// A plan as the map marks it.
+    struct Pin: Equatable {
+        let id: String
+        let position: Coordinate
+        /// The place and, if the plan has one, its time: "Wallberg 09:30".
+        let label: String
+    }
+
+    /// The plans of today and tomorrow that say where on the map they
+    /// are: who flies where, for the map to mark. A plan for next week is
+    /// in the list, not on the map.
+    func pins(now: Date = Date(), calendar: Calendar = .current) -> [Pin] {
+        let near = [now, calendar.date(byAdding: .day, value: 1, to: now) ?? now].map {
+            Self.day($0, calendar: calendar)
+        }
+        return (board?.days ?? [])
+            .filter { near.contains($0.day) }
+            .flatMap(\.plans)
+            .compactMap { plan in
+                plan.position.map { position in
+                    let label = [plan.place, plan.meetAt].compactMap { $0 }.joined(separator: " ")
+                    return Pin(id: plan.id, position: position, label: label)
+                }
+            }
+    }
+
     /// The plan with an identifier, as the board has it now.
     func plan(_ id: String) -> PlanView? {
         board?.days.lazy.flatMap(\.plans).first { $0.id == id }

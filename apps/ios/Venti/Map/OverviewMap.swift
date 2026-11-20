@@ -16,6 +16,8 @@ struct OverviewMap: UIViewRepresentable {
     var sites: [SiteView] = []
     /// Other pilots in the air, to draw.
     var gliders: [LiveGlider] = []
+    /// Where the pilot's groups plan to fly today and tomorrow, to mark.
+    var plans: [GroupsModel.Pin] = []
     /// The track of the pilot whose flight is being followed, to draw.
     var followed: [TrailPointView] = []
     /// Whether the map keeps the pilot's position in its centre.
@@ -31,6 +33,8 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with a live track's identifier when the pilot taps its
     /// glider.
     var onGlider: (String) -> Void = { _ in }
+    /// Called with a plan's identifier when the pilot taps its mark.
+    var onPlan: (String) -> Void = { _ in }
     /// Called with the place under the finger after a long press on the
     /// map.
     var onPlace: (Coordinate) -> Void = { _ in }
@@ -74,7 +78,9 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onStation = onStation
         coordinator.onSite = onSite
         coordinator.onGlider = onGlider
+        coordinator.onPlan = onPlan
         coordinator.onPlace = onPlace
+        coordinator.show(plans, on: map)
         coordinator.show(sites, on: map)
         coordinator.show(gliders, on: map)
         coordinator.showFollowed(followed, on: map)
@@ -93,6 +99,9 @@ struct OverviewMap: UIViewRepresentable {
         var onStation: (String) -> Void = { _ in }
         var onSite: (String) -> Void = { _ in }
         var onGlider: (String) -> Void = { _ in }
+        var onPlan: (String) -> Void = { _ in }
+        private var plans: [GroupsModel.Pin] = []
+        private var drawnPlans: [GroupsModel.Pin]?
         var onPlace: (Coordinate) -> Void = { _ in }
 
         private var gliders: [LiveGlider] = []
@@ -114,11 +123,34 @@ struct OverviewMap: UIViewRepresentable {
         private static let wind = "wind-stations"
         private static let sites = "flying-sites"
         private static let live = "live-gliders"
+        private static let plans = "plan-pins"
         private static let liveTrack = "live-track"
 
         func show(_ gliders: [LiveGlider], on map: MLNMapView) {
             self.gliders = gliders
             drawGliders(on: map)
+        }
+
+        func show(_ plans: [GroupsModel.Pin], on map: MLNMapView) {
+            self.plans = plans
+            drawPlans(on: map)
+        }
+
+        /// Marks the plans, once the style is there and only when they
+        /// have changed.
+        private func drawPlans(on map: MLNMapView) {
+            guard isStyleLoaded, plans != drawnPlans,
+                  let source = map.style?.source(withIdentifier: Self.plans) as? MLNShapeSource
+            else { return }
+            drawnPlans = plans
+            source.shape = MLNShapeCollectionFeature(
+                shapes: plans.map { plan in
+                    let feature = MLNPointFeature()
+                    feature.coordinate = plan.position.location
+                    feature.attributes = ["id": plan.id, "label": plan.label]
+                    return feature
+                }
+            )
         }
 
         func showFollowed(_ track: [TrailPointView], on map: MLNMapView) {
@@ -164,6 +196,7 @@ struct OverviewMap: UIViewRepresentable {
             drawOutlines(on: mapView)
             drawStations(on: mapView)
             drawSites(on: mapView)
+            drawPlans(on: mapView)
             drawGliders(on: mapView)
             drawFollowed(on: mapView)
             drawAirspace(on: mapView)
@@ -208,7 +241,9 @@ struct OverviewMap: UIViewRepresentable {
             let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
             // Gliders lie over the wind and the wind over the sites: what
             // is on top wins where several are under the finger.
-            for (layer, open) in [(Self.live, onGlider), (Self.wind, onStation), (Self.sites, onSite)] {
+            for (layer, open) in [
+                (Self.live, onGlider), (Self.plans, onPlan), (Self.wind, onStation), (Self.sites, onSite),
+            ] {
                 let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [layer])
                 let nearest = hits.min { first, second in
                     Self.distance(from: point, to: first, on: map) < Self.distance(from: point, to: second, on: map)
@@ -319,6 +354,24 @@ struct OverviewMap: UIViewRepresentable {
             symbols.symbolSortKey = NSExpression(forKeyPath: "rank")
             symbols.textOptional = NSExpression(forConstantValue: true)
             style.addLayer(symbols)
+
+            // Where the pilot's groups plan to fly today and tomorrow: a
+            // dot in the app's colour with the place and the time. Over
+            // the sites, since a plan is often for one of them.
+            let pins = MLNShapeSource(identifier: Self.plans, shape: MLNShapeCollectionFeature(shapes: []), options: nil)
+            style.addSource(pins)
+            style.addLayer(MapSetup.dot(Self.plans, from: pins, radius: 7, color: Palette.accentOnMap, ring: .white))
+            let names = MLNSymbolStyleLayer(identifier: Self.plans + "-names", source: pins)
+            names.text = NSExpression(forKeyPath: "label")
+            names.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
+            names.textFontSize = NSExpression(forConstantValue: 12)
+            names.textAnchor = NSExpression(forConstantValue: "top")
+            names.textOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: 0.9)))
+            names.textColor = NSExpression(forConstantValue: UIColor(hex: 0x0B0B0B))
+            names.textHaloColor = NSExpression(forConstantValue: UIColor.white)
+            names.textHaloWidth = NSExpression(forConstantValue: 1.6)
+            names.textAllowsOverlap = NSExpression(forConstantValue: true)
+            style.addLayer(names)
 
             // Other pilots in the air, above everything: a wing turned the
             // way it flies, with the pilot's name and altitude where there

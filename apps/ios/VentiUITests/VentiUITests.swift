@@ -798,7 +798,7 @@ final class VentiUITests: XCTestCase {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
         }
-        let app = launch(bundledMap: true, extra: ["--server", server])
+        let app = launch(bundledMap: true, extra: ["--server", server, "--sample-waypoints"])
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
         openTab("Settings", in: app)
@@ -901,14 +901,15 @@ final class VentiUITests: XCTestCase {
         plans.tap()
         XCTAssertTrue(element("plans-groups", in: app).waitForExistence(timeout: 30))
 
-        // A plan for today, posted to the group.
+        // A plan for today, posted to the group. Its place is taken from
+        // the pilot's own waypoints, which know where they are, so the
+        // plan can be marked on the map.
         app.buttons["New plan"].tap()
-        let place = element("plan-place", in: app)
-        XCTAssertTrue(place.waitForExistence(timeout: 10))
-        place.tap()
-        place.typeText("Musterberg Nord")
+        XCTAssertTrue(element("plan-place", in: app).waitForExistence(timeout: 10))
+        choose("Sample landing field", from: app.buttons["From my waypoints"], in: app)
+        XCTAssertTrue(labelled(containing: "On the map", in: app).waitForExistence(timeout: 10))
         app.buttons["Save"].tap()
-        let posted = labelled(containing: "Musterberg Nord", in: app)
+        let posted = labelled(containing: "Sample landing field", in: app)
         XCTAssertTrue(posted.waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Today"].exists || labelled(containing: "Today", in: app).exists)
         sleep(1)
@@ -922,6 +923,23 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("plans-2-plan")
         app.navigationBars.buttons.firstMatch.tap()
+
+        // The map marks the plan where it is, and says so.
+        XCTAssertTrue(element("plans-groups", in: app).waitForExistence(timeout: 10))
+        app.buttons["Done"].tap()
+        let map = element("overview-map", in: app)
+        XCTAssertTrue(map.waitForExistence(timeout: 15))
+        var said = ""
+        for _ in 0..<40 where !said.contains("marked") {
+            usleep(500_000)
+            said = map.value as? String ?? ""
+        }
+        // One plan or more: the development mode's own plans are for
+        // fixed days, which may be today or long past.
+        XCTAssertTrue(said.contains("marked"), "The map says \"\(said)\"")
+        sleep(2)
+        keepScreenshot("plans-4-map")
+        plans.tap()
 
         // The groups, and one of them with its members and what its
         // keeper can do.

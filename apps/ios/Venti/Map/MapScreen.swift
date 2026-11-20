@@ -11,9 +11,12 @@ struct MapScreen: View {
     @Environment(SitesModel.self) private var sites
     @Environment(LiveModel.self) private var live
     @Environment(AccountModel.self) private var account
+    @Environment(GroupsModel.self) private var groups
 
     @State private var isFollowing = false
     @State private var showsPlans = false
+    /// The plan whose mark on the map the pilot tapped.
+    @State private var chosenPlan: ChosenPlan?
     @State private var problem: String?
     @State private var chosen: ChosenStation?
     @State private var showsStations = false
@@ -36,6 +39,7 @@ struct MapScreen: View {
                 airspace: airspaceInView,
                 sites: sites.sites,
                 gliders: live.gliders,
+                plans: groups.pins(),
                 followed: live.followed?.track ?? [],
                 isFollowing: $isFollowing,
                 problem: $problem,
@@ -68,6 +72,9 @@ struct MapScreen: View {
                 onGlider: { id in
                     chosenGlider = ChosenGlider(id: id)
                 },
+                onPlan: { id in
+                    chosenPlan = ChosenPlan(id: id)
+                },
                 // A long press: the forecast for the place under the
                 // finger, where there is a server to ask.
                 onPlace: { place in
@@ -83,7 +90,11 @@ struct MapScreen: View {
             // by VoiceOver or by a test slow enough to time out.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Map")
-            .accessibilityHint("Wind stations, flying sites and pilots in the air are in the lists.")
+            .accessibilityIdentifier("overview-map")
+            .accessibilityHint("Wind stations, flying sites, pilots in the air and flying plans are in the lists.")
+            // How many plans the map marks: said, since the marks
+            // themselves are not read.
+            .accessibilityValue(plansOnTheMap)
 
             StatusBarScrim()
 
@@ -135,6 +146,24 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showsPlans) {
             PlansSheet()
+        }
+        .sheet(item: $chosenPlan) { chosen in
+            NavigationStack {
+                PlanScreen(id: chosen.id)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                chosenPlan = nil
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        // The plans of the pilot's groups, for their marks on the map:
+        // asked for when the map comes up, and again after signing in.
+        .task(id: account.isSignedIn) {
+            await groups.load()
         }
         .sheet(isPresented: $showsStations) {
             StationList()
@@ -290,6 +319,16 @@ struct MapScreen: View {
         }
     }
 
+    /// "2 flying plans marked", or nothing where the map marks none.
+    private var plansOnTheMap: String {
+        let count = groups.pins().count
+        switch count {
+        case 0: return ""
+        case 1: return "1 flying plan marked"
+        default: return "\(count) flying plans marked"
+        }
+    }
+
     /// The airspace in the part of the map in view. Zoomed far out, a
     /// country's airspace is a tangle and is not drawn, so it is not
     /// asked for either.
@@ -307,6 +346,12 @@ struct MapScreen: View {
 
 /// A station chosen on the map, to present its page.
 /// A flying site chosen on the map, for a sheet.
+/// A plan chosen on the map, by its identifier: the sheet reads the plan
+/// from the board, so that it shows what the pilot changes in it.
+struct ChosenPlan: Identifiable {
+    let id: String
+}
+
 struct ChosenSite: Identifiable {
     let site: SiteView
     var id: String { site.id }

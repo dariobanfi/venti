@@ -25,7 +25,7 @@ final class GroupsTests: XCTestCase {
 
     /// A server that signs the demo pilot in and has one group with one
     /// plan, which it hands out whatever is asked about groups.
-    private func server(noting sent: Sent) -> AccountModel.Transport {
+    private func server(noting sent: Sent, board: String = GroupAnswers.board) -> AccountModel.Transport {
         { request in
             await sent.add(request)
             let path = request.url?.path ?? ""
@@ -35,7 +35,7 @@ final class GroupsTests: XCTestCase {
             case ("GET", "/v1/flights/changes"):
                 return (200, Data(#"{"flights": [], "deleted": [], "cursor": "c1", "more": false, "reset": false}"#.utf8), nil)
             case ("GET", "/v1/groups/plans"):
-                return (200, Data(GroupAnswers.board.utf8), nil)
+                return (200, Data(board.utf8), nil)
             case ("POST", "/v1/groups/join"):
                 return (403, Data(#"{"error": {"code": "invalid_group_invite", "message": "x"}}"#.utf8), nil)
             case (_, let path) where path.hasSuffix("/in") || path.hasSuffix("/plans"):
@@ -123,6 +123,40 @@ final class GroupsTests: XCTestCase {
         XCTAssertEqual(after, count)
     }
 
+    func testTheMapMarksThePlansOfTodayAndTomorrowThatSayWhereTheyAre() async throws {
+        let core = try makeCore()
+        let (sent, box) = (Sent(), TokenBox())
+        let account = AccountModel(
+            core: core, transport: server(noting: sent, board: GroupAnswers.boardWithPlaces),
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+        let groups = GroupsModel(core: core, account: account)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 18, hour: 8)))
+
+        // No board, no marks.
+        XCTAssertTrue(groups.pins(now: today, calendar: calendar).isEmpty)
+
+        await account.signIn(
+            server: try XCTUnwrap(URL(string: "https://venti.example.org")), handle: "demo",
+            password: "demo-pilot-password"
+        )
+        await groups.load()
+        XCTAssertEqual(groups.board?.days.flatMap(\.plans).count, 4)
+
+        // Today's plan without a position is not marked, and neither is
+        // next week's with one: the map says who flies where now.
+        let pins = groups.pins(now: today, calendar: calendar)
+        XCTAssertEqual(pins.map(\.label), ["Musterberg Nord 09:30", "Beispielwiese"])
+        XCTAssertEqual(pins.first?.id, "77777777777777777777777777")
+        XCTAssertEqual(pins.first?.position.lat ?? 0, 47.6642, accuracy: 0.0001)
+
+        // A week on, next week's plan is today's.
+        let later = try XCTUnwrap(calendar.date(byAdding: .day, value: 7, to: today))
+        XCTAssertEqual(groups.pins(now: later, calendar: calendar).map(\.label), ["Musterberg, weit weg"])
+    }
+
     func testDaysAndTimesAreWrittenAsTheServerWritesThem() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
@@ -160,6 +194,29 @@ private enum GroupAnswers {
         """
 
     static let plan = "{\"plan\": \(planBody)}"
+
+    /// A plan of the made-up group that says where on the map it is.
+    static func plan(_ id: String, day: String, place: String, meetAt: String?) -> String {
+        let time = meetAt.map { "\"meet_at\": \"\($0)\", " } ?? ""
+        return """
+            {"id": "\(id)", "group": "44444444444444444444444444", "day": "\(day)", "place": "\(place)", \(time)
+             "position": {"lat": 47.6642, "lon": 11.7921},
+             "author": {"handle": "mara", "display_name": "Mara Muster"},
+             "created_at": "2026-11-17T17:05:00Z", "changed_at": "2026-11-17T17:05:00Z", "in": []}
+            """
+    }
+
+    /// Four plans: today's without a position, today's and tomorrow's
+    /// with one, and next week's with one.
+    static let boardWithPlaces = """
+        {"groups": [{"id": "44444444444444444444444444", "name": "Mustergruppe", "created_at": "2026-10-19T19:05:00Z",
+                     "keeper": {"handle": "demo", "display_name": "Demo Pilot"}, "member_count": 3}],
+         "plans": [\(planBody),
+                   \(plan("77777777777777777777777777", day: "2026-11-18", place: "Musterberg Nord", meetAt: "09:30")),
+                   \(plan("88888888888888888888888888", day: "2026-11-19", place: "Beispielwiese", meetAt: nil)),
+                   \(plan("99999999999999999999999999", day: "2026-11-25", place: "Musterberg, weit weg", meetAt: nil))],
+         "truncated": false}
+        """
 
     static let board = """
         {"groups": [{"id": "44444444444444444444444444", "name": "Mustergruppe", "created_at": "2026-10-19T19:05:00Z",

@@ -209,8 +209,8 @@ private struct Suggestions: View {
                 .font(.title2.weight(.semibold))
             Text(
                 hasWind
-                    ? "The assistant reads your logbook to answer, and on your Venti server the wind stations, the airspace, the forecast and the flying sites. It does not say whether a day can be flown, and it cannot see other pilots."
-                    : "The assistant reads your logbook to answer. With a Venti server set it can also look up wind, airspace, forecasts and flying sites."
+                    ? "The assistant reads your logbook to answer, and on your Venti server the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
+                    : "The assistant reads your logbook to answer. With a Venti server set it can also look up wind, airspace, forecasts, flying sites and other pilots' public flights."
             )
             .foregroundStyle(.secondary)
             ForEach(Self.questions + (hasWind ? [Self.windQuestion] : []), id: \.self) { question in

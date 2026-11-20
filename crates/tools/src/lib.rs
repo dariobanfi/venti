@@ -31,6 +31,7 @@
 use serde_json::{Value, json};
 
 pub mod airspace;
+pub mod flights;
 pub mod forecast;
 pub mod sites;
 pub mod wind;

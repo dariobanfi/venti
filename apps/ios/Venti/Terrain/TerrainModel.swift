@@ -38,7 +38,7 @@ final class TerrainModel {
 
     /// How many moments of a flight the ground is read at for its
     /// profile: more than the chart is points wide.
-    static let placesUnderAFlight: UInt32 = 240
+    nonisolated static let placesUnderAFlight: UInt32 = 240
 
     init(
         source: Source = TerrainModel.sourceInUse,

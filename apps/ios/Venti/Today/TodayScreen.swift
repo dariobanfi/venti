@@ -83,10 +83,9 @@ struct TodayScreen: View {
         }
         .onChange(of: today.places) {
             guard !hasChosenDay else { return }
-            let outlooks = today.places.compactMap(\.outlook)
-            let isOver = !outlooks.isEmpty
-                && outlooks.allSatisfy { $0.days.first.map(\.hours.isEmpty) ?? true }
-            day = isOver && days.count > 1 ? 1 : 0
+            // The first day that has flying hours left: in the evening
+            // that is tomorrow.
+            day = days.firstIndex { !$0.hours.isEmpty } ?? 0
         }
     }
 
@@ -115,9 +114,19 @@ struct TodayScreen: View {
         }
     }
 
+    /// What a take-off's forecast says of the chosen day: the day that
+    /// begins at the same moment, wherever it stands in that forecast.
     private func outlookDay(of place: TodayModel.Place) -> OutlookDay? {
-        guard let days = place.outlook?.days, days.indices.contains(day) else { return nil }
-        return days[day]
+        guard days.indices.contains(day) else { return nil }
+        let chosen = days[day].startUnixS
+        return place.outlook?.days.first { $0.startUnixS == chosen }
+    }
+
+    /// What stands in place of a day's line for a take-off that has none:
+    /// that the server is still being asked, or that its forecast does
+    /// not reach the day.
+    static func waitingWords(for place: TodayModel.Place) -> String {
+        place.isAsked ? "No forecast for this day" : "Reading the forecast"
     }
 
     /// The days the forecasts reach over, three at most.
@@ -181,7 +190,9 @@ struct TodayScreen: View {
             if today.places.isEmpty {
                 return "No take-offs near"
             }
-            return ordered.first.flatMap(outlookDay(of:))?.headline ?? "Reading the forecast"
+            guard let best = ordered.first else { return "Reading the forecast" }
+            return outlookDay(of: best)?.headline
+                ?? (today.places.allSatisfy(\.isAsked) ? "No forecast" : "Reading the forecast")
         }
     }
 
@@ -327,7 +338,7 @@ private struct DaySwitch: View {
                 Button {
                     day = index
                 } label: {
-                    Text(Self.name(of: shown, at: index))
+                    Text(shown.name)
                         .font(.venti(.body, .semibold))
                         .frame(maxWidth: .infinity, minHeight: 40)
                         .foregroundStyle(.venti(index == day ? .onPrimary : .textSecondary))
@@ -341,12 +352,6 @@ private struct DaySwitch: View {
         .padding(VentiSpace.s1)
         .background(.venti(.surfaceRaised), in: .capsule)
         .accessibilityIdentifier("today-days")
-    }
-
-    static func name(of day: OutlookDay, at index: Int) -> String {
-        index == 0
-            ? "Today"
-            : Date(timeIntervalSince1970: TimeInterval(day.startUnixS)).formatted(.dateTime.weekday(.abbreviated))
     }
 }
 
@@ -402,7 +407,7 @@ private struct TakeoffCard: View {
                         .foregroundStyle(.venti(.textSecondary))
                 }
             } else {
-                Text("Reading the forecast")
+                Text(TodayScreen.waitingWords(for: place))
                     .foregroundStyle(.venti(.textSecondary))
             }
         }
@@ -443,7 +448,7 @@ private struct TakeoffRow: View {
 
     /// What limits the day; for a day nothing limits, its line.
     private var detail: String {
-        guard let day else { return "Reading the forecast" }
+        guard let day else { return TodayScreen.waitingWords(for: place) }
         return day.why.isEmpty ? day.headline : day.why
     }
 }

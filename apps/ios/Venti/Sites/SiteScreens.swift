@@ -354,14 +354,11 @@ struct SiteScreen: View {
         site.uses.contains(.takeoff) && !site.discouraged
     }
 
-    /// The first day the forecast has flying hours for, and whether that
-    /// is today; today where it has none at all.
-    private var day: (day: OutlookDay, isToday: Bool)? {
-        guard let days = outlook?.days, let first = days.first else { return nil }
-        if let index = days.firstIndex(where: { !$0.hours.isEmpty }) {
-            return (days[index], index == 0)
-        }
-        return (first, true)
+    /// The first day the forecast has flying hours for; the first day it
+    /// has at all where none has any.
+    private var day: OutlookDay? {
+        guard let days = outlook?.days else { return nil }
+        return days.first { !$0.hours.isEmpty } ?? days.first
     }
 
     /// The name with the status, the site in a line, what the forecast
@@ -375,7 +372,7 @@ struct SiteScreen: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: VentiSpace.s2)
                 if let day {
-                    VentiStatus(day.day)
+                    VentiStatus(day)
                         .accessibilityIdentifier("site-status")
                 }
             }
@@ -383,7 +380,7 @@ struct SiteScreen: View {
                 Text(inALine)
                     .foregroundStyle(.venti(.textSecondary))
                 if let day {
-                    Text(Self.words(of: day.day, isToday: day.isToday))
+                    Text(Self.words(of: day))
                         .foregroundStyle(.venti(.textSecondary))
                         .accessibilityIdentifier("site-outlook")
                 }
@@ -425,13 +422,10 @@ struct SiteScreen: View {
         return line
     }
 
-    /// "Good from noon. Gusts to 26 km/h after 15:00", with the day's name
-    /// before it when it is not today.
-    static func words(of day: OutlookDay, isToday: Bool) -> String {
-        let name = isToday
-            ? ""
-            : Date(timeIntervalSince1970: TimeInterval(day.startUnixS)).formatted(.dateTime.weekday(.wide)) + ": "
-        return day.why.isEmpty ? "\(name)\(day.headline)" : "\(name)\(day.headline). \(day.why)"
+    /// "Today: Good from noon. Gusts to 26 km/h after 15:00", with the
+    /// day as the core names it: the status at the head is that day's.
+    static func words(of day: OutlookDay) -> String {
+        day.why.isEmpty ? "\(day.name): \(day.headline)" : "\(day.name): \(day.headline). \(day.why)"
     }
 
     /// The credit and the notice of the site's source, and what a site on

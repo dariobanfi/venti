@@ -108,6 +108,9 @@ pub struct OutlookDay {
     /// The day's first moment on the place's clock, seconds since
     /// 1970-01-01 UTC.
     pub start_unix_s: i64,
+    /// What the day is called on the place's calendar: "Today",
+    /// "Tomorrow", then the day of the week, "Fri".
+    pub name: String,
     /// The day's verdict: flyable when at least two hours in a row are,
     /// marginal when two in a row are at least that.
     pub verdict: Flyability,
@@ -139,8 +142,11 @@ pub struct OutlookDay {
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteOutlook {
-    /// The days the model reaches over, today first. Empty when the server
-    /// has no forecast for the place.
+    /// The days the model has daylight hours for, the earliest first, and
+    /// today also when its hours are gone. A day that is over is not among
+    /// them, and the first is not today where the forecast begins later:
+    /// each day says what it is called. Empty when the server has no
+    /// forecast for the place, or none that reaches into daylight.
     pub days: Vec<OutlookDay>,
     /// The model read: "ICON-D2". Empty without one.
     pub model: String,
@@ -235,15 +241,17 @@ fn days(
     let offset = Duration::seconds(i64::from(utc_offset_s));
     // The current hour is still to come for as long as it lasts.
     let from = now_unix_s - now_unix_s.rem_euclid(3600);
-    let mut days: Vec<(DateTime<Utc>, Vec<Judged<'_>>)> = Vec::new();
+    // Each day with its hours still to come, and whether the model had
+    // daylight hours for it that are gone.
+    let mut days: Vec<(DateTime<Utc>, Vec<Judged<'_>>, bool)> = Vec::new();
     for hour in &series.hours {
         let local = hour.time + offset;
         let start = local
             .date_naive()
             .and_hms_opt(0, 0, 0)
             .map_or(hour.time, |midnight| midnight.and_utc() - offset);
-        if days.last().is_none_or(|(day, _)| *day != start) {
-            days.push((start, Vec::new()));
+        if days.last().is_none_or(|(day, _, _)| *day != start) {
+            days.push((start, Vec::new(), false));
         }
         // The daylight of the day that holds the hour, an hour in from
         // either end: the first and the last hour of the sun are not for
@@ -254,11 +262,17 @@ fn days(
             (Some(rise), Some(set))
                 if hour.time >= rise + Duration::hours(1) && hour.time + Duration::hours(1) <= set
         );
-        if !in_daylight || hour.time.timestamp() < from {
+        if !in_daylight {
+            continue;
+        }
+        if hour.time.timestamp() < from {
+            if let Some((_, _, gone)) = days.last_mut() {
+                *gone = true;
+            }
             continue;
         }
         let (verdict, why) = judge(hour, site);
-        if let Some((_, hours)) = days.last_mut() {
+        if let Some((_, hours, _)) = days.last_mut() {
             hours.push(Judged {
                 hour,
                 local_hour: local.hour(),
@@ -267,8 +281,22 @@ fn days(
             });
         }
     }
+    let today = (DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default() + offset).date_naive();
     days.into_iter()
-        .map(|(start, hours)| day(start.timestamp(), &hours))
+        .filter_map(|(start, hours, gone)| {
+            let date = (start + offset).date_naive();
+            let ahead = (date - today).num_days();
+            // A day that is over is not listed, and neither is a day the
+            // model has no daylight hours for. Today stays when its hours
+            // are gone: that none are left is worth saying.
+            let listed = ahead >= 0 && (!hours.is_empty() || (ahead == 0 && gone));
+            let name = match ahead {
+                0 => "Today".to_owned(),
+                1 => "Tomorrow".to_owned(),
+                _ => date.format("%a").to_string(),
+            };
+            listed.then(|| day(start.timestamp(), name, &hours))
+        })
         .collect()
 }
 
@@ -392,7 +420,7 @@ fn clock(hour: u32) -> String {
     }
 }
 
-fn day(start_unix_s: i64, hours: &[Judged<'_>]) -> OutlookDay {
+fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
     let good = stretch(hours, Flyability::Flyable);
     let fair = stretch(hours, Flyability::Marginal);
     let verdict = match (good, fair) {
@@ -453,6 +481,7 @@ fn day(start_unix_s: i64, hours: &[Judged<'_>]) -> OutlookDay {
         .map(|index| hours[index].hour);
     OutlookDay {
         start_unix_s,
+        name,
         verdict,
         status: verdict.words().to_owned(),
         headline,
@@ -734,6 +763,49 @@ mod tests {
         assert!(night.days[0].hours.is_empty());
         assert_eq!(night.days[0].verdict, Flyability::NotFlyable);
         assert_eq!(night.days[0].headline, "No flying hours left");
+    }
+
+    #[test]
+    fn a_day_is_named_by_the_calendar_and_a_day_that_is_over_is_not_listed() {
+        let hours: Vec<(u32, &str)> = (8..=19).map(|hour| (hour, FINE)).collect();
+        // The forecast is for Saturday 4 July. Days are counted on the
+        // place's calendar from the day the clock shows.
+        let seen_from = |days: i64| {
+            site_outlook(
+                200,
+                answer_with(&hours),
+                SUMMER_TIME_S,
+                north(),
+                Some(1550.0),
+                MORNING_S + days * 86_400,
+            )
+            .unwrap()
+            .days
+            .into_iter()
+            .map(|day| day.name)
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(seen_from(0), ["Today"]);
+        // Seen from the day before, the forecast does not begin today:
+        // its first day is tomorrow and is called that.
+        assert_eq!(seen_from(-1), ["Tomorrow"]);
+        assert_eq!(seen_from(-2), ["Sat"]);
+        // Seen from the day after, an old forecast has nothing to say.
+        assert!(seen_from(1).is_empty());
+
+        // A forecast of the night alone has no day to speak of: not even
+        // today, of which it would be wrong to say that no hours are left.
+        let night = site_outlook(
+            200,
+            answer_with(&[(23, FINE)]),
+            SUMMER_TIME_S,
+            north(),
+            Some(1550.0),
+            MORNING_S,
+        )
+        .unwrap();
+        assert!(night.days.is_empty());
+        assert_eq!(night.model, "ICON-D2");
     }
 
     #[test]

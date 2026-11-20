@@ -23,6 +23,9 @@ final class TodayModel {
         let distanceM: Double
         /// Absent until the server has answered, and when it could not.
         var outlook: SiteOutlook?
+        /// Whether the server has been asked and the asking is over,
+        /// with an answer or without one.
+        var isAsked = false
 
         var id: String { site.id }
     }
@@ -122,7 +125,9 @@ final class TodayModel {
                     }
                 }
                 for await (id, outlook) in group {
-                    guard let outlook, let index = places.firstIndex(where: { $0.id == id }) else { continue }
+                    guard let index = places.firstIndex(where: { $0.id == id }) else { continue }
+                    places[index].isAsked = true
+                    guard let outlook else { continue }
                     places[index].outlook = outlook
                     if credits.isEmpty {
                         credits = outlook.credits

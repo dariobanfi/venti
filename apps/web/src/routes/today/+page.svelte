@@ -62,11 +62,8 @@
 	const days = $derived(
 		shown.places.find((place) => place.outlook)?.outlook?.days.slice(0, 3) ?? []
 	);
-	const dayNames = $derived(
-		days.map((day, index) =>
-			index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : text.weekday(day.startUnixS, true)
-		)
-	);
+	/** As the core names them by the calendar: "Today", "Tomorrow", "Sat". */
+	const dayNames = $derived(days.map((day) => day.name));
 	const best = $derived(bestOn(shown.places, dayIndex));
 	const others = $derived(shown.places.filter((place) => place !== best?.place));
 	/** Whose forecast it is, and of when: from any take-off that has one. */
@@ -246,6 +243,8 @@
 											{day.why || day.headline}
 										{:else if place.problem}
 											{place.problem}
+										{:else if place.outlook}
+											No forecast for this day
 										{:else}
 											Fetching the forecast…
 										{/if}

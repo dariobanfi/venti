@@ -66,14 +66,16 @@ export function bestOn(
 }
 
 /**
- * The day the screen opens on: today, unless today has no flying hours
- * left, which in the evening it has not; then tomorrow.
+ * The day the screen opens on: the first that has flying hours left at any
+ * take-off, which in the evening is tomorrow. The first day where none has
+ * any.
  */
 export function firstDay(places: readonly TodayPlace[]): number {
-	const withOutlook = places.filter((place) => place.outlook);
-	if (withOutlook.length === 0) return 0;
-	const hoursLeft = withOutlook.some((place) => (place.outlook!.days[0]?.hours.length ?? 0) > 0);
-	return hoursLeft ? 0 : 1;
+	const most = Math.max(0, ...places.map((place) => place.outlook?.days.length ?? 0));
+	for (let day = 0; day < most; day += 1) {
+		if (places.some((place) => (place.outlook?.days[day]?.hours.length ?? 0) > 0)) return day;
+	}
+	return 0;
 }
 
 export class TodayModel {

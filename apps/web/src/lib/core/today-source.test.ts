@@ -59,9 +59,11 @@ describe('today', () => {
 		const { takeoffs } = (await today.takeoffs(TEGERNSEE))!;
 		const outlook = await today.outlook(takeoffs[0].site.id, NOW);
 		expect(asked.filter((path) => path.startsWith('/v1/forecast'))).toHaveLength(3);
-		expect(outlook.days.length).toBeGreaterThan(0);
-		expect(['Flyable', 'Marginal', 'Not flyable']).toContain(outlook.days[0].status);
+		// The recorded answer holds one hour of an evening: a model and its
+		// note are read, and no day, since none has an hour of daylight.
+		expect(outlook.model).toBe('ICON-D2');
 		expect(outlook.note).not.toBe('');
+		expect(outlook.days).toEqual([]);
 	});
 
 	it('leaves out what is no take-off, is discouraged or lies beyond reach', () => {

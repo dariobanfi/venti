@@ -133,7 +133,8 @@ impl fmt::Debug for Token {
 }
 
 /// An invite code: sixteen characters in four groups, such as
-/// `7k3m-9q2x-4r8t-1v6w`. 80 random bits, short enough to read out.
+/// `7k3m-9q2x-4r8t-1v6w`. 80 random bits, short enough to read out. One
+/// kind creates an account, another lets a pilot into a group.
 #[derive(Clone, PartialEq, Eq)]
 pub struct InviteCode(String);
 
@@ -159,6 +160,14 @@ impl InviteCode {
     /// What the store keeps of the code.
     pub fn hash(&self) -> SecretHash {
         SecretHash(sha256(&[b"venti invite code 1\0", self.0.as_bytes()]))
+    }
+
+    /// What the store keeps of the code when it is the invite code of a
+    /// group. Such a code has the form of one that creates an account and
+    /// is another thing: the two are hashed apart, so that neither can
+    /// stand in for the other.
+    pub fn group_hash(&self) -> SecretHash {
+        SecretHash(sha256(&[b"venti group invite 1\0", self.0.as_bytes()]))
     }
 }
 
@@ -287,6 +296,16 @@ mod tests {
             code.hash(),
             "however it is typed, it is the same invite"
         );
+
+        // The invite code of a group is kept apart from one for an account.
+        assert_ne!(code.group_hash(), code.hash());
+        assert_eq!(
+            InviteCode::parse(&shown.to_uppercase())
+                .unwrap()
+                .group_hash(),
+            code.group_hash()
+        );
+        assert_ne!(code.group_hash(), InviteCode::new().unwrap().group_hash());
 
         assert_eq!(InviteCode::parse(""), None);
         assert_eq!(InviteCode::parse(&shown[..18]), None);

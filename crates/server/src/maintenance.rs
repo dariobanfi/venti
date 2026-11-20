@@ -9,6 +9,7 @@ use venti_store::{Month, ReportListing, Store};
 
 use crate::clock::Clock;
 use crate::config::Retention;
+use crate::groups;
 use crate::ingest::DirArchive;
 
 /// How often old data is looked for. Observations leave by the month and
@@ -18,14 +19,17 @@ const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 /// How often live tracks that ended long enough ago are looked for. A live
 /// track is where a person was. The API stops showing one the moment its
 /// time is up; this is how soon after that it is gone from the database
-/// too, and a day would be half as long again as a track is kept.
+/// too, and a day would be half as long again as a track is kept. The
+/// plans of groups are looked at as often, for the same reason: a plan is
+/// where people meant to be.
 const LIVE_INTERVAL: Duration = Duration::from_secs(3600);
 
 /// Cleans up when the server starts and once a day after that, and removes
-/// ended live tracks once an hour, until `shutdown` is cancelled. A session
-/// that was not used for `session_idle` has stopped working already; this
-/// removes it. Once a day it also removes the reports that were closed long
-/// enough ago, and says how many are open.
+/// ended live tracks and the plans of days gone by once an hour, until
+/// `shutdown` is cancelled. A session that was not used for `session_idle`
+/// has stopped working already; this removes it. Once a day it also removes
+/// the reports that were closed long enough ago, and says how many are
+/// open.
 pub async fn run<S: Store>(
     store: Arc<S>,
     archive: Option<DirArchive>,
@@ -48,6 +52,7 @@ pub async fn run<S: Store>(
             look_at_reports(&*store, retention, now).await;
         }
         remove_live_tracks(&*store, retention, now).await;
+        remove_old_plans(&*store, retention, now).await;
         round += 1;
         tokio::select! {
             () = shutdown.cancelled() => return,
@@ -69,6 +74,23 @@ async fn remove_live_tracks<S: Store>(store: &S, retention: Retention, now: Time
             retention.live_hours
         ),
         Err(error) => tracing::warn!("ended live tracks could not be removed: {error}"),
+    }
+}
+
+/// Removes the plans that the members of groups made for days that lie
+/// further back than the retention's days, by the date `now` has in UTC,
+/// with who was in on them. The API has stopped showing them already.
+///
+/// The log line says how many, and nothing about which, whose or where.
+async fn remove_old_plans<S: Store>(store: &S, retention: Retention, now: Timestamp) {
+    let gone_before = groups::gone_before(now, retention.plan_days);
+    match store.prune_plans(gone_before).await {
+        Ok(0) => {}
+        Ok(plans) => tracing::info!(
+            "removed {plans} plans of groups for days more than {} days gone by",
+            retention.plan_days
+        ),
+        Err(error) => tracing::warn!("the plans of days gone by could not be removed: {error}"),
     }
 }
 
@@ -221,6 +243,7 @@ mod tests {
             archive_days: 2,
             live_hours: 48,
             report_days: 90,
+            plan_days: 2,
         };
         clean(&store, Some(&archive), retention, now).await;
 
@@ -295,6 +318,7 @@ mod tests {
             archive_days: 14,
             live_hours: 48,
             report_days: 90,
+            plan_days: 2,
         };
 
         remove_live_tracks(&store, retention, now).await;
@@ -368,6 +392,7 @@ mod tests {
             archive_days: 14,
             live_hours: 48,
             report_days: 90,
+            plan_days: 2,
         };
 
         look_at_reports(&store, retention, now).await;
@@ -386,6 +411,110 @@ mod tests {
         assert_eq!(left(&store).await, ["r3"]);
         look_at_reports(&store, retention, now + days(3650)).await;
         assert_eq!(left(&store).await, ["r3"]);
+    }
+
+    #[tokio::test]
+    async fn the_plans_of_days_gone_by_are_removed_when_their_days_are_up() {
+        use chrono::NaiveDate;
+        use venti_store::{
+            Account, GroupCreation, GroupRoom, NewAccount, NewGroup, NewPlan, PlanDetails,
+            PlanRoom, PlanSaving, SecretHash,
+        };
+
+        // The evening of the 18th, as the development mode's clock shows.
+        let now = Utc.with_ymd_and_hms(2026, 11, 18, 19, 5, 0).unwrap();
+        let store = MemoryStore::new();
+        let account = Account {
+            id: "00000000000000000000000001".to_owned(),
+            handle: "dario".to_owned(),
+            display_name: "Dario B.".to_owned(),
+            created_at: now,
+            publishing_suspended_at: None,
+        };
+        let new = NewAccount {
+            account: account.clone(),
+            password_hash: "$argon2id$hash".to_owned(),
+            invite: None,
+        };
+        store.create_account(&new).await.unwrap();
+        let group = NewGroup {
+            id: "0000000000000000000000000g".to_owned(),
+            name: "Mustergruppe".to_owned(),
+            created_at: now,
+            keeper_id: account.id.clone(),
+            invite: SecretHash([1; 32]),
+        };
+        let room = GroupRoom {
+            groups_per_account: 20,
+            members_per_group: 50,
+        };
+        let made = store.create_group(&group, &room).await.unwrap();
+        assert!(matches!(made, GroupCreation::Created(_)));
+        // Plans for the 15th to the 19th.
+        let day = |of_month: u32| NaiveDate::from_ymd_opt(2026, 11, of_month).unwrap();
+        let room = PlanRoom {
+            plans_per_group: 100,
+            gone_before: NaiveDate::MIN,
+        };
+        for of_month in 15..=19 {
+            let plan = NewPlan {
+                id: format!("{of_month:0>26}"),
+                group_id: group.id.clone(),
+                author_id: account.id.clone(),
+                created_at: now,
+                details: PlanDetails {
+                    day: day(of_month),
+                    place: "Musterberg".to_owned(),
+                    position: None,
+                    meet_at: None,
+                    note: None,
+                },
+            };
+            let stored = store.save_plan(&plan, &room).await.unwrap();
+            assert!(matches!(stored, PlanSaving::Stored(_)));
+        }
+        let retention = Retention {
+            observation_months: 13,
+            archive_days: 14,
+            live_hours: 48,
+            report_days: 90,
+            plan_days: 2,
+        };
+        async fn left(store: &MemoryStore) -> Vec<u32> {
+            let plans = store
+                .plans_for("00000000000000000000000001", NaiveDate::MIN, None, 100)
+                .await
+                .unwrap();
+            plans
+                .iter()
+                .map(|plan| chrono::Datelike::day(&plan.details.day))
+                .collect()
+        }
+
+        remove_old_plans(&store, retention, now).await;
+
+        // Two days after its day a plan is kept in full.
+        assert_eq!(left(&store).await, [16, 17, 18, 19]);
+        // Nothing changes until the server's date does.
+        let before_midnight = Utc.with_ymd_and_hms(2026, 11, 18, 23, 59, 59).unwrap();
+        remove_old_plans(&store, retention, before_midnight).await;
+        assert_eq!(left(&store).await, [16, 17, 18, 19]);
+        remove_old_plans(
+            &store,
+            retention,
+            before_midnight + chrono::Duration::seconds(1),
+        )
+        .await;
+        assert_eq!(left(&store).await, [17, 18, 19]);
+        // A server that keeps them for a day removes more.
+        let shorter = Retention {
+            plan_days: 1,
+            ..retention
+        };
+        remove_old_plans(&store, shorter, now).await;
+        assert_eq!(left(&store).await, [17, 18, 19]);
+        remove_old_plans(&store, shorter, now + chrono::Duration::days(1)).await;
+        assert_eq!(left(&store).await, [18, 19]);
     }
 
     #[test]

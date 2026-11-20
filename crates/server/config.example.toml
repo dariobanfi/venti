@@ -106,3 +106,8 @@ live_hours = 48
 # after it was closed with `venti-server close-report`, and then removed.
 # A report that is still open is kept until it is closed.
 report_days = 90
+
+# A plan that the members of a group made for a flying    VENTI_PLAN_DAYS
+# day is kept for this many days after that day and then removed, with
+# who was in. The day ends by the server's clock in UTC.
+plan_days = 2

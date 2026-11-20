@@ -2,13 +2,14 @@
 
 Last revised: 2026-11-20
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, and for live tracks. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
-Everything here is version 1. It has three parts:
+Everything here is version 1. It has four parts:
 
 - **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
+- **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
 
 ## Try it
 
@@ -28,6 +29,7 @@ It also starts with one account, so that an app can be built and tested against 
 | A session token that always works | `venti_0000000000000000000000000000000000000000000000000000` |
 | Flights | Three made-up ones: one public (2026-08-15, it lands), one unlisted (2026-07-04, the sample file the apps bundle; its recording ends in the air), one private (2025-06-21, a short one) |
 | Live tracks | Three, made from the sample flight and dated by this mode's clock; see the table below |
+| Groups | One that it keeps, with the two further pilots in it and three plans; see the tables below |
 
 ```bash
 curl http://127.0.0.1:8080/v1/flights \
@@ -65,7 +67,35 @@ curl http://127.0.0.1:8080/live/11111111111111111111111111             # the pag
 
 Every fix of these tracks but the first of each says how fast the glider moved, how fast it climbed and where it was heading; the first says only where it was, and a glider that stands still has no heading. That is what a real app sends too.
 
-None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. [Reports](#reports) are taken and kept, and nobody reads them: no flight of this mode is taken down and no account's publishing is suspended, because the commands that do that work on a real server's database. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots and the identifiers of the demo live tracks are the same on every start.
+The three pilots are in a [group](#groups) that the demo account keeps, and the two further pilots have a second one that the demo account is not in: to the demo account it is no group, until the account comes into it with its code. The names are made up, like the pilots': a "Mustergruppe" is a sample group as "Max Mustermann" is a sample man.
+
+| Identifier | Name | Invite code | Keeper and members |
+|---|---|---|---|
+| `44444444444444444444444444` | Mustergruppe | `4444-4444-4444-4444` | Kept by `demo`. Members in the order in which they came in: `demo`, `mara`, `jonas` |
+| `55555555555555555555555555` | Beispielgruppe | `5555-5555-5555-5555` | Kept by `mara`. Members: `mara`, `jonas` |
+
+Their [plans](#plans-for-a-flying-day) are for the day this mode's clock shows, 18 November 2026, and the two days after. The places are made up as well, a sample mountain and an example meadow, and none is taken from the flying sites this mode serves. The one position is where the sample flight takes off.
+
+| Identifier | Group | Day | What it says | Posted by | Who is in |
+|---|---|---|---|---|---|
+| `66666666666666666666666666` | Mustergruppe | 2026-11-18 | "Musterberg, Startplatz Ost", a position, 10:30 and a note of two lines | `demo` | `demo`, `mara`, `jonas` |
+| `77777777777777777777777777` | Mustergruppe | 2026-11-19 | "Beispielwiese", 09:00 and a note; no position | `mara` | `mara`, `jonas` |
+| `88888888888888888888888888` | Mustergruppe | 2026-11-20 | "Musterberg" and nothing else | `jonas` | `jonas`, `demo` |
+| `99999999999999999999999999` | Beispielgruppe | 2026-11-19 | "Beispielhang, Nordseite" and 13:00 | `jonas` | `jonas`, `mara` |
+
+```bash
+token='Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
+curl http://127.0.0.1:8080/v1/groups -H "$token"                                      # the one group the demo account is in
+curl http://127.0.0.1:8080/v1/groups/44444444444444444444444444/plans -H "$token"     # its three plans
+curl 'http://127.0.0.1:8080/v1/groups/plans?from=2026-11-18&to=2026-11-18' -H "$token" # the board of this mode's today
+curl http://127.0.0.1:8080/v1/groups/55555555555555555555555555 -H "$token"           # 404: not the demo account's to see
+curl -X POST http://127.0.0.1:8080/v1/groups/join -H "$token" \
+  -H 'Content-Type: application/json' -d '{"code":"5555-5555-5555-5555"}'             # now it is
+```
+
+An account that a test creates comes into either group with its code. This mode counts nothing an account does with groups, and takes a plan for any day from 17 November 2026 on, however far ahead: its clock stands still while an app under test may run in a later year.
+
+None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. [Reports](#reports) are taken and kept, and nobody reads them: no flight of this mode is taken down and no account's publishing is suspended, because the commands that do that work on a real server's database. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots, the identifiers of the demo live tracks and those of the two groups and their plans, with the groups' invite codes, are the same on every start.
 
 Because its clock stands still, this mode takes live fixes of **any time**, where a real server refuses those from the future and those more than 12 hours old, and it never treats a track as too old to read or to add to. An app under test can therefore send the fixes of a replayed flight of last summer, or of its own clock. Two things stay as on a real server: an answer says when a track would be removed (`expires_at`), and the list of public tracks holds a track only while its newest fix is no older than half an hour by this mode's clock. A track sent with the times of a replayed flight is thus read by its identifier and is not on the list.
 
@@ -119,6 +149,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from`, `to` or `after` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window of observations is longer than seven days. For the list of public flights: `from` is not earlier than `to` |
+| 400 | `invalid_day` | For a list of plans: `from` or `to` is not a date written `YYYY-MM-DD` |
 | 400 | `invalid_sort` | `sort` is not an order the list of public flights has: `newest` or `score` |
 | 400 | `invalid_request` | The request could not be read at all: a path that is not valid UTF-8, a body that is not the JSON the endpoint expects. For a body, `message` says where it stops making sense and never repeats what stands there |
 | 400 | `invalid_handle`, `invalid_display_name`, `invalid_password` | A new account's handle, name or password is not as [described](#accounts-and-sessions) |
@@ -127,6 +158,8 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
+| 400 | `invalid_group_name` | The name of a [group](#groups) is empty or has more than 60 characters |
+| 400 | `invalid_plan` | A [plan](#plans-for-a-flying-day) is for a day the server takes no plan for, its place is empty or has more than 80 characters, or its note has more than 500 |
 | 401 | `unauthorized` | The request needs an account and carries no valid session token. The answer has `WWW-Authenticate: Bearer` |
 | 401 | `invalid_credentials` | Signing in: the handle or the password is wrong |
 | 403 | `wrong_password` | The password sent to confirm a change to the account is wrong |
@@ -135,10 +168,15 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `live_track_full` | The live track holds as many fixes as one track may. Begin a new track with a new identifier |
 | 403 | `flight_taken_down` | The pilot asked to share a flight that whoever runs the server [took down](#what-whoever-runs-the-server-can-do). It stays private until they release it |
 | 403 | `publishing_suspended` | The pilot asked to make a flight public, and whoever runs the server has [suspended the account's publishing](#what-whoever-runs-the-server-can-do). Sharing by link works |
+| 403 | `invalid_group_invite` | The invite code lets nobody into a [group](#groups): mistyped, replaced, ended, or never one. Which of these is not said |
+| 403 | `group_full`, `too_many_groups`, `group_plans_full` | The group has as many members as a group may have; the account is in as many groups as an account may be in; the group holds as many plans as a group may hold at a time |
+| 403 | `not_group_keeper`, `not_plan_author` | A member of a group asked for what only its keeper may do; a member asked to change a plan they did not post, or to delete one without being its author or the keeper |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
+| 404 | `group_not_found` | No [group](#groups) has this identifier, or the caller is not in it. The two cannot be told apart, on any endpoint about a group |
+| 404 | `group_member_not_found`, `plan_not_found` | Said to members of a group only: no member of it has this handle; it has no plan with this identifier, or none any more |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
@@ -1258,11 +1296,11 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
-Deletes the account with everything that belongs to it: its sessions, its flights and their files, and its live tracks with their positions. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
+Deletes the account with everything that belongs to it: its sessions, its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, list the flights (`GET /v1/flights`) and download each file (`GET /v1/flights/{id}/igc`).
 
-Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup.
+Not gone at once are the copies in the server's nightly backups, which the operator keeps for fourteen days unless configured otherwise; see [deploy/README.md](../deploy/README.md#backup). Live tracks are in no backup, and neither are plans; the groups an account was in are.
 
 ## Flights
 
@@ -2336,6 +2374,531 @@ Needs a token. Deletes a live track of the account with all its fixes, at once a
 - That holds for a track that never began as well. An app that deletes an identifier whose first fixes have not arrived yet, because the pilot switched live tracking off again at once, gets `204`, and the fixes begin nothing when they arrive. The server has to remember such an identifier, so this counts as one of the account's 30 live tracks a day, and is answered `429` when those are used up.
 - A track of another pilot is no track of this account, whoever may see it: `404` with `live_track_not_found`.
 
+## Groups
+
+A group is a circle of pilots who plan flying days together. A signed-in pilot makes one and hands its **invite code** to the pilots who are to be in it; whoever has the code and an account comes in. In a group, members post [plans for a flying day](#plans-for-a-flying-day) and say whether they are in. That is all a group does so far. It has no chat, and it shows its members nothing of each other but a handle and a display name: not their flights, not their live tracks.
+
+What a client has to know:
+
+- **A group is seen by its members and by nobody else.** It cannot be found by its name, and it is in no list but its members' own. To a pilot who is not in it, every request about it is answered `404` with `group_not_found`: in status, in every header and in every byte of the body the answer for an identifier that no group has. That holds for every endpoint below, for a pilot who was never in the group, for one who left and for one who was removed.
+- **The keeper.** The pilot who makes a group keeps it. The keeper can rename it, make a new invite code, remove a member, hand the keeping to another member, delete the group, and delete any plan in it. The keeper is told nothing about the group that its other members are not told, with one exception: the invite code, at the moment it is made.
+- **The invite code** is sixteen characters in four groups, such as `7k3m-9q2x-4r8t-1v6w`: 80 random bits. One code lets in as many pilots as the group has room for, for as long as the code lasts. It is shown once, in the answer to the request that makes it; the server keeps a hash of it and cannot show it again. An app that wants to show the keeper the code again keeps it where the device keeps secrets. Whoever has the code can come in, so treat it like a password: it travels in the body of a request, never in a path or a query string, and it belongs in no log.
+- **A code ends** when the keeper makes a new one, when the keeper removes a member, who knew it, and when the group goes. After a member was removed, nobody comes in until the keeper has made a new code. A member who leaves by themselves ends no code, and can come back with it.
+- **Who goes takes along what they put in.** A member leaves by removing themselves. The plans they posted in the group go with them, with who was in on those, and so does their "I am in" on the plans of others. The same happens to a member the keeper removes, and in every group of a pilot who [deletes their account](#delete-v1account).
+- **When the keeper goes**, by leaving or by deleting their account, the member who has been in the group longest keeps it from then on: the first of the others in the list of members. A keeper who wants someone else to keep it hands it over first. When the last member goes, the group is deleted with everything in it, and its code ends.
+- **Limits.** An account is in at most 20 groups, those it keeps included. A group has at most 50 members and holds at most 100 plans at a time. An account makes at most 10 groups a day, tries at most 20 invite codes a day, and posts or changes at most 50 plans a day, whatever becomes of each attempt; after that the answer is `429` with `rate_limited` and a `Retry-After` header. The counts are in the server's memory, like the others, and the development mode has none of the three.
+- **Every answer is made for one account**: `Cache-Control: no-store` and no `ETag`, like every answer to a request with a token.
+- **Text that pilots type** (a group's name, a plan's place and note) is cleaned before it is kept and never refused for a character in it: control characters go, and so do the characters that hide text or turn its direction round. Show it as text and never as markup. `venti_api_types::v1::parse_group_name`, `parse_plan_place` and `parse_plan_note` do on the device what the server does, for a client that wants to count while the pilot types.
+
+Not built: a way to report a group or a plan to whoever runs the server ([Reports](#reports) says why), a link that carries the code, finding a group by name, more than one keeper, chat, events, and anything that tells a member that something happened in a group. A client asks.
+
+A group, in every answer that carries one:
+
+| Field | Meaning |
+|---|---|
+| `id` | The group's identifier: 26 lower-case letters and digits. It names the group in the paths below. To its members it is no secret; to everyone else it is the identifier of nothing |
+| `name` | Its name: one line of 1 to 60 characters |
+| `created_at` | When it was made |
+| `keeper` | The member who keeps it: `handle` and `display_name` |
+| `member_count` | How many members it has, the keeper included |
+
+### `POST /v1/groups`
+
+Needs a token. Makes a group. The asker keeps it and is its only member.
+
+```json
+{
+  "name": "Zweite Mustergruppe"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | The group's name. A line break or a tab in it becomes a space and several spaces become one; then it must have 1 to 60 characters |
+
+The answer is `201`. This is the development mode's, with the group's identifier and the invite code replaced, because both are different every time:
+
+```json
+{
+  "group": {
+    "id": "0123456789abcdefghjkmnpqrs",
+    "name": "Zweite Mustergruppe",
+    "created_at": "2026-11-18T19:05:00Z",
+    "keeper": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "member_count": 1
+  },
+  "invite_code": "7k3m-9q2x-4r8t-1v6w"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `group` | The group |
+| `invite_code` | The code that lets others in. It is not shown again: an app shows it to the keeper now, to be handed on |
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_group_name` | Nothing is left of `name` once it is cleaned, or more than 60 characters are. `message` says which, and repeats nothing that was sent |
+| 403 | `too_many_groups` | The account is in 20 groups. Leaving one makes room |
+| 429 | `rate_limited` | The account has made 10 groups within a day. An attempt that was refused for its name counts too |
+
+### `GET /v1/groups`
+
+Needs a token. The groups the asker is in, the one they have been in longest first. An account that is in none gets an empty list.
+
+```json
+{
+  "groups": [
+    {
+      "id": "44444444444444444444444444",
+      "name": "Mustergruppe",
+      "created_at": "2026-10-19T19:05:00Z",
+      "keeper": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "member_count": 3
+    }
+  ]
+}
+```
+
+### `POST /v1/groups/join`
+
+Needs a token. Makes the asker a member of the group the code belongs to. The code is the whole request: the asker need not know which group it is, and learns it from the answer.
+
+```json
+{
+  "code": "5555-5555-5555-5555"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `code` | The invite code, as the keeper handed it on. Hyphens, spaces and upper case do not matter |
+
+The answer is `201` when the request made the asker a member, and `200` when they were one already. This is the demo account coming into the development mode's second group:
+
+```json
+{
+  "group": {
+    "id": "55555555555555555555555555",
+    "name": "Beispielgruppe",
+    "created_at": "2026-11-08T19:05:00Z",
+    "keeper": {
+      "handle": "mara",
+      "display_name": "Mara Muster"
+    },
+    "member_count": 3
+  },
+  "joined": true
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `group` | The group the code belongs to |
+| `joined` | `true` when this request made the asker a member, `false` when they were one already |
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `invalid_group_invite` | The code lets nobody in. The answer is the same, in every byte, whatever is wrong with it: mistyped, never made, replaced by a newer one, ended with the removal of a member, its group gone, or not text of a code's form |
+| 403 | `group_full` | The group has 50 members |
+| 403 | `too_many_groups` | The asker is in 20 groups |
+| 429 | `rate_limited` | The account has tried 20 codes within a day, right or wrong |
+
+Whether a code is good is looked at before anything else. `group_full` and `too_many_groups` are therefore only ever said to a request that carries a good code, and a pilot who is in the group already is told so even when it is full.
+
+### `GET /v1/groups/{id}`
+
+Needs a token. A group and its members, for one of them.
+
+```json
+{
+  "group": {
+    "id": "44444444444444444444444444",
+    "name": "Mustergruppe",
+    "created_at": "2026-10-19T19:05:00Z",
+    "keeper": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "member_count": 3
+  },
+  "members": [
+    {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    {
+      "handle": "mara",
+      "display_name": "Mara Muster"
+    },
+    {
+      "handle": "jonas",
+      "display_name": "Jonas Beispiel"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `group` | The group |
+| `members` | Its members, each with `handle` and `display_name`, in the order in which they came in. The first of them who is not the keeper is who keeps the group if the keeper goes. Members who came in within the same second are in an order of the server's own, which stays the same |
+
+To anyone who is not in the group: `404` with `group_not_found`.
+
+### `PATCH /v1/groups/{id}`
+
+Needs a token. The keeper gives the group a new name.
+
+```json
+{
+  "name": "Mustergruppe, renamed"
+}
+```
+
+The answer is `200` with the group and its members, as `GET /v1/groups/{id}` gives them.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_group_name` | As for making a group |
+| 403 | `not_group_keeper` | The asker is in the group and does not keep it |
+| 404 | `group_not_found` | The asker is not in the group, or there is none |
+
+### `DELETE /v1/groups/{id}`
+
+Needs a token. The keeper deletes the group: its members are in no group of that identifier any more, its plans are gone with who was in on them, and its code lets nobody in. The answer is `204` with no body. It happens at once and cannot be undone. `403` with `not_group_keeper` for a member who does not keep it, `404` with `group_not_found` for everyone else.
+
+### `POST /v1/groups/{id}/invite`
+
+Needs a token. No body. The keeper makes a new invite code. The code before it lets nobody in from that moment; who is in the group stays in. The answer is `200`, here with the code replaced:
+
+```json
+{
+  "invite_code": "2w8x-5c9p-3h7k-6n4d"
+}
+```
+
+This is also how a keeper closes a group to newcomers: make a new code and hand it to nobody. `403` with `not_group_keeper` for a member who does not keep the group, `404` with `group_not_found` for everyone else.
+
+### `PUT /v1/groups/{id}/keeper`
+
+Needs a token. The keeper hands the keeping to another member.
+
+```json
+{
+  "handle": "mara"
+}
+```
+
+The answer is `200` with the group and its members, as `GET /v1/groups/{id}` gives them, now with the other member as `keeper`. Who kept the group is a member like any other from then on, and stays where they were in the list of members. Naming the keeper's own handle changes nothing and is answered the same way.
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `not_group_keeper` | The asker is in the group and does not keep it |
+| 404 | `group_member_not_found` | `handle` is not the handle of a member of the group. A pilot who is not in the group, a handle nobody has and text that is no handle all get this answer |
+| 404 | `group_not_found` | The asker is not in the group, or there is none |
+
+### `DELETE /v1/groups/{id}/members/{handle}`
+
+Needs a token. Takes a member out of the group. With the asker's own handle this is **leaving**, which every member may. With another member's handle it is **removing**, which only the keeper may, and which ends the group's invite code. The answer is `204` with no body.
+
+What the member put into the group goes with them, as said above. When the keeper leaves, the keeping passes on; when the last member leaves, the group is deleted.
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `not_group_keeper` | The asker is in the group, does not keep it, and named someone else |
+| 404 | `group_member_not_found` | The keeper named a handle that no member of the group has |
+| 404 | `group_not_found` | The asker is not in the group, or there is none. A pilot who has left gets this for their own handle |
+
+## Plans for a flying day
+
+A plan is one member's word to the group: on this day I mean to fly here. The others say that they are in, or take that back. A plan belongs to one group; a pilot who wants to tell two groups posts it twice.
+
+What a client has to know:
+
+- **The day** is a calendar date, `2026-11-21`, as it is at the place where the flying is. The server keeps the date as it was sent and attaches no time zone to it: it does not know where the place is. `meet_at` is a time of day as a clock at the place shows it, `09:30` on a 24-hour clock, and has no zone either. Show both as they are. Do not convert them.
+- **Which day is today** is for the client to say. A list of plans is asked for with the days wanted (`from`, `to`), and the board of today is the day's date as both. Without `from` a list starts at the date the server's clock shows in UTC, which away from Greenwich is the pilot's date for only a part of the day. An app takes today's date from the server's clock (`time` in [`GET /v1/health`](#get-v1health), as it does for the age of a wind reading), in the device's own time zone. In the development mode, whose clock stands at 19:05 UTC on 18 November 2026, that is the 18th wherever the clocks are less than 4 hours 55 minutes ahead of UTC, and the 19th east of that.
+- **The place** is a name the pilot types, one line of at most 80 characters, and a position if the pilot marked one. The server looks neither up and adds nothing to them. A client offers a field to type in and, if it likes, a map to tap on. It does not fill a plan from the [flying sites](#get-v1sitesbboxwestsoutheastnorth) the server serves: their names and positions are OpenStreetMap's under a share-alike licence, a plan is its pilot's own, and data of the two kinds is not put into one record.
+- **Who is in** is the list `in`, in the order in which the members said so. Whoever posts a plan is in from the start and can take that back like anyone else; the plan stays.
+- **Changing a plan** is its author's alone, and a plan is sent whole: what a change leaves out, the plan no longer has. Who is in stays as it is. Deleting a plan is its author's and the keeper's.
+- **A plan is kept for 2 days after its day**, by the server's date in UTC, and then removed: a plan for the 18th is there on the 19th and the 20th and gone on the 21st. From that moment it is in no answer and cannot be changed, whether or not the server has got round to deleting the row, which it does within the hour. Whoever runs a server can set another number of days (`retention.plan_days`). A plan is in no backup the server's own script makes.
+- **A plan is taken for a day** from the day before the server's date to a year after it. The day before, because west of Greenwich that day is not over when the server's is. A later day is refused with `invalid_plan`. The development mode takes any day from 17 November 2026 on.
+- **The order of a list**: by day; within a day by `meet_at`, with the plans that have none last; then in the order in which they were posted.
+
+A plan, in every answer that carries one:
+
+| Field | Meaning |
+|---|---|
+| `id` | The plan's identifier: 26 lower-case letters and digits |
+| `group` | The identifier of the group it was posted to |
+| `day` | The day it is for, `YYYY-MM-DD` |
+| `place` | The place, as its author typed it: one line of 1 to 80 characters |
+| `position` | Where the place is, `lat` and `lon` in degrees. Left out if the author marked none |
+| `meet_at` | When to meet or to start, `HH:MM`. Left out if the author named no time |
+| `note` | What else the author had to say: at most 500 characters, with line breaks. Left out if there is none |
+| `author` | The member who posted it: `handle` and `display_name` |
+| `created_at` | When it was posted |
+| `changed_at` | When its author last changed what it says. The same as `created_at` for a plan that was never changed; who is in does not move it |
+| `in` | The members who are in, each with `handle` and `display_name`, in the order in which they said so. May be empty |
+
+### `POST /v1/groups/{id}/plans`
+
+Needs a token. A member posts a plan to the group.
+
+```json
+{
+  "day": "2026-11-21",
+  "place": "Beispielwiese, Parkplatz",
+  "position": {
+    "lat": 47.6922,
+    "lon": 11.7675
+  },
+  "meet_at": "09:30",
+  "note": "A made-up plan. Whoever has room in the car says so here."
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `day` | The day, `YYYY-MM-DD` |
+| `place` | The place, in the pilot's words. Cleaned to one line like a group's name; then 1 to 80 characters |
+| `position` | Where that is: `lat` and `lon` in degrees. May be left out |
+| `meet_at` | When to meet or to start: `HH:MM`, two digits each, `00:00` to `23:59`. May be left out |
+| `note` | Anything else: at most 500 characters after cleaning, line breaks kept. May be left out |
+
+The answer is `201` with the plan. This is the development mode's, with the plan's identifier replaced:
+
+```json
+{
+  "plan": {
+    "id": "0123456789abcdefghjkmnpqrs",
+    "group": "44444444444444444444444444",
+    "day": "2026-11-21",
+    "place": "Beispielwiese, Parkplatz",
+    "position": {
+      "lat": 47.6922,
+      "lon": 11.7675
+    },
+    "meet_at": "09:30",
+    "note": "A made-up plan. Whoever has room in the car says so here.",
+    "author": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "created_at": "2026-11-18T19:05:00Z",
+    "changed_at": "2026-11-18T19:05:00Z",
+    "in": [
+      {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      }
+    ]
+  }
+}
+```
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_plan` | `day` lies before the server's yesterday or more than a year ahead, `place` is empty or too long once cleaned, or `note` is too long. `message` says which, and for a day names the days that are taken and the server's date; it repeats no text that was sent |
+| 400 | `invalid_request` | The body is not JSON of this shape: no `day` or `place`, a `day` that is no date, a `meet_at` that is no time of day, a `position` that is no place on the globe |
+| 403 | `group_plans_full` | The group holds 100 plans. Deleting one makes room; so does time, as plans of days gone by are removed |
+| 404 | `group_not_found` | The asker is not in the group, or there is none |
+| 429 | `rate_limited` | The account has posted or changed 50 plans within a day |
+
+### `GET /v1/groups/{id}/plans?from=&to=`
+
+Needs a token. A group's plans, for one of its members: for today and the days ahead, or for the days asked for.
+
+| Parameter | Meaning |
+|---|---|
+| `from` | The first day wanted, `YYYY-MM-DD`. Left out: the date the server's clock shows in UTC |
+| `to` | The last day wanted. Left out: every day from the first on |
+
+An earlier `from` reaches back to the plans of days gone by for as long as they are kept, and no further. These are the development mode's three plans of the demo account's group, asked for without parameters:
+
+```json
+{
+  "plans": [
+    {
+      "id": "66666666666666666666666666",
+      "group": "44444444444444444444444444",
+      "day": "2026-11-18",
+      "place": "Musterberg, Startplatz Ost",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "meet_at": "10:30",
+      "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+      "author": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "created_at": "2026-11-17T17:05:00Z",
+      "changed_at": "2026-11-17T17:05:00Z",
+      "in": [
+        {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    },
+    {
+      "id": "77777777777777777777777777",
+      "group": "44444444444444444444444444",
+      "day": "2026-11-19",
+      "place": "Beispielwiese",
+      "meet_at": "09:00",
+      "note": "A made-up plan. Ground handling if the wind allows, coffee if not.",
+      "author": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "created_at": "2026-11-18T16:05:00Z",
+      "changed_at": "2026-11-18T16:05:00Z",
+      "in": [
+        {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    },
+    {
+      "id": "88888888888888888888888888",
+      "group": "44444444444444444444444444",
+      "day": "2026-11-20",
+      "place": "Musterberg",
+      "author": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "created_at": "2026-11-18T18:05:00Z",
+      "changed_at": "2026-11-18T18:05:00Z",
+      "in": [
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The answer is never cut: a group holds at most 100 plans.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_day` | `from` or `to` is not a date written `YYYY-MM-DD` |
+| 400 | `invalid_range` | `from` lies after `to` |
+| 404 | `group_not_found` | The asker is not in the group, or there is none |
+
+### `GET /v1/groups/plans?from=&to=`
+
+Needs a token. The plans of every group the asker is in, in one answer, with those groups: what a board of "who flies where today" shows. The parameters and their errors are those of the list for one group. This is the demo account's board for one day, `?from=2026-11-18&to=2026-11-18`:
+
+```json
+{
+  "groups": [
+    {
+      "id": "44444444444444444444444444",
+      "name": "Mustergruppe",
+      "created_at": "2026-10-19T19:05:00Z",
+      "keeper": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "member_count": 3
+    }
+  ],
+  "plans": [
+    {
+      "id": "66666666666666666666666666",
+      "group": "44444444444444444444444444",
+      "day": "2026-11-18",
+      "place": "Musterberg, Startplatz Ost",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "meet_at": "10:30",
+      "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+      "author": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "created_at": "2026-11-17T17:05:00Z",
+      "changed_at": "2026-11-17T17:05:00Z",
+      "in": [
+        {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    }
+  ],
+  "truncated": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `groups` | The groups the asker is in, as `GET /v1/groups` lists them: every one, also a group without a plan in this answer, so that a board can say "nothing planned" for it |
+| `plans` | The plans of those groups for the days asked for, in the order given above. `group` in each says which group it is of |
+| `truncated` | `true` when the groups hold more than 200 plans for those days and the answer has the first 200. Ask for fewer days |
+
+An account that is in no group gets two empty lists. A plan of a group the asker is not in is never in this answer.
+
+### `PUT /v1/groups/{id}/plans/{plan}`
+
+Needs a token. The member who posted a plan replaces what it says. The body is that of posting one, whole; the answer is `200` with the plan as it now is. `changed_at` moves; `in` does not.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_plan`, `invalid_request` | As for posting a plan |
+| 403 | `not_plan_author` | The asker is in the group and did not post the plan. The keeper may delete a plan and may not change one |
+| 404 | `plan_not_found` | The group has no plan with this identifier: none ever, deleted, gone with its author, a plan of another group, or one whose day lies further back than plans are kept |
+| 404 | `group_not_found` | The asker is not in the group, or there is none. An account that is not in the group never learns whether a plan exists |
+| 429 | `rate_limited` | The account has posted or changed 50 plans within a day |
+
+### `DELETE /v1/groups/{id}/plans/{plan}`
+
+Needs a token. Deletes a plan, with who was in on it. The member who posted it may, and the keeper of the group may. The answer is `204` with no body. `403` with `not_plan_author` for any other member; `404` with `plan_not_found` or `group_not_found` as for changing a plan.
+
+### `PUT` and `DELETE /v1/groups/{id}/plans/{plan}/in`
+
+Need a token, and take no body. `PUT` says that the asker is in on the plan; `DELETE` takes that back. Both answer `200` with the plan as it now is, and both may be sent again without changing anything: a pilot who is in stays where they are in the list, and a pilot who is not in stays out. Neither is counted. `404` with `plan_not_found` or `group_not_found` as for changing a plan.
+
 ## Reports
 
 A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track. That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
@@ -2348,6 +2911,7 @@ What a client has to know:
 - **One open report about one thing.** While an account has an open report about a thing, a second one about the same thing stores nothing and changes nothing, whatever reason and text it has: `200` with `"created": false`. Once the operator has closed the first, the thing can be reported again.
 - **Nothing comes back.** The reporter is not told what was decided, and cannot ask. The server knows no address to write to.
 - **Reports are counted**: an account may send 20 in a day. See the errors below.
+- **A group and a plan cannot be reported.** The name of a [group](#groups) and the place and note of a plan are text that other people read, and a report has no subject for them yet. Two things are missing, and neither is on the server alone. A report's subject is a closed list in the wire format, and the apps' shared core reads that list to the end: a new kind of subject has to arrive there in the same change. And whoever runs the server has no command that removes a plan or renames a group, so a report could be read and not acted on. Until both exist, what a member can do about a group is what the group itself offers: the keeper deletes any plan and removes any member, and every member can leave.
 
 ### `POST /v1/reports`
 
@@ -2546,4 +3110,4 @@ What is left to build: a map under the line, and one that moves without the page
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here and no app sends one yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here and no app sends one yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here and no app shows them yet. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

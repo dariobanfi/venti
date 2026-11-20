@@ -21,6 +21,9 @@
 //! - what pilots entrust to the server: their [`Account`], the [`Session`]s
 //!   of their devices, their [`Flight`]s with the files they came from, and
 //!   for a short time the [`LiveTrack`]s of flights under way;
+//! - what pilots share with each other and with nobody else: the
+//!   [`Group`]s they are in, and the [`Plan`]s the members of a group make
+//!   for a flying day;
 //! - what whoever runs the server needs to answer for what is shared on
 //!   it: the [`Report`]s pilots send, and what the operator did about a
 //!   flight, a live track or an account.
@@ -33,6 +36,7 @@ mod airspace;
 mod batch;
 mod flight;
 mod forecast;
+mod group;
 mod live;
 mod memory;
 mod month;
@@ -43,6 +47,7 @@ pub mod testing;
 
 use std::future::Future;
 
+use chrono::NaiveDate;
 use venti_domain::{
     Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
 };
@@ -58,6 +63,11 @@ pub use flight::{
     Visibility, VisibilityChange,
 };
 pub use forecast::ForecastModel;
+pub use group::{
+    Group, GroupCreation, GroupJoining, GroupMembers, GroupPilot, GroupRoom, KeeperAct,
+    MemberRemoval, NewGroup, NewPlan, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom,
+    PlanSaving,
+};
 pub use live::{
     LiveBatch, LiveFix, LiveFixAt, LiveKept, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     LiveVisibility,
@@ -401,8 +411,14 @@ pub trait Store: Send + Sync + 'static {
     /// Removes an account and everything that belongs to it: its password,
     /// its sessions, its flights and their files, the record of the
     /// flights it deleted, its live tracks and the identifiers they used,
-    /// the reports it made and the reports about it. Nothing is kept. Its
-    /// handle is free again.
+    /// the reports it made and the reports about it, and what it put into
+    /// groups: the plans it posted and its word on the plans of others.
+    /// Nothing is kept. Its handle is free again.
+    ///
+    /// It leaves every group it is in, as
+    /// [`Store::remove_group_member`] has a member leave: a group it kept
+    /// is kept by the member who has been in it longest, and a group it
+    /// was alone in goes with it.
     fn delete_account(
         &self,
         account_id: &str,
@@ -753,6 +769,202 @@ pub trait Store: Send + Sync + 'static {
         &self,
         ended_before: Timestamp,
         now: Timestamp,
+    ) -> impl Future<Output = Result<u64, StoreError>> + Send;
+
+    // --- Groups -----------------------------------------------------------
+
+    /// Makes a group whose keeper and only member is the account that
+    /// makes it, unless the account is in as many groups as `room` lets it
+    /// be; see [`GroupCreation`]. Of two calls that race for an account's
+    /// last place, one gets it.
+    ///
+    /// An account that does not exist, an identifier that is in use and an
+    /// invite another group has are refused with [`StoreError::Invalid`].
+    fn create_group(
+        &self,
+        new: &NewGroup,
+        room: &GroupRoom,
+    ) -> impl Future<Output = Result<GroupCreation, StoreError>> + Send;
+
+    /// Makes an account a member of the group whose invite code hashes to
+    /// `invite`, at `now`; see [`GroupJoining`].
+    ///
+    /// Whether the code is good is decided together with whether there is
+    /// room: of two calls that race for a group's last place, one gets it,
+    /// and a call that races with a new code for the group either came in
+    /// under the old one before it ended or did not come in.
+    ///
+    /// An account that does not exist is refused with
+    /// [`StoreError::Invalid`].
+    fn join_group(
+        &self,
+        account_id: &str,
+        invite: &SecretHash,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<GroupJoining, StoreError>> + Send;
+
+    /// The groups an account is in, the one it has been in longest first,
+    /// and by identifier among those it came into at the same moment.
+    fn groups_of(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Vec<Group>, StoreError>> + Send;
+
+    /// A group with its members, as one of its members sees it. `None` if
+    /// there is no such group or the account is not in it.
+    ///
+    /// The answer is taken at one moment: the keeper is among the members
+    /// it lists.
+    fn group(
+        &self,
+        id: &str,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<GroupMembers>, StoreError>> + Send;
+
+    /// Gives a group a new name. Only its keeper may.
+    fn rename_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<KeeperAct<GroupMembers>, StoreError>> + Send;
+
+    /// Gives a group a new invite code, by its hash. The code before it
+    /// lets nobody in from this call on. Only the keeper may.
+    ///
+    /// An invite another group has is refused with
+    /// [`StoreError::Invalid`].
+    fn renew_group_invite(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        invite: &SecretHash,
+    ) -> impl Future<Output = Result<KeeperAct<()>, StoreError>> + Send;
+
+    /// Makes another member, named by handle, the keeper of a group. Only
+    /// the keeper may. Naming the keeper changes nothing.
+    fn hand_over_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        member_handle: &str,
+    ) -> impl Future<Output = Result<KeeperAct<GroupMembers>, StoreError>> + Send;
+
+    /// Takes the member with `member_handle` out of a group; see
+    /// [`MemberRemoval`]. A member may take themselves out, which is
+    /// leaving; the keeper may take anyone out.
+    ///
+    /// - Whoever goes takes along what they put into the group: the plans
+    ///   they posted there, with who was in, and their word on the plans
+    ///   of others.
+    /// - When the keeper leaves, the member who has been in the group
+    ///   longest keeps it from then on, and by account identifier among
+    ///   those who came in at the same moment. When the last member
+    ///   leaves, the group goes: a group has a keeper, and the keeper is a
+    ///   member, at every moment.
+    /// - When the keeper takes someone else out, the group's invite code
+    ///   ends with that: whoever was removed knew it. Nobody comes in
+    ///   until [`Store::renew_group_invite`] makes a new one. A member who
+    ///   leaves by themselves ends no code.
+    fn remove_group_member(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        member_handle: &str,
+    ) -> impl Future<Output = Result<MemberRemoval, StoreError>> + Send;
+
+    /// Removes a group with its members' places in it and all its plans.
+    /// Only the keeper may.
+    fn delete_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+    ) -> impl Future<Output = Result<KeeperAct<()>, StoreError>> + Send;
+
+    // --- Plans ------------------------------------------------------------
+
+    /// Stores a plan in a group its author is in, with the author as the
+    /// first who is in, unless the group holds as many plans as `room`
+    /// lets it; see [`PlanSaving`]. Of two calls that race for a group's
+    /// last place, one gets it. Plans that `room` counts as gone take no
+    /// place.
+    ///
+    /// An identifier that is in use is refused with
+    /// [`StoreError::Invalid`].
+    fn save_plan(
+        &self,
+        new: &NewPlan,
+        room: &PlanRoom,
+    ) -> impl Future<Output = Result<PlanSaving, StoreError>> + Send;
+
+    /// Replaces what a plan says. Only the member who posted it may; see
+    /// [`PlanChange`]. Who is in stays as it is. A plan for a day before
+    /// `gone_before` is not there to change.
+    fn change_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &PlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<PlanChange, StoreError>> + Send;
+
+    /// Removes a plan with who was in. The member who posted it may, and
+    /// the keeper of the group may; see [`PlanRemoval`].
+    fn delete_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<PlanRemoval, StoreError>> + Send;
+
+    /// Notes that a member of the group is in on a plan (`is_in`), since
+    /// `now`, or takes that back; see [`PlanChange`], of which this never
+    /// answers `NotAuthor`. Saying again what is already so changes
+    /// nothing, and keeps the moment of the first time.
+    fn set_plan_in(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> impl Future<Output = Result<PlanChange, StoreError>> + Send;
+
+    /// The plans of a group for the days from `from` to `to`, both
+    /// included, in the order of [`Plan::key`]; without `to`, for every
+    /// day from `from` on. `None` if there is no such group or the account
+    /// is not in it.
+    fn plans_of_group(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+    ) -> impl Future<Output = Result<Option<Vec<Plan>>, StoreError>> + Send;
+
+    /// The plans of every group an account is in, for the same days and in
+    /// the same order as [`Store::plans_of_group`] gives them. At most
+    /// `limit` are returned: the first in that order.
+    ///
+    /// A plan of a group the account is not in is never among them.
+    fn plans_for(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Plan>, StoreError>> + Send;
+
+    /// Removes the plans for days before `before`, with who was in, and
+    /// returns how many there were.
+    fn prune_plans(
+        &self,
+        before: NaiveDate,
     ) -> impl Future<Output = Result<u64, StoreError>> + Send;
 
     // --- Reports ----------------------------------------------------------

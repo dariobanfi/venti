@@ -93,6 +93,34 @@ pub enum ErrorCode {
     /// A report names a reason the server does not know, has a text that
     /// is too long, or gives `other` as its reason without a text.
     InvalidReport,
+    /// The name of a group is empty or too long.
+    InvalidGroupName,
+    /// The invite code is the code of no group: mistyped, replaced by a
+    /// newer one, or ended when its group removed a member.
+    InvalidGroupInvite,
+    /// The group has as many members as a group may have.
+    GroupFull,
+    /// The account is in as many groups as an account may be in.
+    TooManyGroups,
+    /// No group has this identifier, or the caller is not a member of it.
+    /// The two cannot be told apart.
+    GroupNotFound,
+    /// The handle is not the handle of a member of the group.
+    GroupMemberNotFound,
+    /// Only the keeper of the group may do this.
+    NotGroupKeeper,
+    /// A plan's day lies outside the days the server takes plans for, its
+    /// place is empty or too long, or its note is too long.
+    InvalidPlan,
+    /// `from` or `to` is not a date written `YYYY-MM-DD`.
+    InvalidDay,
+    /// The group has no plan with this identifier, or none any more.
+    PlanNotFound,
+    /// Only the member who posted the plan may change it, and only that
+    /// member and the group's keeper may delete it.
+    NotPlanAuthor,
+    /// The group holds as many plans as a group may hold at a time.
+    GroupPlansFull,
     /// The identifier of a live track is not 26 characters of its
     /// alphabet.
     InvalidLiveTrackId,

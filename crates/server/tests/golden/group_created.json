@@ -1,0 +1,13 @@
+{
+  "group": {
+    "id": "0123456789abcdefghjkmnpqrs",
+    "name": "Zweite Mustergruppe",
+    "created_at": "2026-11-18T19:05:00Z",
+    "keeper": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "member_count": 1
+  },
+  "invite_code": "7k3m-9q2x-4r8t-1v6w"
+}

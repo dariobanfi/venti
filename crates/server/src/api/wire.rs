@@ -1,8 +1,10 @@
 //! From the store's records to the API's wire format.
 
+use chrono::Timelike;
 use venti_api_types::v1;
 use venti_store::{
-    Account, Flight, LiveFix, LiveTrack, LiveVisibility, Place, ScoreKind, Session, Visibility,
+    Account, Flight, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack, LiveVisibility, Place,
+    Plan, ScoreKind, Session, Visibility,
 };
 
 use super::error::ApiError;
@@ -114,6 +116,78 @@ pub(crate) fn flight(flight: &Flight) -> Result<v1::Flight, ApiError> {
 
 pub(crate) fn flights(flights: &[Flight]) -> Result<Vec<v1::Flight>, ApiError> {
     flights.iter().map(flight).collect()
+}
+
+fn group_pilot(pilot: &GroupPilot) -> Result<v1::Pilot, ApiError> {
+    self::pilot(&pilot.handle, &pilot.display_name)
+}
+
+pub(crate) fn group(group: &Group) -> Result<v1::Group, ApiError> {
+    Ok(v1::Group {
+        id: group
+            .id
+            .parse()
+            .map_err(|e| damaged("group identifier", e))?,
+        name: group.name.clone(),
+        created_at: group.created_at,
+        keeper: group_pilot(&group.keeper)?,
+        member_count: group.members,
+    })
+}
+
+pub(crate) fn groups(groups: &[Group]) -> Result<Vec<v1::Group>, ApiError> {
+    groups.iter().map(group).collect()
+}
+
+/// A group with its members, as each of them sees it.
+pub(crate) fn group_with_members(seen: &GroupMembers) -> Result<v1::GroupResponse, ApiError> {
+    Ok(v1::GroupResponse {
+        group: group(&seen.group)?,
+        members: seen
+            .members
+            .iter()
+            .map(group_pilot)
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+pub(crate) fn plan(plan: &Plan) -> Result<v1::Plan, ApiError> {
+    let details = &plan.details;
+    let meet_at = details
+        .meet_at
+        .map(|time| {
+            let part = |value: u32| u8::try_from(value).ok();
+            part(time.hour())
+                .zip(part(time.minute()))
+                .and_then(|(hour, minute)| v1::TimeOfDay::new(hour, minute))
+                // Nothing of a plan is written to the log, not even this.
+                .ok_or_else(|| damaged("time to meet", "it is no hour and minute"))
+        })
+        .transpose()?;
+    Ok(v1::Plan {
+        id: plan.id.parse().map_err(|e| damaged("plan identifier", e))?,
+        group: plan
+            .group_id
+            .parse()
+            .map_err(|e| damaged("group identifier", e))?,
+        day: details.day,
+        place: details.place.clone(),
+        position: details.position,
+        meet_at,
+        note: details.note.clone(),
+        author: group_pilot(&plan.author)?,
+        created_at: plan.created_at,
+        changed_at: plan.changed_at,
+        pilots_in: plan
+            .pilots_in
+            .iter()
+            .map(group_pilot)
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+pub(crate) fn plans(plans: &[Plan]) -> Result<Vec<v1::Plan>, ApiError> {
+    plans.iter().map(plan).collect()
 }
 
 pub(crate) fn live_visibility(visibility: LiveVisibility) -> v1::LiveVisibility {

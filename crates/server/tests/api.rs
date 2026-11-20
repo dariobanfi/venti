@@ -242,6 +242,17 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "report.json",
         "flight_taken_down.json",
         "account_suspended.json",
+        "groups.json",
+        "group.json",
+        "group_create_request.json",
+        "group_created.json",
+        "group_join_request.json",
+        "group_joined.json",
+        "group_invite.json",
+        "plans.json",
+        "plan_board.json",
+        "plan_request.json",
+        "plan.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -262,6 +273,38 @@ fn the_documentation_shows_the_answers_as_they_are() {
     for pilot in venti_server::dev::DEMO_PILOTS {
         let row = format!("| `{}` | {} |", pilot.handle, pilot.name);
         assert!(docs.contains(&row), "{row}");
+    }
+    // And the two groups, with their invite codes and their plans.
+    use venti_server::dev;
+    for (id, name, code) in [
+        (dev::DEMO_GROUP, dev::DEMO_GROUP_NAME, dev::DEMO_GROUP_CODE),
+        (
+            dev::DEMO_OTHER_GROUP,
+            dev::DEMO_OTHER_GROUP_NAME,
+            dev::DEMO_OTHER_GROUP_CODE,
+        ),
+    ] {
+        let row = format!("| `{id}` | {name} | `{code}` |");
+        assert!(docs.contains(&row), "{row}");
+    }
+    for plan in dev::DEMO_PLANS.iter().chain([&dev::DEMO_OTHER_PLAN]) {
+        assert!(docs.contains(&format!("| `{plan}` |")), "{plan}");
+    }
+    // The numbers that bound groups are the ones the document states.
+    let limits = venti_server::groups::Limits::default();
+    for stated in [
+        format!("in at most {} groups", limits.groups_per_account),
+        format!("at most {} members", limits.members_per_group),
+        format!("at most {} plans at a time", limits.plans_per_group),
+        format!("makes at most {} groups a day", limits.groups_made_per_day),
+        format!("tries at most {} invite codes a day", limits.joins_per_day),
+        format!(
+            "posts or changes at most {} plans a day",
+            limits.plans_posted_per_day
+        ),
+        format!("for {} days after its day", limits.plan_days),
+    ] {
+        assert!(docs.contains(&stated), "docs/api.md does not say: {stated}");
     }
 }
 

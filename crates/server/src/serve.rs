@@ -19,7 +19,7 @@ use crate::flights::refresh;
 use crate::flights::share::PublicUrl;
 use crate::forecast::{self, Asking};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
-use crate::{adapters, live, maintenance, plan};
+use crate::{adapters, groups, live, maintenance, plan};
 
 /// How far back from the time of a run observations are taken. See
 /// [`Collector::new`].
@@ -66,6 +66,7 @@ pub async fn serve(config: Config) -> Result<(), String> {
         password_cost: Cost::OWASP,
         analyser: analyser.clone(),
         live: live::Limits::keeping(Duration::hours(i64::from(config.retention.live_hours))),
+        groups: groups::Limits::keeping(config.retention.plan_days),
     };
     // Forecasts are fetched when they are asked for, by a service of their
     // own with a fetcher like the collector's. It exists only if the server
@@ -97,6 +98,10 @@ pub async fn serve(config: Config) -> Result<(), String> {
     tracing::info!(
         "live tracks: kept for {} hours after their newest position",
         config.retention.live_hours
+    );
+    tracing::info!(
+        "plans of groups: kept for {} days after their day",
+        config.retention.plan_days
     );
     tracing::info!("client addresses: {}", config.trusted_proxies.in_words());
 

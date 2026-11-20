@@ -28,6 +28,20 @@
 //! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
 //! | [`live_track_path`] | DELETE | | nothing |
 //! | [`REPORTS_PATH`] | POST | [`ReportRequest`] | [`ReportResponse`] |
+//! | [`GROUPS_PATH`] | POST | [`CreateGroupRequest`] | [`CreateGroupResponse`] |
+//! | [`GROUPS_PATH`] | GET | | [`GroupsResponse`] |
+//! | [`GROUP_JOIN_PATH`] | POST | [`JoinGroupRequest`] | [`JoinGroupResponse`] |
+//! | [`group_path`] | GET, DELETE | | [`GroupResponse`], nothing |
+//! | [`group_path`] | PATCH | [`UpdateGroupRequest`] | [`GroupResponse`] |
+//! | [`group_invite_path`] | POST | | [`GroupInviteResponse`] |
+//! | [`group_keeper_path`] | PUT | [`HandOverGroupRequest`] | [`GroupResponse`] |
+//! | [`group_member_path`] | DELETE | | nothing |
+//! | [`group_plans_path`] | POST | [`PlanRequest`] | [`PlanResponse`] |
+//! | [`group_plans_path`] | GET | [`PlansRequest`] | [`PlansResponse`] |
+//! | [`plan_path`] | PUT | [`PlanRequest`] | [`PlanResponse`] |
+//! | [`plan_path`] | DELETE | | nothing |
+//! | [`plan_in_path`] | PUT, DELETE | | [`PlanResponse`] |
+//! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
 //!
 //! A request that cannot be answered gets an [`ErrorResponse`] with a 4xx or
 //! 5xx status.
@@ -50,6 +64,7 @@ mod attribution;
 mod error;
 mod flights;
 mod forecast;
+mod groups;
 mod health;
 mod live;
 mod observations;
@@ -57,6 +72,7 @@ mod report;
 mod request;
 mod sites;
 mod stations;
+mod text;
 
 pub use account::{
     Account, AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest,
@@ -73,6 +89,14 @@ pub use flights::{
     Visibility,
 };
 pub use forecast::{ForecastLayer, ForecastResponse};
+pub use groups::{
+    CreateGroupRequest, CreateGroupResponse, Group, GroupId, GroupIdError, GroupInviteCode,
+    GroupInviteResponse, GroupResponse, GroupTextError, GroupsResponse, HandOverGroupRequest,
+    JoinGroupRequest, JoinGroupResponse, MAX_BOARD_PLANS, MAX_GROUP_NAME_LENGTH,
+    MAX_PLAN_NOTE_LENGTH, MAX_PLAN_PLACE_LENGTH, Plan, PlanBoardResponse, PlanId, PlanIdError,
+    PlanRequest, PlanResponse, PlansResponse, TimeOfDay, TimeOfDayError, UpdateGroupRequest,
+    parse_group_name, parse_plan_note, parse_plan_place,
+};
 pub use health::{
     ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
     RegistrationMode, SourceHealth,
@@ -89,13 +113,16 @@ pub use report::{
 };
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort,
-    FlightSortError, FlightsRequest, ForecastRequest, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PUBLIC_FLIGHTS_PATH, PilotRequest,
+    DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort,
+    FlightSortError, FlightsRequest, ForecastRequest, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest, LiveTracksRequest, ObservationsRequest,
+    PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays, PlansRequest,
     PositionError, PublicFlightsRequest, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
     SitesRequest, StationsRequest, TimeError, flight_file_path, flight_path, format_bbox,
-    format_time, live_page_path, live_track_path, observations_path, parse_bbox, parse_position,
-    parse_time, pilot_path, session_path, share_image_path, share_path,
+    format_day, format_time, group_invite_path, group_keeper_path, group_member_path, group_path,
+    group_plans_path, live_page_path, live_track_path, observations_path, parse_bbox, parse_day,
+    parse_position, parse_time, pilot_path, plan_in_path, plan_path, session_path,
+    share_image_path, share_path,
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};

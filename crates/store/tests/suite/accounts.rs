@@ -3,12 +3,13 @@
 use chrono::Duration;
 use venti_domain::Timestamp;
 use venti_store::{
-    Account, AccountCreation, Listing, NewAccount, NewInvite, ReportListing, SESSION_TOUCH_MINUTES,
-    SecretHash, Session, Store,
+    Account, AccountCreation, GroupJoining, GroupRoom, Listing, NewAccount, NewInvite,
+    ReportListing, SESSION_TOUCH_MINUTES, SecretHash, Session, Store,
 };
 
 use super::at;
 use super::flights::new_flight;
+use super::groups::{code, come_in, day, make, plan_on, set_in, who_is_in};
 use super::live::{
     begin_live_tracks_for, has_its_live_tracks, nothing_is_left_of_the_live_tracks_of,
 };
@@ -512,6 +513,21 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
         .await
         .unwrap()
         .unwrap();
+    // The account keeps a group that the other is in and a group it is
+    // alone in, and is in a group the other keeps. In the two that both
+    // are in, each posted a plan and is in on the other's.
+    make(store, "kept", &dario, 21, at(13, 0)).await;
+    make(store, "alone", &dario, 22, at(13, 0)).await;
+    make(store, "hers", &anna, 23, at(13, 0)).await;
+    come_in(store, &anna, 21, at(13, 5)).await;
+    come_in(store, &dario, 23, at(13, 5)).await;
+    plan_on(store, "lone", "alone", &dario, (19, None), 0).await;
+    for (group, his, hers) in [("kept", "d1", "a1"), ("hers", "d2", "a2")] {
+        plan_on(store, his, group, &dario, (19, None), 0).await;
+        plan_on(store, hers, group, &anna, (20, None), 1).await;
+        set_in(store, (group, his), &anna, true, at(13, 30)).await;
+        set_in(store, (group, hers), &dario, true, at(13, 30)).await;
+    }
 
     store.delete_account(&dario.id).await.unwrap();
 
@@ -545,6 +561,35 @@ pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) 
     // Nor of what it reported, or of what was reported about it. A report
     // between two others is still there.
     assert_eq!(names(store, ReportListing::All).await, ["r4"]);
+    // It is in no group, and nothing it put into one is left: not its
+    // plans, and not its word on the other's plans. The group it kept is
+    // the other member's to keep now; the group it was alone in is gone,
+    // with its code.
+    assert!(store.groups_of(&dario.id).await.unwrap().is_empty());
+    for (group, hers) in [("kept", "a1"), ("hers", "a2")] {
+        let seen = store.group(&id(group), &anna.id).await.unwrap().unwrap();
+        assert_eq!(seen.group.keeper.handle, "anna", "{group}");
+        assert_eq!(seen.members.len(), 1);
+        let plans = store
+            .plans_of_group(&id(group), &anna.id, day(1), None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(plans.len(), 1, "{group}");
+        assert_eq!(plans[0].id, id(hers));
+        assert_eq!(who_is_in(&plans[0]), ["anna"]);
+    }
+    let room = GroupRoom {
+        groups_per_account: 20,
+        members_per_group: 50,
+    };
+    let into_the_lone_one = store
+        .join_group(&anna.id, &code(22), &room, at(14, 0))
+        .await
+        .unwrap();
+    assert_eq!(into_the_lone_one, GroupJoining::NoSuchInvite);
+    // The code of the group that stays is as it was.
+    come_in(store, &bernd, 21, at(14, 0)).await;
 
     // The handle is free, the invite stays used, and deleting again is
     // harmless.

@@ -1,0 +1,49 @@
+{
+  "groups": [
+    {
+      "id": "44444444444444444444444444",
+      "name": "Mustergruppe",
+      "created_at": "2026-10-19T19:05:00Z",
+      "keeper": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "member_count": 3
+    }
+  ],
+  "plans": [
+    {
+      "id": "66666666666666666666666666",
+      "group": "44444444444444444444444444",
+      "day": "2026-11-18",
+      "place": "Musterberg, Startplatz Ost",
+      "position": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "meet_at": "10:30",
+      "note": "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+      "author": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "created_at": "2026-11-17T17:05:00Z",
+      "changed_at": "2026-11-17T17:05:00Z",
+      "in": [
+        {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        }
+      ]
+    }
+  ],
+  "truncated": false
+}

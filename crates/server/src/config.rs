@@ -20,6 +20,7 @@ use crate::accounts::Registration;
 use crate::accounts::client::TrustedProxies;
 use crate::adapters::{self, Providers};
 use crate::flights::share::PublicUrl;
+use crate::groups::DEFAULT_PLAN_DAYS;
 use crate::live::DEFAULT_RETENTION_HOURS;
 
 /// Everything the server needs to be told.
@@ -80,6 +81,9 @@ pub struct Retention {
     /// A report is kept for this many days after it was closed. An open
     /// report is kept until it is closed.
     pub report_days: u32,
+    /// A plan that the members of a group made for a flying day is kept
+    /// for this many days after that day.
+    pub plan_days: u32,
 }
 
 /// For how many days a closed report is kept unless the configuration says
@@ -176,6 +180,7 @@ struct FileRetention {
     archive_days: Option<u32>,
     live_hours: Option<u32>,
     report_days: Option<u32>,
+    plan_days: Option<u32>,
 }
 
 /// One setting: its name in the file and the variable that overrides it.
@@ -257,6 +262,10 @@ const LIVE_HOURS: Setting = Setting {
 const REPORT_DAYS: Setting = Setting {
     key: "retention.report_days",
     variable: "VENTI_REPORT_DAYS",
+};
+const PLAN_DAYS: Setting = Setting {
+    key: "retention.plan_days",
+    variable: "VENTI_PLAN_DAYS",
 };
 const ACCOUNT_FLIGHTS: Setting = Setting {
     key: "accounts.flights",
@@ -425,6 +434,7 @@ impl Config {
                 file.retention.report_days,
                 DEFAULT_REPORT_DAYS,
             )?,
+            plan_days: number(&PLAN_DAYS, file.retention.plan_days, DEFAULT_PLAN_DAYS)?,
         };
         let room = Room {
             flights: number(
@@ -528,6 +538,7 @@ mod tests {
                 archive_days: 14,
                 live_hours: 48,
                 report_days: 90,
+                plan_days: 2,
             }
         );
         assert_eq!(config.registration, Registration::Invite);
@@ -671,6 +682,7 @@ mod tests {
                 ("VENTI_OBSERVATION_MONTHS", "24"),
                 ("VENTI_LIVE_HOURS", "24"),
                 ("VENTI_REPORT_DAYS", "30"),
+                ("VENTI_PLAN_DAYS", "7"),
                 ("VENTI_REGISTRATION", "open"),
                 ("VENTI_PUBLIC_URL", "https://venti.example"),
                 ("VENTI_TRUSTED_PROXIES", "172.18.0.0/16, ::1"),
@@ -697,6 +709,7 @@ mod tests {
         assert_eq!(config.retention.archive_days, 14);
         assert_eq!(config.retention.live_hours, 24);
         assert_eq!(config.retention.report_days, 30);
+        assert_eq!(config.retention.plan_days, 7);
     }
 
     #[test]
@@ -740,6 +753,7 @@ mod tests {
         assert!(with("VENTI_ARCHIVE_DAYS", "0").contains("at least 1"));
         assert!(with("VENTI_LIVE_HOURS", "0").contains("retention.live_hours"));
         assert!(with("VENTI_REPORT_DAYS", "0").contains("retention.report_days"));
+        assert!(with("VENTI_PLAN_DAYS", "0").contains("retention.plan_days"));
         assert!(with("VENTI_ACCOUNT_FLIGHTS", "0").contains("accounts.flights"));
         assert!(with("VENTI_ACCOUNT_STORAGE_MB", "plenty").contains("accounts.storage_mb"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));

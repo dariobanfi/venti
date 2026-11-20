@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use chrono::NaiveDate;
 use venti_domain::{
     Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
 };
@@ -13,8 +14,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
+    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
+    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
     RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
     Store, StoreError, Suspension, Visibility, VisibilityChange,
@@ -331,6 +334,130 @@ impl Store for TroubledStore {
     }
 
     async fn prune_live_tracks(&self, _: Timestamp, _: Timestamp) -> Result<u64, StoreError> {
+        self.fail().await
+    }
+
+    async fn create_group(&self, _: &NewGroup, _: &GroupRoom) -> Result<GroupCreation, StoreError> {
+        self.fail().await
+    }
+
+    async fn join_group(
+        &self,
+        _: &str,
+        _: &SecretHash,
+        _: &GroupRoom,
+        _: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        self.fail().await
+    }
+
+    async fn groups_of(&self, _: &str) -> Result<Vec<Group>, StoreError> {
+        self.fail().await
+    }
+
+    async fn group(&self, _: &str, _: &str) -> Result<Option<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn rename_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn renew_group_invite(
+        &self,
+        _: &str,
+        _: &str,
+        _: &SecretHash,
+    ) -> Result<KeeperAct<()>, StoreError> {
+        self.fail().await
+    }
+
+    async fn hand_over_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        self.fail().await
+    }
+
+    async fn remove_group_member(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<MemberRemoval, StoreError> {
+        self.fail().await
+    }
+
+    async fn delete_group(&self, _: &str, _: &str) -> Result<KeeperAct<()>, StoreError> {
+        self.fail().await
+    }
+
+    async fn save_plan(&self, _: &NewPlan, _: &PlanRoom) -> Result<PlanSaving, StoreError> {
+        self.fail().await
+    }
+
+    async fn change_plan(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: &PlanDetails,
+        _: Timestamp,
+        _: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn delete_plan(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: NaiveDate,
+    ) -> Result<PlanRemoval, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_plan_in(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: bool,
+        _: Timestamp,
+        _: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        self.fail().await
+    }
+
+    async fn plans_of_group(
+        &self,
+        _: &str,
+        _: &str,
+        _: NaiveDate,
+        _: Option<NaiveDate>,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        self.fail().await
+    }
+
+    async fn plans_for(
+        &self,
+        _: &str,
+        _: NaiveDate,
+        _: Option<NaiveDate>,
+        _: usize,
+    ) -> Result<Vec<Plan>, StoreError> {
+        self.fail().await
+    }
+
+    async fn prune_plans(&self, _: NaiveDate) -> Result<u64, StoreError> {
         self.fail().await
     }
 

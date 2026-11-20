@@ -4,6 +4,7 @@ mod accounts;
 mod airspace;
 mod flights;
 mod forecasts;
+mod groups;
 mod live;
 mod migrate;
 mod partitions;
@@ -12,6 +13,7 @@ mod sites;
 
 use std::time::Duration;
 
+use chrono::NaiveDate;
 use deadpool_postgres::{
     Client, Manager, ManagerConfig, Pool, PoolError, RecyclingMethod, Runtime, Transaction,
 };
@@ -23,8 +25,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
+    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
+    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
     RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
     Store, StoreError, Suspension, Visibility, VisibilityChange, batch,
@@ -574,7 +578,7 @@ impl Store for PgStore {
     }
 
     async fn delete_account(&self, account_id: &str) -> Result<(), StoreError> {
-        accounts::delete(&self.client().await?, account_id).await
+        accounts::delete(&mut self.client().await?, account_id).await
     }
 
     async fn suspend_publishing(
@@ -772,6 +776,139 @@ impl Store for PgStore {
         now: Timestamp,
     ) -> Result<u64, StoreError> {
         live::prune(&self.client().await?, ended_before, now).await
+    }
+
+    async fn create_group(
+        &self,
+        new: &NewGroup,
+        room: &GroupRoom,
+    ) -> Result<GroupCreation, StoreError> {
+        groups::create(&mut self.client().await?, new, room).await
+    }
+
+    async fn join_group(
+        &self,
+        account_id: &str,
+        invite: &SecretHash,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        groups::join(&mut self.client().await?, account_id, invite, room, now).await
+    }
+
+    async fn groups_of(&self, account_id: &str) -> Result<Vec<Group>, StoreError> {
+        groups::of_account(&self.client().await?, account_id).await
+    }
+
+    async fn group(&self, id: &str, account_id: &str) -> Result<Option<GroupMembers>, StoreError> {
+        groups::get(&mut self.client().await?, id, account_id).await
+    }
+
+    async fn rename_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        name: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        groups::rename(&mut self.client().await?, id, keeper_id, name).await
+    }
+
+    async fn renew_group_invite(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        invite: &SecretHash,
+    ) -> Result<KeeperAct<()>, StoreError> {
+        groups::renew_invite(&mut self.client().await?, id, keeper_id, invite).await
+    }
+
+    async fn hand_over_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        member_handle: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        groups::hand_over(&mut self.client().await?, id, keeper_id, member_handle).await
+    }
+
+    async fn remove_group_member(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        member_handle: &str,
+    ) -> Result<MemberRemoval, StoreError> {
+        groups::remove_member(&mut self.client().await?, id, by_account_id, member_handle).await
+    }
+
+    async fn delete_group(&self, id: &str, keeper_id: &str) -> Result<KeeperAct<()>, StoreError> {
+        groups::delete(&mut self.client().await?, id, keeper_id).await
+    }
+
+    async fn save_plan(&self, new: &NewPlan, room: &PlanRoom) -> Result<PlanSaving, StoreError> {
+        groups::save_plan(&mut self.client().await?, new, room).await
+    }
+
+    async fn change_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &PlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        let mut client = self.client().await?;
+        let plan = (group_id, plan_id);
+        groups::change_plan(&mut client, plan, by_account_id, details, now, gone_before).await
+    }
+
+    async fn delete_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<PlanRemoval, StoreError> {
+        let mut client = self.client().await?;
+        groups::delete_plan(&mut client, group_id, plan_id, by_account_id, gone_before).await
+    }
+
+    async fn set_plan_in(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        let mut client = self.client().await?;
+        let plan = (group_id, plan_id);
+        groups::set_in(&mut client, plan, account_id, is_in, now, gone_before).await
+    }
+
+    async fn plans_of_group(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        groups::plans_of_group(&mut self.client().await?, group_id, account_id, from, to).await
+    }
+
+    async fn plans_for(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+        limit: usize,
+    ) -> Result<Vec<Plan>, StoreError> {
+        groups::plans_for(&mut self.client().await?, account_id, from, to, limit).await
+    }
+
+    async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
+        groups::prune_plans(&self.client().await?, before).await
     }
 
     async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {

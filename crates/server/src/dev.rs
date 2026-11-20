@@ -13,7 +13,10 @@
 //! two that everyone may see, of a glider in the air and of one that has
 //! landed, and one for those with its link. Two further pilots with made-up
 //! names have three flights each, so that the list of everyone's public
-//! flights holds the flights of several. Client work and UI tests run
+//! flights holds the flights of several. The three pilots are in a group
+//! that the demo account keeps, with plans for the day this mode's clock
+//! shows and the two days after; the two further pilots have a second
+//! group that the demo account is not in. Client work and UI tests run
 //! against this.
 //!
 //! The clock stands still at the moment of the recording, so the data never
@@ -25,7 +28,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use chrono::{Duration, NaiveDate};
+use chrono::{Duration, NaiveDate, NaiveTime};
 use tokio_util::sync::CancellationToken;
 use venti_api_types::v1::Password;
 use venti_domain::Timestamp;
@@ -33,13 +36,14 @@ use venti_flight::igc::{self, IgcFile};
 use venti_flight::testing::synthetic_flight;
 use venti_regions::RegionPack;
 use venti_store::{
-    Account, AccountCreation, LiveBatch, LiveFix, LiveRoom, LiveSaved, LiveVisibility, MemoryStore,
-    NewAccount, Room, SecretHash, Session, Store, Visibility,
+    Account, AccountCreation, GroupCreation, GroupJoining, LiveBatch, LiveFix, LiveRoom, LiveSaved,
+    LiveVisibility, MemoryStore, NewAccount, NewGroup, NewPlan, PlanChange, PlanDetails, PlanRoom,
+    PlanSaving, Room, SecretHash, Session, Store, Visibility,
 };
 
 use crate::accounts::client::TrustedProxies;
 use crate::accounts::password::{Cost, Hasher};
-use crate::accounts::secret::Token;
+use crate::accounts::secret::{InviteCode, Token};
 use crate::accounts::{Limits, Registration};
 use crate::adapters::{self, Providers};
 use crate::api::{Api, Cors, Settings};
@@ -95,7 +99,240 @@ pub fn settings(public_url: PublicUrl, analyser: Analyser, password_cost: Cost) 
         password_cost,
         analyser,
         live: crate::live::Limits::none(),
+        groups: crate::groups::Limits::none(),
     }
+}
+
+/// The identifier of the group the demo account keeps, with the two
+/// further pilots in it. Like everything below it is fixed, so that a
+/// client or a test can ask for it without making it first, and no
+/// secret: it exists only in this mode.
+pub const DEMO_GROUP: &str = "44444444444444444444444444";
+
+/// The name of that group: "Mustergruppe", a made-up group as "Max
+/// Mustermann" is a made-up man.
+pub const DEMO_GROUP_NAME: &str = "Mustergruppe";
+
+/// The invite code of that group. An account that a test creates comes
+/// into the group with it.
+pub const DEMO_GROUP_CODE: &str = "4444-4444-4444-4444";
+
+/// The identifier of a group the demo account is not in: `mara` keeps it
+/// and `jonas` is in it. To the demo account it is no group, until the
+/// account comes into it with [`DEMO_OTHER_GROUP_CODE`].
+pub const DEMO_OTHER_GROUP: &str = "55555555555555555555555555";
+
+/// The name of that group.
+pub const DEMO_OTHER_GROUP_NAME: &str = "Beispielgruppe";
+
+/// The invite code of that group.
+pub const DEMO_OTHER_GROUP_CODE: &str = "5555-5555-5555-5555";
+
+/// The identifiers of the plans of the demo account's group: for the day
+/// this mode's clock shows, 18 November 2026, and for the two days after.
+pub const DEMO_PLANS: [&str; 3] = [
+    "66666666666666666666666666",
+    "77777777777777777777777777",
+    "88888888888888888888888888",
+];
+
+/// The identifier of the one plan of the other group, for 19 November.
+pub const DEMO_OTHER_PLAN: &str = "99999999999999999999999999";
+
+/// One plan of the development mode, as [`add_demo_groups`] stores it.
+struct DemoPlan {
+    id: &'static str,
+    group: &'static str,
+    /// The handle of the pilot who posted it.
+    author: &'static str,
+    /// Hours before this mode's clock at which it was posted.
+    posted_hours_ago: i64,
+    /// The day of November 2026 it is for.
+    day: u32,
+    place: &'static str,
+    /// Where the place is: the sample flight's take-off or nowhere. These
+    /// are the project's own coordinates; no name and no position here is
+    /// taken from the flying sites the server collects.
+    at_the_takeoff: bool,
+    /// When to meet: hour and minute.
+    meet_at: Option<(u32, u32)>,
+    note: Option<&'static str>,
+    /// The handles of the others who are in, each with how many minutes
+    /// before this mode's clock they said so.
+    also_in: &'static [(&'static str, i64)],
+}
+
+/// The plans of the two groups. The places are made up, like the groups:
+/// a "Musterberg" and a "Beispielwiese" are a sample mountain and an
+/// example meadow.
+///
+/// - Today, the 18th: posted by the demo account, with a position, a time
+///   and a note; all three are in.
+/// - The 19th: posted by `mara`, with a time and a note and no position;
+///   `jonas` is in, the demo account is not.
+/// - The 20th: posted by `jonas`, a place and nothing else; the demo
+///   account is in.
+/// - In the other group, the 19th: posted by `jonas`, with `mara` in.
+const DEMO_GROUP_PLANS: [DemoPlan; 4] = [
+    DemoPlan {
+        id: DEMO_PLANS[0],
+        group: DEMO_GROUP,
+        author: DEMO_HANDLE,
+        posted_hours_ago: 26,
+        day: 18,
+        place: "Musterberg, Startplatz Ost",
+        at_the_takeoff: true,
+        meet_at: Some((10, 30)),
+        note: Some(
+            "A made-up plan of the development mode.\nAt the lift at half past ten, in the air by noon.",
+        ),
+        also_in: &[("mara", 25 * 60), ("jonas", 20 * 60)],
+    },
+    DemoPlan {
+        id: DEMO_PLANS[1],
+        group: DEMO_GROUP,
+        author: "mara",
+        posted_hours_ago: 3,
+        day: 19,
+        place: "Beispielwiese",
+        at_the_takeoff: false,
+        meet_at: Some((9, 0)),
+        note: Some("A made-up plan. Ground handling if the wind allows, coffee if not."),
+        also_in: &[("jonas", 120)],
+    },
+    DemoPlan {
+        id: DEMO_PLANS[2],
+        group: DEMO_GROUP,
+        author: "jonas",
+        posted_hours_ago: 1,
+        day: 20,
+        place: "Musterberg",
+        at_the_takeoff: false,
+        meet_at: None,
+        note: None,
+        also_in: &[(DEMO_HANDLE, 30)],
+    },
+    DemoPlan {
+        id: DEMO_OTHER_PLAN,
+        group: DEMO_OTHER_GROUP,
+        author: "jonas",
+        posted_hours_ago: 4,
+        day: 19,
+        place: "Beispielhang, Nordseite",
+        at_the_takeoff: false,
+        meet_at: Some((13, 0)),
+        note: None,
+        also_in: &[("mara", 210)],
+    },
+];
+
+/// Puts the two groups of the development mode and their plans into the
+/// store. `accounts` are the three pilots, by handle.
+///
+/// - [`DEMO_GROUP`]: made thirty days before `now` by the demo account;
+///   `mara` came in a day later and `jonas` ten days after that.
+/// - [`DEMO_OTHER_GROUP`]: made ten days before `now` by `mara`; `jonas`
+///   came in a day later.
+async fn add_demo_groups(
+    store: &MemoryStore,
+    accounts: &[Account],
+    now: Timestamp,
+) -> Result<(), String> {
+    let account = |handle: &str| {
+        accounts
+            .iter()
+            .find(|account| account.handle == handle)
+            .ok_or_else(|| format!("the development mode has no pilot {handle}"))
+    };
+    let code = |text: &str| {
+        InviteCode::parse(text)
+            .map(|code| code.group_hash())
+            .ok_or_else(|| format!("{text} does not have the form of an invite code"))
+    };
+    let room = crate::groups::Limits::none().room();
+    let groups = [
+        (
+            (DEMO_GROUP, DEMO_GROUP_NAME, DEMO_GROUP_CODE),
+            [(DEMO_HANDLE, 30), ("mara", 29), ("jonas", 20)].as_slice(),
+        ),
+        (
+            (
+                DEMO_OTHER_GROUP,
+                DEMO_OTHER_GROUP_NAME,
+                DEMO_OTHER_GROUP_CODE,
+            ),
+            [("mara", 10), ("jonas", 9)].as_slice(),
+        ),
+    ];
+    for ((id, name, invite), members) in groups {
+        let invite = code(invite)?;
+        // The first of them makes the group; the others come into it.
+        for (index, (handle, days_ago)) in members.iter().enumerate() {
+            let (member, at) = (account(handle)?, now - Duration::days(*days_ago));
+            let there = if index == 0 {
+                let new = NewGroup {
+                    id: id.to_owned(),
+                    name: name.to_owned(),
+                    created_at: at,
+                    keeper_id: member.id.clone(),
+                    invite,
+                };
+                let made = store.create_group(&new, &room).await;
+                matches!(made, Ok(GroupCreation::Created(_)))
+            } else {
+                let joined = store.join_group(&member.id, &invite, &room, at).await;
+                matches!(joined, Ok(GroupJoining::Joined(_)))
+            };
+            if !there {
+                return Err(format!("{handle} could not be put into the group {name}"));
+            }
+        }
+    }
+
+    let plan_room = PlanRoom {
+        plans_per_group: u32::MAX,
+        gone_before: NaiveDate::MIN,
+    };
+    for plan in &DEMO_GROUP_PLANS {
+        let new = NewPlan {
+            id: plan.id.to_owned(),
+            group_id: plan.group.to_owned(),
+            author_id: account(plan.author)?.id.clone(),
+            created_at: now - Duration::hours(plan.posted_hours_ago),
+            details: PlanDetails {
+                day: day(2026, 11, plan.day),
+                place: plan.place.to_owned(),
+                position: plan
+                    .at_the_takeoff
+                    .then(|| synthetic_flight().fixes.first().map(|fix| fix.position))
+                    .flatten(),
+                meet_at: plan
+                    .meet_at
+                    .and_then(|(hour, minute)| NaiveTime::from_hms_opt(hour, minute, 0)),
+                note: plan.note.map(str::to_owned),
+            },
+        };
+        let stored = store.save_plan(&new, &plan_room).await;
+        if !matches!(stored, Ok(PlanSaving::Stored(_))) {
+            return Err(format!("the plan for {} could not be stored", plan.place));
+        }
+        for (handle, minutes_ago) in plan.also_in {
+            let said = store
+                .set_plan_in(
+                    plan.group,
+                    plan.id,
+                    &account(handle)?.id,
+                    true,
+                    now - Duration::minutes(*minutes_ago),
+                    NaiveDate::MIN,
+                )
+                .await;
+            if !matches!(said, Ok(PlanChange::Now(_))) {
+                return Err(format!("{handle} could not be put down for {}", plan.place));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The identifiers of the live tracks the demo account starts with. They
@@ -383,7 +620,8 @@ async fn add_pilot(
 }
 
 /// Puts the demo account, its session, its flights and its live tracks
-/// into the store, and the two further pilots with their flights.
+/// into the store, the two further pilots with their flights, and the
+/// groups the three are in.
 async fn add_demo_account(
     store: &MemoryStore,
     now: Timestamp,
@@ -397,6 +635,7 @@ async fn add_demo_account(
         publishing_suspended_at: None,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
+    let mut pilots = vec![account.clone()];
     for (pilot, flights) in DEMO_PILOTS.iter().zip(further_flights()) {
         let further = Account {
             id: pilot.id.to_owned(),
@@ -406,7 +645,9 @@ async fn add_demo_account(
             publishing_suspended_at: None,
         };
         add_pilot(store, &further, flights, password_cost).await?;
+        pilots.push(further);
     }
+    add_demo_groups(store, &pilots, now).await?;
 
     let session = Session {
         id: DEMO_SESSION_ID.to_owned(),

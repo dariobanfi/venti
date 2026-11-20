@@ -5,7 +5,7 @@ use deadpool_postgres::Client;
 use tokio_postgres::Row;
 use venti_domain::Timestamp;
 
-use super::db_error;
+use super::{db_error, groups};
 use crate::flight::next_change;
 use crate::{
     Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session,
@@ -155,13 +155,38 @@ pub(super) async fn set_password(
     tx.commit().await.map_err(db_error)
 }
 
-pub(super) async fn delete(client: &Client, account_id: &str) -> Result<(), StoreError> {
-    // Everything that belongs to the account names it and goes with it.
-    client
-        .execute("DELETE FROM accounts WHERE id = $1", &[&account_id])
-        .await
-        .map_err(db_error)?;
-    Ok(())
+/// How often a deletion that another call got in the way of is begun
+/// again before the failure is passed on.
+const DELETION_TRIES: u32 = 4;
+
+pub(super) async fn delete(client: &mut Client, account_id: &str) -> Result<(), StoreError> {
+    // A deletion can meet a call that makes this account the keeper of a
+    // group, or one that deletes the account that would keep a group of
+    // this one's next. The database then refuses the step that would leave
+    // a group without its keeper, or ends one of two transactions that
+    // wait for each other. Begun again, the deletion finds things as the
+    // other call left them.
+    let mut tries = 1;
+    loop {
+        match delete_once(client, account_id).await {
+            Err(error) if tries < DELETION_TRIES && groups::is_a_race(&error) => tries += 1,
+            outcome => return outcome.map_err(db_error),
+        }
+    }
+}
+
+async fn delete_once(client: &mut Client, account_id: &str) -> Result<(), tokio_postgres::Error> {
+    let tx = client.transaction().await?;
+    // First the groups the account keeps: each passes to its next keeper,
+    // or goes if nobody else is in it.
+    if groups::release_account(&tx, account_id).await? {
+        // Everything else that belongs to the account names it and goes
+        // with it, its places in groups and what it put into them
+        // included.
+        tx.execute("DELETE FROM accounts WHERE id = $1", &[&account_id])
+            .await?;
+    }
+    tx.commit().await
 }
 
 pub(super) async fn suspend_publishing(

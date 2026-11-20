@@ -12,7 +12,8 @@
 //!    is worked out from its file with the flight engine ([`flights`]).
 //!    While a flight is under way, the positions its pilot's app sends are
 //!    kept as a live track for those the pilot lets see it, and removed a
-//!    short while after ([`live`]).
+//!    short while after ([`live`]). Pilots make groups, which only their
+//!    members see, and plan flying days in them ([`groups`]).
 //! 3. **Serves.** A small versioned HTTP API reads and writes the store
 //!    ([`api`]). Its wire format is the `venti-api-types` crate, which the
 //!    clients share. Beside it, a flight that its pilot shares has a page
@@ -42,6 +43,7 @@ pub mod config;
 pub mod dev;
 pub mod flights;
 pub mod forecast;
+pub mod groups;
 pub mod ingest;
 pub mod live;
 pub mod maintenance;

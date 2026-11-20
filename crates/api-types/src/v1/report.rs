@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::text;
+
 /// The most characters the text of a report may have.
 pub const MAX_REPORT_TEXT_LENGTH: usize = 1000;
 
@@ -94,33 +96,11 @@ pub enum ReportTextError {
 /// nothing is left. Text is only refused for its length, counted after
 /// all that: a report must not be lost over a stray character.
 pub fn parse_report_text(text: &str) -> Result<Option<String>, ReportTextError> {
-    let dropped = |c: char| {
-        (c.is_control() && c != '\n')
-            || matches!(
-                u32::from(c),
-                // Zero-width characters and direction marks.
-                0x061C | 0x180E | 0x200B..=0x200F
-                // Line and paragraph separators, direction embeddings and
-                // overrides.
-                | 0x2028..=0x202E
-                // Word joiner, invisible operators, direction isolates.
-                | 0x2060..=0x206F
-                // Byte order mark, interlinear annotation.
-                | 0xFEFF | 0xFFF9..=0xFFFB
-                // Tag characters.
-                | 0xE0000..=0xE007F
-            )
-    };
-    let kept: String = text
-        .replace("\r\n", "\n")
-        .chars()
-        .filter(|c| !dropped(*c))
-        .collect();
-    let kept = kept.trim();
+    let kept = text::lines(text);
     if kept.chars().count() > MAX_REPORT_TEXT_LENGTH {
         return Err(ReportTextError::TooLong);
     }
-    Ok((!kept.is_empty()).then(|| kept.to_owned()))
+    Ok((!kept.is_empty()).then_some(kept))
 }
 
 /// The body of `POST /v1/reports`.

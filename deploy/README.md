@@ -250,6 +250,47 @@ SELECT handle, publishing_suspended_at FROM accounts WHERE publishing_suspended_
 
 None of this has run on a real server. It was tried on 2026-11-20 on a development machine, with the server's debug build and PostgreSQL 16 with PostGIS in a container: two accounts, a public flight, a live track and three reports, then every command above, the two queries, and what the API answered after each. Not tried: the commands through `docker compose exec`, in the image a server runs *(to verify on the first real install)*.
 
+## Groups
+
+Pilots can make groups, which only their members see, and plan flying days in them ([docs/api.md](../docs/api.md#groups)). There is nothing to set up and nothing to switch on. What to know as the person who runs this:
+
+- **You are no member of anyone's group.** No command shows you one, and the API shows a group to its members only. The database is another matter: whoever can read it reads the names of the groups, who is in which, and the plans, which say where people mean to be on which day. Treat it as that.
+- **Nothing of a group is in the log**: no name, no identifier, no invite code, no member, no word of a plan. Where a log line names the path of a request, a path under a group reads `/v1/groups/…`, whatever stood there. The one line the server writes about groups by itself is `removed 3 plans of groups for days more than 2 days gone by`, at most once an hour.
+- **The invite codes are not in the database.** It holds a hash of each. A code is shown once, to the keeper of its group, when it is made; nobody can read it back, you neither. A keeper who lost it makes a new one in the app.
+- **How long things are kept.** A plan is removed two days after its day (`VENTI_PLAN_DAYS`), by the server's date in UTC; the cleanup looks once an hour. A group and who is in it are kept until its members delete it or the last of them leaves. Everything a pilot put into groups goes when the pilot deletes the account.
+- **What the dumps hold.** The groups, their names and who is in them: yes. The plans: no, see [Backup](#backup).
+- **What bounds them.** An account is in at most 20 groups, a group has at most 50 members and 100 plans, and an account makes 10 groups, tries 20 invite codes and posts or changes 50 plans a day at most. The numbers are in `crates/server/src/groups.rs` with their reasons.
+- **Nobody can report a group or a plan to you yet**, and no command removes one or renames one ([plan.md](../docs/plan.md#needed-from-the-owner)). In a group, its keeper is who clears up: the keeper deletes any plan and removes any member. If something has to go all the same, because a complaint reached you some other way, the database is where it is done:
+
+```sql
+-- The groups, with who keeps each and how many members and plans it has.
+SELECT g.id, g.name, k.handle AS keeper, g.created_at,
+       (SELECT count(*) FROM group_members m WHERE m.group_id = g.id) AS members,
+       (SELECT count(*) FROM group_plans p WHERE p.group_id = g.id) AS plans
+FROM groups g JOIN accounts k ON k.id = g.keeper_id
+ORDER BY g.created_at, g.id;
+
+-- The plans of one group, with who is in on each.
+SELECT p.id, p.day, p.meet_at, p.place, a.handle AS posted_by,
+       (SELECT string_agg(i.handle, ', ' ORDER BY x.since, x.account_id)
+        FROM group_plan_pilots x JOIN accounts i ON i.id = x.account_id
+        WHERE x.plan_id = p.id) AS pilots_in
+FROM group_plans p JOIN accounts a ON a.id = p.author_id
+WHERE p.group_id = '<group>'
+ORDER BY p.day, p.meet_at NULLS LAST, p.created_at, p.id;
+
+-- A new name for one group.
+UPDATE groups SET name = '<name>' WHERE id = '<group>';
+-- One plan removed, with who was in on it.
+DELETE FROM group_plans WHERE id = '<plan>';
+-- One group removed, with its members' places in it and all its plans. This cannot be undone.
+DELETE FROM groups WHERE id = '<group>';
+```
+
+Do not delete rows of `group_members` by hand to remove a member: the database refuses to take a group's keeper out of it, and a member's plans go with the member's row. Nobody is told about any of these statements, and the apps find out when they next ask.
+
+None of this has run on a real server. The statements were tried on 2026-11-20 on a development machine against PostgreSQL 16 with PostGIS in a container, on a database the store's tests had filled; not through `docker compose exec`, in the image a server runs *(to verify on the first real install)*.
+
 ## The connector
 
 The server answers a pilot's own Claude or ChatGPT at `https://<domain>/mcp`: wind stations and airspace, for reading, without sign-in. [docs/mcp.md](../docs/mcp.md) says what it offers, how a pilot adds it and what the server learns from it. It is on as soon as the server runs. There is nothing to set.
@@ -370,9 +411,11 @@ The optional forecast service (`open-meteo`, profile `forecasts`) is not confine
 
 `backup.sh` writes one dump of the whole database per run and deletes dumps older than 14 days (`VENTI_BACKUP_KEEP_DAYS`). It checks the new dump before it deletes anything. It takes the dump as the database's superuser, from inside the database's container, and the dump says which role owns each table.
 
-The dump holds everything the server knows: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files, and the reports pilots sent, with who sent them and what they wrote. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
+The dump holds everything the server knows but two things named below: the weather it collected, and every account with its password hash, its signed-in devices and its flights with their files, the reports pilots sent, with who sent them and what they wrote, and the groups pilots made, with their names and who is in which. There is nothing else to back up for these; flight files are not kept in a folder. That also means a dump is personal data. The script makes the backup folder readable by its owner only; wherever you copy dumps to has to be as careful.
 
 One thing is left out of the dump on purpose: **live tracks**, the positions pilots share while they fly. The server removes each one 48 hours after its flight (`VENTI_LIVE_HOURS`), and a dump that held them would keep them for as long as dumps are kept. The dump has the two tables and none of their rows; it does keep the list of identifiers that live tracks have used, which holds no position. After a restore, nobody's live track is there; a flight that is under way begins its track anew with the next positions its app sends. Tried on 2026-11-19 on a development database with a track of 43,200 positions: the dump shrank from 698 kB to 74 kB, restored without complaint into an empty database, and the restored tables took a new track. *(To verify on the first real install, with `backup.sh` itself: that test ran `pg_dump` by hand with the script's two `--exclude-table-data` options.)*
+
+The other thing left out, for the same reason: **the plans of groups**, which say where people mean to be on a day. The server removes each one two days after its day (`VENTI_PLAN_DAYS`). The dump has the two tables (`group_plans`, `group_plan_pilots`) and none of their rows; the groups and their members are in it. After a restore the groups are there and their plans are not: plans for the days ahead have to be posted again by whoever posted them. Tried on 2026-11-20 on a development database with two groups, four members, two plans and four pilots who were in: the restored database had the groups and the members, no plan, and took a new one. *(To verify on the first real install, with `backup.sh` itself: that test too ran `pg_dump` by hand, with the script's four `--exclude-table-data` options.)*
 
 ```bash
 /opt/venti/deploy/backup.sh
@@ -493,7 +536,7 @@ SELECT count(*) FILTER (WHERE used_at IS NULL AND (expires_at IS NULL OR expires
 FROM invites;
 ```
 
-The log also has a line when an account is created or deleted, when a password is changed, for every wrong password, when an uploaded file had to be given up on, and once a day while reports are open, with their number. No line holds a password or a session token, and none holds anything of a report: not who sent it, not what or whom it is about, not a word of it.
+The log also has a line when an account is created or deleted, when a password is changed, for every wrong password, when an uploaded file had to be given up on, and once a day while reports are open, with their number. No line holds a password or a session token, and none holds anything of a report: not who sent it, not what or whom it is about, not a word of it. None holds anything of a group either; see [Groups](#groups).
 
 **How much log there is.** Docker keeps five files of ten megabytes for each of the three services and drops the oldest (`logging:` in `docker-compose.yml`), so the logs take 150 MB at most and `docker compose logs` reaches back as far as that goes. The server itself writes nothing per request. A refusal for too many requests is one line per address and window. A failure that repeats with every request (the database is away, the server is busy, requests run out of time) is written once, and then as one line every ten seconds that says how many more there were. The server's tests hold it to that: 2,500 refused requests and 40 that time out may leave 4 kB of log, and leave a handful of lines. Caddy's own log holds no line per request either, because the `Caddyfile` has no `log` directive; if you add one, the rotation above still bounds it.
 
@@ -521,11 +564,12 @@ All settings are described in `env.example`. The ones that deserve a second thou
 - **`VENTI_REGISTRATION`** is who may create an account; see [Accounts](#accounts).
 - **`VENTI_ACCOUNT_FLIGHTS`** and **`VENTI_ACCOUNT_STORAGE_MB`** are how much one account may keep: 25,000 flights and 4,096 MB of flight files unless set. A pilot does not reach either by flying; they are what keeps one account from filling the disk. The database stores the files compressed, in about a third of their size, so an account that is full takes about 1.4 GB there. With the query under [Looking inside](#looking-inside) you see what each account keeps. Lowering a number deletes nothing: an account above it keeps what it has and cannot add to it.
 - **`VENTI_REPORT_DAYS`** is for how many days a report is kept after you closed it: 90 unless set. An open report is kept until it is closed, whatever this says. Lowering the number removes the closed reports that are older, at the next daily cleanup.
+- **`VENTI_PLAN_DAYS`** is for how many days a plan that the members of a group made for a flying day is kept after that day: 2 unless set, and 1 at least. The day ends by the server's clock in UTC. Lowering the number removes the plans that are older within the hour; raising it brings none back.
 - **`VENTI_NETWORK`** moves the services' private network; see [The visitor's address](#the-visitors-address).
 
-Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), how many forecasts one address may make the server fetch (12 places an hour; forecasts that are at hand are not counted), how many reports one account may send (20 a day), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs` and `crates/server/src/api/mcp.rs` with their reasons.
+Not settings, because nobody should have to tune them: how many wrong passwords are tolerated (10 an hour for one account, 30 an hour from one address), how many accounts one address may try to create (10 an hour), how large a flight file may be (4 MB) and how many one account may upload (1000 a day), how long an unused session lasts (400 days), how many forecasts one address may make the server fetch (12 places an hour; forecasts that are at hand are not counted), how many reports one account may send (20 a day), what bounds groups (see [Groups](#groups)), and how much the connector takes (64 kB a request, 10 seconds for an answer, 120 requests a minute from one address). An IPv6 visitor counts as its /64 network, and one /48 network as a whole gets four times what one address gets. They are in `crates/server/src/accounts/mod.rs`, `crates/server/src/groups.rs` and `crates/server/src/api/mcp.rs` with their reasons.
 
-**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, accounts, devices), 11 MB when full; there are ten. A server with a few hundred pilots uses a few hundred places. If the log says
+**The counting has a size.** Each of these counts is a table in the server's memory with room for 100,000 addresses (or handles, accounts, devices), 11 MB when full; there are thirteen, three of them for what accounts do with groups. A server with a few hundred pilots uses a few hundred places. If the log says
 
 ```
 the table of addresses that asked the connector is full: 100000 are being counted

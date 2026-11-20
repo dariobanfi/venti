@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 }
 
 #[tokio::test]
@@ -681,4 +681,264 @@ async fn deleting_an_account_leaves_no_row_that_names_it() {
         .unwrap();
     assert!(invite.get::<_, bool>(0));
     assert_eq!(invite.get::<_, Option<String>>(1), None);
+}
+
+/// Every migration before groups, in order.
+const BEFORE_GROUPS: [&str; 9] = [
+    include_str!("../migrations/0001_stations_observations_runs.sql"),
+    include_str!("../migrations/0002_accounts_sessions_flights.sql"),
+    include_str!("../migrations/0003_airspace.sql"),
+    include_str!("../migrations/0004_airspace_coverage.sql"),
+    include_str!("../migrations/0005_sites.sql"),
+    include_str!("../migrations/0006_forecast_models.sql"),
+    include_str!("../migrations/0007_live_tracks.sql"),
+    include_str!("../migrations/0008_public_flights.sql"),
+    include_str!("../migrations/0009_reports_and_takedowns.sql"),
+];
+
+#[tokio::test]
+async fn a_database_from_before_groups_is_upgraded_in_place() {
+    let Some(url) = fresh_schema("upgrade_from_9").await else {
+        return;
+    };
+    // A database as the server left it before there were groups, with two
+    // accounts.
+    let old = look(&url).await;
+    for migration in BEFORE_GROUPS {
+        old.batch_execute(migration).await.unwrap();
+    }
+    old.batch_execute(
+        "CREATE TABLE schema_migrations (
+             version    integer PRIMARY KEY,
+             name       text NOT NULL,
+             applied_at timestamptz NOT NULL DEFAULT now()
+         );
+         INSERT INTO schema_migrations (version, name)
+             SELECT n, 'migration ' || n FROM generate_series(1, 9) AS n;
+         INSERT INTO accounts (id, handle, display_name, created_at) VALUES
+             ('000000000000000000000dario', 'dario', 'Dario B.', '2026-11-18 09:00+00'),
+             ('0000000000000000000000anna', 'anna', 'Anna A.', '2026-11-18 09:00+00');",
+    )
+    .await
+    .unwrap();
+
+    let store = PgStore::connect(&url).await.unwrap();
+
+    let dario = store.account("dario").await.unwrap().unwrap();
+    let anna = store.account("anna").await.unwrap().unwrap();
+    assert_eq!(
+        dario.display_name, "Dario B.",
+        "what was there is still there"
+    );
+    // Nobody is in a group, and the accounts that were there can make one
+    // and come into it at once.
+    assert!(store.groups_of(&dario.id).await.unwrap().is_empty());
+    let now = chrono::DateTime::from_timestamp(1_795_100_000, 0).unwrap();
+    let invite = venti_store::SecretHash([7; 32]);
+    let room = venti_store::GroupRoom {
+        groups_per_account: 20,
+        members_per_group: 50,
+    };
+    let new = venti_store::NewGroup {
+        id: "0000000000000000000000000g".to_owned(),
+        name: "Mustergruppe".to_owned(),
+        created_at: now,
+        keeper_id: dario.id.clone(),
+        invite,
+    };
+    let made = store.create_group(&new, &room).await.unwrap();
+    assert!(matches!(made, venti_store::GroupCreation::Created(_)));
+    let joined = store
+        .join_group(&anna.id, &invite, &room, now)
+        .await
+        .unwrap();
+    assert!(
+        matches!(joined, venti_store::GroupJoining::Joined(group) if group.members == 2),
+        "the group takes a second member"
+    );
+}
+
+#[tokio::test]
+async fn the_database_itself_keeps_a_group_whole() {
+    let Some(url) = fresh_schema("groups_kept_whole").await else {
+        return;
+    };
+    PgStore::connect(&url).await.unwrap();
+    let tables = look(&url).await;
+    // A group of two with a plan each, each in on the other's, written
+    // past the store: what follows must hold for any writer.
+    tables
+        .batch_execute(
+            "INSERT INTO accounts (id, handle, display_name, created_at) VALUES
+                 ('a1', 'dario', 'Dario', '2026-11-18 09:00+00'),
+                 ('a2', 'anna', 'Anna', '2026-11-18 09:00+00'),
+                 ('a3', 'eve', 'Eve', '2026-11-18 09:00+00');
+             BEGIN;
+             INSERT INTO groups (id, name, created_at, keeper_id)
+                 VALUES ('g1', 'Mustergruppe', '2026-11-18 10:00+00', 'a1');
+             INSERT INTO group_members (group_id, account_id, joined_at) VALUES
+                 ('g1', 'a1', '2026-11-18 10:00+00'), ('g1', 'a2', '2026-11-18 10:05+00');
+             COMMIT;
+             INSERT INTO group_plans (id, group_id, author_id, day, place, created_at, changed_at)
+             VALUES ('p1', 'g1', 'a1', '2026-11-19', 'Musterberg', now(), now()),
+                    ('p2', 'g1', 'a2', '2026-11-19', 'Musterberg', now(), now());
+             INSERT INTO group_plan_pilots (plan_id, group_id, account_id, since) VALUES
+                 ('p1', 'g1', 'a1', now()), ('p1', 'g1', 'a2', now()),
+                 ('p2', 'g1', 'a2', now()), ('p2', 'g1', 'a1', now());",
+        )
+        .await
+        .unwrap();
+    // What a step that must fail fails with. Whatever it began is undone
+    // before the next.
+    let refused = |statements: &'static str| {
+        let tables = &tables;
+        async move {
+            let outcome = tables.batch_execute(statements).await;
+            tables.batch_execute("ROLLBACK").await.unwrap();
+            let error = outcome.expect_err(statements);
+            error.code().map(|code| code.code().to_owned())
+        }
+    };
+    let violation = Some("23503".to_owned());
+
+    // A group has a keeper who is one of its members. Not an account that
+    // is not in it, not a member who has gone, and not from its first
+    // moment on either.
+    assert_eq!(
+        refused("BEGIN; UPDATE groups SET keeper_id = 'a3' WHERE id = 'g1'; COMMIT").await,
+        violation
+    );
+    assert_eq!(
+        refused(
+            "BEGIN; DELETE FROM group_members WHERE group_id = 'g1' AND account_id = 'a1'; COMMIT"
+        )
+        .await,
+        violation
+    );
+    assert_eq!(
+        refused("BEGIN; DELETE FROM accounts WHERE id = 'a1'; COMMIT").await,
+        violation
+    );
+    assert_eq!(
+        refused(
+            "BEGIN; INSERT INTO groups (id, name, created_at, keeper_id)
+                 VALUES ('g2', 'Nobody in it', now(), 'a1'); COMMIT"
+        )
+        .await,
+        violation
+    );
+    // A plan is a member's, and so is a word on a plan.
+    assert_eq!(
+        refused(
+            "BEGIN; INSERT INTO group_plans
+                 (id, group_id, author_id, day, place, created_at, changed_at)
+             VALUES ('p3', 'g1', 'a3', '2026-11-19', 'x', now(), now()); COMMIT"
+        )
+        .await,
+        violation
+    );
+    assert_eq!(
+        refused(
+            "BEGIN; INSERT INTO group_plan_pilots (plan_id, group_id, account_id, since)
+             VALUES ('p1', 'g1', 'a3', now()); COMMIT"
+        )
+        .await,
+        violation
+    );
+    let counts = || {
+        let tables = &tables;
+        async move {
+            let row = tables
+                .query_one(
+                    "SELECT (SELECT count(*) FROM groups), (SELECT count(*) FROM group_members),
+                            (SELECT count(*) FROM group_plans),
+                            (SELECT count(*) FROM group_plan_pilots)",
+                    &[],
+                )
+                .await
+                .unwrap();
+            let count = |index: usize| row.get::<_, i64>(index);
+            (count(0), count(1), count(2), count(3))
+        }
+    };
+    assert_eq!(counts().await, (1, 2, 2, 4), "nothing of that was stored");
+
+    // A member who goes takes their plan and their word on the other's
+    // along, whoever deletes the row and however: here the account goes.
+    tables
+        .batch_execute("DELETE FROM accounts WHERE id = 'a2'")
+        .await
+        .unwrap();
+    assert_eq!(counts().await, (1, 1, 1, 1));
+    // And a group that goes takes everything along.
+    tables
+        .batch_execute("DELETE FROM groups WHERE id = 'g1'")
+        .await
+        .unwrap();
+    assert_eq!(counts().await, (0, 0, 0, 0));
+}
+
+#[tokio::test]
+async fn the_questions_about_groups_and_plans_use_their_indexes() {
+    let Some(url) = fresh_schema("group_indexes").await else {
+        return;
+    };
+    PgStore::connect(&url).await.unwrap();
+    let tables = look(&url).await;
+    // As for airspace: with empty tables the planner would read them from
+    // end to end; forbidding that shows whether an index can answer.
+    tables
+        .batch_execute("SET enable_seqscan = off")
+        .await
+        .unwrap();
+    let plan_of = |query: &'static str| {
+        let tables = &tables;
+        async move {
+            let plan = tables.query(query, &[]).await.unwrap();
+            let plan: Vec<String> = plan.iter().map(|row| row.get(0)).collect();
+            plan.join("\n")
+        }
+    };
+
+    // The store's own questions, with their parameters written in. The
+    // group an invite code lets a pilot into:
+    let plan =
+        plan_of("EXPLAIN SELECT id FROM groups WHERE invite_hash = '\\x07'::bytea FOR UPDATE")
+            .await;
+    assert!(plan.contains("groups_invite_hash_key"), "{plan}");
+    // The groups an account is in:
+    let plan = plan_of(
+        "EXPLAIN SELECT g.id FROM groups g JOIN accounts k ON k.id = g.keeper_id
+         JOIN group_members m ON m.group_id = g.id
+         WHERE m.account_id = '000000000000000000000dario' ORDER BY m.joined_at, g.id",
+    )
+    .await;
+    assert!(plan.contains("group_members_account_idx"), "{plan}");
+    // The groups an account keeps, for when it goes:
+    let plan = plan_of(
+        "EXPLAIN SELECT id FROM groups WHERE keeper_id = '000000000000000000000dario'
+         ORDER BY id FOR UPDATE",
+    )
+    .await;
+    assert!(plan.contains("groups_keeper_idx"), "{plan}");
+    // A group's plans from a day on:
+    let plan = plan_of(
+        "EXPLAIN SELECT p.id FROM group_plans p JOIN accounts a ON a.id = p.author_id
+         WHERE p.group_id = '0000000000000000000000000g' AND p.day >= '2026-11-18'
+           AND (NULL::date IS NULL OR p.day <= NULL)
+         ORDER BY p.day, p.meet_at NULLS LAST, p.created_at, p.id",
+    )
+    .await;
+    assert!(plan.contains("group_plans_group_day_idx"), "{plan}");
+    // Who is in on those plans:
+    let plan = plan_of(
+        "EXPLAIN SELECT i.plan_id FROM group_plan_pilots i JOIN accounts a ON a.id = i.account_id
+         WHERE i.plan_id = ANY(ARRAY['0000000000000000000000000p'])
+         ORDER BY i.plan_id, i.since, i.account_id",
+    )
+    .await;
+    assert!(plan.contains("group_plan_pilots_pkey"), "{plan}");
+    // The plans of days gone by:
+    let plan = plan_of("EXPLAIN DELETE FROM group_plans WHERE day < '2026-11-16'").await;
+    assert!(plan.contains("group_plans_day_idx"), "{plan}");
 }

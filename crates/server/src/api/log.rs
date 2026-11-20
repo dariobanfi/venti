@@ -105,20 +105,35 @@ pub(crate) fn request_span<B>(request: &Request<B>) -> Span {
     )
 }
 
-/// What stands in the log for the identifier of a live track.
+/// What stands in the log for what a path names: the identifier of a live
+/// track, or a group with whatever of it the path goes on to name.
 const LEFT_OUT: &str = "…";
+
+/// The beginnings of paths that go on to name something the log must not
+/// hold, each with the paths under it that name nothing.
+const NAMING: [(&str, &[&str]); 3] = [
+    ("/v1/live/", &["positions"]),
+    ("/live/", &[]),
+    ("/v1/groups/", &["join", "plans"]),
+];
 
 /// A request's path as the log may hold it.
 ///
 /// Whoever has the identifier of a live track can see where its pilot is,
 /// and for a track shared by link nothing else is needed. So what follows
 /// `/v1/live/` or `/live/` in a path is left out of the log, whatever it
-/// is: an identifier, or something a client sent in its place. The one
-/// path under them that names no track stays as it is.
+/// is: an identifier, or something a client sent in its place.
+///
+/// A group is nobody's business but its members'. What follows
+/// `/v1/groups/` names a group, and after it a plan or a member by their
+/// handle, or is something a client sent in their place, an invite code
+/// perhaps: it is left out as well.
+///
+/// The paths under these that name nothing stay as they are.
 pub(crate) fn logged_path(path: &str) -> std::borrow::Cow<'_, str> {
-    for under in ["/v1/live/", "/live/"] {
+    for (under, naming_nothing) in NAMING {
         if let Some(rest) = path.strip_prefix(under) {
-            if rest.is_empty() || (under == "/v1/live/" && rest == "positions") {
+            if rest.is_empty() || naming_nothing.contains(&rest) {
                 break;
             }
             return format!("{under}{LEFT_OUT}").into();
@@ -180,8 +195,32 @@ mod tests {
             assert_eq!(said, logged, "{path}");
             assert!(!said.contains(id));
         }
+        // So is whatever a path under a group names: the group, a plan, a
+        // member, or an invite code a client put where none belongs.
+        let handle = "xq_member";
+        for path in [
+            format!("/v1/groups/{id}"),
+            format!("/v1/groups/{id}/invite"),
+            format!("/v1/groups/{id}/keeper"),
+            format!("/v1/groups/{id}/members/{handle}"),
+            format!("/v1/groups/{id}/plans"),
+            format!("/v1/groups/{id}/plans/{id}/in"),
+            format!("/v1/groups/join/{id}"),
+            format!("/v1/groups/plans/{id}"),
+            "/v1/groups/7k3m-9q2x-4r8t-1v6w".to_owned(),
+            "/v1/groups/x".to_owned(),
+        ] {
+            let said = logged_path(&path);
+            assert_eq!(said, "/v1/groups/…", "{path}");
+            assert!(!said.contains(id) && !said.contains(handle));
+        }
         // Everything else is logged as it came.
         for path in [
+            "/v1/groups",
+            "/v1/groups/",
+            "/v1/groups/join",
+            "/v1/groups/plans",
+            "/v1/groupies/0123456789abcdefghjkmnpqrs",
             "/v1/live",
             "/v1/live/",
             "/v1/live/positions",

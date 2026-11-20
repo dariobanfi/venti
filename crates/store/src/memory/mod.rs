@@ -1,11 +1,13 @@
 mod accounts;
 mod flights;
+mod groups;
 mod live;
 mod reports;
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
+use chrono::NaiveDate;
 use venti_domain::{
     Airspace, AirspaceId, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId,
     Timestamp,
@@ -14,8 +16,10 @@ use venti_domain::{
 use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
-    FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, NewReport, OutdatedFlight,
+    FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
+    KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
+    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
     PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
     RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
     Store, StoreError, Suspension, Visibility, VisibilityChange, airspace, batch, forecast, site,
@@ -47,6 +51,7 @@ struct Inner {
     accounts: accounts::Accounts,
     flights: flights::Flights,
     live: live::Live,
+    groups: groups::Groups,
     reports: reports::Reports,
 }
 
@@ -431,6 +436,7 @@ impl Store for MemoryStore {
         inner.accounts.delete(account_id);
         inner.flights.delete_account(account_id);
         inner.live.delete_account(account_id);
+        inner.groups.delete_account(account_id);
         inner.reports.delete_account(account_id);
         Ok(())
     }
@@ -670,6 +676,173 @@ impl Store for MemoryStore {
         _now: Timestamp,
     ) -> Result<u64, StoreError> {
         Ok(self.lock().live.prune(ended_before))
+    }
+
+    async fn create_group(
+        &self,
+        new: &NewGroup,
+        room: &GroupRoom,
+    ) -> Result<GroupCreation, StoreError> {
+        let inner = &mut *self.lock();
+        inner.groups.create(new, room, &inner.accounts)
+    }
+
+    async fn join_group(
+        &self,
+        account_id: &str,
+        invite: &SecretHash,
+        room: &GroupRoom,
+        now: Timestamp,
+    ) -> Result<GroupJoining, StoreError> {
+        let inner = &mut *self.lock();
+        inner
+            .groups
+            .join(account_id, invite, room, now, &inner.accounts)
+    }
+
+    async fn groups_of(&self, account_id: &str) -> Result<Vec<Group>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.groups.of_account(account_id, &inner.accounts))
+    }
+
+    async fn group(&self, id: &str, account_id: &str) -> Result<Option<GroupMembers>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.groups.get(id, account_id, &inner.accounts))
+    }
+
+    async fn rename_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        name: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        let inner = &mut *self.lock();
+        inner.groups.rename(id, keeper_id, name, &inner.accounts)
+    }
+
+    async fn renew_group_invite(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        invite: &SecretHash,
+    ) -> Result<KeeperAct<()>, StoreError> {
+        self.lock().groups.renew_invite(id, keeper_id, invite)
+    }
+
+    async fn hand_over_group(
+        &self,
+        id: &str,
+        keeper_id: &str,
+        member_handle: &str,
+    ) -> Result<KeeperAct<GroupMembers>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .hand_over(id, keeper_id, member_handle, &inner.accounts))
+    }
+
+    async fn remove_group_member(
+        &self,
+        id: &str,
+        by_account_id: &str,
+        member_handle: &str,
+    ) -> Result<MemberRemoval, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .groups
+            .remove_member(id, by_account_id, member_handle, &inner.accounts))
+    }
+
+    async fn delete_group(&self, id: &str, keeper_id: &str) -> Result<KeeperAct<()>, StoreError> {
+        Ok(self.lock().groups.delete(id, keeper_id))
+    }
+
+    async fn save_plan(&self, new: &NewPlan, room: &PlanRoom) -> Result<PlanSaving, StoreError> {
+        let inner = &mut *self.lock();
+        inner.groups.save_plan(new, room, &inner.accounts)
+    }
+
+    async fn change_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        details: &PlanDetails,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        let inner = &mut *self.lock();
+        inner.groups.change_plan(
+            (group_id, plan_id),
+            by_account_id,
+            details,
+            now,
+            gone_before,
+            &inner.accounts,
+        )
+    }
+
+    async fn delete_plan(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        by_account_id: &str,
+        gone_before: NaiveDate,
+    ) -> Result<PlanRemoval, StoreError> {
+        Ok(self
+            .lock()
+            .groups
+            .delete_plan(group_id, plan_id, by_account_id, gone_before))
+    }
+
+    async fn set_plan_in(
+        &self,
+        group_id: &str,
+        plan_id: &str,
+        account_id: &str,
+        is_in: bool,
+        now: Timestamp,
+        gone_before: NaiveDate,
+    ) -> Result<PlanChange, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner.groups.set_in(
+            (group_id, plan_id),
+            account_id,
+            is_in,
+            now,
+            gone_before,
+            &inner.accounts,
+        ))
+    }
+
+    async fn plans_of_group(
+        &self,
+        group_id: &str,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+    ) -> Result<Option<Vec<Plan>>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .groups
+            .plans_of_group(group_id, account_id, from, to, &inner.accounts))
+    }
+
+    async fn plans_for(
+        &self,
+        account_id: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+        limit: usize,
+    ) -> Result<Vec<Plan>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .groups
+            .plans_for(account_id, from, to, limit, &inner.accounts))
+    }
+
+    async fn prune_plans(&self, before: NaiveDate) -> Result<u64, StoreError> {
+        Ok(self.lock().groups.prune_plans(before))
     }
 
     async fn save_report(&self, new: &NewReport) -> Result<ReportSaved, StoreError> {

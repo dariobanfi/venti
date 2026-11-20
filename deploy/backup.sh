@@ -19,11 +19,15 @@
 # dump is a complete backup, and each dump holds personal data and password
 # hashes: the backup folder is readable by its owner only.
 #
-# One thing is left out on purpose: live tracks. They are where pilots were
-# in the last two days, and the server removes each one 48 hours after its
-# flight. A dump that held them would keep them for as long as dumps are
-# kept. After a restore the tables are there and empty; a flight that is
-# under way then begins its live track anew.
+# Two things are left out on purpose. Live tracks: they are where pilots
+# were in the last two days, and the server removes each one 48 hours after
+# its flight. And the plans that the members of groups make for a flying
+# day: they are where people mean to be, and the server removes each one
+# two days after its day. A dump that held either would keep them for as
+# long as dumps are kept. After a restore the tables are there and empty: a
+# flight that is under way begins its live track anew, and the plans for
+# the days ahead have to be posted again. The groups themselves and who is
+# in them are in the dump.
 #
 # The dumps are on the same machine as the database. That protects against a
 # bad migration or a mistaken delete, not against losing the machine: copy
@@ -71,12 +75,14 @@ trap 'rm -f "$partial"' EXIT
 #
 # The rows of the two tables that hold live positions are not dumped; the
 # tables themselves are, and so are the identifiers that live tracks have
-# used, which hold no position. The patterns name the tables in whatever
-# schema they are: without the `*.` a table is found only on the dumping
-# user's search path.
+# used, which hold no position. The same for the two tables that hold the
+# plans of groups and who is in on them. The patterns name the tables in
+# whatever schema they are: without the `*.` a table is found only on the
+# dumping user's search path.
 docker compose exec -T db \
     pg_dump --username postgres --dbname venti --format custom \
     --exclude-table-data='*.live_tracks' --exclude-table-data='*.live_fixes' \
+    --exclude-table-data='*.group_plans' --exclude-table-data='*.group_plan_pilots' \
     > "$partial"
 
 # A dump that pg_restore cannot list is not a backup.

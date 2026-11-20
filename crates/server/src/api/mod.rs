@@ -32,6 +32,11 @@
 //! down stays private, and an account whose publishing is suspended makes
 //! nothing public.
 //!
+//! **What pilots share with a group.** A group and the plans its members
+//! make for a flying day are shown to the group's members and to nobody
+//! else: to any other account a group answers exactly as one that does not
+//! exist ([`groups`]). Nothing of it is in any answer that others read.
+//!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
 
@@ -45,6 +50,7 @@ mod error;
 mod feed;
 mod flights;
 mod forecast;
+mod groups;
 mod health;
 mod live;
 mod log;
@@ -72,9 +78,9 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    MAX_LIVE_BODY_BYTES, PUBLIC_FLIGHTS_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH,
-    STATIONS_PATH,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH,
+    REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -172,6 +178,9 @@ pub struct Settings {
     pub analyser: Analyser,
     /// What bounds live tracking, and for how long a live track is kept.
     pub live: crate::live::Limits,
+    /// What bounds groups and their plans, and for how long a plan is
+    /// kept after its day.
+    pub groups: crate::groups::Limits,
 }
 
 /// What the request handlers work with.
@@ -215,6 +224,9 @@ pub struct Api<S> {
     forecasts: Option<Arc<dyn Forecasts>>,
     /// Live tracking: its limits, and what each account has used of them.
     live: live::Live,
+    /// Groups and plans: their limits, and what each account has used of
+    /// them.
+    groups: groups::Groups,
 }
 
 impl<S: Store> Api<S> {
@@ -291,6 +303,7 @@ impl<S: Store> Api<S> {
             limits,
             forecasts: None,
             live: live::Live::new(settings.live, limits.watched_keys),
+            groups: groups::Groups::new(settings.groups, limits.watched_keys),
         }
     }
 
@@ -343,8 +356,9 @@ impl<S: Store> Api<S> {
     /// The request log names the method and the path and never a header,
     /// so no token reaches it; a password travels in a body, which is not
     /// logged either. Of a path that names a live track it leaves the
-    /// track's identifier out. How much is written about requests that
-    /// fail is said in [`log`].
+    /// track's identifier out, and of a path under a group everything
+    /// that names the group, a plan or a member. How much is written
+    /// about requests that fail is said in [`log`].
     pub fn router(mut self, cors: &Cors) -> Router {
         self.mcp = mcp::protocol(self.sources.values(), cors, &self.public_url);
         let deadline = |limit: Duration| {
@@ -390,6 +404,36 @@ impl<S: Store> Api<S> {
             .route(
                 "/v1/live/{id}",
                 get(live::show::<S>).delete(live::delete::<S>),
+            )
+            .route(
+                GROUPS_PATH,
+                post(groups::create::<S>).get(groups::list::<S>),
+            )
+            .route(GROUP_JOIN_PATH, post(groups::join::<S>))
+            .route(PLAN_BOARD_PATH, get(groups::board::<S>))
+            .route(
+                "/v1/groups/{id}",
+                get(groups::show::<S>)
+                    .patch(groups::rename::<S>)
+                    .delete(groups::delete::<S>),
+            )
+            .route("/v1/groups/{id}/invite", post(groups::renew_invite::<S>))
+            .route("/v1/groups/{id}/keeper", put(groups::hand_over::<S>))
+            .route(
+                "/v1/groups/{id}/members/{handle}",
+                delete(groups::remove_member::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/plans",
+                get(groups::plans::<S>).post(groups::post_plan::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/plans/{plan}",
+                put(groups::change_plan::<S>).delete(groups::delete_plan::<S>),
+            )
+            .route(
+                "/v1/groups/{id}/plans/{plan}/in",
+                put(groups::say_in::<S>).delete(groups::take_back::<S>),
             )
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));

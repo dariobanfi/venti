@@ -3,10 +3,10 @@
 //! Both sides use these functions, the client to build a request and the
 //! server to read it, so there is one definition of the format.
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use venti_domain::{BoundingBox, GeoError, GeoPoint, StationId, Timestamp};
 
-use super::{FlightId, Handle, LiveTrackId};
+use super::{FlightId, GroupId, Handle, LiveTrackId, PlanId};
 
 /// Path of the health endpoint.
 pub const HEALTH_PATH: &str = "/v1/health";
@@ -334,6 +334,131 @@ impl PilotRequest {
 /// track. What is reported is named in the body, not in the path: the
 /// identifier of a live track is the key to it and belongs in no log.
 pub const REPORTS_PATH: &str = "/v1/reports";
+
+/// Path of the groups a pilot is in: making one, and listing them.
+pub const GROUPS_PATH: &str = "/v1/groups";
+
+/// Path that takes an invite code and makes its sender a member of the
+/// code's group. The code is sent in the body, not in the path: whoever
+/// has it can come into the group, and a path is what a log names.
+pub const GROUP_JOIN_PATH: &str = "/v1/groups/join";
+
+/// Path of the plans of every group a pilot is in.
+pub const PLAN_BOARD_PATH: &str = "/v1/groups/plans";
+
+/// Path of one group: reading it, renaming it and deleting it.
+pub fn group_path(group: &GroupId) -> String {
+    format!("{GROUPS_PATH}/{group}")
+}
+
+/// Path that makes a group a new invite code.
+pub fn group_invite_path(group: &GroupId) -> String {
+    format!("{GROUPS_PATH}/{group}/invite")
+}
+
+/// Path that hands the keeping of a group to another member.
+pub fn group_keeper_path(group: &GroupId) -> String {
+    format!("{GROUPS_PATH}/{group}/keeper")
+}
+
+/// Path of one member of a group: for leaving the group, and for the
+/// keeper to remove a member.
+pub fn group_member_path(group: &GroupId, member: &Handle) -> String {
+    format!("{GROUPS_PATH}/{group}/members/{member}")
+}
+
+/// Path of a group's plans: posting one, and listing them.
+pub fn group_plans_path(group: &GroupId) -> String {
+    format!("{GROUPS_PATH}/{group}/plans")
+}
+
+/// Path of one plan: changing it and deleting it.
+pub fn plan_path(group: &GroupId, plan: &PlanId) -> String {
+    format!("{GROUPS_PATH}/{group}/plans/{plan}")
+}
+
+/// Path of a pilot's word on a plan: saying that they are in, and taking
+/// that back.
+pub fn plan_in_path(group: &GroupId, plan: &PlanId) -> String {
+    format!("{GROUPS_PATH}/{group}/plans/{plan}/in")
+}
+
+/// A request for the plans of one group.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlansRequest {
+    /// The group.
+    pub group: GroupId,
+    /// Which days.
+    pub days: PlanDays,
+}
+
+impl PlansRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        self.days.query(group_plans_path(&self.group))
+    }
+}
+
+/// A request for the plans of every group the pilot is in.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlanBoardRequest {
+    /// Which days.
+    pub days: PlanDays,
+}
+
+impl PlanBoardRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        self.days.query(PLAN_BOARD_PATH.to_owned())
+    }
+}
+
+/// The days a list of plans is asked for. One day, which is what a board
+/// of "who flies where today" shows, is that day as both.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlanDays {
+    /// The first day wanted. `None` leaves it to the server, which starts
+    /// at the date its own clock shows in UTC. Away from Greenwich that
+    /// can be the day before or after the pilot's own, so a client names
+    /// the day it means.
+    pub from: Option<NaiveDate>,
+    /// The last day wanted. `None` asks for every day from the first on.
+    pub to: Option<NaiveDate>,
+}
+
+impl PlanDays {
+    fn query(&self, path: String) -> String {
+        with_query(
+            path,
+            [
+                ("from", self.from.map(format_day)),
+                ("to", self.to.map(format_day)),
+            ],
+        )
+    }
+}
+
+/// A `from` or `to` parameter that is not a date.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{0:?} is not a date written YYYY-MM-DD, such as 2026-11-18")]
+pub struct DayError(pub String);
+
+/// Writes a day as `YYYY-MM-DD`.
+pub fn format_day(day: NaiveDate) -> String {
+    day.format("%Y-%m-%d").to_string()
+}
+
+/// Reads a day written as `YYYY-MM-DD`.
+pub fn parse_day(text: &str) -> Result<NaiveDate, DayError> {
+    NaiveDate::parse_from_str(text, "%Y-%m-%d")
+        .ok()
+        // Only as this crate writes a day: the parser alone also takes
+        // "2026-1-5" and "+2026-01-05".
+        .filter(|day| format_day(*day) == text)
+        // Whatever was sent in place of a date is not repeated back at
+        // length.
+        .ok_or_else(|| DayError(text.chars().take(24).collect()))
+}
 
 /// Path of everyone's public flights in one list.
 pub const PUBLIC_FLIGHTS_PATH: &str = "/v1/flights/public";
@@ -751,6 +876,86 @@ mod tests {
         for unknown in ["", "Newest", "points", "newest,score"] {
             assert_eq!(unknown.parse::<FlightSort>(), Err(FlightSortError));
         }
+    }
+
+    #[test]
+    fn group_and_plan_requests_build_their_paths() {
+        let group: GroupId = "0123456789abcdefghjkmnpqrs".parse().unwrap();
+        let plan: PlanId = "srqpnmkjhgfedcba9876543210".parse().unwrap();
+        assert_eq!(group_path(&group), "/v1/groups/0123456789abcdefghjkmnpqrs");
+        assert_eq!(
+            group_invite_path(&group),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/invite"
+        );
+        assert_eq!(
+            group_keeper_path(&group),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/keeper"
+        );
+        assert_eq!(
+            group_member_path(&group, &Handle::new("Mara").unwrap()),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/members/mara"
+        );
+        assert_eq!(
+            plan_path(&group, &plan),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/plans/srqpnmkjhgfedcba9876543210"
+        );
+        assert_eq!(
+            plan_in_path(&group, &plan),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/plans/srqpnmkjhgfedcba9876543210/in"
+        );
+
+        let day = |day: u32| NaiveDate::from_ymd_opt(2026, 11, day).unwrap();
+        let mut plans = PlansRequest {
+            group,
+            days: PlanDays::default(),
+        };
+        assert_eq!(
+            plans.path_and_query(),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/plans"
+        );
+        plans.days.from = Some(day(18));
+        assert_eq!(
+            plans.path_and_query(),
+            "/v1/groups/0123456789abcdefghjkmnpqrs/plans?from=2026-11-18"
+        );
+        assert_eq!(
+            PlanBoardRequest::default().path_and_query(),
+            "/v1/groups/plans"
+        );
+        // The board of one day.
+        let today = PlanBoardRequest {
+            days: PlanDays {
+                from: Some(day(18)),
+                to: Some(day(18)),
+            },
+        };
+        assert_eq!(
+            today.path_and_query(),
+            "/v1/groups/plans?from=2026-11-18&to=2026-11-18"
+        );
+    }
+
+    #[test]
+    fn a_day_is_read_only_as_it_is_written() {
+        let day = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        assert_eq!(format_day(day), "2026-01-05");
+        assert_eq!(parse_day("2026-01-05"), Ok(day));
+        for bad in [
+            "",
+            "2026-1-5",
+            "+2026-01-05",
+            " 2026-01-05",
+            "2026-01-05 ",
+            "2026-02-30",
+            "05.01.2026",
+            "2026-01-05T00:00:00Z",
+            "today",
+        ] {
+            assert_eq!(parse_day(bad), Err(DayError(bad.to_owned())), "{bad:?}");
+        }
+        // What stands in a date's place is not repeated at length.
+        let long = "x".repeat(500);
+        assert_eq!(parse_day(&long), Err(DayError("x".repeat(24))));
     }
 
     #[test]

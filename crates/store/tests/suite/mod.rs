@@ -4,13 +4,15 @@
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
 //! Stations and observations are below; airspace, flying sites, forecasts,
-//! accounts, flights, live tracks and what whoever runs the server does
-//! about them have files of their own.
+//! accounts, flights, live tracks, groups with their plans, and what
+//! whoever runs the server does about what is shared have files of their
+//! own.
 
 mod accounts;
 mod airspace;
 mod flights;
 mod forecasts;
+mod groups;
 mod live;
 mod moderation;
 mod sites;
@@ -19,6 +21,7 @@ pub(crate) use accounts::*;
 pub(crate) use airspace::*;
 pub(crate) use flights::*;
 pub(crate) use forecasts::*;
+pub(crate) use groups::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use sites::*;
@@ -124,6 +127,25 @@ macro_rules! store_suite {
             reports_racing_for_one_subject_are_kept_once,
             a_closed_report_is_kept_for_a_while_and_then_removed,
             a_report_goes_with_either_of_its_accounts,
+            a_group_is_made_with_its_maker_as_keeper_and_only_member,
+            a_pilot_comes_into_a_group_with_its_invite_code,
+            a_group_is_seen_by_its_members_and_by_nobody_else,
+            groups_and_accounts_take_no_more_than_they_have_room_for,
+            joins_racing_for_the_last_place_fill_it_once,
+            a_new_invite_code_ends_the_one_before,
+            a_join_and_a_new_code_never_both_win,
+            only_the_keeper_renames_hands_over_and_deletes_a_group,
+            the_keeper_removes_a_member_and_the_code_ends_with_that,
+            a_member_who_goes_takes_what_they_put_into_the_group,
+            when_the_keeper_goes_the_longest_standing_member_keeps_it,
+            a_group_has_a_keeper_who_is_a_member_whoever_goes_at_once,
+            no_group_or_plan_has_an_identifier_that_cannot_be_one,
+            a_plan_is_stored_with_its_author_in_and_read_back_exactly,
+            plans_are_listed_by_day_and_time_for_the_days_asked_for,
+            members_say_that_they_are_in_and_take_it_back,
+            only_the_author_changes_a_plan_and_the_keeper_deletes_any,
+            a_group_holds_no_more_plans_than_it_has_room_for,
+            plans_of_days_gone_by_are_gone_and_then_removed,
         );
     };
     (@tests $make:path; $($name:ident),* $(,)?) => {

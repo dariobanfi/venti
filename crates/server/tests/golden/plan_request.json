@@ -1,0 +1,10 @@
+{
+  "day": "2026-11-21",
+  "place": "Beispielwiese, Parkplatz",
+  "position": {
+    "lat": 47.6922,
+    "lon": 11.7675
+  },
+  "meet_at": "09:30",
+  "note": "A made-up plan. Whoever has room in the car says so here."
+}

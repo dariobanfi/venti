@@ -130,7 +130,9 @@ pub struct Limits {
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
-    /// has ten. The size is not what the server expects to need, which is
+    /// has thirteen: ten until 2026-11-20, and three since for what an
+    /// account does with groups, which count by account and so cannot be
+    /// filled by strangers. The size is not what the server expects to need, which is
     /// some hundreds: it is what someone who wants to fill a table has to
     /// bring. With IPv6 counted at two levels that is 100,000 IPv4
     /// addresses within a window, or some hundreds to thousands of IPv6

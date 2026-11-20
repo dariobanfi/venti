@@ -8,6 +8,9 @@ import java.util.Locale
 
 /** How a plan's day and time are written and said, and what the board says where it has nothing. */
 object PlanWords {
+    /** The row that takes a plan's place from the pilot's waypoints. */
+    const val FROM_WAYPOINTS = "From my waypoints"
+
     const val SIGNED_OUT =
         "Plans for a flying day are shared in groups on your Venti server. Sign in under Settings, Account, " +
             "then make a group or join one with the code its keeper gives you."

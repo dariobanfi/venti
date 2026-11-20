@@ -147,6 +147,17 @@ class GroupsModelTest {
         assertNull(groups.plan("no such plan"))
         // A row of the board, for someone who cannot see it.
         assertEquals("At 10:30. You, Mara Muster and Jonas Beispiel. Mustergruppe. You are in.", PlanWords.spoken(plan))
+
+        // Today's plan says where it is: the map marks it, with its place
+        // and time. Seen from the day before it is tomorrow's, still
+        // marked; from two days before it is in the board only.
+        val pin = groups.pins(TODAY).single()
+        assertEquals(plan.id, pin.id)
+        assertEquals(checkNotNull(plan.position), pin.position)
+        assertEquals("Musterberg, Startplatz Ost 10:30", pin.label)
+        assertEquals(1, groups.pins(TODAY.minusDays(1)).size)
+        assertTrue(groups.pins(TODAY.minusDays(2)).isEmpty())
+        assertTrue(groups.pins(TODAY.plusDays(1)).isEmpty())
     }
 
     @Test

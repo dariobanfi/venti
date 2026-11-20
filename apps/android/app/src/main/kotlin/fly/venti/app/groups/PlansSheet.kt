@@ -1,5 +1,11 @@
 package fly.venti.app.groups
 
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import fly.venti.app.wind.WindModel
+import fly.venti.app.waypoints.WaypointsModel
+import fly.venti.app.forecast.ForecastPlace
+import fly.venti.app.forecast.ForecastPage
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -85,6 +91,9 @@ private sealed interface Page {
     data object Groups : Page
 
     data class Group(val id: String, val name: String) : Page
+
+    /** The forecast for a plan's place. */
+    data class Forecast(val place: ForecastPlace) : Page
 }
 
 /**
@@ -104,8 +113,14 @@ fun PlansSheet(
     /** Where requests run, so that one carries on when the sheet is closed. */
     requests: CoroutineScope,
     onDismiss: () -> Unit,
+    /** The pilot's waypoints, which a plan's place can be taken from. */
+    waypoints: WaypointsModel? = null,
+    /** Where the forecast for a plan's place is asked for. */
+    wind: WindModel? = null,
+    /** A plan to open at once, as a mark on the map is tapped. */
+    startAt: String? = null,
 ) {
-    var path by remember { mutableStateOf(listOf<Page>(Page.Board)) }
+    var path by remember { mutableStateOf(listOfNotNull<Page>(Page.Board, startAt?.let { Page.Plan(it) })) }
     val page = path.last()
     val open: (Page) -> Unit = { next -> path = path + next }
     val back: () -> Unit = { if (path.size > 1) path = path.dropLast(1) }
@@ -124,6 +139,11 @@ fun PlansSheet(
         BackHandler(enabled = path.size > 1, onBack = back)
         // As tall as the sheet can be, whatever the page holds.
         Box(Modifier.fillMaxHeight()) {
+            // The forecast has its own way back and "Done".
+            if (page is Page.Forecast && wind != null) {
+                ForecastPage(page.place, wind, onBack = back, onDone = onDismiss)
+                return@Box
+            }
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = if (path.size > 1) 4.dp else 20.dp, end = 8.dp),
@@ -141,6 +161,7 @@ fun PlansSheet(
                             is Page.Form -> if (page.editing == null) "New plan" else "Change the plan"
                             Page.Groups -> "Groups"
                             is Page.Group -> page.name
+                            is Page.Forecast -> page.place.name
                         },
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
@@ -169,8 +190,10 @@ fun PlansSheet(
                         requests,
                         onEdit = { open(Page.Form(editing = page.id)) },
                         onGone = back,
+                        onForecast = wind?.let { { place -> open(Page.Forecast(place)) } },
                     )
-                    is Page.Form -> PlanForm(page.editing?.let(groups::plan), groups, requests, onSaved = back)
+                    is Page.Form -> PlanForm(page.editing?.let(groups::plan), groups, requests, waypoints, onSaved = back)
+                    is Page.Forecast -> Unit
                     Page.Groups -> GroupsPage(groups, requests, onGroup = { open(Page.Group(it.id, it.name)) })
                     is Page.Group -> GroupPage(
                         page.id,
@@ -317,7 +340,15 @@ internal fun TextRow(text: String, modifier: Modifier = Modifier, isQuiet: Boole
 
 /** One plan: everything it says, who is in, and the pilot's own word on it. */
 @Composable
-private fun PlanPage(id: String, groups: GroupsModel, requests: CoroutineScope, onEdit: () -> Unit, onGone: () -> Unit) {
+private fun PlanPage(
+    id: String,
+    groups: GroupsModel,
+    requests: CoroutineScope,
+    onEdit: () -> Unit,
+    onGone: () -> Unit,
+    /** Opens the forecast for the plan's place, where Venti can be asked. */
+    onForecast: ((ForecastPlace) -> Unit)?,
+) {
     val plan = groups.plan(id)
     var isWorking by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -357,6 +388,20 @@ private fun PlanPage(id: String, groups: GroupsModel, requests: CoroutineScope, 
                     row { ValueRow("Group", plan.groupName) }
                 }
                 row { ValueRow("Posted by", if (plan.isMine) "You" else plan.author) }
+            }
+            // A place taken from the pilot's waypoints knows where it is.
+            val position = plan.position
+            if (position != null && onForecast != null) {
+                Group(Modifier.padding(top = 16.dp)) {
+                    row {
+                        LinkRow(
+                            "Forecast for this place",
+                            R.drawable.ic_chevron_right,
+                            Modifier.testTag("plan-forecast"),
+                            leading = R.drawable.venti_forecast,
+                        ) { onForecast(ForecastPlace(plan.place, position)) }
+                    }
+                }
             }
             plan.note?.let { note ->
                 SectionHeader("Note")
@@ -422,7 +467,16 @@ private fun PlanPage(id: String, groups: GroupsModel, requests: CoroutineScope, 
 /** The form for a plan: a new one, or the pilot's own to change. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlanForm(editing: PlanView?, groups: GroupsModel, requests: CoroutineScope, onSaved: () -> Unit) {
+private fun PlanForm(
+    editing: PlanView?,
+    groups: GroupsModel,
+    requests: CoroutineScope,
+    waypoints: WaypointsModel?,
+    onSaved: () -> Unit,
+) {
+    // Where the place is on the map: from the pilot's own waypoints.
+    var position by remember { mutableStateOf(editing?.position) }
+    var isPickingWaypoint by remember { mutableStateOf(false) }
     // Starts from the plan being changed, or from today in the first group.
     var group by remember { mutableStateOf(editing?.groupId ?: groups.groups.firstOrNull()?.id.orEmpty()) }
     var day by remember { mutableStateOf(editing?.day?.let(PlanWords::date) ?: LocalDate.now()) }
@@ -481,6 +535,55 @@ private fun PlanForm(editing: PlanView?, groups: GroupsModel, requests: Coroutin
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("plan-place"),
         )
+        // The pilot's own waypoints know where they are: a plan made from
+        // one can lead to the forecast there, and is marked on the map.
+        val known = waypoints?.all.orEmpty()
+        if (known.isNotEmpty() || position != null) {
+            Group(Modifier.padding(top = 16.dp)) {
+                if (known.isNotEmpty()) {
+                    row {
+                        Box {
+                            LinkRow(
+                                PlanWords.FROM_WAYPOINTS,
+                                R.drawable.ic_arrow_drop_down,
+                                Modifier.testTag("plan-from-waypoints"),
+                                leading = R.drawable.ic_pin_drop,
+                            ) { isPickingWaypoint = true }
+                            DropdownMenu(expanded = isPickingWaypoint, onDismissRequest = { isPickingWaypoint = false }) {
+                                for (waypoint in known.take(40)) {
+                                    DropdownMenuItem(
+                                        text = { Text(waypoint.name) },
+                                        onClick = {
+                                            isPickingWaypoint = false
+                                            place = waypoint.name
+                                            position = waypoint.position
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                position?.let { at ->
+                    row {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(start = 16.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("On the map", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Text(
+                                Format.place(at.lat, at.lon),
+                                style = MaterialTheme.typography.bodyMedium.numbers,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            IconButton(onClick = { position = null }) {
+                                Icon(painterResource(R.drawable.ic_cancel), contentDescription = "Take the position off")
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Group(Modifier.padding(top = 16.dp)) {
             row { ValueRow("Day", PlanWords.title(PlanWords.day(day)), onClick = { isPickingDay = true }) }
             row {
@@ -528,8 +631,7 @@ private fun PlanForm(editing: PlanView?, groups: GroupsModel, requests: Coroutin
                 val draft = PlanDraft(
                     day = PlanWords.day(day),
                     place = place,
-                    // A place on the map is not asked for yet: the name says where.
-                    position = editing?.position,
+                    position = position,
                     meetAt = time?.let { (hour, minute) -> PlanWords.timeOfDay(hour, minute) },
                     note = note,
                 )

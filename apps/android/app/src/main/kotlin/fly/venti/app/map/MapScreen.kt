@@ -106,6 +106,8 @@ fun MapScreen(
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     var showsSites by remember { mutableStateOf(false) }
     var showsPlans by remember { mutableStateOf(false) }
+    // A plan whose mark on the map was tapped: the board opens at it.
+    var planOnMap by remember { mutableStateOf<String?>(null) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
     var showsGliders by remember { mutableStateOf(false) }
     // The glider whose page is open, by its track's identifier: the page
@@ -132,6 +134,15 @@ fun MapScreen(
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
     map.onGlider = { id -> chosenGlider = id }
+    map.onPlan = { id ->
+        planOnMap = id
+        showsPlans = true
+    }
+    // The board is asked for when the map shows, signed in: the plans of
+    // today and tomorrow that say where are marked on it.
+    LaunchedEffect(account.isSignedIn) {
+        if (account.isSignedIn) groups.load()
+    }
     // A long press: the forecast for the place under the finger, where
     // there is a server to ask.
     map.onPlace = { place ->
@@ -176,6 +187,8 @@ fun MapScreen(
     }
     val flyingSites = sites.sites
     val gliders = live.gliders
+    // Where the pilot's groups plan to fly today and tomorrow.
+    val pins = groups.pins()
     // The flight of the glider whose page is open, as far as the server
     // has handed it out.
     val followed = live.followed?.track.orEmpty()
@@ -193,7 +206,7 @@ fun MapScreen(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
-                map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar))
+                map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
         )
@@ -311,7 +324,18 @@ fun MapScreen(
     }
 
     if (showsPlans) {
-        PlansSheet(groups, account, requests, onDismiss = { showsPlans = false })
+        PlansSheet(
+            groups,
+            account,
+            requests,
+            onDismiss = {
+                showsPlans = false
+                planOnMap = null
+            },
+            waypoints = waypoints,
+            wind = wind,
+            startAt = planOnMap,
+        )
     }
 
     problem?.let { text ->

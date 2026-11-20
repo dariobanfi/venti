@@ -1,5 +1,6 @@
 package fly.venti.app.map
 
+import fly.venti.app.groups.PlanPin
 import android.annotation.SuppressLint
 import android.graphics.PointF
 import android.graphics.RectF
@@ -62,6 +63,12 @@ class OverviewMap : MapContent {
     /** Told the place under the finger after a long press on the map. */
     var onPlace: (Coordinate) -> Unit = {}
 
+    /** Called with the identifier of a plan whose mark was tapped. */
+    var onPlan: (String) -> Unit = {}
+
+    private var pins: List<PlanPin> = emptyList()
+    private var drawnPins: List<PlanPin>? = null
+
     private var outlines: List<List<Coordinate>> = emptyList()
     private var drawn: List<List<Coordinate>>? = null
     private var stations: List<WindStation> = emptyList()
@@ -105,11 +112,13 @@ class OverviewMap : MapContent {
         addTracks(style)
         addFollowed(style)
         addSites(style, view)
+        addPlans(style)
         addWind(style, view)
         addGliders(style, view)
         draw()
         drawStations()
         drawSites()
+        drawPins()
         drawGliders()
         drawFollowed()
         drawAirspace()
@@ -134,7 +143,10 @@ class OverviewMap : MapContent {
         gliders: List<LiveGlider>,
         followed: List<TrailPointView>,
         covered: Covered,
+        /** Where the pilot's groups plan to fly today and tomorrow. */
+        pins: List<PlanPin> = emptyList(),
     ) {
+        this.pins = pins
         this.outlines = outlines
         this.stations = stations
         this.airspace = airspace
@@ -145,9 +157,49 @@ class OverviewMap : MapContent {
         draw()
         drawStations()
         drawSites()
+        drawPins()
         drawGliders()
         drawFollowed()
         drawAirspace()
+    }
+
+    /**
+     * Where the pilot's groups plan to fly today and tomorrow: a dot in the
+     * app's colour with the place and the time under it. Over the sites,
+     * since a plan is often for one of them.
+     */
+    private fun addPlans(style: Style) {
+        style.addSource(GeoJsonSource(PLANS))
+        style.addLayer(MapSetup.dot(PLANS, PLANS, 7f, MapSetup.accent, MapSetup.WHITE))
+        style.addLayer(
+            SymbolLayer("$PLANS-names", PLANS).withProperties(
+                PropertyFactory.textField(Expression.get(PLAN_LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(12f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 0.9f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloWidth(1.6f),
+                PropertyFactory.textAllowOverlap(true),
+            ),
+        )
+    }
+
+    private fun drawPins() {
+        val source = style?.getSourceAs<GeoJsonSource>(PLANS) ?: return
+        if (pins == drawnPins) return
+        drawnPins = pins
+        source.setGeoJson(
+            FeatureCollection.fromFeatures(
+                pins.map { pin ->
+                    Feature.fromGeometry(Point.fromLngLat(pin.position.lon, pin.position.lat)).apply {
+                        addStringProperty(PLAN_ID, pin.id)
+                        addStringProperty(PLAN_LABEL, pin.label)
+                    }
+                },
+            ),
+        )
     }
 
     /** Draws the airspace, once the style is there and only when it has changed. */
@@ -431,6 +483,10 @@ class OverviewMap : MapContent {
             onGlider(id)
             return true
         }
+        nearest(PLANS, PLAN_ID)?.let { id ->
+            onPlan(id)
+            return true
+        }
         nearest(WIND, WindFeature.ID)?.let { id ->
             onStation(id)
             return true
@@ -453,6 +509,9 @@ class OverviewMap : MapContent {
         private const val WIND = "wind-stations"
         private const val SITES = "flying-sites"
         private const val GLIDERS = "live-gliders"
+        private const val PLANS = "plan-pins"
+        private const val PLAN_ID = "id"
+        private const val PLAN_LABEL = "label"
         private const val LIVE_TRACK = "live-track"
 
         /** The zoom from which the sites' signs are drawn, as on the iPhone and the web. */

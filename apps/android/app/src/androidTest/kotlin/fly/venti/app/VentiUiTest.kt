@@ -26,6 +26,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -918,7 +919,10 @@ class VentiUiTest {
     private fun signInAndShareAFlight(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
-        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        launch(dark = dark) {
+            putExtra(LaunchOptions.SERVER, server)
+            putExtra(LaunchOptions.SAMPLE_WAYPOINTS, true)
+        }
         openTheAccount()
         // The form says what an account does before it asks for anything.
         assertTrue(exists(hasText("A flight stays private until you share it.", substring = true)))
@@ -1032,6 +1036,13 @@ class VentiUiTest {
         tap(described("New plan"))
         waitFor(hasTestTag("plan-place"))
         val place = if (dark) "Musterberg Nord" else "Musterberg Ost"
+        // Where it is on the map comes from one of the pilot's waypoints;
+        // the name may then be the pilot's own.
+        tap(hasTestTag("plan-from-waypoints"))
+        waitFor(hasText("Sample landing field"))
+        tap(hasText("Sample landing field"))
+        waitFor(hasText("On the map"))
+        screen.onNode(hasTestTag("plan-place")).performTextClearance()
         screen.onNode(hasTestTag("plan-place")).performTextInput(place)
         screen.onNode(hasTestTag("plan-save")).performScrollTo()
         waitFor(hasTestTag("plan-save") and isEnabled())
@@ -1049,6 +1060,8 @@ class VentiUiTest {
         // Among those who are in, the pilot of this phone is "You".
         assertTrue(exists(hasTestTag("plan-pilot") and hasText("You")))
         assertTrue(exists(hasText("Change the plan")))
+        // Its place is on the map: the forecast for it is a tap away.
+        assertTrue(exists(hasTestTag("plan-forecast")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-plans-2-plan")
         tap(described("Back"))
@@ -1071,6 +1084,12 @@ class VentiUiTest {
         keepScreenshot("$prefix-plans-3-group")
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("group")) }
+
+        // Today's plan with a place on the map is marked there.
+        val scenario = checkNotNull(app)
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { (TestDevice.drawnOnTheMap(scenario, "plan-pins") ?: 0) > 0 }
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-plans-4-on-the-map")
 
         // Signing out leaves the flights on the phone.
         tap(tab("Settings"))

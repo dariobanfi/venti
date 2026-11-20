@@ -1,5 +1,6 @@
 package fly.venti.app.groups
 
+import fly.venti.core.Coordinate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -51,6 +52,21 @@ class GroupsModel(
     val groups: List<GroupView> get() = board?.groups.orEmpty()
 
     /** The plan with an identifier, as the board has it now. */
+    /**
+     * The plans of today and tomorrow that say where on the map they are:
+     * who flies where, for the map to mark. A plan for next week is in the
+     * board, not on the map.
+     */
+    fun pins(today: LocalDate = LocalDate.now()): List<PlanPin> {
+        val near = setOf(PlanWords.day(today), PlanWords.day(today.plusDays(1)))
+        return board?.days.orEmpty()
+            .filter { it.day in near }
+            .flatMap { it.plans }
+            .mapNotNull { plan ->
+                plan.position?.let { position -> PlanPin(plan.id, position, listOfNotNull(plan.place, plan.meetAt).joinToString(" ")) }
+            }
+    }
+
     fun plan(id: String): PlanView? = board?.days.orEmpty().firstNotNullOfOrNull { day -> day.plans.firstOrNull { it.id == id } }
 
     /** Asks for the board: every plan of the pilot's groups from today on. */
@@ -169,3 +185,6 @@ class GroupsModel(
 
     private val HttpAnswer.status16: UShort get() = status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
 }
+
+/** A plan marked on the map: where, and the place and time under the mark. */
+data class PlanPin(val id: String, val position: Coordinate, val label: String)

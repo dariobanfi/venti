@@ -26,6 +26,26 @@ final class CommunityModel {
     /// Why the list is missing, in words for the pilot.
     private(set) var problem: String?
 
+    /// What the pilot sees of the ranking of the server's pilots.
+    struct Ranked: Equatable {
+        /// The seasons to choose from, the newest first. None before the
+        /// ranking was first asked for.
+        var seasons: [RankingSeason] = []
+        /// The name of the season the ranking is of.
+        var season = ""
+        /// The pilots, the one with the most points first.
+        var pilots: [RankedPilot] = []
+        /// The rule in a sentence, for under the list.
+        var rule = ""
+        /// Whether the ranking is being fetched.
+        var isLoading = false
+        /// Why it is missing, in words for the pilot.
+        var problem: String?
+    }
+
+    /// The ranking of the season last asked for.
+    private(set) var ranked = Ranked()
+
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
 
@@ -105,6 +125,51 @@ final class CommunityModel {
             problem = error is CoreError
                 ? error.words
                 : "The server could not be reached for other pilots' flights. \(error.localizedDescription)"
+        }
+    }
+
+    /// Fetches the ranking of a season, by the name the core gives it.
+    /// Without a name it is the season last shown, or the newest.
+    func rank(season: String? = nil, now: Date = Date()) async {
+        guard let server = server() else {
+            ranked = Ranked()
+            return
+        }
+        let seasons = rankingSeasons(nowUnixS: Int64(now.timeIntervalSince1970))
+        let wanted = season ?? ranked.season
+        guard let chosen = seasons.first(where: { $0.name == wanted }) ?? seasons.first else { return }
+        if chosen.name != ranked.season {
+            // Another season's pilots are not this one's.
+            ranked.pilots = []
+            ranked.rule = ""
+        }
+        ranked.seasons = seasons
+        ranked.season = chosen.name
+        ranked.problem = nil
+        ranked.isLoading = true
+        do {
+            let path = try rankingPath(area: nil, fromUnixS: chosen.fromUnixS, toUnixS: chosen.toUnixS)
+            guard let url = URL(string: server.absoluteString + path) else {
+                ranked.isLoading = false
+                return
+            }
+            let (status, body) = try await transport(url)
+            let answer = try VentiCore.ranking(status: UInt16(clamping: status), body: body)
+            // The pilot may have chosen another season or server while
+            // this was under way: that question's answer sets the rest.
+            guard server == self.server(), ranked.season == chosen.name else { return }
+            ranked.pilots = answer.pilots
+            ranked.rule = answer.rule
+            ranked.isLoading = false
+        } catch {
+            guard ranked.season == chosen.name else { return }
+            ranked.isLoading = false
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                return
+            }
+            ranked.problem = error is CoreError
+                ? error.words
+                : "The server could not be reached for the ranking. \(error.localizedDescription)"
         }
     }
 

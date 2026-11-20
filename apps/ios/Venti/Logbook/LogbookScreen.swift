@@ -9,9 +9,13 @@ struct LogbookScreen: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(WindModel.self) private var wind
 
-    /// Whether the tab shows everyone's public flights instead of the
-    /// pilot's own.
-    @State private var showsEveryone = false
+    /// Whose flights the tab shows: the pilot's own, what everyone on the
+    /// server shares, or the ranking of the pilots who shared.
+    private enum Whose: Hashable {
+        case mine, everyone, ranking
+    }
+
+    @State private var whose = Whose.mine
     @State private var isChoosingFiles = false
     @State private var notice: ImportNotice?
     @State private var flightToDelete: LogbookEntry?
@@ -20,8 +24,10 @@ struct LogbookScreen: View {
         @Bindable var navigation = navigation
         NavigationStack(path: $navigation.logbookPath) {
             Group {
-                if showsEveryone, wind.server != nil {
+                if whose == .everyone, wind.server != nil {
                     PublicFlightsList()
+                } else if whose == .ranking, wind.server != nil {
+                    RankingList()
                 } else if logbook.view.years.isEmpty {
                     emptyState
                 } else {
@@ -30,16 +36,17 @@ struct LogbookScreen: View {
             }
             .navigationTitle("Logbook")
             .toolbar {
-                // With a Venti server set: the pilot's own flights, or
-                // what everyone there shares.
+                // With a Venti server set: the pilot's own flights, what
+                // everyone there shares, or the ranking of its pilots.
                 if wind.server != nil {
                     ToolbarItem(placement: .principal) {
-                        Picker("Whose flights", selection: $showsEveryone) {
-                            Text("Mine").tag(false)
-                            Text("Everyone").tag(true)
+                        Picker("Whose flights", selection: $whose) {
+                            Text("Mine").tag(Whose.mine)
+                            Text("Everyone").tag(Whose.everyone)
+                            Text("Ranking").tag(Whose.ranking)
                         }
                         .pickerStyle(.segmented)
-                        .frame(maxWidth: 220)
+                        .frame(maxWidth: 280)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {

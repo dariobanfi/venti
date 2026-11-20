@@ -629,6 +629,20 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Mara Muster", in: app).exists)
         sleep(1)
         keepScreenshot("community-1-everyone")
+        // The pilots of the server by their best flights. The development
+        // mode's flights are all of 2026; every year together holds them
+        // whatever year the test runs in.
+        app.buttons["Ranking"].tap()
+        let allYears = app.buttons["All years"]
+        XCTAssertTrue(allYears.waitForExistence(timeout: 30))
+        allYears.tap()
+        XCTAssertTrue(element("ranked-pilot", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Mara Muster", in: app).exists)
+        XCTAssertTrue(labelled(containing: "best 3 flights shared with everyone", in: app).exists)
+        sleep(1)
+        keepScreenshot("community-1b-ranking")
+        everyone.tap()
+        XCTAssertTrue(flight.waitForExistence(timeout: 30))
         // Another pilot's flight opens like one's own.
         flight.tap()
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))

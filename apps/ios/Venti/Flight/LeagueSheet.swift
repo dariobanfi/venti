@@ -164,6 +164,8 @@ struct LeagueSheet: View {
                     Link("The DHV-XC’s rules", destination: rules)
                 }
             }
+            // The links in the size of the words they stand under.
+            .font(.footnote)
         }
     }
 

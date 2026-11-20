@@ -20,6 +20,9 @@ struct CockpitScreen: View {
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
     @State private var isShowingLive = false
+    /// Whether the screen takes no touches: against a glove, a line or
+    /// rain pressing a button in flight.
+    @State private var isLocked = false
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
@@ -162,6 +165,18 @@ struct CockpitScreen: View {
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
 
+                    // Nothing on the screen answers a touch until it is
+                    // unlocked by holding a finger on the lock.
+                    Button {
+                        isLocked = true
+                    } label: {
+                        Label("Lock the screen", systemImage: "lock.open")
+                            .labelStyle(.iconOnly)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+
                     // Who watches the flight, and whether it is going
                     // out. Not in a replay: what is replayed is not shared.
                     if !isReplay {
@@ -197,6 +212,37 @@ struct CockpitScreen: View {
             .task(id: view.position != nil) {
                 if let position = view.position {
                     await airspace.refresh(around: position)
+                }
+            }
+            // Locked: a clear sheet over everything takes the touches, and
+            // a lock at the foot of the screen opens it when held. The
+            // cockpit goes on showing and sounding as before.
+            .overlay {
+                if isLocked {
+                    Color.clear
+                        .contentShape(.rect)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+                        .overlay(alignment: .bottom) {
+                            Label("Locked. Hold to unlock", systemImage: "lock.fill")
+                                .font(.headline)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 14)
+                                .glassEffect(.regular, in: .capsule)
+                                .contentShape(.capsule)
+                                .onLongPressGesture(minimumDuration: 0.8) {
+                                    isLocked = false
+                                }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("Unlock the screen")
+                                .accessibilityHint("Hold to unlock")
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityAction {
+                                    isLocked = false
+                                }
+                                .accessibilityIdentifier("cockpit-unlock")
+                                .padding(.bottom, 14)
+                        }
                 }
             }
             .sheet(isPresented: $isShowingAirspace) {

@@ -273,6 +273,20 @@ final class VentiUITests: XCTestCase {
         app.buttons["Follow the glider"].tap()
         XCTAssertTrue(app.buttons["Show the whole flight"].waitForExistence(timeout: 10))
 
+        // Locked, the screen answers no touch: a press where the button
+        // to end the flight is does nothing. Holding the lock opens it.
+        app.buttons["Lock the screen"].tap()
+        let unlock = element("cockpit-unlock", in: app)
+        XCTAssertTrue(unlock.waitForExistence(timeout: 10))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6)).tap()
+        sleep(1)
+        XCTAssertFalse(app.navigationBars["Fly to"].exists)
+        keepScreenshot("fly-5d-locked")
+        unlock.press(forDuration: 1.6)
+        XCTAssertTrue(app.buttons["Lock the screen"].waitForExistence(timeout: 10))
+        sleep(1)
+        XCTAssertFalse(element("cockpit-unlock", in: app).exists)
+
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))

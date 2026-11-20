@@ -12,6 +12,7 @@
 	import { untrack } from 'svelte';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { placeHref } from '#lib/app/routes.ts';
 	import type {
 		FlightAirspace,
 		FlightAnalysis,
@@ -105,6 +106,14 @@
 			asked.letGo();
 		};
 	});
+
+	/**
+	 * The page of what else was flown from where this flight took off, on a
+	 * site with a server to ask. The recording says where that was.
+	 */
+	const fromHere = $derived(
+		app.account?.hasServer && analysis?.takeoff ? placeHref(analysis.takeoff.position) : undefined
+	);
 
 	/** How many airspaces the map draws, or nothing while it is zoomed too far out for any. */
 	let airspaceDrawn = $state<number>();
@@ -229,7 +238,7 @@
 				/>
 			</div>
 			{#if wide}
-				<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} />
+				<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} {fromHere} />
 			{/if}
 		</div>
 	</div>
@@ -237,7 +246,7 @@
 
 {#if !wide}
 	<Sheet open={showingDetails} title="Flight details" onclose={() => (showingDetails = false)}>
-		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} />
+		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} {fromHere} />
 	</Sheet>
 {/if}
 

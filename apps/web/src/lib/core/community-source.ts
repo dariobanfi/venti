@@ -16,7 +16,9 @@
 
 import { flightFileText } from './flight-text';
 import {
+	type Coordinate,
 	flightAnalysisFromFile,
+	flownFromHere,
 	type FlightAnalysis,
 	flightFromFile,
 	type FlightView,
@@ -64,6 +66,11 @@ export interface PublicFlightsAsked {
 	toUnixS?: number;
 	/** The `next` of the page before, for the page after it. */
 	after?: string;
+	/**
+	 * Only flights that took off near this place: within a kilometre and a
+	 * half, as the core counts a flight flown from there.
+	 */
+	near?: Coordinate;
 }
 
 /** The pilots of a season ranked, with the seasons there are to choose from. */
@@ -101,8 +108,9 @@ export class CommunitySource {
 	 */
 	async flights(asked: PublicFlightsAsked): Promise<PublicFlights | undefined> {
 		if (!(await this.#present())) return undefined;
+		const area = asked.near ? flownFromHere(asked.near.lat, asked.near.lon) : undefined;
 		const answer = await this.#get(
-			publicFlightsPath(asked.order, asked.fromUnixS, asked.toUnixS, asked.after)
+			publicFlightsPath(asked.order, area, asked.fromUnixS, asked.toUnixS, asked.after)
 		);
 		return publicFlights(answer.status, answer.body);
 	}
@@ -123,13 +131,19 @@ export class CommunitySource {
 	 * The pilots of a season, ranked by the sum of the points of their best
 	 * public flights. `season` is the name of one of the seasons the core
 	 * offers at `nowUnixS`; any other text, or none, means the newest.
+	 * With `near`, only flights that took off near that place count.
 	 * Nothing if this site has no server.
 	 */
-	async ranking(season?: string, nowUnixS = Date.now() / 1000): Promise<SeasonRanking | undefined> {
+	async ranking(
+		season?: string,
+		near?: Coordinate,
+		nowUnixS = Date.now() / 1000
+	): Promise<SeasonRanking | undefined> {
 		if (!(await this.#present())) return undefined;
 		const { seasons } = rankingSeasons(nowUnixS);
 		const chosen = seasons.find((offered) => offered.name === season) ?? seasons[0];
-		const answer = await this.#get(rankingPath(chosen.fromUnixS, chosen.toUnixS));
+		const area = near ? flownFromHere(near.lat, near.lon) : undefined;
+		const answer = await this.#get(rankingPath(area, chosen.fromUnixS, chosen.toUnixS));
 		return { seasons, season: chosen, ranking: ranking(answer.status, answer.body) };
 	}
 

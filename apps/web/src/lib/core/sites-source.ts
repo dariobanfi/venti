@@ -10,7 +10,16 @@
  * The server is the one this site is served from, as for the wind.
  */
 
-import { type Bounds, sitesMap, type SitesMap, sitesPath } from './pkg/venti_core_wasm.js';
+import {
+	type Bounds,
+	type Coordinate,
+	siteAt,
+	type SiteAtPlace,
+	siteAtPath,
+	sitesMap,
+	type SitesMap,
+	sitesPath
+} from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 import { type Get, getFromThisOrigin } from './wind-source';
 
@@ -44,5 +53,16 @@ export class SitesSource {
 		// The core is told the box again: it says whether the server's set
 		// is whole for all of it.
 		return sitesMap(box.south, box.west, box.north, box.east, answer.status, answer.body);
+	}
+
+	/**
+	 * The flying site at a place, for a page of its own: the one of that
+	 * identifier, or without one the take-off nearest to the place within a
+	 * kilometre. Nothing if this site has no server.
+	 */
+	async siteAt(place: Coordinate, id?: string): Promise<SiteAtPlace | undefined> {
+		if (!(await this.#present())) return undefined;
+		const answer = await this.#get(siteAtPath(place.lat, place.lon));
+		return siteAt(place.lat, place.lon, id, answer.status, answer.body);
 	}
 }

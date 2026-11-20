@@ -10,7 +10,15 @@
  */
 
 import { untrack } from 'svelte';
-import type { CoreClient, OpenedFlight, RankedPilot } from '#lib/core/index.ts';
+import type {
+	Coordinate,
+	CoreClient,
+	OpenedFlight,
+	PublicFlightsOrder,
+	RankedPilot,
+	SeasonRanking,
+	SiteAtPlace
+} from '#lib/core/index.ts';
 import {
 	type Asked,
 	EVERYTHING,
@@ -64,6 +72,41 @@ export const NOT_RANKED: RankingState = {
 	absent: false
 };
 
+/** What a place's page asks for: the place, perhaps a site there, and how to list and rank. */
+export interface PlaceAsked {
+	at: Coordinate;
+	/** The identifier of the site the page is about. Empty for the take-off nearest to the place. */
+	site: string;
+	order: PublicFlightsOrder;
+	/** The season of the ranking, by name. Empty for the newest. */
+	season: string;
+}
+
+/**
+ * A place's page: the flying site there, as one answer of the server's,
+ * and, asked for apart, the flights that took off around it and the
+ * ranking of their pilots.
+ */
+export interface PlaceState {
+	asked: PlaceAsked;
+	/** Whether the server has said which site is there, if any. */
+	siteKnown: boolean;
+	/** The site, with its source's credit. Nothing where the server knows none. */
+	site: SiteAtPlace | undefined;
+	/** Why the site is not known, in words for the pilot. The flights are asked for all the same. */
+	siteProblem: string | undefined;
+	/** The flights that took off around the place. */
+	list: ListState;
+	/** Their pilots, ranked. */
+	ranking: RankingState;
+	/** Whether this site turned out to have no server to ask. */
+	absent: boolean;
+}
+
+function samePlace(one: PlaceAsked, other: PlaceAsked): boolean {
+	return one.at.lat === other.at.lat && one.at.lon === other.at.lon && one.site === other.site;
+}
+
 export class CommunityModel {
 	/** The ranking of the server's pilots in the season last asked for. */
 	ranking = $state.raw<RankingState>(NOT_RANKED);
@@ -77,11 +120,19 @@ export class CommunityModel {
 	/** The pilot whose flights are looked at, if one is. */
 	pilot = $state.raw<PilotState>();
 
+	/** The place whose flights are looked at, if one is. */
+	place = $state.raw<PlaceState>();
+
 	#core: CoreClient;
 	#everyone: PagedFlights | undefined;
 	#ofPilot: PagedFlights | undefined;
 	/** The season whose ranking was last asked for. Nothing before the first. */
 	#ranked: string | undefined;
+	#ofPlace: PagedFlights | undefined;
+	/** Where the place's flights are counted around, once the server has said which site is there. */
+	#centre: Promise<Coordinate> | undefined;
+	/** The question of the place's ranking last asked. */
+	#placeRanked: object | undefined;
 
 	constructor(core: CoreClient) {
 		this.#core = core;
@@ -175,27 +226,105 @@ export class CommunityModel {
 		// The seasons stay to choose from while another one is fetched.
 		const seasons = this.ranking.seasons;
 		this.ranking = { ...NOT_RANKED, asked: season, seasons, season, loading: true };
-		try {
-			const answer = await this.#core.ranking(season || undefined);
-			// Another season has been asked for since.
-			if (this.#ranked !== season) return;
-			this.ranking = answer
-				? {
-						asked: season,
-						known: true,
-						seasons: answer.seasons.map((offered) => offered.name),
-						season: answer.season.name,
-						pilots: answer.ranking.pilots,
-						rule: answer.ranking.rule,
-						loading: false,
-						problem: undefined,
-						absent: false
+		const ranking = await rankingOf(() => this.#core.ranking(season || undefined), season, seasons);
+		// Another season has been asked for since.
+		if (this.#ranked === season) this.ranking = ranking;
+	}
+
+	/**
+	 * Shows a place: the site there, the flights that took off around it in
+	 * an order, and the ranking of their pilots in a season. The site is
+	 * asked for first, because the flights are counted around the site
+	 * where there is one. What is there already for the same question is
+	 * left as it is.
+	 */
+	showPlace(asked: PlaceAsked): void {
+		untrack(() => {
+			const before = this.place;
+			if (before && this.#centre && samePlace(before.asked, asked)) {
+				const listed = before.asked.order === asked.order;
+				const ranked = before.asked.season === asked.season;
+				this.place = { ...before, asked };
+				if (!listed) this.#listPlace(asked);
+				if (!ranked) void this.#rankPlace(asked);
+				return;
+			}
+			this.place = {
+				asked,
+				siteKnown: false,
+				site: undefined,
+				siteProblem: undefined,
+				list: NOT_LISTED,
+				ranking: { ...NOT_RANKED, asked: asked.season, loading: true },
+				absent: false
+			};
+			const centre = this.#core.siteAt(asked.at, asked.site || undefined).then(
+				(found) => {
+					if (this.#centre === centre && this.place) {
+						this.place = found
+							? { ...this.place, siteKnown: true, site: found }
+							: { ...this.place, siteKnown: true, absent: true };
 					}
-				: { ...NOT_RANKED, asked: season, absent: true };
-		} catch (error) {
-			if (this.#ranked !== season) return;
-			this.ranking = { ...NOT_RANKED, asked: season, seasons, season, problem: words(error) };
-		}
+					return found?.site?.position ?? asked.at;
+				},
+				(error) => {
+					if (this.#centre === centre && this.place) {
+						this.place = { ...this.place, siteKnown: true, siteProblem: words(error) };
+					}
+					return asked.at;
+				}
+			);
+			this.#centre = centre;
+			this.#listPlace(asked);
+			void this.#rankPlace(asked);
+		});
+	}
+
+	/** The next page of the place's flights. */
+	morePlace(): void {
+		void this.#ofPlace?.more();
+	}
+
+	/** Asks again for the place's flights from the top. */
+	againPlace(): void {
+		void this.#ofPlace?.load();
+	}
+
+	/** Asks again for the place's ranking. */
+	rankPlaceAgain(): void {
+		if (this.place) void this.#rankPlace(this.place.asked);
+	}
+
+	#listPlace(asked: PlaceAsked): void {
+		const centre = this.#centre;
+		if (!centre || !this.place) return;
+		this.place = { ...this.place, list: { ...NOT_LISTED, loading: true } };
+		const list = new PagedFlights(
+			async (after) => this.#core.publicFlights({ order: asked.order, near: await centre, after }),
+			(state) => {
+				if (list === this.#ofPlace && this.place) this.place = { ...this.place, list: state };
+			}
+		);
+		this.#ofPlace = list;
+		void list.load();
+	}
+
+	async #rankPlace(asked: PlaceAsked): Promise<void> {
+		const centre = this.#centre;
+		if (!centre || !this.place) return;
+		const question = {};
+		this.#placeRanked = question;
+		const seasons = this.place.ranking.seasons;
+		this.place = {
+			...this.place,
+			ranking: { ...NOT_RANKED, asked: asked.season, seasons, season: asked.season, loading: true }
+		};
+		const ranking = await rankingOf(
+			() => centre.then((near) => this.#core.ranking(asked.season || undefined, near)),
+			asked.season,
+			seasons
+		);
+		if (this.#placeRanked === question && this.place) this.place = { ...this.place, ranking };
 	}
 
 	/**
@@ -205,5 +334,34 @@ export class CommunityModel {
 	 */
 	open(id: string): Promise<OpenedFlight | undefined> {
 		return this.#core.openPublicFlight(id);
+	}
+}
+
+/**
+ * A ranking as a screen is shown it, once the server has answered: the
+ * pilots, the rule, and the seasons there are; or why there is none.
+ */
+async function rankingOf(
+	ask: () => Promise<SeasonRanking | undefined>,
+	season: string,
+	seasons: string[]
+): Promise<RankingState> {
+	try {
+		const answer = await ask();
+		return answer
+			? {
+					asked: season,
+					known: true,
+					seasons: answer.seasons.map((offered) => offered.name),
+					season: answer.season.name,
+					pilots: answer.ranking.pilots,
+					rule: answer.ranking.rule,
+					loading: false,
+					problem: undefined,
+					absent: false
+				}
+			: { ...NOT_RANKED, asked: season, absent: true };
+	} catch (error) {
+		return { ...NOT_RANKED, asked: season, seasons, season, problem: words(error) };
 	}
 }

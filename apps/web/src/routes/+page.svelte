@@ -7,6 +7,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { placeHref } from '#lib/app/routes.ts';
 	import type { Bounds, Coordinate, Credit, SiteView, WindStation } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -22,7 +23,7 @@
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
 	import { problemText } from '#lib/map/position.ts';
-	import { countIn } from '#lib/sites/mark.ts';
+	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteList from '#lib/sites/SiteList.svelte';
 	import SitePage from '#lib/sites/SiteView.svelte';
 	import { NO_SITES } from '#lib/sites/watch.ts';
@@ -244,6 +245,7 @@
 				<SitePage
 					{...chosenSite}
 					onforecast={() => (forecastFor = { place: site.position, name: site.name })}
+					flightsHref={flownFrom(site) ? placeHref(site.position, site.id) : undefined}
 				/>
 			{/if}
 		</MapPanel>

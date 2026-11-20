@@ -258,6 +258,96 @@ pub fn sites_map(
     })
 }
 
+/// How far from a place a take-off may lie to be the site of that place,
+/// when no site is named: a logbook names a flight after a waypoint that
+/// is a take-off as far away.
+const TAKEOFF_WITHIN_M: f64 = 1000.0;
+
+/// The flying site at a place, as a page of its own shows it, with whose
+/// data it is and of when. It is one answer of the server's, about sites
+/// alone: what was flown from the place is asked for apart, and nothing of
+/// the one is put into the other.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteAtPlace {
+    /// The site, if the server knows one there.
+    pub site: Option<SiteView>,
+    /// Whose data the site is, with what the licence asks to be shown.
+    pub credit: Option<Credit>,
+    /// The date of the source's data, seconds since 1970-01-01 UTC.
+    pub as_of_unix_s: Option<i64>,
+}
+
+/// The box the server is asked for the sites around a place, a kilometre
+/// to each side.
+fn around_place(lat: f64, lon: f64) -> Result<BoundingBox, CoreError> {
+    let unreadable = || CoreError::Server {
+        message: "The app could not ask the server about the sites at this place.".to_owned(),
+    };
+    let around = crate::area_around(lat, lon, TAKEOFF_WITHIN_M).map_err(|_| unreadable())?;
+    area(around.south, around.west, around.north, around.east).map_err(|_| unreadable())
+}
+
+/// The path and query to `GET` from the server for the sites around a
+/// place, to find the site of that place.
+#[uniffi::export]
+pub fn site_at_path(lat: f64, lon: f64) -> Result<String, CoreError> {
+    Ok(SitesRequest {
+        bbox: around_place(lat, lon)?,
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`site_at_path`] for the same place: the
+/// site of identifier `id`, or without one the take-off nearest to the
+/// place within a kilometre. No site is said as none: most places pilots
+/// fly from are not in the source.
+#[uniffi::export]
+pub fn site_at(
+    lat: f64,
+    lon: f64,
+    id: Option<String>,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<SiteAtPlace, CoreError> {
+    let asked = around_place(lat, lon)?;
+    let map = sites_map(
+        asked.south(),
+        asked.west(),
+        asked.north(),
+        asked.east(),
+        status,
+        body,
+    )?;
+    let here = GeoPoint::new(lat, lon).map_err(|_| CoreError::Server {
+        message: "The app could not ask the server about the sites at this place.".to_owned(),
+    })?;
+    let away = |site: &SiteView| {
+        GeoPoint::new(site.position.lat, site.position.lon)
+            .map_or(f64::INFINITY, |there| here.distance_m(there))
+    };
+    let site = match id.filter(|id| !id.is_empty()) {
+        Some(id) => map.sites.into_iter().find(|site| site.id == id),
+        None => map
+            .sites
+            .into_iter()
+            .filter(|site| site.uses.contains(&SiteKind::Takeoff) && away(site) <= TAKEOFF_WITHIN_M)
+            .min_by(|one, two| away(one).total_cmp(&away(two))),
+    };
+    let credit = site.as_ref().and_then(|site| {
+        map.credits
+            .iter()
+            .find(|credit| credit.source == site.source)
+            .cloned()
+    });
+    Ok(SiteAtPlace {
+        as_of_unix_s: site.as_ref().and(map.as_of_unix_s),
+        site,
+        credit,
+    })
+}
+
 fn area(south: f64, west: f64, north: f64, east: f64) -> Result<BoundingBox, CoreError> {
     // A map can be dragged past the poles and the date line; ask for what
     // exists.
@@ -455,6 +545,52 @@ mod tests {
         // not the whole truth about the box.
         let wider = sites_map(45.0, 9.0, 49.0, 18.0, 200, recorded()).unwrap();
         assert!(!wider.is_whole);
+    }
+
+    #[test]
+    fn the_site_of_a_place_is_the_one_named_or_the_nearest_take_off() {
+        // Where the development mode's flights take off, beside the two
+        // ramps on the Wallberg.
+        let (lat, lon) = (47.6642, 11.7967);
+        let path = site_at_path(lat, lon).unwrap();
+        assert!(path.starts_with("/v1/sites?bbox="), "{path}");
+
+        let nearest = site_at(lat, lon, None, 200, recorded()).unwrap();
+        let site = nearest.site.unwrap();
+        assert_eq!(site.id, "osm-free-flying:node/5964676196");
+        assert_eq!(site.kind, SiteKind::Takeoff);
+        assert_eq!(nearest.credit.unwrap().text, "© OpenStreetMap contributors");
+        assert!(nearest.as_of_unix_s.is_some());
+
+        // Named, it is that one, also where another lies nearer.
+        let named = site_at(
+            lat,
+            lon,
+            Some("osm-free-flying:node/5964676197".to_owned()),
+            200,
+            recorded(),
+        )
+        .unwrap();
+        assert_eq!(named.site.unwrap().id, "osm-free-flying:node/5964676197");
+
+        // A landing is no take-off, and a site farther than a kilometre is
+        // not the place's: in the valley there is none.
+        let valley = site_at(47.6919, 11.8880, None, 200, recorded()).unwrap();
+        assert_eq!(valley.site, None);
+        assert_eq!(valley.credit, None);
+        assert_eq!(valley.as_of_unix_s, None);
+        // A name the answer does not hold is no site either.
+        let gone = site_at(
+            lat,
+            lon,
+            Some("osm-free-flying:node/1".to_owned()),
+            200,
+            recorded(),
+        );
+        assert_eq!(gone.unwrap().site, None);
+        // What is no place is not asked about.
+        assert!(site_at_path(f64::NAN, lon).is_err());
+        assert!(site_at(lat, lon, None, 503, Vec::new()).is_err());
     }
 
     #[test]

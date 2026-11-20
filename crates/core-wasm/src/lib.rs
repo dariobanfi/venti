@@ -48,9 +48,9 @@ use venti_core::{
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
     KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics, LogbookView, PilotPage, PlanBoard,
     PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, Ranking, RankingSeason,
-    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap,
-    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint,
-    WindMap,
+    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SiteAtPlace,
+    SitesMap, StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile,
+    TrackPoint, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -986,26 +986,56 @@ impl Terrain {
 // shown from its file like a flight of the logbook. Nothing of it is kept.
 
 /// The path and query to `GET` for one page of everyone's public flights:
-/// the newest first, or the best by points. `from_unix_s` and `to_unix_s`
-/// narrow the list to flights that began at or after the one and before
-/// the other; a day is its first second and the first second of the next.
-/// `after` is the `next` of the page before, with the rest unchanged.
+/// the newest first, or the best by points. `area` narrows the list to the
+/// flights that took off inside a part of the map, as `flownFromHere`
+/// names the part around a place. `from_unix_s` and `to_unix_s` narrow it
+/// to flights that began at or after the one and before the other; a day
+/// is its first second and the first second of the next. `after` is the
+/// `next` of the page before, with the rest unchanged.
 #[wasm_bindgen(js_name = publicFlightsPath)]
 pub fn public_flights_path(
     order: Ts<PublicFlightsOrder>,
+    area: Option<Ts<Bounds>>,
     from_unix_s: Option<f64>,
     to_unix_s: Option<f64>,
     after: Option<String>,
 ) -> Result<String, JsValue> {
     venti_core::public_flights_path(
         from_js(&order)?,
-        // No page has a map to narrow the list by yet.
-        None,
+        area.as_ref().map(from_js).transpose()?,
         from_unix_s.map(whole_seconds),
         to_unix_s.map(whole_seconds),
         after,
     )
     .map_err(thrown)
+}
+
+/// The part of the map whose flights count as flown from a place: the
+/// square around it, a kilometre and a half to each side.
+#[wasm_bindgen(js_name = flownFromHere)]
+pub fn flown_from_here(lat: f64, lon: f64) -> Result<Ts<Bounds>, JsValue> {
+    to_js(&venti_core::area_around(lat, lon, venti_core::FLOWN_FROM_HERE_M).map_err(thrown)?)
+}
+
+/// The path and query to `GET` for the flying sites around a place, to
+/// find the site of that place.
+#[wasm_bindgen(js_name = siteAtPath)]
+pub fn site_at_path(lat: f64, lon: f64) -> Result<String, JsValue> {
+    venti_core::site_at_path(lat, lon).map_err(thrown)
+}
+
+/// Reads the server's answer to `siteAtPath` for the same place: the site
+/// of identifier `id`, or without one the nearest take-off within a
+/// kilometre, with whose data it is.
+#[wasm_bindgen(js_name = siteAt)]
+pub fn site_at(
+    lat: f64,
+    lon: f64,
+    id: Option<String>,
+    status: u16,
+    body: Vec<u8>,
+) -> Result<Ts<SiteAtPlace>, JsValue> {
+    to_js(&venti_core::site_at(lat, lon, id, status, body).map_err(thrown)?)
 }
 
 /// Reads the server's answer to `publicFlightsPath`.
@@ -1048,12 +1078,15 @@ pub fn ranking_seasons(now_unix_s: f64) -> Result<Ts<RankingSeasons>, JsValue> {
 /// The path and query to `GET` for the ranking of the server's pilots by
 /// their best public flights: of the flights that began at or after the
 /// one moment and before the other, as `rankingSeasons` names them, or of
-/// all of them.
+/// all of them; with `area`, of the flights that took off inside it.
 #[wasm_bindgen(js_name = rankingPath)]
-pub fn ranking_path(from_unix_s: Option<f64>, to_unix_s: Option<f64>) -> Result<String, JsValue> {
+pub fn ranking_path(
+    area: Option<Ts<Bounds>>,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+) -> Result<String, JsValue> {
     venti_core::ranking_path(
-        // No page has a map to narrow the ranking by yet.
-        None,
+        area.as_ref().map(from_js).transpose()?,
         from_unix_s.map(whole_seconds),
         to_unix_s.map(whole_seconds),
     )

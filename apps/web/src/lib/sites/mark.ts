@@ -90,3 +90,12 @@ export function countIn(sites: readonly SiteView[], region: Bounds): number {
 			position.lon <= region.east
 	).length;
 }
+
+/**
+ * Whether flights can have taken off from a site, so that its page leads to
+ * them: every site but one that its source calls a landing and nothing
+ * else. A site whose source says nothing of its use may be a take-off.
+ */
+export function flownFrom(site: Pick<SiteView, 'uses'>): boolean {
+	return !(site.uses.length > 0 && site.uses.every((use) => use === 'landing'));
+}

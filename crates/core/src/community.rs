@@ -165,12 +165,16 @@ fn which(
     Ok(Which { bbox, from, to })
 }
 
-/// The path and query to `GET` for the public flights that took off near a
-/// place, the newest first: what was flown from a site. The server is
-/// asked for the square around the place, `radius_m` to each side, at
-/// most fifty kilometres.
-#[uniffi::export]
-pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<String, CoreError> {
+/// How far from a place a flight may have taken off to count as flown from
+/// there: a site's page lists those flights, and ranks their pilots.
+/// A take-off is a slope of some hundred metres, and the recorder marks
+/// the moment the glider flew, which is a little way out from it.
+pub const FLOWN_FROM_HERE_M: f64 = 1500.0;
+
+/// The square around a place, `radius_m` to each side and at most fifty
+/// kilometres: the part of the map a list of the flights from a place is
+/// asked for.
+pub fn area_around(lat: f64, lon: f64, radius_m: f64) -> Result<Bounds, CoreError> {
     const M_PER_DEGREE: f64 = 111_320.0;
     let unreadable = || CoreError::Server {
         message: "The app could not ask the server for the flights from this place.".to_owned(),
@@ -181,14 +185,23 @@ pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<Str
     let reach = radius_m.clamp(100.0, 50_000.0);
     let north_south = reach / M_PER_DEGREE;
     let east_west = reach / (M_PER_DEGREE * lat.to_radians().cos());
+    Ok(Bounds {
+        south: lat - north_south,
+        west: lon - east_west,
+        north: lat + north_south,
+        east: lon + east_west,
+    })
+}
+
+/// The path and query to `GET` for the public flights that took off near a
+/// place, the newest first: what was flown from a site. The server is
+/// asked for the square around the place, `radius_m` to each side, at
+/// most fifty kilometres.
+#[uniffi::export]
+pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<String, CoreError> {
     public_flights_path(
         PublicFlightsOrder::Newest,
-        Some(Bounds {
-            south: lat - north_south,
-            west: lon - east_west,
-            north: lat + north_south,
-            east: lon + east_west,
-        }),
+        Some(area_around(lat, lon, radius_m)?),
         None,
         None,
         None,

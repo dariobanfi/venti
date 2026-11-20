@@ -18,9 +18,14 @@
 		asOfUnixS: number | undefined;
 		/** Opens the forecast for the site's place. */
 		onforecast: () => void;
+		/**
+		 * The page of the flights that took off from the site, where the page
+		 * shows the site alone. Nothing for a site that is only a landing.
+		 */
+		flightsHref?: string;
 	}
 
-	let { site, credit, asOfUnixS, onforecast }: Props = $props();
+	let { site, credit, asOfUnixS, onforecast, flightsHref }: Props = $props();
 
 	const text = format();
 	const marked = $derived(marks(site));
@@ -64,6 +69,9 @@
 
 	<div class="card">
 		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
+		{#if flightsHref}
+			<a class="row link" href={flightsHref}>Flights from here</a>
+		{/if}
 	</div>
 
 	<section>

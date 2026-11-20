@@ -117,3 +117,39 @@ describe('flying sites from the server', () => {
 		expect(asked).toEqual(['/v1/sites?bbox=170,80,180,90']);
 	});
 });
+
+describe('the flying site at a place', () => {
+	/** Where the development mode's flights take off, beside the Wallberg's ramps. */
+	const TAKEOFF = { lat: 47.6642, lon: 11.7967 };
+
+	it('is the nearest take-off within a kilometre, with its source’s credit', async () => {
+		const { asked, get } = server();
+		const sites = new SitesSource(async () => true, get);
+
+		const found = (await sites.siteAt(TAKEOFF))!;
+
+		expect(asked).toHaveLength(1);
+		expect(asked[0]).toMatch(/^\/v1\/sites\?bbox=/);
+		expect(found.site).toMatchObject({ id: 'osm-free-flying:node/5964676196', kind: 'takeoff' });
+		expect(found.credit?.text).toBe('© OpenStreetMap contributors');
+		expect(typeof found.asOfUnixS).toBe('number');
+	});
+
+	it('is the one named, and none where the source has none', async () => {
+		const sites = new SitesSource(async () => true, server().get);
+
+		const named = (await sites.siteAt(TAKEOFF, 'osm-free-flying:node/5964676197'))!;
+		expect(named.site?.id).toBe('osm-free-flying:node/5964676197');
+
+		// The landing field in the valley is no take-off.
+		const valley = (await sites.siteAt({ lat: 47.6919, lon: 11.888 }))!;
+		expect(valley.site).toBeUndefined();
+		expect(valley.credit).toBeUndefined();
+	});
+
+	it('is not asked for on a site without a server', async () => {
+		const { asked, get } = server();
+		expect(await new SitesSource(async () => false, get).siteAt(TAKEOFF)).toBeUndefined();
+		expect(asked).toEqual([]);
+	});
+});

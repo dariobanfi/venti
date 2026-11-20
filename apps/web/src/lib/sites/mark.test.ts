@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countIn, listed, siteFeatures, sitesLayer, SITES_SOURCE } from './mark';
+import { countIn, flownFrom, listed, siteFeatures, sitesLayer, SITES_SOURCE } from './mark';
 import { wedges } from './rose';
 import { colours, pictureName, SIGNS, SITE_KINDS } from './symbols';
 import { site } from './testing';
@@ -122,5 +122,16 @@ describe('the compass of a site', () => {
 			'M15 5A10 10 0 1 1 15 25A10 10 0 1 1 15 5Z'
 		]);
 		expect(wedges([], 15, 10)).toEqual([]);
+	});
+});
+
+describe('the flights from a site', () => {
+	it('are offered for every site but one that is only a landing', () => {
+		expect(flownFrom({ uses: ['takeoff'] })).toBe(true);
+		expect(flownFrom({ uses: ['takeoff', 'landing'] })).toBe(true);
+		expect(flownFrom({ uses: ['training'] })).toBe(true);
+		// The source does not say what it is: it may be a take-off.
+		expect(flownFrom({ uses: [] })).toBe(true);
+		expect(flownFrom({ uses: ['landing'] })).toBe(false);
 	});
 });

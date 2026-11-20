@@ -37,6 +37,21 @@ function server(answer: (path: string) => Answer) {
 const FLIGHT = json('flight.json').flight.id as string;
 
 describe('everyone’s public flights, from the server', () => {
+	it('are asked for, near a place, by the square around it', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('public_flights.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		await community.flights({ order: 'best', near: { lat: 47.6642, lon: 11.7967 } });
+
+		const query = new URL(asked[0], 'http://venti').searchParams;
+		expect(query.get('sort')).toBe('score');
+		const [west, south, east, north] = query.get('bbox')!.split(',').map(Number);
+		expect(south).toBeLessThan(47.6642);
+		expect(north).toBeGreaterThan(47.6642);
+		// Degrees of longitude are shorter there: the square is wider in them.
+		expect(east - west).toBeGreaterThan((north - south) * 1.4);
+	});
+
 	it('are asked for newest first, and read as rows for a list', async () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('public_flights.json') }));
 		const community = new CommunitySource(async () => true, get);
@@ -110,7 +125,7 @@ describe('the ranking of a season', () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
 		const community = new CommunitySource(async () => true, get);
 
-		const newest = (await community.ranking(undefined, NOW))!;
+		const newest = (await community.ranking(undefined, undefined, NOW))!;
 
 		expect(asked).toEqual(['/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z']);
 		expect(newest.seasons.map((season) => season.name)).toEqual([
@@ -144,10 +159,10 @@ describe('the ranking of a season', () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
 		const community = new CommunitySource(async () => true, get);
 
-		expect((await community.ranking('All years', NOW))!.season.name).toBe('All years');
-		expect((await community.ranking('2024', NOW))!.season.name).toBe('2024');
+		expect((await community.ranking('All years', undefined, NOW))!.season.name).toBe('All years');
+		expect((await community.ranking('2024', undefined, NOW))!.season.name).toBe('2024');
 		// What names no season, as an address someone typed might.
-		expect((await community.ranking('1999', NOW))!.season.name).toBe('2026');
+		expect((await community.ranking('1999', undefined, NOW))!.season.name).toBe('2026');
 
 		expect(asked).toEqual([
 			'/v1/ranking',
@@ -156,11 +171,25 @@ describe('the ranking of a season', () => {
 		]);
 	});
 
+	it('counts, near a place, only the flights that took off around it', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		await community.ranking('All years', { lat: 47.6642, lon: 11.7967 }, NOW);
+
+		const box = new URL(asked[0], 'http://venti').searchParams.get('bbox')!.split(',').map(Number);
+		const [west, south, east, north] = box;
+		// A kilometre and a half to each side.
+		expect((north - south) * 111_320).toBeCloseTo(3000, 0);
+		expect(west).toBeLessThan(11.7967);
+		expect(east).toBeGreaterThan(11.7967);
+	});
+
 	it('is not asked for on a site without a server', async () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
 		const community = new CommunitySource(async () => false, get);
 
-		expect(await community.ranking(undefined, NOW)).toBeUndefined();
+		expect(await community.ranking(undefined, undefined, NOW)).toBeUndefined();
 		expect(asked).toEqual([]);
 	});
 
@@ -168,7 +197,7 @@ describe('the ranking of a season', () => {
 		const { get } = server(() => ({ status: 503, body: bytes('') }));
 		const community = new CommunitySource(async () => true, get);
 
-		await expect(community.ranking(undefined, NOW)).rejects.toThrow(/server/i);
+		await expect(community.ranking(undefined, undefined, NOW)).rejects.toThrow(/server/i);
 	});
 });
 

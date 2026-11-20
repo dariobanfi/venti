@@ -170,11 +170,19 @@ export class CoreClient {
 
 	/**
 	 * The server's pilots ranked by their best public flights, in the
-	 * season of that name or in the newest. Nothing if this site has no
-	 * server.
+	 * season of that name or in the newest, and with a place only of the
+	 * flights from there. Nothing if this site has no server.
 	 */
-	ranking(season?: string) {
-		return this.#call('ranking', season);
+	ranking(season?: string, near?: Coordinate) {
+		return this.#call('ranking', { season, near });
+	}
+
+	/**
+	 * The flying site at a place: the one of that identifier, or the
+	 * nearest take-off. Nothing if this site has no server.
+	 */
+	siteAt(place: Coordinate, id?: string) {
+		return this.#call('siteAt', { place, id });
 	}
 
 	/**

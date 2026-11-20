@@ -33,9 +33,11 @@
 		airspace: FlightAirspace | undefined;
 		/** Called with a position in the flight's track to mark. */
 		onselect: (trackIndex: number) => void;
+		/** The page of the place the flight took off from, where the site has a server to ask. */
+		fromHere?: string;
 	}
 
-	let { flight, analysis, airspace, onselect }: Props = $props();
+	let { flight, analysis, airspace, onselect, fromHere }: Props = $props();
 
 	const text = format();
 
@@ -147,6 +149,11 @@
 	<section>
 		<h3>Flight</h3>
 		{@render facts(summary)}
+		{#if fromHere}
+			<div class="card from-here">
+				<a class="row link" href={fromHere}>Flights from this take-off</a>
+			</div>
+		{/if}
 	</section>
 
 	{#if analysis?.score}
@@ -280,6 +287,25 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
+	}
+
+	.from-here {
+		margin-top: 0.75rem;
+	}
+
+	.link {
+		color: var(--accent);
+	}
+
+	@media (hover: hover) {
+		.link:hover {
+			background: var(--fill);
+		}
+	}
+
+	.link:focus-visible {
+		outline-offset: -0.1875rem;
+		border-radius: var(--radius-card);
 	}
 
 	h3 {

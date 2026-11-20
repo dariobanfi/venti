@@ -206,3 +206,30 @@ export function queryOf(asked: Asked): string {
 	const text = query.toString();
 	return text ? `?${text}` : '';
 }
+
+/** What a place's page asks for besides the place, read from its address. */
+export function placeAskedIn(query: Pick<URLSearchParams, 'get'>): {
+	at: { lat: number; lon: number } | undefined;
+	site: string;
+	order: PublicFlightsOrder;
+	season: string;
+} {
+	const lat = Number(query.get('lat') ?? Number.NaN);
+	const lon = Number(query.get('lon') ?? Number.NaN);
+	const real = Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 89;
+	return {
+		at: real && Math.abs(lon) <= 180 ? { lat, lon } : undefined,
+		site: query.get('site') ?? '',
+		order: query.get('order') === 'best' ? 'best' : 'newest',
+		season: query.get('season') ?? ''
+	};
+}
+
+/** The order and the season, written into a place's address: nothing for the newest of this year. */
+export function placeQuery(asked: { order: PublicFlightsOrder; season: string }): string {
+	const query = new URLSearchParams();
+	if (asked.order === 'best') query.set('order', 'best');
+	if (asked.season) query.set('season', asked.season);
+	const text = query.toString();
+	return text ? `?${text}` : '';
+}

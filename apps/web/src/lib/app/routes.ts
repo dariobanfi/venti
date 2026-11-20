@@ -53,6 +53,20 @@ export function pilotHref(handle: string): string {
 	return `${resolve('/logbook/everyone/pilot')}?handle=${encodeURIComponent(handle)}`;
 }
 
+/**
+ * A place pilots fly from: the flying site there and the flights that took
+ * off around it. `site` names the site the page is about; without one it
+ * is the take-off nearest to the place. `query` is what else the page asks
+ * for, as `placeQuery` writes it.
+ */
+export function placeHref(at: { lat: number; lon: number }, site = '', query = ''): string {
+	// Five decimals are a metre: the address stays short and the place where it is.
+	const params = new URLSearchParams({ lat: at.lat.toFixed(5), lon: at.lon.toFixed(5) });
+	if (site) params.set('site', site);
+	const more = query.replace(/^\?/, '');
+	return `${resolve('/logbook/everyone/place')}?${params}${more ? `&${more}` : ''}`;
+}
+
 /** Another pilot's flight, by its address on the server. */
 export function publicFlightHref(id: string): string {
 	return `${resolve('/logbook/everyone/flight')}?id=${encodeURIComponent(id)}`;

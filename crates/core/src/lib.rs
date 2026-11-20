@@ -200,7 +200,10 @@ pub struct ProfilePoint {
 
 /// A rectangle in latitude and longitude.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct Bounds {
     /// Southern edge, degrees.

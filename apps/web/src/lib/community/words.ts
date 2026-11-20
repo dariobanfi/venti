@@ -80,3 +80,24 @@ export function nothingListed(
 		says: 'Flights that pilots on this site’s Venti server share with everyone are listed here.'
 	};
 }
+
+/** Under the list of a place's flights: which flights these are, and whose reckoning the numbers. */
+export const PLACE_RECKONING =
+	'Flights that took off within a kilometre and a half of this place, as their pilots share them with everyone on Venti. Distances and points are Venti’s own reckoning by the World XContest’s rules, not a league’s.';
+
+/**
+ * Under the site on a place's page: that the site and the flights are two
+ * answers. The site is its source's record, shown with its source's credit;
+ * the flights are the pilots' own, asked for by where they took off.
+ */
+export const PLACE_APART =
+	'The site is as its source has it. The flights are found by where they took off, not by the site: a flight from a take-off the source does not know is listed all the same.';
+
+/** Why a place has no flights, and what would change that. */
+export function nothingFromHere(state: ListState): { title: string; says: string } {
+	if (state.absent || state.problem) return nothingListed(state, { from: '', to: '' });
+	return {
+		title: 'Nobody shares a flight from here',
+		says: 'Flights that took off within a kilometre and a half of this place, and that their pilots share with everyone, are listed here.'
+	};
+}

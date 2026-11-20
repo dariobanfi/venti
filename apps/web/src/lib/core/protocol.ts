@@ -48,6 +48,7 @@ import type {
 	ReportForm,
 	ReportReason,
 	ReportSubject,
+	SiteAtPlace,
 	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
@@ -119,11 +120,19 @@ export interface Calls {
 	/** A pilot, by handle, and one page of that pilot's public flights. */
 	pilotPage: { given: { handle: string; after?: string }; answer: PilotPage | undefined };
 	/**
-	 * Given the name of a season, or nothing for the newest: the server's
-	 * pilots ranked by their best public flights. Nothing if this site has
-	 * no server.
+	 * Given the name of a season, or nothing for the newest, and a place,
+	 * or nothing for everywhere: the server's pilots ranked by their best
+	 * public flights. Nothing if this site has no server.
 	 */
-	ranking: { given: string | undefined; answer: SeasonRanking | undefined };
+	ranking: {
+		given: { season?: string; near?: Coordinate };
+		answer: SeasonRanking | undefined;
+	};
+	/**
+	 * The flying site at a place: the one of that identifier, or the
+	 * nearest take-off. Nothing if this site has no server.
+	 */
+	siteAt: { given: { place: Coordinate; id?: string }; answer: SiteAtPlace | undefined };
 	/**
 	 * Given a flight's address on the server: another pilot's flight,
 	 * fetched and prepared for display. Nothing of it is kept.
@@ -272,7 +281,8 @@ export async function answer<Name extends CallName>(
 		liveAges: (asked) => live.ages(asked),
 		publicFlights: (asked) => community.flights(asked),
 		pilotPage: ({ handle, after }) => community.pilot(handle, after),
-		ranking: (season) => community.ranking(season),
+		ranking: ({ season, near }) => community.ranking(season, near),
+		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),

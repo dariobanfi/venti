@@ -95,6 +95,7 @@ export type {
 	ReportSubject,
 	RouteKind,
 	SiteKind,
+	SiteAtPlace,
 	SitesMap,
 	SiteView,
 	StationHistory,

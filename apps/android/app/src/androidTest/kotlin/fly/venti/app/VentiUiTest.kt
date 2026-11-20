@@ -684,6 +684,50 @@ class VentiUiTest {
         waitFor(line and hasText("2 waypoints", substring = true))
     }
 
+    /**
+     * The wind over the cockpit's map says how old it is once that is five
+     * minutes, and under it stands a line while it leaves the glider little
+     * way into it. The sample flight's wind is 11 km/h, which no glider the
+     * settings offer is slow enough for: the test flies one that trims at
+     * 18 km/h.
+     */
+    private fun flyASlowGliderInTheWind(prefix: String, dark: Boolean) {
+        launch(dark = dark) { putExtra(LaunchOptions.SLOW_GLIDER, true) }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasText("Start flight"))
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"))
+
+        // With the first wind, measured in the thermal, the line is there,
+        // in the core's words.
+        waitFor(hasTestTag("strong-wind-badge"))
+        assertTrue(exists(described("Strong wind") and saying("Into the wind ")))
+        // On a glide, five minutes after the wind was last measured, the
+        // wind says its age, and the line still stands under it. The glide
+        // after the second thermal is the long one, and its wind leaves
+        // 7 km/h; should the emulator be too slow to look in time, both
+        // stand again once the flight has ended.
+        val old = hasTestTag("wind-badge") and saying(", measured ")
+        val strong = hasTestTag("strong-wind-badge") and saying("Into the wind 7 km/h")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { exists(old) && exists(strong) }
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-7-old-and-strong-wind")
+
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        waitFor(hasText("Start flight"))
+    }
+
+    @Test
+    fun theCockpitSaysHowOldTheWindIsAndWhenItLeavesLittleWay() = flyASlowGliderInTheWind("light", dark = false)
+
+    @Test
+    fun theOldAndStrongWindInDarkAppearance() = flyASlowGliderInTheWind("dark", dark = true)
+
     @Test
     fun theCockpitFliesATask() = flyATask("light", dark = false)
 

@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -180,11 +181,16 @@ fun CockpitScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     view.wind?.let { wind ->
-                        WindBadge(wind, onOpen = { isShowingWinds = true })
+                        WindBadge(wind, view.windAgeS, onOpen = { isShowingWinds = true })
                     }
-                    // While circling: which way the lift is stronger, in
-                    // words beside the picture on the map.
-                    view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // A wind that leaves the glider little way into
+                        // it: said by the core, and only while it says so.
+                        view.strongWind?.let { words -> StrongWindBadge(words) }
+                        // While circling: which way the lift is stronger,
+                        // in words beside the picture on the map.
+                        view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                    }
                 }
                 AirspaceBanner(
                     fly.airspaceWarnings,
@@ -583,17 +589,33 @@ private fun VarioBar(climb: Double?) {
     }
 }
 
-/** A small raised surface over the map, for the wind and the flight's phase. */
+/**
+ * A small raised surface over the map, for the wind and the flight's phase.
+ * `ground` and `ink` are given for one that warns; the others are plain.
+ */
 @Composable
-private fun Badge(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+private fun Badge(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    ground: Color? = null,
+    ink: Color? = null,
+    content: @Composable () -> Unit,
+) {
     val row = @Composable {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             content()
         }
     }
-    val colour = MaterialTheme.colorScheme.surfaceContainerLow
+    val colour = ground ?: MaterialTheme.colorScheme.surfaceContainerLow
     if (onClick == null) {
-        Surface(modifier = modifier, shape = CircleShape, color = colour, shadowElevation = 3.dp, content = row)
+        Surface(
+            modifier = modifier,
+            shape = CircleShape,
+            color = colour,
+            contentColor = ink ?: contentColorFor(colour),
+            shadowElevation = 3.dp,
+            content = row,
+        )
     } else {
         // A surface that can be pressed keeps its press inside its shape.
         Surface(
@@ -633,17 +655,63 @@ private fun LiftBadge(centre: LiftCentreView, modifier: Modifier = Modifier) {
     }
 }
 
-/** The wind over the map: an arrow pointing the way the air moves, and its speed. */
+/**
+ * A wind that leaves the glider little way into it, in the core's words:
+ * "Into the wind 4 km/h". On the amber of an airspace warning that is very
+ * near, in both appearances: a warning is not themed.
+ */
 @Composable
-private fun WindBadge(wind: WindView, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+private fun StrongWindBadge(words: String, modifier: Modifier = Modifier) {
+    Badge(
+        modifier
+            .testTag("strong-wind-badge")
+            .clearAndSetSemantics {
+                contentDescription = "Strong wind"
+                stateDescription = words
+            },
+        ground = Color(0xFFFAB31A),
+        ink = Color(0xFF0A0A0A),
+    ) {
+        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(words, style = MaterialTheme.typography.titleSmall.numbers, color = Color.Unspecified)
+    }
+}
+
+/** What the wind's badge says beside the speed, and to a screen reader. */
+object WindBadgeWords {
+    /**
+     * The age of a wind once it is five minutes old or more: "12 min",
+     * "1 h". A fresh wind has none to show.
+     */
+    fun age(seconds: Double?): String? {
+        if (seconds == null || seconds < SHOWN_FROM_SECONDS) return null
+        val minutes = (seconds / 60).toInt()
+        return if (minutes < 60) "$minutes min" else "${minutes / 60} h"
+    }
+
+    /** "11 kilometres per hour from W, measured 12 min ago" */
+    fun spoken(wind: WindView, ageSeconds: Double?): String =
+        "${Format.spokenKilometresPerHour(wind.speedMs)} from ${Format.compassPoint(wind.fromDeg)}" +
+            age(ageSeconds)?.let { ", measured $it ago" }.orEmpty()
+
+    /** From this age on a wind is shown with its age, seconds. */
+    private const val SHOWN_FROM_SECONDS = 300.0
+}
+
+/**
+ * The wind over the map: an arrow pointing the way the air moves, its
+ * speed, and once it is a while old, how old.
+ */
+@Composable
+private fun WindBadge(wind: WindView, ageSeconds: Double?, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val speed = Format.kilometresPerHour(wind.speedMs)
     Badge(
         modifier
             .testTag("wind-badge")
             .clearAndSetSemantics {
                 contentDescription = "Wind"
-                stateDescription =
-                    "${Format.spokenKilometresPerHour(wind.speedMs)} from ${Format.compassPoint(wind.fromDeg)}"
+                stateDescription = WindBadgeWords.spoken(wind, ageSeconds)
                 role = Role.Button
                 onClick(label = "Show the wind by height") {
                     onOpen()
@@ -661,5 +729,15 @@ private fun WindBadge(wind: WindView, onOpen: () -> Unit, modifier: Modifier = M
         )
         Spacer(Modifier.width(6.dp))
         Text("$speed km/h", style = MaterialTheme.typography.titleMedium.numbers, color = Color.Unspecified)
+        // A wind from a while ago is a memory of another place and height:
+        // its age stands beside it.
+        WindBadgeWords.age(ageSeconds)?.let { age ->
+            Spacer(Modifier.width(6.dp))
+            Text(
+                age,
+                style = MaterialTheme.typography.titleSmall.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

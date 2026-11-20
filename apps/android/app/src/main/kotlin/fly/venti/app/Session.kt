@@ -94,6 +94,7 @@ sealed interface Session {
             sampleWaypoints: Boolean = false,
             sampleAirspace: Boolean = false,
             sampleTask: Boolean = false,
+            slowGlider: Boolean = false,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -103,6 +104,9 @@ sealed interface Session {
                 return Failed(error.pilotMessage)
             }
             val preferences = if (isUnderTest) MemoryPreferences() else StoredPreferences(app)
+            if (slowGlider) {
+                preferences.trimSpeed = LaunchOptions.SLOW_GLIDER_TRIM_SPEED
+            }
             val vario = VarioLink(app, preferences)
             val scope = MainScope()
             val fly = FlySession(
@@ -216,6 +220,7 @@ class VentiApplication : Application() {
             sampleWaypoints = options.usesSampleWaypoints,
             sampleAirspace = options.usesSampleAirspace,
             sampleTask = options.usesSampleTask,
+            slowGlider = options.usesSlowGlider,
         ).also { testSession = it }
     }
 }
@@ -257,6 +262,12 @@ data class LaunchOptions(
      * task can be tested without picking a file.
      */
     val usesSampleTask: Boolean = false,
+    /**
+     * Start with a glider slower than any the settings offer, so that the
+     * sample flight's wind leaves it little way: the cockpit then says so,
+     * and that can be tested.
+     */
+    val usesSlowGlider: Boolean = false,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -267,6 +278,13 @@ data class LaunchOptions(
         const val SAMPLE_WAYPOINTS = "sample-waypoints"
         const val SAMPLE_AIRSPACE = "sample-airspace"
         const val SAMPLE_TASK = "sample-task"
+        const val SLOW_GLIDER = "slow-glider"
+
+        /**
+         * The slow glider's trim speed, km/h: 7 km/h more than the wind of
+         * the sample flight, which blows at 11.
+         */
+        const val SLOW_GLIDER_TRIM_SPEED = 18.0
 
         /**
          * The made-up task, as a file in the XCTSK format: out of a start
@@ -321,6 +339,7 @@ data class LaunchOptions(
                 usesSampleWaypoints = intent.getBooleanExtra(SAMPLE_WAYPOINTS, false),
                 usesSampleAirspace = intent.getBooleanExtra(SAMPLE_AIRSPACE, false),
                 usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
+                usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
             )
         }
     }

@@ -114,7 +114,7 @@ object MapSetup {
     @Volatile
     var movesAtOnce: Boolean = false
 
-    private var prepared: Pair<MapStyle.Source, String>? = null
+    private var prepared: Pair<Pair<MapStyle.Source, String?>, String>? = null
 
     /**
      * The region kept on the phone that maps for looking around are drawn
@@ -129,10 +129,20 @@ object MapSetup {
      */
     @Synchronized
     fun style(context: Context): String {
-        prepared?.let { (source, json) -> if (source == this.source) return json }
+        val server = server()
+        prepared?.let { (made, json) -> if (made == source to server) return json }
         val files = AssetFiles(context)
-        return MapStyle.json(source, files.text(AppFiles.MAP_STYLE), region(context)).also { prepared = source to it }
+        return MapStyle.json(source, files.text(AppFiles.MAP_STYLE), region(context), server = server)
+            .also { prepared = (source to server) to it }
     }
+
+    /**
+     * Venti's address as the pilot has set it, without a slash at its end:
+     * what the style asks of Venti is asked of it. The app sets this to the
+     * one the wind and the sites are asked of.
+     */
+    @Volatile
+    var server: () -> String? = { null }
 
     /**
      * The folder with the label fonts and the region that came with the
@@ -178,6 +188,8 @@ object MapSetup {
      */
     fun showAerial(aerial: Boolean, style: Style, view: MapView) {
         val views = views(view.context) ?: return
+        // A layer the prepared style left out, one that asks Venti while
+        // none is set, is not there and is passed over.
         for (name in views.aerial) {
             style.getLayer(name)?.setProperties(PropertyFactory.visibility(if (aerial) Property.VISIBLE else Property.NONE))
         }
@@ -212,7 +224,7 @@ object MapSetup {
             // tests check that it can.
             val json = runCatching {
                 if (kept != null) {
-                    MapStyle.json(source, AssetFiles(context).text(AppFiles.MAP_STYLE), region(context), kept)
+                    MapStyle.json(source, AssetFiles(context).text(AppFiles.MAP_STYLE), region(context), kept, server())
                 } else {
                     style(context)
                 }

@@ -58,7 +58,16 @@ object MapStyle {
      * disk that holds the label fonts and the bundled region. Label fonts
      * always come from there, so place names never wait for the network.
      */
-    fun json(source: Source, template: String, region: File, kept: KeptMap? = null): String {
+    /** Where the style names Venti itself, for what it asks of Venti: the photographs of Austria. */
+    const val SERVER_PLACEHOLDER = "__VENTI_SERVER__"
+
+    /**
+     * `server` is Venti's address as the pilot has set it, without a slash
+     * at its end. What the style asks of Venti is asked of it; without one,
+     * every source that names Venti is left out, with the layers that draw
+     * from it.
+     */
+    fun json(source: Source, template: String, region: File, kept: KeptMap? = null, server: String? = null): String {
         val style = try {
             Json.parseToJsonElement(template) as? JsonObject
         } catch (_: SerializationException) {
@@ -90,9 +99,35 @@ object MapStyle {
                 "terrain" to terrain.with("url" to archive(region, BUNDLED_TERRAIN)),
             )
         }
+        // What the style asks of Venti itself.
+        val asksVenti = sources.filter { (_, described) ->
+            ((described as? JsonObject)?.get("tiles") as? JsonArray).orEmpty()
+                .any { (it as? JsonPrimitive)?.content?.contains(SERVER_PLACEHOLDER) == true }
+        }.keys
+        val withVenti = (sources + prepared).mapNotNull { (name, described) ->
+            when {
+                name !in asksVenti -> name to described
+                server == null -> null
+                else -> name to (described as JsonObject).with(
+                    "tiles" to JsonArray(
+                        (described["tiles"] as JsonArray).map { tile ->
+                            JsonPrimitive((tile as JsonPrimitive).content.replace(SERVER_PLACEHOLDER, server))
+                        },
+                    ),
+                )
+            }
+        }.toMap()
+        val layers = (style["layers"] as? JsonArray)?.let { all ->
+            if (server != null || asksVenti.isEmpty()) {
+                all
+            } else {
+                JsonArray(all.filter { layer -> (((layer as? JsonObject)?.get("source")) as? JsonPrimitive)?.content !in asksVenti })
+            }
+        }
         return style.with(
             "glyphs" to JsonPrimitive(url(region.resolve("fonts")) + "/{fontstack}/{range}.pbf"),
-            "sources" to JsonObject(sources + prepared),
+            "sources" to JsonObject(withVenti),
+            *listOfNotNull(layers?.let { "layers" to it }).toTypedArray(),
         ).toString()
     }
 

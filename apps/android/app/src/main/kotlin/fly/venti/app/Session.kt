@@ -190,6 +190,9 @@ sealed interface Session {
             // The cockpit warns of the pilot's files and of what is kept
             // from the server, also when either changes during a flight.
             fly.airspace = { airspace.set }
+            // What the map style asks of Venti itself, the photographs of
+            // Austria, is asked of the same server.
+            MapSetup.server = { (wind.server as? WindServer.Usable)?.url }
             // Flying sites come from that server too.
             val sites = SitesModel(scope)
             sites.server = { (wind.server as? WindServer.Usable)?.url }

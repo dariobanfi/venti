@@ -174,13 +174,13 @@ class SitesModelTest {
         server.refuses = true
         sites.load(area, BASE)
         val refused = checkNotNull(sites.problem)
-        assertFalse(refused, refused.startsWith("The server could not be reached"))
+        assertFalse(refused, refused.startsWith("Venti could not be reached"))
         assertEquals(before, sites.sites)
 
         server.refuses = false
         server.isReachable = false
         sites.load(area, BASE)
-        assertTrue(checkNotNull(sites.problem).startsWith("The server could not be reached for flying sites."))
+        assertTrue(checkNotNull(sites.problem).startsWith("Venti could not be reached for flying sites."))
         assertEquals(before, sites.sites)
 
         server.isReachable = true

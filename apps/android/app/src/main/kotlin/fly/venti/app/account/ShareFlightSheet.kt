@@ -79,7 +79,7 @@ fun ShareFlightSheet(
             val current = sharing
             when {
                 !account.isSignedIn -> Text(
-                    "To share a flight with a link, sign in to your Venti server under Settings, Account.",
+                    "To share a flight with a link, sign in to Venti under Settings, Account.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
@@ -125,7 +125,7 @@ fun ShareFlightSheet(
                 else -> Group(Modifier.padding(top = 16.dp)) {
                     row {
                         Text(
-                            "This flight is not on the server yet.",
+                            "This flight is not on Venti yet.",
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                         )

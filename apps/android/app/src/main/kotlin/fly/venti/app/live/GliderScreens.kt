@@ -66,7 +66,7 @@ object GliderWords {
         "Positions are as each pilot's app sent them. A glider nothing was heard of for a while has most " +
             "likely no network: it is not known to have landed."
 
-    const val MORE = "There are more than the server lists at once. Zoom the map in. "
+    const val MORE = "There are more than Venti lists at once. Zoom the map in. "
 
     const val GONE =
         "This glider is no longer on this part of the map: its pilot stopped showing the flight, or it has " +
@@ -307,7 +307,7 @@ private fun GliderPage(glider: LiveGlider, age: String, flight: LiveFollowView?,
                 }
             }
         }
-        SectionFooter("The server's page shows the whole track and keeps itself up to date.")
+        SectionFooter("Venti's page shows the whole track and keeps itself up to date.")
     }
     // For a track that should not be here: to whoever runs the server,
     // and to nobody else.

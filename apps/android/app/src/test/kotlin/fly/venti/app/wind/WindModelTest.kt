@@ -154,7 +154,7 @@ class WindModelTest {
         assertTrue(wind.stations.isEmpty())
         assertNull(wind.notice)
         assertNull(wind.creditLine)
-        assertTrue(wind.addressNote.startsWith("The address of a Venti server."))
+        assertTrue(wind.addressNote.startsWith("Venti's address."))
     }
 
     @Test
@@ -200,7 +200,7 @@ class WindModelTest {
         server.isReachable = false
         clock.pass(minutes = 5)
         wind.load()
-        assertTrue(checkNotNull(wind.problem).startsWith("The wind server could not be reached."))
+        assertTrue(checkNotNull(wind.problem).startsWith("Venti could not be reached for the wind."))
         assertEquals(wind.problem, wind.notice)
         assertEquals(wind.problem, wind.addressNote)
         assertEquals(before, wind.stations)
@@ -228,7 +228,7 @@ class WindModelTest {
         assertTrue(wind.stations.isEmpty())
         val problem = checkNotNull(wind.problem)
         assertTrue(problem.isNotBlank())
-        assertFalse(problem.startsWith("The wind server could not be reached."))
+        assertFalse(problem.startsWith("Venti could not be reached for the wind."))
     }
 
     @Test
@@ -275,7 +275,7 @@ class WindModelTest {
         assertTrue(wind.credits.isEmpty())
         assertNull(wind.problem)
         assertEquals(
-            "The map shows the wind stations this server collects, and the assistant can look them up.",
+            "The map shows the wind stations Venti collects, and the assistant can look them up.",
             wind.addressNote,
         )
 

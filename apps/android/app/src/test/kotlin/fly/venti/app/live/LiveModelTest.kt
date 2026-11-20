@@ -154,7 +154,7 @@ class LiveModelTest {
         assertEquals("Now", live.ageInWords(live.gliders[0]))
 
         assertEquals(GliderWords.CAUTION, GliderWords.underTheList(isTruncated = false))
-        assertTrue(GliderWords.underTheList(isTruncated = true).startsWith("There are more than the server lists at once."))
+        assertTrue(GliderWords.underTheList(isTruncated = true).startsWith("There are more than Venti lists at once."))
     }
 
     @Test

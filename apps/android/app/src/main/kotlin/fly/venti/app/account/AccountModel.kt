@@ -377,7 +377,7 @@ class AccountModel(
     fun words(error: Exception): String = when (error) {
         is CoreException -> error.pilotMessage
         is NotSignedIn -> "This phone is no longer signed in. Sign in again."
-        else -> "The server could not be reached. ${error.pilotMessage}"
+        else -> "Venti could not be reached. ${error.pilotMessage}"
     }
 
     private val HttpAnswer.status16: UShort get() = status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()
@@ -419,7 +419,7 @@ val FlightVisibility.key: String get() = name.lowercase()
 /** What the setting means. */
 val FlightVisibility.explanation: String
     get() = when (this) {
-        FlightVisibility.PRIVATE -> "The flight is kept on the server for your devices. Nobody else can see it."
+        FlightVisibility.PRIVATE -> "The flight is kept on Venti for your devices. Nobody else can see it."
         FlightVisibility.UNLISTED -> "Whoever has the link can see the flight. It is listed nowhere."
         FlightVisibility.PUBLIC -> "Anyone can see the flight, and it is listed on your page."
     }

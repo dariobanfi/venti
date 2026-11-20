@@ -297,11 +297,11 @@ class GroupsModelTest {
         // Without a network the board says so and keeps what it had.
         server.instead = { throw IOException("no route to host") }
         groups.load()
-        assertTrue(checkNotNull(groups.problem).startsWith("The server could not be reached."))
+        assertTrue(checkNotNull(groups.problem).startsWith("Venti could not be reached."))
         assertNotNull(groups.board)
         assertFalse(groups.isLoading)
         val unreached = checkNotNull(groups.attempt { groups.leave(GROUP) })
-        assertTrue(unreached.startsWith("The server could not be reached."))
+        assertTrue(unreached.startsWith("Venti could not be reached."))
 
         // Signed out, the board is forgotten: it was never the phone's to keep.
         server.instead = { null }

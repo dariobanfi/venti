@@ -96,9 +96,9 @@ object AirspaceWords {
                 }
             AirspaceOrigin.SERVER ->
                 if (date == null) {
-                    "From ${warning.source}, by way of your server."
+                    "From ${warning.source}, by way of Venti."
                 } else {
-                    "From ${warning.source}, by way of your server, as of ${Format.day(date)}."
+                    "From ${warning.source}, by way of Venti, as of ${Format.day(date)}."
                 }
         }
     }

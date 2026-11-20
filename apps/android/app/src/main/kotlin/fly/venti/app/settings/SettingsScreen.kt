@@ -170,7 +170,7 @@ fun SettingsScreen(
                     "inside either of them makes that line one side of an FAI triangle.",
             )
 
-            SectionHeader("Venti server")
+            SectionHeader("Venti")
             OutlinedTextField(
                 value = wind.address,
                 onValueChange = wind::use,

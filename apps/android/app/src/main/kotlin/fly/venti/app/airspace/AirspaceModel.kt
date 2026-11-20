@@ -200,7 +200,7 @@ class AirspaceModel(
             failedAt = time
             serverProblem = when (error) {
                 is CoreException -> error.pilotMessage
-                else -> "The server could not be reached for airspace. ${error.pilotMessage}"
+                else -> "Venti could not be reached for airspace. ${error.pilotMessage}"
             }
         } finally {
             isFetching = false
@@ -328,14 +328,14 @@ class AirspaceModel(
 
         /** Said in red on the row of airspace whose server does not say where it is complete. */
         const val COVERS_UNKNOWN =
-            "The server does not say for which area this is complete, so the cockpit cannot take silence " +
+            "Venti does not say for which area this is complete, so the cockpit cannot take silence " +
                 "for “no airspace near” and says that it is not checking."
 
         /** What stands under the server's airspace: what the app does with a server, or would. */
         fun serverNote(usesServer: Boolean, hasServer: Boolean, hasKept: Boolean): String = when {
             !usesServer -> "Switched off: only your own files are used."
             !hasServer ->
-                "With a Venti server set in the settings, the app fetches the airspace around you by itself " +
+                "With Venti connected in the settings, the app fetches the airspace around you by itself " +
                     "and keeps it on this phone, so the cockpit warns without a network."
             !hasKept ->
                 "Fetched the next time the map is open or a flight starts with a network, for about 200 km " +

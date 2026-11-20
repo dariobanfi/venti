@@ -304,7 +304,7 @@ class LogbookModel(
 
         /** What deleting a flight means, with and without an account on a Venti server. */
         fun deletionWarning(signedIn: Boolean): String = if (signedIn) {
-            "Its file is removed from this phone, from your Venti server and from your other devices. " +
+            "Its file is removed from this phone, from Venti and from your other devices. " +
                 "This cannot be undone."
         } else {
             "Its file is removed from this phone. This cannot be undone."

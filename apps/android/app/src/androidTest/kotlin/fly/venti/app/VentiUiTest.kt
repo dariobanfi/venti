@@ -582,7 +582,7 @@ class VentiUiTest {
         // The settings hold the server's address, and the credits name
         // whose stations it delivers.
         openFromToday("Settings")
-        waitFor(hasText("Venti server"))
+        waitFor(hasText("Server address"))
         screen.onNode(hasText("Data and licences")).performScrollTo()
         keepScreenshot("$prefix-wind-6-settings")
         tap(hasText("Data and licences"))
@@ -740,8 +740,8 @@ class VentiUiTest {
         keepScreenshot("$prefix-airspace-3-from-server")
 
         // Switched off, what was kept is gone, and the Fly tab says so.
-        screen.onNode(hasText("Airspace from your server")).performScrollTo()
-        tap(hasText("Airspace from your server"))
+        screen.onNode(hasText("Airspace from Venti")).performScrollTo()
+        tap(hasText("Airspace from Venti"))
         waitFor(hasText("Switched off: only your own files are used."))
         assertFalse(exists(hasTestTag("airspace-from-server")))
         tap(described("Back"))
@@ -994,7 +994,7 @@ class VentiUiTest {
         waitFor(hasText("@demo"))
         waitFor(hasText("Sync now"))
         waitFor(hasText("In step since"))
-        assertTrue(exists(hasText("Flights on the server")))
+        assertTrue(exists(hasText("Flights on Venti")))
         assertTrue(exists(hasTestTag("account-last-sync")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-account-2-signed-in")
@@ -1029,7 +1029,7 @@ class VentiUiTest {
         tap(described("More"))
         waitFor(hasText("Delete flight"))
         tap(hasText("Delete flight"))
-        waitFor(hasText("from your Venti server and from your other devices", substring = true))
+        waitFor(hasText("from Venti and from your other devices", substring = true))
         keepScreenshot("$prefix-account-5-delete")
         tap(hasText("Cancel"))
         tap(described("Back"))
@@ -1156,7 +1156,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("account-sign-out")).performScrollTo()
         tap(hasTestTag("account-sign-out"))
         waitFor(hasText("Sign out?"))
-        assertTrue(exists(hasText("Your flights stay on this phone and on the server.")))
+        assertTrue(exists(hasText("Your flights stay on this phone and on Venti.")))
         tap(hasTestTag("account-sign-out-confirm"))
         waitFor(hasTestTag("account-handle"))
         tap(described("Back"))

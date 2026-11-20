@@ -12,7 +12,7 @@ object PlanWords {
     const val FROM_WAYPOINTS = "From my waypoints"
 
     const val SIGNED_OUT =
-        "Plans for a flying day are shared in groups on your Venti server. Sign in under Settings, Account, " +
+        "Plans for a flying day are shared in groups on Venti. Sign in under Settings, Account, " +
             "then make a group or join one with the code its keeper gives you."
 
     const val NO_GROUP =
@@ -82,8 +82,8 @@ object GroupWords {
     const val JOINING = "The group's keeper has the code."
 
     const val THE_CODE =
-        "Whoever has this code and an account on your server can come into the group. It is shown this " +
-            "once: the server keeps no copy that can be read. A new code can be made at any time and ends " +
+        "Whoever has this code and an account on Venti can come into the group. It is shown this " +
+            "once: Venti keeps no copy that can be read. A new code can be made at any time and ends " +
             "this one."
 
     const val KEEPING =

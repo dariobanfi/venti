@@ -135,7 +135,7 @@ class SitesModel(
             if (server != this.server()) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
-                else -> "The server could not be reached for flying sites. ${error.pilotMessage}"
+                else -> "Venti could not be reached for flying sites. ${error.pilotMessage}"
             }
         }
     }

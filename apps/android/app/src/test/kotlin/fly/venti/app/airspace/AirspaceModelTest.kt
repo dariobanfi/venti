@@ -250,7 +250,7 @@ class AirspaceModelTest {
         val warning = session.airspaceWarnings().first()
         assertEquals("SERVER ZONE (NOT REAL)", warning.name)
         assertEquals(AirspaceOrigin.SERVER, warning.origin)
-        assertEquals("From openAIP, by way of your server, as of Wed, 18 Nov 2026.", AirspaceWords.origin(warning))
+        assertEquals("From openAIP, by way of Venti, as of Wed, 18 Nov 2026.", AirspaceWords.origin(warning))
 
         // Switched off, what was kept is gone and nothing is asked.
         airspace.stopUsingServer()
@@ -314,7 +314,7 @@ class AirspaceModelTest {
 
         airspace.refresh(tegernsee)
 
-        assertEquals("The server could not be reached for airspace. No route to host", airspace.serverProblem)
+        assertEquals("Venti could not be reached for airspace. No route to host", airspace.serverProblem)
         assertTrue(airspace.isEmpty)
     }
 
@@ -391,7 +391,7 @@ class AirspaceModelTest {
         val off = AirspaceModel.serverNote(usesServer = false, hasServer = true, hasKept = false)
         assertEquals("Switched off: only your own files are used.", off)
         val noServer = AirspaceModel.serverNote(usesServer = true, hasServer = false, hasKept = false)
-        assertTrue(noServer, noServer.startsWith("With a Venti server set in the settings"))
+        assertTrue(noServer, noServer.startsWith("With Venti connected in the settings"))
         val notYet = AirspaceModel.serverNote(usesServer = true, hasServer = true, hasKept = false)
         assertTrue(notYet, notYet.startsWith("Fetched the next time the map is open"))
         val kept = AirspaceModel.serverNote(usesServer = true, hasServer = true, hasKept = true)

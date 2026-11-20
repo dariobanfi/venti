@@ -66,10 +66,10 @@ import kotlinx.coroutines.launch
 /** What the list of everyone's flights says, in words. */
 object CommunityWords {
     const val WHOSE_RECKONING =
-        "Flights their pilots share with everyone on your Venti server. Distances and points are the " +
-            "server's own reckoning by the World XContest's rules, not a league's."
+        "Flights their pilots share with everyone on Venti. Distances and points are " +
+            "Venti's own reckoning by the World XContest's rules, not a league's."
 
-    const val NONE_YET = "Flights that pilots on your Venti server share with everyone are listed here."
+    const val NONE_YET = "Flights that pilots share with everyone on Venti are listed here."
 
     /** The two orders, as the switch above the list names them. */
     fun title(order: PublicFlightsOrder): String = when (order) {

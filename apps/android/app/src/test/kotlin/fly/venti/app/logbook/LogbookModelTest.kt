@@ -89,7 +89,7 @@ class LogbookModelTest {
         // Nobody is signed in on this phone: the flight is here and nowhere else.
         assertEquals("Its file is removed from this phone. This cannot be undone.", makeLogbook().deletionWarning)
         assertEquals(
-            "Its file is removed from this phone, from your Venti server and from your other devices. " +
+            "Its file is removed from this phone, from Venti and from your other devices. " +
                 "This cannot be undone.",
             LogbookModel.deletionWarning(signedIn = true),
         )

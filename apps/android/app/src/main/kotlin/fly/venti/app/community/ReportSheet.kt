@@ -62,7 +62,7 @@ data class Reported(
 /** What the form for a report says that is not the core's to say. */
 object ReportWords {
     const val NO_ACCOUNT =
-        "A report is sent from your account, so that whoever runs the server knows who it comes from. " +
+        "A report is sent from your account, so that Venti knows who it comes from. " +
             "Sign in under Settings, Account."
 
     const val OTHER_SERVER =

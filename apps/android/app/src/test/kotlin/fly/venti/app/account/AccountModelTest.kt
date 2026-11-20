@@ -135,7 +135,7 @@ class AccountModelTest {
         assertArrayEquals(TestSupport.sampleFlight.toByteArray(), server.sent[2].body)
 
         // With an account, deleting a flight reaches further than this phone.
-        assertTrue(logbook.deletionWarning.contains("from your Venti server and from your other devices"))
+        assertTrue(logbook.deletionWarning.contains("from Venti and from your other devices"))
 
         // Sharing changes who may see the flight and gives its link.
         assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
@@ -240,7 +240,7 @@ class AccountModelTest {
         assertTrue(account.isSignedIn)
 
         account.sync(force = true, quietly = false)
-        assertTrue(checkNotNull(account.problem).startsWith("The server could not be reached."))
+        assertTrue(checkNotNull(account.problem).startsWith("Venti could not be reached."))
         assertTrue(account.isSignedIn)
         assertFalse(account.isWorking)
     }
@@ -505,7 +505,7 @@ class AccountModelTest {
         assertEquals("This track is no longer there.", gone.problem)
         server.instead = { throw IOException("no route to host") }
         val unreached = account.report(ReportSubject.Pilot("mara"), ReportReason.SPAM, "")
-        assertTrue(checkNotNull(unreached.problem).startsWith("The server could not be reached."))
+        assertTrue(checkNotNull(unreached.problem).startsWith("Venti could not be reached."))
         assertNull(account.problem)
     }
 

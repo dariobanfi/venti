@@ -139,7 +139,7 @@ private fun SignInForm(
     val plain = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false)
 
     Text(
-        "With an account, your flights are copied to your Venti server. They appear on your other devices, " +
+        "With an account, your flights are copied to Venti. They appear on your other devices, " +
             "and you can share one with a link. A flight stays private until you share it.",
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -147,7 +147,7 @@ private fun SignInForm(
 
     if (server == null) {
         Text(
-            "Set the address of your Venti server in the settings first.",
+            "Set Venti's address in the settings first.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -227,7 +227,7 @@ private fun SignInForm(
         )
         SectionFooter(
             "A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a " +
-                "few words in a row are easy to remember. A forgotten password cannot be recovered: the server " +
+                "few words in a row are easy to remember. A forgotten password cannot be recovered: Venti " +
                 "knows no email address. Handle and name are public once you share a flight.",
         )
     }
@@ -278,7 +278,7 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
                 }
             }
         }
-        row { ValueRow("Flights on the server", Format.count(signedIn.flightsOnServer.toLong())) }
+        row { ValueRow("Flights on Venti", Format.count(signedIn.flightsOnServer.toLong())) }
         if (signedIn.flightsToSend > 0u) {
             row { ValueRow("Waiting to be sent", Format.count(signedIn.flightsToSend.toLong())) }
         }
@@ -312,7 +312,7 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
     }
     SectionFooter(
         "Venti syncs by itself when you open the app and after a flight. Your flights stay private on the " +
-            "server until you share one.",
+            "Venti until you share one.",
     )
 
     Spacer(Modifier.height(24.dp))
@@ -343,7 +343,7 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
         AlertDialog(
             onDismissRequest = { isConfirmingSignOut = false },
             title = { Text("Sign out?") },
-            text = { Text("Your flights stay on this phone and on the server.") },
+            text = { Text("Your flights stay on this phone and on Venti.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -379,7 +379,7 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, onDismiss: () -> Uni
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "The account and every flight on the server are deleted at once and for good, and your " +
+                    "The account and every flight on Venti are deleted at once and for good, and your " +
                         "shared links stop working. The flights on this phone stay. Enter your password to go on.",
                 )
                 OutlinedTextField(

@@ -128,7 +128,7 @@ fun StationPage(
                                     val samples = remember(current.history) { WindSample.of(current.history) }
                                     if (samples.size < 2) {
                                         Text(
-                                            "The server has no history for this station yet.",
+                                            "Venti has no history for this station yet.",
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     } else {
@@ -213,7 +213,7 @@ private fun Now(station: WindStation) {
 
 /** How old the reading is, and what that means if it is old. */
 private fun ageText(station: WindStation, now: Long): String {
-    val reading = station.latest ?: return "The server has no reading from this station."
+    val reading = station.latest ?: return "Venti has no reading from this station."
     val age = Format.age(Format.minutes(from = reading.timeUnixS, to = now))
     return if (station.isOld) {
         "Measured $age. Too old to say what the wind is doing now."

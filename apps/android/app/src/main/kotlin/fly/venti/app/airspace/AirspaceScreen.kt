@@ -113,7 +113,7 @@ fun AirspaceScreen(
                     Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
             }
-            SectionHeader("From your server")
+            SectionHeader("From Venti")
             Group {
                 for (layer in airspace.kept) {
                     row { KeptRow(layer) }
@@ -137,7 +137,7 @@ fun AirspaceScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "Airspace from your server",
+                            "Airspace from Venti",
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )

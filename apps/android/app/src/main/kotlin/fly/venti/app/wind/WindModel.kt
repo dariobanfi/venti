@@ -163,7 +163,7 @@ class WindModel(
     val addressNote: String
         get() = when (server) {
             WindServer.None ->
-                "The address of a Venti server. The map shows the wind stations it collects, the assistant " +
+                "Venti's address. The map shows the wind stations it collects, the assistant " +
                     "can look them up, and with an account your flights are kept there and can be shared. " +
                     "Without one, everything stays on this phone and the map has no wind."
             WindServer.Unusable -> "This is not an address the app can use. It should look like wind.example.org."
@@ -171,7 +171,7 @@ class WindModel(
                 "A server on the internet is asked over https only. An address that starts with " +
                     "http:// works for a server on your own network."
             is WindServer.Usable ->
-                problem ?: "The map shows the wind stations this server collects, and the assistant can look them up."
+                problem ?: "The map shows the wind stations Venti collects, and the assistant can look them up."
         }
 
     /**
@@ -263,7 +263,7 @@ class WindModel(
             if (server != url) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
-                else -> "The wind server could not be reached. ${error.pilotMessage}"
+                else -> "Venti could not be reached for the wind. ${error.pilotMessage}"
             }
             // An arrow must not outlive the wind it stood for.
             val since = answered?.second
@@ -311,7 +311,7 @@ class WindModel(
 
     /** What a station measured over the last 24 hours. */
     suspend fun history(station: WindStation): StationHistory {
-        val server = url ?: throw IOException("No wind server is set.")
+        val server = url ?: throw IOException("Venti is not connected.")
         val answer = transport(server + stationHistoryPath(station.id))
         return withContext(background) { stationHistory(answer.status.asStatus(), answer.body, now) }
     }
@@ -328,7 +328,7 @@ class WindModel(
      * few seconds, for about half a minute.
      */
     suspend fun forecast(place: Coordinate): ForecastView {
-        val server = url ?: throw IOException("No Venti server is set.")
+        val server = url ?: throw IOException("Venti is not connected.")
         val address = server + forecastPath(place.lat, place.lon)
         var answer = transport(address)
         var tries = 1

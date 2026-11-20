@@ -149,7 +149,7 @@ fun ForecastPage(
                 if (error is CoreException) {
                     error.pilotMessage
                 } else {
-                    "The server could not be reached. ${error.pilotMessage}"
+                    "Venti could not be reached. ${error.pilotMessage}"
                 },
             )
         }
@@ -183,7 +183,7 @@ fun ForecastPage(
                 val models = current.forecast.models
                 val shown = models.firstOrNull { it.model == model } ?: models.firstOrNull()
                 if (shown == null) {
-                    NoForecast("No forecast for this place", "None of the server's weather models reaches it.", onRetry = null)
+                    NoForecast("No forecast for this place", "None of Venti's weather models reaches it.", onRetry = null)
                 } else {
                     Loaded(current.forecast, shown, day, onDay = { day = it }, onModel = { model = it })
                 }

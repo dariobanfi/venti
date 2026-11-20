@@ -333,7 +333,7 @@ private fun Suggestions(hasWind: Boolean, ask: (String) -> Unit) {
         )
         Text(
             if (hasWind) {
-                "The assistant reads your logbook to answer, and the wind stations of your Venti server. " +
+                "The assistant reads your logbook to answer, and the wind stations of Venti. " +
                     "It cannot see forecasts, airspace or other pilots yet."
             } else {
                 "The assistant reads your logbook to answer. It cannot see weather, airspace or other pilots yet."
@@ -403,8 +403,8 @@ private fun KeyEntry(chat: AssistantChat) {
         SectionFooter(
             "Kept encrypted on this phone and sent only to Anthropic. Your questions, and what the " +
                 "assistant looks up to answer them, go from this phone straight to Anthropic, which " +
-                "bills your account for them. No Venti server sees your key or your questions. When " +
-                "the assistant looks up live wind, the app asks your Venti server for the stations " +
+                "bills your account for them. Venti never sees your key or your questions. When " +
+                "the assistant looks up live wind, the app asks Venti for the stations " +
                 "around a place, as the map does.",
         )
         Spacer(Modifier.height(16.dp))

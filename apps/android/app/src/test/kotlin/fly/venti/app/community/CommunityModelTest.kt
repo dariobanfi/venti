@@ -262,7 +262,7 @@ class CommunityModelTest {
         address = BASE
         server.isReachable = false
         community.loadIfNeeded()
-        assertTrue(community.problem, checkNotNull(community.problem).startsWith("The server could not be reached for other pilots' flights."))
+        assertTrue(community.problem, checkNotNull(community.problem).startsWith("Venti could not be reached for other pilots' flights."))
         assertTrue(community.flights.isEmpty())
         assertFalse(community.isLoading)
 
@@ -271,7 +271,7 @@ class CommunityModelTest {
         server.refusal = HttpAnswer(503, ByteArray(0))
         community.loadIfNeeded()
         assertTrue(checkNotNull(community.problem).isNotEmpty())
-        assertFalse(checkNotNull(community.problem).startsWith("The server could not be reached"))
+        assertFalse(checkNotNull(community.problem).startsWith("Venti could not be reached"))
 
         // Asked again once it answers, the list is there and nothing is said.
         server.refusal = null
@@ -283,7 +283,7 @@ class CommunityModelTest {
         server.isReachable = false
         community.loadMore()
         assertEquals(2, community.flights.size)
-        assertTrue(checkNotNull(community.problem).startsWith("The server could not be reached"))
+        assertTrue(checkNotNull(community.problem).startsWith("Venti could not be reached"))
 
         // The pilot takes the server away: its flights go with it.
         address = null
@@ -363,7 +363,7 @@ class CommunityModelTest {
         // No network: said, and asked again the next time the page is looked at.
         server.isReachable = false
         community.showPilot("demo")
-        assertTrue(checkNotNull(community.pilot?.problem).startsWith("The server could not be reached."))
+        assertTrue(checkNotNull(community.pilot?.problem).startsWith("Venti could not be reached."))
         server.isReachable = true
         community.showPilot("demo")
         assertNull(community.pilot?.problem)

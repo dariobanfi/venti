@@ -190,7 +190,7 @@ class CommunityModel(
             if (server != this.server() || order != this.order) return
             problem = when (error) {
                 is CoreException -> error.pilotMessage
-                else -> "The server could not be reached for other pilots' flights. ${error.pilotMessage}"
+                else -> "Venti could not be reached for other pilots' flights. ${error.pilotMessage}"
             }
         } finally {
             isLoading = false
@@ -306,8 +306,8 @@ class CommunityModel(
             shown.copy(
                 problem = when (error) {
                     is CoreException -> error.pilotMessage
-                    is NoLongerPublic -> "No Venti server is set."
-                    else -> "The server could not be reached. ${error.pilotMessage}"
+                    is NoLongerPublic -> "Venti is not connected."
+                    else -> "Venti could not be reached. ${error.pilotMessage}"
                 },
             )
         }

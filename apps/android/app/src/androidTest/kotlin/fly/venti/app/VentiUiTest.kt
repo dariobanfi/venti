@@ -90,7 +90,7 @@ class VentiUiTest {
     }
 
     private fun keepScreenshot(name: String) {
-        TestDevice.keepScreenshot(screen, name)
+        TestDevice.keepScreenshot(screen, name, app)
     }
 
     /**
@@ -296,6 +296,22 @@ class VentiUiTest {
         keepScreenshot("$prefix-fly-3c-whole-flight")
         tap(described("Follow the glider"))
         waitFor(described("Show the whole flight"))
+
+        // What lies ahead, seen from the side, from the second round
+        // button: the ground of the region that comes with the app, the
+        // glide drawn over it, and what the glide does over the ground
+        // in words. The sample has no airspace, and the view says so.
+        tap(described("Ahead, from the side"))
+        waitForAll(
+            hasTestTag("ahead-chart"),
+            hasTestTag("ahead-words") and hasText("No airspace in the app"),
+            hasTestTag("ahead-ground") and hasText("Your line", substring = true),
+        )
+        assertTrue(exists(hasText("it knows no trees, cables or buildings", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-3d-ahead")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("ahead-chart")) }
 
         // A tap on the landing's badge lists the places to fly to.
         waitFor(landing)
@@ -514,6 +530,15 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { airspaceOnTheMap(scenario) > 0 }
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-8-airspace")
+
+        // The line ahead from the side, with the zone as a block if it
+        // lies on the line just now; which it does is the flight's to say.
+        tap(described("Ahead, from the side"))
+        waitForAll(hasTestTag("ahead-chart"), hasTestTag("ahead-words"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-8b-ahead")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("ahead-chart")) }
 
         tap(banner)
         waitFor(hasText("Seen: quiet for 10 minutes"))

@@ -221,7 +221,11 @@ class TerrainModelTest {
         // Asked for with the first position, and not with every refresh:
         // every ten seconds of the clock.
         assertEquals(1, wanted.size)
+        // The side view of what lies ahead has the ground too, while the
+        // session runs.
+        assertTrue(checkNotNull(fly.airspaceAhead()).ground.isNotEmpty())
         fly.finish()
+        assertNull(fly.airspaceAhead())
     }
 
     private companion object {

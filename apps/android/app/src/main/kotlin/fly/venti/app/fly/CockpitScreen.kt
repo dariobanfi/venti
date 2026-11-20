@@ -75,6 +75,7 @@ import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.waypoints.place
+import fly.venti.core.AirspaceCheck
 import fly.venti.core.CockpitView
 import fly.venti.core.FlightPhase
 import fly.venti.core.LandingOption
@@ -121,6 +122,7 @@ fun CockpitScreen(
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
+    var isShowingAhead by remember { mutableStateOf(false) }
     var isShowingTask by remember { mutableStateOf(false) }
     var isShowingLive by remember { mutableStateOf(false) }
     // The task is drawn only while the session flies one.
@@ -164,17 +166,33 @@ fun CockpitScreen(
                 // The whole flight at a glance, with the scored route and
                 // where to go for an FAI triangle; again for the close view
                 // that follows the glider.
-                SmallFloatingActionButton(
-                    onClick = { showsWholeFlight = !showsWholeFlight },
+                Column(
                     modifier = Modifier.align(Alignment.CenterStart).padding(10.dp),
-                    shape = CircleShape,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
-                        contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
-                    )
+                    SmallFloatingActionButton(
+                        onClick = { showsWholeFlight = !showsWholeFlight },
+                        shape = CircleShape,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Icon(
+                            painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
+                            contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
+                        )
+                    }
+                    // With airspace to warn from, or the ground to draw:
+                    // what lies on the line ahead, seen from the side.
+                    if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
+                        SmallFloatingActionButton(
+                            onClick = { isShowingAhead = true },
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_elevation), contentDescription = AheadWords.TITLE)
+                        }
+                    }
                 }
                 Column(
                     // Less room above than the other badges: a badge that
@@ -274,6 +292,10 @@ fun CockpitScreen(
             onUnsilence = fly::unsilenceAirspace,
             onDismiss = { isShowingAirspace = false },
         )
+    }
+
+    if (isShowingAhead) {
+        AheadSheet(fly, onDismiss = { isShowingAhead = false })
     }
 
     if (isShowingWinds) {

@@ -96,12 +96,51 @@ object TestDevice {
      * after the frame, a picture of the cockpit in a replay could show the
      * numbers of one refresh over the map of the one before, with the
      * glider beside the line that starts at it.
+     *
+     * With `app`, the map is asked first whether it has drawn all it was
+     * given: a long track takes the emulator longer than the time every
+     * picture waits.
      */
-    fun keepScreenshot(screen: ComposeTestRule, name: String) {
+    fun <A : Activity> keepScreenshot(screen: ComposeTestRule, name: String, app: ActivityScenario<A>? = null) {
         screen.waitForIdle()
+        if (app != null) {
+            runCatching { letTheMapFinish(app) }
+        }
         Thread.sleep(MAP_FRAME_MILLISECONDS)
         keepScreenshot(name)
     }
+
+    /**
+     * Waits until the map on screen has drawn everything it was given, and
+     * no longer than `milliseconds`. The map takes what it is given in its
+     * own time, on threads of its own, and says with every frame it draws
+     * whether that frame had all of it; a map at rest draws none, so one
+     * is asked for. Does nothing where no map is on screen.
+     */
+    fun <A : Activity> letTheMapFinish(app: ActivityScenario<A>, milliseconds: Long = MAP_FINISH_MILLISECONDS) {
+        val finished = CountDownLatch(1)
+        var found: MapView? = null
+        val listener = MapView.OnDidFinishRenderingFrameListener { fully, _, _ ->
+            if (fully) {
+                finished.countDown()
+            }
+        }
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                finished.countDown()
+            } else {
+                found = view
+                view.addOnDidFinishRenderingFrameListener(listener)
+                view.getMapAsync { map -> map.triggerRepaint() }
+            }
+        }
+        finished.await(milliseconds, TimeUnit.MILLISECONDS)
+        app.onActivity { found?.removeOnDidFinishRenderingFrameListener(listener) }
+    }
+
+    /** The longest a picture waits for the map to have drawn everything. */
+    private const val MAP_FINISH_MILLISECONDS = 2_000L
 
     /** The folder the build collects after the tests. */
     private fun kept(): File {

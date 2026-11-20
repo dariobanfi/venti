@@ -7,6 +7,7 @@ import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.waypoints.place
+import fly.venti.core.AirspaceAhead
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
@@ -510,6 +511,15 @@ class FlySession(
             }
         }
     }
+
+    /**
+     * What lies on the line ahead, seen from the side: on the glider's
+     * course on a glide, towards the place the cockpit navigates to while
+     * circling. `null` without a position and a height, and with neither
+     * airspace nor ground to show.
+     */
+    @Synchronized
+    fun airspaceAhead(): AirspaceAhead? = session?.airspaceAhead(replay?.now() ?: clock())
 
     /**
      * The ground, as far as the phone has it. Without it the cockpit knows

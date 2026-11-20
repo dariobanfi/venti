@@ -1574,7 +1574,9 @@ class VentiUiTest {
         // A map of the whole northern Alps has no signs and no button for them.
         assertFalse(exists(described("Flying sites")))
 
-        assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.845, zoom = 11.0))
+        // The take-off stands left of the round buttons along the right
+        // edge, so that a tap on its pin is a tap on the pin.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.69, lon = 11.875, zoom = 11.0))
         waitFor(described("Flying sites"))
         waitFor(hasText("Sites: OpenStreetMap contributors"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {

@@ -33,7 +33,11 @@ describe('the site’s content security policy', () => {
 	});
 
 	it('lets the map ask every address its style names, and no other host', () => {
-		const tiles = [mapStyle().sources, terrain3dSource()].flatMap(addresses);
+		// At a domain, where the style has every source it can have.
+		const style = mapStyle({ origin: 'https://venti.example', hostname: 'venti.example' });
+		const tiles = [style.sources, terrain3dSource()]
+			.flatMap(addresses)
+			.filter((address) => !address.startsWith('https://venti.example'));
 		const asked = new Set(tiles.map((address) => new URL(address.replaceAll(/[{}]/g, '')).origin));
 
 		expect([...asked].sort()).toEqual([...TILE_HOSTS].sort());
@@ -42,7 +46,8 @@ describe('the site’s content security policy', () => {
 			'https://tiles.openfreemap.org',
 			'https://tiles.mapterhorn.com',
 			'https://tiles.maps.eox.at',
-			'https://wmtsod1.bayernwolke.de'
+			'https://wmtsod1.bayernwolke.de',
+			'https://thermal.kk7.ch'
 		]);
 	});
 

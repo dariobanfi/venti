@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. The world's and Bavaria's are fetched from their providers, at addresses that are the same for every app. Austria's come through Venti, which cuts them at the border: the address begins with a placeholder for the Venti server an app talks to, and an app that has none leaves that source and its layer out. docs/data-sources.md has each provider's terms."
+    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. The world's and Bavaria's are fetched from their providers, at addresses that are the same for every app. Austria's come through Venti, which cuts them at the border: the address begins with a placeholder for the Venti server an app talks to, and an app that has none leaves that source and its layer out. docs/data-sources.md has each provider's terms. A layer an app's chip switches on and off says which in its metadata, venti:layer; the first is the thermal map of thermal.kk7.ch, hidden as the file stands. Its author asks every request to name the app's domain: the address ends in a placeholder for it, and an app that has no domain to name leaves that source and its layer out, so nothing is asked of his server without saying who asks."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {
@@ -15,6 +15,14 @@
       "url": "__TERRAIN_URL__",
       "tileSize": 512,
       "encoding": "terrarium"
+    },
+    "thermals": {
+      "type": "raster",
+      "scheme": "tms",
+      "tiles": ["https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=__APP_DOMAIN__"],
+      "tileSize": 256,
+      "maxzoom": 12,
+      "attribution": "thermal.kk7.ch <a href=\"https://creativecommons.org/licenses/by-nc-sa/4.0/\">CC-BY-NC-SA</a>"
     },
     "aerial-world": {
       "type": "raster",
@@ -231,6 +239,14 @@
         "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2],
         "line-dasharray": [4, 2]
       }
+    },
+    {
+      "id": "thermals",
+      "type": "raster",
+      "metadata": { "venti:layer": "thermals" },
+      "source": "thermals",
+      "layout": { "visibility": "none" },
+      "paint": { "raster-opacity": 0.6 }
     },
     {
       "id": "aerial-aerialway-casing",

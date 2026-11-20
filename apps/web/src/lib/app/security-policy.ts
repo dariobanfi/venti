@@ -32,7 +32,8 @@ function origin(address: string): string {
 export const TILE_HOSTS: readonly string[] = [
 	origin(ONLINE.basemap),
 	origin(ONLINE.terrainTiles),
-	...ONLINE.aerialHosts
+	...ONLINE.aerialHosts,
+	ONLINE.thermalHost
 ];
 
 /**

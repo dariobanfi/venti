@@ -67,6 +67,10 @@ enum MapStyle {
     struct Views: Equatable {
         let aerial: [String]
         let drawn: [String]
+        /// The layers of the thermal map, which a chip switches on and
+        /// off. A map has them only when the app has a domain to name to
+        /// the map's author: see `json(for:server:domain:in:)`.
+        let thermals: [String]
     }
 
     /// Which layers of the shared style belong to which view. The style
@@ -81,12 +85,15 @@ enum MapStyle {
         else {
             throw StyleError.malformed
         }
-        func names(of view: String) -> [String] {
+        func names(_ mark: String, _ value: String) -> [String] {
             layers
-                .filter { ($0["metadata"] as? [String: Any])?["venti:view"] as? String == view }
+                .filter { ($0["metadata"] as? [String: Any])?[mark] as? String == value }
                 .compactMap { $0["id"] as? String }
         }
-        return Views(aerial: names(of: "aerial"), drawn: names(of: "drawn"))
+        return Views(
+            aerial: names("venti:view", "aerial"), drawn: names("venti:view", "drawn"),
+            thermals: names("venti:layer", "thermals")
+        )
     }
 
     /// The folder inside the app that holds the bundled region and the fonts.
@@ -101,6 +108,17 @@ enum MapStyle {
     /// server the app talks to.
     static let serverPlaceholder = "__VENTI_SERVER__"
 
+    /// What stands in the shared style for the domain the app names itself
+    /// by to a provider that asks who is calling.
+    static let domainPlaceholder = "__APP_DOMAIN__"
+
+    /// The domain Venti names itself by. The thermal map's author asks
+    /// every request to say whose app is asking (docs/data-sources.md).
+    /// Venti has no domain yet, so there is nothing true to say, and the
+    /// style then leaves the thermal map out: nothing is asked of his
+    /// server without it.
+    static let appDomain: String? = nil
+
     /// The Venti server the pilot has set, if the address is one.
     static var savedServer: URL? {
         WindModel.server(from: UserDefaults.standard.string(forKey: Preferences.server) ?? "")
@@ -111,9 +129,12 @@ enum MapStyle {
     /// Label fonts always come from inside the app, so place names never
     /// wait for the network. What the style asks of Venti itself, the
     /// photographs of Austria that Venti cuts at the border, is asked of
-    /// `server`; without a server that source and its layer are left out.
+    /// `server`; what has to be told who is asking, the thermal map, is
+    /// told `domain`. A source that needs one of the two and has none is
+    /// left out, with its layers.
     static func json(
-        for source: Source, server: URL? = savedServer, in bundle: Bundle = .main
+        for source: Source, server: URL? = savedServer, domain: String? = appDomain,
+        in bundle: Bundle = .main
     ) throws -> String {
         guard let template = bundle.url(forResource: "style", withExtension: "json") else {
             throw StyleError.missing("style.json")
@@ -148,19 +169,27 @@ enum MapStyle {
         sources["terrain"] = terrain
 
         var layers = style["layers"] as? [[String: Any]] ?? []
+        // What each placeholder stands for, where the app has it.
+        var values: [String: String] = [:]
+        values[serverPlaceholder] = server?.absoluteString
+        values[domainPlaceholder] = domain
         for (name, described) in sources {
-            guard let tiles = described["tiles"] as? [String],
-                  tiles.contains(where: { $0.contains(serverPlaceholder) })
-            else { continue }
-            if let server {
-                var asked = described
-                asked["tiles"] = tiles.map {
-                    $0.replacingOccurrences(of: serverPlaceholder, with: server.absoluteString)
-                }
-                sources[name] = asked
-            } else {
+            guard let tiles = described["tiles"] as? [String] else { continue }
+            let named = [serverPlaceholder, domainPlaceholder].filter { placeholder in
+                tiles.contains { $0.contains(placeholder) }
+            }
+            guard !named.isEmpty else { continue }
+            if named.contains(where: { values[$0] == nil }) {
                 sources[name] = nil
                 layers.removeAll { $0["source"] as? String == name }
+            } else {
+                var asked = described
+                asked["tiles"] = tiles.map { address in
+                    named.reduce(address) { filled, placeholder in
+                        filled.replacingOccurrences(of: placeholder, with: values[placeholder] ?? "")
+                    }
+                }
+                sources[name] = asked
             }
         }
         style["layers"] = layers
@@ -172,12 +201,15 @@ enum MapStyle {
 
     /// Writes the prepared style to the caches folder and returns its
     /// location. The map view loads a style from a URL, not from text.
-    static func url(for source: Source, server: URL? = savedServer, in bundle: Bundle = .main) throws -> URL {
+    static func url(
+        for source: Source, server: URL? = savedServer, domain: String? = appDomain, in bundle: Bundle = .main
+    ) throws -> URL {
         let caches = try FileManager.default.url(
             for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         )
         let file = caches.appendingPathComponent("map-style-\(source.key).json")
-        try json(for: source, server: server, in: bundle).write(to: file, atomically: true, encoding: .utf8)
+        try json(for: source, server: server, domain: domain, in: bundle)
+            .write(to: file, atomically: true, encoding: .utf8)
         return file
     }
 }

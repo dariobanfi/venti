@@ -25,5 +25,11 @@ export const ONLINE = {
 	 * in the shared style (`map/style.json`), the same for every app; here
 	 * are their hosts, for the policy, and a test holds the two together.
 	 */
-	aerialHosts: ['https://tiles.maps.eox.at', 'https://wmtsod1.bayernwolke.de']
+	aerialHosts: ['https://tiles.maps.eox.at', 'https://wmtsod1.bayernwolke.de'],
+	/**
+	 * Where the thermal map comes from, for the policy as above. Its author
+	 * asks to be told the page's domain with every request, which the style
+	 * does (`style.ts`); a page without a domain never asks.
+	 */
+	thermalHost: 'https://thermal.kk7.ch'
 } as const;

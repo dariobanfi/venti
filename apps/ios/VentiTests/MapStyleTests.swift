@@ -8,8 +8,10 @@ final class MapStyleTests: XCTestCase {
     /// A Venti server, as a pilot's settings name one.
     private let server = URL(string: "https://venti.example")
 
-    private func style(for source: MapStyle.Source, server: URL? = nil) throws -> [String: Any] {
-        let text = try MapStyle.json(for: source, server: server)
+    private func style(
+        for source: MapStyle.Source, server: URL? = nil, domain: String? = nil
+    ) throws -> [String: Any] {
+        let text = try MapStyle.json(for: source, server: server, domain: domain)
         XCTAssertFalse(text.contains("__"), "a placeholder was not replaced")
         let style = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
@@ -59,6 +61,34 @@ final class MapStyleTests: XCTestCase {
             // Nothing else goes with it.
             XCTAssertEqual(left.count, layers.count - 1)
         }
+    }
+
+    /// The thermal map's author asks every request to name the app's
+    /// domain. With one, the style asks his server and says so; without
+    /// one the map is not in the style at all, and nothing is asked.
+    func testTheThermalMapIsThereOnlyWithADomainToName() throws {
+        XCTAssertEqual(try MapStyle.views().thermals, ["thermals"])
+        for source in try everySource() {
+            let with = try style(for: source, domain: "venti.example")
+            let asked = try XCTUnwrap((with["sources"] as? [String: [String: Any]])?["thermals"])
+            XCTAssertEqual(
+                asked["tiles"] as? [String],
+                ["https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=venti.example"]
+            )
+            XCTAssertEqual(asked["scheme"] as? String, "tms")
+            XCTAssertEqual(asked["maxzoom"] as? Int, 12)
+            XCTAssertTrue((asked["attribution"] as? String)?.contains("CC-BY-NC-SA") == true)
+            let layers = try XCTUnwrap(with["layers"] as? [[String: Any]])
+            let layer = try XCTUnwrap(layers.first { $0["id"] as? String == "thermals" })
+            XCTAssertEqual((layer["layout"] as? [String: Any])?["visibility"] as? String, "none")
+
+            let without = try style(for: source)
+            XCTAssertNil((without["sources"] as? [String: [String: Any]])?["thermals"])
+            let left = try XCTUnwrap(without["layers"] as? [[String: Any]])
+            XCTAssertFalse(left.contains { $0["source"] as? String == "thermals" })
+        }
+        // Venti names no domain yet: see `MapStyle.appDomain`.
+        XCTAssertNil(MapStyle.appDomain)
     }
 
     /// The shared style marks which layers belong to the drawn ground and

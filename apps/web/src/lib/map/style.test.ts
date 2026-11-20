@@ -2,7 +2,15 @@ import { existsSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import tokens from '../../../../../design/tokens/tokens.json';
 import { fontLoader, fontTable, fontUrl } from './fonts';
-import { AERIAL_LAYERS, DRAWN_LAYERS, FONT_SCHEME, mapStyle, terrain3dSource } from './style';
+import {
+	AERIAL_LAYERS,
+	appDomain,
+	DRAWN_LAYERS,
+	FONT_SCHEME,
+	mapStyle,
+	terrain3dSource,
+	THERMAL_LAYERS
+} from './style';
 
 describe('the map style prepared for the browser', () => {
 	it('has no placeholder left in it', () => {
@@ -118,6 +126,43 @@ describe('the map style prepared for the browser', () => {
 		// Under the app's own address: here, where there is none, a path alone.
 		expect(austria.tiles).toEqual(['/v1/imagery/basemap-at/{z}/{x}/{y}']);
 		expect(austria.attribution).toContain('basemap.at');
+	});
+
+	it('has the thermal map only where the page has a domain to name to its author', () => {
+		// Opened from this machine, or by a bare address: nobody to name,
+		// so nothing of it is in the style and nothing is ever asked.
+		for (const hostname of [undefined, 'localhost', '127.0.0.1']) {
+			const style = mapStyle({ origin: 'http://127.0.0.1:8088', hostname });
+			expect(style.sources.thermals, String(hostname)).toBeUndefined();
+			expect(style.layers.some((layer) => layer.id === 'thermals')).toBe(false);
+			expect(JSON.stringify(style)).not.toContain('__');
+		}
+		expect(appDomain('venti.example')).toBe('venti.example');
+
+		// At a domain: every request says who asks, in the scheme and to the
+		// zoom the author's server has, and the layer is hidden until the
+		// pilot switches it on.
+		const style = mapStyle({ origin: 'https://venti.example', hostname: 'venti.example' });
+		expect(style.sources.thermals).toEqual({
+			type: 'raster',
+			scheme: 'tms',
+			tiles: ['https://thermal.kk7.ch/tiles/thermals_all_all/{z}/{x}/{y}.png?src=venti.example'],
+			tileSize: 256,
+			maxzoom: 12,
+			attribution: expect.stringContaining('thermal.kk7.ch')
+		});
+		expect(THERMAL_LAYERS).toEqual(['thermals']);
+		const layer = style.layers.find((one) => one.id === 'thermals');
+		expect(layer).toMatchObject({ type: 'raster', layout: { visibility: 'none' } });
+		expect(JSON.stringify(style)).not.toContain('__');
+		// It lies over the ground and the photographs and under every name.
+		const at = style.layers.findIndex((one) => one.id === 'thermals');
+		expect(style.layers.slice(at + 1).some((one) => one.type === 'fill')).toBe(false);
+		expect(at).toBeGreaterThan(style.layers.findIndex((one) => one.id === 'aerial-bavaria'));
+		// And Venti's own address is where Austria's photographs are asked for.
+		expect((style.sources['aerial-austria'] as { tiles: string[] }).tiles).toEqual([
+			'https://venti.example/v1/imagery/basemap-at/{z}/{x}/{y}'
+		]);
 	});
 
 	it('asks the app for its label fonts, not the network', () => {

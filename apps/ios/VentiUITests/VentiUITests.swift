@@ -53,6 +53,40 @@ final class VentiUITests: XCTestCase {
         return false
     }
 
+    /// Taps something that may still be moving into place, such as an item
+    /// of a menu that is unfolding: a tap that comes too early touches the
+    /// menu and chooses nothing.
+    private func tapWhenStill(_ element: XCUIElement, timeout: TimeInterval = 10) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout))
+        var last = element.frame
+        for _ in 0..<20 {
+            usleep(200_000)
+            let now = element.frame
+            if now == last, element.isHittable {
+                break
+            }
+            last = now
+        }
+        element.tap()
+    }
+
+    /// Chooses an item of a menu, and once more if the menu is still open
+    /// afterwards with nothing chosen.
+    private func choose(_ item: String, from opener: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(opener.waitForExistence(timeout: 15))
+        opener.tap()
+        let choice = app.buttons[item]
+        for _ in 0..<3 {
+            tapWhenStill(choice)
+            // Chosen: the menu has closed and its items are gone.
+            usleep(700_000)
+            if !choice.exists {
+                return
+            }
+        }
+        XCTFail("The menu did not take \"\(item)\"")
+    }
+
     /// Changes to a tab. After a screen that covered the tab bar, and just
     /// after launch, the bar is still settling and a tap goes nowhere: wait
     /// until the button can be hit, tap, and tap again if the tab did not
@@ -186,12 +220,9 @@ final class VentiUITests: XCTestCase {
         // A flight of the logbook once more, as the cockpit would have
         // shown it in the air.
         app.buttons["More"].tap()
-        let replay = app.buttons["Replay in the cockpit"]
-        XCTAssertTrue(replay.waitForExistence(timeout: 10))
-        replay.tap()
-        let faster = app.buttons["20 times faster"]
-        XCTAssertTrue(faster.waitForExistence(timeout: 10))
-        faster.tap()
+        // A menu within the menu: its speeds unfold where it stood.
+        tapWhenStill(app.buttons["Replay in the cockpit"])
+        tapWhenStill(app.buttons["20 times faster"])
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 30))
         // The thermal's numbers and its picture, at one look: the thermal
         // is over a quarter of a minute after it began.
@@ -199,15 +230,9 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("dark-3b-replayed-in-the-cockpit")
         // A replay can be held at a moment, to look at it, and run on.
-        element("replay-speed", in: app).tap()
-        let paused = app.buttons["Paused"]
-        XCTAssertTrue(paused.waitForExistence(timeout: 10))
-        paused.tap()
+        choose("Paused", from: element("replay-speed", in: app), in: app)
         XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
-        element("replay-speed", in: app).tap()
-        let onward = app.buttons["10 times faster"]
-        XCTAssertTrue(onward.waitForExistence(timeout: 10))
-        onward.tap()
+        choose("10 times faster", from: element("replay-speed", in: app), in: app)
         XCTAssertTrue(labelled(containing: "Replay ×10", in: app).waitForExistence(timeout: 10))
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
@@ -255,8 +280,7 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 10))
 
-        app.buttons["Replay the sample flight"].tap()
-        app.buttons["20 times faster"].tap()
+        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
         // Circling in lift, the cockpit changes to its thermal numbers by
@@ -359,8 +383,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
 
         openTab("Fly", in: app)
-        app.buttons["Replay the sample flight"].tap()
-        app.buttons["20 times faster"].tap()
+        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
         // A minute of flying later the zone is still far off, and the
@@ -381,10 +404,8 @@ final class VentiUITests: XCTestCase {
         // What lies on the line ahead, from the side: the zone as a block
         // from the ground up, and the glide running into it. The replay
         // is held meanwhile, so that the picture is of one moment.
-        element("replay-speed", in: app).tap()
-        let paused = app.buttons["Paused"]
-        XCTAssertTrue(paused.waitForExistence(timeout: 10))
-        paused.tap()
+        choose("Paused", from: element("replay-speed", in: app), in: app)
+        XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
         app.buttons["Airspace ahead"].tap()
         XCTAssertTrue(element("ahead-words", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "SAMPLE ZONE", in: app).exists)
@@ -622,8 +643,7 @@ final class VentiUITests: XCTestCase {
         // The flight leaves the start cylinder seven minutes in, which at
         // twenty times its speed is after some twenty seconds.
         XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
-        app.buttons["Replay the sample flight"].tap()
-        app.buttons["20 times faster"].tap()
+        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
         let strip = element("task-strip", in: app)
         XCTAssertTrue(strip.waitForExistence(timeout: 30))
         XCTAssertTrue(valued(containing: "Sample start", in: app).waitForExistence(timeout: 10))

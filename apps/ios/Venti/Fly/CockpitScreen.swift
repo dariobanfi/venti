@@ -33,10 +33,7 @@ struct CockpitScreen: View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
-                StatusLine(
-                    view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName,
-                    setReplaySpeed: { fly.setReplaySpeed($0) }
-                )
+                StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
                 CockpitMap(
                     view: view, way: fly.way, airspace: fly.airspace(),
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
@@ -345,21 +342,21 @@ struct CockpitScreen: View {
     }
 }
 
-/// The line at the top: is it recording, how long, and are the sensors there.
-private struct StatusLine: View {
-    let view: CockpitView
-    /// How the flight scores so far.
-    let score: LiveScore?
-    let mode: FlySession.Mode?
-    let varioName: String?
-    /// Changes how fast a replay runs; 0 holds it.
-    let setReplaySpeed: (Double) -> Void
+/// The word "Replay" at the top of the cockpit, as a menu: a replay is
+/// watched, not flown, so it can be held at a moment and run slower or
+/// faster from here.
+///
+/// A view of its own, which reads nothing of the session but the mode. The
+/// line it stands in is drawn anew five times a second; a menu built
+/// there was rebuilt as often while it was open, and never came to rest.
+private struct ReplaySpeedMenu: View {
+    @Environment(FlySession.self) private var fly
 
     /// The speeds a replay offers: held, the flight's own, and two for
     /// getting to the part worth watching.
-    private static let replaySpeeds: [Double] = [0, 1, 10, 20]
+    private static let speeds: [Double] = [0, 1, 10, 20]
 
-    private static func replayChoice(_ speed: Double) -> String {
+    private static func choice(_ speed: Double) -> String {
         switch speed {
         case 0: "Paused"
         case 1: "Real time"
@@ -367,7 +364,7 @@ private struct StatusLine: View {
         }
     }
 
-    private static func replayWords(_ speed: Double) -> String {
+    private static func words(_ speed: Double) -> String {
         switch speed {
         case 0: "Replay paused"
         case 1: "Replay"
@@ -376,24 +373,37 @@ private struct StatusLine: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            if case .replay(let speed) = mode {
-                // A replay is watched, not flown: it can be held at a
-                // moment and run slower or faster from here.
-                Menu {
-                    Picker(
-                        "Speed",
-                        selection: Binding(get: { speed }, set: { setReplaySpeed($0) })
-                    ) {
-                        ForEach(Self.replaySpeeds, id: \.self) { choice in
-                            Text(Self.replayChoice(choice)).tag(choice)
-                        }
+        if case .replay(let speed) = fly.mode {
+            Menu {
+                Picker(
+                    "Speed",
+                    selection: Binding(get: { speed }, set: { fly.setReplaySpeed($0) })
+                ) {
+                    ForEach(Self.speeds, id: \.self) { choice in
+                        Text(Self.choice(choice)).tag(choice)
                     }
-                } label: {
-                    Label(Self.replayWords(speed), systemImage: speed == 0 ? "pause.fill" : "play.fill")
                 }
-                .tint(.primary)
-                .accessibilityIdentifier("replay-speed")
+            } label: {
+                Label(Self.words(speed), systemImage: speed == 0 ? "pause.fill" : "play.fill")
+            }
+            .tint(.primary)
+            .accessibilityIdentifier("replay-speed")
+        }
+    }
+}
+
+/// The line at the top: is it recording, how long, and are the sensors there.
+private struct StatusLine: View {
+    let view: CockpitView
+    /// How the flight scores so far.
+    let score: LiveScore?
+    let mode: FlySession.Mode?
+    let varioName: String?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if case .replay = mode {
+                ReplaySpeedMenu()
             } else if view.recording {
                 Label("Recording", systemImage: "record.circle.fill")
                     .symbolRenderingMode(.multicolor)

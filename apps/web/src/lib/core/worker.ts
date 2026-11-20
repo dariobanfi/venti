@@ -8,6 +8,7 @@ import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
 import { ForecastSource } from './forecast-source';
 import { IdbStore } from './idb-store';
+import { LiveSource } from './live-source';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
@@ -42,7 +43,8 @@ const starting: Promise<Answering> = (async () => {
 		account: new AccountSource(session),
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites: new SitesSource(() => wind.present()),
-		forecast: new ForecastSource(() => wind.present())
+		forecast: new ForecastSource(() => wind.present()),
+		live: new LiveSource(() => wind.present())
 	};
 })();
 

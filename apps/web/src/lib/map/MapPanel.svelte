@@ -1,6 +1,6 @@
 <!--
 	Something chosen on the map or from a list beside it: a wind station, a
-	flying site.
+	flying site, another pilot's glider.
 
 	On a narrow screen it is a sheet, as on the iPhone. A wide screen has room
 	to keep the map in reach: it is a card at the map's side, and choosing
@@ -17,11 +17,16 @@
 		title: string;
 		/** Whether the screen is wide enough for the card beside the map. */
 		wide: boolean;
+		/**
+		 * On a narrow screen, a sheet of half the screen's height at most:
+		 * for what is also drawn on the map, which stays in view above it.
+		 */
+		half?: boolean;
 		onclose: () => void;
 		children: Snippet;
 	}
 
-	let { shown, title, wide, onclose, children }: Props = $props();
+	let { shown, title, wide, half = false, onclose, children }: Props = $props();
 
 	const id = $props.id();
 	let heading = $state<HTMLHeadingElement>();
@@ -56,7 +61,7 @@
 		</aside>
 	{/if}
 {:else}
-	<Sheet open={Boolean(shown)} {title} {onclose}>
+	<Sheet open={Boolean(shown)} {title} {half} {onclose}>
 		{#if shown}
 			{@render children()}
 		{/if}

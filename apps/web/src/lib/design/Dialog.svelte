@@ -21,6 +21,11 @@
 		describedby?: string;
 		/** An alert that asks for a decision, rather than one that only informs. */
 		decision?: boolean;
+		/**
+		 * A sheet that leaves the upper half of a narrow screen free, for
+		 * something that is shown on the map behind it.
+		 */
+		half?: boolean;
 		onclose: () => void;
 		children: Snippet;
 	}
@@ -31,6 +36,7 @@
 		labelledby,
 		describedby,
 		decision = false,
+		half = false,
 		onclose,
 		children
 	}: Props = $props();
@@ -53,6 +59,7 @@
 <dialog
 	bind:this={dialog}
 	class={presentation}
+	class:half
 	role={decision ? 'alertdialog' : undefined}
 	aria-labelledby={labelledby}
 	aria-describedby={describedby}
@@ -99,6 +106,10 @@
 			margin: auto 0 0;
 			border-radius: var(--radius-panel) var(--radius-panel) 0 0;
 			padding-bottom: var(--safe-bottom);
+		}
+
+		.sheet.half {
+			max-height: 50dvh;
 		}
 	}
 

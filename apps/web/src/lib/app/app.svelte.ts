@@ -1,7 +1,8 @@
 /**
  * What the app holds for as long as the page is open: the logbook, the
- * wind, the flying sites, the pilot's account and airspace, once the core
- * has started, and whatever the pilot has to be told.
+ * wind, the flying sites, who is in the air, the pilot's account and
+ * airspace, once the core has started, and whatever the pilot has to be
+ * told.
  *
  * It is created once, in the root layout, and reached from every screen
  * through {@link getApp}.
@@ -24,6 +25,7 @@ import {
 	type ImportReport,
 	type Notice
 } from '#lib/logbook/import-report.ts';
+import { LiveModel } from '#lib/live/model.svelte.ts';
 import { LogbookModel } from '#lib/logbook/model.svelte.ts';
 import { SitesModel } from '#lib/sites/model.svelte.ts';
 import { WindModel } from '#lib/wind/model.svelte.ts';
@@ -38,6 +40,9 @@ export class App {
 
 	/** Flying sites for the map. Nothing until the core has started. */
 	sites = $state.raw<SitesModel>();
+
+	/** Who is in the air, for the map. Nothing until the core has started. */
+	live = $state.raw<LiveModel>();
 
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
@@ -64,6 +69,7 @@ export class App {
 				this.#core = core;
 				this.wind = new WindModel(core);
 				this.sites = new SitesModel(core);
+				this.live = new LiveModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());

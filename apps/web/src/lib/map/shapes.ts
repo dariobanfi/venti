@@ -3,12 +3,20 @@
  */
 
 import type { Feature, FeatureCollection, MultiLineString, Point, Position } from 'geojson';
-import type { Bounds, Coordinate, FlightScore, TrackPoint } from '#lib/core/index.ts';
+import type { Bounds, Coordinate, FlightScore } from '#lib/core/index.ts';
 import { runs } from './track-bands';
 
 /** The map's order of coordinates. */
 function position(point: { lat: number; lon: number }): Position {
 	return [point.lon, point.lat];
+}
+
+/** A point of a track with the climb rate there: of a flight in the logbook, or of one being followed. */
+export interface ClimbingPoint {
+	lat: number;
+	lon: number;
+	/** Metres per second. */
+	climbMs: number;
 }
 
 /**
@@ -17,7 +25,7 @@ function position(point: { lat: number; lon: number }): Position {
  * property is the band's position in `CLIMB_BANDS`.
  */
 export function trackByBand(
-	track: readonly TrackPoint[]
+	track: readonly ClimbingPoint[]
 ): FeatureCollection<MultiLineString, { band: number }> {
 	const positions = track.map(position);
 	const stretches = new Map<number, Position[][]>();
@@ -87,7 +95,9 @@ export function place(point: { lat: number; lon: number }): Feature<Point> {
 export const NOTHING: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 /** The rectangle that contains every outline, or nothing if there are none. */
-export function boundsAround(outlines: readonly Coordinate[][]): Bounds | undefined {
+export function boundsAround(
+	outlines: readonly (readonly { lat: number; lon: number }[])[]
+): Bounds | undefined {
 	let box: Bounds | undefined;
 	for (const point of outlines.flat()) {
 		box ??= { south: point.lat, west: point.lon, north: point.lat, east: point.lon };

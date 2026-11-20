@@ -1,20 +1,29 @@
 <!--
-	The map of the map tab: terrain, airspace, flying sites, live wind, every
-	flight in the logbook as a line, and the pilot's own position when asked
-	for.
+	The map of the map tab: terrain, airspace, flying sites, live wind, the
+	gliders of other pilots, every flight in the logbook as a line, and the
+	pilot's own position when asked for.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
-	import type { Bounds, Coordinate, SiteView, WindStation } from '#lib/core/index.ts';
-	import { ACCENT_ON_MAP, LABEL_ON_MAP } from '#lib/design/palette.ts';
+	import type {
+		Bounds,
+		Coordinate,
+		LiveGlider,
+		SiteView,
+		TrailPointView,
+		WindStation
+	} from '#lib/core/index.ts';
+	import { ACCENT_ON_MAP, CLIMB_BANDS, LABEL_ON_MAP } from '#lib/design/palette.ts';
+	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
+	import { gliderPictures } from '#lib/live/symbols.ts';
 	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
 	import { sitePictures } from '#lib/sites/symbols.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
 	import { windPictures } from '#lib/wind/symbols.ts';
 	import { type Fix, type PositionProblem, watchPosition } from './position';
 	import type { Map } from './setup';
-	import { boundsAround, NOTHING, outlineLines, place } from './shapes';
+	import { boundsAround, NOTHING, outlineLines, place, trackByBand } from './shapes';
 
 	interface Props {
 		/** The shapes of the logbook's flights. */
@@ -23,6 +32,18 @@
 		stations: WindStation[];
 		/** The flying sites to draw. */
 		sites: SiteView[];
+		/** The gliders of other pilots to draw. */
+		gliders: LiveGlider[];
+		/**
+		 * The flight of the glider whose page is open, as far as it is known:
+		 * drawn as a line in the colours of climb. Empty while none is.
+		 */
+		followed: readonly TrailPointView[];
+		/**
+		 * How far that glider's page, and what else lies over the map beside
+		 * it, reaches in from each edge, in pixels.
+		 */
+		coveredByPage: { left: number; right: number; bottom: number };
 		/** Where the airspace to draw comes from, once the app has it. */
 		airspace: AirspaceForMaps | undefined;
 		/** Whether the map keeps the pilot's position in its middle. */
@@ -37,6 +58,8 @@
 		onstation: (id: string) => void;
 		/** Called with a site's identifier when the pilot chooses its sign. */
 		onsite: (id: string) => void;
+		/** Called with a live track's identifier when the pilot chooses its glider. */
+		onglider: (id: string) => void;
 		/**
 		 * Called with how many airspaces are drawn around what the map shows,
 		 * or with nothing while the map is zoomed too far out to draw any.
@@ -48,6 +71,9 @@
 		outlines,
 		stations,
 		sites,
+		gliders,
+		followed,
+		coveredByPage,
 		airspace,
 		following = $bindable(),
 		coveredBottom,
@@ -55,6 +81,7 @@
 		onregion,
 		onstation,
 		onsite,
+		onglider,
 		onairspace
 	}: Props = $props();
 
@@ -63,8 +90,8 @@
 	/** How close the map goes to a position it is asked to show. */
 	const POSITION_ZOOM = 12.5;
 	/**
-	 * How far from an arrow or a sign a tap still chooses it, in pixels. A
-	 * finger is wider than either.
+	 * How far from an arrow, a sign or a glider a tap still chooses it, in
+	 * pixels. A finger is wider than any of them.
 	 */
 	const REACH = 22;
 
@@ -104,7 +131,8 @@
 
 	/**
 	 * What this map draws on top of the base map: airspace lowest, the
-	 * flights over it, then the flying sites, the wind above them.
+	 * flights over it, then the flying sites, the wind above them, and the
+	 * gliders of other pilots above everything.
 	 */
 	function addLayers(module: typeof import('./setup'), map: Map) {
 		airspaceOnMap = drawAirspace(
@@ -118,6 +146,18 @@
 		// A white edge keeps the lines readable over any ground colour.
 		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', '#ffffff', 5));
 		map.addLayer(module.line('logbook-tracks-line', 'logbook-tracks', ACCENT_ON_MAP, 2.5));
+
+		// The flight of a pilot who is being followed: a line in the colours
+		// of climb, like a flight of the logbook when it is opened, over the
+		// logbook's own lines.
+		map.addSource(LIVE_TRACK_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(module.line('live-track-edge', LIVE_TRACK_SOURCE, '#ffffff', 5.5));
+		CLIMB_BANDS.forEach((band, index) => {
+			map.addLayer({
+				...module.line(`live-track-${index}`, LIVE_TRACK_SOURCE, band.color, 3),
+				filter: ['==', ['get', 'band'], index]
+			});
+		});
 
 		// Flying sites are a layer of their own, with their own source and
 		// their own credit: their licence asks that they stay apart.
@@ -159,8 +199,16 @@
 				'text-halo-width': 1.6
 			}
 		});
+		// Other pilots in the air, above everything: a wing turned the way it
+		// flies, with the pilot's name and altitude where there is room.
+		for (const picture of gliderPictures()) {
+			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
+		}
+		map.addSource(LIVE_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(liveLayer(module.LABEL_FONT));
+
 		map.on('click', (event) => choose(map, event.point));
-		for (const layer of [WIND, SITES_SOURCE]) {
+		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
 			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 		}
@@ -189,12 +237,13 @@
 	}
 
 	/**
-	 * A tap on a station's arrow or a site's sign, or close to it, opens the
-	 * nearest. Wind lies over the sites, and wins where both are under the
-	 * finger.
+	 * A tap on a glider, a station's arrow or a site's sign, or close to it,
+	 * opens the nearest. Gliders lie over the wind and the wind over the
+	 * sites: what is on top wins where several are under the finger.
 	 */
 	function choose(map: Map, point: { x: number; y: number }) {
 		for (const [layer, open] of [
+			[LIVE_SOURCE, onglider],
 			[WIND, onstation],
 			[SITES_SOURCE, onsite]
 		] as const) {
@@ -234,6 +283,37 @@
 	$effect(() => {
 		if (!map || !setup) return;
 		setup.shapes(map, WIND)?.setData(stationFeatures(stations));
+	});
+
+	// Draws the gliders when they change.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, LIVE_SOURCE)?.setData(gliderFeatures(gliders));
+	});
+
+	/** Whether the map has moved to show the flight that is being followed. */
+	let followedInView = false;
+
+	// Draws the followed flight when it grows, and when it first appears
+	// moves the map once to show all of it beside the page that lies over
+	// part of the map. When the page closes the line goes.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, LIVE_TRACK_SOURCE)?.setData(trackByBand(followed));
+		if (followed.length === 0) {
+			followedInView = false;
+			return;
+		}
+		if (followedInView) return;
+		followedInView = true;
+		const box = boundsAround([followed]);
+		if (!box) return;
+		// The map's own padding already keeps clear of the navigation.
+		setup.showBeside(map, box, {
+			left: coveredByPage.left,
+			right: coveredByPage.right,
+			bottom: Math.max(coveredByPage.bottom - coveredBottom, 0)
+		});
 	});
 
 	// Draws the flights when they change, and moves the camera to show them

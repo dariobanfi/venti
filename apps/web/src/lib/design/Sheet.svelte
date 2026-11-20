@@ -10,16 +10,18 @@
 	interface Props {
 		open: boolean;
 		title: string;
+		/** Leaves the upper half of a narrow screen free: see `Dialog.svelte`. */
+		half?: boolean;
 		onclose: () => void;
 		children: Snippet;
 	}
 
-	let { open, title, onclose, children }: Props = $props();
+	let { open, title, half = false, onclose, children }: Props = $props();
 
 	const id = $props.id();
 </script>
 
-<Dialog {open} presentation="sheet" labelledby="{id}-title" {onclose}>
+<Dialog {open} presentation="sheet" {half} labelledby="{id}-title" {onclose}>
 	<header>
 		<h2 id="{id}-title">{title}</h2>
 		<button type="button" onclick={onclose}>Done</button>

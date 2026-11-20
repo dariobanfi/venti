@@ -105,6 +105,33 @@ export class CoreClient {
 		return this.#call('sites', box);
 	}
 
+	/**
+	 * The gliders in a box of the map whose pilots show their flight to
+	 * everyone. Nothing if this site has no server.
+	 */
+	live(box: Bounds) {
+		return this.#call('live', box);
+	}
+
+	/**
+	 * Asks the server once about the flight of a live track: for all of it
+	 * the first time, then for what is new. Nothing when there is no server,
+	 * or when another flight is followed by now.
+	 */
+	followLive(id: string) {
+		return this.#call('followLive', id);
+	}
+
+	/** Lets go of the flight being followed. */
+	unfollowLive() {
+		return this.#call('unfollowLive', undefined);
+	}
+
+	/** How old positions are, in the core's words, one answer for each. */
+	liveAges(asked: { ageS: number; landed: boolean }[]) {
+		return this.#call('liveAges', asked);
+	}
+
 	/** What the server's weather models say about a place. Nothing if this site has no server. */
 	forecast(place: Coordinate) {
 		return this.#call('forecast', place);

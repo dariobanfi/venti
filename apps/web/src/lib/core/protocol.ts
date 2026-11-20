@@ -34,6 +34,7 @@ import type {
 	StationHistory
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
+import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -66,6 +67,22 @@ export interface Calls {
 	sites: { given: Bounds; answer: SitesMap | undefined };
 	/** What the server's weather models say about a place. Nothing if this site has no server. */
 	forecast: { given: Coordinate; answer: ForecastView | undefined };
+	/**
+	 * The gliders in a box of the map whose pilots show their flight to
+	 * everyone. Nothing if this site has no server.
+	 */
+	live: { given: Bounds; answer: LiveAnswer | undefined };
+	/**
+	 * Given a live track's identifier: asks the server once about that
+	 * flight, for all of it the first time and then for what is new.
+	 * Nothing if this site has no server, or the page follows another
+	 * flight by now.
+	 */
+	followLive: { given: string; answer: LiveFollowAnswer | undefined };
+	/** Lets go of the flight being followed. */
+	unfollowLive: { given: undefined; answer: undefined };
+	/** How old positions are, in the core's words, one answer for each. */
+	liveAges: { given: { ageS: number; landed: boolean }[]; answer: string[] };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -127,11 +144,12 @@ export interface Answering {
 	airspace: AirspaceSource;
 	sites: SitesSource;
 	forecast: ForecastSource;
+	live: LiveSource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace, sites, forecast }: Answering,
+	{ session, wind, account, airspace, sites, forecast, live }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -148,6 +166,10 @@ export async function answer<Name extends CallName>(
 		stationHistory: (id) => wind.stationHistory(id),
 		sites: (box) => sites.sites(box),
 		forecast: (place) => forecast.forecast(place),
+		live: (box) => live.gliders(box),
+		followLive: (id) => live.follow(id),
+		unfollowLive: () => live.unfollow(),
+		liveAges: (asked) => live.ages(asked),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
 		account: () => account.account(),

@@ -17,6 +17,7 @@
  * - `wind-source.ts` asks the Venti server for the wind, from the worker.
  * - `sites-source.ts` asks it for the flying sites of a part of the map.
  * - `forecast-source.ts` asks it what its weather models say about a place.
+ * - `live-source.ts` asks it who is in the air, and follows one flight.
  * - `account-source.ts` talks to the Venti server about the pilot's account
  *   and keeps the logbook in step with it, also from the worker.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
@@ -54,6 +55,9 @@ export type {
 	GlideSummary,
 	ImportedFlight,
 	KeptAirspace,
+	LiveFollowView,
+	LiveGlider,
+	LiveMap,
 	LogbookEntry,
 	LogbookStatistics,
 	LogbookView,
@@ -71,6 +75,7 @@ export type {
 	ThermalSummary,
 	Totals,
 	TrackPoint,
+	TrailPointView,
 	WindBand,
 	WindMap,
 	WindMark,
@@ -85,6 +90,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
+export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */

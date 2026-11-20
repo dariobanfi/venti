@@ -1,7 +1,7 @@
 <!--
 	The map tab: terrain, live wind from the stations of this site's Venti
-	server, the flying sites it knows, the pilot's airspace and the pilot's
-	own flights. Forecasts arrive later.
+	server, the flying sites it knows, the pilots who show where they fly,
+	the pilot's airspace and the pilot's own flights.
 -->
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
@@ -12,6 +12,10 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
+	import GliderView from '#lib/live/GliderView.svelte';
+	import LiveList from '#lib/live/LiveList.svelte';
+	import { countIn as glidersIn } from '#lib/live/mark.ts';
+	import { NO_LIVE } from '#lib/live/watch.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
@@ -38,6 +42,8 @@
 	const current = $derived(wind?.state ?? NO_WIND);
 	const sites = $derived(app.sites);
 	const places = $derived(sites?.state ?? NO_SITES);
+	const live = $derived(app.live);
+	const inTheAir = $derived(live?.state ?? NO_LIVE);
 
 	/** The part of the map in view, and its zoom. The map may be there before the core is. */
 	let view = $state.raw<{ region: Bounds; zoom: number }>();
@@ -49,6 +55,12 @@
 	$effect(() => {
 		if (view) sites?.show(view.region, view.zoom);
 	});
+	// Who is in the air over what the pilot is looking at.
+	$effect(() => {
+		if (view) live?.show(view.region);
+	});
+	// Asked again every quarter of a minute while the map is on screen.
+	$effect(() => live?.keepCurrent());
 	// The airspace around what the pilot is looking at is fetched from the
 	// server when the core says it is time, and kept.
 	$effect(() => {
@@ -93,16 +105,49 @@
 	 */
 	let forecastFor = $state.raw<{ place: Coordinate; name: string }>();
 
-	/** One thing is open beside the map at a time: a station or a site. */
+	/**
+	 * The glider the pilot chose, by the identifier of its track. Only that
+	 * is kept: its page shows the glider as the newest answer has it.
+	 */
+	let chosenGlider = $state<string>();
+	let listingGliders = $state(false);
+	const glider = $derived(chosenGlider === undefined ? undefined : live?.glider(chosenGlider));
+	const NO_TRACK: readonly never[] = [];
+	/** The flight of the chosen glider so far, for the map to draw as a line. */
+	const followedTrack = $derived(live?.followed.view?.track ?? NO_TRACK);
+	/** A glider's page as the stylesheet sizes it, measured in pixels for the map. */
+	let gliderPage = $state({ width: 0, height: 0 });
+	/** How far the map's buttons reach in from the right edge, in pixels. */
+	let buttonsWidth = $state(0);
+	/**
+	 * What lies over the map while a glider's page is open: the card and
+	 * the buttons at the sides of a wide screen, the sheet over the lower
+	 * half of a narrow one, which covers the buttons too.
+	 */
+	const coveredByPage = $derived(
+		wide.current
+			? { left: gliderPage.width, right: buttonsWidth, bottom: 0 }
+			: { left: 0, right: 0, bottom: gliderPage.height }
+	);
+
+	/** One thing is open beside the map at a time: a station, a site or a glider. */
 	function openStation(picked: WindStation | undefined) {
 		if (!picked) return;
 		chosenSite = undefined;
+		chosenGlider = undefined;
 		chosen = picked;
+	}
+
+	function openGlider(id: string) {
+		chosen = undefined;
+		chosenSite = undefined;
+		chosenGlider = id;
 	}
 
 	function openSite(picked: SiteView | undefined) {
 		if (!picked) return;
 		chosen = undefined;
+		chosenGlider = undefined;
 		chosenSite = {
 			site: picked,
 			credit: places.credits.find((credit) => credit.source === picked.source),
@@ -130,6 +175,9 @@
 		outlines={app.logbook?.outlines ?? []}
 		stations={current.stations}
 		sites={places.sites}
+		gliders={inTheAir.gliders}
+		followed={followedTrack}
+		{coveredByPage}
 		airspace={app.airspace}
 		coveredBottom={navigationHeight}
 		onproblem={(problem) =>
@@ -137,6 +185,7 @@
 		onregion={(region, zoom) => (view = { region, zoom })}
 		onstation={(id) => openStation(wind?.station(id))}
 		onsite={(id) => openSite(sites?.site(id))}
+		onglider={openGlider}
 		onairspace={(count) => (airspaceDrawn = count)}
 	/>
 	<!-- A map says nothing to a screen reader: this much it can be told. -->
@@ -150,7 +199,18 @@
 			Flying sites on this part of the map: {text.count(countIn(places.sites, view.region))}.
 		</p>
 	{/if}
+	{#if view && inTheAir.known}
+		<p class="visually-hidden">
+			In the air on this part of the map: {text.count(glidersIn(inTheAir.gliders, view.region))}.
+		</p>
+	{/if}
 	<div class="navigation-height" bind:clientHeight={navigationHeight}></div>
+	<div
+		class="glider-page-size"
+		bind:clientWidth={gliderPage.width}
+		bind:clientHeight={gliderPage.height}
+	></div>
+	<div class="buttons-size" bind:clientWidth={buttonsWidth}></div>
 
 	<div class="over">
 		{#if wind}
@@ -183,6 +243,21 @@
 				/>
 			{/if}
 		</MapPanel>
+		{#if live}
+			<!-- Another pilot's glider. Its flight is on the map while this is
+			     open, so a narrow screen keeps its upper half for the map. -->
+			<MapPanel
+				shown={chosenGlider}
+				title={glider ? `@${glider.handle}` : 'Glider'}
+				wide={wide.current}
+				half
+				onclose={() => (chosenGlider = undefined)}
+			>
+				{#if chosenGlider}
+					<GliderView id={chosenGlider} {live} />
+				{/if}
+			</MapPanel>
+		{/if}
 		{#if said}
 			<p class="notice" role="status">
 				<Icon name="warning" />
@@ -215,6 +290,8 @@
 			     the map is close enough for signs: the list then says how to
 			     get them. -->
 			<MapButton label="Flying sites" icon="pin" onclick={() => (listingSites = true)} />
+			<!-- Everyone the map shows in the air, as a list. -->
+			<MapButton label="In the air" icon="glider" onclick={() => (listingGliders = true)} />
 		{/if}
 		<MapButton
 			label="Show my position"
@@ -252,6 +329,18 @@
 	onclose={() => (listingSites = false)}
 />
 
+{#if live}
+	<LiveList
+		open={listingGliders}
+		{live}
+		onchoose={(picked) => {
+			listingGliders = false;
+			openGlider(picked.id);
+		}}
+		onclose={() => (listingGliders = false)}
+	/>
+{/if}
+
 <style>
 	.screen {
 		position: relative;
@@ -267,6 +356,22 @@
 		position: absolute;
 		visibility: hidden;
 		height: var(--nav-bottom);
+	}
+
+	/* A glider's page: the card at the map's side with the gap before it on a
+	   wide screen, half the screen's height on a narrow one. */
+	.glider-page-size {
+		position: absolute;
+		visibility: hidden;
+		width: calc(25rem + var(--safe-left));
+		height: 50dvh;
+	}
+
+	/* The round buttons with the gap between them and the edge. */
+	.buttons-size {
+		position: absolute;
+		visibility: hidden;
+		width: calc(4rem + var(--safe-right));
 	}
 
 	/* What lies over the top of the map: a chosen station at the side of a

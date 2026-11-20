@@ -94,7 +94,7 @@ export function whenStyled(map: Map, draw: () => void): void {
 }
 
 /** The space, in pixels, to leave around what the camera is fitted to. */
-const EDGE: PaddingOptions = { top: 28, right: 36, bottom: 28, left: 36 };
+const EDGE: Required<PaddingOptions> = { top: 28, right: 36, bottom: 28, left: 36 };
 
 /**
  * Moves the camera so the box is in view, clear of what covers the map.
@@ -111,6 +111,39 @@ export function showBounds(map: Map, box: Bounds, covered: PaddingOptions): void
 			[box.east + margin, box.north + margin]
 		],
 		{ padding: EDGE, animate: false, pitch: map.getPitch(), bearing: map.getBearing() }
+	);
+}
+
+/**
+ * Moves the camera so the box is in view beside something that lies over
+ * the map for the moment, such as the page of what the box holds. `covered`
+ * is how far that reaches in from each edge, in pixels, beyond what always
+ * covers the map; the map's own padding stays as it is, so nothing jumps
+ * when the page closes.
+ */
+export function showBeside(map: Map, box: Bounds, covered: Partial<PaddingOptions>): void {
+	const margin = 0.002;
+	// What stands at the end of a line has a name under it, which is wider
+	// than the line: room for half of it at either side.
+	const label = 24;
+	map.fitBounds(
+		[
+			[box.west - margin, box.south - margin],
+			[box.east + margin, box.north + margin]
+		],
+		{
+			padding: {
+				top: EDGE.top + (covered.top ?? 0),
+				right: EDGE.right + label + (covered.right ?? 0),
+				bottom: EDGE.bottom + (covered.bottom ?? 0),
+				left: EDGE.left + label + (covered.left ?? 0)
+			},
+			// A track of a few metres is shown with the land around it.
+			maxZoom: 14.5,
+			duration: 600,
+			pitch: map.getPitch(),
+			bearing: map.getBearing()
+		}
 	);
 }
 

@@ -7,8 +7,9 @@
 //! [`Core`] has the interface the phones have. The view types it returns
 //! are the core's own; their TypeScript declarations are generated from the
 //! Rust definitions, so there is nothing to keep in step by hand. Live wind,
-//! flying sites and forecasts are a handful of plain functions beside it, as
-//! they are in the core.
+//! flying sites, forecasts and who is in the air are a handful of plain
+//! functions beside it, as they are in the core, and [`LiveFollow`] is the
+//! core's reader of one live track.
 //!
 //! The core never talks to a server. For the pilot's account it hands out a
 //! [`ServerRequest`] and reads the answer; the page sends the request in
@@ -42,9 +43,9 @@ use tsify::{Ts, Tsify};
 use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
-    ForecastView, ImportedFlight, KeptAirspace, LogbookStatistics, LogbookView, ServerRequest,
-    ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep,
-    SyncSummary, WindMap,
+    ForecastView, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics,
+    LogbookView, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory,
+    Storage, SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -615,6 +616,73 @@ pub fn forecast(
     utc_offset_s: i32,
 ) -> Result<Ts<ForecastView>, JsValue> {
     to_js(&venti_core::forecast(status, body, utc_offset_s).map_err(thrown)?)
+}
+
+// Who is in the air: the gliders whose pilots show their flight to everyone,
+// from the Venti server. Asked for and read like the wind, and asked again
+// every quarter of a minute while a map shows them.
+
+/// The path and query to `GET` for the gliders in a box.
+#[wasm_bindgen(js_name = liveMapPath)]
+pub fn live_map_path(south: f64, west: f64, north: f64, east: f64) -> Result<String, JsValue> {
+    venti_core::live_map_path(south, west, north, east).map_err(thrown)
+}
+
+/// Reads the server's answer to `liveMapPath`. Each glider's age is by the
+/// server's own clock at the moment of the answer; the page lets its clock
+/// run on from there.
+#[wasm_bindgen(js_name = liveMap)]
+pub fn live_map(status: u16, body: Vec<u8>) -> Result<Ts<LiveMap>, JsValue> {
+    to_js(&venti_core::live_map(status, body).map_err(thrown)?)
+}
+
+/// How old a glider's position is, in words: "Now", "40 s ago", "Landed
+/// 12 min ago", "No position for 6 min".
+#[wasm_bindgen(js_name = liveAgeInWords)]
+pub fn live_age_in_words(age_s: f64, landed: bool) -> String {
+    venti_core::live_age_in_words(age_s, landed)
+}
+
+/// Follows one live track: says what to ask the server for, and puts the
+/// answers together. The page asks once, then again every five to ten
+/// seconds, and at once while the answer says there is more. It holds every
+/// position the server handed out, so the page frees it when it stops
+/// following.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct LiveFollow {
+    follow: Arc<venti_core::LiveFollow>,
+}
+
+#[wasm_bindgen]
+impl LiveFollow {
+    /// Begins to follow the track with this identifier. Throws when the
+    /// text is not the identifier of a track.
+    #[wasm_bindgen(constructor)]
+    pub fn new(id: String) -> Result<LiveFollow, JsValue> {
+        Ok(Self {
+            follow: venti_core::LiveFollow::new(id).map_err(thrown)?,
+        })
+    }
+
+    /// The path and query to `GET` now: the whole track the first time,
+    /// afterwards what arrived since the last answer.
+    pub fn path(&self) -> String {
+        self.follow.path()
+    }
+
+    /// Reads the server's answer to `path` and returns the flight as far
+    /// as it is known. Throws, in words for the pilot, when the track is
+    /// gone; `isOver` is true from then on.
+    pub fn receive(&self, status: u16, body: Vec<u8>) -> Result<Ts<LiveFollowView>, JsValue> {
+        to_js(&self.follow.receive(status, body).map_err(thrown)?)
+    }
+
+    /// Whether the track is gone from the server: stop asking.
+    #[wasm_bindgen(js_name = isOver)]
+    pub fn is_over(&self) -> bool {
+        self.follow.is_over()
+    }
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

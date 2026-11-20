@@ -79,5 +79,18 @@ export const CALM_ON_MAP = WIND_BANDS.light.color;
 /** A station with nothing current to say, as a dot on the map. */
 export const OLD_ON_MAP = '#A9A8A2';
 
+/**
+ * Another pilot's glider while it flies: a green that is none of the
+ * colours of wind, airspace or the pilot's own tracks. The iPhone app's
+ * `LiveModel.swift` holds the same two colours.
+ */
+export const FLYING_ON_MAP = '#157F4B';
+
+/**
+ * A glider on the ground, or one nothing was heard of for a while: the grey
+ * of a track that neither climbs nor sinks.
+ */
+export const QUIET_ON_MAP = '#85847F';
+
 /** The numbers under a station's arrow. */
 export const LABEL_ON_MAP = '#0B0B0B';

@@ -206,7 +206,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind, flying sites and the forecast for a place, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind, flying sites, the forecast for a place and who is in the air, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -215,7 +215,7 @@ Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual tex
   - The navigation is a rail down the left side, part of the page and not floating on it.
   - **Flight:** the panel stands beside the map as a column, and everything the sheet holds on a phone is in that column under the profile, on screen without a tap. The map has the rest of the window, with buttons for zoom, because a mouse cannot pinch. Choosing a thermal or glide scrolls the column back to the profile, where the mark is.
   - **Logbook:** one column of readable width, with the import button spelled out. The statistics are a narrower column of their own. Each row has room for two more numbers the core already gives, highest point and best climb, under column headings, and a delete button that appears with the mouse over the row.
-  - **Map:** the map fills the window beside the rail, with zoom buttons above the wind and position buttons. A chosen wind station or flying site is a card at the map's side, not a sheet over it: the map stays in reach, and choosing another arrow or sign fills the same card.
+  - **Map:** the map fills the window beside the rail, with zoom buttons above the wind and position buttons. A chosen wind station, flying site or glider is a card at the map's side, not a sheet over it: the map stays in reach, and choosing another arrow, sign or wing fills the same card.
 
 What the web adds:
 
@@ -256,6 +256,18 @@ Where the web's forecast differs from the iPhone's:
 - **The arrow is the map's**: the same dart with its white edge, turned to where the air moves, in the wind scale's blue.
 - **The number in a cloud square** is set at the caption size, in a wider square: nothing on the web is smaller than a caption.
 - **The days are the browser's days**, as every time on the web is the browser's.
+
+Where who is in the air differs on the web from the iPhone's:
+
+- **A glider's page sets its numbers as numbers.** The pilot and the age of the position are two rows, the age in the core's words ("Now", "45 s ago", "No position for 7 min", "Landed 9 min ago"). Under them stand altitude, climb, speed and direction, and, once the flight is followed, for how long it is shown and how high it got: up to six numbers in the manner of a wind station's page. A glider on the ground has no climb, speed or direction. The page's title is the pilot's handle.
+- **Half the screen on a narrow one, the card on a wide one.** On a narrow screen the page is a sheet that stops at half the screen's height and scrolls, so the flight's line is in view above it. On a wide screen it is the card at the map's side. Either way the map moves once, when the line first appears, to show all of it clear of the page and of the map's buttons, and stays where the pilot puts it afterwards.
+- **The list** has those who fly first, then those nothing was heard of for a while, then those on the ground, by name within each: the server's order is by identifier, which is no order to read. Its button is there whenever the site has a server. On a map wider than six degrees the list says why it is empty: "The map shows too much. Zoom the map in on an area, and the pilots who show their flight to everyone there are listed."
+- **A flight that is gone says so at once**, in the core's words ("This flight is no longer shown: its pilot stopped sharing it, or it is more than two days old."), also while the map still has its glider from the round before.
+- **The link** is "The server's page of this flight", which opens that page in a new tab, with "The server's page needs no app and keeps itself up to date." under it. The web app has no page of its own for one track: a track shared by link only is seen on the server's page and not in the web app.
+- **A tab that is not in front asks nothing**, for the map or for a followed flight, and asks at once when it comes to the front again.
+- **The picture in a list** is the map's wing or disc with its white edge, in both appearances, like the wind's arrow.
+- **For a screen reader** the map says how many gliders are on the part in view. A map itself says nothing.
+- **Nothing is sent.** A browser has no cockpit, so the web app shares no position and has no "Live tracking" page.
 
 Where the web's account and sharing differ from the iPhone's:
 

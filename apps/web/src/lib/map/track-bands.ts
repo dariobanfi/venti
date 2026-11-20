@@ -3,7 +3,6 @@
  * app's `TrackBands.swift` does the same.
  */
 
-import type { TrackPoint } from '#lib/core/index.ts';
 import { climbBand } from '#lib/design/palette.ts';
 
 export interface Run {
@@ -21,7 +20,7 @@ export interface Run {
  * The step from one point to the next takes the band of the point it
  * arrives at. A track of fewer than two points has no runs.
  */
-export function runs(track: readonly TrackPoint[]): Run[] {
+export function runs(track: readonly { climbMs: number }[]): Run[] {
 	if (track.length < 2) return [];
 
 	const runs: Run[] = [];

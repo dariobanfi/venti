@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.SharedFiles
+import fly.venti.app.fly.FlySession
 import fly.venti.app.logbook.DeleteFlightDialog
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.Covered
@@ -87,6 +88,8 @@ fun FlightScreen(
     account: AccountModel,
     /** Where requests to that server run, so that one carries on when the pilot leaves the flight. */
     requests: CoroutineScope,
+    /** The cockpit, to play the flight through it once more. */
+    fly: FlySession,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -153,6 +156,21 @@ fun FlightScreen(
                     }
                 }
             },
+            // The flight once more, through the cockpit a pilot flies
+            // with, from its own file. Nothing is recorded and nothing is
+            // shared. The cockpit covers the app while it plays, and gives
+            // this page back when it closes.
+            onReplay = { speed ->
+                scope.launch {
+                    try {
+                        fly.startReplay(logbook.fileText(id), speed)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        fly.problem = error.pilotMessage
+                    }
+                }
+            },
             onDelete = { isConfirmingDelete = true },
         )
     }
@@ -178,10 +196,27 @@ fun FlightScreen(
     }
 }
 
+/** How fast a flight of the logbook can be played through the cockpit, and what the menu calls each. */
+val REPLAY_SPEEDS: List<Pair<String, Double>> = listOf(
+    "In real time" to 1.0,
+    "10 times faster" to 10.0,
+    "20 times faster" to 20.0,
+)
+
 /** Back and "more", as round buttons floating over the map. */
 @Composable
-private fun TopButtons(onBack: () -> Unit, onShareWithALink: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
+private fun TopButtons(
+    onBack: () -> Unit,
+    onShareWithALink: () -> Unit,
+    onShare: () -> Unit,
+    /** Called with how many times faster than it was flown the flight is to be replayed. */
+    onReplay: (Double) -> Unit,
+    onDelete: () -> Unit,
+) {
     var isShowingMenu by remember { mutableStateOf(false) }
+    // Material's menus do not open one out of another: "Replay in the
+    // cockpit" changes this menu into the choice of speeds.
+    var isChoosingSpeed by remember { mutableStateOf(false) }
     val colours = IconButtonDefaults.filledTonalIconButtonColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -194,10 +229,28 @@ private fun TopButtons(onBack: () -> Unit, onShareWithALink: () -> Unit, onShare
             Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
         }
         Box {
-            FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
+            FilledTonalIconButton(
+                onClick = {
+                    isChoosingSpeed = false
+                    isShowingMenu = true
+                },
+                colors = colours,
+            ) {
                 Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
             }
             DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                if (isChoosingSpeed) {
+                    for ((title, speed) in REPLAY_SPEEDS) {
+                        DropdownMenuItem(
+                            text = { Text(title) },
+                            onClick = {
+                                isShowingMenu = false
+                                onReplay(speed)
+                            },
+                        )
+                    }
+                    return@DropdownMenu
+                }
                 DropdownMenuItem(
                     text = { Text("Share with a link") },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_link), contentDescription = null) },
@@ -213,6 +266,12 @@ private fun TopButtons(onBack: () -> Unit, onShareWithALink: () -> Unit, onShare
                         isShowingMenu = false
                         onShare()
                     },
+                )
+                DropdownMenuItem(
+                    text = { Text("Replay in the cockpit") },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null) },
+                    trailingIcon = { Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null) },
+                    onClick = { isChoosingSpeed = true },
                 )
                 DropdownMenuItem(
                     text = { Text("Delete flight") },

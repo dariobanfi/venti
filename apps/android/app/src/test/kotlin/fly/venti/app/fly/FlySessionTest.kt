@@ -3,6 +3,7 @@ package fly.venti.app.fly
 import fly.venti.app.LaunchOptions
 import fly.venti.app.TestSupport
 import fly.venti.app.airspace.AirspaceWords
+import fly.venti.app.flight.REPLAY_SPEEDS
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.core.AirspaceCheck
@@ -108,6 +109,40 @@ class FlySessionTest {
         assertNull(fly.view)
         assertFalse(sound.isStarted)
         assertTrue(pendingRecordings(folder.path).isEmpty())
+    }
+
+    @Test
+    fun aFlightOfTheLogbookIsReplayedFromItsOwnFileAndNothingIsKeptOfIt() = runBlocking {
+        val folder = TestSupport.newFolder("fly")
+        val logbook = LogbookModel.open(folder, TestSupport.files)
+        val flight = logbook.addSample().added.single()
+
+        // The file the logbook keeps holds every position that was brought in.
+        val text = logbook.fileText(flight)
+        fun positions(file: String) = file.lines().count { it.startsWith("B") }
+        assertTrue(positions(text) > 1000)
+        assertEquals(positions(TestSupport.sampleFlight), positions(text))
+
+        // Played through the cockpit the pilot flies with, in the logbook's own folder.
+        val fly = makeSession(folder)
+        fly.startReplay(text, speed = 500.0)
+        assertEquals(FlySession.Mode.Replay(500.0), fly.mode)
+        Thread.sleep(1200)
+        val view = checkNotNull(fly.view)
+        assertEquals(FlightPhase.FLYING, view.phase)
+        // Nothing is recorded and nothing is shared.
+        assertFalse(view.recording)
+        assertNull(fly.live)
+        assertNull(fly.finish())
+        assertTrue(pendingRecordings(folder.path).isEmpty())
+        logbook.refresh()
+        assertEquals(1, logbook.view.totals.flights.toInt())
+
+        // The speeds a flight's menu offers, and what it calls them.
+        assertEquals(
+            listOf("In real time" to 1.0, "10 times faster" to 10.0, "20 times faster" to 20.0),
+            REPLAY_SPEEDS,
+        )
     }
 
     @Test

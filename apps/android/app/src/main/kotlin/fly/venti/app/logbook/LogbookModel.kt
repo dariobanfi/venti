@@ -188,6 +188,9 @@ class LogbookModel(
         into.resolve(file.name).also { it.writeText(file.igcText) }
     }
 
+    /** The text of a flight's own file, as it was imported or recorded: to play it through the cockpit. */
+    suspend fun fileText(id: String): String = withContext(background) { core.flightFile(id).igcText }
+
     /** A new conversation with the assistant, which answers from this logbook. */
     fun makeAssistant(model: String): Assistant = core.assistant(model)
 

@@ -722,6 +722,53 @@ class VentiUiTest {
         waitFor(hasText("Start flight"))
     }
 
+    /**
+     * A flight of the logbook once more, in the cockpit: from the flight's
+     * menu, at one of three speeds, played from the flight's own file.
+     * Nothing is recorded: when the cockpit closes the pilot is back on
+     * the flight, and the logbook has it once.
+     */
+    @Test
+    fun aFlightOfTheLogbookIsReplayedInTheCockpit() {
+        launch()
+        waitFor(described("Show my position"))
+        tap(tab("Logbook"))
+        waitFor(hasText("No flights yet"))
+        tap(hasText("Add a sample flight"))
+        waitFor(described("Flight details"))
+
+        // Material's menus do not open one out of another: the menu changes
+        // into the choice of speeds.
+        tap(described("More"))
+        waitFor(hasText("Replay in the cockpit"))
+        tap(hasText("Replay in the cockpit"))
+        waitFor(hasText("10 times faster"))
+        assertTrue(exists(hasText("In real time")))
+        assertFalse(exists(hasText("Delete flight")))
+        letTheMapDraw(1)
+        keepScreenshot("replay-1-speeds")
+        tap(hasText("20 times faster"))
+
+        // The cockpit a pilot flies with. What is replayed is not shared:
+        // there is no button for live tracking.
+        waitFor(described("Altitude"))
+        assertTrue(exists(hasText("Replay ×20")))
+        assertFalse(exists(hasTestTag("live-button")))
+        waitFor(described("Gained"))
+        waitFor(hasTestTag("lift-badge"))
+        letTheMapDraw(2)
+        keepScreenshot("replay-2-cockpit")
+
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        // Back on the flight it was started from.
+        waitFor(described("Flight details"))
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
+        assertTrue(screen.onAllNodes(hasTestTag("logbook-row")).fetchSemanticsNodes().size == 1)
+    }
+
     @Test
     fun theCockpitSaysHowOldTheWindIsAndWhenItLeavesLittleWay() = flyASlowGliderInTheWind("light", dark = false)
 

@@ -258,6 +258,7 @@ private fun Sections(
                         session.airspace,
                         session.account,
                         requests = session.scope,
+                        fly = session.fly,
                         onBack = { navigation.back() },
                     )
                 }

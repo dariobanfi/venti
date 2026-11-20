@@ -20,12 +20,12 @@ A change to a screen that contradicts this document updates it in the same commi
 
 | Tab | Today | Later |
 |---|---|---|
-| **Map** | Terrain map with every logbook flight drawn on it; the pilot's position on request | Live wind, sites, forecasts, airspace: the Today and Plan modes |
-| **Logbook** | Flights by year with totals; import; one flight on the map with its profile | Analysis, comparison, 3D replay: the Review mode |
-| **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view with the thermal's picture, live tracking to the pilot's server. Not yet flown. | Seeing other pilots, and the rest of the XCTrack checklist |
+| **Map** | Terrain map with every logbook flight drawn on it; the pilot's position on request; with a Venti server, live wind, flying sites, the forecast for a place, airspace and who is in the air | Forecast layers and the rest of the Today and Plan modes |
+| **Logbook** | Flights by year with totals; import; one flight on the map with its profile, its thermals, glides and score; statistics; everyone's public flights; on the iPhone a second flight laid beside one | 3D replay and the rest of the Review mode |
+| **Fly** | The cockpit: recorder, vario with sound, Bluetooth vario, map with the track behind the glider, automatic thermal view with the thermal's picture, airspace warnings, the height over the ground, navigation and tasks, live tracking to the pilot's server, and on the iPhone the other pilots in the air. Not yet flown. | The rest of the XCTrack checklist |
 | Community | No tab yet. Its first piece, the flying plans of a pilot's groups, opens from the map on the phones and is a section of its own, "Plans", on the web | Feed, events, chat |
-| **Assistant** | Questions about the pilot's own flying, answered from the logbook by a model on the pilot's own account; with a Venti server set, also the live wind around a place and the airspace over it, with the caveats the data needs. Under each answer it says what was looked up. | Weather, sites, airspace and transit once the server has them; voice; alerts in flight |
-| **Settings** | The pilot's name and glider (written into recorded flights), the vario sound, and the credits the map data's licences ask for | Units, account |
+| **Assistant** | Questions about the pilot's own flying, answered from the logbook by a model on the pilot's own account; with a Venti server set, also the live wind around a place, the airspace over it, the forecast for it, the flying sites near it and the flights other pilots shared from near it, with the caveats the data needs. Under each answer it says what was looked up. | Transit; voice; alerts in flight |
+| **Settings** | The pilot's name and glider (written into recorded flights), the vario sound, the waypoints, the airspace files, the glider's trim speed and glide ratio, the Venti server and the account on it, and the credits the map data's licences ask for | Units |
 
 A tab appears when there is something real behind it. An empty section explains itself rather than being hidden or disabled.
 

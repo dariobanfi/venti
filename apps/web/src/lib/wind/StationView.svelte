@@ -57,7 +57,7 @@
 	/** How old the reading is, and what that means if it is old. */
 	const ageText = $derived.by(() => {
 		if (!reading || station.ageMin === undefined) {
-			return 'The server has no reading from this station.';
+			return 'Venti has no reading from this station.';
 		}
 		const measured = `Measured ${age(station.ageMin)}.`;
 		return station.isOld ? `${measured} Too old to say what the wind is doing now.` : measured;
@@ -121,7 +121,7 @@
 				<p>{phase.why}</p>
 				<button class="again" type="button" onclick={() => load(station.id)}>Try again</button>
 			{:else if phase.history.readings.length < 2}
-				<p>The server has no history for this station yet.</p>
+				<p>Venti has no history for this station yet.</p>
 			{:else}
 				<WindChart readings={phase.history.readings} />
 			{/if}

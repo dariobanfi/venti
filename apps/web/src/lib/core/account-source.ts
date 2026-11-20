@@ -104,7 +104,7 @@ export const sendToThisOrigin: Send = async (request, token) => {
 		};
 	} catch {
 		// The browser says "Failed to fetch" for every cause; say what it means.
-		throw unreachable('The server could not be reached.');
+		throw unreachable('Venti could not be reached.');
 	}
 };
 

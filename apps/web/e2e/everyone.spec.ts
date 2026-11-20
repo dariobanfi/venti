@@ -171,7 +171,7 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	await expect(page.getByRole('menuitem', { name: 'Delete flight' })).toBeHidden();
 	const [serversPage] = await Promise.all([
 		context.waitForEvent('page'),
-		page.getByRole('menuitem', { name: 'Open its page on the server' }).click()
+		page.getByRole('menuitem', { name: 'Open its page on Venti' }).click()
 	]);
 	await expect(serversPage).toHaveURL(new RegExp(`/f/${NEWEST}$`));
 	await serversPage.close();

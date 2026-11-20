@@ -146,7 +146,7 @@
 		{/if}
 	{:else if asked}
 		<div class="group-card words">
-			<p>This flight is not on the server yet.</p>
+			<p>This flight is not on Venti yet.</p>
 			{#if account.problem}
 				<p class="refusal" role="alert">{account.problem}</p>
 			{/if}

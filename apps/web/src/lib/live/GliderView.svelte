@@ -87,10 +87,10 @@
 		<section>
 			<div class="card">
 				<a class="link" href={glider.pagePath} target="_blank" rel="noopener">
-					The server’s page of this flight
+					This flight’s page on Venti
 				</a>
 			</div>
-			<p class="footnote">The server’s page needs no app and keeps itself up to date.</p>
+			<p class="footnote">That page needs no app and keeps itself up to date.</p>
 		</section>
 
 		<div class="card">

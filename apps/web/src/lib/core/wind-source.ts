@@ -62,7 +62,7 @@ export const getFromThisOrigin: Get = async (path) => {
 		return { status: response.status, body: new Uint8Array(await response.arrayBuffer()) };
 	} catch {
 		// The browser says "Failed to fetch" for every cause; say what it means.
-		throw unreachable('The wind server could not be reached.');
+		throw unreachable('Venti could not be reached for the wind.');
 	}
 };
 

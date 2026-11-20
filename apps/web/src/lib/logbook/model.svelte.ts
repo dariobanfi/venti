@@ -101,7 +101,8 @@ export class LogbookModel {
 	async addSample(): Promise<ImportReport> {
 		try {
 			const response = await fetch(sampleUrl);
-			if (!response.ok) throw new Error(`The server answered ${response.status}.`);
+			if (!response.ok)
+				throw new Error(`The sample flight could not be fetched (status ${response.status}).`);
 			return await this.importFiles([new File([await response.blob()], 'sample.igc')]);
 		} catch (error) {
 			return {

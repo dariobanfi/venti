@@ -93,7 +93,7 @@
 	{:else if !model}
 		<div class="nothing">
 			<h3>No forecast for this place</h3>
-			<p>None of the server’s weather models reaches it.</p>
+			<p>None of Venti’s weather models reaches it.</p>
 		</div>
 	{:else}
 		{#if days.length > 1}

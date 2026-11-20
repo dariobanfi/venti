@@ -28,7 +28,7 @@ const getSites: Get = async (path) => {
 	try {
 		return await getFromThisOrigin(path);
 	} catch {
-		throw unreachable('The server could not be reached for flying sites.');
+		throw unreachable('Venti could not be reached for flying sites.');
 	}
 };
 

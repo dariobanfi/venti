@@ -255,7 +255,7 @@
 					</p>
 				</section>
 			{:else if !problem}
-				<p class="lead" role="status">Asking the server…</p>
+				<p class="lead" role="status">Asking Venti…</p>
 			{/if}
 			{#if problem}
 				<p class={detail ? 'group-note refusal' : 'lead'} role="alert">{problem}</p>

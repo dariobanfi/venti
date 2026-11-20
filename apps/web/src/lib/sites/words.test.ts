@@ -99,7 +99,7 @@ describe('an empty list of sites', () => {
 	});
 
 	it('says why the server did not answer', () => {
-		const problem = 'The server could not be reached for flying sites.';
+		const problem = 'Venti could not be reached for flying sites.';
 
 		expect(nothingListed({ ...close, problem })).toBe(problem);
 	});
@@ -109,7 +109,7 @@ describe('an empty list of sites', () => {
 			'The source knows none on this part of the map. A place without a sign may still be a site.'
 		);
 		expect(nothingListed({ ...close, known: true, isWhole: false })).toBe(
-			'The server has no flying sites for this part of the map.'
+			'Venti has no flying sites for this part of the map.'
 		);
 	});
 });

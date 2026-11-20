@@ -119,7 +119,7 @@
 			{:else if groups.problem}
 				<p class="lead" role="alert">{groups.problem}</p>
 			{:else}
-				<p class="lead" role="status">Asking the server…</p>
+				<p class="lead" role="status">Asking Venti…</p>
 			{/if}
 		{/snippet}
 	</WithAccount>

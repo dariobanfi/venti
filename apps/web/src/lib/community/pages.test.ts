@@ -55,7 +55,7 @@ function listing(reply: (after: string | undefined) => Promise<FlightsPage | und
 }
 
 const unreachable = () => {
-	const error = new Error('The server could not be reached for other pilots’ flights.');
+	const error = new Error('Venti could not be reached for other pilots’ flights.');
 	error.name = 'Unreachable';
 	return Promise.reject(error);
 };
@@ -134,7 +134,7 @@ describe('a list of other pilots’ flights', () => {
 			known: true,
 			more: true,
 			loading: false,
-			problem: 'The server could not be reached for other pilots’ flights.'
+			problem: 'Venti could not be reached for other pilots’ flights.'
 		});
 		expect(state().flights).toHaveLength(1);
 

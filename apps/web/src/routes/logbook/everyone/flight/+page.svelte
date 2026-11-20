@@ -142,7 +142,7 @@
 	function actions(opened: OpenedFlight): MenuItem[] {
 		return [
 			{
-				label: 'Open its page on the server',
+				label: 'Open its page on Venti',
 				icon: 'link',
 				onselect: () => window.open(pageOf(opened), '_blank', 'noopener')
 			},

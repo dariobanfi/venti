@@ -100,5 +100,5 @@ export function nothingListed(state: SitesState): string {
 	if (!state.known) return 'Looking for flying sites…';
 	return state.isWhole
 		? 'The source knows none on this part of the map. A place without a sign may still be a site.'
-		: 'The server has no flying sites for this part of the map.';
+		: 'Venti has no flying sites for this part of the map.';
 }

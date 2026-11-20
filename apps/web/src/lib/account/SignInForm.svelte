@@ -73,7 +73,7 @@
 			</div>
 			{#if closed}
 				<p class="closed">
-					This server takes no new accounts. An account you already have signs in as before.
+					Venti takes no new accounts at the moment. An account you already have signs in as before.
 				</p>
 			{:else}
 				<label class="field">
@@ -126,17 +126,16 @@
 		{#if isNew && !closed}
 			<p class="group-note">
 				A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters;
-				a few words in a row are easy to remember. A forgotten password cannot be recovered: the
-				server knows no email address. Handle and name are public once you share a flight.
+				a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti
+				knows no email address. Handle and name are public once you share a flight.
 			</p>
 			{#if account.registration === 'invite'}
 				<p class="group-note">
-					This server takes new accounts by invite. Whoever runs it hands the codes out.
+					Venti takes new accounts by invite for now, and hands the codes out itself.
 				</p>
 			{:else if mayNeedInvite}
 				<p class="group-note">
-					The invite code is for a server that takes accounts by invite. Whoever runs it hands them
-					out.
+					An invite code is needed while Venti takes accounts by invite, and Venti hands them out.
 				</p>
 			{/if}
 		{/if}

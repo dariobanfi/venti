@@ -72,7 +72,7 @@
 			<dd>{signedIn.displayName}</dd>
 		</div>
 		<div class="group-row">
-			<dt>Server</dt>
+			<dt>Address</dt>
 			<dd>{host}</dd>
 		</div>
 	</dl>
@@ -89,7 +89,7 @@
 		{/if}
 		<dl class="numeric">
 			<div class="group-row">
-				<dt>Flights on the server</dt>
+				<dt>Flights on Venti</dt>
 				<dd>{text.count(signedIn.flightsOnServer)}</dd>
 			</div>
 			{#if signedIn.flightsToSend > 0}
@@ -131,7 +131,7 @@
 	</div>
 	<p class="group-note">
 		Venti syncs by itself when you open this site and after the logbook changes. Your flights stay
-		private on the server until you share one.
+		private on Venti until you share one.
 	</p>
 </section>
 
@@ -159,7 +159,7 @@
 <ConfirmDialog
 	open={confirmingSignOut}
 	title="Sign out?"
-	message="Your flights stay in this browser and on the server."
+	message="Your flights stay in this browser and on Venti."
 	confirm="Sign out"
 	onconfirm={signOut}
 	oncancel={() => (confirmingSignOut = false)}
@@ -177,7 +177,7 @@
 		<div class="words">
 			<h2 id="delete-title">Delete your account?</h2>
 			<p id="delete-message">
-				The account and every flight on the server are deleted at once and for good, and your shared
+				The account and every flight on Venti are deleted at once and for good, and your shared
 				links stop working. The flights in this browser stay. Enter your password to go on.
 			</p>
 			<!-- For the browser's password manager, which fills a password in for a name. -->

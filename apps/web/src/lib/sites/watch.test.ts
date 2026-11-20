@@ -24,7 +24,7 @@ function watching(reply: () => Promise<SitesMap | undefined> = async () => answe
 }
 
 const unreachable = () => {
-	const error = new Error('The server could not be reached for flying sites.');
+	const error = new Error('Venti could not be reached for flying sites.');
 	error.name = 'Unreachable';
 	return Promise.reject(error);
 };
@@ -111,7 +111,7 @@ describe('the flying sites for the part of the map in view', () => {
 		await watch.load();
 		expect(state()).toMatchObject({
 			known: false,
-			problem: 'The server could not be reached for flying sites.'
+			problem: 'Venti could not be reached for flying sites.'
 		});
 		expect(state().sites).toHaveLength(1);
 

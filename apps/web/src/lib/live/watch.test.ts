@@ -32,7 +32,7 @@ function watching(reply: () => Promise<LiveAnswer | undefined> = async () => ans
 	return { watch, server, clock, told, state: () => told.at(-1) ?? NO_LIVE };
 }
 
-const unreachable = () => Promise.reject(new Error('The server could not be reached.'));
+const unreachable = () => Promise.reject(new Error('Venti could not be reached.'));
 
 describe('who is in the air over the part of the map in view', () => {
 	it('is asked for a little more than is in view, so that a small drag needs no new request', async () => {

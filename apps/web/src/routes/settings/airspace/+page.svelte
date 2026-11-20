@@ -112,7 +112,7 @@
 								<span class="plain group-warning">
 									<Icon name="warning" />
 									<span>
-										The server does not say for which area this is complete. Where the map shows no
+										Venti does not say for which area this is complete. Where the map shows no
 										airspace, that need not mean there is none.
 									</span>
 								</span>
@@ -188,7 +188,7 @@
 			</ul>
 			<p class="group-note">
 				Venti reads airspace files in OpenAir format, the kind flight instruments use, and draws
-				their airspace on its maps beside the server’s.
+				their airspace on its maps beside Venti’s.
 				<span class="with-mouse">Files dragged onto this page are brought in too.</span>
 			</p>
 			<p class="group-note">

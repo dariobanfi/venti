@@ -165,7 +165,7 @@ test('the map says so in words when the server cannot be reached', async ({
 	await context.route('**/v1/**', (route) => route.abort());
 	await page.goto('/');
 
-	await expect(page.getByRole('status')).toHaveText('The wind server could not be reached.');
+	await expect(page.getByRole('status')).toHaveText('Venti could not be reached for the wind.');
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
 	await keep('22-wind-unreachable');
 
@@ -173,7 +173,7 @@ test('the map says so in words when the server cannot be reached', async ({
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	await expect(list).toContainText('No stations here');
-	await expect(list).toContainText('The wind server could not be reached.');
+	await expect(list).toContainText('Venti could not be reached for the wind.');
 });
 
 test('a server in trouble is reported with what it answered', async ({ context, page }) => {

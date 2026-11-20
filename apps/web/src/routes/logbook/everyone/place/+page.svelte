@@ -75,7 +75,7 @@
 	const subtitle = $derived.by(() => {
 		if (!place?.siteKnown || place.absent) return undefined;
 		if (place.siteProblem) return place.siteProblem;
-		if (!site) return 'This server’s source knows no flying site here.';
+		if (!site) return 'The flying sites’ source knows no site here.';
 		return site.elevationM === undefined
 			? site.kindInWords
 			: `${site.kindInWords} · ${text.metres(site.elevationM)} m`;

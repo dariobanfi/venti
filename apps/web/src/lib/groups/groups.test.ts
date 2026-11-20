@@ -171,7 +171,7 @@ describe('the board of flying plans', () => {
 		await first;
 
 		const again = watch.load();
-		const unreachable = new Error('The server could not be reached.');
+		const unreachable = new Error('Venti could not be reached.');
 		unreachable.name = UNREACHABLE;
 		asked[1].fail(unreachable);
 		await again;
@@ -179,7 +179,7 @@ describe('the board of flying plans', () => {
 		expect(watch.state).toMatchObject({
 			board: BOARD,
 			loading: false,
-			problem: 'The server could not be reached.'
+			problem: 'Venti could not be reached.'
 		});
 
 		// The next answer takes the words away again.

@@ -56,7 +56,7 @@ const getFromThisOrigin: Get = async (path) => {
 		const response = await fetch(path, { signal: AbortSignal.timeout(PATIENCE_MS) });
 		return { status: response.status, body: new Uint8Array(await response.arrayBuffer()) };
 	} catch {
-		throw unreachable('The server could not be reached for other pilots’ flights.');
+		throw unreachable('Venti could not be reached for other pilots’ flights.');
 	}
 };
 

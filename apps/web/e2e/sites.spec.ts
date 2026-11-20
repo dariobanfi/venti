@@ -222,6 +222,6 @@ test('a server that cannot be asked for sites is named in the list, and the map 
 	await page.getByRole('button', { name: 'Flying sites' }).click();
 	const list = page.getByRole('dialog', { name: 'Flying sites' });
 	await expect(list).toContainText('No flying sites here');
-	await expect(list).toContainText('The server could not be reached for flying sites.');
+	await expect(list).toContainText('Venti could not be reached for flying sites.');
 	await keep('44-sites-unreachable');
 });

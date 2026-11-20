@@ -105,15 +105,16 @@ test('the map draws who is in the air, lists them, and follows the flight of one
 	// minutes of it, with the climb the line on the map is red for.
 	await expect(metric(glider, 'Shown for')).toHaveText(/^0:20\sh$/);
 	await expect(metric(glider, 'Highest')).toHaveText(/^2117\sm$/);
-	await expect(
-		glider.getByRole('link', { name: 'The server’s page of this flight' })
-	).toHaveAttribute('href', `/live/${FLYING.id}`);
+	await expect(glider.getByRole('link', { name: 'This flight’s page on Venti' })).toHaveAttribute(
+		'href',
+		`/live/${FLYING.id}`
+	);
 	await expect(glider).toContainText('Positions are as each pilot’s app sent them.');
 	// The link leads to the page the server makes for the track, in a tab of
 	// its own: the page a pilot's link opens for someone without the app.
 	const [serversPage] = await Promise.all([
 		context.waitForEvent('page'),
-		glider.getByRole('link', { name: 'The server’s page of this flight' }).click()
+		glider.getByRole('link', { name: 'This flight’s page on Venti' }).click()
 	]);
 	await expect(serversPage.getByRole('heading', { level: 1 })).toContainText('Demo Pilot');
 	await serversPage.close();
@@ -221,9 +222,10 @@ test('a glider is opened by its wing, and one on the ground says that it landed'
 	await expect(glider.getByText('Speed')).toBeHidden();
 	await expect(glider.getByText('Flying')).toBeHidden();
 	await expect(metric(glider, 'Shown for')).toHaveText(/^0:11\sh$/);
-	await expect(
-		glider.getByRole('link', { name: 'The server’s page of this flight' })
-	).toHaveAttribute('href', `/live/${LANDED.id}`);
+	await expect(glider.getByRole('link', { name: 'This flight’s page on Venti' })).toHaveAttribute(
+		'href',
+		`/live/${LANDED.id}`
+	);
 	await mapDrawn();
 	await keep('57-live-landed');
 

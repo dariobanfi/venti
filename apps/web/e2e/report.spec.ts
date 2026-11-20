@@ -108,7 +108,7 @@ test('a report needs an account: signed out, the form says so and offers nothing
 	const form = await reportTheFlight(page);
 
 	await expect(form).toContainText(
-		'A report is sent from your account, so that whoever runs the server knows who it comes from. Sign in under Settings, Account.'
+		'A report is sent from your account, so that Venti knows who it comes from. Sign in under Settings, Account.'
 	);
 	await expect(form.getByRole('radio')).toHaveCount(0);
 	await expect(form.getByRole('textbox')).toHaveCount(0);

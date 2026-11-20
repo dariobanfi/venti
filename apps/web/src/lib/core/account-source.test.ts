@@ -188,7 +188,7 @@ describe('signing in', () => {
 		browser = new Browser();
 		const { account } = await browser.tab();
 		browser.server.instead = () => {
-			const error = new Error('The server could not be reached.');
+			const error = new Error('Venti could not be reached.');
 			error.name = UNREACHABLE;
 			throw error;
 		};

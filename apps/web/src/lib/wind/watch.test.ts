@@ -46,7 +46,7 @@ function watching(reply: () => Promise<WindAnswer | undefined> = async () => ans
 }
 
 const unreachable = () => {
-	const error = new Error('The wind server could not be reached.');
+	const error = new Error('Venti could not be reached for the wind.');
 	error.name = 'Unreachable';
 	return Promise.reject(error);
 };
@@ -156,7 +156,7 @@ describe('a server that does not answer', () => {
 		watch.show(VALLEY);
 		await watch.load();
 
-		expect(state().problem).toBe('The wind server could not be reached.');
+		expect(state().problem).toBe('Venti could not be reached for the wind.');
 		expect(state().available).toBe(true);
 		expect(state().stations).toEqual([]);
 	});
@@ -170,7 +170,7 @@ describe('a server that does not answer', () => {
 		clock.now += KEPT_WITHOUT_ANSWER_MS;
 		await watch.load();
 
-		expect(state().problem).toBe('The wind server could not be reached.');
+		expect(state().problem).toBe('Venti could not be reached for the wind.');
 		expect(state().stations).toHaveLength(1);
 		expect(state().credits).toHaveLength(1);
 	});
@@ -186,7 +186,7 @@ describe('a server that does not answer', () => {
 
 		expect(state().stations).toEqual([]);
 		expect(state().credits).toEqual([]);
-		expect(state().problem).toBe('The wind server could not be reached.');
+		expect(state().problem).toBe('Venti could not be reached for the wind.');
 	});
 
 	it('is forgotten with the next answer', async () => {

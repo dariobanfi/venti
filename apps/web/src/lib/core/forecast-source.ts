@@ -24,7 +24,7 @@ const getForecast: Get = async (path) => {
 	try {
 		return await getFromThisOrigin(path);
 	} catch {
-		throw unreachable('The server could not be reached for the forecast.');
+		throw unreachable('Venti could not be reached for the forecast.');
 	}
 };
 

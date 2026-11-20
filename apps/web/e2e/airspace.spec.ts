@@ -409,9 +409,7 @@ test('a server that cannot be asked for airspace is named on the airspace screen
 	await expect(page.getByText(/^Airspace: /)).toBeHidden();
 
 	await openAirspace(page);
-	await expect(page.getByRole('status')).toHaveText(
-		'The server could not be reached for airspace.'
-	);
+	await expect(page.getByRole('status')).toHaveText('Venti could not be reached for airspace.');
 
 	// Back on the map, the server is not asked again at once.
 	await sections(page).getByRole('link', { name: 'Map', exact: true }).click();

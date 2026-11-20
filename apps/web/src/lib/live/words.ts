@@ -13,7 +13,7 @@ export const CAUTION =
 	'Positions are as each pilot’s app sent them. A glider nothing was heard of for a while has most likely no network: it is not known to have landed.';
 
 /** Said under a list the server cut short. */
-export const TRUNCATED = 'There are more than the server lists at once. Zoom the map in.';
+export const TRUNCATED = 'There are more than Venti lists at once. Zoom the map in.';
 
 /** Said on the page of a glider that neither the map nor the server has any more. */
 export const NO_LONGER_HERE =

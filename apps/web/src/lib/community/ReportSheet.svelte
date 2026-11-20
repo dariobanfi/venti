@@ -89,8 +89,8 @@
 	{:else if !account.signedIn}
 		<div class="group-card words">
 			<p>
-				A report is sent from your account, so that whoever runs the server knows who it comes from.
-				Sign in under Settings, Account.
+				A report is sent from your account, so that Venti knows who it comes from. Sign in under
+				Settings, Account.
 			</p>
 			<a class="button-plain" href={accountHref()}>Account</a>
 		</div>

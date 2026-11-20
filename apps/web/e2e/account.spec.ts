@@ -75,9 +75,9 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await page.keyboard.press('Enter');
 	await expect(metric(page, 'Handle')).toHaveText('@demo');
 	await expect(metric(page, 'Name')).toHaveText('Demo Pilot');
-	await expect(metric(page, 'Server')).toHaveText('localhost:4173');
+	await expect(metric(page, 'Address')).toHaveText('localhost:4173');
 	await expect(metric(page, 'Last sync')).toHaveText('3 fetched');
-	await expect(metric(page, 'Flights on the server')).toHaveText('3');
+	await expect(metric(page, 'Flights on Venti')).toHaveText('3');
 	await expect(metric(page, 'In step since')).toHaveText(/^\w{3}, \d+ \w{3}, \d\d:\d\d$/);
 	await expect(page.getByText('Waiting to be sent')).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Sync now' })).toBeEnabled();
@@ -98,7 +98,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	// Signing out asks first, and leaves the flights in the browser.
 	await page.getByRole('button', { name: 'Sign out' }).click();
 	const asking = page.getByRole('alertdialog', { name: 'Sign out?' });
-	await expect(asking).toContainText('Your flights stay in this browser and on the server.');
+	await expect(asking).toContainText('Your flights stay in this browser and on Venti.');
 	await asking.getByRole('button', { name: 'Sign out' }).click();
 	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
@@ -143,7 +143,7 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await expect(metric(page, 'Handle')).toHaveText(`@${pilot.handle}`);
 	await expect(metric(page, 'Name')).toHaveText('Test Pilot');
 	await expect(metric(page, 'Last sync')).toHaveText('1 sent');
-	await expect(metric(page, 'Flights on the server')).toHaveText('1');
+	await expect(metric(page, 'Flights on Venti')).toHaveText('1');
 
 	// The flight is shared from its own screen. Nothing is shared by default.
 	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
@@ -188,7 +188,7 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
 	await openAccount(page);
 	await expect(metric(page, 'Last sync')).toHaveText('1 removed on the server');
-	await expect(metric(page, 'Flights on the server')).toHaveText('0');
+	await expect(metric(page, 'Flights on Venti')).toHaveText('0');
 
 	// Deleting the account needs the password, not just being signed in.
 	await page.getByRole('button', { name: 'Delete account' }).click();
@@ -227,7 +227,7 @@ test('the logbook follows the server when the site is opened and comes back to t
 	let asked = asksForChanges();
 	await page.reload();
 	expect((await asked).headers().authorization).toMatch(/^Bearer venti_/);
-	await expect(metric(page, 'Flights on the server')).toHaveText('3');
+	await expect(metric(page, 'Flights on Venti')).toHaveText('3');
 
 	// So it does when the pilot comes back to the tab after a while.
 	asked = asksForChanges();
@@ -253,7 +253,7 @@ test('a sync that fails says why, and a session that ended asks to sign in again
 	// Out of reach.
 	await context.route('**/v1/flights/changes**', (route) => route.abort());
 	await page.getByRole('button', { name: 'Sync now' }).click();
-	await expect(page.getByRole('alert')).toHaveText('The server could not be reached.');
+	await expect(page.getByRole('alert')).toHaveText('Venti could not be reached.');
 	await expect(page.getByRole('button', { name: 'Sync now' })).toBeEnabled();
 
 	// The server asks to wait.
@@ -329,7 +329,7 @@ test('the form for a new account follows who may register on the server', async 
 	await page.getByRole('radio', { name: 'New account' }).check();
 	await expect(field(page, 'Invite code')).toBeVisible();
 	await expect(
-		page.getByText('This server takes new accounts by invite. Whoever runs it hands the codes out.')
+		page.getByText('Venti takes new accounts by invite for now, and hands the codes out itself.')
 	).toBeVisible();
 	await keep('52-account-new-by-invite');
 
@@ -339,7 +339,7 @@ test('the form for a new account follows who may register on the server', async 
 	await page.getByRole('radio', { name: 'New account' }).check();
 	await expect(
 		page.getByText(
-			'This server takes no new accounts. An account you already have signs in as before.'
+			'Venti takes no new accounts at the moment. An account you already have signs in as before.'
 		)
 	).toBeVisible();
 	await expect(field(page, 'Handle')).toBeHidden();
@@ -357,7 +357,7 @@ test('the form for a new account follows who may register on the server', async 
 	await page.getByRole('radio', { name: 'New account' }).check();
 	await expect(field(page, 'Invite code')).toBeVisible();
 	await expect(
-		page.getByText('The invite code is for a server that takes accounts by invite.')
+		page.getByText('An invite code is needed while Venti takes accounts by invite')
 	).toBeVisible();
 });
 

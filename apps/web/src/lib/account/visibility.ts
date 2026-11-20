@@ -19,7 +19,7 @@ export const VISIBILITY_CHOICES: readonly VisibilityChoice[] = [
 	{
 		visibility: 'private',
 		title: 'Only me',
-		explanation: 'The flight is kept on the server for your devices. Nobody else can see it.'
+		explanation: 'The flight is kept on Venti for your devices. Nobody else can see it.'
 	},
 	{
 		visibility: 'unlisted',

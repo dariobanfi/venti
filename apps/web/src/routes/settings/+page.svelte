@@ -70,8 +70,7 @@
 				</a>
 			</div>
 			<p class="group-note">
-				The maps draw the airspace the server has for where you look, and that of files you bring
-				in.
+				The maps draw the airspace Venti has for where you look, and that of files you bring in.
 			</p>
 		</section>
 

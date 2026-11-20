@@ -66,7 +66,7 @@ export const getLiveFromThisOrigin: LiveGet = async (path, etag) => {
 			etag: response.headers.get('etag') ?? undefined
 		};
 	} catch {
-		throw unreachable('The server could not be reached for who is in the air.');
+		throw unreachable('Venti could not be reached for who is in the air.');
 	}
 };
 

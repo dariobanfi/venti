@@ -178,7 +178,7 @@ test('a pilot makes a group, hands on its code, and plans a flying day with who 
 	const shown = invite.getByText(/^[0-9a-z]{4}(-[0-9a-z]{4}){3}$/);
 	const code = (await shown.textContent())!.trim();
 	await expect(invite).toContainText(
-		'It is shown this once: the server keeps no copy that can be read.'
+		'It is shown this once: Venti keeps no copy that can be read.'
 	);
 	await invite.getByRole('button', { name: 'Copy the code' }).click();
 	await expect(invite.getByRole('status')).toHaveText('Copied.');

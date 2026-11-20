@@ -153,6 +153,97 @@ class LiveFlightTest {
         checkNotNull(context.getSystemService(NotificationManager::class.java)).activeNotifications
             .any { it.notification.extras.getString("android.title") == "Recording your flight" }
 
+    /** Seconds since the made-up positions began, as the thread that hands them over counts them. */
+    @Volatile
+    private var secondsFed = 0
+
+    /**
+     * Hands Android a made-up position every second, as `where` says for
+     * that second: metres north of a take-off above the Tegernsee, the
+     * height above the ellipsoid and the speed. A receiver's positions
+     * wander while it stands, by half a metre here.
+     */
+    private fun feed(where: (Int) -> Triple<Double, Double, Float>) {
+        isFlying = true
+        thread(name = "made-up-flight") {
+            var second = 0
+            while (isFlying) {
+                val (north, height, speed) = where(second)
+                val wander = if (second % 2 == 0) 0.5 else 0.0
+                val position = Location(LocationManager.GPS_PROVIDER).apply {
+                    latitude = 47.664 + (north + wander) / 111_195.0
+                    longitude = 11.772
+                    altitude = height
+                    this.speed = speed
+                    bearing = 0f
+                    accuracy = 4f
+                    time = System.currentTimeMillis()
+                    elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                }
+                runCatching { locations.setTestProviderLocation(LocationManager.GPS_PROVIDER, position) }
+                second += 1
+                secondsFed = second
+                Thread.sleep(1000)
+            }
+        }
+    }
+
+    /**
+     * A flight that records itself: the cockpit waits on the ground and
+     * writes nothing, takes off when the phone moves as a glider does,
+     * lands when it stops, and two minutes later the flight is in the
+     * logbook without a touch.
+     */
+    @Test
+    fun aFlightRecordsItself() {
+        val intent = Intent(context, MainActivity::class.java)
+            .putExtra(LaunchOptions.UI_TESTING, true)
+            .putExtra(LaunchOptions.BUNDLED_MAP, true)
+        app = ActivityScenario.launch(intent)
+        waitFor(hasContentDescription("Show my position"))
+        tap(hasText("Fly") and isSelectable())
+        waitFor(hasText("Open the cockpit"))
+        // Eight seconds at the take-off, forty-five of flight at 10 m/s
+        // sinking a metre a second, then standing in the landing field.
+        feed { second ->
+            val flown = (second - 8).coerceIn(0, 45).toDouble()
+            Triple(10 * flown, ELLIPSOID_HEIGHT + 100 - flown, if (second in 9..53) 10f else 0f)
+        }
+        tap(hasText("Open the cockpit"))
+
+        // Standing at the take-off: ready, and nothing is recorded.
+        waitFor(hasTestTag("cockpit-phase") and hasContentDescription("Ready for take-off"))
+        assertTrue(exists(hasTestTag("cockpit-ready")))
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-1-ready")
+        // What can be switched before the take-off, with "Record now".
+        turnTo("Flight")
+        waitFor(hasTestTag("cockpit-record-now"))
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-2-ready-flight-page")
+        turnTo("Instruments")
+
+        // In the air: recording by itself.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { exists(hasText("Recording")) && !exists(hasTestTag("cockpit-phase")) }
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-3-in-the-air")
+
+        // Standing in the landing field: landed, and the cockpit says when
+        // the flight will be saved.
+        waitFor(hasTestTag("cockpit-phase") and saying("The flight is saved in"), seconds = 180)
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-4-landed")
+
+        // Two minutes after it came to rest the flight is in the logbook,
+        // and its page is open.
+        waitFor(hasContentDescription("Flight details"), seconds = 240)
+        isFlying = false
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-self-5-saved")
+        tap(hasContentDescription("Back"))
+        waitFor(hasTestTag("logbook-row"))
+    }
+
     @Test
     fun aFlightIsRecordedFromThePhonesPositionsAndSavedToTheLogbook() {
         val intent = Intent(context, MainActivity::class.java)

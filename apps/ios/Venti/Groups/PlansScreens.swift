@@ -187,6 +187,19 @@ struct PlanScreen: View {
                         Text(note)
                     }
                 }
+                if let position = plan.position {
+                    // The plan says where on the map: the forecast for
+                    // that place is one step away.
+                    Section {
+                        NavigationLink {
+                            ForecastScreen(place: position, title: plan.place)
+                        } label: {
+                            Label("Forecast for this place", systemImage: "cloud.sun")
+                        }
+                    } footer: {
+                        Text(Format.place(lat: position.lat, lon: position.lon))
+                    }
+                }
                 Section("Who is in") {
                     if plan.pilotsIn.isEmpty {
                         Text("Nobody yet")
@@ -270,11 +283,15 @@ struct PlanForm: View {
     let editing: PlanView?
 
     @Environment(GroupsModel.self) private var groups
+    @Environment(WaypointsModel.self) private var waypoints
     @Environment(\.dismiss) private var dismiss
 
     @State private var group = ""
     @State private var day = Date()
     @State private var place = ""
+    /// Where the place is on the map, if the pilot took it from a
+    /// waypoint.
+    @State private var position: Coordinate?
     @State private var hasTime = false
     @State private var time = Date()
     @State private var note = ""
@@ -296,6 +313,34 @@ struct PlanForm: View {
                 Section {
                     TextField("Where", text: $place)
                         .accessibilityIdentifier("plan-place")
+                    // The pilot's own waypoints know where they are: a
+                    // plan made from one can lead to the forecast there.
+                    if !waypoints.all.isEmpty {
+                        Menu {
+                            ForEach(waypoints.all.prefix(40), id: \.id) { waypoint in
+                                Button(waypoint.name) {
+                                    place = waypoint.name
+                                    position = waypoint.position
+                                }
+                            }
+                        } label: {
+                            Label("From my waypoints", systemImage: "mappin.and.ellipse")
+                        }
+                    }
+                    if let position {
+                        LabeledContent("On the map") {
+                            HStack(spacing: 8) {
+                                Text(Format.place(lat: position.lat, lon: position.lon))
+                                    .monospacedDigit()
+                                Button("Take the position off", systemImage: "xmark.circle.fill") {
+                                    self.position = nil
+                                }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     DatePicker("Day", selection: $day, in: Date()..., displayedComponents: .date)
                     Toggle("Set a time", isOn: $hasTime)
                     if hasTime {
@@ -342,6 +387,7 @@ struct PlanForm: View {
         if let editing {
             group = editing.groupId
             place = editing.place
+            position = editing.position
             note = editing.note ?? ""
             day = GroupsModel.date(ofDay: editing.day) ?? Date()
             if let meetAt = editing.meetAt {
@@ -363,9 +409,7 @@ struct PlanForm: View {
         isSaving = true
         problem = nil
         let draft = PlanDraft(
-            day: GroupsModel.day(day), place: place,
-            // A place on the map is not asked for yet: the name says where.
-            position: editing?.position,
+            day: GroupsModel.day(day), place: place, position: position,
             meetAt: hasTime ? GroupsModel.timeOfDay(time) : nil,
             note: note
         )

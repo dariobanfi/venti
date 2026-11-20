@@ -1085,8 +1085,7 @@ private fun LockCover(onUnlock: () -> Unit) {
                         event.changes.forEach { it.consume() }
                     } while (event.changes.any { it.pressed })
                 }
-            }
-            .clearAndSetSemantics {},
+            },
     ) {
         Surface(
             modifier = Modifier

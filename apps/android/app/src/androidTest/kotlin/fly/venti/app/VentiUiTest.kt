@@ -838,7 +838,7 @@ class VentiUiTest {
 
         // The cockpit a pilot flies with. What is replayed is not shared:
         // there is no button for live tracking.
-        waitForAll(described("Altitude"), hasText("Replay ×20"))
+        waitForAll(described("Altitude"), hasTestTag("replay-speed") and saying("Replay ×20"))
         assertFalse(exists(hasTestTag("live-button")))
         // The picture is taken once the thermal is centred and stays so.
         // At twenty times the speed the map on the emulator is drawn a

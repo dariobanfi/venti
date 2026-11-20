@@ -251,13 +251,26 @@ struct CockpitMap: UIViewRepresentable {
             // but the pilot's own glider.
             LiveLayers.add(to: style, named: "cockpit-gliders")
 
+            // The pilot's own glider, as the design language has it: a
+            // cream arrow with a dark ring, pointing where the glider goes
+            // over the ground. Without a course, standing on the ground or
+            // with a receiver that gives none, it is a dot in the same pair.
             let glider = MLNShapeSource(identifier: "cockpit-glider", shape: nil, options: nil)
             style.addSource(glider)
-            style.addLayer(
-                MapSetup.dot(
-                    "cockpit-glider-dot", from: glider, radius: 9, color: Palette.ownPositionOnMap, ring: Palette.ownPositionRingOnMap
-                )
+            let dot = MapSetup.dot(
+                "cockpit-glider-dot", from: glider, radius: 9, color: Palette.ownPositionOnMap, ring: Palette.ownPositionRingOnMap
             )
+            dot.predicate = NSPredicate(format: "hasCourse == 0")
+            style.addLayer(dot)
+            style.setImage(Self.ownPositionArrow(), forName: "cockpit-own-position")
+            let arrow = MLNSymbolStyleLayer(identifier: "cockpit-glider-arrow", source: glider)
+            arrow.predicate = NSPredicate(format: "hasCourse == 1")
+            arrow.iconImageName = NSExpression(forConstantValue: "cockpit-own-position")
+            arrow.iconRotation = NSExpression(forKeyPath: "course")
+            arrow.iconRotationAlignment = NSExpression(forConstantValue: "map")
+            arrow.iconAllowsOverlap = NSExpression(forConstantValue: true)
+            arrow.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+            style.addLayer(arrow)
 
             isStyleLoaded = true
             drawnThermals = nil
@@ -305,7 +318,12 @@ struct CockpitMap: UIViewRepresentable {
             guard isStyleLoaded, let style = map.style, let position = view.position else { return }
             shownTarget = target
 
-            point(position, in: "cockpit-glider", of: style)
+            if let source = style.source(withIdentifier: "cockpit-glider") as? MLNShapeSource {
+                let glider = MLNPointFeature()
+                glider.coordinate = position.location
+                glider.attributes = ["hasCourse": view.courseDeg == nil ? 0 : 1, "course": view.courseDeg ?? 0]
+                source.shape = glider
+            }
             drawAirspace(around: position, in: style)
             if let target {
                 point(target, in: "cockpit-target", of: style)
@@ -462,6 +480,26 @@ struct CockpitMap: UIViewRepresentable {
                 north: position.lat + 0.36, east: position.lon + 0.54
             )
             AirspaceLayers.show(airspace.inArea(area: area), in: style)
+        }
+
+        /// The arrow of the pilot's own glider, pointing up: the map turns
+        /// it to the glider's course.
+        static func ownPositionArrow() -> UIImage {
+            let side: CGFloat = 34
+            return UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+                let arrow = UIBezierPath()
+                arrow.move(to: CGPoint(x: side * 0.5, y: side * 0.1))
+                arrow.addLine(to: CGPoint(x: side * 0.82, y: side * 0.86))
+                arrow.addLine(to: CGPoint(x: side * 0.5, y: side * 0.68))
+                arrow.addLine(to: CGPoint(x: side * 0.18, y: side * 0.86))
+                arrow.close()
+                arrow.lineJoinStyle = .round
+                arrow.lineWidth = 3
+                Palette.ownPositionOnMap.setFill()
+                arrow.fill()
+                Palette.ownPositionRingOnMap.setStroke()
+                arrow.stroke()
+            }
         }
 
         private func point(_ coordinate: Coordinate, in identifier: String, of style: MLNStyle) {

@@ -7,7 +7,7 @@
  *
  * Beside the files a store keeps one thing the core never sees: the session
  * token of the pilot's account. A phone keeps it in its Keychain; a browser
- * has nothing of the kind, and `apps/web/README.md` says what that means.
+ * has nothing of the kind, and `apps/web/AGENTS.md` says what that means.
  */
 
 /**

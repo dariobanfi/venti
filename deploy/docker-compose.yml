@@ -175,8 +175,8 @@ services:
   #   VENTI_OPEN_METEO_URL=http://open-meteo:8080
   # It reads Open-Meteo's open data on AWS when a place is asked for and
   # keeps what it read in a cache on disk. It publishes no port: only the
-  # server reaches it. README.md says what it needs and what is still to
-  # verify.
+  # server reaches it. README.md says what it needs, and AGENTS.md what
+  # is still to verify.
   open-meteo:
     image: ghcr.io/open-meteo/open-meteo:latest
     profiles: ["forecasts"]

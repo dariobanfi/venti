@@ -3,7 +3,7 @@
  * load, run and talk to. Whatever is not listed, the browser refuses.
  *
  * The session token of a signed-in pilot is kept where the app's own code
- * can read it (`apps/web/README.md` says why), so a stranger's script that
+ * can read it (`apps/web/AGENTS.md` says why), so a stranger's script that
  * got to run on a page could reach it too. The policy is what stands in the
  * way: no script but the app's own files runs, and a page can send nothing
  * to a host the app does not use.
@@ -12,7 +12,7 @@
  * (`vite.config.ts`), because the app is static files and whoever serves
  * them may set no headers. Two things a policy in a page cannot do: it
  * cannot say who may frame the site (`frame-ancestors`), and it does not
- * reach the app's workers. `apps/web/README.md` says what the web server
+ * reach the app's workers. `apps/web/AGENTS.md` says what the web server
  * has to send for those.
  *
  * Every source in it is there because the browser refused something

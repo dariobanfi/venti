@@ -49,7 +49,7 @@ cd apps/android
 
 The UI tests need an emulator, which a cloud session without hardware virtualisation cannot run. The `Android` workflow runs them on every push that touches the app or the core, and uploads their screenshots as the `android-screenshots` artifact and the app as `venti-debug-apk`: download the screenshots with `gh run download` and look at them after every change to a screen. For the wind map the workflow starts `venti-server dev` and names it to the tests. A UI test must not wait with `Thread.sleep`: Compose draws a test's frames only when the test asks, so the screenshot would show the moment the test fell asleep; use `TestDevice.letTheAppRun`. A new kind of error in the core needs a line in `apps/android/uniffi.toml`, or the Kotlin interface does not compile.
 
-The web app (`apps/web`) builds and tests in a cloud session; `apps/web/README.md` has the details:
+The web app (`apps/web`) builds and tests in a cloud session; `apps/web/README.md` has the commands and `apps/web/AGENTS.md` the details for sessions:
 
 ```bash
 cd apps/web
@@ -68,6 +68,8 @@ Cloud sessions for this repository use the `venti` environment, which has unrest
 ## Working practice
 
 - Commit directly to `main` and push. No feature branches and no pull requests: the owner works on this alone.
+- Commits are in the owner's name, with the session as co-author in the message's last lines. Before the first commit of a session: `git config user.name "Dario Banfi"` and `git config user.email "hello@dariobanfi.com"`.
+- A README is a short page for people: what the folder is, how to build and run it, where to read more. Working notes for AI sessions go into the `AGENTS.md` beside it ([AGENTS.md](AGENTS.md) lists them); what a feature does goes into `docs/`. Do not add status, history or feature lists to a README.
 - Decisions go in the decision log in `docs/architecture.md`.
 - Mark anything not checked against a primary source as "to verify". Do not present it as fact.
 - Prefer deleting code to adding a second way of doing something.

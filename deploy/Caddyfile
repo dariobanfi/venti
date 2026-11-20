@@ -90,7 +90,7 @@
 		# for browsers that predate the policy.
 		#
 		# What a page may load and run, the web app's build writes into
-		# each page itself (apps/web/README.md); a browser holds a page to
+		# each page itself (apps/web/AGENTS.md); a browser holds a page to
 		# both lists.
 		#
 		# A worker is held to neither. It is held to the policy that

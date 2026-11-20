@@ -12,7 +12,7 @@
  * The session token never reaches the page: it is read from the store
  * here, in the worker, for the one request that needs it. That does not
  * make it a secret from the site's own scripts, which can open the same
- * store; `apps/web/README.md` says what was weighed.
+ * store; `apps/web/AGENTS.md` says what was weighed.
  */
 
 import {

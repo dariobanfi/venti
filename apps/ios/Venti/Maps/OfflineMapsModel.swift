@@ -181,9 +181,9 @@ final class OfflineMapsModel {
     /// kept region that covers the place, with a network or without.
     func flying(at place: Coordinate) {
         let region = mapRegionCovering(kept: kept, lat: place.lat, lon: place.lon)
-        let source = region.flatMap { source(of: $0) } ?? .standard
-        if source != flyingSource {
-            flyingSource = source
+        let drawnFrom: MapStyle.Source = region.flatMap { self.source(of: $0) } ?? MapStyle.Source.standard
+        if drawnFrom != flyingSource {
+            flyingSource = drawnFrom
         }
     }
 
@@ -199,7 +199,7 @@ final class OfflineMapsModel {
             } else {
                 kept.first
             }
-        return region.flatMap { source(of: $0) } ?? .standard
+        return region.flatMap { self.source(of: $0) } ?? MapStyle.Source.standard
     }
 
     /// A kept region as a source for the map's style.

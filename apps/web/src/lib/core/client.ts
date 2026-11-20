@@ -206,6 +206,16 @@ export class CoreClient {
 	 * Lays the flight `other` beside `first`, the one on screen: the other
 	 * flight and how the two lie to each other. Nothing is kept.
 	 */
+	/** The take-offs around a place, for Today. Nothing if this site has no server. */
+	todayTakeoffs(place: Coordinate) {
+		return this.#call('todayTakeoffs', place);
+	}
+
+	/** What the forecast says about flying from one of the take-offs last listed. */
+	todayOutlook(id: string, nowUnixS: number) {
+		return this.#call('todayOutlook', { id, nowUnixS });
+	}
+
 	compareFlights(first: FlightRef, other: FlightRef) {
 		return this.#call('compareFlights', { first, other });
 	}

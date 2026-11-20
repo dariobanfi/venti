@@ -23,6 +23,7 @@ import {
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
+import { TodayModel } from '#lib/today/model.svelte.ts';
 import {
 	flightToShow,
 	importNotice,
@@ -50,6 +51,9 @@ export class App {
 
 	/** Other pilots' public flights. Nothing until the core has started. */
 	everyone = $state.raw<CommunityModel>();
+
+	/** The take-offs around a place, and what the forecast says of each. */
+	today = $state.raw<TodayModel>();
 
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
@@ -84,6 +88,7 @@ export class App {
 				this.sites = new SitesModel(core);
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
+				this.today = new TodayModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());

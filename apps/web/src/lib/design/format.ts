@@ -53,6 +53,8 @@ export interface Format {
 	list(items: readonly string[]): string;
 	/** A day by its weekday and its number in the month: "Fri 20". */
 	weekdayAndDay(unixSeconds: number): string;
+	/** A day's weekday: "Saturday", or short, "Sat". */
+	weekday(unixSeconds: number, short?: boolean): string;
 	/** The hour of the day where the reader is, for the head of a column: "9", "14". */
 	hourOfDay(unixSeconds: number): string;
 	/**
@@ -115,6 +117,8 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	// 24-hour clock, which no region does and which reads like an airtime.
 	const time = date({ timeStyle: 'short' });
 	const weekdayAndDay = date({ weekday: 'short', day: 'numeric' });
+	const weekdayLong = date({ weekday: 'long' });
+	const weekdayShort = date({ weekday: 'short' });
 	const clock = date({ hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
 	const whole = number(0);
 	const tenths = number(1);
@@ -178,6 +182,8 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		temperature: (celsius) => whole.format(Math.round(celsius) || 0),
 		list: (items) => list.format(items),
 		weekdayAndDay: (unixSeconds) => weekdayAndDay.format(at(unixSeconds)),
+		weekday: (unixSeconds, short = false) =>
+			(short ? weekdayShort : weekdayLong).format(at(unixSeconds)),
 		hourOfDay: (unixSeconds) => String(Math.floor(secondsIntoDay(unixSeconds) / 3600)),
 		// Noon of that date in UTC is that date in UTC, whatever the reader's zone.
 		place: (lat, lon) =>

@@ -288,7 +288,7 @@ The web app is the same product in a browser: the same screens, the same words. 
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
-- **Narrow** is the iPhone app. The navigation is the design pack's tab bar along the bottom edge, with the four sections Map, Logbook, Plans and Settings, and steps aside on the flight screen. On a screen narrower than a phone's, or with large text, the four share the width there is. The flight panel floats over the lower part of the map; the details open as a sheet from the bottom edge.
+- **Narrow** is the iPhone app. The navigation is the design pack's tab bar along the bottom edge, with the five sections Today, Map, Logbook, Plans and Settings, and steps aside on the flight screen. On a screen narrower than a phone's, or with large text, the four share the width there is. The flight panel floats over the lower part of the map; the details open as a sheet from the bottom edge.
 - **Wide** uses the room, it does not stretch the phone:
   - The navigation is a rail down the left side, part of the page and not floating on it.
   - **Flight:** the panel stands beside the map as a column, and everything the sheet holds on a phone is in that column under the profile, on screen without a tap. The map has the rest of the window, with buttons for zoom, because a mouse cannot pinch. Choosing a thermal or glide scrolls the column back to the profile, where the mark is.
@@ -368,6 +368,15 @@ Where two flights side by side differ on the web from the iPhone's:
 - **The colour is the design pack's fourth series colour**, an ochre, where the iPhone has a green: the pack's series are the colours for comparing flights, and its green is a status. On the map the other track is one line of that colour with the dark casing, under the flight's own, and its glider a dot at the marked moment; in the chart its altitude is a thinner line.
 - **The line under the chart** is a button with the colour's mark, whose the flight is, and the core's sentence, or at a marked moment the other glider's altitude and distance ("1,620 m · 320 m away", "Not in the air then"); it opens "Side by side", a sheet with the numbers in a table, the one ahead in bold, "Go to where they were nearest" for flights flown together, and "Take the other flight away".
 - **Both files are read in the core's worker**, the other one fetched from Venti when it is another pilot's; nothing of it is kept. Tested with the development mode's flights, none of which were in the air together, so laying out by the clock has been seen in the core's tests only.
+
+Where Today differs on the web from the iPhone's:
+
+- **A section of its own, first in the navigation**, with the pack's `forecast` icon, at `/today/`. The map stays the page at the site's root, so that links to it keep working; the iPhone opens on Today.
+- **Laid out for the width.** On a wide screen the best take-off's card stands beside the list of the others, under the valley strip and the day switch; on a phone they follow each other. The hours scroll sideways where there are more than fit.
+- **The head says where the take-offs are**: "around the Tegernsee" until the pilot presses "Use my position" under the list, which is the one moment the browser is asked for the position; then "near you". A refused position is said in words and the take-offs stay where they were.
+- **A tap on a take-off opens its place's page**, with its flights and its ranking (above), where the iPhone opens the site's page.
+- **States**: looking for the take-offs, no take-off within 30 km, Venti not reached (with "Try again"), and each forecast filling in as it arrives; a forecast Venti is still fetching is asked for again, up to seven times, four seconds apart. Hours are counted by Venti's clock, read with the health check, as the wind's ages are.
+- **Each hour** has the pack's wind arrow pointing where the air goes, the speed, and a bar in the status colour that is tall for flyable, lower for marginal and low for not; a screen reader hears the status and the reason of each hour in words.
 
 Where flying plans differ on the web from the iPhone's:
 

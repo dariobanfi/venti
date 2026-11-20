@@ -49,8 +49,8 @@ use venti_core::{
     ImportedFlight, KeptAirspace, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SitesMap, StagedStorage, StationHistory,
-    Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap,
+    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SitesMap, StagedStorage,
+    StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap, WindSpan,
 };
 use wasm_bindgen::prelude::*;
 
@@ -836,6 +836,34 @@ pub fn sites_map(
     body: Vec<u8>,
 ) -> Result<Ts<SitesMap>, JsValue> {
     to_js(&venti_core::sites_map(south, west, north, east, status, body).map_err(thrown)?)
+}
+
+/// What the forecast says about flying from a take-off: reads the server's
+/// answer to `forecastPath` for the take-off's place. `wind` is where the
+/// take-off works, as its source says; `elevation_m` its height, if known;
+/// `utc_offset_s` how far the place's clock is ahead of UTC; hours before
+/// `now_unix_s`, by Venti's clock, are left out.
+#[wasm_bindgen(js_name = siteOutlook)]
+pub fn site_outlook(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+    wind: Vec<Ts<WindSpan>>,
+    elevation_m: Option<f64>,
+    now_unix_s: f64,
+) -> Result<Ts<SiteOutlook>, JsValue> {
+    let wind = wind.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+    to_js(
+        &venti_core::site_outlook(
+            status,
+            body,
+            utc_offset_s,
+            wind,
+            elevation_m,
+            whole_seconds(now_unix_s),
+        )
+        .map_err(thrown)?,
+    )
 }
 
 // The forecast for a place, from the Venti server: what its weather models

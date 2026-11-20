@@ -100,6 +100,10 @@ export type {
 	RouteKind,
 	SiteKind,
 	SiteAtPlace,
+	SiteOutlook,
+	OutlookDay,
+	OutlookHour,
+	Flyability,
 	SitesMap,
 	SiteView,
 	StationHistory,
@@ -122,6 +126,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
+export type { TodayTakeoff, TodayTakeoffs } from './today-source';
 export type {
 	Compared,
 	FlightRef,

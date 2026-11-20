@@ -1,3 +1,4 @@
+import { TodaySource } from './today-source';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
@@ -52,7 +53,8 @@ class SameProcess implements Channel {
 						community: new CommunitySource(async () => false),
 						groups: new GroupsSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
-						terrain: new TerrainSource(unreachable)
+						terrain: new TerrainSource(unreachable),
+						today: new TodaySource(async () => false)
 					},
 					call,
 					given

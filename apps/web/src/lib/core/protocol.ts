@@ -52,6 +52,7 @@ import type {
 	ReportReason,
 	ReportSubject,
 	SiteAtPlace,
+	SiteOutlook,
 	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
@@ -60,6 +61,7 @@ import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
+import type { TodaySource, TodayTakeoffs } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
@@ -148,6 +150,10 @@ export interface Calls {
 	 * the other flight, and how the two lie to each other. Nothing is kept.
 	 */
 	compareFlights: { given: { first: FlightRef; other: FlightRef }; answer: Compared };
+	/** The take-offs around a place, for Today. Nothing if this site has no server. */
+	todayTakeoffs: { given: Coordinate; answer: TodayTakeoffs | undefined };
+	/** What the forecast says about flying from one of them, from a moment on. */
+	todayOutlook: { given: { id: string; nowUnixS: number }; answer: SiteOutlook };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -251,6 +257,7 @@ export interface Answering {
 	community: CommunitySource;
 	groups: GroupsSource;
 	terrain: TerrainSource;
+	today: TodaySource;
 }
 
 /** Does what a call asks of the core. */
@@ -265,7 +272,8 @@ export async function answer<Name extends CallName>(
 		live,
 		community,
 		groups,
-		terrain
+		terrain,
+		today
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -295,6 +303,8 @@ export async function answer<Name extends CallName>(
 		ranking: ({ season, near }) => community.ranking(season, near),
 		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
+		todayTakeoffs: (place) => today.takeoffs(place),
+		todayOutlook: ({ id, nowUnixS }) => today.outlook(id, nowUnixS),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

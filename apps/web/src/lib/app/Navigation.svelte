@@ -10,9 +10,11 @@
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
 	// The app icon, from the design pack, where the repository keeps it.
 	import appIcon from '../../../../../design/assets/app-icon/icon-small.svg?url';
-	import { logbookHref, mapHref, plansHref, settingsHref } from './routes';
+	import { logbookHref, mapHref, plansHref, settingsHref, todayHref } from './routes';
 
 	const sections: { name: string; icon: IconName; href: () => string; root: string }[] = [
+		// What the forecast says about flying from the take-offs around.
+		{ name: 'Today', icon: 'forecast', href: todayHref, root: '/today' },
 		{ name: 'Map', icon: 'map', href: mapHref, root: '/' },
 		{ name: 'Logbook', icon: 'track', href: logbookHref, root: '/logbook' },
 		// Who means to fly where: the plans of the pilot's groups.
@@ -20,9 +22,11 @@
 		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings' }
 	];
 
-	/** The section the current page belongs to: the deepest one its route is under. */
+	/** The section the current page belongs to: the one with the longest root its route is under. */
 	const current = $derived(
-		sections.findLast((section) => (page.route.id ?? '/').startsWith(section.root))?.name
+		sections
+			.filter((section) => (page.route.id ?? '/').startsWith(section.root))
+			.toSorted((one, other) => other.root.length - one.root.length)[0]?.name
 	);
 
 	/**

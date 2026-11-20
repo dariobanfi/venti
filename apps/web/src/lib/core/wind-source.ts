@@ -128,6 +128,15 @@ export class WindSource {
 		return stationHistory(answer.status, answer.body, this.#serverNow());
 	}
 
+	/**
+	 * The current time by Venti's clock, in seconds, read with the health
+	 * check; this device's where there is no server to ask.
+	 */
+	async now(): Promise<number> {
+		await this.present();
+		return this.#serverNow();
+	}
+
 	/** The current time by the server's clock, in seconds. */
 	#serverNow(): number {
 		return Math.round((this.#deviceNow() + (this.#clock?.aheadMs ?? 0)) / 1000);

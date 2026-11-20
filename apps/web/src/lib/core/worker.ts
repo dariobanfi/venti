@@ -18,6 +18,7 @@ import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
+import { TodaySource } from './today-source';
 import { WindSource } from './wind-source';
 
 const send = (reply: Reply) => postMessage(reply);
@@ -50,7 +51,11 @@ const starting: Promise<Answering> = (async () => {
 		live: new LiveSource(() => wind.present()),
 		community: new CommunitySource(() => wind.present()),
 		groups: new GroupsSource(session),
-		terrain: new TerrainSource()
+		terrain: new TerrainSource(),
+		today: new TodaySource(
+			() => wind.present(),
+			() => wind.now()
+		)
 	};
 })();
 

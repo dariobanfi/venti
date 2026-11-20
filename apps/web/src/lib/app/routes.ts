@@ -10,6 +10,11 @@
 
 import { resolve } from '$app/paths';
 
+/** Today: the take-offs around a place, and what the forecast says of each. */
+export function todayHref(): string {
+	return resolve('/today');
+}
+
 export function mapHref(): string {
 	return resolve('/');
 }

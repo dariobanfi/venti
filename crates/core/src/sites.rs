@@ -39,7 +39,10 @@ pub enum SiteKind {
 
 /// A span of wind directions a site works in, clockwise.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct WindSpan {
     /// Where the span starts: the direction the wind comes from, degrees

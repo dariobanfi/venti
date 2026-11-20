@@ -58,7 +58,12 @@
 		glider: drawing('wing'),
 		pin: drawing('site'),
 		track: drawing('track'),
-		league: drawing('league')
+		league: drawing('league'),
+		forecast: drawing('forecast'),
+		good: drawing('good'),
+		danger: drawing('danger'),
+		arrowWind: drawing('arrow-wind'),
+		takeoff: drawing('takeoff')
 	} as const;
 
 	export type IconName = keyof typeof shapes | keyof typeof pack;

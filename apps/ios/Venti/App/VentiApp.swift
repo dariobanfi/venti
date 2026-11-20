@@ -104,6 +104,15 @@ enum Session {
             fly.airspace = { airspace.set }
             fly.taskFile = { tasks.file }
             fly.landings = { waypoints.all.filter { $0.kind == .landing } }
+            // The ground under the glider, from the map's elevation tiles:
+            // brought as the glider moves, and kept on the iPhone.
+            let ground = TerrainModel()
+            fly.terrain = { ground.terrain }
+            fly.wantTerrain = { place in
+                Task {
+                    await ground.load(around: place)
+                }
+            }
             // A test starts signed out, whatever an earlier one left in
             // the simulator's Keychain.
             if LaunchOptions.isUITesting {

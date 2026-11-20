@@ -406,9 +406,13 @@ final class VentiUITests: XCTestCase {
         // is held meanwhile, so that the picture is of one moment.
         choose("Paused", from: element("replay-speed", in: app), in: app)
         XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
-        app.buttons["Airspace ahead"].tap()
+        app.buttons["Ahead, from the side"].tap()
         XCTAssertTrue(element("ahead-words", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "SAMPLE ZONE", in: app).exists)
+        // The ground is in the picture: the region that comes with the
+        // app has its elevation, and the glide ends on it.
+        XCTAssertTrue(element("ahead-ground", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "Your line", in: app).exists)
         sleep(1)
         keepScreenshot("fly-6b-airspace-ahead")
         app.buttons["Done"].tap()

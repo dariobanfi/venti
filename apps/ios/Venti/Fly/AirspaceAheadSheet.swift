@@ -2,9 +2,9 @@ import Charts
 import SwiftUI
 import VentiCore
 
-/// The airspace on the line ahead, seen from the side: what the glider
-/// would fly under, into or over in the next ten kilometres, with its
-/// glide drawn through it.
+/// The line ahead, seen from the side: the airspace the glider would fly
+/// under, into or over in the next ten kilometres and, where the iPhone
+/// has it, the ground, with the glide drawn through both.
 ///
 /// It is a picture to plan a glide with. The warnings are the banner's,
 /// with their margins and their sound; this neither replaces them nor
@@ -15,7 +15,10 @@ struct AirspaceAheadSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     static let caution =
-        "From the airspace this app holds, on a straight line over the ground. The app does not know the height of the ground: a limit given above ground is drawn as far as it may reach. Airspace a paraglider needs nothing for is left out. The warnings stay what they are."
+        "From the airspace this app holds, on a straight line over the ground. The app does not have the height of the ground here: a limit given above ground is drawn as far as it may reach. Airspace a paraglider needs nothing for is left out. The warnings stay what they are."
+
+    static let cautionWithGround =
+        "From the airspace this app holds and the map's model of the ground, on a straight line. The model is of the bare ground, about 13 m to a point: it knows no trees, cables or buildings, and the glide is the one drawn, not the one the air will give. Airspace a paraglider needs nothing for is left out. The warnings stay what they are."
 
     var body: some View {
         NavigationStack {
@@ -28,6 +31,11 @@ struct AirspaceAheadSheet: View {
                             Text(ahead.words)
                                 .font(.headline)
                                 .accessibilityIdentifier("ahead-words")
+                            if let ground = ahead.groundWords {
+                                Text(ground)
+                                    .font(.subheadline.weight(.medium))
+                                    .accessibilityIdentifier("ahead-ground")
+                            }
                             Text(verbatim: "\(ahead.toward) · \(ahead.lineWords)")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -36,7 +44,7 @@ struct AirspaceAheadSheet: View {
                             .frame(height: 240)
                             .padding(.vertical, 4)
                     } footer: {
-                        Text(Self.caution)
+                        Text(ahead.ground.isEmpty ? Self.caution : Self.cautionWithGround)
                     }
                     if !ahead.spans.isEmpty {
                         Section("On this line") {
@@ -52,7 +60,7 @@ struct AirspaceAheadSheet: View {
                     }
                 }
             }
-            .navigationTitle("Airspace ahead")
+            .navigationTitle("Ahead, from the side")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -70,20 +78,34 @@ struct AirspaceAheadSheet: View {
 private struct AheadChart: View {
     let ahead: AirspaceAhead
 
-    /// Where the glider's line ends in the picture: at the far end, or
-    /// where it leaves the picture's foot. `nil` when there is no line.
+    /// Where the glider's line ends in the picture: where it meets the
+    /// ground, at the far end, or where it leaves the picture's foot.
+    /// `nil` when there is no line.
     private var lineEnd: (km: Double, heightM: Double)? {
         guard ahead.lineEndM < ahead.altitudeM else { return nil }
         let reach = ahead.distanceM / 1000
+        let fall = ahead.altitudeM - ahead.lineEndM
+        if let meets = ahead.lineMeetsGroundM {
+            return (meets / 1000, ahead.altitudeM - fall * meets / ahead.distanceM)
+        }
         guard ahead.lineEndM < ahead.bottomM else {
             return (reach, ahead.lineEndM)
         }
-        let share = (ahead.altitudeM - ahead.bottomM) / (ahead.altitudeM - ahead.lineEndM)
-        return (reach * share, ahead.bottomM)
+        return (reach * (ahead.altitudeM - ahead.bottomM) / fall, ahead.bottomM)
     }
 
     var body: some View {
         Chart {
+            // The ground, where the iPhone has it: a filled shape along
+            // the foot of the picture.
+            ForEach(ahead.ground, id: \.distanceM) { place in
+                AreaMark(
+                    x: .value("Distance", place.distanceM / 1000),
+                    yStart: .value("Height", ahead.bottomM),
+                    yEnd: .value("Height", min(max(place.elevationM, ahead.bottomM), ahead.topM))
+                )
+                .foregroundStyle(Self.ground)
+            }
             ForEach(Array(ahead.spans.enumerated()), id: \.offset) { _, span in
                 RectangleMark(
                     xStart: .value("Distance", span.fromM / 1000),
@@ -144,13 +166,16 @@ private struct AheadChart: View {
             }
         }
         .accessibilityIdentifier("ahead-chart")
-        .accessibilityLabel("Airspace ahead, from the side")
-        .accessibilityValue(ahead.words)
+        .accessibilityLabel("The line ahead, from the side")
+        .accessibilityValue([ahead.words, ahead.groundWords].compactMap { $0 }.joined(separator: ". "))
     }
 
     static func color(_ policy: AirspacePolicy) -> Color {
         Color(uiColor: AirspaceLayers.color(for: policy))
     }
+
+    /// The ground: the colour of earth, quiet under the airspace's.
+    static let ground = Color(red: 0.52, green: 0.44, blue: 0.34).opacity(0.55)
 }
 
 /// One airspace on the line: what it is, how far, and whether the line

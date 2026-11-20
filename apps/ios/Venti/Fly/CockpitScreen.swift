@@ -96,9 +96,10 @@ struct CockpitScreen: View {
                             .buttonStyle(.plain)
                             .glassEffect(.regular, in: .circle)
                             .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
-                            // With airspace to warn from: what lies on the
-                            // line ahead, seen from the side.
-                            if fly.airspaceCheck != .noAirspace {
+                            // With airspace to warn from, or the ground
+                            // to draw: what lies on the line ahead, seen
+                            // from the side.
+                            if fly.airspaceCheck != .noAirspace || view.groundElevationM != nil {
                                 Button {
                                     isShowingAhead = true
                                 } label: {
@@ -109,7 +110,7 @@ struct CockpitScreen: View {
                                 }
                                 .buttonStyle(.plain)
                                 .glassEffect(.regular, in: .circle)
-                                .accessibilityLabel("Airspace ahead")
+                                .accessibilityLabel("Ahead, from the side")
                             }
                         }
                         .padding(10)
@@ -500,7 +501,10 @@ private struct Instruments: View {
                     title: "Altitude",
                     value: view.altitudeM.map(Format.metres),
                     unit: "m",
-                    detail: view.heightAboveTakeoffM.map { "\(Format.signedMetres($0)) m over take-off" },
+                    // Over the ground where the iPhone has the ground;
+                    // over the take-off where it has not.
+                    detail: view.heightAboveGroundM.map { "\(Format.metres(max($0, 0))) m over ground" }
+                        ?? view.heightAboveTakeoffM.map { "\(Format.signedMetres($0)) m over take-off" },
                     size: .large
                 )
                 Divider()

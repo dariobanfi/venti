@@ -44,6 +44,12 @@ final class FlySession {
     /// The airspace to warn about, asked for when a session starts. The
     /// app sets this to the pilot's airspace files.
     @ObservationIgnored var airspace: () -> AirspaceSet? = { nil }
+    /// The ground, as far as the iPhone has it. Without it the cockpit
+    /// knows no height above ground.
+    @ObservationIgnored var terrain: () -> Terrain? = { nil }
+    /// Asks for the ground around a place to be brought, where it is not
+    /// there yet.
+    @ObservationIgnored var wantTerrain: (Coordinate) -> Void = { _ in }
     /// The task to fly, asked for when a session starts. The app sets
     /// this to the task the pilot keeps.
     @ObservationIgnored var taskFile: () -> TaskFile? = { nil }
@@ -92,11 +98,18 @@ final class FlySession {
     @ObservationIgnored private var handedAirspace: AirspaceSet?
     /// Refreshes of the screen since the score was last asked for.
     @ObservationIgnored private var ticksSinceScore = 0
+    /// Refreshes of the screen since the ground was last asked for.
+    @ObservationIgnored private var ticksSinceTerrain = 0
     /// How bright the screen was before the cockpit turned it up.
     @ObservationIgnored private var brightnessBefore: CGFloat?
 
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
+
+    /// The ground around the glider is asked for this many refreshes
+    /// apart: every ten seconds, in which a glider goes two hundred
+    /// metres and the tiles reach thirteen kilometres.
+    private static let ticksBetweenTerrain = 50
 
     /// The longest stretch of the clock a replay moves on by at once, in
     /// seconds. When the phone was busy with something else for longer,
@@ -363,6 +376,10 @@ final class FlySession {
         self.mode = mode
         handedAirspace = airspace()
         session.useAirspace(airspace: handedAirspace)
+        // The ground, as far as the iPhone has it; more of it arrives
+        // while the session runs.
+        session.useTerrain(terrain: terrain())
+        ticksSinceTerrain = Self.ticksBetweenTerrain
         // How the pilot's glider glides, for predicting arrival heights.
         // Unset values are zero, which the core ignores.
         let defaults = UserDefaults.standard
@@ -441,6 +458,13 @@ final class FlySession {
             if !LaunchOptions.isUnderTest {
                 voice.say(event.words)
             }
+        }
+
+        // The ground around the glider: what is not there yet is brought.
+        ticksSinceTerrain += 1
+        if ticksSinceTerrain >= Self.ticksBetweenTerrain, let position = view.position {
+            ticksSinceTerrain = 0
+            wantTerrain(position)
         }
 
         // The core works the score out anew every half minute of flight;

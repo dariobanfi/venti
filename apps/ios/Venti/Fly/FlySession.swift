@@ -263,6 +263,13 @@ final class FlySession {
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
     }
 
+    /// Changes how fast a replay runs: 1 is the flight's own speed, and 0
+    /// holds it where it is. Does nothing while a flight is recorded.
+    func setReplaySpeed(_ speed: Double) {
+        guard case .replay = mode, speed.isFinite, speed >= 0 else { return }
+        mode = .replay(speed: speed)
+    }
+
     /// Chooses the place to navigate to; `nil` goes back to the task, or
     /// without one to the take-off.
     func goTo(_ place: TargetPlace?) {

@@ -198,6 +198,17 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(waitForAll(["Gained", "lift-badge"], in: app, timeout: 180))
         sleep(1)
         keepScreenshot("dark-3b-replayed-in-the-cockpit")
+        // A replay can be held at a moment, to look at it, and run on.
+        element("replay-speed", in: app).tap()
+        let paused = app.buttons["Paused"]
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        paused.tap()
+        XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
+        element("replay-speed", in: app).tap()
+        let onward = app.buttons["10 times faster"]
+        XCTAssertTrue(onward.waitForExistence(timeout: 10))
+        onward.tap()
+        XCTAssertTrue(labelled(containing: "Replay ×10", in: app).waitForExistence(timeout: 10))
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))

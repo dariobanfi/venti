@@ -46,6 +46,38 @@ final class FlySessionTests: XCTestCase {
         XCTAssertTrue(pendingRecordings(dataFolder: folder.path).isEmpty)
     }
 
+    func testAReplayCanBeHeldAndRunOn() async throws {
+        let fly = FlySession(dataFolder: makeFolder())
+        fly.startReplay(igcText: try sampleText(), speed: 200)
+        try await Task.sleep(for: .milliseconds(700))
+
+        // Held: the flight stands still, and the cockpit goes on showing it.
+        fly.setReplaySpeed(0)
+        XCTAssertEqual(fly.mode, .replay(speed: 0))
+        // One refresh may have been under way when it was held.
+        try await Task.sleep(for: .milliseconds(400))
+        let held = try XCTUnwrap(fly.view?.flightTimeS)
+        try await Task.sleep(for: .milliseconds(800))
+        XCTAssertEqual(fly.view?.flightTimeS, held)
+        XCTAssertGreaterThan(held, 60)
+
+        // And on, at another speed.
+        fly.setReplaySpeed(100)
+        XCTAssertEqual(fly.mode, .replay(speed: 100))
+        try await Task.sleep(for: .milliseconds(800))
+        let later = try XCTUnwrap(fly.view?.flightTimeS)
+        XCTAssertGreaterThan(later, held + 30)
+
+        // A speed that is no speed changes nothing, and neither does any
+        // once the replay is over.
+        fly.setReplaySpeed(-1)
+        fly.setReplaySpeed(.infinity)
+        XCTAssertEqual(fly.mode, .replay(speed: 100))
+        XCTAssertNil(fly.finish())
+        fly.setReplaySpeed(20)
+        XCTAssertNil(fly.mode)
+    }
+
     func testAFinishedRecordingGoesIntoTheLogbookAndIsCleared() async throws {
         let folder = makeFolder()
         let logbook = try LogbookModel.open(folder: folder)

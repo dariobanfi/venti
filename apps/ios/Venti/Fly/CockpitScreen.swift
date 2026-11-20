@@ -32,7 +32,10 @@ struct CockpitScreen: View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
-                StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
+                StatusLine(
+                    view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName,
+                    setReplaySpeed: { fly.setReplaySpeed($0) }
+                )
                 CockpitMap(
                     view: view, way: fly.way, airspace: fly.airspace(),
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
@@ -323,11 +326,48 @@ private struct StatusLine: View {
     let score: LiveScore?
     let mode: FlySession.Mode?
     let varioName: String?
+    /// Changes how fast a replay runs; 0 holds it.
+    let setReplaySpeed: (Double) -> Void
+
+    /// The speeds a replay offers: held, the flight's own, and two for
+    /// getting to the part worth watching.
+    private static let replaySpeeds: [Double] = [0, 1, 10, 20]
+
+    private static func replayChoice(_ speed: Double) -> String {
+        switch speed {
+        case 0: "Paused"
+        case 1: "Real time"
+        default: "\(Int(speed)) times faster"
+        }
+    }
+
+    private static func replayWords(_ speed: Double) -> String {
+        switch speed {
+        case 0: "Replay paused"
+        case 1: "Replay"
+        default: "Replay ×\(Int(speed))"
+        }
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             if case .replay(let speed) = mode {
-                Label(speed == 1 ? "Replay" : "Replay ×\(Int(speed))", systemImage: "play.fill")
+                // A replay is watched, not flown: it can be held at a
+                // moment and run slower or faster from here.
+                Menu {
+                    Picker(
+                        "Speed",
+                        selection: Binding(get: { speed }, set: { setReplaySpeed($0) })
+                    ) {
+                        ForEach(Self.replaySpeeds, id: \.self) { choice in
+                            Text(Self.replayChoice(choice)).tag(choice)
+                        }
+                    }
+                } label: {
+                    Label(Self.replayWords(speed), systemImage: speed == 0 ? "pause.fill" : "play.fill")
+                }
+                .tint(.primary)
+                .accessibilityIdentifier("replay-speed")
             } else if view.recording {
                 Label("Recording", systemImage: "record.circle.fill")
                     .symbolRenderingMode(.multicolor)

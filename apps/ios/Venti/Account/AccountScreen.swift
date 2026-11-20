@@ -56,11 +56,10 @@ private struct SignInForm: View {
 
             if let address = server.server {
                 Section {
-                    Picker("What to do", selection: $isNew) {
-                        Text("Sign in").tag(false)
-                        Text("New account").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                    VentiSegmented(
+                        options: [(value: false, name: "Sign in"), (value: true, name: "New account")],
+                        selection: $isNew
+                    )
                     .listRowSeparator(.hidden)
 
                     TextField("Handle", text: $handle)
@@ -82,7 +81,7 @@ private struct SignInForm: View {
                     Text(address.host() ?? address.absoluteString)
                 } footer: {
                     if isNew {
-                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: the server knows no email address. Handle and name are public once you share a flight.")
+                        Text("A handle is 3 to 20 letters, digits or underscores. A password needs at least 15 characters; a few words in a row are easy to remember. A forgotten password cannot be recovered: Venti knows no email address. Handle and name are public once you share a flight.")
                     }
                 }
 
@@ -138,7 +137,7 @@ private struct SignedInView: View {
                 if signedIn.needsSignIn {
                     Label("This iPhone was signed out. Sign out here and sign in again.", systemImage: "exclamationmark.triangle")
                 }
-                LabeledContent("Flights on the server", value: Format.count(signedIn.flightsOnServer))
+                LabeledContent("Flights on Venti", value: Format.count(signedIn.flightsOnServer))
                 if signedIn.flightsToSend > 0 {
                     LabeledContent("Waiting to be sent", value: Format.count(signedIn.flightsToSend))
                 }
@@ -164,7 +163,7 @@ private struct SignedInView: View {
             } header: {
                 Text("Logbook")
             } footer: {
-                Text("Venti syncs by itself when you open the app and after a flight. Your flights stay private on the server until you share one.")
+                Text("Venti syncs by itself when you open the app and after a flight. Your flights stay private on Venti until you share one.")
             }
 
             Section {
@@ -182,7 +181,7 @@ private struct SignedInView: View {
                 Task { await account.signOut() }
             }
         } message: {
-            Text("Your flights stay on this iPhone and on the server.")
+            Text("Your flights stay on this iPhone and on Venti.")
         }
         .alert("Delete your account?", isPresented: $isDeleting) {
             SecureField("Password", text: $password)
@@ -195,7 +194,7 @@ private struct SignedInView: View {
                 password = ""
             }
         } message: {
-            Text("The account and every flight on the server are deleted at once and for good, and your shared links stop working. The flights on this iPhone stay. Enter your password to go on.")
+            Text("The account and every flight on Venti are deleted at once and for good, and your shared links stop working. The flights on this iPhone stay. Enter your password to go on.")
         }
     }
 }
@@ -263,7 +262,7 @@ struct ShareFlightSheet: View {
                     }
                 } else {
                     Section {
-                        Text("This flight is not on the server yet.")
+                        Text("This flight is not on Venti yet.")
                         Button("Sync now") {
                             Task {
                                 await account.sync(force: true, quietly: false)

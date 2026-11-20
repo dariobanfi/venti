@@ -131,7 +131,7 @@ struct LiveScreen: View {
                 fly.deleteLiveTrack()
             }
         } message: {
-            Text("Nobody can watch this flight any more, with or without the link, and what was sent is removed from the server. Your recording is not touched.")
+            Text("Nobody can watch this flight any more, with or without the link, and what was sent is removed from Venti. Your recording is not touched.")
         }
     }
 
@@ -142,7 +142,7 @@ struct LiveScreen: View {
         case .link:
             "Whoever has the link sees where you are and where you flew, with your name: send it to the people who should know. The flight is on nobody's map."
         case .everyone:
-            "Everyone who looks at your server's map sees your glider on it, with your name, and can follow the flight."
+            "Everyone who looks at Venti's map sees your glider on it, with your name, and can follow the flight."
         }
     }
 }

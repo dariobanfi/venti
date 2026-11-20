@@ -178,6 +178,49 @@ extension View {
     }
 }
 
+/// The pack's segmented control (`.v-seg`): a few choices side by side in
+/// a pill, the chosen one on the primary colour. Up to four share the
+/// width; more than that keep their own width and scroll.
+struct VentiSegmented<Value: Hashable>: View {
+    let options: [(value: Value, name: String)]
+    @Binding var selection: Value
+
+    var body: some View {
+        if options.count <= 4 {
+            segments(sharingTheWidth: true)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                segments(sharingTheWidth: false)
+            }
+            .clipShape(.capsule)
+        }
+    }
+
+    private func segments(sharingTheWidth: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.value) { option in
+                let isChosen = option.value == selection
+                Button {
+                    selection = option.value
+                } label: {
+                    Text(option.name)
+                        .font(.ventiType(.label))
+                        .lineLimit(1)
+                        .padding(.horizontal, sharingTheWidth ? VentiSpace.s1 : VentiSpace.s4)
+                        .frame(maxWidth: sharingTheWidth ? .infinity : nil, minHeight: 38)
+                        .foregroundStyle(.venti(isChosen ? .onPrimary : .textSecondary))
+                        .background(.venti(isChosen ? .primary : .surfaceRaised), in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isChosen ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(.venti(.surfaceRaised), in: .capsule)
+    }
+}
+
 /// The pack's empty state: its valley, what is not here yet, what brings
 /// it here, and what to do. For a place that is empty because nothing has
 /// happened there yet, which is an arrival. Not for something that went

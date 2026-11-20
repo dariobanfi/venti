@@ -6,24 +6,27 @@ import VentiCore
 struct PublicFlightsList: View {
     @Environment(CommunityModel.self) private var community
 
+    /// The order shown; choosing the other asks the server for it.
+    private var order: Binding<PublicFlightsOrder> {
+        Binding {
+            community.order
+        } set: { order in
+            Task {
+                await community.show(order)
+            }
+        }
+    }
+
     var body: some View {
         VentiList {
             Section {
-                Picker(
-                    "Order",
-                    selection: Binding(
-                        get: { community.order },
-                        set: { order in
-                            Task {
-                                await community.show(order)
-                            }
-                        }
-                    )
-                ) {
-                    Text("Newest").tag(PublicFlightsOrder.newest)
-                    Text("Best").tag(PublicFlightsOrder.best)
-                }
-                .pickerStyle(.segmented)
+                VentiSegmented(
+                    options: [
+                        (value: PublicFlightsOrder.newest, name: "Newest"),
+                        (value: PublicFlightsOrder.best, name: "Best"),
+                    ],
+                    selection: order
+                )
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             }

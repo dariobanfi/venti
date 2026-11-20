@@ -50,7 +50,7 @@ struct ForecastScreen: View {
                     ContentUnavailableView(
                         "No forecast for this place",
                         systemImage: "cloud.slash",
-                        description: Text("None of the server's weather models reaches it.")
+                        description: Text("None of Venti's weather models reaches it.")
                     )
                 }
             }
@@ -81,15 +81,13 @@ struct ForecastScreen: View {
         VentiList {
             if days.count > 1 {
                 Section {
-                    Picker("Day", selection: Binding(
-                        get: { chosen?.startUnixS ?? 0 },
-                        set: { day = $0 }
-                    )) {
-                        ForEach(days, id: \.startUnixS) { day in
-                            Text(Self.name(of: day)).tag(day.startUnixS)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    VentiSegmented(
+                        options: days.map { (value: $0.startUnixS, name: Self.name(of: $0)) },
+                        selection: Binding(
+                            get: { chosen?.startUnixS ?? 0 },
+                            set: { day = $0 }
+                        )
+                    )
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .accessibilityIdentifier("forecast-day")

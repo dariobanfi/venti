@@ -69,7 +69,7 @@ struct LiveList: View {
                     if !live.gliders.isEmpty {
                         Text(
                             live.isTruncated
-                                ? "There are more than the server lists at once. Zoom the map in. " + LiveGliderScreen.caution
+                                ? "There are more than Venti lists at once. Zoom the map in. " + LiveGliderScreen.caution
                                 : LiveGliderScreen.caution
                         )
                     }

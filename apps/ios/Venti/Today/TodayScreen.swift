@@ -227,9 +227,9 @@ struct TodayScreen: View {
             } else {
                 VStack(alignment: .leading, spacing: VentiSpace.s4) {
                     if days.count > 1 {
-                        DaySwitch(
-                            days: days,
-                            day: Binding(
+                        VentiSegmented(
+                            options: days.enumerated().map { (value: $0.offset, name: $0.element.name) },
+                            selection: Binding(
                                 get: { day },
                                 set: { chosen in
                                     hasChosenDay = true
@@ -237,6 +237,7 @@ struct TodayScreen: View {
                                 }
                             )
                         )
+                        .accessibilityIdentifier("today-days")
                     }
                     let shown = ordered
                     if let first = shown.first {
@@ -323,35 +324,6 @@ private struct Explained: View {
         }
         .padding(.top, VentiSpace.s5)
         .frame(maxWidth: .infinity)
-    }
-}
-
-/// Today, tomorrow and the day after, as the pack's switch: the chosen
-/// day on the primary colour.
-private struct DaySwitch: View {
-    let days: [OutlookDay]
-    @Binding var day: Int
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(days.enumerated()), id: \.offset) { index, shown in
-                Button {
-                    day = index
-                } label: {
-                    Text(shown.name)
-                        .font(.venti(.body, .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                        .foregroundStyle(.venti(index == day ? .onPrimary : .textSecondary))
-                        .background(.venti(index == day ? .primary : .surfaceRaised), in: .capsule)
-                        .contentShape(.capsule)
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(index == day ? .isSelected : [])
-            }
-        }
-        .padding(VentiSpace.s1)
-        .background(.venti(.surfaceRaised), in: .capsule)
-        .accessibilityIdentifier("today-days")
     }
 }
 

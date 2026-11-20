@@ -195,8 +195,8 @@ struct AirspaceWarningsSheet: View {
         switch (warning.origin, warning.dataUnixS) {
         case (.file, nil): "From your file “\(warning.source)”."
         case (.file, let date?): "From your file “\(warning.source)”, brought in \(Format.day(unixSeconds: date))."
-        case (.server, nil): "From \(warning.source), by way of your server."
-        case (.server, let date?): "From \(warning.source), by way of your server, as of \(Format.day(unixSeconds: date))."
+        case (.server, nil): "From \(warning.source), by way of Venti."
+        case (.server, let date?): "From \(warning.source), by way of Venti, as of \(Format.day(unixSeconds: date))."
         }
     }
 }

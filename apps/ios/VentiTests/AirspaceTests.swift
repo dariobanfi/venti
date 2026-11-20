@@ -206,7 +206,7 @@ final class AirspaceTests: XCTestCase {
         let warning = try XCTUnwrap(fly.airspaceWarnings.first)
         XCTAssertEqual(warning.origin, .server)
         XCTAssertTrue(
-            AirspaceWarningsSheet.origin(of: warning).hasPrefix("From openAIP, by way of your server, as of "),
+            AirspaceWarningsSheet.origin(of: warning).hasPrefix("From openAIP, by way of Venti, as of "),
             AirspaceWarningsSheet.origin(of: warning)
         )
         _ = fly.finish()

@@ -364,7 +364,7 @@ extension FlightVisibility {
     /// What the setting means.
     var explanation: String {
         switch self {
-        case .private: "The flight is kept on the server for your devices. Nobody else can see it."
+        case .private: "The flight is kept on Venti for your devices. Nobody else can see it."
         case .unlisted: "Whoever has the link can see the flight. It is listed nowhere."
         case .public: "Anyone can see the flight, and it is listed on your page."
         }

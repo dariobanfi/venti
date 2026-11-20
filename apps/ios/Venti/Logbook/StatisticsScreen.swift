@@ -30,12 +30,10 @@ struct StatisticsScreen: View {
         let statistics = logbook.statistics()
         VentiList {
             Section {
-                Picker("Shown", selection: $measure) {
-                    ForEach(Measure.allCases) { measure in
-                        Text(measure.rawValue).tag(measure)
-                    }
-                }
-                .pickerStyle(.segmented)
+                VentiSegmented(
+                    options: Measure.allCases.map { (value: $0, name: $0.rawValue) },
+                    selection: $measure
+                )
                 .listRowSeparator(.hidden)
 
                 Chart(statistics.months, id: \.self) { month in

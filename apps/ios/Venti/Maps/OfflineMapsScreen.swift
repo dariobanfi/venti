@@ -74,7 +74,7 @@ struct OfflineMapsScreen: View {
                 maps.download(region)
             }
         } message: { region in
-            Text("\(region.size) from your server. On mobile data this counts against your plan.")
+            Text("\(region.size) from Venti. On mobile data this counts against your plan.")
         }
         .confirmationDialog(
             deleting.map { "Delete \($0.name)?" } ?? "",
@@ -86,7 +86,7 @@ struct OfflineMapsScreen: View {
                 maps.delete(region)
             }
         } message: { _ in
-            Text("The map goes from this iPhone. It can be downloaded again while your server has it.")
+            Text("The map goes from this iPhone. It can be downloaded again while Venti has it.")
         }
     }
 
@@ -141,7 +141,7 @@ struct OfflineMapsScreen: View {
             return problem
         }
         if maps.offered == nil {
-            return "Asking the server which maps it has."
+            return "Asking Venti which maps it has."
         }
         return "This server has no maps to download."
     }

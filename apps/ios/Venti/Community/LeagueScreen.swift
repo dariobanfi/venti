@@ -35,12 +35,14 @@ struct LeagueScreen: View {
             .toolbar {
                 if wind.server != nil {
                     ToolbarItem(placement: .principal) {
-                        Picker("What is shown", selection: $shown) {
-                            Text("Everyone").tag(Shown.flights)
-                            Text("Ranking").tag(Shown.ranking)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 240)
+                        VentiSegmented(
+                            options: [
+                                (value: Shown.flights, name: "Everyone"),
+                                (value: Shown.ranking, name: "Ranking"),
+                            ],
+                            selection: $shown
+                        )
+                        .frame(width: 240)
                     }
                 }
             }

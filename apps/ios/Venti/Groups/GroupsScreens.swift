@@ -137,7 +137,7 @@ struct InviteCodeSheet: View {
                 } header: {
                     Text(group)
                 } footer: {
-                    Text("Whoever has this code and an account on your server can come into the group. It is shown this once: the server keeps no copy that can be read. A new code can be made at any time and ends this one.")
+                    Text("Whoever has this code and an account on Venti can come into the group. It is shown this once: Venti keeps no copy that can be read. A new code can be made at any time and ends this one.")
                 }
             }
             .navigationTitle("Invite code")

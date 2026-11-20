@@ -134,7 +134,7 @@ struct SettingsScreen: View {
         if let problem = wind.problem {
             return problem
         }
-        return "The map shows the wind stations this server collects, and the assistant can look them up."
+        return "The map shows the wind stations Venti collects, and the assistant can look them up."
     }
 
     private static var version: String {

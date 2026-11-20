@@ -119,7 +119,7 @@ struct AirspaceScreen: View {
                     .foregroundStyle(.secondary)
             }
             Toggle(
-                "Airspace from your server",
+                "Airspace from Venti",
                 isOn: Binding(
                     get: { airspace.usesServer },
                     set: { isOn in
@@ -132,7 +132,7 @@ struct AirspaceScreen: View {
                 )
             )
         } header: {
-            Text("From your server")
+            Text("From Venti")
         } footer: {
             Text(serverNote)
         }

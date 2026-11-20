@@ -139,7 +139,7 @@ struct ReportSheet: View {
     /// Why no report can be sent from here, if none can.
     private var obstacle: String? {
         guard account.isSignedIn, let mine = account.account?.server else {
-            return "A report is sent from your account, so that whoever runs the server knows who it comes from. Sign in under Settings, Account."
+            return "A report is sent from your account, so that Venti knows who it comes from. Sign in under Settings, Account."
         }
         guard let shown = wind.server, Self.same(mine, shown.absoluteString) else {
             return "You are signed in on another server than the one this is on. A report goes to the server it is about, from an account there."

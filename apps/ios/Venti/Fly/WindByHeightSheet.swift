@@ -77,7 +77,7 @@ extension WindByHeightSheet {
 
     /// What the stations' numbers are, and whose.
     fileprivate var groundFootnote: String {
-        let what = "The nearest wind stations within 75 km with a reading of the last hour, as your server had them when it was last asked, every two minutes in flight. A station measures where it stands, and some report three quarters of an hour late: the age stands beside each. Mean wind and gusts in km/h."
+        let what = "The nearest wind stations within 75 km with a reading of the last hour, as Venti had them when it was last asked, every two minutes in flight. A station measures where it stands, and some report three quarters of an hour late: the age stands beside each. Mean wind and gusts in km/h."
         let whose = fly.windBelowCredits.map(\.text).joined(separator: " · ")
         return whose.isEmpty ? what : "\(what)\n\(whose)"
     }

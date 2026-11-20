@@ -10,27 +10,26 @@ import VentiCore
 struct RankingList: View {
     @Environment(CommunityModel.self) private var community
 
+    /// The season shown; choosing another asks the server for it.
+    private var season: Binding<String> {
+        Binding {
+            community.ranked.season
+        } set: { season in
+            Task {
+                await community.rank(season: season)
+            }
+        }
+    }
+
     var body: some View {
         let ranked = community.ranked
         VentiList {
             if !ranked.seasons.isEmpty {
                 Section {
-                    Picker(
-                        "Season",
-                        selection: Binding(
-                            get: { ranked.season },
-                            set: { season in
-                                Task {
-                                    await community.rank(season: season)
-                                }
-                            }
-                        )
-                    ) {
-                        ForEach(ranked.seasons, id: \.name) { season in
-                            Text(season.name).tag(season.name)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    VentiSegmented(
+                        options: ranked.seasons.map { (value: $0.name, name: $0.name) },
+                        selection: season
+                    )
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .accessibilityIdentifier("ranking-season")

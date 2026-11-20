@@ -167,6 +167,11 @@ pub struct HeightWind {
     pub wind: Wind,
     /// When, seconds since 1970-01-01 UTC.
     pub measured_s: f64,
+    /// How fast the glider climbed while it circled through the band on
+    /// that visit, metres per second: where a thermal is strong and where
+    /// it weakens. `None` for a band it circled in for less than ten
+    /// seconds.
+    pub climb_ms: Option<f64>,
 }
 
 /// The height of one band of [`HeightWind`], metres.
@@ -188,7 +193,15 @@ struct WindBand {
     north_ms: f64,
     count: f64,
     measured_s: f64,
+    /// The height gained while circling in the band on this visit, metres,
+    /// and the seconds that took.
+    gained_m: f64,
+    climbing_s: f64,
 }
+
+/// A band's climb is given once the glider has circled in it this long,
+/// seconds.
+const BAND_CLIMB_MIN_S: f64 = 10.0;
 
 impl WindBand {
     fn wind(&self) -> HeightWind {
@@ -201,6 +214,8 @@ impl WindBand {
                 speed_ms: east.hypot(north),
             },
             measured_s: self.measured_s,
+            climb_ms: (self.climbing_s >= BAND_CLIMB_MIN_S)
+                .then(|| self.gained_m / self.climbing_s),
         }
     }
 }
@@ -324,6 +339,9 @@ pub struct FlightComputer {
     wind: WindEstimator,
     /// When the wind was last measured.
     wind_measured_s: Option<f64>,
+    /// The last moment the glider was known to be turning, and its
+    /// altitude then: where the climb of a band of height was counted to.
+    band_mark: Option<(f64, f64)>,
     /// The wind by band of height, the highest band first.
     winds: Vec<WindBand>,
     max_altitude_m: Option<f64>,
@@ -378,6 +396,7 @@ impl FlightComputer {
             winds: Vec::new(),
             wind: WindEstimator::new(),
             wind_measured_s: None,
+            band_mark: None,
             max_altitude_m: None,
             trail: VecDeque::new(),
         }
@@ -470,6 +489,37 @@ impl FlightComputer {
 
         self.update_phase(now, &sample, altitude);
         self.update_circling(now, altitude);
+
+        // The climb of the band of height the glider turns in, counted
+        // into the band's present visit: from one moment the glider is
+        // known to be turning to the next, which runs two seconds behind
+        // it. The circling rule would not do: it lets go half a minute
+        // after the last circle, and the first of the glide's sink would
+        // count as the thermal's top. A band is there once a wind was
+        // measured in it, which while circling is within a circle.
+        let turning = self.wind.turning_until().and_then(|until| {
+            self.altitudes
+                .iter()
+                .rev()
+                .find(|&&(time, _)| time <= until)
+                .copied()
+        });
+        if let (Some((time, altitude)), Some((since, from))) = (turning, self.band_mark) {
+            let seconds = time - since;
+            let floor_m = (altitude / WIND_BAND_M).floor() * WIND_BAND_M;
+            if seconds > 0.0
+                && seconds <= STALE_S
+                && let Ok(index) = self
+                    .winds
+                    .binary_search_by(|kept| floor_m.total_cmp(&kept.floor_m))
+                && now - self.winds[index].measured_s <= WIND_VISIT_GAP_S
+            {
+                let band = &mut self.winds[index];
+                band.gained_m += altitude - from;
+                band.climbing_s += seconds;
+            }
+        }
+        self.band_mark = turning;
 
         if self.phase == Phase::Flying
             && let Some(altitude) = altitude
@@ -743,6 +793,8 @@ impl FlightComputer {
             north_ms: north,
             count: fix.quality,
             measured_s: now,
+            gained_m: 0.0,
+            climbing_s: 0.0,
         };
         match self
             .winds
@@ -971,6 +1023,20 @@ mod tests {
             assert!((band.wind.speed_ms - 3.0).abs() < 0.8, "{band:?}");
             assert_eq!(band.floor_m % WIND_BAND_M, 0.0);
         }
+        // And how the thermal climbed in each: 2.4 m/s all the way up,
+        // which takes more than a minute for a band. The lowest band was
+        // entered near its ceiling and the highest left near its floor;
+        // those say what they can or nothing.
+        let climbs: Vec<f64> = after
+            .winds
+            .iter()
+            .filter_map(|band| band.climb_ms)
+            .collect();
+        assert!(climbs.len() >= 2, "{:?}", after.winds);
+        for climb in climbs {
+            assert!((climb - 2.4).abs() < 0.3, "{climb}");
+        }
+        assert!(states[60].winds.is_empty());
 
         // The thermal is marked where the glider circled, with what it gave.
         assert_eq!(after.thermals.len(), 1);

@@ -118,6 +118,9 @@ pub struct WindAtHeightView {
     pub age_s: f64,
     /// Whether the glider is in this band now.
     pub is_here: bool,
+    /// How fast the glider climbed while it circled through the band,
+    /// metres per second. Absent for a band it circled in only briefly.
+    pub climb_ms: Option<f64>,
 }
 
 /// The thermal the glider is circling in, or the last one it left.
@@ -1228,6 +1231,7 @@ impl FlightSession {
                     is_here: state.altitude_m.is_some_and(|altitude| {
                         (band.floor_m..band.floor_m + live::WIND_BAND_M).contains(&altitude)
                     }),
+                    climb_ms: band.climb_ms,
                 })
                 .collect(),
             circling: state.circling,
@@ -2122,6 +2126,17 @@ mod tests {
             view.winds_by_height
         );
         assert!(top.age_s > 60.0, "{top:?}");
+        // Each band also says how the thermal climbed in it.
+        let climbs: Vec<f64> = view
+            .winds_by_height
+            .iter()
+            .filter_map(|band| band.climb_ms)
+            .collect();
+        assert!(climbs.len() >= 2, "{:?}", view.winds_by_height);
+        assert!(
+            climbs.iter().all(|climb| (climb - 2.4).abs() < 0.3),
+            "{climbs:?}"
+        );
         assert!(
             view.winds_by_height
                 .iter()

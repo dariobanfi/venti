@@ -164,6 +164,13 @@ impl WindEstimator {
         self.estimate
     }
 
+    /// The moment up to which the glider is known to be turning, in the
+    /// time of the samples: two seconds behind the newest while a turn
+    /// goes on. `None` in straight flight.
+    pub fn turning_until(&self) -> Option<f64> {
+        self.turn.map(|(_, until)| until)
+    }
+
     fn fit(&self) -> Option<WindFix> {
         // Only the current stretch of turning, up to its latest turning
         // sample: nothing from before it began or after it faltered.

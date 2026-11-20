@@ -23,7 +23,7 @@ struct WindByHeightSheet: View {
                         WindByHeightRow(band: band)
                     }
                 } footer: {
-                    Text("Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band you have not circled in has no wind to show, and an old one may have changed.")
+                    Text("Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band you have not circled in has no wind to show, and an old one may have changed. Under the wind stands how fast you climbed through the band while circling.")
                 }
             }
             .navigationTitle("Wind by height")
@@ -61,14 +61,25 @@ private struct WindByHeightRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Text("\(Format.kilometresPerHour(metresPerSecond: band.speedMs)) km/h \(Format.compassPoint(degrees: band.fromDeg))")
-                .font(.system(.body, design: .rounded, weight: .semibold))
-                .monospacedDigit()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Format.kilometresPerHour(metresPerSecond: band.speedMs)) km/h \(Format.compassPoint(degrees: band.fromDeg))")
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
+                // How the thermal climbed through this band: where it is
+                // strong, and where it weakens toward the top.
+                if let climb = band.climbMs {
+                    Text("\(Format.climb(metresPerSecond: climb)) m/s")
+                        .font(.system(.footnote, design: .rounded, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(ClimbBand(metresPerSecond: climb).color)
+                }
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Format.metres(band.floorM)) to \(Format.metres(band.ceilingM)) metres\(band.isHere ? ", where you are" : "")")
         .accessibilityValue(
             "\(Format.spokenKilometresPerHour(metresPerSecond: band.speedMs)) from \(Format.compassPoint(degrees: band.fromDeg)), measured \(age)"
+                + (band.climbMs.map { ", climbed \(Format.climb(metresPerSecond: $0)) metres per second" } ?? "")
         )
         .accessibilityIdentifier("wind-by-height-row")
     }

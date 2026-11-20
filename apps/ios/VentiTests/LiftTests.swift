@@ -68,6 +68,13 @@ final class LiftTests: XCTestCase {
         XCTAssertEqual(wind.fromDeg, 270, accuracy: 8)
         XCTAssertEqual(try XCTUnwrap(view.windAgeS), 257, accuracy: 20)
         XCTAssertNil(view.strongWind)
+        // Every band of height the climb went through says how the
+        // thermal climbed there: 2.4 m/s all the way up.
+        let climbs = view.windsByHeight.compactMap(\.climbMs)
+        XCTAssertGreaterThanOrEqual(climbs.count, 2)
+        for climb in climbs {
+            XCTAssertEqual(climb, 2.4, accuracy: 0.3)
+        }
     }
 
     func testTheLandingToThinkOfFirstIsSaidWithItsHeightToSpare() throws {

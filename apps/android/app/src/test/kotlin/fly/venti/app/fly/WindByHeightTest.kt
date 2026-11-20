@@ -34,6 +34,7 @@ class WindByHeightTest {
             speedMs = 3.0,
             ageS = 200.0,
             isHere = true,
+            climbMs = null,
         )
         assertEquals("1,600 to 1,800 m", WindByHeightWords.heights(here))
         assertEquals("You are here · measured 3 minutes ago", WindByHeightWords.detail(here))

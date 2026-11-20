@@ -235,6 +235,18 @@ final class AccountModel {
         }
     }
 
+    /// Tells whoever runs the pilot's server that a flight, a pilot's page
+    /// or a live track should not be there, and returns in a line what
+    /// became of the report. Nothing of it is kept on this iPhone.
+    func report(_ subject: ReportSubject, reason: ReportReason, text: String) async throws -> String {
+        guard let account, isSignedIn else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let request = try reportRequest(subject: subject, reason: reason, text: text)
+        let (status, body, _) = try await ask(request, of: account.server, timeout: 30)
+        return try reportSent(status: status, body: body)
+    }
+
     // MARK: The cockpit's requests
 
     /// The server's answer to a request of the cockpit's.
@@ -289,7 +301,7 @@ final class AccountModel {
         return (UInt16(clamping: status), body, retryAfter)
     }
 
-    private static func words(for error: any Error) -> String {
+    static func words(for error: any Error) -> String {
         if error is CoreError {
             return error.words
         }

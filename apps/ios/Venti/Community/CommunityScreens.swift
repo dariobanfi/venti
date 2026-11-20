@@ -137,6 +137,7 @@ struct PublicFlightScreen: View {
 
     @State private var phase = Phase.loading
     @State private var showsPilot = false
+    @State private var reporting: Reported?
 
     var body: some View {
         Group {
@@ -174,8 +175,16 @@ struct PublicFlightScreen: View {
                             Label("Share the flight's page", systemImage: "square.and.arrow.up")
                         }
                     }
+                    // For what should not be here: to whoever runs the
+                    // server, and to nobody else.
+                    Button("Report this flight", systemImage: "exclamationmark.bubble") {
+                        reporting = .flight(flight.id)
+                    }
                 }
             }
+        }
+        .sheet(item: $reporting) { reported in
+            ReportSheet(reported: reported)
         }
         // Wherever this page stands, in the logbook's list or on a site's
         // page over the map, the pilot's flights follow it there.
@@ -209,6 +218,7 @@ struct PilotFlightsScreen: View {
     @State private var next: String?
     @State private var isLoading = true
     @State private var problem: String?
+    @State private var reporting: Reported?
 
     var body: some View {
         List {
@@ -248,6 +258,18 @@ struct PilotFlightsScreen: View {
         }
         .navigationTitle(pilot.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu("More", systemImage: "ellipsis") {
+                    Button("Report this pilot", systemImage: "exclamationmark.bubble") {
+                        reporting = .pilot(pilot.handle)
+                    }
+                }
+            }
+        }
+        .sheet(item: $reporting) { reported in
+            ReportSheet(reported: reported)
+        }
         .task(id: pilot.handle) {
             flights = []
             next = nil

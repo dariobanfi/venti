@@ -104,6 +104,8 @@ struct LiveGliderScreen: View {
     @Environment(WindModel.self) private var wind
     let id: String
 
+    @State private var reporting: Reported?
+
     static let caution =
         "Positions are as each pilot's app sent them. A glider nothing was heard of for a while has most likely no network: it is not known to have landed."
 
@@ -155,6 +157,14 @@ struct LiveGliderScreen: View {
                         Text("The server's page shows the whole track and keeps itself up to date.")
                     }
                 }
+                // For a track that should not be here: to whoever runs
+                // the server, and to nobody else.
+                Section {
+                    Button("Report this track", systemImage: "exclamationmark.bubble") {
+                        reporting = .liveTrack(glider.id)
+                    }
+                    .accessibilityIdentifier("report-track")
+                }
             } else {
                 Section {
                     Text(
@@ -167,6 +177,9 @@ struct LiveGliderScreen: View {
         }
         .navigationTitle(glider.map { "@\($0.handle)" } ?? "Glider")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $reporting) { reported in
+            ReportSheet(reported: reported)
+        }
         // The flight's track is asked for while its page is open, and
         // drawn on the map behind it.
         .task(id: id) {

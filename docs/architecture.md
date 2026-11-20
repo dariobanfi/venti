@@ -570,7 +570,7 @@ The page at `/live/{id}` is described in [design.md](design.md#the-page-of-a-liv
 
 ### Reports and taking down
 
-Built on 2026-11-20, on the server only: no app sends a report yet, and none shows what the operator did. It is what a server needs before people its owner does not know share flights and gliders on it, in its plainest form: pilots report, and a person decides, by hand. [api.md](api.md#reports) has the endpoint, [deploy/README.md](../deploy/README.md#reports-and-taking-things-down) the operator's commands.
+Built on 2026-11-20 on the server; the core has the form's reasons, the request and the answer since the same day (`report_form`, `report_request`, `report_sent`), and the iPhone app sends reports with them. Android and the web app do not yet, and no app shows what the operator did before the pilot runs into it. It is what a server needs before people its owner does not know share flights and gliders on it, in its plainest form: pilots report, and a person decides, by hand. [api.md](api.md#reports) has the endpoint, [deploy/README.md](../deploy/README.md#reports-and-taking-things-down) the operator's commands.
 
 ```
 POST /v1/reports                   a signed-in pilot: what (a flight, a pilot's page, a live track),

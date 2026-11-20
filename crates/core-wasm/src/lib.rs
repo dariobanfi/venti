@@ -44,9 +44,9 @@ use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics,
-    LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder, ServerRequest,
-    ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep,
-    SyncSummary, WindMap,
+    LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder, ReportForm,
+    ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage,
+    StationHistory, Storage, SyncStep, SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -744,6 +744,34 @@ pub fn public_flight_path(id: String) -> Result<String, JsValue> {
 #[wasm_bindgen(js_name = publicFlight)]
 pub fn public_flight(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlight>, JsValue> {
     to_js(&venti_core::public_flight(status, body).map_err(thrown)?)
+}
+
+/// The reasons a report can give and what the pilot is told before
+/// sending one.
+#[wasm_bindgen(js_name = reportForm)]
+pub fn report_form() -> Result<Ts<ReportForm>, JsValue> {
+    to_js(&venti_core::report_form())
+}
+
+/// The request that tells whoever runs the server that a flight, a
+/// pilot's page or a live track should not be there. `text` is what the
+/// pilot wrote, and may be empty except with the reason "other".
+#[wasm_bindgen(js_name = reportRequest)]
+pub fn report_request(
+    subject: Ts<ReportSubject>,
+    reason: Ts<ReportReason>,
+    text: String,
+) -> Result<Ts<ServerRequest>, JsValue> {
+    let request =
+        venti_core::report_request(from_js(&subject)?, from_js(&reason)?, text).map_err(thrown)?;
+    to_js(&request)
+}
+
+/// Reads the server's answer to `reportRequest` and says in a line what
+/// became of the report.
+#[wasm_bindgen(js_name = reportSent)]
+pub fn report_sent(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+    venti_core::report_sent(status, body).map_err(thrown)
 }
 
 /// A flight that is not in the logbook, prepared for display from its

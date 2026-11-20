@@ -1013,7 +1013,7 @@ fn sentence(rule: &str) -> String {
     }
 }
 
-fn json_request<T: Serialize>(
+pub(crate) fn json_request<T: Serialize>(
     method: &str,
     path: &str,
     body: &T,

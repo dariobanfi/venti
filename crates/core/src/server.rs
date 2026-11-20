@@ -62,6 +62,14 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
             "The server does not accept this password. It needs at least 15 characters.".to_owned()
         }
         (_, Some("flight_not_found")) => "The server no longer has this flight.".to_owned(),
+        (_, Some("flight_taken_down")) => {
+            "Whoever runs this server has taken this flight down. It stays in your logbook, and cannot be shared from this server."
+                .to_owned()
+        }
+        (_, Some("publishing_suspended")) => {
+            "Whoever runs this server has stopped this account from sharing with everyone. A flight can still be shared with a link."
+                .to_owned()
+        }
         (_, Some("account_full")) => {
             "Your account on this server is full. Delete flights you no longer need to make room; what was not sent stays on this device."
                 .to_owned()
@@ -117,6 +125,24 @@ mod tests {
         assert_eq!(
             words(500, "not json"),
             "The server could not answer (status 500)."
+        );
+    }
+
+    #[test]
+    fn what_the_operator_took_down_or_stopped_is_said_in_words() {
+        assert!(
+            words(
+                403,
+                r#"{"error":{"code":"flight_taken_down","message":"x"}}"#
+            )
+            .contains("has taken this flight down")
+        );
+        assert!(
+            words(
+                403,
+                r#"{"error":{"code":"publishing_suspended","message":"x"}}"#
+            )
+            .contains("can still be shared with a link")
         );
     }
 

@@ -232,6 +232,71 @@ final class AccountModelTests: XCTestCase {
         XCTAssertNil(box.token)
         XCTAssertEqual(account.problem, "This device is no longer signed in. Sign in again.")
     }
+
+    func testAReportGoesToTheServerFromTheAccountAndSaysWhatBecameOfIt() async throws {
+        let (sent, box) = (Sent(), TokenBox())
+        let good = server(noting: sent)
+        let account = AccountModel(
+            core: try makeCore(),
+            transport: { request in
+                if request.url?.path == "/v1/reports" {
+                    await sent.add(request)
+                    return (201, Data(#"{"created": true}"#.utf8), nil)
+                }
+                return try await good(request)
+            },
+            readToken: { box.token }, saveToken: { box.token = $0 }
+        )
+
+        // Without an account nothing is sent.
+        do {
+            _ = try await account.report(.pilot(handle: "mara"), reason: .spam, text: "")
+            XCTFail("A report without an account was sent")
+        } catch {
+            XCTAssertEqual(AccountModel.words(for: error), "This iPhone is no longer signed in. Sign in again.")
+        }
+        let before = await sent.requests
+        XCTAssertTrue(before.isEmpty)
+
+        await account.signIn(
+            server: try XCTUnwrap(URL(string: "https://venti.example.org")), handle: "demo",
+            password: "demo-pilot-password"
+        )
+        let outcome = try await account.report(
+            .flight(id: "fbyw03atd9qdt5bfe177ra1k94"), reason: .notAFlight, text: " This is my track. "
+        )
+        XCTAssertEqual(outcome, "Sent. Whoever runs this server will read it.")
+
+        // Signing in may have set a sync going: only the reports count.
+        let reports = await sent.requests.filter { $0.url?.path == "/v1/reports" }
+        XCTAssertEqual(reports.count, 1)
+        let report = try XCTUnwrap(reports.last)
+        XCTAssertEqual(report.httpMethod, "POST")
+        XCTAssertEqual(report.url?.absoluteString, "https://venti.example.org/v1/reports")
+        XCTAssertEqual(report.value(forHTTPHeaderField: "Authorization"), "Bearer venti_test_token")
+        XCTAssertEqual(report.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let body = try XCTUnwrap(report.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["reason"] as? String, "not_a_flight")
+        // Cleaned as the server would clean it.
+        XCTAssertEqual(json["text"] as? String, "This is my track.")
+        XCTAssertEqual((json["subject"] as? [String: String])?["flight"], "fbyw03atd9qdt5bfe177ra1k94")
+
+        // A report that has to say what is wrong, and does not, is refused
+        // before anything is sent.
+        do {
+            _ = try await account.report(.pilot(handle: "mara"), reason: .other, text: " ")
+            XCTFail("A report without words was sent")
+        } catch {
+            XCTAssertEqual(AccountModel.words(for: error), "Say in a few words what is wrong.")
+        }
+        let after = await sent.requests.filter { $0.url?.path == "/v1/reports" }
+        XCTAssertEqual(after.count, 1)
+
+        // Two addresses of one server are one server.
+        XCTAssertTrue(ReportSheet.same("https://venti.example.org", "https://Venti.example.org/"))
+        XCTAssertFalse(ReportSheet.same("https://venti.example.org", "https://other.example.org"))
+    }
 }
 
 /// Answers of the Venti server, in its own format.

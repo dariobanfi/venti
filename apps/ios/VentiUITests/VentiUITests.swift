@@ -792,6 +792,38 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "/f/", in: app).exists)
         sleep(1)
         keepScreenshot("account-4-share")
+
+        // Something another pilot shares that should not be there is
+        // reported to whoever runs the server: from the flight's menu, with
+        // a reason, from the account signed in above. The server's
+        // development mode takes the report and keeps it nowhere.
+        app.buttons["Done"].tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
+        everyone.tap()
+        let theirs = element("public-flight-row", in: app)
+        XCTAssertTrue(theirs.waitForExistence(timeout: 30))
+        theirs.tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))
+        app.buttons["More"].tap()
+        let report = app.buttons["Report this flight"]
+        XCTAssertTrue(report.waitForExistence(timeout: 10))
+        report.tap()
+        let reason = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Not a real flight'")).firstMatch
+        XCTAssertTrue(reason.waitForExistence(timeout: 10))
+        // Nothing can be sent before a reason is chosen.
+        XCTAssertFalse(app.buttons["Send"].isEnabled)
+        reason.tap()
+        sleep(1)
+        keepScreenshot("community-4-report")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(element("report-outcome", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(labelled(containing: "Whoever runs this server will read it", in: app).exists)
+        sleep(1)
+        keepScreenshot("community-5-reported")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 15))
     }
 
     /// The same screens with tiles fetched from the public servers, as a

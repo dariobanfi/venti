@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import tokens from '../../../../../design/tokens/tokens.json';
 import { fontLoader, fontTable, fontUrl } from './fonts';
 import { FONT_SCHEME, mapStyle, terrain3dSource } from './style';
 
@@ -37,6 +38,15 @@ describe('the map style prepared for the browser', () => {
 		expect(mapStyle().sources.basemap).toMatchObject({
 			url: 'https://tiles.openfreemap.org/planet'
 		});
+	});
+
+	it('draws in the map colours of the design language, and in no others', () => {
+		// The style is the light theme's map: `design/tokens`, map.light.
+		const pack = new Set(Object.values(tokens.map.light).map((colour) => colour.$value));
+		const drawn = new Set(JSON.stringify(mapStyle().layers).match(/#[0-9A-Fa-f]{3,8}/g));
+
+		expect(drawn.size).toBeGreaterThan(5);
+		expect([...drawn].filter((colour) => !pack.has(colour))).toEqual([]);
 	});
 
 	it('asks the app for its label fonts, not the network', () => {

@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Vector data follows the OpenMapTiles schema. The glyphs URL and the two source URLs are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote."
+    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the two source URLs are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {
@@ -21,7 +21,7 @@
     {
       "id": "land",
       "type": "background",
-      "paint": { "background-color": "#f1f0e7" }
+      "paint": { "background-color": "#F7EFDD" }
     },
     {
       "id": "landcover-grass",
@@ -29,7 +29,7 @@
       "source": "basemap",
       "source-layer": "landcover",
       "filter": ["in", ["get", "class"], ["literal", ["grass", "farmland"]]],
-      "paint": { "fill-color": "#e6edd6" }
+      "paint": { "fill-color": "#DAE4C5", "fill-opacity": 0.5 }
     },
     {
       "id": "landcover-wood",
@@ -37,7 +37,7 @@
       "source": "basemap",
       "source-layer": "landcover",
       "filter": ["==", ["get", "class"], "wood"],
-      "paint": { "fill-color": "#cfe1bf" }
+      "paint": { "fill-color": "#DAE4C5" }
     },
     {
       "id": "landcover-rock",
@@ -45,7 +45,7 @@
       "source": "basemap",
       "source-layer": "landcover",
       "filter": ["in", ["get", "class"], ["literal", ["rock", "sand"]]],
-      "paint": { "fill-color": "#e3dfd8" }
+      "paint": { "fill-color": "#C9B9C9", "fill-opacity": 0.25 }
     },
     {
       "id": "landcover-ice",
@@ -53,7 +53,7 @@
       "source": "basemap",
       "source-layer": "landcover",
       "filter": ["==", ["get", "class"], "ice"],
-      "paint": { "fill-color": "#f3fbff" }
+      "paint": { "fill-color": "#FFFFFF" }
     },
     {
       "id": "landuse-residential",
@@ -61,7 +61,7 @@
       "source": "basemap",
       "source-layer": "landuse",
       "filter": ["in", ["get", "class"], ["literal", ["residential", "commercial", "industrial", "retail"]]],
-      "paint": { "fill-color": "#e9e4da" }
+      "paint": { "fill-color": "#C9B9C9", "fill-opacity": 0.18 }
     },
     {
       "id": "hillshade",
@@ -69,9 +69,9 @@
       "source": "terrain",
       "paint": {
         "hillshade-exaggeration": ["interpolate", ["linear"], ["zoom"], 6, 0.22, 11, 0.45],
-        "hillshade-shadow-color": "#4a4336",
-        "hillshade-highlight-color": "#ffffff",
-        "hillshade-accent-color": "#6b6252"
+        "hillshade-shadow-color": "#5A4284",
+        "hillshade-highlight-color": "#FFF4DA",
+        "hillshade-accent-color": "#A894B4"
       }
     },
     {
@@ -80,7 +80,7 @@
       "source": "basemap",
       "source-layer": "waterway",
       "paint": {
-        "line-color": "#9cc7e3",
+        "line-color": "#99D5CA",
         "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.5, 14, 2]
       }
     },
@@ -89,7 +89,7 @@
       "type": "fill",
       "source": "basemap",
       "source-layer": "water",
-      "paint": { "fill-color": "#a8cfe8" }
+      "paint": { "fill-color": "#99D5CA" }
     },
     {
       "id": "building",
@@ -97,7 +97,7 @@
       "source": "basemap",
       "source-layer": "building",
       "minzoom": 14,
-      "paint": { "fill-color": "#d8d1c5" }
+      "paint": { "fill-color": "#C9B9C9" }
     },
     {
       "id": "path",
@@ -108,7 +108,7 @@
       "filter": ["==", ["get", "class"], "path"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
-        "line-color": "#b5462f",
+        "line-color": "#A894B4",
         "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.6, 16, 1.6],
         "line-dasharray": [3, 2]
       }
@@ -122,7 +122,7 @@
       "filter": ["==", ["get", "class"], "track"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
-        "line-color": "#9a7b55",
+        "line-color": "#A894B4",
         "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.5, 16, 2],
         "line-dasharray": [5, 2]
       }
@@ -136,7 +136,7 @@
       "filter": ["in", ["get", "class"], ["literal", ["minor", "service", "tertiary"]]],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
-        "line-color": "#ffffff",
+        "line-color": "#FFFFFF",
         "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 16, 5]
       }
     },
@@ -148,7 +148,7 @@
       "filter": ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary"]]],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
-        "line-color": "#f6d38a",
+        "line-color": "#FFFFFF",
         "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.8, 16, 8]
       }
     },
@@ -159,7 +159,7 @@
       "source-layer": "transportation",
       "filter": ["==", ["get", "class"], "rail"],
       "paint": {
-        "line-color": "#6d6d6d",
+        "line-color": "#A894B4",
         "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2],
         "line-dasharray": [4, 2]
       }
@@ -172,7 +172,7 @@
       "minzoom": 10,
       "filter": ["==", ["get", "class"], "aerialway"],
       "paint": {
-        "line-color": "#222222",
+        "line-color": "#221640",
         "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.8, 16, 2]
       }
     },
@@ -183,7 +183,7 @@
       "source-layer": "boundary",
       "filter": ["<=", ["get", "admin_level"], 4],
       "paint": {
-        "line-color": "#8d7a9c",
+        "line-color": "#A894B4",
         "line-width": 1,
         "line-dasharray": [4, 3]
       }
@@ -199,8 +199,8 @@
         "text-size": 12
       },
       "paint": {
-        "text-color": "#2f6f96",
-        "text-halo-color": "#e6f2fa",
+        "text-color": "#221640",
+        "text-halo-color": "#FFF8E8",
         "text-halo-width": 1.2
       }
     },
@@ -222,8 +222,8 @@
         "text-max-width": 8
       },
       "paint": {
-        "text-color": "#4a3b2a",
-        "text-halo-color": "#ffffff",
+        "text-color": "#221640",
+        "text-halo-color": "#FFF8E8",
         "text-halo-width": 1.4
       }
     },
@@ -247,8 +247,8 @@
         "text-max-width": 8
       },
       "paint": {
-        "text-color": "#2b2b2b",
-        "text-halo-color": "#ffffff",
+        "text-color": "#221640",
+        "text-halo-color": "#FFF8E8",
         "text-halo-width": 1.6
       }
     }

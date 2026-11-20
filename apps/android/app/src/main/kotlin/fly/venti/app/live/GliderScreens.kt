@@ -169,7 +169,7 @@ private fun GliderRow(glider: LiveGlider, age: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painterResource(if (glider.landed) R.drawable.ic_man else R.drawable.venti_wing),
+            painterResource(if (glider.landed) R.drawable.venti_landing else R.drawable.venti_wing),
             contentDescription = null,
             // The map's own green for one that flies, in both appearances.
             tint = if (glider.landed || glider.quiet) {

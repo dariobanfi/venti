@@ -232,11 +232,11 @@ fun MapScreen(
             }
             if (flyingSites.isNotEmpty()) {
                 // The signs on the map, as a list.
-                MapButton(R.drawable.ic_pin_drop, "Flying sites") { showsSites = true }
+                MapButton(R.drawable.venti_site, "Flying sites") { showsSites = true }
             }
             if (gliders.isNotEmpty()) {
                 // Who is in the air on this part of the map, as a list.
-                MapButton(R.drawable.ic_group, "Pilots in the air") { showsGliders = true }
+                MapButton(R.drawable.venti_live, "Pilots in the air") { showsGliders = true }
             }
             if (account.isSignedIn || wind.server is WindServer.Usable) {
                 // Who flies where today and on the days ahead: the plans

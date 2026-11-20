@@ -147,7 +147,7 @@ fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit,
             }
             if (flights.isEmpty() && !community.isLoading) {
                 item(key = "none") {
-                    NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.ic_group)
+                    NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.venti_league)
                 }
             }
             itemsIndexed(flights, key = { _, flight -> flight.id }) { index, flight ->

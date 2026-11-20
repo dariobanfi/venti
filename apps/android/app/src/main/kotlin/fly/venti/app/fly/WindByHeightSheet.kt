@@ -197,7 +197,7 @@ private fun GroundWindRow(station: GroundWindStation) {
     ) {
         val from = station.fromDeg
         Icon(
-            painterResource(if (from != null) R.drawable.ic_arrow_upward else R.drawable.ic_record),
+            painterResource(if (from != null) R.drawable.venti_arrow_wind else R.drawable.ic_record),
             contentDescription = null,
             // The arrow shows where the wind goes, north at the top.
             modifier = Modifier.size(24.dp).rotate(((from ?: 180.0) + 180).toFloat()),
@@ -266,7 +266,7 @@ private fun WindByHeightRow(band: WindAtHeightView) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painterResource(R.drawable.ic_arrow_upward),
+            painterResource(R.drawable.venti_arrow_wind),
             contentDescription = null,
             // The arrow shows where the wind goes, north at the top.
             modifier = Modifier.size(24.dp).rotate((band.fromDeg + 180).toFloat()),

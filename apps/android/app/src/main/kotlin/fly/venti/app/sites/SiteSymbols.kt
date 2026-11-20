@@ -32,11 +32,11 @@ import kotlin.math.roundToInt
 @get:DrawableRes
 val SiteKind.icon: Int
     get() = when (this) {
-        SiteKind.TAKEOFF -> R.drawable.ic_arrow_outward
-        SiteKind.LANDING -> R.drawable.ic_south_east
-        SiteKind.TOWING -> R.drawable.ic_vertical_align_top
-        SiteKind.TRAINING -> R.drawable.ic_school
-        SiteKind.OTHER -> R.drawable.ic_location_on
+        SiteKind.TAKEOFF -> R.drawable.venti_takeoff
+        SiteKind.LANDING -> R.drawable.venti_landing
+        SiteKind.TOWING -> R.drawable.venti_takeoff
+        SiteKind.TRAINING -> R.drawable.venti_site
+        SiteKind.OTHER -> R.drawable.venti_site
     }
 
 /** The name the map knows the kind's picture by. */

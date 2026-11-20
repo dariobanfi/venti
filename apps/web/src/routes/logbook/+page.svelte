@@ -5,7 +5,9 @@
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { queryOf } from '#lib/community/pages.ts';
+	import FrontHead from '#lib/community/FrontHead.svelte';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
+	import { dayOf } from '#lib/groups/days.ts';
 	import type { LogbookEntry } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
@@ -35,6 +37,13 @@
 			app.notice = { title: 'The flight could not be deleted', lines: [reasonFor(error)] };
 		}
 	}
+
+	// With an empty logbook, what others fly is shown under it.
+	$effect(() => {
+		if (app.account?.hasServer && logbook && logbook.view.years.length === 0) {
+			app.everyone?.showFront(dayOf(new Date()));
+		}
+	});
 </script>
 
 <svelte:head>
@@ -90,6 +99,12 @@
 				</button>
 			</div>
 		</div>
+		<!-- Without flights of one's own: what others fly on Venti, and the way to it. -->
+		{#if app.account?.hasServer && app.everyone?.front}
+			<div class="others">
+				<FrontHead front={app.everyone.front} />
+			</div>
+		{/if}
 	{:else if logbook}
 		{#if !logbook.durable}
 			<p class="warning" role="note">
@@ -122,6 +137,10 @@
 />
 
 <style>
+	.others {
+		margin-top: 2rem;
+	}
+
 	.page {
 		display: flex;
 		flex-direction: column;

@@ -18,7 +18,9 @@
 		queryOf,
 		withDay
 	} from '#lib/community/pages.ts';
+	import FrontHead from '#lib/community/FrontHead.svelte';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
+	import { dayOf } from '#lib/groups/days.ts';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -32,6 +34,10 @@
 	const list = $derived(everyone?.list ?? NOT_LISTED);
 
 	$effect(() => everyone?.show(asked));
+	// The head of the list: the best of today and the top of the year.
+	$effect(() => everyone?.showFront(dayOf(new Date())));
+	/** Whether the list is the plain one, newest first on any day, which the head stands over. */
+	const plain = $derived(asked.order === 'newest' && !asked.from && !asked.to);
 
 	/**
 	 * Asks for something else: the address changes in place, with the
@@ -65,6 +71,9 @@
 			<p>{app.failure}</p>
 		</div>
 	{:else if !list.absent}
+		{#if plain && everyone?.front}
+			<FrontHead front={everyone.front} toEveryone={false} />
+		{/if}
 		<div class="asked">
 			<div class="order">
 				<Segmented

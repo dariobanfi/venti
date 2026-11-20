@@ -14,6 +14,7 @@ import type {
 	Coordinate,
 	CoreClient,
 	OpenedFlight,
+	PublicFlight,
 	PublicFlightsOrder,
 	RankedPilot,
 	SeasonRanking,
@@ -107,6 +108,33 @@ function samePlace(one: PlaceAsked, other: PlaceAsked): boolean {
 	return one.at.lat === other.at.lat && one.at.lon === other.at.lon && one.site === other.site;
 }
 
+/**
+ * What a visitor is shown first of what is flown on Venti: the best flights
+ * of the day, or the newest where nobody shared one today, and the top of
+ * this year's ranking.
+ */
+export interface FrontState {
+	/** The pilot's today, as a date field writes it: "2026-11-20". */
+	today: string;
+	/** Whether the server has answered for the flights. */
+	known: boolean;
+	/** The best of today's flights, or the newest when there are none today. At most three. */
+	flights: PublicFlight[];
+	/** Whether `flights` are today's best (or, when not, the newest of any day). */
+	ofToday: boolean;
+	/** The first three of this year's ranking. */
+	top: RankedPilot[];
+	/** The season `top` is of: "2026". */
+	season: string;
+	/** Why it is missing, in words. */
+	problem: string | undefined;
+	/** Whether the app turned out to have no Venti behind it. */
+	absent: boolean;
+}
+
+/** How many flights and pilots the front shows. */
+const ON_THE_FRONT = 3;
+
 export class CommunityModel {
 	/** The ranking of the server's pilots in the season last asked for. */
 	ranking = $state.raw<RankingState>(NOT_RANKED);
@@ -122,6 +150,9 @@ export class CommunityModel {
 
 	/** The place whose flights are looked at, if one is. */
 	place = $state.raw<PlaceState>();
+
+	/** What a visitor is shown first, once asked for. */
+	front = $state.raw<FrontState>();
 
 	#core: CoreClient;
 	#everyone: PagedFlights | undefined;
@@ -229,6 +260,59 @@ export class CommunityModel {
 		const ranking = await rankingOf(() => this.#core.ranking(season || undefined), season, seasons);
 		// Another season has been asked for since.
 		if (this.#ranked === season) this.ranking = ranking;
+	}
+
+	/**
+	 * Asks for what a visitor is shown first: the best flights of `today`,
+	 * the pilot's own date, and the top of this year's ranking. Asked once a
+	 * day for as long as the app is open; again only after a failure.
+	 */
+	showFront(today: string): void {
+		untrack(() => {
+			const before = this.front;
+			if (before && before.today === today && !before.problem) return;
+			this.front = {
+				today,
+				known: false,
+				flights: [],
+				ofToday: true,
+				top: [],
+				season: '',
+				problem: undefined,
+				absent: false
+			};
+			void this.#fillFront(today);
+		});
+	}
+
+	async #fillFront(today: string): Promise<void> {
+		const { fromUnixS, toUnixS } = span({ from: today, to: today });
+		try {
+			const [best, ranked] = await Promise.all([
+				this.#core.publicFlights({ order: 'best', fromUnixS, toUnixS }),
+				this.#core.ranking(undefined)
+			]);
+			let flights = best?.flights ?? [];
+			const ofToday = flights.length > 0;
+			if (!ofToday && best) {
+				flights = (await this.#core.publicFlights({ order: 'newest' }))?.flights ?? [];
+			}
+			if (this.front?.today !== today) return;
+			this.front = {
+				today,
+				known: true,
+				flights: flights.slice(0, ON_THE_FRONT),
+				ofToday,
+				top: ranked?.ranking.pilots.slice(0, ON_THE_FRONT) ?? [],
+				season: ranked?.season.name ?? '',
+				problem: undefined,
+				absent: !best
+			};
+		} catch (error) {
+			if (this.front?.today === today) {
+				this.front = { ...this.front, known: true, problem: words(error) };
+			}
+		}
 	}
 
 	/**

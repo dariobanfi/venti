@@ -992,6 +992,56 @@ class VentiUiTest {
         tap(hasTestTag("logbook-mine"))
         waitFor(hasTestTag("logbook-row"))
 
+        // Who flies where: the plans of the pilot's groups, from the map.
+        // The development mode's demo pilot keeps a made-up group, whose
+        // made-up plans are for the days around that mode's standing
+        // clock and not for today: the test posts one for today.
+        tap(tab("Map"))
+        waitFor(described("Flying plans"))
+        tap(described("Flying plans"))
+        waitFor(hasTestTag("plans-groups"))
+        tap(described("New plan"))
+        waitFor(hasTestTag("plan-place"))
+        val place = if (dark) "Musterberg Nord" else "Musterberg Ost"
+        screen.onNode(hasTestTag("plan-place")).performTextInput(place)
+        screen.onNode(hasTestTag("plan-save")).performScrollTo()
+        waitFor(hasTestTag("plan-save") and isEnabled())
+        tap(hasTestTag("plan-save"))
+        val posted = hasTestTag("plan-row") and described(place)
+        waitFor(posted)
+        assertTrue(exists(hasText("Today")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-plans-1-board")
+
+        // The plan itself: its author is in from the start, and can step
+        // out again.
+        screen.onAllNodes(posted).onFirst().performClick()
+        waitFor(hasTestTag("plan-in") and hasText("I am out"))
+        assertTrue(exists(hasTestTag("plan-pilot") and hasText("Demo Pilot")))
+        assertTrue(exists(hasText("Change the plan")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-plans-2-plan")
+        tap(described("Back"))
+
+        // The groups, and one of them with its members and what its
+        // keeper can do.
+        waitFor(hasTestTag("plans-groups"))
+        screen.onNode(hasTestTag("plans-groups")).performScrollTo()
+        tap(hasTestTag("plans-groups"))
+        val group = hasTestTag("group-row") and described("Mustergruppe")
+        waitFor(group)
+        assertTrue(exists(hasText("Make a group")))
+        assertTrue(exists(hasText("Join with a code")))
+        tap(group)
+        waitFor(hasTestTag("group-member"))
+        assertTrue(exists(hasTestTag("group-member") and described("Demo Pilot (you)") and saying("Keeper")))
+        assertTrue(exists(hasTestTag("group-member") and described("Mara Muster")))
+        assertTrue(exists(hasText("New invite code")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-plans-3-group")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("group")) }
+
         // Signing out leaves the flights on the phone.
         tap(tab("Settings"))
         waitFor(hasTestTag("account-link"))
@@ -1267,6 +1317,15 @@ class VentiUiTest {
         assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
         launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
         waitFor(described("Show my position"))
+        // Plans for a flying day are shared in groups on the server and
+        // need an account: signed out, the board says so and offers
+        // nothing else.
+        tap(described("Flying plans"))
+        waitFor(hasTestTag("plans-signed-out"))
+        assertFalse(exists(described("New plan")))
+        assertFalse(exists(hasTestTag("plans-groups")))
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("plans-signed-out")) }
         tap(tab("Logbook"))
         // The pilot's own logbook is empty. The switch is there because a
         // server is set.

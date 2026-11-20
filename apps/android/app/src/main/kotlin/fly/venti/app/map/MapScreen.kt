@@ -54,6 +54,8 @@ import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.forecast.ForecastSheet
+import fly.venti.app.groups.GroupsModel
+import fly.venti.app.groups.PlansSheet
 import fly.venti.app.live.GliderListSheet
 import fly.venti.app.live.GliderSheet
 import fly.venti.app.live.LiveModel
@@ -86,6 +88,8 @@ fun MapScreen(
     waypoints: WaypointsModel,
     /** The pilot's own account, which a report of a glider's track is sent from. */
     account: AccountModel,
+    /** The pilot's groups and their plans for a flying day. */
+    groups: GroupsModel,
     /** Where a report is sent from, so that it goes on when its form is closed. */
     requests: CoroutineScope,
     bars: PaddingValues,
@@ -96,6 +100,7 @@ fun MapScreen(
     var showsStations by remember { mutableStateOf(false) }
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     var showsSites by remember { mutableStateOf(false) }
+    var showsPlans by remember { mutableStateOf(false) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
     var showsGliders by remember { mutableStateOf(false) }
     // The glider whose page is open, by its track's identifier: the page
@@ -215,6 +220,11 @@ fun MapScreen(
                 // Who is in the air on this part of the map, as a list.
                 MapButton(R.drawable.ic_group, "Pilots in the air") { showsGliders = true }
             }
+            if (account.isSignedIn || wind.server is WindServer.Usable) {
+                // Who flies where today and on the days ahead: the plans
+                // of the pilot's groups.
+                MapButton(R.drawable.ic_calendar_month, "Flying plans") { showsPlans = true }
+            }
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
                 icon = if (isFollowing) R.drawable.ic_my_location else R.drawable.ic_location_searching,
@@ -287,6 +297,10 @@ fun MapScreen(
 
     pressed?.let { place ->
         ForecastSheet(place, wind, onDismiss = { pressed = null })
+    }
+
+    if (showsPlans) {
+        PlansSheet(groups, account, requests, onDismiss = { showsPlans = false })
     }
 
     problem?.let { text ->

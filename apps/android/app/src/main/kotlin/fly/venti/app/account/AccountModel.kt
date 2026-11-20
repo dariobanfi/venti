@@ -315,14 +315,26 @@ class AccountModel(
      * Nothing of a report is kept on this phone.
      */
     suspend fun report(subject: ReportSubject, reason: ReportReason, text: String): ReportOutcome = try {
-        val server = account?.server?.takeIf { isSignedIn } ?: throw NotSignedIn()
-        val request = withContext(background) { reportRequest(subject, reason, text) }
-        val answer = ask(request, server, answerWithinMilliseconds = REPORT_WITHIN_MILLISECONDS)
+        val answer = answer(withContext(background) { reportRequest(subject, reason, text) })
         ReportOutcome(sent = withContext(background) { reportSent(answer.status16, answer.body) })
     } catch (error: CancellationException) {
         throw error
     } catch (error: Exception) {
         ReportOutcome(problem = words(error))
+    }
+
+    // Requests of other parts of the app
+
+    /**
+     * Sends a request of another part of the app to the pilot's server,
+     * with the session's token, and returns the answer: a report goes
+     * this way, and so do the groups and their plans. Throws when the
+     * phone is not signed in and when no answer came; [words] says either
+     * to the pilot.
+     */
+    suspend fun answer(request: ServerRequest): HttpAnswer {
+        val server = account?.server?.takeIf { isSignedIn } ?: throw NotSignedIn()
+        return ask(request, server, answerWithinMilliseconds = ANSWER_TO_OTHERS_WITHIN_MILLISECONDS)
     }
 
     // Requests
@@ -361,7 +373,8 @@ class AccountModel(
     /** The phone has no token to send with a request that needs one. */
     private class NotSignedIn : Exception()
 
-    private fun words(error: Exception): String = when (error) {
+    /** What went wrong with a request, in words for the pilot. */
+    fun words(error: Exception): String = when (error) {
         is CoreException -> error.pilotMessage
         is NotSignedIn -> "This phone is no longer signed in. Sign in again."
         else -> "The server could not be reached. ${error.pilotMessage}"
@@ -376,8 +389,8 @@ class AccountModel(
         /** How long a request of the cockpit's may take. */
         const val CARRY_WITHIN_MILLISECONDS = 20_000
 
-        /** How long a report may take. */
-        const val REPORT_WITHIN_MILLISECONDS = 30_000
+        /** How long a report, or a request about groups and plans, may take. */
+        const val ANSWER_TO_OTHERS_WITHIN_MILLISECONDS = 30_000
 
         /** How long after a sync the next one that nobody asked for waits. */
         const val PAUSE_MILLISECONDS = 60_000L

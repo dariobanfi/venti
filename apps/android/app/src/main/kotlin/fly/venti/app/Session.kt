@@ -23,6 +23,7 @@ import fly.venti.app.fly.SilentAnnouncer
 import fly.venti.app.fly.SilentTone
 import fly.venti.app.fly.VarioLink
 import fly.venti.app.fly.VarioSound
+import fly.venti.app.groups.GroupsModel
 import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.map.MapSetup
@@ -65,6 +66,7 @@ sealed interface Session {
         val live: LiveModel,
         val community: CommunityModel,
         val account: AccountModel,
+        val groups: GroupsModel,
         val tasks: TaskModel,
         val preferences: Preferences,
         val files: AppFiles,
@@ -190,6 +192,9 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // The pilot's groups and their plans for a flying day, asked
+            // of the account's server and kept nowhere.
+            val groups = logbook.makeGroups(account)
             // The cockpit names the landing within reach among the
             // pilot's own waypoints.
             fly.landings = { waypoints.all.filter { it.kind == WaypointKind.LANDING } }
@@ -213,8 +218,8 @@ sealed interface Session {
             }
             fly.taskFile = { tasks.file }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, tasks, preferences,
-                files, scope,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
+                preferences, files, scope,
             )
         }
     }

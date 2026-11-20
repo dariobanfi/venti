@@ -12,6 +12,7 @@ import fly.venti.app.account.AccountModel
 import fly.venti.app.account.AccountTransport
 import fly.venti.app.account.SessionStore
 import fly.venti.app.airspace.AirspaceModel
+import fly.venti.app.groups.GroupsModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.task.TaskModel
@@ -33,6 +34,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
+import java.time.LocalDate
 
 /**
  * A flight file to import: what to call it when something is wrong with it,
@@ -232,6 +234,13 @@ class LogbookModel(
         account.onLogbookChanged = ::refresh
         return account
     }
+
+    /**
+     * The pilot's groups and their plans for a flying day, on the
+     * account's server: asked for and not kept.
+     */
+    fun makeGroups(account: AccountModel, today: () -> LocalDate = LocalDate::now): GroupsModel =
+        GroupsModel(core, account, background, today)
 
     /**
      * How often a sync with the server has read the logbook again. What a

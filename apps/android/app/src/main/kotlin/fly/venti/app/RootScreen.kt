@@ -222,6 +222,7 @@ private fun Sections(
                     session.live,
                     session.waypoints,
                     session.account,
+                    session.groups,
                     requests = session.scope,
                     bars,
                 )

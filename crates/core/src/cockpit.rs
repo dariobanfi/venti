@@ -19,8 +19,11 @@
 //! file begins, with that half minute first. Two minutes after the glider
 //! has come to rest the view says the session is over, and the shell saves
 //! the flight as if the pilot had ended it. A session that has waited two
-//! hours without a take-off says the same, with nothing to save. The times
-//! are our own; to verify in the air.
+//! hours without a take-off says the same, with nothing to save. A hop of
+//! less than half a minute, from take-off to coming to rest, is not a
+//! flight: what was written of it is thrown away and the session waits
+//! again, so that ground handling and a receiver's start-up leave nothing
+//! in the logbook. The times are our own; to verify in the air.
 //!
 //! [`Replay`] feeds a recorded flight through a session at any speed. It is
 //! how the cockpit is tried on the ground and how its screens are tested.
@@ -65,6 +68,11 @@ const LEAD_S: f64 = 30.0;
 /// came to rest: long enough to be sure of the landing, and over before
 /// the pilot has packed and driven away.
 const SAVE_AFTER_LANDING_S: f64 = 120.0;
+
+/// A flight that records itself and is shorter than this, in seconds from
+/// take-off to coming to rest, is no flight: a hop while ground handling,
+/// or a take-off the sensors made up.
+const SHORTEST_FLIGHT_S: f64 = 30.0;
 
 /// A session that waits for a take-off gives up after this many seconds:
 /// waiting keeps the phone's receivers on.
@@ -599,6 +607,9 @@ struct Inner {
     lead: Option<Lead>,
     /// Whether the flight records itself, and so also ends by itself.
     by_itself: bool,
+    /// Whether the pilot said "record now": then nothing is thrown away
+    /// for being short.
+    by_hand: bool,
     last_position_s: Option<f64>,
     /// The place the pilot chose to fly to. Without one the cockpit
     /// navigates back to the take-off.
@@ -667,6 +678,24 @@ enum PressureSource {
 }
 
 impl Inner {
+    /// Goes back to waiting for the take-off, as if the session had just
+    /// begun: the flight computer starts anew and the recording is empty.
+    fn wait_again(&mut self, now_s: f64) {
+        if let Some(recorder) = self.recorder.as_mut() {
+            // A file that cannot be removed is found at the next launch
+            // as a recording cut short; that is the lesser harm.
+            let _ = recorder.restart();
+        }
+        self.lead = Some(Lead {
+            since_s: now_s,
+            fixes: VecDeque::new(),
+        });
+        self.computer = FlightComputer::new(live::Config::default());
+        self.flown.clear();
+        self.score = None;
+        self.longest = None;
+    }
+
     /// Takes an altitude on the standard atmosphere from a pressure sensor.
     ///
     /// Two pressure sensors disagree by a constant of several metres. When
@@ -709,6 +738,7 @@ impl FlightSession {
                 recorder: None,
                 lead: None,
                 by_itself: false,
+                by_hand: false,
                 last_position_s: None,
                 target: None,
                 glider: Glider::default(),
@@ -1390,6 +1420,15 @@ impl FlightSession {
                 }
             }
         }
+        // A hop too short to be a flight: what was written of it is
+        // thrown away, and the session waits for the take-off again.
+        let hop = state
+            .takeoff_time_s
+            .zip(state.landing_time_s)
+            .is_some_and(|(takeoff, landing)| landing - takeoff < SHORTEST_FLIGHT_S);
+        if hop && state.phase == Phase::Landed && inner.by_itself && !inner.by_hand {
+            inner.wait_again(sample.time_unix_s);
+        }
     }
 
     /// Takes a pressure reading from the phone's own sensor, in
@@ -1472,6 +1511,7 @@ impl FlightSession {
                 let _ = recorder.add(&kept, position, pressure_altitude);
             }
         }
+        inner.by_hand = true;
         Ok(())
     }
 
@@ -1512,6 +1552,7 @@ impl FlightSession {
             let mut inner = self.lock();
             inner.lead = None;
             inner.by_itself = false;
+            inner.by_hand = false;
             inner.recorder.take()
         };
         let Some(recorder) = recorder else {
@@ -1861,6 +1902,17 @@ impl Recorder {
         self.fixes += 1;
         if self.fixes.is_multiple_of(FIXES_PER_SYNC) {
             file.sync_data()?;
+        }
+        Ok(())
+    }
+
+    /// Throws away what was written: the next fix begins a new file.
+    fn restart(&mut self) -> io::Result<()> {
+        self.last_second = None;
+        self.fixes = 0;
+        if let Some((file, name)) = self.file.take() {
+            drop(file);
+            fs::remove_file(self.folder.join(name))?;
         }
         Ok(())
     }
@@ -3160,6 +3212,51 @@ mod tests {
         // begins half a minute before that.
         assert!((270.0..=280.0).contains(&first), "{first}");
         assert_eq!(session.view(began + 700.0).over, None);
+    }
+
+    #[test]
+    fn a_hop_is_thrown_away_and_the_session_waits_again() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        session.record_from_takeoff(None, None, began).unwrap();
+        // A minute at the take-off, twelve seconds of running with the
+        // wing up at 5 m/s, and standing again.
+        let hop = |second: i32| {
+            let run = f64::from((second - 60).clamp(0, 12));
+            step(&session, began + f64::from(second), 5.0 * run, 1600.0);
+        };
+        (0..75).for_each(hop);
+        let view = session.view(began + 75.0);
+        assert_eq!(view.phase, FlightPhase::Flying);
+        assert!(view.recording);
+
+        (75..110).for_each(hop);
+        let view = session.view(began + 110.0);
+        assert_eq!(view.phase, FlightPhase::Ground);
+        assert!(view.waiting_for_takeoff);
+        assert!(!view.recording);
+        assert_eq!(view.recorded_fixes, 0);
+        assert_eq!(view.over, None);
+        assert_eq!(view.flight_time_s, None);
+        assert!(pending_recordings(folder_text(&folder)).is_empty());
+
+        // The flight that follows is recorded and ends by itself, and
+        // nothing of the hop is in its file.
+        for second in 110..700 {
+            let flown = f64::from((second - 300).clamp(0, 180));
+            step(
+                &session,
+                began + f64::from(second),
+                60.0 + 9.0 * flown,
+                1600.0 - flown,
+            );
+        }
+        assert_eq!(session.view(began + 700.0).over, Some(SessionOver::Landed));
+        let recording = session.stop_recording().unwrap().unwrap();
+        let file = igc::parse(&recording.igc_text).unwrap();
+        let first = file.fixes[0].time.timestamp() as f64 - began;
+        assert!((270.0..=280.0).contains(&first), "{first}");
     }
 
     #[test]

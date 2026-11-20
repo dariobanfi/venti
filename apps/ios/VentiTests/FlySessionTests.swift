@@ -1,3 +1,4 @@
+import CoreLocation
 import VentiCore
 import XCTest
 
@@ -122,5 +123,23 @@ final class FlySessionTests: XCTestCase {
 
         XCTAssertEqual(logbook.view.totals.flights, 1)
         XCTAssertTrue(pendingRecordings(dataFolder: folder.path).isEmpty)
+    }
+
+    /// The cockpit flies by fixes of now: not by where the iPhone was when
+    /// it last looked, and not by a guess from the phone network.
+    func testOnlyAFixOfNowIsAPositionToFlyBy() {
+        let now = Date()
+        func location(accuracy: Double, age: TimeInterval) -> CLLocation {
+            CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 47.664, longitude: 11.772),
+                altitude: 1600, horizontalAccuracy: accuracy, verticalAccuracy: 10,
+                timestamp: now.addingTimeInterval(-age)
+            )
+        }
+        XCTAssertTrue(LocationProvider.isUsable(location(accuracy: 5, age: 1), now: now))
+        XCTAssertTrue(LocationProvider.isUsable(location(accuracy: 100, age: 10), now: now))
+        XCTAssertFalse(LocationProvider.isUsable(location(accuracy: 1_500, age: 1), now: now))
+        XCTAssertFalse(LocationProvider.isUsable(location(accuracy: -1, age: 1), now: now))
+        XCTAssertFalse(LocationProvider.isUsable(location(accuracy: 5, age: 600), now: now))
     }
 }

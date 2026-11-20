@@ -41,9 +41,24 @@ final class LocationProvider: NSObject, @preconcurrency CLLocationManagerDelegat
         background = nil
     }
 
+    /// A position worse than this, in metres, is a guess from the phone
+    /// network and not a fix: the next one can lie a kilometre away, which
+    /// between two seconds looks like speed.
+    nonisolated static let worstAccuracyM = 100.0
+    /// A position older than this, in seconds, is one the system kept
+    /// from before: where the iPhone was, not where it is.
+    nonisolated static let oldestS = 10.0
+
+    /// Whether a position is one to fly by: a fix, and of now.
+    nonisolated static func isUsable(_ location: CLLocation, now: Date = Date()) -> Bool {
+        // Negative accuracy is how the system says "unknown".
+        location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= worstAccuracyM
+            && now.timeIntervalSince(location.timestamp) <= oldestS
+    }
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        // Negative accuracy, speed or course is how the system says "unknown".
-        for location in locations where location.horizontalAccuracy >= 0 {
+        // Negative speed or course is how the system says "unknown".
+        for location in locations where Self.isUsable(location) {
             onSample?(
                 LocationSample(
                     timeUnixS: location.timestamp.timeIntervalSince1970,

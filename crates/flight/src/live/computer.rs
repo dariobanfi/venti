@@ -23,12 +23,16 @@ pub struct Config {
     /// The glider has taken off once it has moved at least this fast over
     /// the ground, metres per second, for `takeoff_hold_s` seconds, or has
     /// left the height it had `takeoff_height_s` seconds before by
-    /// `takeoff_height_m`. A walking pilot stays under 2 m/s; a paraglider
-    /// flies at 8 or more, less into a strong headwind, which is what the
-    /// height rule is for. The height is measured over a short while and
-    /// not from where the session began, because a pilot who waits for the
-    /// take-off walks about the hill: up a slope a walker gains a third of
-    /// a metre a second, a glider that has left the ground a metre or more.
+    /// `takeoff_height_m`, steadily. A walking pilot stays under 2 m/s; a
+    /// paraglider flies at 8 or more, less into a strong headwind, which is
+    /// what the height rule is for. The height is measured over a short
+    /// while and not from where the session began, because a pilot who
+    /// waits for the take-off walks about the hill: up a slope a walker
+    /// gains a third of a metre a second, a glider that has left the ground
+    /// a metre or more. Steadily means that each third of the while moved
+    /// the same way by a fifth of the height or more: a receiver's first
+    /// fixes settle by tens of metres in a step, and a step is not a glider
+    /// leaving the ground.
     pub takeoff_speed_ms: f64,
     /// See `takeoff_speed_ms`.
     pub takeoff_hold_s: f64,
@@ -372,6 +376,13 @@ struct Velocity {
 /// trusting it and falls back to the next one.
 const STALE_S: f64 = 3.0;
 
+/// A step between two positions that no glider makes: more than this many
+/// metres, and faster than [`JUMP_MS`]. The receiver has found out where
+/// it is, or the phone was carried while the receiver slept.
+const JUMP_M: f64 = 500.0;
+/// See [`JUMP_M`]. Metres per second: 360 km/h.
+const JUMP_MS: f64 = 100.0;
+
 /// How old the latest position may be, in seconds, before what is worked
 /// out from positions is no longer reported: speed, course, glide, and
 /// the altitude and climb where they come from the satellites. A receiver
@@ -445,6 +456,15 @@ impl FlightComputer {
         let now = sample.time_s;
         if self.last_position.is_some_and(|last| now <= last.time_s) {
             return;
+        }
+        // On the ground a step no glider makes is the receiver finding
+        // out where it is: what was learnt before it is forgotten, so
+        // that the step is taken neither for speed nor for height.
+        if self.phase == Phase::Ground
+            && let Some(last) = self.last_position
+            && last.position.distance_m(sample.position) > JUMP_M.max(JUMP_MS * (now - last.time_s))
+        {
+            self.forget_the_ground();
         }
 
         self.velocity_is_derived = sample.ground_speed_ms.is_none() || sample.course_deg.is_none();
@@ -645,6 +665,21 @@ impl FlightComputer {
             .time_s()
             .filter(|&time| now_s - time <= STALE_S)
             .and(self.pressure_filter.altitude_m())
+    }
+
+    /// Forgets what the positions on the ground have taught: where the
+    /// glider was, how fast, how high.
+    fn forget_the_ground(&mut self) {
+        self.condition_since = None;
+        self.previous = None;
+        self.last_position = None;
+        self.velocity = None;
+        self.altitudes.clear();
+        self.velocities.clear();
+        self.satellite_filter = VarioFilter::new(4.0, 0.6);
+        self.satellite_altitude_m = None;
+        self.pressure_offset_m = None;
+        self.trail.clear();
     }
 
     /// Whether a position has arrived lately enough to speak for now.
@@ -885,16 +920,27 @@ impl FlightComputer {
                 if !fast {
                     self.condition_since = None;
                 }
-                // Against the height of a short while ago: the oldest
-                // altitude still within that while.
-                let before = self
-                    .altitudes
-                    .iter()
-                    .find(|&&(time, _)| time >= now - self.config.takeoff_height_s)
-                    .map(|&(_, altitude)| altitude);
-                let left_the_ground = altitude.zip(before).is_some_and(|(altitude, before)| {
-                    (altitude - before).abs() >= self.config.takeoff_height_m
-                });
+                // Against the height of a short while ago, in thirds of
+                // that while: the newest altitude that is at least so old.
+                let third = self.config.takeoff_height_s / 3.0;
+                let ago = |thirds: f64| {
+                    self.altitudes
+                        .iter()
+                        .rev()
+                        .find(|&&(time, _)| time <= now - thirds * third)
+                        .map(|&(_, altitude)| altitude)
+                };
+                let left_the_ground = match (altitude, ago(1.0), ago(2.0), ago(3.0)) {
+                    (Some(here), Some(one), Some(two), Some(three)) => {
+                        let steps = [two - three, one - two, here - one];
+                        let steady = steps.iter().all(|step| {
+                            step * steps[0] > 0.0
+                                && step.abs() >= self.config.takeoff_height_m / 5.0
+                        });
+                        steady && (here - three).abs() >= self.config.takeoff_height_m
+                    }
+                    _ => false,
+                };
                 let run_start = fast.then(|| *self.condition_since.get_or_insert(run_origin));
                 let held =
                     run_start.is_some_and(|start| now - start.time_s >= self.config.takeoff_hold_s);
@@ -1337,6 +1383,48 @@ mod tests {
         // Where the glider last was, and that it flies, stay known.
         assert!(state.position.is_some());
         assert_eq!(state.phase, Phase::Flying);
+    }
+
+    #[test]
+    fn a_receiver_that_settles_in_a_step_has_not_taken_off() {
+        let mut computer = FlightComputer::new(Config::default());
+        // Standing at the take-off. The first fixes are fifty metres too
+        // high, as first fixes are; after ten seconds they are right.
+        for second in 0..600 {
+            let altitude = if second < 10 { 1650.0 } else { 1600.0 };
+            step(&mut computer, second, 0.0, altitude);
+            assert_eq!(
+                computer.state(f64::from(second)).phase,
+                Phase::Ground,
+                "second {second}"
+            );
+        }
+
+        // Nor when the receiver finds out that it is somewhere else
+        // altogether, some seconds after its first word.
+        let mut computer = FlightComputer::new(Config::default());
+        for second in 0..5 {
+            step(&mut computer, second, 0.0, 30.0);
+        }
+        for second in 5..300 {
+            step(&mut computer, second, 800_000.0, 1600.0);
+            assert_eq!(
+                computer.state(f64::from(second)).phase,
+                Phase::Ground,
+                "second {second}"
+            );
+        }
+        // And from there a flight is a flight.
+        for second in 300..330 {
+            let flown = f64::from(second - 300);
+            step(
+                &mut computer,
+                second,
+                800_000.0 + 9.0 * flown,
+                1600.0 - flown,
+            );
+        }
+        assert_eq!(computer.state(330.0).phase, Phase::Flying);
     }
 
     #[test]

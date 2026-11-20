@@ -14,6 +14,12 @@ enum Format {
         date(unixSeconds).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())
     }
 
+    /// A day without its weekday, for a line that has more to say:
+    /// "6 Sep 2026".
+    static func dayShort(unixSeconds: Int64) -> String {
+        date(unixSeconds).formatted(.dateTime.day().month(.abbreviated).year())
+    }
+
     /// "Sat, 4 Jul", for lists already grouped by year.
     static func dayInYear(unixSeconds: Int64) -> String {
         date(unixSeconds).formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))

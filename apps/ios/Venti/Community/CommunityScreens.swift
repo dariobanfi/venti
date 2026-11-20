@@ -111,9 +111,10 @@ struct PublicFlightRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "Sat 15 Aug 2026 · Sample Wing"
+    /// "15 Aug 2026 · Sample Wing". Without the weekday: the glider's name
+    /// is the part that would be cut off.
     static func detail(of flight: PublicFlight) -> String {
-        let day = Format.day(unixSeconds: flight.startUnixS)
+        let day = Format.dayShort(unixSeconds: flight.startUnixS)
         return flight.glider.map { "\(day) · \($0)" } ?? day
     }
 }
@@ -157,6 +158,8 @@ struct PublicFlightScreen: View {
         }
         .navigationTitle(flight.pilot)
         .navigationBarTitleDisplayMode(.inline)
+        // The name stands over a map: it needs ground to be read on.
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

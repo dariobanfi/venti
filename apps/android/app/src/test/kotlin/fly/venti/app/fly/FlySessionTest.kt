@@ -184,6 +184,119 @@ class FlySessionTest {
         )
     }
 
+    /**
+     * A session whose clock the test sets, refreshed often, with sensors the
+     * test speaks for: the positions of five minutes at the take-off, three
+     * minutes of flight at 9 m/s sinking 1 m/s, and standing in the landing
+     * field, as the core's own test has them.
+     */
+    private class SelfRecording(folder: File, scope: CoroutineScope) {
+        val sensors = FakeSensors()
+
+        @Volatile
+        var now = BEGAN
+        val fly = FlySession(folder, MemoryPreferences(), sensors, SilentTone(), scope, refreshMilliseconds = 20, clock = { now })
+        private var fed = 0
+
+        /** Feeds the positions up to so many seconds after the cockpit opened, and lets the cockpit see them. */
+        fun until(seconds: Int) {
+            val session = checkNotNull(sensors.session)
+            while (fed < seconds) {
+                val flown = (fed - 300).coerceIn(0, 180).toDouble()
+                session.onLocation(
+                    LocationSample(
+                        timeUnixS = BEGAN + fed,
+                        lat = 47.0 + 9.0 * flown / 111_194.9,
+                        lon = 11.0,
+                        altitudeM = 1600.0 - flown,
+                        groundSpeedMs = null,
+                        courseDeg = null,
+                    ),
+                )
+                fed += 1
+            }
+            now = BEGAN + seconds
+            Thread.sleep(300)
+        }
+
+        companion object {
+            const val BEGAN = 1_786_000_000.0
+        }
+    }
+
+    @Test
+    fun aFlightRecordsItselfFromTheTakeoffAndIsSavedTwoMinutesAfterTheLanding() {
+        val folder = TestSupport.newFolder("fly")
+        val cockpit = SelfRecording(folder, scope)
+        val fly = cockpit.fly
+        val saved = java.util.Collections.synchronizedList(mutableListOf<fly.venti.core.PendingRecording>())
+        fly.savedByItself = { saved += it }
+
+        // Opened on the ground: ready, and nothing written.
+        fly.startFlight()
+        cockpit.until(300)
+        var view = checkNotNull(fly.view)
+        assertEquals(FlightPhase.GROUND, view.phase)
+        assertTrue(view.waitingForTakeoff)
+        assertFalse(view.recording)
+        assertEquals("Ready for take-off" to "Recording starts by itself.", PhaseWords.notice(view, isReplay = false))
+        assertTrue(pendingRecordings(folder.path).isEmpty())
+
+        // In the air: recording.
+        cockpit.until(330)
+        view = checkNotNull(fly.view)
+        assertEquals(FlightPhase.FLYING, view.phase)
+        assertTrue(view.recording)
+        assertNull(PhaseWords.notice(view, isReplay = false))
+
+        // Landed: it says when the flight is saved.
+        cockpit.until(540)
+        view = checkNotNull(fly.view)
+        assertEquals(FlightPhase.LANDED, view.phase)
+        val notice = checkNotNull(PhaseWords.notice(view, isReplay = false))
+        assertEquals("Landed", notice.first)
+        assertTrue(notice.second, checkNotNull(notice.second).matches(Regex("The flight is saved in \\d:\\d\\d\\.")))
+
+        // And then it is, as if the pilot had ended it.
+        cockpit.until(700)
+        assertNull(fly.mode)
+        assertNull(fly.view)
+        assertTrue(cockpit.sensors.stopped)
+        val recording = saved.single()
+        assertTrue(recording.igcText.lines().count { it.startsWith("B") } > 200)
+    }
+
+    @Test
+    fun aCockpitWithoutATakeoffClosesAfterTwoHoursAndSaysSo() {
+        val cockpit = SelfRecording(TestSupport.newFolder("fly"), scope)
+        val fly = cockpit.fly
+        var saved = 0
+        fly.savedByItself = { saved += 1 }
+        fly.startFlight()
+        cockpit.until(60)
+        assertTrue(checkNotNull(fly.view).waitingForTakeoff)
+        cockpit.now = SelfRecording.BEGAN + 2 * 3600 + 60
+        Thread.sleep(300)
+        assertNull(fly.mode)
+        assertEquals(FlySession.NO_TAKEOFF, fly.problem)
+        assertEquals(0, saved)
+    }
+
+    @Test
+    fun recordNowRecordsWithoutWaitingForTheTakeoff() {
+        val cockpit = SelfRecording(TestSupport.newFolder("fly"), scope)
+        val fly = cockpit.fly
+        fly.startFlight()
+        cockpit.until(60)
+        assertTrue(checkNotNull(fly.view).waitingForTakeoff)
+        fly.recordNow()
+        cockpit.until(61)
+        val view = checkNotNull(fly.view)
+        assertTrue(view.recording)
+        assertFalse(view.waitingForTakeoff)
+        assertNotNull(fly.finish())
+    }
+
     @Test
     fun aRecordedFlightHasNoSpeedToChange() {
         val sensors = FakeSensors()

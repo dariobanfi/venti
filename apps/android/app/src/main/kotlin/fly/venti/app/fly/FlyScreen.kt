@@ -177,18 +177,15 @@ fun FlyScreen(
             // The screen's one accent: the action that starts a flight.
             Button(
                 onClick = { askThenStart.launch(permissionsToFly(vario)) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp).testTag("open-cockpit"),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.tertiary,
                     contentColor = MaterialTheme.colorScheme.onTertiary,
                 ),
             ) {
-                Text("Start flight", style = MaterialTheme.typography.titleMedium)
+                Text(FlyWords.OPEN_COCKPIT, style = MaterialTheme.typography.titleMedium)
             }
-            SectionFooter(
-                "Recording starts at once and carries on with the screen off. When you finish, the " +
-                    "flight is saved to the logbook.",
-            )
+            SectionFooter(FlyWords.OPEN_COCKPIT_FOOTER)
 
             Spacer(Modifier.height(28.dp))
             Group {
@@ -273,4 +270,12 @@ private fun ChoiceRow(icon: Int, title: String, value: String, onClick: () -> Un
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/** What the Fly tab says about the cockpit. */
+object FlyWords {
+    const val OPEN_COCKPIT = "Open the cockpit"
+    const val OPEN_COCKPIT_FOOTER =
+        "The cockpit waits on the ground and records from the moment you take off, with the screen off too. " +
+            "Two minutes after you have landed, the flight is saved to the logbook."
 }

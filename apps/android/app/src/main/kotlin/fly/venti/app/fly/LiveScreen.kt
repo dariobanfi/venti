@@ -1,5 +1,10 @@
 package fly.venti.app.fly
 
+import app.venti.design.VentiSpace
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.BorderStroke
 import app.venti.design.VentiSize
 import fly.venti.app.design.Venti
 import androidx.annotation.DrawableRes
@@ -277,26 +282,26 @@ private fun LiveTracking(fly: FlySession, account: AccountModel, preferences: Pr
 @Composable
 fun LiveButton(live: LiveShareView?, modifier: Modifier = Modifier, onOpen: () -> Unit) {
     val state = live?.state
-    val colours = when (state) {
-        LiveShareState.SHARING -> IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = Venti.colours.goodSoft,
-            contentColor = Venti.colours.good,
-        )
-        LiveShareState.WAITING -> IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = Venti.colours.cautionSoft,
-            contentColor = Venti.colours.caution,
-        )
-        else -> IconButtonDefaults.filledTonalIconButtonColors()
+    // Green while positions go out, the caution colour while they wait,
+    // plain when nothing is shared: sign, word and colour together.
+    val (ground, ink) = when (state) {
+        LiveShareState.SHARING -> Venti.colours.goodSoft to Venti.colours.good
+        LiveShareState.WAITING -> Venti.colours.cautionSoft to Venti.colours.caution
+        else -> Color.Transparent to MaterialTheme.colorScheme.onSurface
     }
-    FilledTonalIconButton(
+    OutlinedButton(
         onClick = onOpen,
         modifier = modifier
-            .size(VentiSize.touchFlight)
+            .heightIn(min = VentiSize.touchFlight)
             .testTag("live-button")
             .semantics { stateDescription = live?.words ?: "Off" },
-        colors = colours,
+        colors = ButtonDefaults.outlinedButtonColors(containerColor = ground, contentColor = ink),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+        contentPadding = PaddingValues(horizontal = VentiSpace.s3),
     ) {
-        Icon(painterResource(LiveLook.icon(state)), contentDescription = "Live tracking")
+        Icon(painterResource(LiveLook.icon(state)), contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(VentiSpace.s2))
+        Text("Live tracking", style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
 }
 

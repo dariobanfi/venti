@@ -128,7 +128,6 @@ fun AirspaceBanner(
                 modifier = Modifier.fillMaxWidth().testTag("airspace-notice"),
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shadowElevation = 2.dp,
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(R.drawable.ic_visibility_off), contentDescription = null, Modifier.size(18.dp))
@@ -162,11 +161,10 @@ private fun Warning(warnings: List<AirspaceWarning>, onOpen: () -> Unit) {
         shape = MaterialTheme.shapes.medium,
         color = ground,
         contentColor = ink,
-        shadowElevation = 3.dp,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Icon(
-                painterResource(if (warning.silenced) R.drawable.ic_notifications_off else R.drawable.venti_caution),
+                painterResource(if (warning.silenced) R.drawable.ic_notifications_off else R.drawable.venti_airspace),
                 contentDescription = null,
             )
             Spacer(Modifier.width(10.dp))

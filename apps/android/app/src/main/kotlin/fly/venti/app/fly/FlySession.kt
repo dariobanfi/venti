@@ -1,5 +1,7 @@
 package fly.venti.app.fly
 
+import fly.venti.core.DaylightLeft
+import fly.venti.core.SessionOver
 import fly.venti.core.LiveGlider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -163,6 +165,10 @@ class FlySession(
     var faiAreas: FaiAreas? by mutableStateOf(null)
         private set
 
+    /** How much of the day is left where the glider is. */
+    var daylight: DaylightLeft? by mutableStateOf(null)
+        private set
+
     /** The airspace warnings of the moment, the most urgent first. */
     var airspaceWarnings: List<AirspaceWarning> by mutableStateOf(emptyList())
         private set
@@ -295,6 +301,20 @@ class FlySession(
 
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
+
+    /**
+     * Takes the recording of a flight that ended by itself, to put it into
+     * the logbook as one the pilot ended. The app sets this. Without it the
+     * file waits in the data folder and is found at the next launch. It is
+     * called from the refresh, which runs with the screen off too.
+     */
+    var savedByItself: (PendingRecording) -> Unit = {}
+
+    /**
+     * The logbook's identifier of a flight that ended by itself and was
+     * saved, for the screen to show once it is there. The screen clears it.
+     */
+    var savedFlight: String? by mutableStateOf(null)
 
     private val muted = mutableStateOf(preferences.varioMuted)
 
@@ -472,15 +492,20 @@ class FlySession(
         refresh(elapsed = 0.0)
     }
 
-    /** Switches the sensors on and starts recording. */
+    /**
+     * Switches the sensors on and makes the session ready: it waits on the
+     * ground, writes nothing, and records from the take-off. When the flight
+     * is over the core says so, and the session ends by itself.
+     */
     @Synchronized
     fun startFlight() {
         if (mode != null) return
         val session = FlightSession(dataFolder.path)
         try {
-            session.startRecording(
+            session.recordFromTakeoff(
                 pilot = preferences.pilot.ifBlank { null },
                 glider = preferences.glider.ifBlank { null },
+                nowUnixS = clock(),
             )
         } catch (error: Exception) {
             problem = error.pilotMessage
@@ -490,6 +515,38 @@ class FlySession(
         begin(session, Mode.Live)
         // Shown to others from take-off, if the pilot chose so.
         share(LiveChoice.stored(preferences).audience)
+    }
+
+    /**
+     * Records from now, for a pilot who would rather not wait for the
+     * take-off to be noticed. The flight file begins with the half minute
+     * the session has kept.
+     */
+    @Synchronized
+    fun recordNow() {
+        val session = session ?: return
+        if (mode != Mode.Live) return
+        try {
+            session.startRecording(
+                pilot = preferences.pilot.ifBlank { null },
+                glider = preferences.glider.ifBlank { null },
+            )
+        } catch (error: Exception) {
+            problem = error.pilotMessage
+        }
+        refresh(elapsed = 0.0)
+    }
+
+    /**
+     * Ends a flight that is over by itself: landed and saved as if the pilot
+     * had ended it, or given up on because nobody took off.
+     */
+    private fun endByItself(over: SessionOver) {
+        val recording = finish()
+        when (over) {
+            SessionOver.LANDED -> recording?.let(savedByItself)
+            SessionOver.NO_TAKEOFF -> problem = NO_TAKEOFF
+        }
     }
 
     /** Plays a recorded flight through the cockpit, to try it on the ground. */
@@ -551,6 +608,7 @@ class FlySession(
         way = null
         score = null
         faiAreas = null
+        daylight = null
         airspaceWarnings = emptyList()
         airspaceCheck = AirspaceCheck.NO_AIRSPACE
         handedAirspace = null
@@ -640,6 +698,13 @@ class FlySession(
             clock()
         }
         val view = session.view(now)
+        // A flight that records itself also ends by itself: some minutes
+        // after the landing, or when nobody took off.
+        val over = view.over
+        if (over != null && mode == Mode.Live) {
+            endByItself(over)
+            return
+        }
         this.view = view
         way = session.navigation(now)
         val status = session.taskStatus(now)
@@ -674,6 +739,10 @@ class FlySession(
             val areas = session.faiAreas()
             if (areas != faiAreas) {
                 faiAreas = areas
+            }
+            val light = session.daylight(now)
+            if (light != daylight) {
+                daylight = light
             }
             // Which of the pilot's landings the glider could go to now.
             val option = session.landingOption(landings().map { it.place }, now)
@@ -790,6 +859,10 @@ class FlySession(
     }
 
     companion object {
+        /** What the pilot is told when the cockpit closed without a take-off. */
+        const val NO_TAKEOFF =
+            "Nobody took off in two hours, so the cockpit closed to save the battery. Nothing was recorded."
+
         /** How often the wind on the ground is asked for in flight, seconds. */
         const val WIND_BELOW_SECONDS = 120.0
 

@@ -146,6 +146,14 @@ fun RootScreen(
             }
     }
 
+    // A flight that ended by itself and was saved: shown as one the pilot ended.
+    LaunchedEffect(fly.savedFlight) {
+        fly.savedFlight?.let { id ->
+            navigation.show(id)
+            fly.savedFlight = null
+        }
+    }
+
     if (fly.mode != null) {
         // A full-screen cover, not a tab: nothing can be navigated to by
         // accident in the air. In the design pack's flight theme, whatever

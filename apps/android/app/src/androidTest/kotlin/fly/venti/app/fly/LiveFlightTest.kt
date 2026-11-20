@@ -1,5 +1,7 @@
 package fly.venti.app.fly
 
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
@@ -126,6 +128,22 @@ class LiveFlightTest {
         screen.onAllNodes(what).onFirst().performClick()
     }
 
+    /** Turns the cockpit's pages with "Next page" until this one shows. */
+    private fun turnTo(page: String) {
+        val next = hasTestTag("cockpit-next-page")
+        waitFor(next)
+        repeat(3) {
+            if (exists(next and saying(page))) return
+            tap(next)
+            TestDevice.letTheAppRun(screen, 1)
+        }
+        waitFor(next and saying(page))
+    }
+
+    private fun saying(text: String) = SemanticsMatcher("says \"$text\"") { node ->
+        node.config.getOrNull(SemanticsProperties.StateDescription)?.contains(text) == true
+    }
+
     /** What an instrument shows, as a screen reader would read it: "1472 m". */
     private fun reading(instrument: String): String? =
         screen.onAllNodes(hasContentDescription(instrument)).fetchSemanticsNodes().firstOrNull()
@@ -143,17 +161,29 @@ class LiveFlightTest {
         app = ActivityScenario.launch(intent)
         waitFor(hasContentDescription("Show my position"))
         tap(hasText("Fly") and isSelectable())
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
 
-        tap(hasText("Start flight"))
-        waitFor(hasText("Finish flight"))
-        assertTrue(exists(hasText("Recording")))
+        tap(hasText("Open the cockpit"))
+        // The cockpit waits on the ground and records from the take-off.
+        waitFor(hasTestTag("cockpit-ready"))
+        assertTrue(exists(hasTestTag("cockpit-phase") and hasContentDescription("Ready for take-off")))
         // Nothing has come from the receiver yet, and the cockpit says so.
-        assertTrue(exists(hasText("No position")))
+        assertTrue(exists(hasText("No GPS")))
+        screen.waitForIdle()
+        TestDevice.keepScreenshot("light-fly-6b-ready")
+
+        // "Record now", on the flight's page, for a pilot who would rather
+        // not wait for the take-off to be noticed.
+        turnTo("Flight")
+        tap(hasTestTag("cockpit-record-now"))
+        waitFor(hasText("Recording"))
+        turnTo("Instruments")
 
         fly()
         // Once positions arrive the warning goes and the instruments fill.
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("No position")) && reading("Speed")?.endsWith("km/h") == true }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            !exists(hasText("No GPS")) && reading("Ground speed")?.endsWith("km/h") == true
+        }
         // Recording carries on with the screen off: the service is running
         // and shows its notification.
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { recordingNotificationIsShown() }
@@ -173,9 +203,8 @@ class LiveFlightTest {
         screen.waitForIdle()
         TestDevice.keepScreenshot("light-fly-7-recording")
 
-        tap(hasText("Finish flight"))
-        waitFor(hasText("Save flight"))
-        tap(hasText("Save flight"))
+        // Held for a second, "Hold to end" saves the flight; nothing asks again.
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
         isFlying = false
 
         // The flight is in the logbook and opens; the service has stopped.

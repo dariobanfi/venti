@@ -142,6 +142,28 @@ class VentiUiTest {
         TestDevice.letTheAppRun(screen, seconds)
     }
 
+    /**
+     * Ends the cockpit as a pilot does: a finger held on "Hold to end" for
+     * longer than the second it takes. Nothing asks again.
+     */
+    private fun holdToEnd() {
+        waitFor(hasTestTag("cockpit-end"))
+        screen.onNode(hasTestTag("cockpit-end")).performTouchInput { longClick(durationMillis = 1_600) }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-end")) }
+    }
+
+    /** Turns the cockpit's pages with "Next page" until this one shows: "Instruments", "Map" or "Flight". */
+    private fun turnTo(page: String) {
+        val next = hasTestTag("cockpit-next-page")
+        waitFor(next)
+        repeat(3) {
+            if (exists(next and saying(page))) return
+            tap(next)
+            TestDevice.letTheAppRun(screen, 1)
+        }
+        waitFor(next and saying(page))
+    }
+
     /** From an empty logbook to a flight on the map. */
     private fun addSampleFlightAndOpenIt(prefix: String) {
         waitFor(described("Show my position"))
@@ -243,7 +265,7 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SAMPLE_WAYPOINTS, true) }
         waitFor(described("Show my position"))
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
         keepScreenshot("$prefix-fly-1-ready")
 
         tap(hasText("Replay the sample flight"))
@@ -293,13 +315,13 @@ class VentiUiTest {
         // On the glide after the thermal it changes back, now with the wind
         // it worked out while circling. Beside the glide it is making, the
         // glide it needs to get home.
-        waitForAll(described("Glide"), described("Speed"), described("Wind"), described("Needs"))
+        waitForAll(described("Glide") and saying("Needs "), described("Ground speed"), described("Wind"))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
         // The wind of every band of height the glider circled in, from a
         // tap on the wind over the map.
-        tap(hasTestTag("wind-badge"))
+        tap(hasTestTag("wind-reading"))
         waitFor(hasText("Wind by height"))
         waitFor(hasTestTag("wind-by-height-row"))
         letTheMapDraw(1)
@@ -307,8 +329,12 @@ class VentiUiTest {
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Wind by height")) }
 
-        // The whole flight at a glance, with the scored route and where to
-        // go for an FAI triangle; and back to the view that follows.
+        // The second page: the map as large as it gets. The whole flight
+        // at a glance, with the scored route and where to go for an FAI
+        // triangle; and back to the view that follows.
+        turnTo("Map")
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-fly-3a-map-page")
         tap(described("Show the whole flight"))
         waitFor(described("Follow the glider"))
         letTheMapDraw(3)
@@ -358,22 +384,26 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-5-to-landing")
 
-        // Locked, the screen answers no touch: a press on the button that
-        // ends the replay does nothing. Holding the lock opens it.
-        tap(described("Lock the screen"))
+        // The third page: the flight, and what can be switched.
+        turnTo("Flight")
+        waitFor(described("Flight time"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-5a-flight-page")
+
+        // Locked, the screen answers no touch: a press on "Next page"
+        // turns no page. Holding the lock opens it.
+        tap(hasTestTag("cockpit-lock"))
         waitFor(hasTestTag("cockpit-unlock"))
-        tap(hasText("End replay"))
+        tap(hasTestTag("cockpit-next-page"))
         letTheMapDraw(2)
-        assertFalse(exists(hasText("Close the cockpit")))
+        assertTrue(exists(hasTestTag("cockpit-next-page") and saying("Flight")))
         keepScreenshot("$prefix-fly-5b-locked")
         screen.onNode(hasTestTag("cockpit-unlock")).performTouchInput { longClick(durationMillis = 1_600) }
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-unlock")) }
 
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        keepScreenshot("$prefix-fly-6-end")
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        // Held for a second, "Hold to end" ends the replay; nothing asks again.
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
 
         // Settings, and the credits the map data's licences ask for.
         tap(tab("Settings"))
@@ -544,7 +574,7 @@ class VentiUiTest {
 
         // Before take-off the Fly tab says what the cockpit will warn from.
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
         assertTrue(exists(hasTestTag("airspace-before-takeoff") and hasText("1 file")))
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
@@ -563,6 +593,8 @@ class VentiUiTest {
 
         // The line ahead from the side, with the zone as a block if it
         // lies on the line just now; which it does is the flight's to say.
+        // Its button is over the map of the second page.
+        turnTo("Map")
         tap(described("Ahead, from the side"))
         waitForAll(hasTestTag("ahead-chart"), hasTestTag("ahead-words"))
         letTheMapDraw(1)
@@ -582,10 +614,8 @@ class VentiUiTest {
         tap(hasText("Does not apply today"))
         waitFor(described("Airspace warning, quieted"))
 
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
 
         // The files behind the warnings.
         tap(tab("Settings"))
@@ -705,7 +735,7 @@ class VentiUiTest {
         }
         waitFor(described("Show my position"))
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
         val line = hasTestTag("task-before-takeoff")
         assertTrue(exists(line and hasText("4 turnpoints", substring = true)))
         tap(line)
@@ -715,7 +745,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("$prefix-task-1-task")
         tap(described("Back"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
 
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
@@ -725,6 +755,9 @@ class VentiUiTest {
         // The start is taken two minutes into the flight; from then on the
         // line runs the clock and says which turnpoint is next.
         val strip = hasTestTag("task-strip")
+        // The task's line is on the second page, over the line that says
+        // where to fly.
+        turnTo("Map")
         waitFor(strip)
         waitFor(strip and saying("On task"))
         letTheMapDraw(2)
@@ -749,10 +782,8 @@ class VentiUiTest {
         waitFor(strip and saying("In goal"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         letTheMapDraw(2)
         keepScreenshot("$prefix-task-4-in-goal")
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
 
         // A route of the pilot's own waypoints, tapped in order, replaces it.
         tap(line)
@@ -784,7 +815,7 @@ class VentiUiTest {
         launch(dark = dark) { putExtra(LaunchOptions.SLOW_GLIDER, true) }
         waitFor(described("Show my position"))
         tap(tab("Fly"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
         tap(hasText("Replay the sample flight"))
         waitFor(hasText("20 times faster"))
         tap(hasText("20 times faster"))
@@ -798,16 +829,14 @@ class VentiUiTest {
         // after the second thermal is the long one, and its wind leaves
         // 7 km/h; should the emulator be too slow to look in time, both
         // stand again once the flight has ended.
-        val old = hasTestTag("wind-badge") and saying(", measured ")
+        val old = hasTestTag("wind-reading") and saying(" old")
         val strong = hasTestTag("strong-wind-badge") and saying("Into the wind 7 km/h")
         waitForAll(old, strong, seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-7-old-and-strong-wind")
 
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
     }
 
     /**
@@ -850,9 +879,7 @@ class VentiUiTest {
         letTheMapDraw(2)
         keepScreenshot("replay-2-cockpit")
 
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
+        holdToEnd()
         // Back on the flight it was started from.
         waitFor(described("Flight details"))
         tap(described("Back"))
@@ -1181,7 +1208,7 @@ class VentiUiTest {
         assertTrue(exists(hasTestTag("live-nobody") and isSelected()))
         keepScreenshot("$prefix-live-1-no-account")
         tap(described("Back"))
-        waitFor(hasText("Start flight"))
+        waitFor(hasText("Open the cockpit"))
 
         // A new account on the server.
         val handle = "l${System.currentTimeMillis() % 1_000_000_000}"
@@ -1220,14 +1247,19 @@ class VentiUiTest {
         // A flight, started as a pilot starts one. It is shared from the
         // start, and waits for the take-off: the cockpit's button says so.
         TestDevice.allowToRecordAFlight()
-        tap(hasText("Start flight"))
+        tap(hasText("Open the cockpit"))
         try {
-            waitFor(hasTestTag("live-button"))
+            waitFor(hasTestTag("cockpit-next-page"))
             // An emulator's location may be switched off; the app says so,
             // and the flight goes on without a position.
             if (exists(hasText("Flying")) && exists(hasText("OK"))) {
                 tap(hasText("OK"))
             }
+            // Ready on the ground: recording starts by itself at take-off.
+            assertTrue(exists(hasTestTag("cockpit-phase") and described("Ready for take-off")))
+            // Live tracking is on the flight's page.
+            turnTo("Flight")
+            waitFor(hasTestTag("live-button"))
             waitFor(hasTestTag("live-button") and saying("Begins at take-off"))
             letTheMapDraw(2)
             keepScreenshot("$prefix-live-4-cockpit")
@@ -1257,11 +1289,8 @@ class VentiUiTest {
         } finally {
             // Whatever happened, the flight is ended: its sensors and its
             // recording belong to the app, not to this test's screen.
-            if (exists(hasText("Finish flight"))) {
-                tap(hasText("Finish flight"))
-                waitFor(hasText("Save flight"))
-                tap(hasText("Save flight"))
-                screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-button")) }
+            if (exists(hasTestTag("cockpit-end"))) {
+                holdToEnd()
             }
         }
     }
@@ -1731,6 +1760,7 @@ class VentiUiTest {
         // Who else is in the air: the development mode's demo gliders fly
         // the sample flight too, and the whole flight's view has them.
         val scenario = checkNotNull(app)
+        turnTo("Map")
         tap(described("Show the whole flight"))
         waitFor(described("Follow the glider"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
@@ -1748,10 +1778,8 @@ class VentiUiTest {
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Wind on the ground")) }
 
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
     }
 
     @Test
@@ -1956,10 +1984,8 @@ class VentiUiTest {
         waitFor(described("Altitude") and saying("over ground"))
         letTheMapDraw(6)
         keepScreenshot("$prefix-maps-3-cockpit")
-        tap(hasText("End replay"))
-        waitFor(hasText("Close the cockpit"))
-        tap(hasText("Close the cockpit"))
-        waitFor(hasText("Start flight"))
+        holdToEnd()
+        waitFor(hasText("Open the cockpit"))
     }
 
     @Test

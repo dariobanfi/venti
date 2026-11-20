@@ -1,5 +1,26 @@
 package fly.venti.app.fly
 
+import fly.venti.core.LiveShareView
+import fly.venti.core.DaylightLeft
+import fly.venti.app.airspace.AirspaceWords
+import fly.venti.app.design.PillShape
+import app.venti.design.VentiMotion
+import kotlinx.coroutines.launch
+import androidx.annotation.DrawableRes
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.background
+import androidx.compose.runtime.saveable.rememberSaveable
 import fly.venti.app.maps.KeptMap
 import fly.venti.core.GroundWindStation
 import fly.venti.core.GroundWindAlert
@@ -107,13 +128,35 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
+/** The pages of the cockpit. "Next page" goes around them. */
+enum class CockpitPage(
+    /** The page in a word, for a pilot who has the screen read out. */
+    val title: String,
+) {
+    /** The readings over the map: what the pilot flies by. */
+    Instruments("Instruments"),
+
+    /** The map as large as it gets, with the way to the place flown to. */
+    Map("Map"),
+
+    /** How the flight stands, and what can be switched. */
+    Flight("Flight"),
+    ;
+
+    val next: CockpitPage get() = entries[(ordinal + 1) % entries.size]
+}
+
 /**
- * The cockpit: what the pilot looks at in the air.
+ * The cockpit: what the pilot looks at in the air, as the design language's
+ * flight screen. It is always in the flight theme: a white ground and
+ * near-black ink, one very large reading, four large ones and two buttons.
  *
- * Few numbers, very large, in fixed places. The map follows the glider by
- * itself. While the core says the glider is circling in lift, the lower row
- * changes from cruise numbers to thermal numbers and the map zooms in;
- * nothing needs to be touched in flight.
+ * Three pages: the readings over the map, the map with the way to the place
+ * flown to, and the flight with what can be switched. Warnings stand at the
+ * top of every page, and the map alone gives way to them. Nothing needs to
+ * be touched in flight: while the core says the glider is circling in lift
+ * the readings change from cruise numbers to thermal numbers and the map
+ * zooms in.
  */
 @Composable
 fun CockpitScreen(
@@ -133,12 +176,12 @@ fun CockpitScreen(
     showsFaiAreas: Boolean,
     /** The region kept on the phone that covers the glider, which the map is drawn from. */
     keptMap: KeptMap? = null,
-    /** Called when the pilot has confirmed the end of the session. */
+    /** Called when the pilot has held the button that ends the session. */
     onFinish: () -> Unit,
 ) {
     val view = fly.view ?: return
     val isReplay = fly.mode is FlySession.Mode.Replay
-    var isConfirmingFinish by remember { mutableStateOf(false) }
+    var page by rememberSaveable { mutableStateOf(CockpitPage.Instruments) }
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
@@ -166,6 +209,14 @@ fun CockpitScreen(
     // The airspace the loudest warning is about: the map steps back as far
     // as it takes to show it.
     val airspaceDistance = fly.airspaceWarnings.firstOrNull { !it.silenced }?.distanceM
+    val openWinds = {
+        windsBeginOnTheGround = false
+        isShowingWinds = true
+    }
+    val openGroundWinds = {
+        windsBeginOnTheGround = true
+        isShowingWinds = true
+    }
 
     KeepScreenOn()
     // With the first position, and a network, the airspace around it is
@@ -175,16 +226,42 @@ fun CockpitScreen(
     LaunchedEffect(hasPosition) {
         view.position?.let(airspace::refreshSoon)
     }
-    // The cockpit covers the whole app; the back button ends it like the
-    // button on screen does, and asks first. Locked, it does nothing.
-    BackHandler { if (!isLocked) isConfirmingFinish = true }
+    // The cockpit covers the whole app and ends only by "Hold to end": the
+    // system's back does nothing here, so that a thumb on the edge of the
+    // screen ends no flight.
+    BackHandler {}
 
-    // A surface, so that text without a colour of its own takes the theme's.
     Box(Modifier.fillMaxSize()) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.systemBarsPadding()) {
-                StatusLine(view, fly.score, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed, mapIsKept = keptMap != null)
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+                StatusLine(view, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed, mapIsKept = keptMap != null)
+                // What the pilot must know now, on every page.
+                Alerts(
+                    fly,
+                    view,
+                    isReplay,
+                    onAirspace = { isShowingAirspace = true },
+                    onGroundWinds = openGroundWinds,
+                )
+                when (page) {
+                    CockpitPage.Instruments -> InstrumentsPage(view, way, onWinds = openWinds)
+                    CockpitPage.Map -> Unit
+                    CockpitPage.Flight -> FlightPage(
+                        view,
+                        fly.score,
+                        isReplay,
+                        isMuted = fly.isMuted,
+                        onMute = { fly.isMuted = !fly.isMuted },
+                        onLock = { isLocked = true },
+                        live = fly.live,
+                        onLive = { isShowingLive = true },
+                        onRecordNow = fly::recordNow,
+                    )
+                }
+                CockpitRule()
+                // The map alone gives way when a warning takes room at the
+                // top: the readings keep their size and their place.
+                Box(Modifier.weight(1f).fillMaxWidth().heightIn(min = 120.dp)) {
                     MapSurface(
                         content = map,
                         modifier = Modifier.fillMaxSize(),
@@ -196,170 +273,81 @@ fun CockpitScreen(
                             map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                         },
                     )
-                    // The whole flight at a glance, with the scored route and
-                    // where to go for an FAI triangle; again for the close view
-                    // that follows the glider.
+                    // The landing to think of first, and daylight, at the
+                    // upper left.
                     Column(
-                        modifier = Modifier.align(Alignment.CenterStart).padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.align(Alignment.TopStart).padding(VentiSpace.s2),
+                        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                     ) {
-                        SmallFloatingActionButton(
-                            onClick = { showsWholeFlight = !showsWholeFlight },
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ) {
-                            Icon(
-                                painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
-                                contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
-                            )
+                        fly.daylight?.let { DaylightBadge(it) }
+                        fly.landing?.let { landing ->
+                            LandingBadge(landing, onOpen = { isChoosingTarget = true })
                         }
-                        // With airspace to warn from, or the ground to draw:
-                        // what lies on the line ahead, seen from the side.
-                        if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
-                            SmallFloatingActionButton(
-                                onClick = { isShowingAhead = true },
-                                shape = CircleShape,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ) {
-                                Icon(painterResource(R.drawable.venti_glide), contentDescription = AheadWords.TITLE)
+                    }
+                    Column(
+                        modifier = Modifier.align(Alignment.TopEnd).padding(VentiSpace.s2),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                    ) {
+                        // On the first page the wind is among the readings.
+                        if (page != CockpitPage.Instruments) {
+                            view.wind?.let { wind -> WindBadge(wind, view.windAgeS, onOpen = openWinds) }
+                        }
+                        // A wind that leaves the glider little way into it.
+                        view.strongWind?.let { words -> StrongWindBadge(words) }
+                        // The wind on the ground: the station that speaks
+                        // for the landing, else the nearest.
+                        fly.windBelow?.stations?.firstOrNull()?.let { station ->
+                            GroundWindBadge(station, onOpen = openGroundWinds)
+                        }
+                        // While circling: which way the lift is stronger.
+                        view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                    }
+                    if (page == CockpitPage.Map) {
+                        Row(
+                            // Clear of the map's own credits in the corner.
+                            modifier = Modifier.align(Alignment.BottomStart).padding(
+                                start = VentiSpace.s2,
+                                bottom = VentiSpace.s6,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                        ) {
+                            // The whole flight at a glance; again for the
+                            // close view that follows the glider.
+                            MapButton(
+                                if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
+                                if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full,
+                            ) { showsWholeFlight = !showsWholeFlight }
+                            // With airspace to warn from, or the ground to
+                            // draw: what lies on the line ahead, seen from
+                            // the side.
+                            if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
+                                MapButton(AheadWords.TITLE, R.drawable.venti_glide) { isShowingAhead = true }
                             }
                         }
                     }
-                    Column(
-                        // Less room above than the other badges: a badge that
-                        // can be pressed is given a taller touch target than it
-                        // is drawn, and stands in its middle.
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        view.wind?.let { wind ->
-                            WindBadge(
-                            wind,
-                            view.windAgeS,
-                            onOpen = {
-                                windsBeginOnTheGround = false
-                                isShowingWinds = true
-                            },
-                        )
-                        }
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // A wind that leaves the glider little way into
-                            // it: said by the core, and only while it says so.
-                            view.strongWind?.let { words -> StrongWindBadge(words) }
-                        // The wind on the ground: the station that speaks
-                        // for the landing, else the nearest. A tap lists the
-                        // stations around.
-                        fly.windBelow?.stations?.firstOrNull()?.let { station ->
-                            GroundWindBadge(
-                                station,
-                                onOpen = {
-                                    windsBeginOnTheGround = true
-                                    isShowingWinds = true
-                                },
-                            )
-                        }
-                            // While circling: which way the lift is stronger,
-                            // in words beside the picture on the map.
-                            view.lift?.centre?.let { centre -> LiftBadge(centre) }
-                        }
-                    }
-                    Column(
-                        // Clear of the map's own credits button in the corner.
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        // A strong wind where the pilot means to land, over
-                        // the airspace's place on the map.
-                        fly.windWarning?.let { warning ->
-                            GroundWindBanner(
-                                warning,
-                                onOpen = {
-                                    windsBeginOnTheGround = true
-                                    isShowingWinds = true
-                                },
-                                onPutAway = fly::putWindWarningAway,
-                            )
-                        }
-                        AirspaceBanner(
-                            fly.airspaceWarnings,
-                            fly.airspaceCheck,
-                            onOpen = { isShowingAirspace = true },
-                        )
-                    }
-                    // The landing to think of first, and whether the glide
-                    // reaches it. A tap lists the places to fly to, each with
-                    // its reach.
-                    fly.landing?.let { landing ->
-                        LandingBadge(
-                            landing,
-                            onOpen = { isChoosingTarget = true },
-                            // A badge that can be pressed stands in the middle
-                            // of a taller touch target, as the wind's does.
-                            modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 6.dp),
-                        )
-                    }
-                    if (view.phase != FlightPhase.FLYING) {
-                        Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
-                            Text(
-                                if (view.phase == FlightPhase.GROUND) "Waiting for take-off" else "Landed",
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                        }
-                    }
                 }
-                HorizontalDivider()
-                // With a task: where the flight stands in it, above the line
-                // that says where to fly, which is then its next turnpoint
-                // unless the pilot chose another place.
-                if (taskStatus != null) {
-                    TaskStrip(taskStatus, onOpen = { isShowingTask = true })
-                    HorizontalDivider()
+                CockpitRule()
+                if (page == CockpitPage.Map) {
+                    // With a task: where the flight stands in it, above
+                    // the line that says where to fly.
+                    if (taskStatus != null) {
+                        TaskStrip(taskStatus, onOpen = { isShowingTask = true })
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
+                    MapReadings(view)
                 }
-                TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
-                Instruments(view, way)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedButton(
-                        onClick = { isConfirmingFinish = true },
-                        modifier = Modifier.weight(1f).height(VentiSize.touchFlight),
-                        contentPadding = PaddingValues(horizontal = VentiSpace.s3),
-                    ) {
-                        Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
-                    }
-                    // Nothing on the screen answers a touch until it is
-                    // unlocked by holding a finger on the lock.
-                    Spacer(Modifier.width(12.dp))
-                    FilledTonalIconButton(onClick = { isLocked = true }, modifier = Modifier.size(VentiSize.touchFlight)) {
-                        Icon(painterResource(R.drawable.ic_lock_open), contentDescription = "Lock the screen")
-                    }
-                    // Who watches the flight, and whether it is going out. Not
-                    // in a replay: what is replayed is not shared.
-                    if (!isReplay) {
-                        Spacer(Modifier.width(12.dp))
-                        LiveButton(fly.live, onOpen = { isShowingLive = true })
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    FilledTonalIconToggleButton(
-                        checked = fly.isMuted,
-                        onCheckedChange = { fly.isMuted = it },
-                        modifier = Modifier.size(VentiSize.touchFlight),
-                    ) {
-                        Icon(
-                            painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
-                            contentDescription = "Mute the vario",
-                        )
-                    }
-                }
+                // The two buttons, in the same place on every page. Locked,
+                // the lock stands in their place.
+                Foot(
+                    page,
+                    onNext = { page = page.next },
+                    onEnd = onFinish,
+                    modifier = Modifier.alpha(if (isLocked) 0f else 1f),
+                )
             }
         }
-        // Locked: a cover over everything takes the touches, and a lock at the
-        // foot of the screen opens it when held. The cockpit goes on showing
-        // and sounding as before.
         if (isLocked) {
             LockCover(onUnlock = { isLocked = false })
         }
@@ -409,29 +397,6 @@ fun CockpitScreen(
     if (isShowingLive) {
         LiveSheet(fly, account, preferences, onDismiss = { isShowingLive = false })
     }
-
-    if (isConfirmingFinish) {
-        AlertDialog(
-            onDismissRequest = { isConfirmingFinish = false },
-            title = { Text(if (isReplay) "End the replay?" else "Finish the flight?") },
-            text = if (isReplay) {
-                null
-            } else {
-                { Text("Recording stops and the flight is added to the logbook.") }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        isConfirmingFinish = false
-                        onFinish()
-                    },
-                ) {
-                    Text(if (isReplay) "Close the cockpit" else "Save flight")
-                }
-            },
-            dismissButton = { TextButton(onClick = { isConfirmingFinish = false }) { Text("Cancel") } },
-        )
-    }
 }
 
 /** The direction of travel, once the glider moves fast enough for it to mean something. */
@@ -448,11 +413,87 @@ private fun KeepScreenOn() {
     }
 }
 
-/** The line at the top: is it recording, how long, and are the sensors there. */
+/** The line the design language draws between the readings and the map. */
+@Composable
+private fun CockpitRule() {
+    Box(Modifier.fillMaxWidth().height(2.dp).background(MaterialTheme.colorScheme.outlineVariant))
+}
+
+/** What the pilot must know now: airspace, a strong wind at the landing, and where the flight is in its life. */
+@Composable
+private fun Alerts(
+    fly: FlySession,
+    view: CockpitView,
+    isReplay: Boolean,
+    onAirspace: () -> Unit,
+    onGroundWinds: () -> Unit,
+) {
+    val notice = PhaseWords.notice(view, isReplay)
+    val warning = fly.windWarning
+    val hasAirspace = AirspaceWords.shown(fly.airspaceWarnings) != null || AirspaceWords.notChecking(fly.airspaceCheck) != null
+    if (notice == null && warning == null && !hasAirspace) return
+    Column(
+        Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s2),
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+    ) {
+        AirspaceBanner(fly.airspaceWarnings, fly.airspaceCheck, onOpen = onAirspace)
+        warning?.let { GroundWindBanner(it, onOpen = onGroundWinds, onPutAway = fly::putWindWarningAway) }
+        notice?.let { (title, detail) -> PhaseNotice(view, title, detail) }
+    }
+}
+
+/** Where the flight is in its life, in words, while it is not in the air. */
+object PhaseWords {
+    /** The title and the line under it, or `null` in the air. */
+    fun notice(view: CockpitView, isReplay: Boolean): Pair<String, String?>? = when (view.phase) {
+        FlightPhase.FLYING -> null
+        FlightPhase.GROUND -> when {
+            view.waitingForTakeoff -> "Ready for take-off" to "Recording starts by itself."
+            view.recording -> "Recording" to "Waiting for take-off."
+            else -> "Waiting for take-off" to null
+        }
+        FlightPhase.LANDED -> "Landed" to view.savesInS?.takeIf { !isReplay }?.let {
+            "The flight is saved in ${Format.minutesSeconds(it)}."
+        }
+    }
+}
+
+@Composable
+private fun PhaseNotice(view: CockpitView, title: String, detail: String?) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = VentiSize.touch)
+            .testTag("cockpit-phase")
+            .clearAndSetSemantics {
+                contentDescription = title
+                detail?.let { stateDescription = it }
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            Modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painterResource(if (view.phase == FlightPhase.LANDED) R.drawable.venti_landing else R.drawable.venti_takeoff),
+                contentDescription = null,
+                modifier = Modifier.size(VentiSize.icon),
+            )
+            Spacer(Modifier.width(VentiSpace.s3))
+            Column {
+                Text(title, style = fixed(VentiType.heading))
+                detail?.let { Text(it, style = fixed(VentiType.label).numbers) }
+            }
+        }
+    }
+}
+
+/** The line at the top: ready, recording or replaying, how long, and where the climb comes from. */
 @Composable
 private fun StatusLine(
     view: CockpitView,
-    score: LiveScore?,
     mode: FlySession.Mode?,
     varioName: String?,
     /** Called with the speed the pilot chose for a replay. */
@@ -460,102 +501,59 @@ private fun StatusLine(
     /** Whether the map is drawn from a region kept on the phone, and so stays when the network goes. */
     mapIsKept: Boolean = false,
 ) {
-    val style = MaterialTheme.typography.labelLarge
-    val missing = MaterialTheme.colorScheme.error
+    val style = fixed(VentiType.label)
+    val danger = Venti.colours.danger
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (mode is FlySession.Mode.Replay) {
+        when {
             // A replay can be held at a moment and run on, slower or faster.
-            ReplaySpeedMenu(mode.speed, onChoose = onReplaySpeed)
-        } else if (view.recording) {
-            Icon(
-                painterResource(R.drawable.ic_record),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = missing,
-            )
-            Spacer(Modifier.width(4.dp))
-            Text("Recording", style = style, maxLines = 1)
+            mode is FlySession.Mode.Replay -> ReplaySpeedMenu(mode.speed, onChoose = onReplaySpeed)
+            view.recording -> {
+                Icon(
+                    painterResource(R.drawable.ic_record),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = Venti.colours.accentText,
+                )
+                Spacer(Modifier.width(VentiSpace.s1))
+                Text("Recording", style = style, maxLines = 1)
+            }
+            view.waitingForTakeoff -> Text("Ready", style = style, maxLines = 1, modifier = Modifier.testTag("cockpit-ready"))
         }
         view.flightTimeS?.let { seconds ->
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(VentiSpace.s2))
             Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1, modifier = Modifier.testTag("flight-time"))
         }
-        // The cross-country distance so far, once there is a kilometre of
-        // it, with a triangle when it scores as one.
-        if (score != null && score.distanceM >= 1000) {
-            val distance = Format.kilometres(score.distanceM)
-            val quiet = MaterialTheme.colorScheme.onSurfaceVariant
-            Spacer(Modifier.width(10.dp))
-            Row(
-                modifier = Modifier.clearAndSetSemantics {
-                    contentDescription = "Cross-country distance"
-                    stateDescription = "$distance kilometres, ${scoreWords(score)}"
-                },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painterResource(
-                        if (score.kind == RouteKind.FREE_FLIGHT) R.drawable.ic_arrow_outward else R.drawable.venti_triangle,
-                    ),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = quiet,
-                )
-                Spacer(Modifier.width(3.dp))
-                Text("$distance km", style = style.numbers, color = quiet, maxLines = 1)
-            }
-            // An open triangle: how far it is to where it began.
-            val gap = score.closingM
-            if (gap != null && !score.closed && gap >= 100) {
-                Spacer(Modifier.width(8.dp))
-                Text("${Format.kilometres(gap)} to close", style = style.numbers, color = quiet, maxLines = 1)
-            }
-        }
-        // A gap also when the line is full and the spring between its two
-        // halves has nothing left to give.
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(VentiSpace.s2))
         Spacer(Modifier.weight(1f))
         // No position for five seconds means the fix is gone.
         if (view.positionAgeS?.let { it > 5 } != false) {
-            Icon(
-                painterResource(R.drawable.ic_location_off),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = missing,
-            )
-            Spacer(Modifier.width(4.dp))
-            Text("No position", style = style, color = missing, maxLines = 1)
-            Spacer(Modifier.width(8.dp))
+            Icon(painterResource(R.drawable.ic_location_off), contentDescription = null, modifier = Modifier.size(18.dp), tint = danger)
+            Spacer(Modifier.width(VentiSpace.s1))
+            Text("No GPS", style = style, color = danger, maxLines = 1)
+            Spacer(Modifier.width(VentiSpace.s2))
         }
-        // The map is drawn from the phone: an arrow into a tray says so.
+        // The map is drawn from the phone: an arrow in a circle says so.
         if (mapIsKept) {
             Icon(
                 painterResource(R.drawable.ic_map_kept),
                 contentDescription = "Map from this phone",
                 modifier = Modifier.size(18.dp).testTag("map-kept"),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(VentiSpace.s2))
         }
         // An external vario that was talking and has stopped.
         val varioIsLost = view.instrument?.talking == false
         Text(
             varioText(view, mode, varioName),
             style = style,
-            color = if (varioIsLost) missing else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (varioIsLost) danger else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-private fun scoreWords(score: LiveScore): String = when (score.kind) {
-    RouteKind.FREE_FLIGHT -> "free flight"
-    RouteKind.FREE_TRIANGLE -> if (score.closed) "closed triangle" else "triangle"
-    RouteKind.FAI_TRIANGLE -> if (score.closed) "closed FAI triangle" else "FAI triangle"
 }
 
 private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: String?): String {
@@ -574,67 +572,262 @@ private fun varioText(view: CockpitView, mode: FlySession.Mode?, varioName: Stri
 }
 
 /**
- * The numbers. The upper pair never changes; the lower row is for cruising
- * or for thermalling.
+ * The readings of the first page, as the design language's flight screen
+ * has them: the climb very large beside its scale, and four large ones in
+ * fixed places. Altitude and wind never move; the other two are for
+ * cruising or for thermalling.
  */
 @Composable
-private fun Instruments(view: CockpitView, way: WayToTarget?) {
-    Column {
-        HorizontalDivider()
-        Row(Modifier.height(LARGE_ROW)) {
-            Instrument(
-                title = "Altitude",
-                value = view.altitudeM?.let(Format::metres),
-                unit = "m",
-                detail = AltitudeWords.under(view.heightAboveGroundM, view.heightAboveTakeoffM),
-                isLarge = true,
+private fun InstrumentsPage(view: CockpitView, way: WayToTarget?, onWinds: () -> Unit) {
+    Column(Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s2)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Reading(
+                "Climb",
+                view.climbMs?.let(Format::climb),
+                "m/s",
+                note = view.averageClimbMs?.let { "${Format.climb(it)} m/s average" },
+                size = ReadingSize.VeryLarge,
                 modifier = Modifier.weight(1f),
             )
-            VerticalDivider()
-            Row(Modifier.weight(1f).padding(start = 12.dp)) {
-                VarioBar(view.climbMs)
-                Instrument(
-                    title = "Climb",
-                    value = view.climbMs?.let(Format::climb),
-                    unit = "m/s",
-                    detail = view.averageClimbMs?.let { "${Format.climb(it)} average" },
-                    isLarge = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            VarioScale(view.climbMs, Modifier.padding(top = VentiSpace.s3))
         }
-        HorizontalDivider()
-        Row(Modifier.height(SMALL_ROW)) {
+        Row {
+            Reading(
+                "Altitude",
+                view.altitudeM?.let(Format::metres),
+                "m",
+                note = AltitudeWords.under(view.heightAboveGroundM, view.heightAboveTakeoffM),
+                modifier = Modifier.weight(1f),
+            )
             if (view.circling) {
-                Instrument("Gained", view.thermal?.let { Format.signedMetres(it.gainM) }, "m", Modifier.weight(1f))
-                VerticalDivider()
-                Instrument("Thermal", view.thermal?.let { Format.climb(it.climbMs) }, "m/s", Modifier.weight(1f))
-                VerticalDivider()
-                Instrument(
-                    title = "Wind",
-                    value = view.wind?.let { Format.kilometresPerHour(it.speedMs) },
-                    unit = view.wind?.let { "km/h ${Format.compassPoint(it.fromDeg)}" } ?: "km/h",
-                    modifier = Modifier.weight(1f),
-                )
+                Reading("Gained", view.thermal?.let { Format.signedMetres(it.gainM) }, "m", modifier = Modifier.weight(1f))
             } else {
-                Instrument(
-                    "Speed", view.groundSpeedMs?.let(Format::kilometresPerHour), "km/h", Modifier.weight(1f),
-                )
-                VerticalDivider()
-                Instrument("Glide", view.glideRatio?.let(Format::glideRatio), "", Modifier.weight(1f))
-                VerticalDivider()
-                // Next to the glide the glider is making: the glide it
-                // needs to reach the place it is flying to.
-                Instrument("Needs", way?.requiredGlide?.let(Format::neededGlide), "", Modifier.weight(1f))
+                Reading("Ground speed", view.groundSpeedMs?.let(Format::kilometresPerHour), "km/h", modifier = Modifier.weight(1f))
             }
         }
-        HorizontalDivider()
+        Row {
+            if (view.circling) {
+                Reading("Thermal", view.thermal?.let { Format.climb(it.climbMs) }, "m/s", modifier = Modifier.weight(1f))
+            } else {
+                // Under the glide the glider is making: the glide it needs
+                // to reach the place it is flying to.
+                Reading(
+                    "Glide",
+                    view.glideRatio?.let(Format::glideRatio),
+                    "",
+                    note = way?.requiredGlide?.let { "Needs ${Format.glideRatio(it)}" },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // The wind as last measured while circling. One from a while
+            // ago is a memory of another place and height: its age stands
+            // under it. A tap lists the wind by height.
+            val wind = view.wind
+            Reading(
+                wind?.let { "Wind from ${Format.compassPoint(it.fromDeg)}" } ?: "Wind",
+                wind?.let { Format.kilometresPerHour(it.speedMs) },
+                "km/h",
+                note = WindBadgeWords.age(view.windAgeS)?.let { "$it old" },
+                spoken = "Wind",
+                onClick = onWinds,
+                modifier = Modifier.weight(1f).testTag("wind-reading"),
+            )
+        }
     }
 }
 
-/** The height of the row with altitude and climb, and of the row below it. Fixed, like the type in them. */
-private val LARGE_ROW = 106.dp
-private val SMALL_ROW = 74.dp
+/** The readings under the map of the second page: three, of middle size. */
+@Composable
+private fun MapReadings(view: CockpitView) {
+    Row(Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s1)) {
+        Reading("Climb", view.climbMs?.let(Format::climb), "m/s", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+        Reading("Altitude", view.altitudeM?.let(Format::metres), "m", size = ReadingSize.Medium, modifier = Modifier.weight(1f))
+        Reading(
+            "Ground speed",
+            view.groundSpeedMs?.let(Format::kilometresPerHour),
+            "km/h",
+            size = ReadingSize.Medium,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** What the flight's page says of the distance: how it scores, and how far it is to close. */
+object FlightPageWords {
+    /** "Free flight", "Triangle, 1.2 km to close", "Closed FAI triangle". */
+    fun kind(score: LiveScore): String {
+        val kind = when (score.kind) {
+            RouteKind.FREE_FLIGHT -> "Free flight"
+            RouteKind.FREE_TRIANGLE -> if (score.closed) "Closed triangle" else "Triangle"
+            RouteKind.FAI_TRIANGLE -> if (score.closed) "Closed FAI triangle" else "FAI triangle"
+        }
+        val gap = score.closingM
+        return if (gap != null && !score.closed && gap >= 100) "$kind, ${Format.kilometres(gap)} km to close" else kind
+    }
+}
+
+/** The third page: how the flight stands, and what can be switched. None of its buttons ends anything. */
+@Composable
+private fun FlightPage(
+    view: CockpitView,
+    score: LiveScore?,
+    isReplay: Boolean,
+    isMuted: Boolean,
+    onMute: () -> Unit,
+    onLock: () -> Unit,
+    live: LiveShareView?,
+    onLive: () -> Unit,
+    onRecordNow: () -> Unit,
+) {
+    Column(
+        Modifier.padding(start = VentiSpace.s4, end = VentiSpace.s4, bottom = VentiSpace.s3),
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+    ) {
+        Row {
+            Reading("Flight time", view.flightTimeS?.let(Format::stopwatch), "", modifier = Modifier.weight(1f))
+            // The cross-country distance so far, and how it scores.
+            Reading(
+                "Distance",
+                score?.let { Format.kilometres(it.distanceM) },
+                "km",
+                note = score?.let(FlightPageWords::kind),
+                spoken = "Cross-country distance",
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+            QuietButton(
+                if (isMuted) "Unmute vario" else "Mute vario",
+                if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
+                Modifier.weight(1f).testTag("cockpit-mute"),
+                onClick = onMute,
+            )
+            // Nothing on the screen answers a touch until it is unlocked
+            // by holding a finger on the lock.
+            QuietButton("Lock screen", R.drawable.ic_lock, Modifier.weight(1f).testTag("cockpit-lock"), onClick = onLock)
+        }
+        // Who watches the flight, and whether it is going out. Not in a
+        // replay: what is replayed is not shared, nor recorded.
+        if (!isReplay) {
+            Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
+                LiveButton(live, Modifier.weight(1f), onOpen = onLive)
+                // For a pilot who would rather not wait for the take-off to
+                // be noticed.
+                if (view.waitingForTakeoff) {
+                    QuietButton("Record now", R.drawable.ic_record, Modifier.weight(1f).testTag("cockpit-record-now"), onClick = onRecordNow)
+                }
+            }
+        }
+    }
+}
+
+/** A button of the pack's quiet kind, as high as a gloved finger needs in flight. */
+@Composable
+private fun QuietButton(title: String, @DrawableRes icon: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = VentiSize.touchFlight),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+        contentPadding = PaddingValues(horizontal = VentiSpace.s3),
+    ) {
+        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(VentiSpace.s2))
+        Text(title, style = fixed(VentiType.label).copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** The two buttons of the cockpit, in the same place on every page. */
+@Composable
+private fun Foot(page: CockpitPage, onNext: () -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3),
+        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s3),
+    ) {
+        OutlinedButton(
+            onClick = onNext,
+            modifier = Modifier
+                .weight(1f)
+                .height(VentiSize.touchFlight)
+                .testTag("cockpit-next-page")
+                .semantics { stateDescription = page.title },
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+        ) {
+            Text("Next page", style = fixed(VentiType.heading), maxLines = 1)
+        }
+        HoldToEnd(onEnd, Modifier.weight(1f))
+    }
+}
+
+/** How long a finger stays on "Hold to end" to end the session, milliseconds. */
+private const val HOLD_TO_END_MILLISECONDS = 1_000
+
+/**
+ * The button that ends the session: held for a second, so that a glove, a
+ * line or a drop of rain ends nothing. It fills while the finger stays, and
+ * nothing asks again. TalkBack's double tap ends it, which is deliberate
+ * enough.
+ */
+@Composable
+private fun HoldToEnd(onEnd: () -> Unit, modifier: Modifier = Modifier) {
+    val filled = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val end by rememberUpdatedState(onEnd)
+    val primary = MaterialTheme.colorScheme.primary
+    val fill = Venti.colours.primaryPressed
+    Box(
+        modifier
+            .height(VentiSize.touchFlight)
+            .clip(PillShape)
+            .drawBehind {
+                drawRect(primary)
+                drawRect(fill, size = Size(size.width * filled.value, size.height))
+            }
+            .testTag("cockpit-end")
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    val filling = scope.launch {
+                        filled.animateTo(1f, tween(HOLD_TO_END_MILLISECONDS, easing = LinearEasing))
+                    }
+                    val lifted = withTimeoutOrNull(HOLD_TO_END_MILLISECONDS.toLong()) { waitForUpOrCancellation() }
+                    filling.cancel()
+                    if (lifted == null) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        end()
+                    }
+                    scope.launch { filled.animateTo(0f, tween(VentiMotion.fastMillis)) }
+                }
+            }
+            .clearAndSetSemantics {
+                contentDescription = "Hold to end"
+                role = Role.Button
+                onClick(label = "End the session") {
+                    end()
+                    true
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("Hold to end", style = fixed(VentiType.heading), color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
+    }
+}
+
+/** A round button over the map, as large as a finger in a glove needs. With an edge: flight mode has no shadows. */
+@Composable
+private fun MapButton(title: String, @DrawableRes icon: Int, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.size(VentiSize.touchFlight).semantics { contentDescription = title },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(VentiSize.icon))
+        }
+    }
+}
 
 /** What stands under the altitude. */
 object AltitudeWords {
@@ -648,73 +841,94 @@ object AltitudeWords {
             ?: aboveTakeoffM?.let { "${Format.signedMetres(it)} m over take-off" }
 }
 
+/** The sizes of the cockpit's readings: the pack's instrument styles. */
+enum class ReadingSize(val number: VentiTypeStyle, val unit: VentiTypeStyle) {
+    /** The one reading a page may have of this size. */
+    VeryLarge(VentiType.instrumentXl, VentiType.heading),
+    Large(VentiType.instrumentL, VentiType.label),
+    Medium(VentiType.instrumentM, VentiType.label),
+}
+
 /**
- * One number in the cockpit. The sizes are fixed on purpose, and do not
- * follow the phone's text-size setting: an instrument has to be in the same
- * place at the same size every time the pilot glances at it.
+ * One reading of the cockpit: the number, and under it its name. The sizes
+ * are the design language's instrument sizes and do not follow the phone's
+ * text-size setting: a reading has to be in the same place at the same
+ * size every time the pilot glances at it. A value the sensors have not
+ * supplied is two dashes, never an old number.
  */
 @Composable
-private fun Instrument(
-    title: String,
+private fun Reading(
+    name: String,
     /** The value as text, or `null` while the sensors have not supplied it. */
     value: String?,
     unit: String,
     modifier: Modifier = Modifier,
-    detail: String? = null,
-    isLarge: Boolean = false,
+    /** What is worth knowing beside it, under the name. */
+    note: String? = null,
+    size: ReadingSize = ReadingSize.Large,
+    /** The name as it is read out, where the one shown says more than a name. */
+    spoken: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
-    // The pack's instrument styles: the two readings that never change
-    // place large, the row under them as readings in a card.
-    val valueStyle = if (isLarge) VentiType.instrumentL else VentiType.instrumentM
+    val pressable = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier
     Column(
         modifier
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .then(pressable)
             .clearAndSetSemantics {
-                contentDescription = title
-                // The number, and the line under it where it has one.
+                contentDescription = spoken ?: name
                 stateDescription = listOfNotNull(
                     when {
                         value == null -> "not available"
                         unit.isEmpty() -> value
                         else -> "$value $unit"
                     },
-                    detail,
+                    note,
                 ).joinToString(", ")
-            },
+                if (onClick != null) {
+                    role = Role.Button
+                    onClick(label = "Show the wind by height") {
+                        onClick()
+                        true
+                    }
+                }
+            }
+            .padding(vertical = VentiSpace.s1),
     ) {
-        Text(title, style = fixed(VentiType.label), color = quiet, maxLines = 1)
         Row {
             Text(
-                value ?: "–",
+                value ?: "– –",
                 modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
-                style = fixed(valueStyle).numbers,
+                style = fixed(size.number).numbers,
                 maxLines = 1,
                 softWrap = false,
                 // A long value is set smaller before it is cut off; the
-                // row keeps its height.
+                // reading keeps its height.
                 autoSize = TextAutoSize.StepBased(
-                    minFontSize = fixedSize(valueStyle.sizePx.dp / 2),
-                    maxFontSize = fixedSize(valueStyle.sizePx.dp),
+                    minFontSize = fixedSize(size.number.sizePx.dp * 0.6f),
+                    maxFontSize = fixedSize(size.number.sizePx.dp),
                     stepSize = fixedSize(1.dp),
                 ),
             )
-            if (unit.isNotEmpty()) {
+            if (unit.isNotEmpty() && value != null) {
                 Text(
                     unit,
-                    modifier = Modifier.padding(start = 4.dp).alignByBaseline(),
-                    style = fixed(VentiType.label),
+                    modifier = Modifier.padding(start = VentiSpace.s1).alignByBaseline(),
+                    style = fixed(size.unit).copy(fontWeight = FontWeight.SemiBold),
                     color = quiet,
                     maxLines = 1,
                     softWrap = false,
                 )
             }
         }
-        if (isLarge) {
+        Text(name, style = fixed(VentiType.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Its line is kept when there is nothing to say, so that the
+        // readings below stay where they are.
+        if (size != ReadingSize.Medium) {
             Text(
-                detail ?: " ",
+                note ?: " ",
                 style = fixed(VentiType.label).copy(fontWeight = FontWeight.Normal).numbers,
-                color = quiet,
+                color = Venti.colours.textMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -735,25 +949,59 @@ private fun fixed(style: VentiTypeStyle): TextStyle =
     style.text.copy(fontSize = fixedSize(style.sizePx.dp), lineHeight = fixedSize(style.lineHeightPx.dp))
 
 /**
- * Climb and sink as a bar that grows up or down from the middle, in the
- * colours the track has on the map. Full scale is 5 m/s.
+ * Climb and sink at a glance, as the design language draws it: three steps
+ * above a line for the climb and three below for the sink, each lit in its
+ * colour of the vario scale once the glider climbs or sinks that fast. It
+ * is read by its shape: more steps, more climb.
  */
 @Composable
-private fun VarioBar(climb: Double?) {
-    val groove = MaterialTheme.colorScheme.surfaceContainerHighest
-    val vario = Venti.colours.vario
-    Canvas(Modifier.width(10.dp).fillMaxHeight().padding(vertical = 10.dp).clearAndSetSemantics {}) {
-        val half = size.height / 2
-        val rate = climb ?: 0.0
-        val length = max((min(abs(rate) / 5, 1.0) * half).toFloat(), 2.dp.toPx())
-        val round = CornerRadius(size.width / 2)
-        drawRoundRect(groove, cornerRadius = round)
-        drawRoundRect(
-            vario[ClimbBand.of(rate).ordinal],
-            topLeft = Offset(0f, if (rate >= 0) half - length else half),
-            size = Size(size.width, length),
-            cornerRadius = CornerRadius(3.dp.toPx()),
-        )
+private fun VarioScale(climb: Double?, modifier: Modifier = Modifier) {
+    val colours = Venti.colours
+    val band = climb?.let(ClimbBand::of) ?: ClimbBand.Level
+    val up = listOf(ClimbBand.StrongClimb, ClimbBand.GoodClimb, ClimbBand.Climb)
+    val down = listOf(ClimbBand.LightSink, ClimbBand.Sink, ClimbBand.StrongSink)
+    Column(modifier.width(44.dp).clearAndSetSemantics {}, verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
+        for (step in up) {
+            val lit = band.ordinal >= step.ordinal
+            Box(Modifier.fillMaxWidth().height(12.dp).background(if (lit) colours.vario[step.ordinal] else colours.surfaceRaised))
+        }
+        Box(Modifier.fillMaxWidth().height(3.dp).background(colours.text))
+        for (step in down) {
+            val lit = band.ordinal <= step.ordinal
+            Box(Modifier.fillMaxWidth().height(12.dp).background(if (lit) colours.vario[step.ordinal] else colours.surfaceRaised))
+        }
+    }
+}
+
+/** How much daylight is left, over the map once it is less than two hours. */
+object DaylightWords {
+    /** What to show, if anything, and whether it is past sunset. */
+    fun of(daylight: DaylightLeft): Pair<String, Boolean>? {
+        val toSunset = daylight.minutesToSunset
+        if (toSunset != null && toSunset >= 0) {
+            if (toSunset >= 120) return null
+            return "Sunset in ${Format.hoursMinutes(toSunset * 60)}" to false
+        }
+        val toDusk = daylight.minutesToDusk
+        if (toDusk != null && toDusk >= 0) return "Night in ${Format.hoursMinutes(toDusk * 60)}" to true
+        if (toSunset == null && toDusk == null) return null
+        return "Night" to true
+    }
+}
+
+@Composable
+private fun DaylightBadge(daylight: DaylightLeft) {
+    val (words, isLate) = DaylightWords.of(daylight) ?: return
+    Badge(
+        Modifier.clearAndSetSemantics {
+            contentDescription = "Daylight"
+            stateDescription = words
+        },
+        ink = if (isLate) Venti.colours.danger else null,
+    ) {
+        Icon(painterResource(R.drawable.ic_bedtime), contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(words, style = fixed(VentiType.label).copy(fontWeight = FontWeight.SemiBold).numbers, color = Color.Unspecified)
     }
 }
 
@@ -942,7 +1190,7 @@ private fun GroundWindBadge(station: GroundWindStation, onOpen: () -> Unit, modi
         station.fromDeg?.let { from ->
             Spacer(Modifier.width(4.dp))
             Icon(
-                painterResource(R.drawable.ic_arrow_upward),
+                painterResource(R.drawable.venti_arrow_wind),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp).rotate((from + 180).toFloat()),
             )
@@ -1043,7 +1291,7 @@ private fun WindBadge(wind: WindView, ageSeconds: Double?, onOpen: () -> Unit, m
         onClick = onOpen,
     ) {
         Icon(
-            painterResource(R.drawable.ic_arrow_upward),
+            painterResource(R.drawable.venti_arrow_wind),
             contentDescription = null,
             // The arrow shows where the wind goes; the map is north-up.
             modifier = Modifier.size(20.dp).rotate((wind.fromDeg + 180).toFloat()),
@@ -1091,7 +1339,10 @@ private fun LockCover(onUnlock: () -> Unit) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .systemBarsPadding()
-                .padding(bottom = 14.dp)
+                // In the place of the two buttons at the foot.
+                .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s3)
+                .fillMaxWidth()
+                .height(VentiSize.touchFlight)
                 .testTag("cockpit-unlock")
                 .pointerInput(Unit) {
                     awaitEachGesture {
@@ -1112,12 +1363,12 @@ private fun LockCover(onUnlock: () -> Unit) {
                 },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 6.dp,
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
         ) {
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_lock), contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Locked. Hold to unlock", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(VentiSpace.s2))
+                Text("Locked. Hold to unlock", style = fixed(VentiType.heading))
             }
         }
     }

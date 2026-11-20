@@ -1,5 +1,6 @@
 package fly.venti.app
 
+import kotlinx.coroutines.CancellationException
 import fly.venti.app.maps.Connectivity
 import fly.venti.app.maps.OfflineMapsModel
 import fly.venti.app.flight.KeystoreUploadPasswordStore
@@ -248,6 +249,20 @@ sealed interface Session {
                 tasks.keep(LaunchOptions.SAMPLE_TASK_FILE)
             }
             fly.taskFile = { tasks.file }
+            // A flight that ends by itself goes into the logbook as one the
+            // pilot ends, also while the screen is off; the screen shows it.
+            fly.savedByItself = { recording ->
+                scope.launch {
+                    try {
+                        fly.savedFlight = logbook.adopt(recording)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        fly.problem = "The flight was recorded but could not be added to the logbook: " +
+                            "${error.pilotMessage} It will be tried again the next time Venti starts."
+                    }
+                }
+            }
             // A flight goes to a league from this phone. The DHV-XC's upload
             // password is kept where the phone keeps secrets; a test keeps
             // none and never sends.

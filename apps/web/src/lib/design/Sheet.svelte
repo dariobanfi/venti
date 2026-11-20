@@ -56,7 +56,7 @@
 		min-height: var(--target);
 		padding: 0 0.75rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 		font-weight: 600;
 	}
 

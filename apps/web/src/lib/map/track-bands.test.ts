@@ -3,7 +3,7 @@ import type { TrackPoint } from '#lib/core/index.ts';
 import { CLIMB_BANDS, climbBand } from '#lib/design/palette.ts';
 import { runs } from './track-bands';
 
-const [STRONG_SINK, SINK, LEVEL, CLIMB, STRONG_CLIMB] = [0, 1, 2, 3, 4];
+const [STRONG_SINK, SINK, LEVEL, CLIMB, STRONG_CLIMB] = [0, 2, 3, 4, 6];
 
 /** One point every two seconds with the given climb rates. */
 function track(climbs: number[]): TrackPoint[] {
@@ -17,24 +17,36 @@ function track(climbs: number[]): TrackPoint[] {
 }
 
 describe('climb bands', () => {
-	it('split at the rates docs/design.md gives', () => {
-		expect(climbBand(-3)).toBe(STRONG_SINK);
-		expect(climbBand(-2)).toBe(SINK);
+	it('split at the breaks of the design pack’s vario scale', () => {
+		expect(climbBand(-3.5)).toBe(STRONG_SINK);
+		expect(climbBand(-3)).toBe(1);
 		expect(climbBand(-1.2)).toBe(SINK);
 		expect(climbBand(-0.5)).toBe(LEVEL);
 		expect(climbBand(0.4)).toBe(LEVEL);
 		expect(climbBand(0.5)).toBe(CLIMB);
-		expect(climbBand(2)).toBe(STRONG_CLIMB);
+		expect(climbBand(1.5)).toBe(5);
+		expect(climbBand(3)).toBe(STRONG_CLIMB);
 		expect(climbBand(12)).toBe(STRONG_CLIMB);
 	});
 
-	it('have the five colours of docs/design.md, sink first', () => {
+	it('have the seven light colours of the pack, teal for sink and coral for lift', () => {
 		expect(CLIMB_BANDS.map((band) => band.color)).toEqual([
-			'#184F95',
-			'#3987E5',
-			'#85847F',
-			'#EB6834',
-			'#B8242B'
+			'#0A5F6C',
+			'#1F93A1',
+			'#86C9CC',
+			'#CBC6C2',
+			'#F3A682',
+			'#E56954',
+			'#B02A45'
+		]);
+		expect(CLIMB_BANDS.map((band) => band.label)).toEqual([
+			'Sinking faster than 3 m/s',
+			'Sinking 1.5 to 3 m/s',
+			'Sinking 0.5 to 1.5 m/s',
+			'Within 0.5 m/s of level',
+			'Climbing 0.5 to 1.5 m/s',
+			'Climbing 1.5 to 3 m/s',
+			'Climbing faster than 3 m/s'
 		]);
 	});
 

@@ -198,7 +198,7 @@
 
 	.outcome :global(svg) {
 		flex: none;
-		color: var(--accent);
+		color: var(--link);
 		font-size: 1em;
 	}
 </style>

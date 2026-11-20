@@ -6,8 +6,9 @@
 		     bar; the controls keep clear of them with the safe-area insets. -->
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="color-scheme" content="light dark" />
-		<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+		<!-- The design pack's paper and its indigo slope (design/tokens). -->
+		<meta name="theme-color" content="#fff8e8" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#1c1236" media="(prefers-color-scheme: dark)" />
 		<meta
 			name="description"
 			content="Venti is a free, open-source app for paragliding. Keep your flights in a logbook and see each one on a terrain map."
@@ -16,7 +17,11 @@
 		     follows (vite.config.ts). A policy in a page holds for what comes
 		     after it, so nothing that loads anything stands above this line. -->
 		%sveltekit.head%
+		<!-- From the design pack, written into the site by the build (vite.config.ts). -->
+		<link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="48x48" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+		<link rel="manifest" href="%sveltekit.assets%/site.webmanifest" />
 	</head>
 	<body>
 		<div class="app">%sveltekit.body%</div>

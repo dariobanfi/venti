@@ -161,14 +161,13 @@
 		margin-left: -0.5rem;
 		padding: 0 0.75rem 0 0.25rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	h1 {
 		margin-bottom: 0.75rem;
 		font-size: var(--large-title);
-		font-weight: 700;
-		letter-spacing: -0.01em;
+		font-weight: 600;
 	}
 
 	section {

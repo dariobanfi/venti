@@ -113,8 +113,7 @@
 
 	h1 {
 		font-size: var(--large-title);
-		font-weight: 700;
-		letter-spacing: -0.01em;
+		font-weight: 600;
 	}
 
 	.season {
@@ -156,7 +155,7 @@
 
 	.nothing h2 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	.nothing p {

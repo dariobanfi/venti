@@ -274,7 +274,7 @@ describe('a row of the list', () => {
 			'No public flights on these days'
 		);
 		expect(nothingListed({ ...NOT_LISTED, absent: true }, { from: '', to: '' }).title).toBe(
-			'No Venti server here'
+			'Not connected to Venti'
 		);
 		expect(
 			nothingListed({ ...NOT_LISTED, problem: 'The server is busy.' }, { from: '', to: '' })

@@ -7,7 +7,13 @@
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import type { FlightScore, FlightView, TrackPoint } from '#lib/core/index.ts';
-	import { ACCENT_ON_MAP, CLIMB_BANDS, INK_ON_MAP, ROUTE_ON_MAP } from '#lib/design/palette.ts';
+	import {
+		ACCENT_ON_MAP,
+		CLIMB_BANDS,
+		INK_ON_MAP,
+		PAPER_ON_MAP,
+		ROUTE_ON_MAP
+	} from '#lib/design/palette.ts';
 	import type { Map } from '#lib/map/setup.ts';
 	import { NOTHING, place, routeLines, trackByBand } from '#lib/map/shapes.ts';
 
@@ -63,7 +69,7 @@
 				addEnds(module, styled);
 				styled.addSource('flight-cursor', { type: 'geojson', data: NOTHING });
 				styled.addLayer(
-					module.dot('flight-cursor-dot', 'flight-cursor', 8, ACCENT_ON_MAP, '#ffffff')
+					module.dot('flight-cursor-dot', 'flight-cursor', 8, ACCENT_ON_MAP, PAPER_ON_MAP)
 				);
 				map = styled;
 			});
@@ -84,7 +90,7 @@
 	function addTrack(module: typeof import('#lib/map/setup.ts'), map: Map) {
 		map.addSource('flight-track', { type: 'geojson', data: trackByBand(flight.track) });
 		// A white edge keeps the track readable over any ground colour.
-		map.addLayer(module.line('flight-track-edge', 'flight-track', '#ffffff', 6.5));
+		map.addLayer(module.line('flight-track-edge', 'flight-track', INK_ON_MAP, 6.5));
 		// Sink first and climbs last, so that where the track crosses itself
 		// the thermals stay on top.
 		CLIMB_BANDS.forEach((band, index) => {
@@ -100,9 +106,9 @@
 		const [first, last] = [flight.track[0], flight.track.at(-1)];
 		if (!first || !last) return;
 		map.addSource('flight-start', { type: 'geojson', data: place(first) });
-		map.addLayer(module.dot('flight-start-dot', 'flight-start', 5, '#ffffff', INK_ON_MAP));
+		map.addLayer(module.dot('flight-start-dot', 'flight-start', 5, PAPER_ON_MAP, INK_ON_MAP));
 		map.addSource('flight-end', { type: 'geojson', data: place(last) });
-		map.addLayer(module.dot('flight-end-dot', 'flight-end', 5, INK_ON_MAP, '#ffffff'));
+		map.addLayer(module.dot('flight-end-dot', 'flight-end', 5, INK_ON_MAP, PAPER_ON_MAP));
 	}
 
 	// Fits the whole track into the part of the map that shows, again

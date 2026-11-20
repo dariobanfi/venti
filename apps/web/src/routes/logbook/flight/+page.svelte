@@ -173,7 +173,7 @@
 
 	h1 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	p {

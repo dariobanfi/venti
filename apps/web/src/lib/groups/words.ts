@@ -11,11 +11,11 @@ import type { GroupMember } from '#lib/core/index.ts';
 
 /** What the board says to a pilot who is signed out. */
 export const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on this site’s Venti server, and a group is seen by its members only. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.';
+	'Plans for a flying day are shared in groups on Venti, and a group is seen by its members only. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.';
 
 /** What the screens say on a site that has no server. */
 export const NO_SERVER =
-	'Groups and their plans are kept by a Venti server, and this site is served without one.';
+	'Groups and their plans are kept by Venti, and this copy of the app is served without Venti behind it.';
 
 export const NO_GROUP =
 	'You are in no group yet. A group is a few pilots who tell each other where they mean to fly; only its members see it.';

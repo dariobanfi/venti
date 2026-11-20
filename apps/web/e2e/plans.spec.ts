@@ -25,7 +25,7 @@ const MUSTERGRUPPE = {
 const PASSWORD = 'correct horse battery staple';
 
 const NEEDS_ACCOUNT =
-	'Plans for a flying day are shared in groups on this site’s Venti server, and a group is seen by its members only. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.';
+	'Plans for a flying day are shared in groups on Venti, and a group is seen by its members only. Sign in under Settings, Account, then make a group or join one with the code its keeper gives you.';
 
 const field = (page: Page, name: string) => page.getByRole('textbox', { name });
 

@@ -10,7 +10,7 @@
  */
 
 import type { SiteKind } from '#lib/core/index.ts';
-import { INK_ON_MAP } from '#lib/design/palette.ts';
+import { INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import type { Picture } from '#lib/wind/symbols.ts';
 
 /** The side of a picture, in CSS pixels. */
@@ -57,8 +57,8 @@ export function pictureName(kind: SiteKind): string {
 /** The disc's colour, and the colour of its sign and its edge. A landing is the light one. */
 export function colours(kind: SiteKind): { ground: string; sign: string } {
 	return kind === 'landing'
-		? { ground: '#ffffff', sign: INK_ON_MAP }
-		: { ground: INK_ON_MAP, sign: '#ffffff' };
+		? { ground: PAPER_ON_MAP, sign: INK_ON_MAP }
+		: { ground: INK_ON_MAP, sign: PAPER_ON_MAP };
 }
 
 /** Every picture the sites layer uses, drawn sharp for dense screens. */

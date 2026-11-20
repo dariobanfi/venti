@@ -92,9 +92,7 @@
 		<p class="status" role="status">Opening…</p>
 	{:else if !account.signedIn}
 		<div class="group-card words">
-			<p>
-				To share a flight with a link, sign in to this site’s Venti server under Settings, Account.
-			</p>
+			<p>To share a flight with a link, sign in to Venti under Settings, Account.</p>
 			<a class="button-plain" href={accountHref()}>Account</a>
 		</div>
 	{:else if sharing}
@@ -205,7 +203,7 @@
 	}
 
 	.choice:has(:focus-visible) {
-		outline: 0.1875rem solid var(--accent);
+		outline: 0.1875rem solid var(--color-focus);
 		outline-offset: -0.1875rem;
 		border-radius: 0.75rem;
 	}
@@ -224,7 +222,7 @@
 	}
 
 	.tick {
-		color: var(--accent);
+		color: var(--link);
 		visibility: hidden;
 	}
 
@@ -233,7 +231,7 @@
 	}
 
 	.link {
-		color: var(--accent);
+		color: var(--link);
 		font-size: var(--footnote);
 		/* An address has no spaces to break at. */
 		overflow-wrap: anywhere;

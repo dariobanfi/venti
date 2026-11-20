@@ -10,7 +10,7 @@
  */
 
 import type { LiveGlider } from '#lib/core/index.ts';
-import { FLYING_ON_MAP, QUIET_ON_MAP } from '#lib/design/palette.ts';
+import { FLYING_ON_MAP, PAPER_ON_MAP, QUIET_ON_MAP } from '#lib/design/palette.ts';
 import type { Picture } from '#lib/wind/symbols.ts';
 
 /** The side of a picture, in CSS pixels. */
@@ -91,7 +91,7 @@ function wing(colour: string, pixelRatio: number): ImageData {
 	shadow(context, pixelRatio, true);
 	context.lineJoin = 'round';
 	context.lineWidth = 3;
-	context.strokeStyle = '#ffffff';
+	context.strokeStyle = PAPER_ON_MAP;
 	for (const shape of shapes) context.stroke(shape);
 	shadow(context, pixelRatio, false);
 	context.fillStyle = colour;
@@ -110,7 +110,7 @@ function disc(pixelRatio: number): ImageData {
 	context.fill(disc);
 	shadow(context, pixelRatio, false);
 	context.lineWidth = DISC_EDGE;
-	context.strokeStyle = '#ffffff';
+	context.strokeStyle = PAPER_ON_MAP;
 	context.stroke(disc);
 
 	return context.getImageData(0, 0, SIDE * pixelRatio, SIDE * pixelRatio);

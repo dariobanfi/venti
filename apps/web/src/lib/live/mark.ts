@@ -9,7 +9,7 @@
 
 import type { LayerSpecification } from 'maplibre-gl';
 import type { Bounds, LiveGlider } from '#lib/core/index.ts';
-import { LABEL_ON_MAP } from '#lib/design/palette.ts';
+import { LABEL_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import { type GliderLook, lookOf, pictureName } from './symbols';
 
 /** The map's data source that holds the gliders, and the layer that draws it. */
@@ -42,7 +42,7 @@ export function liveLayer(font: string): LayerSpecification {
 		},
 		paint: {
 			'text-color': LABEL_ON_MAP,
-			'text-halo-color': '#ffffff',
+			'text-halo-color': PAPER_ON_MAP,
 			'text-halo-width': 1.6
 		}
 	};

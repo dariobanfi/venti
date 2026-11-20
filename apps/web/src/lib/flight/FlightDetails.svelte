@@ -294,7 +294,7 @@
 	}
 
 	.link {
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	@media (hover: hover) {

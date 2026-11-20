@@ -234,7 +234,7 @@
 		margin-left: -0.375rem;
 		padding-right: 0.5rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	header {

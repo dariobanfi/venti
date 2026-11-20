@@ -98,7 +98,7 @@
 		flex: none;
 		width: 1.75rem;
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 		line-height: 1.5rem;
 		text-align: center;
 		color: var(--text-secondary);
@@ -106,7 +106,7 @@
 
 	/* The first three are the ones looked for. */
 	.pilot:nth-child(-n + 3) .place {
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	.who {
@@ -146,7 +146,7 @@
 		flex-direction: column;
 		align-items: flex-end;
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 		line-height: 1.5rem;
 	}
 
@@ -211,7 +211,7 @@
 	}
 
 	.flights a:focus-visible {
-		outline: 0.1875rem solid var(--accent);
+		outline: 0.1875rem solid var(--color-focus);
 		outline-offset: -0.1875rem;
 	}
 </style>

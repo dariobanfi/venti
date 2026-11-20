@@ -257,7 +257,7 @@
 	/* The ground: the colour of earth, the same in both appearances as on
 	   the iPhone, solid enough to cover the foot of the flight's own shape. */
 	.ground {
-		fill: rgb(140 122 102 / 0.85);
+		fill: var(--ground);
 	}
 
 	.line {

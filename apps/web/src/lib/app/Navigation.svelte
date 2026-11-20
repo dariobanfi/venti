@@ -1,19 +1,20 @@
 <!--
 	The app's sections. More join as the product grows.
 
-	On a narrow screen this is a bar of glass floating at the bottom, as on the
-	iPhone. On a wide screen it is a rail down the left side. It is one list of
+	On a narrow screen this is the design pack's tab bar along the bottom
+	edge. On a wide screen it is a rail down the left side. It is one list of
 	links either way; only the stylesheet differs.
 -->
 <script lang="ts">
-	import { asset } from '$app/paths';
 	import { page } from '$app/state';
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
+	// The app icon, from the design pack, where the repository keeps it.
+	import appIcon from '../../../../../design/assets/app-icon/icon-small.svg?url';
 	import { logbookHref, mapHref, plansHref, settingsHref } from './routes';
 
 	const sections: { name: string; icon: IconName; href: () => string; root: string }[] = [
 		{ name: 'Map', icon: 'map', href: mapHref, root: '/' },
-		{ name: 'Logbook', icon: 'book', href: logbookHref, root: '/logbook' },
+		{ name: 'Logbook', icon: 'track', href: logbookHref, root: '/logbook' },
 		// Who means to fly where: the plans of the pilot's groups.
 		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans' },
 		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings' }
@@ -34,8 +35,8 @@
 </script>
 
 <nav class:covered aria-label="Sections">
-	<img class="mark" src={asset('favicon.svg')} alt="Venti" width="40" height="40" />
-	<ul class="glass">
+	<img class="mark" src={appIcon} alt="Venti" width="40" height="40" />
+	<ul>
 		{#each sections as section (section.name)}
 			<li>
 				<a href={section.href()} aria-current={current === section.name ? 'page' : undefined}>
@@ -48,17 +49,16 @@
 </nav>
 
 <style>
-	/* Narrow: a capsule floating over the bottom of the page. */
+	/* Narrow: the pack's tab bar, along the bottom edge of the screen. */
 	nav {
 		position: fixed;
 		z-index: 10;
 		left: 0;
 		right: 0;
-		bottom: calc(0.75rem + var(--safe-bottom));
-		display: flex;
-		justify-content: center;
-		/* Only the capsule takes clicks; the map beside it stays reachable. */
-		pointer-events: none;
+		bottom: 0;
+		padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+		background: var(--surface);
+		border-top: 1px solid var(--separator);
 	}
 
 	nav.covered {
@@ -71,14 +71,12 @@
 
 	ul {
 		display: flex;
-		gap: 0.125rem;
 		height: var(--nav-height);
 		/* Four sections fit a phone's width. On a narrower screen, or with
 		   larger text, they share what there is. */
-		width: min(20.5rem, 100% - 1.5rem);
+		max-width: 32rem;
+		margin: 0 auto;
 		padding: 0.25rem;
-		border-radius: 999px;
-		pointer-events: auto;
 	}
 
 	li {
@@ -91,12 +89,14 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 0.0625rem;
+		gap: 0.125rem;
 		height: 100%;
+		min-height: var(--target);
 		padding: 0 0.25rem;
-		border-radius: 999px;
+		border-radius: var(--radius-m);
 		font-size: var(--caption);
-		font-weight: 600;
+		font-weight: 500;
+		color: var(--icon-quiet);
 	}
 
 	a span:last-child {
@@ -106,14 +106,15 @@
 		white-space: nowrap;
 	}
 
-	/* Where the pilot is: a filled shape and an accent icon. The name stays
-	   in the text colour, which is readable on any ground the bar floats over. */
+	/* Where the pilot is: the name in the text colour, the icon in coral,
+	   as the pack's tab bar has it. */
 	a[aria-current='page'] {
-		background: var(--fill-strong);
+		color: var(--text);
+		font-weight: 600;
 	}
 
 	a[aria-current='page'] .icon {
-		color: var(--accent);
+		color: var(--color-accent-text);
 	}
 
 	@media (hover: hover) {
@@ -137,7 +138,8 @@
 			gap: 1.25rem;
 			padding: calc(1.25rem + var(--safe-top)) 0 1.25rem;
 			background: var(--surface);
-			border-right: 0.5px solid var(--separator);
+			border-top: 0;
+			border-right: 1px solid var(--separator);
 			pointer-events: auto;
 		}
 
@@ -146,19 +148,12 @@
 			border-radius: 0.625rem;
 		}
 
-		ul,
-		ul.glass {
+		ul {
 			flex-direction: column;
 			gap: 0.375rem;
-			width: auto;
 			height: auto;
+			margin: 0;
 			padding: 0;
-			border: 0;
-			border-radius: 0;
-			background: none;
-			box-shadow: none;
-			-webkit-backdrop-filter: none;
-			backdrop-filter: none;
 		}
 
 		li {
@@ -169,7 +164,7 @@
 			width: 4.5rem;
 			height: 3.75rem;
 			padding: 0;
-			border-radius: 0.875rem;
+			border-radius: var(--radius-m);
 			gap: 0.125rem;
 		}
 	}

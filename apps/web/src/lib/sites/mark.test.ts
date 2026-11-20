@@ -56,8 +56,8 @@ describe('flying sites on the map', () => {
 			'site-other'
 		]);
 		for (const kind of SITE_KINDS) expect(SIGNS[kind]).toMatch(/^M/);
-		expect(colours('landing')).toEqual({ ground: '#ffffff', sign: '#1F1F1D' });
-		expect(colours('takeoff')).toEqual({ ground: '#1F1F1D', sign: '#ffffff' });
+		expect(colours('landing')).toEqual({ ground: '#FFF8E8', sign: '#221640' });
+		expect(colours('takeoff')).toEqual({ ground: '#221640', sign: '#FFF8E8' });
 		expect(colours('other')).toEqual(colours('takeoff'));
 	});
 

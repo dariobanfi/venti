@@ -30,8 +30,8 @@
 		gap: 0.125rem;
 		width: 21rem;
 		max-width: 100%;
-		padding: 0.125rem;
-		border-radius: 0.625rem;
+		padding: 0.1875rem;
+		border-radius: var(--radius-pill);
 		background: var(--fill);
 	}
 
@@ -39,20 +39,16 @@
 		flex: 1;
 		display: grid;
 		place-items: center;
-		min-height: 2rem;
-		border-radius: 0.5rem;
+		min-height: 2.375rem;
+		border-radius: var(--radius-pill);
 		font-size: var(--subheadline);
+		font-weight: 500;
+		color: var(--text-secondary);
 	}
 
+	/* The pack's segmented control: the chosen one in the primary colour. */
 	a[aria-current] {
-		background: var(--surface);
-		font-weight: 600;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
-	}
-
-	@media (prefers-color-scheme: dark) {
-		a[aria-current] {
-			background: var(--fill-strong);
-		}
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 </style>

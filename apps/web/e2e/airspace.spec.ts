@@ -155,7 +155,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 
 	// What is kept from the server: how much, how old, of which countries,
 	// and what its provider asks to be said about it.
-	const fromServer = page.getByRole('list', { name: 'From this site’s server' });
+	const fromServer = page.getByRole('list', { name: 'From Venti' });
 	await expect(fromServer).toContainText('openAIP');
 	await expect(fromServer).toContainText(/\d+ airspaces · as of \w{3}, \d+ \w{3} \d{4} · fetched /);
 	await expect(fromServer).toContainText(
@@ -170,7 +170,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 		'href',
 		'https://www.openaip.net'
 	);
-	const fromTheServer = page.getByRole('switch', { name: 'Airspace from this site’s server' });
+	const fromTheServer = page.getByRole('switch', { name: 'Airspace from Venti' });
 	await expect(fromTheServer).toBeChecked();
 	await expect(page.getByText('Kept in this browser for about 200 km around')).toBeVisible();
 	// The screen says what the app does not know.
@@ -341,7 +341,7 @@ test('a flight that entered nothing says so, and a flight nothing could be check
 
 	// Without any airspace nothing was checked, which is not "nothing entered".
 	await page.goto('/settings/airspace/');
-	await page.getByRole('switch', { name: 'Airspace from this site’s server' }).uncheck();
+	await page.getByRole('switch', { name: 'Airspace from Venti' }).uncheck();
 	await expect(page.getByText('Switched off: only your own files are used.')).toBeVisible();
 	await context.route('**/v1/airspace**', (route) => route.abort());
 	await page.goto('/logbook/');
@@ -367,7 +367,9 @@ test('a site without a server draws the pilot’s own files and credits nobody',
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 404, body: 'Not found' }));
 	await page.goto('/settings/airspace/');
 	await expect(
-		page.getByText('This site has no Venti server behind it, so there is no airspace to fetch.')
+		page.getByText(
+			'This copy of the app is served without Venti behind it, so there is no airspace to fetch.'
+		)
 	).toBeVisible();
 	await expect(page.getByRole('switch')).toBeHidden();
 

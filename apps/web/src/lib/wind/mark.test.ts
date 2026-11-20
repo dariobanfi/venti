@@ -8,10 +8,10 @@ import { mark, OLD, reading, station } from './testing';
 const kmh = (speed: number) => speed / 3.6;
 
 describe('the look of the bands of wind', () => {
-	it('is one blue from light to dark, the arrow growing with the wind', () => {
+	it('is the design pack’s purple from light to dark, the arrow growing with the wind', () => {
 		const bands = [WIND_BANDS.light, WIND_BANDS.moderate, WIND_BANDS.fresh, WIND_BANDS.strong];
 
-		expect(bands.map((band) => band.color)).toEqual(['#86B6EF', '#3987E5', '#1C5CAB', '#0D366B']);
+		expect(bands.map((band) => band.color)).toEqual(['#B0A0D0', '#8F78BA', '#4F3A82', '#302157']);
 		const scales = bands.map((band) => band.arrowScale);
 		expect(scales).toEqual(scales.toSorted((first, second) => first - second));
 	});

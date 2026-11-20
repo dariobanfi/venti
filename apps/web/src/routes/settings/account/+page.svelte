@@ -37,8 +37,8 @@
 		<SignedIn {account} signedIn={account.account} />
 	{:else if account?.hasServer === false}
 		<p class="lead">
-			This site has no Venti server behind it, so there is no account to sign in to. Your flights
-			stay in this browser.
+			This copy of the app is served without Venti behind it, so there is no account to sign in to.
+			Your flights stay in this browser.
 		</p>
 	{:else if account}
 		<SignInForm {account} {host} />

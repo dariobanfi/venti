@@ -126,7 +126,7 @@
 		height: var(--target);
 		border-radius: 50%;
 		background: var(--surface);
-		color: var(--accent);
+		color: var(--link);
 		box-shadow: var(--shadow-float);
 	}
 

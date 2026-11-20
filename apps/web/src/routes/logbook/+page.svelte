@@ -143,8 +143,7 @@
 
 	h1 {
 		font-size: var(--large-title);
-		font-weight: 700;
-		letter-spacing: -0.01em;
+		font-weight: 600;
 	}
 
 	.whose {
@@ -159,7 +158,7 @@
 		height: var(--target);
 		border-radius: 50%;
 		background: var(--surface);
-		color: var(--accent);
+		color: var(--link);
 		box-shadow: var(--shadow-float);
 	}
 
@@ -208,7 +207,7 @@
 
 	.unavailable h2 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	.unavailable p {

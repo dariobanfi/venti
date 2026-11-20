@@ -454,7 +454,7 @@ pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
     Ok(Ranking {
         pilots,
         rule: format!(
-            "{rule} Worked out by this server from the flights' files, by the same rules for \
+            "{rule} Worked out by Venti from the flights' files, by the same rules for \
              every flight. It is not a league's result."
         ),
     })
@@ -555,7 +555,7 @@ mod tests {
         assert_eq!(
             ranking.rule,
             "A pilot's points are those of their best 3 flights shared with everyone, added up. \
-             Worked out by this server from the flights' files, by the same rules for every \
+             Worked out by Venti from the flights' files, by the same rules for every \
              flight. It is not a league's result."
         );
     }

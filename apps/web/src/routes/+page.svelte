@@ -428,11 +428,11 @@
 		max-width: calc(100% - 6rem);
 		padding: 0.125rem 0.5rem;
 		border-radius: 0.75rem;
-		background: rgb(255 255 255 / 0.78);
+		background: var(--on-map-paper);
 		-webkit-backdrop-filter: blur(0.75rem);
 		backdrop-filter: blur(0.75rem);
 		/* The map is light in both appearances, and so is what is written on it. */
-		color: #3a3a3c;
+		color: var(--on-map-ink);
 		font-size: var(--caption);
 		line-height: 1.3;
 		/* Every provider is named, on a second line if one is too short: the

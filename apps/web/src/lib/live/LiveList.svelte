@@ -127,7 +127,7 @@
 
 	.nothing h3 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	.nothing p {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import { contentSecurityPolicy } from './src/lib/app/security-policy.ts';
 
@@ -48,8 +49,55 @@ function announcerStyleHash(): `sha256-${string}` {
 	return `sha256-${createHash('sha256').update(style).digest('base64')}`;
 }
 
+/**
+ * The app icon, the favicons and the manifest, served at the root of the
+ * site from the owner's design pack, where the repository keeps its one
+ * copy (`design/assets/app-icon/web`). They are not copied into the app:
+ * the development server answers them from there, and the build writes
+ * them into the site. The manifest names its icons relative to itself, so
+ * that a site served from a folder (`VENTI_BASE_PATH`) finds them.
+ */
+function appIcons(): Plugin {
+	const folder = new URL('../../design/assets/app-icon/web/', import.meta.url);
+	const types: Record<string, string> = {
+		'favicon.ico': 'image/x-icon',
+		'favicon.svg': 'image/svg+xml',
+		'apple-touch-icon.png': 'image/png',
+		'icon-192.png': 'image/png',
+		'icon-512.png': 'image/png',
+		'icon-maskable-512.png': 'image/png',
+		'site.webmanifest': 'application/manifest+json'
+	};
+	const contents = (name: string): Buffer | string => {
+		const bytes = readFileSync(new URL(name, folder));
+		return name === 'site.webmanifest'
+			? bytes.toString('utf8').replaceAll('"/icon-', '"icon-')
+			: bytes;
+	};
+	return {
+		name: 'venti-app-icons',
+		configureServer(server) {
+			server.middlewares.use((request, response, next) => {
+				const name = (request.url ?? '').split('?')[0].slice(`${base}/`.length);
+				if (!(name in types)) return next();
+				response.setHeader('Content-Type', types[name]);
+				response.end(contents(name));
+			});
+		},
+		generateBundle() {
+			// The site's files are those of the client's build; the server's
+			// build of the pages is thrown away.
+			if (this.environment.name !== 'client') return;
+			for (const fileName of Object.keys(types)) {
+				this.emitFile({ type: 'asset', fileName, source: contents(fileName) });
+			}
+		}
+	};
+}
+
 export default defineConfig({
 	plugins: [
+		appIcons(),
 		sveltekit({
 			// Static files only: every page is written out at build time and any
 			// web server can serve the result. No Node process runs in production.

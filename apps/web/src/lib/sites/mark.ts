@@ -8,7 +8,7 @@
 
 import type { LayerSpecification } from 'maplibre-gl';
 import type { Bounds, SiteView } from '#lib/core/index.ts';
-import { INK_ON_MAP } from '#lib/design/palette.ts';
+import { INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import { pictureName } from './symbols';
 import { SITES_MIN_ZOOM } from './watch';
 
@@ -37,7 +37,7 @@ export function sitesLayer(font: string): LayerSpecification {
 		},
 		paint: {
 			'text-color': INK_ON_MAP,
-			'text-halo-color': '#ffffff',
+			'text-halo-color': PAPER_ON_MAP,
 			'text-halo-width': 1.4
 		}
 	};

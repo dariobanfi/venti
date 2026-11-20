@@ -60,8 +60,8 @@
 </script>
 
 <p class="lead">
-	With an account, your flights are copied to this site’s Venti server. They appear on your other
-	devices, and you can share one with a link. A flight stays private until you share it.
+	With an account, your flights are copied to Venti. They appear on your other devices, and you can
+	share one with a link. A flight stays private until you share it.
 </p>
 
 <form onsubmit={submit} novalidate>

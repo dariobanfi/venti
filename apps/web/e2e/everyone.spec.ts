@@ -40,7 +40,7 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(first).toContainText('0:29 h');
 	await expect(rows(page).last()).toContainText('Demo Pilot');
 	// Whose reckoning the numbers are is said under the list.
-	await expect(page.getByText(/Distances and points are the server’s own reckoning/)).toBeVisible();
+	await expect(page.getByText(/Distances and points are Venti’s own reckoning/)).toBeVisible();
 	await keep('61-everyone');
 
 	// The best by points. The address says what is asked for.
@@ -231,5 +231,5 @@ test('a site without a server has a logbook without a second side', async ({ con
 
 	// Whoever has the address is told why there is nothing.
 	await page.goto('/logbook/everyone/');
-	await expect(page.getByRole('heading', { name: 'No Venti server here' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Not connected to Venti' })).toBeVisible();
 });

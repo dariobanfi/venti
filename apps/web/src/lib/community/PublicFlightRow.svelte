@@ -193,7 +193,7 @@
 	}
 
 	.flight:focus-visible::after {
-		outline: 0.1875rem solid var(--accent);
+		outline: 0.1875rem solid var(--color-focus);
 		outline-offset: -0.1875rem;
 		border-radius: 0.5rem;
 	}

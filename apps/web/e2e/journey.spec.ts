@@ -121,7 +121,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(metric(details, 'Pilot')).toHaveText('Sample Pilot');
 	await expect(metric(details, 'Recorder')).toHaveText('XVE 000');
 	await expect(metric(details, 'Positions')).toHaveText('1,745');
-	await expect(details.getByText('Climbing faster than 2 m/s')).toBeVisible();
+	await expect(details.getByText('Climbing faster than 3 m/s')).toBeVisible();
 	// What the core worked out about the flight. Which numbers come out is
 	// the core's business and tested there; here they have to be on screen.
 	await expect(metric(details, 'Scored as')).toHaveText(

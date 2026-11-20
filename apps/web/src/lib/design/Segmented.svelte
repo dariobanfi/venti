@@ -32,8 +32,8 @@
 	.segments {
 		display: flex;
 		gap: 0.125rem;
-		padding: 0.125rem;
-		border-radius: 0.625rem;
+		padding: 0.1875rem;
+		border-radius: var(--radius-pill);
 		background: var(--fill);
 	}
 
@@ -41,22 +41,18 @@
 		flex: 1;
 		display: grid;
 		place-items: center;
-		min-height: 2rem;
-		border-radius: 0.5rem;
+		min-height: 2.375rem;
+		border-radius: var(--radius-pill);
 		font-size: var(--subheadline);
+		font-weight: 500;
+		color: var(--text-secondary);
 		cursor: pointer;
 	}
 
+	/* The pack's segmented control: the chosen one in the primary colour. */
 	.chosen {
-		background: var(--surface);
-		font-weight: 600;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
-	}
-
-	@media (prefers-color-scheme: dark) {
-		.chosen {
-			background: var(--fill-strong);
-		}
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 
 	/* The radio buttons themselves are not drawn, but they take the keyboard. */
@@ -66,7 +62,7 @@
 	}
 
 	label:has(:focus-visible) {
-		outline: 0.1875rem solid var(--accent);
+		outline: 0.1875rem solid var(--color-focus);
 		outline-offset: 0.125rem;
 	}
 </style>

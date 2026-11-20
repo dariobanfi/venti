@@ -6,7 +6,7 @@
 <p
 	class="legend"
 	role="img"
-	aria-label="Track colours: blue where the glider sank, grey where it held its height, orange and red where it climbed."
+	aria-label="Track colours: teal where the glider sank, grey where it held its height, coral and red where it climbed."
 >
 	<span>Sink</span>
 	<span class="bands">

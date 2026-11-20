@@ -148,7 +148,7 @@
 		width: 100%;
 		min-height: var(--target);
 		padding: 0.5rem 1rem;
-		color: var(--accent);
+		color: var(--link);
 		text-align: left;
 	}
 

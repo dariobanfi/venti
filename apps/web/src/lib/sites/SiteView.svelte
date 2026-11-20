@@ -161,7 +161,7 @@
 
 	.link {
 		width: 100%;
-		color: var(--accent);
+		color: var(--link);
 		text-align: left;
 	}
 
@@ -188,6 +188,6 @@
 	}
 
 	.footnote a {
-		color: var(--accent);
+		color: var(--link);
 	}
 </style>

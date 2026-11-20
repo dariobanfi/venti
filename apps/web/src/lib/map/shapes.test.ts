@@ -20,9 +20,9 @@ describe('a track coloured by climb', () => {
 			shapes.features.map((feature) => [feature.properties.band, feature.geometry.coordinates])
 		);
 
-		expect([...byBand.keys()].sort()).toEqual([1, 4]);
+		expect([...byBand.keys()].sort()).toEqual([2, 6]);
 		// Two stretches of sink, which the climb between them joins end to end.
-		expect(byBand.get(1)).toEqual([
+		expect(byBand.get(2)).toEqual([
 			[
 				[11, 47],
 				[11.1, 48],
@@ -33,7 +33,7 @@ describe('a track coloured by climb', () => {
 				[11.5, 52]
 			]
 		]);
-		expect(byBand.get(4)).toEqual([
+		expect(byBand.get(6)).toEqual([
 			[
 				[11.2, 49],
 				[11.3, 50],

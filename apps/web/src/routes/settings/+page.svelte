@@ -35,7 +35,7 @@
 		<p class="group-note">Venti could not open its data. {app.failure}</p>
 	{:else}
 		<section class="group" aria-labelledby="settings-server">
-			<h2 class="group-title" id="settings-server">Venti server</h2>
+			<h2 class="group-title" id="settings-server">Venti</h2>
 			<div class="group-card">
 				<a class="group-row" href={accountHref()}>
 					<span>Account</span>
@@ -47,11 +47,11 @@
 			</div>
 			<p class="group-note">
 				{#if account?.hasServer === false}
-					This site has no Venti server behind it. The map has no live wind, and there is no account
-					to sign in to. Your flights stay in this browser.
+					This copy of the app is served without Venti behind it. The map has no live wind, and
+					there is no account to sign in to. Your flights stay in this browser.
 				{:else}
-					The server this site comes from gives the map its live wind. With an account it also keeps
-					your flights, for your other devices and for sharing.
+					Venti gives the map its live wind. With an account it also keeps your flights, for your
+					other devices and for sharing.
 				{/if}
 			</p>
 		</section>

@@ -89,11 +89,11 @@
 		{/if}
 
 		<section class="group" aria-labelledby="airspace-server">
-			<h2 class="group-title" id="airspace-server">From this site’s server</h2>
+			<h2 class="group-title" id="airspace-server">From Venti</h2>
 			{#if hasServer === false}
 				<p class="group-note">
-					This site has no Venti server behind it, so there is no airspace to fetch. Bring in your
-					own files below.
+					This copy of the app is served without Venti behind it, so there is no airspace to fetch.
+					Bring in your own files below.
 				</p>
 			{:else}
 				<ul class="group-card" aria-labelledby="airspace-server">
@@ -138,7 +138,7 @@
 					{/if}
 					<li>
 						<label class="group-row toggle">
-							<span>Airspace from this site’s server</span>
+							<span>Airspace from Venti</span>
 							<input
 								type="checkbox"
 								role="switch"
@@ -239,7 +239,7 @@
 
 	a.lesser {
 		align-self: flex-start;
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	.plain {

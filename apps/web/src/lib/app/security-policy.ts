@@ -42,7 +42,7 @@ export const TILE_HOSTS: readonly string[] = [origin(ONLINE.basemap), origin(ONL
 export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[]) {
 	return {
 		// Nothing, unless a line below allows it: no frames, no plug-ins, no
-		// media, no web fonts, no manifest.
+		// media.
 		'default-src': ['none'],
 		// The app's own script files, and nothing written into a page or
 		// made from text.
@@ -64,6 +64,11 @@ export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[
 		// `/v1`, the core's worker asks, which this policy does not reach;
 		// held to it, it would find `/v1` under the app's own origin.)
 		'connect-src': ['self', 'data:', ...TILE_HOSTS],
+		// The typeface of the design pack, Fira Sans, served by the app
+		// from its own files. Nothing is fetched from a font host.
+		'font-src': ['self'],
+		// The manifest that names the app's icons, from the app's own files.
+		'manifest-src': ['self'],
 		// The core and the map engine each run in a worker, both from files
 		// of the app. Without this line `script-src` would say the same;
 		// it is here so that a change there cannot change it unseen.

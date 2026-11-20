@@ -8,7 +8,7 @@
  */
 
 import type { WindBand } from '#lib/core/index.ts';
-import { CALM_ON_MAP, OLD_ON_MAP, WIND_BANDS } from '#lib/design/palette.ts';
+import { CALM_ON_MAP, OLD_ON_MAP, PAPER_ON_MAP, WIND_BANDS } from '#lib/design/palette.ts';
 import { pictureName } from './mark';
 
 /** The side of a picture, in CSS pixels. */
@@ -71,7 +71,7 @@ function draw(pixelRatio: number, color: string, shape: (path: Path2D) => void):
 
 	context.lineJoin = 'round';
 	context.lineWidth = 3.5;
-	context.strokeStyle = '#ffffff';
+	context.strokeStyle = PAPER_ON_MAP;
 	context.shadowColor = 'rgb(0 0 0 / 0.35)';
 	context.shadowBlur = 1.5 * pixelRatio;
 	context.shadowOffsetY = 0.5 * pixelRatio;

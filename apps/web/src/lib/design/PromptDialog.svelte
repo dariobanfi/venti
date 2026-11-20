@@ -143,7 +143,7 @@
 	.choice {
 		min-height: var(--target);
 		border-top: 0.5px solid var(--separator);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	.go {

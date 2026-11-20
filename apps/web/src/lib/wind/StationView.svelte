@@ -194,13 +194,13 @@
 		min-height: var(--target);
 		padding: 0 0.75rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	.forecast {
 		min-height: var(--target);
 		padding: 0.5rem 1rem;
-		color: var(--accent);
+		color: var(--link);
 		text-align: left;
 	}
 
@@ -218,7 +218,7 @@
 	}
 
 	a.lesser {
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	@media (hover: hover) {

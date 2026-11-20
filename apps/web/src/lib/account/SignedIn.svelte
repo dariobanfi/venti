@@ -272,7 +272,7 @@
 	}
 
 	.cancel {
-		color: var(--accent);
+		color: var(--link);
 		font-weight: 600;
 	}
 

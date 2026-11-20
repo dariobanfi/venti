@@ -14,7 +14,13 @@
 		TrailPointView,
 		WindStation
 	} from '#lib/core/index.ts';
-	import { ACCENT_ON_MAP, CLIMB_BANDS, LABEL_ON_MAP } from '#lib/design/palette.ts';
+	import {
+		ACCENT_ON_MAP,
+		CLIMB_BANDS,
+		INK_ON_MAP,
+		LABEL_ON_MAP,
+		PAPER_ON_MAP
+	} from '#lib/design/palette.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
@@ -144,14 +150,14 @@
 
 		map.addSource('logbook-tracks', { type: 'geojson', data: NOTHING });
 		// A white edge keeps the lines readable over any ground colour.
-		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', '#ffffff', 5));
+		map.addLayer(module.line('logbook-tracks-edge', 'logbook-tracks', INK_ON_MAP, 5));
 		map.addLayer(module.line('logbook-tracks-line', 'logbook-tracks', ACCENT_ON_MAP, 2.5));
 
 		// The flight of a pilot who is being followed: a line in the colours
 		// of climb, like a flight of the logbook when it is opened, over the
 		// logbook's own lines.
 		map.addSource(LIVE_TRACK_SOURCE, { type: 'geojson', data: NOTHING });
-		map.addLayer(module.line('live-track-edge', LIVE_TRACK_SOURCE, '#ffffff', 5.5));
+		map.addLayer(module.line('live-track-edge', LIVE_TRACK_SOURCE, INK_ON_MAP, 5.5));
 		CLIMB_BANDS.forEach((band, index) => {
 			map.addLayer({
 				...module.line(`live-track-${index}`, LIVE_TRACK_SOURCE, band.color, 3),
@@ -195,7 +201,7 @@
 			},
 			paint: {
 				'text-color': LABEL_ON_MAP,
-				'text-halo-color': '#ffffff',
+				'text-halo-color': PAPER_ON_MAP,
 				'text-halo-width': 1.6
 			}
 		});
@@ -220,7 +226,7 @@
 			source: 'position',
 			paint: { 'circle-radius': 16, 'circle-color': ACCENT_ON_MAP, 'circle-opacity': 0.2 }
 		});
-		map.addLayer(module.dot('position-dot', 'position', 7, ACCENT_ON_MAP, '#ffffff'));
+		map.addLayer(module.dot('position-dot', 'position', 7, ACCENT_ON_MAP, PAPER_ON_MAP));
 	}
 
 	function tellRegion(map: Map) {

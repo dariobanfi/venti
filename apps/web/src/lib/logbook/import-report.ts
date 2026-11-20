@@ -73,7 +73,7 @@ export function importNotice(report: ImportReport): Notice | undefined {
  */
 export function deletionWarning(signedIn: boolean): string {
 	return signedIn
-		? 'Its file is removed from this browser and, with the next sync, from your Venti server and your other devices. This cannot be undone.'
+		? 'Its file is removed from this browser and, with the next sync, from Venti and your other devices. This cannot be undone.'
 		: 'Its file is removed from this browser. This cannot be undone.';
 }
 

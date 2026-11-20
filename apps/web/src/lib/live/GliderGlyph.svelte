@@ -37,7 +37,7 @@
 
 	path,
 	circle {
-		stroke: #ffffff;
+		stroke: var(--on-map-paper-solid);
 		stroke-width: 2.5;
 		stroke-linejoin: round;
 		/* The edge lies under the shape, so the shape keeps its size. */

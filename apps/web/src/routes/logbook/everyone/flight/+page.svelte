@@ -59,7 +59,7 @@
 					: {
 							is: 'failed',
 							message:
-								'Other pilots’ flights are kept by a Venti server, and this site is served without one.'
+								'Other pilots’ flights are kept by Venti, and this copy of the app is served without Venti behind it.'
 						};
 			},
 			(error) => {
@@ -171,7 +171,7 @@
 
 	h1 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	p {

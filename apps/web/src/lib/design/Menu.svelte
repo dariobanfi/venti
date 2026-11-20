@@ -131,7 +131,7 @@
 		width: var(--target);
 		height: var(--target);
 		border-radius: 50%;
-		color: var(--accent);
+		color: var(--link);
 		pointer-events: auto;
 	}
 

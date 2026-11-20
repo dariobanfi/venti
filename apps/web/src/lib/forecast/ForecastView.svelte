@@ -43,7 +43,10 @@
 				if (mine !== asked) return;
 				phase = forecast
 					? { is: 'loaded', forecast }
-					: { is: 'failed', why: 'This site has no Venti server behind it to ask.' };
+					: {
+							is: 'failed',
+							why: 'This copy of the app is served without Venti behind it, so there is nothing to ask.'
+						};
 			},
 			(error) => {
 				if (mine !== asked) return;
@@ -222,7 +225,7 @@
 	}
 
 	.footnote a {
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	.waiting {
@@ -244,7 +247,7 @@
 	.nothing h3 {
 		padding: 0;
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--text);
 	}
 
@@ -256,7 +259,7 @@
 		min-height: var(--target);
 		padding: 0 0.75rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	@media (hover: hover) {

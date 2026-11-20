@@ -109,7 +109,7 @@
 		margin-left: -0.375rem;
 		padding-right: 0.5rem;
 		border-radius: var(--radius-control);
-		color: var(--accent);
+		color: var(--link);
 	}
 
 	header {
@@ -118,8 +118,7 @@
 
 	h1 {
 		font-size: var(--large-title);
-		font-weight: 700;
-		letter-spacing: -0.01em;
+		font-weight: 600;
 		overflow-wrap: anywhere;
 	}
 
@@ -153,7 +152,7 @@
 
 	.unavailable h2 {
 		font-size: var(--title);
-		font-weight: 700;
+		font-weight: 600;
 	}
 
 	.unavailable p {

@@ -49,7 +49,6 @@
 	.value {
 		font-size: var(--number);
 		font-weight: 600;
-		letter-spacing: -0.01em;
 	}
 
 	.unit {

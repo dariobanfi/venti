@@ -183,9 +183,7 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Delete flight' }).click();
 	const asking = page.getByRole('alertdialog', { name: 'Delete this flight?' });
-	await expect(asking).toContainText(
-		'with the next sync, from your Venti server and your other devices'
-	);
+	await expect(asking).toContainText('with the next sync, from Venti and your other devices');
 	await asking.getByRole('button', { name: 'Delete flight' }).click();
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
 	await openAccount(page);
@@ -371,11 +369,13 @@ test('a site without a server has no account to sign in to, and says so', async 
 	// What a web server answers that only hands out the app's files.
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 404, body: 'Not found' }));
 	await page.goto('/settings/');
-	await expect(page.getByText('This site has no Venti server behind it.')).toBeVisible();
+	await expect(
+		page.getByText('This copy of the app is served without Venti behind it.')
+	).toBeVisible();
 
 	await page.getByRole('link', { name: /^Account/ }).click();
 	await expect(
-		page.getByText('This site has no Venti server behind it, so there is no account')
+		page.getByText('This copy of the app is served without Venti behind it, so there is no account')
 	).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
 	await keep('32-account-no-server');

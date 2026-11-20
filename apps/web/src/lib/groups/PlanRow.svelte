@@ -77,7 +77,7 @@
 	}
 
 	.tick {
-		color: var(--accent);
+		color: var(--link);
 		font-size: 0.875rem;
 	}
 

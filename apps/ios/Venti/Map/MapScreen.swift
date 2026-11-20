@@ -75,7 +75,13 @@ struct MapScreen: View {
                 }
             )
             .ignoresSafeArea()
+            // One element, not the map's hundreds of labels: everything it
+            // shows that can be chosen is in the lists the round buttons
+            // open, and reading the labels made every look at this screen
+            // by VoiceOver or by a test slow enough to time out.
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Map")
+            .accessibilityHint("Wind stations, flying sites and pilots in the air are in the lists.")
 
             StatusBarScrim()
 

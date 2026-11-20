@@ -177,8 +177,11 @@
 		padding: 1rem 1rem 0.5rem;
 	}
 
+	/* The line that parts the rows of a card is not for these two: a
+	   sentence and its link are one thing. */
 	.words .button-plain {
 		margin-left: -0.75rem;
+		box-shadow: none;
 	}
 
 	.outcome {

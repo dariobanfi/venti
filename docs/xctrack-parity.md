@@ -200,6 +200,44 @@ XCTrack's manual stresses battery-optimisation exemptions on Android, and 1.0.1 
 | Rain radar | v1 |
 | SkySight forecast layers (finished, awaiting an agreement, paid) | Our own forecast and wind-station layers, v1 |
 
+## A layout a pilot flies with: the owner's
+
+A yardstick for the preset layouts. It is the owner's XCTrack layout, read on 2026-11-20 from a backup of July 2025 (XCTrack 0.9.12.3); the file itself is the owner's and stays outside the repository. What a setting *means* is read from XCTrack's own names for it and is *to verify* where XCTrack's manual does not say. Portrait, three pages, each shown in its navigation modes.
+
+**Page 1, in every mode: the thermal page.** Top to bottom:
+
+| Row | Left | Middle | Right |
+|---|---|---|---|
+| 1 | Ground speed | Altitude | Wind speed |
+| 2 (small) | Bearing | Height over the ground | Wind direction |
+| 3, most of the page | Thermal assistant: the last five minutes of track, close up, north up, with the circle drawn and the wind | | Cross-country map: airspace, obstacles, other pilots with their tracks, FAI areas, take-offs, towns, the thermal map of thermal.kk7.ch at 40 %, a final-glide line |
+| over the corner of row 3 | Airspace proximity, out to 5 km | | |
+| 4 | Climb, 2 s average | Air time | Glide, 8 s average |
+
+**Page 2, with a competition task.** A row of altitude and, for the next turnpoint, the altitude there, the glide needed and the time of arrival; the task map; laid on the map's corner the time to the start and the arrival at the start against the gate; under the map the distance to goal, the glide to goal and the altitude over goal.
+
+**Page 3, flying back to the take-off, closing a triangle or to a waypoint.** Altitude, the distance scored so far and the triangle if it were closed now, in a column at the left; beside them a large airspace proximity with its height line; the cross-country map under both, with the line to fly, the closing circle and the FAI areas with their smallest and largest.
+
+**Settings that say how it is flown:** take-off noticed by itself, landing too; XCTrack's own vario sound off, since an external vario beeps; maps north up with the pilot in the middle.
+
+What our cockpit already does in the layout's place, and where it differs:
+
+| The layout has | Ours, 2026-11-20 |
+|---|---|
+| Speed, altitude, height over ground, wind speed and direction, climb, glide, air time, always in the same place | The same readings on the first page, the climb largest; air time in the line at the top. While circling, speed and glide give way to the thermal's gain and average |
+| A thermal assistant **beside** the map, always there | One map that zooms in while the glider circles and marks the thermals it has left. **Gap:** no second, close-up view that stays; no circle drawn. This is the largest difference in how the page works |
+| Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. **Gap:** nothing says "the nearest airspace is 3.2 km away and 400 m above" while nothing is urgent |
+| Bearing as a reading | **Gap:** the course is computed and turns the glider's arrow, but is not written |
+| The scored distance and the unclosed triangle beside the map | On the third page, away from the map. **Gap:** not visible while looking at the map |
+| The thermal map of thermal.kk7.ch under the track | **Gap**, and the catalogue's "Ask": the author has to be asked first ([data-sources.md](data-sources.md)). The owner flies with it, which is a reason to ask soon |
+| Other pilots with their tracks | Other pilots who show their flight are on the cockpit's map; their tracks are not. *To check* |
+| Obstacles on the map (cables), with a zoom-in when one is near | Cable cars from the base map only; no obstacle data and no warning yet (table above) |
+| Take-offs and towns on the map | Towns from the base map. Flying sites are on the map tab, not in the cockpit. *To check* |
+| FAI areas, closing circle | FAI areas, since 2026-11-19; the closing circle is *to check* |
+| The competition page's nine readings | A task has its line, its start and its progress in the cockpit ([design.md](design.md#a-task-in-the-cockpit)); reading by reading against this page is *to do* |
+
+What follows for the presets: the first page should be able to show a close-up thermal view beside the map on a screen wide enough for both, and the cross-country numbers belong on the map's page. Neither is built.
+
 ## Where we go beyond
 
 1. An iPhone app at this level, which does not exist today.

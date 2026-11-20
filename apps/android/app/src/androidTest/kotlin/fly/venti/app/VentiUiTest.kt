@@ -1017,7 +1017,8 @@ class VentiUiTest {
         // out again.
         screen.onAllNodes(posted).onFirst().performClick()
         waitFor(hasTestTag("plan-in") and hasText("I am out"))
-        assertTrue(exists(hasTestTag("plan-pilot") and hasText("Demo Pilot")))
+        // Among those who are in, the pilot of this phone is "You".
+        assertTrue(exists(hasTestTag("plan-pilot") and hasText("You")))
         assertTrue(exists(hasText("Change the plan")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-plans-2-plan")

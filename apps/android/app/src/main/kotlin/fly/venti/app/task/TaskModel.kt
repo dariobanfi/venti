@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import fly.venti.app.design.Format
 import fly.venti.app.logbook.FlightFileSource
 import fly.venti.app.pilotMessage
+import fly.venti.core.Coordinate
 import fly.venti.core.Core
 import fly.venti.core.TaskFile
 import fly.venti.core.TaskRole
@@ -74,6 +75,9 @@ class TaskModel(
      * task. Returns whether that worked.
      */
     fun keepRoute(waypoints: List<WaypointView>): Boolean = change { core.keepRoute(waypoints.map { it.id }) }
+
+    /** Keeps a route drawn on the map as the task: its places named "Start", "Turnpoint 1" and on to "Finish". */
+    fun keepDrawnRoute(places: List<Coordinate>): Boolean = change { core.keepDrawnRoute(places) }
 
     /** Forgets the kept task. */
     fun forget() {

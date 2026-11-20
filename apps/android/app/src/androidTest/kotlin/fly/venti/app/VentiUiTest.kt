@@ -1,5 +1,7 @@
 package fly.venti.app
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -1839,6 +1841,50 @@ class VentiUiTest {
 
     @Test
     fun twoFlightsSideBySideInDarkAppearance() = layTwoFlightsSideBySide("dark", dark = true)
+
+    /**
+     * A route drawn on the map: three taps, back to the start, and the
+     * panel says what it comes to; kept, it is the task.
+     */
+    private fun drawARouteOnTheMap(prefix: String, dark: Boolean) {
+        launch(dark = dark)
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasTestTag("task-before-takeoff"))
+        tap(hasTestTag("task-before-takeoff"))
+        waitFor(hasTestTag("task-draw-route"))
+        screen.onNode(hasTestTag("task-draw-route")).performScrollTo()
+        tap(hasTestTag("task-draw-route"))
+        val words = hasTestTag("route-words")
+        waitFor(words and hasText("Tap the map where the route begins."))
+        letTheMapDraw(2)
+
+        val map = screen.onNode(hasTestTag("route-map"))
+        // Each tap waits for the map to say it was taken: a tap the map
+        // takes for the first of a double tap waits for the second.
+        map.performTouchInput { click(Offset(width * 0.35f, height * 0.30f)) }
+        waitFor(words and hasText("Tap the next place to fly to."))
+        map.performTouchInput { click(Offset(width * 0.65f, height * 0.30f)) }
+        waitFor(words and hasText("along the route", substring = true))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-route-1-one-leg")
+        map.performTouchInput { click(Offset(width * 0.50f, height * 0.55f)) }
+        waitFor(hasText("Back to the start") and isEnabled())
+        tap(hasText("Back to the start"))
+        waitFor(words and hasText("triangle", substring = true))
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-route-2-triangle")
+
+        tap(hasText("Keep") and isEnabled())
+        waitFor(hasTestTag("task-sketch"))
+        assertTrue(exists(hasContentDescription("Start", substring = true)))
+    }
+
+    @Test
+    fun aRouteIsDrawnOnTheMap() = drawARouteOnTheMap("light", dark = false)
+
+    @Test
+    fun aRouteOnTheMapInDarkAppearance() = drawARouteOnTheMap("dark", dark = true)
 
     @Test
     fun theCockpitShowsAReplayedFlight() = flyAReplayAndVisitTheSettings("light", dark = false)

@@ -100,6 +100,7 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
     var isShowingMenu by remember { mutableStateOf(false) }
     var isConfirmingRemoval by remember { mutableStateOf(false) }
     var isPlanningRoute by remember { mutableStateOf(false) }
+    var isDrawingRoute by remember { mutableStateOf(false) }
     val task = tasks.task
 
     // The times of a task are those of today.
@@ -111,6 +112,12 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
         if (uri != null) {
             scope.launch { tasks.keep(FlightFiles.source(context, uri, what = "a task")) }
         }
+    }
+
+    // Drawing a route takes the whole screen, with a map of its own.
+    if (isDrawingRoute) {
+        RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false })
+        return
     }
 
     Scaffold(
@@ -218,6 +225,17 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
                         leading = R.drawable.venti_track,
                     ) {
                         isPlanningRoute = true
+                    }
+                }
+                row {
+                    LinkRow(
+                        RouteDrawing.ENTRY,
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("task-draw-route"),
+                        leading = R.drawable.venti_map,
+                    ) {
+                        tasks.problem = null
+                        isDrawingRoute = true
                     }
                 }
             }

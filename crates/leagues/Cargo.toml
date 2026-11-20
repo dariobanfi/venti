@@ -1,0 +1,17 @@
+[package]
+name = "venti-leagues"
+description = "What a league's server takes from an app: XContest's rules for claiming a flight, and the DHV-XC's upload interface. No I/O and no clock."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

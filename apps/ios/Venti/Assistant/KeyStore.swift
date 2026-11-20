@@ -79,6 +79,27 @@ enum KeyStore {
     }
 }
 
+/// What a league asks of the pilot before it takes a flight from an app.
+/// It is sent only to that league.
+enum LeagueStore {
+    private static let service = "fly.venti.leagues"
+    private static let dhvxc = "dhvxc-upload-password"
+
+    /// The upload password of the pilot's DHV-XC profile.
+    static func readDhvxcPassword() -> String? {
+        Keychain.read(service: service, account: dhvxc)
+    }
+
+    @discardableResult
+    static func saveDhvxcPassword(_ password: String) -> Bool {
+        Keychain.save(password, service: service, account: dhvxc)
+    }
+
+    static func removeDhvxcPassword() {
+        Keychain.remove(service: service, account: dhvxc)
+    }
+}
+
 /// The token of the session with the pilot's Venti server. It is sent only
 /// to that server, with the requests that act for the account.
 enum SessionStore {

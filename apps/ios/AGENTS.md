@@ -59,6 +59,7 @@ What a simulator cannot show (recording for hours in the background, the vario c
 - **The assistant** has only talked to a scripted stand-in in tests, never to the real service.
 - **Scanning a task's QR code with the camera** has not been tried on a phone.
 - **Signing in, sync, sharing and the airspace fetched from a server** were tested against the development mode in a simulator, on no phone.
+- **Sending a flight to the DHV-XC.** Built against the specification in the DHV-XC's rules and its two example answers. Nothing has been sent to the DHV-XC: no test may, and a UI test never taps "Send".
 - **Downloading a map region.** No real region has been built. A download runs only while the app is open.
 
 ## Not in the docs yet

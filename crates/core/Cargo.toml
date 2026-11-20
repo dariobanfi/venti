@@ -21,6 +21,7 @@ venti-airspace.workspace = true
 venti-api-types.workspace = true
 venti-domain.workspace = true
 venti-flight.workspace = true
+venti-leagues.workspace = true
 venti-llm.workspace = true
 venti-sensors.workspace = true
 venti-tools.workspace = true

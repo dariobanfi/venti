@@ -219,6 +219,45 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No flights yet"].waitForExistence(timeout: 15))
     }
 
+    /// A flight of the logbook on its way to a league: what the pilot is
+    /// told first, the file, XContest's page and the DHV-XC's form.
+    /// Nothing is sent: the test signs in nowhere and never taps "Send".
+    func testAFlightIsHandedToALeague() {
+        let app = launch(bundledMap: true)
+        addSampleFlightAndOpenIt(in: app, prefix: "league")
+
+        app.buttons["More"].tap()
+        app.buttons["Send to a league"].tap()
+        XCTAssertTrue(app.navigationBars["Send to a league"].waitForExistence(timeout: 15))
+
+        // The sample flight is of 4 July 2026: the leagues take it until
+        // the 18th, whether that is past or to come.
+        XCTAssertTrue(element("league-deadline", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "18 Jul 2026", in: app).exists)
+        // Venti's own recorder made it, and signs nothing yet.
+        XCTAssertTrue(labelled(containing: "does not sign its files yet", in: app).exists)
+
+        // XContest: the file for the pilot, and the page to upload it on.
+        XCTAssertTrue(element("league-file", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("xcontest-claim", in: app).exists)
+        sleep(1)
+        keepScreenshot("league-4-sheet")
+
+        // The DHV-XC: nothing can be sent without a name and the upload
+        // password.
+        let send = element("dhvxc-send", in: app)
+        for _ in 0..<4 where !send.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(send.waitForExistence(timeout: 10))
+        XCTAssertFalse(send.isEnabled)
+        sleep(1)
+        keepScreenshot("league-5-dhvxc")
+
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 15))
+    }
+
     func testTheAppInDarkAppearance() {
         let app = launch(bundledMap: true, dark: true)
         addSampleFlightAndOpenIt(in: app, prefix: "dark")

@@ -29,6 +29,8 @@ struct FlightScreen: View {
     @State private var exported: URL?
     @State private var isConfirmingDelete = false
     @State private var isSharing = false
+    /// Whether the sheet that hands the flight to a league is open.
+    @State private var isHandingOver = false
 
     var body: some View {
         Group {
@@ -60,6 +62,9 @@ struct FlightScreen: View {
                     if let exported {
                         ShareLink("Share flight file", item: exported)
                     }
+                    Button("Send to a league", systemImage: "trophy") {
+                        isHandingOver = true
+                    }
                     // The flight once more, as the cockpit would have
                     // shown it in the air: its wind, its thermals, the
                     // airspace it came near. Not while a flight is on.
@@ -85,6 +90,9 @@ struct FlightScreen: View {
         .sheet(isPresented: $isSharing) {
             ShareFlightSheet(flight: id)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $isHandingOver) {
+            LeagueSheet(flight: id)
         }
         .confirmationDialog("Delete this flight?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete flight", role: .destructive) {

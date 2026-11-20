@@ -537,6 +537,26 @@ Geometry is available from Bavarian and Austrian state geoportals and OpenStreet
 | Sentinel-2 cloudless 2016 | 10 m imagery fallback | CC BY 4.0 (later years are non-commercial share-alike) | Open |
 | OpenTopoMap | Raster server shut down in January 2026 | | Skip |
 
+## Leagues a flight goes to
+
+These are not sources: nothing is fetched from them and nothing of theirs is served. A pilot's own flight file goes from the pilot's device to the league, at the pilot's word. The rule is the same in spirit: only what the league itself publishes for apps is used, and what it publishes was read on its own pages. `crates/leagues` holds what is built; it talks to nobody, and the app sends from the pilot's device. Read on 2026-11-20.
+
+| League | What | What its own pages say | Status |
+|---|---|---|---|
+| XContest | The page on which a signed-in pilot claims a flight, `https://www.xcontest.org/world/en/flight-claim/` | "How to claim a flight" (`https://www.xcontest.org/world/en/how-to-claim-flight/`) sends the pilot to "Claim flight" in the "My Contest" menu: "All you need now is valid IGC file." To anyone not signed in the address answers "sign in first", so what the page shows was not read | **Use**: a link to the page, and the file handed to the pilot, who uploads it |
+| XContest | An upload interface for apps | None on XContest's pages. A document of XContest's from 2012 ("XContest API – Gate Flight"), found only in another project's repository, says that an app needs a key and a secret which XContest gives out on request to `info@xcontest.org`. Whether it is current is not known. No terms for it are published | **Ask** |
+| XContest | Reading a pilot's flights or their files | Nothing is published. Flight pages ask for a sign-in, and `robots.txt` shuts out the flight and pilot pages and every address with a query. *To verify, by the owner, who has an account:* whether a signed-in pilot can download the file of their own flight from its page | **Skip** until XContest offers a way. A pilot imports files they downloaded themselves |
+| DHV-XC | The upload interface for apps, `POST https://en.dhv-xc.de/api/v1/flights` | "DHV XC Flight Upload Interface Specification", version 2022-04-24, printed in the rules under "Software Spezifikation - für Entwickler" ("Wettbewerbsausschreibung 2026/2027", version 01.2027, `https://www.dhv.de/media/seiten/05_wettbewerb/DHVXC/Ausschreibungen/AusschreibungDHVXC.pdf`). The request carries the pilot's user name, an upload password the pilot sets in the profile ("Upload password as set in the pilot profile"), the file's name and its text, and optionally a glider and whether to publish. No key is asked of the app | **Use**: built in `crates/leagues` and the iPhone app. Nothing has been sent to the DHV-XC by this project yet |
+
+What a bridge has to respect, in the leagues' words:
+
+- **Fourteen days.** XContest's rules, 3.1 (`https://www.xcontest.org/world/en/rules/`): "The deadline for uploading a flight is 14 days after day of the flight. Flights which are claimed after the deadline will be rejected." The DHV-XC's, 6.5: "spätestens 14 Tage (Flugtag x + 14 Tage / 24:00 Uhr UTC)"; later a flight can only go to "Ohne Wertung" or "Privat". *To verify:* by which time zone XContest counts the days; the app counts by UTC for both.
+- **The recorder's signature.** XContest's questions and answers (`https://www.xcontest.org/world/en/faq/`): a file whose signature does not validate "can be submitted to XContest, but no points will be assigned for it in categories." The DHV-XC's rules, 6.4: the files are checked on upload for being unedited, "Dies wird durch einen G-Record angezeigt (grün = in Ordnung, rot = wird nicht gewertet)". Neither league publishes a list of the recorders it accepts or a way for a new one to be accepted. **Venti's own recordings carry no signature**, so they are listed and not scored; flights imported from a vario or another app keep theirs, because the logbook keeps the file byte for byte.
+- **Whose the file is afterwards.** The DHV-XC's rules, 4.8: with the upload the pilot gives up the sole rights of use in the file, the photos and the comments to the organiser. XContest's, 3.2: an uploaded tracklog "becomes the public property". The app says so before it sends.
+- **The upload password is the pilot's.** It is kept in the device's keychain and sent to the DHV-XC only. It never reaches a Venti server.
+
+Not verified, and said so where it matters: the address of the DHV-XC's check of a user name and password (the specification's heading says `/v1/authcheck`; the app does not use it), and anything about either league that needs a sign-in to see.
+
 ## Outreach
 
 Permissions to request, roughly in order of how much they block. AI sessions draft the emails; the owner sends them.
@@ -545,7 +565,7 @@ Permissions to request, roughly in order of how much they block. AI sessions dra
 |---|---|---|
 | Holfuy | Permission and an API key to show and re-serve station data in a free, open-source app | Wind at launch sites |
 | DHV | Permission to use and re-serve the site database | Authoritative site data |
-| XContest | Use of the airspace activation data; flight cross-posting; acceptance of tracks recorded by the app | Airspace activations, community adoption |
+| XContest (`info@xcontest.org`) | A key for its upload interface for apps, and the terms for using it; a way for a pilot to fetch their own flights; recognition of the signature of tracks recorded by the app, or the way to it; use of the airspace activation data. Until then the app hands the pilot the file and opens XContest's claim page ([Leagues a flight goes to](#leagues-a-flight-goes-to)) | Sending a flight to XContest with one tap, importing a pilot's history from it, points for flights recorded with the app, airspace activations |
 | thermal.kk7.ch | Use of thermal and skyways tiles, with expected load | Thermal overlay |
 | DFS | Written confirmation of the CC BY 4.0 terms. Since 2026-11-19 they are known to be stated on DFS's own page, per data set; whether a letter is still wanted is the owner's decision | German airspace |
 | Austro Control | Permission to re-serve airspace and obstacle files | Austrian airspace |

@@ -207,6 +207,29 @@ final class LogbookModel {
         }.value
     }
 
+    /// What to tell the pilot before a flight goes to a league, with the
+    /// file to hand over.
+    func leagueHandover(id: String) async throws -> LeagueHandover {
+        let core = self.core
+        let now = Int64(Date().timeIntervalSince1970)
+        return try await Task.detached(priority: .userInitiated) {
+            try core.leagueHandover(id: id, nowUnixS: now)
+        }.value
+    }
+
+    /// The request that sends a flight to the DHV-XC, for this iPhone to
+    /// send.
+    func dhvxcRequest(
+        id: String, user: String, uploadPassword: String, glider: String?, publish: Bool
+    ) async throws -> LeagueRequest {
+        let core = self.core
+        return try await Task.detached(priority: .userInitiated) {
+            try core.dhvxcUploadRequest(
+                id: id, user: user, uploadPassword: uploadPassword, glider: glider, publish: publish
+            )
+        }.value
+    }
+
     /// The text of a flight's file, as the logbook keeps it.
     func fileText(id: String) async throws -> String {
         let core = self.core

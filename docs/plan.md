@@ -128,7 +128,7 @@ Android was planned to follow iOS one phase behind once the shell patterns were 
 ## Risks
 
 1. **Scope.** This is three mature products at once. The phase order is the mitigation.
-2. **Empty community.** XContest has the network. The app must be the best logbook and cockpit with no friends on it, import history in bulk, and cross-post to XContest if XContest agrees.
+2. **Empty community.** XContest has the network. The app must be the best logbook and cockpit with no friends on it, import history in bulk, and cross-post to XContest if XContest agrees. Since 2026-11-20 the iPhone app hands a flight to XContest by the pilot's own upload and sends one to the DHV-XC through the interface it publishes ([data-sources.md](data-sources.md#leagues-a-flight-goes-to)); posting to XContest with one tap and fetching a pilot's history from it wait for XContest's answer to the owner.
 3. **Lost tracks.** iOS background limits and Android battery managers kill trackers. One lost long flight loses a pilot for good.
 4. **Data permissions.** Several sources that matter most at launch sites have no open licence: Holfuy wind stations, the DHV site database, airspace activation times, webcams.
 5. **Liability.** Airspace data and assistant answers can be wrong. Everything is advisory, shows the age of its data and cites its source.

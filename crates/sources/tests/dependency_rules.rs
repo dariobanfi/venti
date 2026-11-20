@@ -12,8 +12,8 @@
 //! - `venti-mcp`, the protocol of the server's connector, depends on no
 //!   other workspace crate: it knows the protocol and nothing about wind,
 //!   airspace or this server. Only the server uses it.
-//! - `venti-flight`, `venti-sensors` and `venti-airspace` depend only on
-//!   `venti-domain`.
+//! - `venti-flight`, `venti-sensors`, `venti-airspace` and `venti-leagues`
+//!   depend only on `venti-domain`.
 //! - `venti-api-types`, the wire format shared by server and clients, and
 //!   `venti-store`, the server's persistence, depend only on `venti-domain`.
 //! - `venti-core`, the client core, never depends on the source framework:
@@ -36,12 +36,15 @@ use std::process::Command;
 const ASSEMBLERS: [&str; 1] = ["venti-server"];
 
 /// Crates made for the apps alone: the client core, its browser binding,
-/// and what the in-app assistant's provider and the cockpit are built
-/// from. What the server shares with the apps is `venti-domain`,
-/// `venti-api-types`, `venti-flight`, `venti-airspace` and `venti-tools`.
-const CLIENT_ONLY: [&str; 4] = [
+/// and what the in-app assistant's provider, the cockpit and the handing
+/// of a flight to a league are built from. A flight goes to a league from
+/// the pilot's own device, never through the server. What the server
+/// shares with the apps is `venti-domain`, `venti-api-types`,
+/// `venti-flight`, `venti-airspace` and `venti-tools`.
+const CLIENT_ONLY: [&str; 5] = [
     "venti-core",
     "venti-core-wasm",
+    "venti-leagues",
     "venti-llm",
     "venti-sensors",
 ];
@@ -133,7 +136,7 @@ fn crate_dependencies_point_inward() {
         let allowed: Option<&[&str]> = match name.as_str() {
             "venti-domain" => Some(&[]),
             "venti-sources" | "venti-flight" | "venti-sensors" | "venti-airspace"
-            | "venti-api-types" | "venti-store" => Some(&["venti-domain"]),
+            | "venti-api-types" | "venti-store" | "venti-leagues" => Some(&["venti-domain"]),
             "venti-regions" => Some(&["venti-domain", "venti-sources"]),
             // The model provider's crate stands alone: it knows JSON and
             // HTTP shapes, nothing about flying or about this app's data.
@@ -151,6 +154,7 @@ fn crate_dependencies_point_inward() {
                 "venti-sensors",
                 "venti-airspace",
                 "venti-api-types",
+                "venti-leagues",
                 "venti-llm",
                 "venti-tools",
             ]),

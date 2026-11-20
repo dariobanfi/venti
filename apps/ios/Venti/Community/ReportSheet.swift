@@ -80,11 +80,15 @@ struct ReportSheet: View {
                                     Spacer(minLength: 8)
                                     Image(systemName: "checkmark")
                                         .fontWeight(.semibold)
-                                        .foregroundStyle(.tint)
+                                        .foregroundStyle(Palette.accent)
                                         .opacity(reason == choice.reason ? 1 : 0)
                                         .accessibilityHidden(true)
                                 }
                             }
+                            // A list to choose from, not six links: the
+                            // names stand in the colour of text, and the
+                            // tick alone in the app's.
+                            .tint(.primary)
                             .accessibilityAddTraits(reason == choice.reason ? .isSelected : [])
                             .accessibilityIdentifier("report-reason")
                         }

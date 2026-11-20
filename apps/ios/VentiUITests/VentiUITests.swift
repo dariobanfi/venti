@@ -28,6 +28,31 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
+    /// Waits until everything named, by identifier or by label, is on the
+    /// screen at one and the same look, and says whether it came to that.
+    /// What a replay shows passes: looked for one thing after the other,
+    /// the first can be gone again before the last is found, the more so
+    /// on a slow machine, where one look at the screen takes seconds.
+    private func waitForAll(_ names: Set<String>, in app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let look = try? app.snapshot() {
+                var missing = names
+                var open: [any XCUIElementSnapshot] = [look]
+                while let next = open.popLast(), !missing.isEmpty {
+                    missing.remove(next.identifier)
+                    missing.remove(next.label)
+                    open.append(contentsOf: next.children)
+                }
+                if missing.isEmpty {
+                    return true
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        } while Date() < deadline
+        return false
+    }
+
     /// Changes to a tab. After a screen that covered the tab bar, and just
     /// after launch, the bar is still settling and a tap goes nowhere: wait
     /// until the button can be hit, tap, and tap again if the tab did not
@@ -168,9 +193,10 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(faster.waitForExistence(timeout: 10))
         faster.tap()
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 30))
-        XCTAssertTrue(element("Gained", in: app).waitForExistence(timeout: 40))
-        XCTAssertTrue(element("lift-badge", in: app).waitForExistence(timeout: 20))
-        sleep(2)
+        // The thermal's numbers and its picture, at one look: the thermal
+        // is over a quarter of a minute after it began.
+        XCTAssertTrue(waitForAll(["Gained", "lift-badge"], in: app, timeout: 180))
+        sleep(1)
         keepScreenshot("dark-3b-replayed-in-the-cockpit")
         app.buttons["End replay"].tap()
         let close = app.buttons["Close the cockpit"]
@@ -223,20 +249,19 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
 
         // Circling in lift, the cockpit changes to its thermal numbers by
-        // itself.
-        XCTAssertTrue(element("Gained", in: app).waitForExistence(timeout: 40))
-        // Most of a circle later the map pictures the thermal: the circles
-        // flown, moved with the wind, and where among them the lift is.
-        XCTAssertTrue(element("lift-badge", in: app).waitForExistence(timeout: 20))
-        // The sample waypoints hold one landing, well within reach from
-        // up here: the cockpit names it with the height to spare.
-        XCTAssertTrue(element("landing-badge", in: app).waitForExistence(timeout: 15))
-        sleep(2)
+        // itself. Most of a circle later the map pictures the thermal: the
+        // circles flown, moved with the wind, and where among them the
+        // lift is. The sample waypoints hold one landing, well within
+        // reach from up here: the cockpit names it with the height to
+        // spare. All three at one look, because the thermal is over a
+        // quarter of a minute after it began.
+        XCTAssertTrue(waitForAll(["Gained", "lift-badge", "landing-badge"], in: app, timeout: 180))
+        sleep(1)
         keepScreenshot("fly-2-thermal")
 
         // On the glide after the thermal it changes back, now with the wind
         // it worked out while circling.
-        XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 40))
+        XCTAssertTrue(element("Glide", in: app).waitForExistence(timeout: 150))
         XCTAssertTrue(element("Wind", in: app).exists)
         sleep(3)
         keepScreenshot("fly-3-glide")
@@ -337,7 +362,7 @@ final class VentiUITests: XCTestCase {
         // The warning comes when the glider is two kilometres from the
         // zone, nine minutes into the flight.
         let banner = element("airspace-banner", in: app)
-        XCTAssertTrue(banner.waitForExistence(timeout: 120))
+        XCTAssertTrue(banner.waitForExistence(timeout: 300))
         XCTAssertTrue(valued(containing: "SAMPLE ZONE (NOT REAL)", in: app).exists)
         sleep(2)
         keepScreenshot("fly-6-airspace")
@@ -579,7 +604,7 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(valued(containing: "Sample start", in: app).waitForExistence(timeout: 10))
         keepScreenshot("task-3-before-start")
 
-        XCTAssertTrue(valued(containing: "On task", in: app).waitForExistence(timeout: 60))
+        XCTAssertTrue(valued(containing: "On task", in: app).waitForExistence(timeout: 240))
         XCTAssertTrue(valued(containing: "Sample turnpoint west", in: app).waitForExistence(timeout: 10))
         app.buttons["Show the whole flight"].tap()
         XCTAssertTrue(app.buttons["Follow the glider"].waitForExistence(timeout: 10))

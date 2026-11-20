@@ -98,6 +98,12 @@ final class FlySession {
     /// How often the screen and the vario tone are refreshed.
     private static let refreshInterval = Duration.milliseconds(200)
 
+    /// The longest stretch of the clock a replay moves on by at once, in
+    /// seconds. When the phone was busy with something else for longer,
+    /// the replay carries on from where it was instead of leaping over
+    /// minutes of the flight that nobody saw.
+    static let replayStepAtMostS = 2.0
+
     init(dataFolder: URL) {
         self.dataFolder = dataFolder
     }
@@ -391,7 +397,7 @@ final class FlySession {
         guard let session else { return }
         let now: Double
         if let replay, case .replay(let speed) = mode {
-            _ = replay.advance(session: session, seconds: elapsed * speed)
+            _ = replay.advance(session: session, seconds: min(elapsed, Self.replayStepAtMostS) * speed)
             now = replay.now()
         } else {
             now = Date().timeIntervalSince1970

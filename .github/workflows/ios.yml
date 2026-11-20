@@ -165,6 +165,41 @@ jobs:
           sips -Z 1400 target/apple/screenshots/*.png > /dev/null
           ls -lR target/apple/screenshots
 
+      # A UI test that fails on a slow machine and passes on a fast one can
+      # only be understood from when each of its steps began.
+      - name: Keep when each step of a failed UI test began
+        if: failure()
+        continue-on-error: true
+        run: |
+          [ -d target/apple/Venti.xcresult ] || exit 0
+          mkdir -p target/apple/screenshots/failures
+          xcrun xcresulttool get test-results tests \
+            --path target/apple/Venti.xcresult > target/apple/tests.json
+          python3 - <<'EOF'
+          import json, pathlib, re, subprocess
+
+          def failed(node):
+              if node.get("nodeType") == "Test Case" and node.get("result") == "Failed":
+                  yield node.get("nodeIdentifier")
+              for child in node.get("children", []):
+                  yield from failed(child)
+
+          tree = json.loads(pathlib.Path("target/apple/tests.json").read_text())
+          for root in tree.get("testNodes", []):
+              for identifier in failed(root):
+                  if not identifier:
+                      continue
+                  steps = subprocess.run(
+                      ["xcrun", "xcresulttool", "get", "test-results", "activities",
+                       "--test-id", identifier, "--path", "target/apple/Venti.xcresult"],
+                      capture_output=True, text=True,
+                  )
+                  name = re.sub(r"[^A-Za-z0-9]+", "-", identifier).strip("-")
+                  pathlib.Path(f"target/apple/screenshots/failures/{name}-steps.json").write_text(
+                      steps.stdout or steps.stderr
+                  )
+          EOF
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

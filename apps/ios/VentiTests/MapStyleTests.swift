@@ -15,6 +15,19 @@ final class MapStyleTests: XCTestCase {
         return style
     }
 
+    /// Every place a map can be drawn from: the network, the region in
+    /// the app, and a region kept on the iPhone, which the one in the app
+    /// stands in for.
+    private func everySource() throws -> [MapStyle.Source] {
+        let region = try MapStyle.bundledRegion()
+        let kept = MapStyle.Kept(
+            id: "tegernsee-demo", version: "2026-11-18",
+            basemap: region.appendingPathComponent("basemap.pmtiles"),
+            terrain: region.appendingPathComponent("terrain.pmtiles")
+        )
+        return [.online, .bundled, .kept(kept)]
+    }
+
     private func sources(of style: [String: Any]) throws -> [String: [String: Any]] {
         let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
         XCTAssertEqual(Set(sources.keys), ["basemap", "terrain"])
@@ -28,6 +41,23 @@ final class MapStyleTests: XCTestCase {
             let file = try XCTUnwrap(URL(string: String(url.dropFirst("pmtiles://".count))))
             XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), "\(name): \(file.path)")
         }
+    }
+
+    func testAKeptRegionIsDrawnFromItsOwnTwoFiles() throws {
+        let kept = try XCTUnwrap(try everySource().last)
+        let sources = try sources(of: style(for: kept))
+
+        let basemap = try XCTUnwrap(sources["basemap"]?["url"] as? String)
+        XCTAssertTrue(basemap.hasPrefix("pmtiles://file://"), basemap)
+        XCTAssertTrue(basemap.hasSuffix("/basemap.pmtiles"), basemap)
+        let terrain = try XCTUnwrap(sources["terrain"])
+        XCTAssertTrue((terrain["url"] as? String)?.hasSuffix("/terrain.pmtiles") == true)
+        // Nothing of it is fetched.
+        XCTAssertNil(terrain["tiles"])
+        XCTAssertEqual(terrain["encoding"] as? String, "terrarium")
+        // Each source has a name of its own, by which its style is kept
+        // and by which a map knows that it has to be made anew.
+        XCTAssertEqual(Set(try everySource().map(\.key)).count, 3)
     }
 
     func testTheOnlineStyleFetchesTilesAndKeepsTheTerrainSettings() throws {
@@ -44,7 +74,7 @@ final class MapStyleTests: XCTestCase {
     }
 
     func testLabelFontsAlwaysComeFromInsideTheApp() throws {
-        for source in MapStyle.Source.allCases {
+        for source in try everySource() {
             let glyphs = try XCTUnwrap(style(for: source)["glyphs"] as? String)
             XCTAssertTrue(glyphs.hasPrefix("file://"), glyphs)
             XCTAssertTrue(glyphs.hasSuffix("/{fontstack}/{range}.pbf"), glyphs)
@@ -68,7 +98,7 @@ final class MapStyleTests: XCTestCase {
     }
 
     func testThePreparedStyleIsWrittenWhereTheMapCanLoadIt() throws {
-        for source in MapStyle.Source.allCases {
+        for source in try everySource() {
             let url = try MapStyle.url(for: source)
             XCTAssertTrue(url.isFileURL)
             XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))

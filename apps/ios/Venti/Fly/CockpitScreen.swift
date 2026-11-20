@@ -14,6 +14,7 @@ struct CockpitScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
+    @Environment(OfflineMapsModel.self) private var maps
     @State private var isConfirmingFinish = false
     @State private var isShowingTask = false
     @State private var isChoosingTarget = false
@@ -29,11 +30,22 @@ struct CockpitScreen: View {
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
     @AppStorage(Preferences.cockpitForSun) private var isForSun = false
 
+    /// Whether the cockpit's map is drawn from a region kept on the iPhone.
+    private var mapIsKept: Bool {
+        if case .kept = maps.flyingSource {
+            return true
+        }
+        return false
+    }
+
     var body: some View {
         @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
-                StatusLine(view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName)
+                StatusLine(
+                    view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName,
+                    mapIsKept: mapIsKept
+                )
                 CockpitMap(
                     view: view, way: fly.way, airspace: fly.airspace(),
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
@@ -43,8 +55,13 @@ struct CockpitScreen: View {
                     gliders: fly.gliders,
                     showsWholeFlight: showsWholeFlight,
                     task: fly.task == nil ? nil : tasks.task,
-                    taskStatus: fly.task
+                    taskStatus: fly.task,
+                    source: maps.flyingSource
                 )
+                    // Drawn from the region kept on the iPhone wherever
+                    // one covers the glider: the map is made anew when
+                    // the glider comes into one or leaves it.
+                    .id(maps.flyingSource.key)
                     // The map is left out of the accessibility tree: what it
                     // shows is in the instruments, and its hundreds of map
                     // labels made reading the screen by code or by VoiceOver
@@ -402,6 +419,9 @@ private struct StatusLine: View {
     let score: LiveScore?
     let mode: FlySession.Mode?
     let varioName: String?
+    /// Whether the map is drawn from a region kept on the iPhone, and so
+    /// stays when the network goes.
+    var mapIsKept = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -440,6 +460,13 @@ private struct StatusLine: View {
             if positionIsLost {
                 Label("No position", systemImage: "location.slash.fill")
                     .foregroundStyle(.red)
+            }
+            if mapIsKept {
+                // One glyph: the line is full as it is.
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Map from this iPhone")
+                    .accessibilityIdentifier("map-kept")
             }
             Text(varioText)
                 .foregroundStyle(varioIsLost ? Color.red : Color.secondary)

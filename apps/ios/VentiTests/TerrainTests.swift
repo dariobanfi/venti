@@ -128,4 +128,38 @@ extension TerrainTests {
         let nothing = await none.ground(under: flight)
         XCTAssertTrue(nothing.isEmpty)
     }
+
+    func testAKeptRegionGivesTheGroundFromItsFileWithoutANetwork() async throws {
+        let archive = try MapStyle.bundledRegion().appendingPathComponent("terrain.pmtiles", isDirectory: false)
+        let model = TerrainModel(source: .nowhere, folder: nil, transport: { _ in
+            XCTFail("Nothing is fetched where a kept region has the ground")
+            return (500, Data())
+        })
+        let wallberg = Coordinate(lat: 47.6642, lon: 11.7967)
+
+        // Without the region there is no ground to be had.
+        await model.load(around: wallberg)
+        XCTAssertNil(model.terrain.elevation(lat: 47.6642, lon: 11.7967))
+
+        // With it, the tiles around the glider are read from its file.
+        model.use(archives: [archive.path])
+        XCTAssertNil(model.terrain.elevation(lat: 47.6642, lon: 11.7967))
+        await model.load(around: wallberg)
+        let takeoff = try XCTUnwrap(model.terrain.elevation(lat: 47.6642, lon: 11.7967))
+        XCTAssertEqual(takeoff, 1620, accuracy: 5)
+
+        // So is the ground under a flight, at the zoom level its extent
+        // asks for.
+        let sample = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let flight = try flightFromFile(igcText: try String(contentsOf: sample, encoding: .utf8))
+        let ground = await model.ground(under: flight)
+        XCTAssertGreaterThan(ground.count, 100)
+        XCTAssertEqual(try XCTUnwrap(ground.first).elevationM, 1620, accuracy: 25)
+
+        // A region that is deleted is let go; a file that is no archive
+        // is left out and takes nothing else with it.
+        model.use(archives: ["/nowhere/terrain.pmtiles"])
+        let fresh = await model.ground(under: flight)
+        XCTAssertTrue(fresh.isEmpty)
+    }
 }

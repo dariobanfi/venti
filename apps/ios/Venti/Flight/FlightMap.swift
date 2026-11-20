@@ -15,13 +15,16 @@ struct FlightMap: UIViewRepresentable {
     var airspace: [AirspaceShape] = []
     /// How much of the map the bars and the panel cover, from each edge.
     var covered: UIEdgeInsets
+    /// What the map is drawn from. Read when the map is made; the screen
+    /// makes the map anew when it changes.
+    var source: MapStyle.Source = .standard
 
     func makeCoordinator() -> Coordinator {
         Coordinator(flight: flight)
     }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let map = MapSetup.makeMapView()
+        let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         if let first = flight.track.first {
             map.setCenter(first.coordinate, zoomLevel: 11, animated: false)

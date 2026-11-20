@@ -38,13 +38,16 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with the place under the finger after a long press on the
     /// map.
     var onPlace: (Coordinate) -> Void = { _ in }
+    /// What the map is drawn from. Read when the map is made; the screen
+    /// makes the map anew when it changes.
+    var source: MapStyle.Source = .standard
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let map = MapSetup.makeMapView()
+        let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         map.automaticallyAdjustsContentInset = true
         // The northern Alps between Lake Constance and Salzburg.

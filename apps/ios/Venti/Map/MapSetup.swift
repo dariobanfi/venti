@@ -8,11 +8,12 @@ import VentiCore
 /// The map engine is MapLibre Native, wrapped directly.
 @MainActor
 enum MapSetup {
-    /// A map view with the app's style and no camera yet.
-    static func makeMapView() -> MLNMapView {
+    /// A map view with the app's style, drawn from the given source, and
+    /// no camera yet.
+    static func makeMapView(from source: MapStyle.Source = .standard) -> MLNMapView {
         // If the style cannot be prepared the map falls back to MapLibre's
         // default style; the tests check that it can.
-        let map = MLNMapView(frame: .zero, styleURL: try? MapStyle.url(for: .current))
+        let map = MLNMapView(frame: .zero, styleURL: try? MapStyle.url(for: source))
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         map.logoView.isHidden = true
         // Each screen says how much of the map its own controls cover.

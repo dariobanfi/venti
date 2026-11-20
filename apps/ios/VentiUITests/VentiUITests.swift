@@ -955,6 +955,65 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("plans-3-group")
     }
 
+    /// A region's map is downloaded from the pilot's server and kept, and
+    /// the cockpit then draws its map from it. Runs against a Venti server
+    /// whose development mode hands out the region that comes with the
+    /// app; without one, or with one that hands out no maps, it is left
+    /// out.
+    func testAMapIsDownloadedForFlyingWithoutANetwork() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        openTab("Fly", in: app)
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
+
+        // Before take-off the Fly tab says whether there is a map for
+        // flying without a network, and leads to the regions.
+        let before = element("map-before-takeoff", in: app)
+        XCTAssertTrue(before.waitForExistence(timeout: 10))
+        before.tap()
+        XCTAssertTrue(app.navigationBars["Offline maps"].waitForExistence(timeout: 10))
+        let region = element("map-region", in: app)
+        if !region.waitForExistence(timeout: 30) {
+            if element("maps-none", in: app).exists {
+                throw XCTSkip("The server hands out no maps: it was started without --maps.")
+            }
+            return XCTFail("The server's maps did not appear")
+        }
+        XCTAssertTrue(labelled(containing: "Tegernsee valley", in: app).exists)
+        sleep(1)
+        keepScreenshot("maps-1-offered")
+
+        // The pilot is told the size before anything is fetched.
+        element("map-download", in: app).tap()
+        let go = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Download 7")).firstMatch
+        XCTAssertTrue(go.waitForExistence(timeout: 10))
+        go.tap()
+        // Seven megabytes from the same machine: fetched, checked against
+        // what the server said, and kept.
+        XCTAssertTrue(element("map-delete", in: app).waitForExistence(timeout: 90))
+        XCTAssertTrue(labelled(containing: "On this device", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("maps-2-kept")
+
+        // Back on the Fly tab, the region is named among what to check.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Tegernsee valley", in: app).waitForExistence(timeout: 10))
+
+        // The sample flight is over the Tegernsee, inside the region: the
+        // cockpit draws its map from the download and says so.
+        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(element("map-kept", in: app).waitForExistence(timeout: 30))
+        // Time for the map to be made anew and to draw.
+        sleep(6)
+        keepScreenshot("maps-3-cockpit")
+        // The height over the ground is read from the region's elevation.
+        XCTAssertTrue(labelled(containing: "over ground", in: app).waitForExistence(timeout: 30))
+    }
+
     /// The same screens with tiles fetched from the public servers, as a
     /// pilot's phone draws them. Only the screenshots matter here: the test
     /// does not fail when the network is slow.

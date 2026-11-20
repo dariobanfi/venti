@@ -139,6 +139,13 @@ struct FlightDetail: View {
     let airspace: [AirspaceShape]
 
     @Environment(TerrainModel.self) private var terrain
+    @Environment(OfflineMapsModel.self) private var maps
+
+    /// What the map is drawn from: the network while there is one, else
+    /// the region kept on the iPhone that covers where the flight began.
+    private var mapSource: MapStyle.Source {
+        maps.browsingSource(at: flight.track.first.map { Coordinate(lat: $0.lat, lon: $0.lon) })
+    }
 
     /// The position in the track the pilot is inspecting, if any.
     @State private var cursor: Int?
@@ -162,8 +169,12 @@ struct FlightDetail: View {
                         left: 0,
                         bottom: panelHeight + 2 * Self.panelMargin,
                         right: 0
-                    )
+                    ),
+                    source: mapSource
                 )
+                // Without a network the map is drawn from the region kept
+                // on the iPhone, if one covers the flight.
+                .id(mapSource.key)
                 .ignoresSafeArea()
                 .accessibilityLabel("Map of the flight")
 

@@ -254,6 +254,16 @@ pub fn map_region_covering(kept: Vec<MapRegionView>, lat: f64, lon: f64) -> Opti
         .min_by(|one, other| area(&one.bounds).total_cmp(&area(&other.bounds)))
 }
 
+/// How far a download is, in words: "123 MB of 412 MB".
+#[uniffi::export]
+pub fn map_download_words(received: u64, total: u64) -> String {
+    format!(
+        "{} of {}",
+        size_in_words(received.min(total)),
+        size_in_words(total)
+    )
+}
+
 /// A size as a person reads it, in the decimal units phones show:
 /// "412 MB", "1.3 GB", "7.5 MB".
 pub(crate) fn size_in_words(bytes: u64) -> String {
@@ -624,5 +634,14 @@ mod tests {
         assert_eq!(size_in_words(7_476_437), "7.5 MB");
         assert_eq!(size_in_words(120_000), "0.1 MB");
         assert_eq!(size_in_words(12), "less than 0.1 MB");
+        assert_eq!(
+            map_download_words(123_000_000, 412_400_000),
+            "123 MB of 412 MB"
+        );
+        // More than the whole is the whole.
+        assert_eq!(
+            map_download_words(9_000_000_000, 7_476_437),
+            "7.5 MB of 7.5 MB"
+        );
     }
 }

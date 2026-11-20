@@ -5,11 +5,12 @@ import VentiCore
 /// at, for the cockpit's height above ground, for airspace given above
 /// ground and for the side view.
 ///
-/// Tiles are the ones the map draws its relief from. Each is fetched once
-/// and kept on the iPhone, so that the ground is there again without a
-/// network: over the place flown at last time, and wherever a flight led
-/// while there was one. The core reads the heights out of them; nothing
-/// here knows what a tile holds.
+/// Tiles are the ones the map draws its relief from. Where the pilot has
+/// downloaded a region's map, they are read from its elevation archive on
+/// the iPhone. Elsewhere each is fetched once and kept, so that the ground
+/// is there again without a network: over the place flown at last time,
+/// and wherever a flight led while there was one. The core reads the
+/// heights out of them; nothing here knows what a tile holds.
 @MainActor
 @Observable
 final class TerrainModel {
@@ -35,6 +36,10 @@ final class TerrainModel {
     @ObservationIgnored private let folder: URL?
     @ObservationIgnored private var isLoading = false
     @ObservationIgnored private var hasReadArchive = false
+    /// The elevation archives of the regions kept on the iPhone, by
+    /// their files: opened in the terrain, and read before anything is
+    /// fetched.
+    @ObservationIgnored private var archives: [String] = []
 
     /// How many moments of a flight the ground is read at for its
     /// profile: more than the chart is points wide.
@@ -53,7 +58,7 @@ final class TerrainModel {
     /// The source the app draws its map from: the public tile server, or
     /// the region inside the app when the map is drawn from that.
     static var sourceInUse: Source {
-        switch MapStyle.Source.current {
+        switch MapStyle.Source.standard {
         case .online:
             return Source.server(MapStyle.Online.terrainTiles)
         case .bundled:
@@ -61,6 +66,21 @@ final class TerrainModel {
                 return Source.nowhere
             }
             return Source.archive(region.appendingPathComponent("terrain.pmtiles", isDirectory: false))
+        case .kept:
+            // Kept regions come on top of the source, with `use(archives:)`.
+            return Source.nowhere
+        }
+    }
+
+    /// Takes the elevation archives of the regions kept on the iPhone, in
+    /// place of those taken before: the ground is read from them wherever
+    /// they reach. An archive that cannot be opened is left out; its
+    /// region's ground then comes from the network as before.
+    func use(archives paths: [String]) {
+        archives = paths
+        terrain.closeArchives()
+        for path in paths {
+            try? terrain.openArchive(path: path)
         }
     }
 
@@ -89,6 +109,15 @@ final class TerrainModel {
         isLoading = true
         defer { isLoading = false }
 
+        // What a kept region has is read from its file first; only what
+        // it lacks is fetched.
+        if !archives.isEmpty {
+            let terrain = terrain
+            _ = await Task.detached(priority: .utility) {
+                terrain.readAround(lat: place.lat, lon: place.lon)
+            }.value
+        }
+
         switch source {
         case .nowhere:
             return
@@ -108,30 +137,37 @@ final class TerrainModel {
     /// server, read, and let go again. Empty where there is no ground to
     /// be had.
     func ground(under flight: FlightView) async -> [GroundUnderFlight] {
-        let track = flight.track
+        let (track, area) = (flight.track, flight.bounds)
+        // A terrain of its own, which goes when the flight is closed: the
+        // cockpit's holds the ground around the glider and no more.
+        let under: Terrain
         switch source {
-        case .nowhere:
-            return []
         case .archive:
             // The region that comes with the app is small: it is read
             // once, into the terrain the cockpit uses too.
             await readArchive()
-            let terrain = terrain
-            return await Task.detached(priority: .utility) {
-                terrain.groundUnder(track: track, places: Self.placesUnderAFlight)
-            }.value
-        case .server(let template):
-            // A terrain of its own, which goes when the flight is closed:
-            // the cockpit's holds the ground around the glider and no more.
-            let under = Terrain()
-            let (folder, transport) = (folder, transport)
-            for tile in under.tilesCovering(area: flight.bounds) {
-                await Self.bring(tile, into: under, from: template, keptIn: folder, by: transport)
+            under = terrain
+        case .server, .nowhere:
+            under = Terrain()
+            for path in archives {
+                try? under.openArchive(path: path)
             }
-            return await Task.detached(priority: .utility) {
-                under.groundUnder(track: track, places: Self.placesUnderAFlight)
+        }
+        // First what the kept regions have, from their files.
+        if !archives.isEmpty {
+            _ = await Task.detached(priority: .utility) {
+                under.readCovering(area: area)
             }.value
         }
+        if case .server(let template) = source {
+            let (folder, transport) = (folder, transport)
+            for tile in under.tilesCovering(area: area) {
+                await Self.bring(tile, into: under, from: template, keptIn: folder, by: transport)
+            }
+        }
+        return await Task.detached(priority: .utility) {
+            under.groundUnder(track: track, places: Self.placesUnderAFlight)
+        }.value
     }
 
     /// Reads the archive inside the app into the terrain, once.

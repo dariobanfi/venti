@@ -7,18 +7,42 @@ import Foundation
 /// differs: a region stored on the device, or tiles fetched as the pilot
 /// moves the map.
 enum MapStyle {
-    enum Source: String, CaseIterable {
+    enum Source: Equatable {
         /// Tiles fetched from public servers of open map data: OpenFreeMap
         /// for the base map, Mapterhorn for terrain. This stands in for the
         /// project's own tile server until there is one.
         case online
         /// The small demo region stored inside the app. Needs no connection.
         case bundled
+        /// A region the pilot downloaded from a Venti server, kept on the
+        /// iPhone. Needs no connection.
+        case kept(Kept)
 
-        /// What the app uses.
-        static var current: Source {
+        /// What a map is drawn from unless a kept region takes its place.
+        static var standard: Source {
             LaunchOptions.usesBundledMap ? .bundled : .online
         }
+
+        /// A name for the source that differs whenever what is drawn
+        /// from differs: a map is made anew when it changes, and the
+        /// prepared style is kept in a file of this name.
+        var key: String {
+            switch self {
+            case .online: "online"
+            case .bundled: "bundled"
+            case .kept(let kept): "kept-\(kept.id)-\(kept.version)"
+            }
+        }
+    }
+
+    /// The two archives of a region kept on the iPhone.
+    struct Kept: Equatable {
+        /// The region's identifier and the version of its files. Both are
+        /// names of one step of a path: the core lets no other through.
+        let id: String
+        let version: String
+        let basemap: URL
+        let terrain: URL
     }
 
     enum StyleError: Error, Equatable {
@@ -75,6 +99,9 @@ enum MapStyle {
         case .bundled:
             basemap["url"] = "pmtiles://" + region.appendingPathComponent("basemap.pmtiles").absoluteString
             terrain["url"] = "pmtiles://" + region.appendingPathComponent("terrain.pmtiles").absoluteString
+        case .kept(let kept):
+            basemap["url"] = "pmtiles://" + kept.basemap.absoluteString
+            terrain["url"] = "pmtiles://" + kept.terrain.absoluteString
         }
         sources["basemap"] = basemap
         sources["terrain"] = terrain
@@ -90,7 +117,7 @@ enum MapStyle {
         let caches = try FileManager.default.url(
             for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         )
-        let file = caches.appendingPathComponent("map-style-\(source.rawValue).json")
+        let file = caches.appendingPathComponent("map-style-\(source.key).json")
         try json(for: source, in: bundle).write(to: file, atomically: true, encoding: .utf8)
         return file
     }

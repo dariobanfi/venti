@@ -10,7 +10,7 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community, let ground, let groups
+                let live, let community, let ground, let groups, let maps
             ):
                 RootScreen()
                     .environment(logbook)
@@ -26,6 +26,7 @@ struct VentiApp: App {
                     .environment(community)
                     .environment(ground)
                     .environment(groups)
+                    .environment(maps)
                     .tint(Palette.accent)
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -44,7 +45,7 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel
+        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel
     )
     case failed(String)
 
@@ -113,7 +114,21 @@ enum Session {
             // brought as the glider moves, and kept on the iPhone.
             let ground = TerrainModel()
             fly.terrain = { ground.terrain }
+            // Maps downloaded for flying without a network, from the same
+            // server as the wind. The ground is read from their elevation
+            // files wherever they reach, and the cockpit's map is drawn
+            // from them wherever the glider is inside one. A UI test keeps
+            // its downloads in its throwaway folder.
+            let maps = OfflineMapsModel(
+                folder: LaunchOptions.isUITesting
+                    ? folder.appendingPathComponent("Maps", isDirectory: true)
+                    : OfflineMapsModel.store
+            )
+            maps.server = { wind.server }
+            maps.onKeptChanged = { archives in ground.use(archives: archives) }
+            ground.use(archives: maps.terrainArchives)
             fly.wantTerrain = { place in
+                maps.flying(at: place)
                 Task {
                     await ground.load(around: place)
                 }
@@ -134,7 +149,7 @@ enum Session {
             let groups = GroupsModel(core: core, account: account)
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups
+                groups, maps
             )
         } catch {
             return .failed(error.words)

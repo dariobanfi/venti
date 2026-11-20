@@ -12,6 +12,7 @@ struct MapScreen: View {
     @Environment(LiveModel.self) private var live
     @Environment(AccountModel.self) private var account
     @Environment(GroupsModel.self) private var groups
+    @Environment(OfflineMapsModel.self) private var maps
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -81,8 +82,13 @@ struct MapScreen: View {
                     if wind.server != nil {
                         pressed = ChosenPlace(place: place)
                     }
-                }
+                },
+                source: maps.browsingSource(at: nil)
             )
+            // Without a network the map is drawn from a region kept on
+            // the iPhone, and from the network again when it is back: the
+            // map is made anew when that changes.
+            .id(maps.browsingSource(at: nil).key)
             .ignoresSafeArea()
             // One element, not the map's hundreds of labels: everything it
             // shows that can be chosen is in the lists the round buttons

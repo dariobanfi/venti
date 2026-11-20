@@ -34,13 +34,17 @@ struct CockpitMap: UIViewRepresentable {
     var task: TaskView?
     /// Where the flight stands in it, for the way still to fly.
     var taskStatus: TaskStatusView?
+    /// What the map is drawn from: a region kept on the iPhone where one
+    /// covers the glider. Read when the map is made; the screen makes the
+    /// map anew when it changes.
+    var source: MapStyle.Source = .standard
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let map = MapSetup.makeMapView()
+        let map = MapSetup.makeMapView(from: source)
         map.delegate = context.coordinator
         // The map follows the glider; dragging it away would only have to
         // be undone with a gloved hand. Zooming stays.

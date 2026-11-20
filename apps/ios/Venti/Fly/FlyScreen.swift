@@ -10,6 +10,7 @@ struct FlyScreen: View {
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
     @Environment(AccountModel.self) private var account
+    @Environment(OfflineMapsModel.self) private var maps
 
     @AppStorage(Preferences.liveAudience) private var liveAudience = ""
     @State private var isChoosingVario = false
@@ -63,6 +64,17 @@ struct FlyScreen: View {
                         }
                     }
                     .accessibilityIdentifier("live-before-takeoff")
+                    // Whether the cockpit has a map without a network.
+                    NavigationLink {
+                        OfflineMapsScreen()
+                    } label: {
+                        LabeledContent {
+                            Text(maps.inALine)
+                        } label: {
+                            Label("Offline map", systemImage: "map")
+                        }
+                    }
+                    .accessibilityIdentifier("map-before-takeoff")
                 } footer: {
                     Text(
                         airspace.isEmpty
@@ -115,6 +127,7 @@ struct FlyScreen: View {
             .environment(waypoints)
             .environment(airspace)
             .environment(tasks)
+            .environment(maps)
         }
         .alert(
             "Flying",

@@ -5,6 +5,7 @@ struct SettingsScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(WindModel.self) private var wind
     @Environment(AccountModel.self) private var account
+    @Environment(OfflineMapsModel.self) private var maps
 
     @AppStorage(Preferences.pilot) private var pilot = ""
     @AppStorage(Preferences.glider) private var glider = ""
@@ -95,6 +96,14 @@ struct SettingsScreen: View {
                         LabeledContent("Account", value: account.account.map { "@\($0.handle)" } ?? "Not signed in")
                     }
                     .accessibilityIdentifier("account-link")
+                    // Maps for flying without a network come from the
+                    // same server.
+                    NavigationLink {
+                        OfflineMapsScreen()
+                    } label: {
+                        LabeledContent("Offline maps", value: maps.inALine)
+                    }
+                    .accessibilityIdentifier("offline-maps-link")
                 } header: {
                     Text("Venti server")
                 } footer: {

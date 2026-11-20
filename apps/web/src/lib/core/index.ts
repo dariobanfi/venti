@@ -85,6 +85,9 @@ export type {
 	PublicFlight,
 	PublicFlights,
 	PublicFlightsOrder,
+	RankedPilot,
+	Ranking,
+	RankingSeason,
 	Registration,
 	ReportForm,
 	ReportReason,
@@ -114,7 +117,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
-export type { OpenedFlight, PublicFlightsAsked } from './community-source';
+export type { OpenedFlight, PublicFlightsAsked, SeasonRanking } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 

@@ -12,10 +12,11 @@ use tokio_postgres::{IsolationLevel, Row};
 use venti_domain::{GeoPoint, Timestamp};
 
 use super::{corrupt, db_error};
-use crate::flight::{Kept, Room, Saved, cut, may_be_set, next_change};
+use crate::flight::{Kept, Room, Saved, cut, may_be_set, next_change, ranked_order};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, PublicFlights, PublicOrder, Score, ScoreKind, StoreError, Visibility, VisibilityChange,
+    Place, PublicFlights, PublicOrder, Ranked, Score, ScoreKind, StoreError, Visibility,
+    VisibilityChange,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -439,33 +440,10 @@ pub(super) async fn public(
     order: &PublicOrder,
     limit: usize,
 ) -> Result<Vec<Flight>, StoreError> {
-    let edges = which
-        .area
-        .map(|area| [area.west(), area.south(), area.east(), area.north()]);
+    let edges = edges_of(which);
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
     let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
-    let mut conditions = vec!["f.visibility = 'public'".to_owned()];
-
-    if let Some(from) = &which.from {
-        parameters.push(from);
-        conditions.push(format!("f.started_at >= ${}", parameters.len()));
-    }
-    if let Some(before) = &which.before {
-        parameters.push(before);
-        conditions.push(format!("f.started_at < ${}", parameters.len()));
-    }
-    if let Some([west, south, east, north]) = &edges {
-        let w = parameters.len() + 1;
-        let (s, e, n) = (w + 1, w + 2, w + 3);
-        parameters.extend([west as &(dyn ToSql + Sync), south, east, north]);
-        // `&&` lets the index find the candidates; the exact comparison
-        // follows, edges included.
-        conditions.push(format!(
-            "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
-             AND f.takeoff_lon BETWEEN ${w} AND ${e}
-             AND f.takeoff_lat BETWEEN ${s} AND ${n}"
-        ));
-    }
+    let mut conditions = public_conditions(which, &edges, &mut parameters);
     let sorted = match order {
         PublicOrder::Newest(after) => {
             if let Some((start, id)) = after {
@@ -499,6 +477,133 @@ pub(super) async fn public(
         .await
         .map_err(db_error)?;
     rows.iter().map(flight_from).collect()
+}
+
+/// The edges of the box a list of public flights is asked for in: west,
+/// south, east, north.
+fn edges_of(which: &PublicFlights) -> Option<[f64; 4]> {
+    which
+        .area
+        .map(|area| [area.west(), area.south(), area.east(), area.north()])
+}
+
+/// The conditions that make a flight `f` one of the public flights `which`
+/// describes, with their values put behind those already in `parameters`.
+///
+/// The condition on visibility is the first of them, as text, whatever
+/// `which` says.
+fn public_conditions<'a>(
+    which: &'a PublicFlights,
+    edges: &'a Option<[f64; 4]>,
+    parameters: &mut Vec<&'a (dyn ToSql + Sync)>,
+) -> Vec<String> {
+    let mut conditions = vec!["f.visibility = 'public'".to_owned()];
+    if let Some(from) = &which.from {
+        parameters.push(from);
+        conditions.push(format!("f.started_at >= ${}", parameters.len()));
+    }
+    if let Some(before) = &which.before {
+        parameters.push(before);
+        conditions.push(format!("f.started_at < ${}", parameters.len()));
+    }
+    if let Some([west, south, east, north]) = edges {
+        let w = parameters.len() + 1;
+        let (s, e, n) = (w + 1, w + 2, w + 3);
+        parameters.extend([west as &(dyn ToSql + Sync), south, east, north]);
+        // `&&` lets the index find the candidates; the exact comparison
+        // follows, edges included.
+        conditions.push(format!(
+            "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
+             AND f.takeoff_lon BETWEEN ${w} AND ${e}
+             AND f.takeoff_lat BETWEEN ${s} AND ${n}"
+        ));
+    }
+    conditions
+}
+
+/// The pilots of everyone's public flights by the sum of their best.
+///
+/// As in [`public`], the condition on visibility is in the query as text,
+/// and the query is planned anew for every call: how many flights a span
+/// and a box hold decides how they are best found.
+///
+/// The database numbers each pilot's scored flights from the best down,
+/// sums those that count and keeps the pilots with the largest sums; the
+/// flights that count come back one a row, and the sum that is handed out
+/// is made from them here, as the in-memory store makes it.
+pub(super) async fn ranking(
+    client: &Client,
+    which: &PublicFlights,
+    counted: usize,
+    limit: usize,
+) -> Result<Vec<Ranked>, StoreError> {
+    let edges = edges_of(which);
+    let counted = i64::try_from(counted).unwrap_or(i64::MAX);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
+    let mut conditions = public_conditions(which, &edges, &mut parameters);
+    conditions.push("f.score_points IS NOT NULL".to_owned());
+    parameters.push(&counted);
+    let c = parameters.len();
+    parameters.push(&limit);
+    let l = parameters.len();
+    // Handles are compared byte by byte, as the in-memory store compares
+    // them: the database's own order of text depends on how it was set up.
+    let query = format!(
+        "WITH scored AS (
+             SELECT f.id, f.account_id, f.score_points,
+                    row_number() OVER (
+                        PARTITION BY f.account_id ORDER BY f.score_points DESC, f.id DESC
+                    ) AS place,
+                    count(*) OVER (PARTITION BY f.account_id) AS scored
+             FROM flights f
+             WHERE {}
+         ), top AS (
+             SELECT s.account_id, owner.handle, sum(s.score_points) AS points,
+                    max(s.scored) AS scored
+             FROM scored s JOIN accounts owner ON owner.id = s.account_id
+             WHERE s.place <= ${c}
+             GROUP BY s.account_id, owner.handle
+             ORDER BY points DESC, owner.handle COLLATE \"C\"
+             LIMIT ${l}
+         )
+         SELECT top.scored AS ranked_scored, {FLIGHT_COLUMNS}
+         FROM top
+         JOIN scored s ON s.account_id = top.account_id AND s.place <= ${c}
+         JOIN flights f ON f.id = s.id
+         JOIN accounts a ON a.id = f.account_id
+         ORDER BY top.points DESC, top.handle COLLATE \"C\", s.place",
+        conditions.join(" AND ")
+    );
+    let rows = client
+        .query(query.as_str(), &parameters)
+        .await
+        .map_err(db_error)?;
+
+    // The rows of a pilot follow each other, the best flight first.
+    let mut pilots: Vec<(u32, Vec<Flight>)> = Vec::new();
+    for row in &rows {
+        let flight = flight_from(row)?;
+        match pilots.last_mut() {
+            Some((_, flights))
+                if flights
+                    .last()
+                    .is_some_and(|last| last.account_id == flight.account_id) =>
+            {
+                flights.push(flight);
+            }
+            _ => {
+                let scored: i64 = row.get("ranked_scored");
+                pilots.push((u32::try_from(scored).unwrap_or(u32::MAX), vec![flight]));
+            }
+        }
+    }
+    let mut ranked: Vec<Ranked> = pilots
+        .into_iter()
+        .filter_map(|(scored, flights)| Ranked::of(flights, scored))
+        .collect();
+    ranked.sort_by(ranked_order);
+    Ok(ranked)
 }
 
 pub(super) async fn changes(

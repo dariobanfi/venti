@@ -32,6 +32,29 @@ export function shape(flight: PublicFlight): string | undefined {
 	return flight.score.kind === 'faiTriangle' ? 'FAI triangle' : 'Triangle';
 }
 
+/** Why a ranking has no pilots, and what would change that. */
+export function nothingRanked(state: {
+	absent: boolean;
+	problem: string | undefined;
+	season: string;
+}): { title: string; says: string } {
+	if (state.absent) {
+		return {
+			title: 'No Venti server here',
+			says: 'A ranking is made by a Venti server from the flights its pilots share, and this site is served without one.'
+		};
+	}
+	if (state.problem) {
+		return { title: 'The ranking could not be fetched', says: state.problem };
+	}
+	return {
+		title: 'Nobody is ranked',
+		says: /^\d+$/.test(state.season)
+			? `Nobody shares a flight of ${state.season} that scores. Choose another year, or all years.`
+			: 'A pilot is ranked once one of their flights is shared with everyone and long enough to score.'
+	};
+}
+
 /** Why a list has no flights, and what would change that. */
 export function nothingListed(
 	state: ListState,

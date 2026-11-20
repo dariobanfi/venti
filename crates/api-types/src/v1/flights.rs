@@ -252,6 +252,37 @@ pub struct FlightsResponse {
     pub next: Option<String>,
 }
 
+/// How many of a pilot's flights count in a ranking: the best three.
+pub const RANKING_COUNTED: usize = 3;
+
+/// The answer of `GET /v1/ranking`: the pilots of everyone's public
+/// flights by the sum of the points of their best flights.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RankingResponse {
+    /// How many of a pilot's flights count at most:
+    /// [`RANKING_COUNTED`], said in the answer so that a client words the
+    /// rule from what the server did.
+    pub counted: u32,
+    /// The pilots, the one with the most points first, and by handle among
+    /// pilots with the same points.
+    pub pilots: Vec<RankedPilot>,
+}
+
+/// A pilot's place in a ranking.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RankedPilot {
+    /// The pilot.
+    pub pilot: Pilot,
+    /// The sum of the points of the flights that count, rounded to
+    /// hundredths as a flight's own points are.
+    pub points: f64,
+    /// How many of the pilot's public flights among those asked for scored
+    /// at all, those that count among them.
+    pub scored: u32,
+    /// The flights that count, the best first: no more than `counted`.
+    pub flights: Vec<Flight>,
+}
+
 /// The body of `PATCH /v1/flights/{id}`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdateFlightRequest {

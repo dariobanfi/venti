@@ -238,6 +238,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "flight.json",
         "public_flights.json",
         "public_flights_best.json",
+        "ranking.json",
         "report_request.json",
         "report.json",
         "flight_taken_down.json",

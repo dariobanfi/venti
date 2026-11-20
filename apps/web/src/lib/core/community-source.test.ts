@@ -102,6 +102,76 @@ describe('everyone’s public flights, from the server', () => {
 	});
 });
 
+describe('the ranking of a season', () => {
+	/** The evening of 18 November 2026, seconds since 1970. */
+	const NOW = Date.UTC(2026, 10, 18, 19, 5) / 1000;
+
+	it('is asked for by the season’s span of time and read as places', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		const newest = (await community.ranking(undefined, NOW))!;
+
+		expect(asked).toEqual(['/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z']);
+		expect(newest.seasons.map((season) => season.name)).toEqual([
+			'2026',
+			'2025',
+			'2024',
+			'2023',
+			'All years'
+		]);
+		expect(newest.season.name).toBe('2026');
+		// A moment is a number, not a BigInt.
+		expect(typeof newest.season.fromUnixS).toBe('number');
+		expect(
+			newest.ranking.pilots.map((pilot) => [pilot.place, pilot.name, pilot.points, pilot.counted])
+		).toEqual([
+			[1, 'Mara Muster', 23.42, '2 flights'],
+			[2, 'Demo Pilot', 11.98, '1 flight']
+		]);
+		// The flights that count are rows like those of the list.
+		const raw = json('ranking.json');
+		expect(newest.ranking.pilots[0].flights).toHaveLength(2);
+		expect(newest.ranking.pilots[0].flights[0]).toMatchObject({
+			id: raw.pilots[0].flights[0].id,
+			handle: 'mara',
+			pagePath: `/f/${raw.pilots[0].flights[0].id}`
+		});
+		expect(newest.ranking.rule).toMatch(/best 3 flights shared with everyone/);
+	});
+
+	it('is asked for all years without a span, and for the newest season by any other name', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => true, get);
+
+		expect((await community.ranking('All years', NOW))!.season.name).toBe('All years');
+		expect((await community.ranking('2024', NOW))!.season.name).toBe('2024');
+		// What names no season, as an address someone typed might.
+		expect((await community.ranking('1999', NOW))!.season.name).toBe('2026');
+
+		expect(asked).toEqual([
+			'/v1/ranking',
+			'/v1/ranking?from=2024-01-01T00:00:00Z&to=2025-01-01T00:00:00Z',
+			'/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z'
+		]);
+	});
+
+	it('is not asked for on a site without a server', async () => {
+		const { asked, get } = server(() => ({ status: 200, body: recorded('ranking.json') }));
+		const community = new CommunitySource(async () => false, get);
+
+		expect(await community.ranking(undefined, NOW)).toBeUndefined();
+		expect(asked).toEqual([]);
+	});
+
+	it('reports a server in trouble in the core’s words', async () => {
+		const { get } = server(() => ({ status: 503, body: bytes('') }));
+		const community = new CommunitySource(async () => true, get);
+
+		await expect(community.ranking(undefined, NOW)).rejects.toThrow(/server/i);
+	});
+});
+
 describe('one pilot’s public flights', () => {
 	it('are asked for by handle and read like the list, with the pilot’s name', async () => {
 		const { asked, get } = server(() => ({ status: 200, body: recorded('pilot.json') }));

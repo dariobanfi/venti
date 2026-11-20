@@ -1167,3 +1167,139 @@ pub(crate) async fn public_flights_are_listed_best_first_by_their_points(store: 
     let after = PublicOrder::Best(first[0].score_key());
     assert_eq!(public(store, &both, &after).await, ["dario1"]);
 }
+
+/// A ranking in short: each pilot's handle and points, the flights that
+/// count and how many scored.
+async fn ranked(
+    store: &impl Store,
+    which: &PublicFlights,
+    counted: usize,
+    limit: usize,
+) -> Vec<(String, f64, Vec<String>, u32)> {
+    store
+        .ranking(which, counted, limit)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|pilot| {
+            (
+                pilot.pilot_handle.clone(),
+                pilot.points,
+                short(&pilot.flights),
+                pilot.scored,
+            )
+        })
+        .collect()
+}
+
+fn place(
+    handle: &str,
+    points: f64,
+    flights: &[&str],
+    scored: u32,
+) -> (String, f64, Vec<String>, u32) {
+    (
+        handle.to_owned(),
+        points,
+        flights.iter().map(|&flight| flight.to_owned()).collect(),
+        scored,
+    )
+}
+
+pub(crate) async fn pilots_are_ranked_by_the_sum_of_their_best_public_flights(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    let carla = create(store, "carla").await;
+    assert!(ranked(store, &everywhere(), 3, 100).await.is_empty());
+
+    // Dario flew four flights that score, a minute apart from 9:01.
+    for (n, points) in [(1, 30.0), (2, 50.0), (3, 10.0), (4, 40.0)] {
+        let start = at(9, u32::from(n));
+        publish(store, &flown(&dario, n, start, WALLBERG, Some(points))).await;
+    }
+    // Anna flew one great flight, and two that are not public: those count
+    // for nobody.
+    publish(store, &flown(&anna, 1, at(10, 0), KOESSEN, Some(120.0))).await;
+    save(store, &flown(&anna, 2, at(10, 30), KOESSEN, Some(500.0))).await;
+    share(
+        store,
+        &flown(&anna, 3, at(11, 0), KOESSEN, Some(400.0)),
+        Visibility::Unlisted,
+    )
+    .await;
+    // Bernd flew two, from two mountains.
+    publish(store, &flown(&bernd, 1, at(8, 0), WALLBERG, Some(90.0))).await;
+    publish(store, &flown(&bernd, 2, at(8, 30), BRAUNECK, Some(60.0))).await;
+    // Carla's flight is too short to score: she is not ranked.
+    publish(store, &flown(&carla, 1, at(12, 0), WALLBERG, None)).await;
+
+    // The best three count. Anna and Dario have the same points: the
+    // handle decides.
+    let best_three = [
+        place("bernd", 150.0, &["bernd1", "bernd2"], 2),
+        place("anna", 120.0, &["anna1"], 1),
+        place("dario", 120.0, &["dario2", "dario4", "dario1"], 4),
+    ];
+    assert_eq!(ranked(store, &everywhere(), 3, 100).await, best_three);
+    // Each pilot is named as the account is now.
+    let all = store.ranking(&everywhere(), 3, 100).await.unwrap();
+    assert_eq!(all[1].pilot_name, "Pilot anna");
+    assert!(
+        all.iter()
+            .flat_map(|pilot| &pilot.flights)
+            .all(|flight| flight.visibility == Visibility::Public)
+    );
+    // From the top, as many as asked for.
+    assert_eq!(ranked(store, &everywhere(), 3, 2).await, best_three[..2]);
+    assert!(ranked(store, &everywhere(), 3, 0).await.is_empty());
+    // With only the best flight counting the order is another one; how
+    // many scored stays what it is.
+    assert_eq!(
+        ranked(store, &everywhere(), 1, 100).await,
+        [
+            place("anna", 120.0, &["anna1"], 1),
+            place("bernd", 90.0, &["bernd1"], 2),
+            place("dario", 50.0, &["dario2"], 4),
+        ]
+    );
+    assert!(ranked(store, &everywhere(), 0, 100).await.is_empty());
+
+    // The pilots of a part of the map, of a span of time, and of both.
+    let tegernsee = area(47.6, 11.7, 47.8, 11.9);
+    assert_eq!(
+        ranked(store, &tegernsee, 3, 100).await,
+        [
+            place("dario", 120.0, &["dario2", "dario4", "dario1"], 4),
+            place("bernd", 90.0, &["bernd1"], 1),
+        ]
+    );
+    let two_minutes = PublicFlights {
+        from: Some(at(9, 2)),
+        before: Some(at(9, 4)),
+        ..PublicFlights::default()
+    };
+    assert_eq!(
+        ranked(store, &two_minutes, 3, 100).await,
+        [place("dario", 60.0, &["dario2", "dario3"], 2)]
+    );
+    let elsewhere = PublicFlights {
+        area: area(0.0, 0.0, 1.0, 1.0).area,
+        ..two_minutes
+    };
+    assert!(ranked(store, &elsewhere, 3, 100).await.is_empty());
+
+    // A flight counts while it is public, and no longer.
+    store
+        .set_visibility(&dario.id, &id("dario2"), Visibility::Private, at(21, 10))
+        .await
+        .unwrap();
+    assert_eq!(
+        ranked(store, &everywhere(), 3, 100).await,
+        [
+            place("bernd", 150.0, &["bernd1", "bernd2"], 2),
+            place("anna", 120.0, &["anna1"], 1),
+            place("dario", 80.0, &["dario4", "dario1", "dario3"], 3),
+        ]
+    );
+}

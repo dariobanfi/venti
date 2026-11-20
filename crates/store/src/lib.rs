@@ -59,8 +59,8 @@ pub use account::{
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
-    OutdatedFlight, Place, PublicFlights, PublicOrder, Room, Saved, Score, ScoreKey, ScoreKind,
-    Visibility, VisibilityChange,
+    OutdatedFlight, Place, PublicFlights, PublicOrder, Ranked, Room, Saved, Score, ScoreKey,
+    ScoreKind, Visibility, VisibilityChange,
 };
 pub use forecast::ForecastModel;
 pub use group::{
@@ -576,6 +576,22 @@ pub trait Store: Send + Sync + 'static {
         order: &PublicOrder,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<Flight>, StoreError>> + Send;
+
+    /// The pilots of everyone's public flights by the sum of the points of
+    /// their best: of the flights `which` describes, each pilot's `counted`
+    /// best count. The pilot with the most points comes first, and among
+    /// pilots with the same points the handle decides. At most `limit`
+    /// pilots are returned, from the top.
+    ///
+    /// A flight that is private or unlisted counts for nobody, and one too
+    /// short to score counts for nothing: a pilot without a scored public
+    /// flight among those asked for is not ranked.
+    fn ranking(
+        &self,
+        which: &PublicFlights,
+        counted: usize,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Ranked>, StoreError>> + Send;
 
     /// What changed among an account's flights after change number `since`,
     /// oldest change first, at most `limit` changes. See [`FlightChanges`].

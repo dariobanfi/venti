@@ -56,6 +56,7 @@ That makes nine flights, of which five are public: these four and the demo accou
 
 ```bash
 curl http://127.0.0.1:8080/v1/flights/public                          # the five public flights, newest first
+curl http://127.0.0.1:8080/v1/ranking                                 # their three pilots, by the sum of their best three flights
 curl 'http://127.0.0.1:8080/v1/flights/public?bbox=11.6,47.55,12,47.85&sort=score'
 curl http://127.0.0.1:8080/v1/pilots/mara
 ```
@@ -2132,6 +2133,221 @@ What a row of a list needs is in every flight: `id`, the flight's address, under
 | 400 | `invalid_sort` | `sort` is not `newest` or `score` |
 | 400 | `invalid_limit` | `limit` is not a number from 1 to 100 |
 | 400 | `invalid_cursor` | `after` is not a `next` the server gave out for this order: a `next` of `sort=newest` is none for `sort=score`, and the other way round |
+
+## Ranking
+
+### `GET /v1/ranking?bbox=&from=&to=&limit=`
+
+The pilots of everyone's public flights, ranked: a pilot's points are the sum of the points of their best three flights, and the pilot with the most comes first. Anyone may ask, without a token, and the answer is the same for everyone. Only public flights count. A flight that is private or shared by link counts for nobody, whatever is asked for, the asker's own included.
+
+It is asked in the words of the [list of public flights](#public-flights), and means the same flights:
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `bbox` | `west,south,east,north` in degrees: only flights that **took off** inside the box count | Flights from anywhere |
+| `from` | An RFC 3339 time: only flights that started at this moment or later count | No bound |
+| `to` | An RFC 3339 time: only flights that started **before** this moment count. It must be later than `from` | No bound |
+| `limit` | How many pilots to return from the top, 1 to 100 | 50 |
+
+**A season** is a span of time the client names, as a day is for the list of flights: the server knows no calendar and no time zone. The year 2026 by UTC is `from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z`. With `bbox` it is the ranking of the pilots who flew from one mountain, or in one region. The two pilots at the top of August 2026:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/ranking?from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z&limit=2'
+```
+
+```json
+{
+  "counted": 3,
+  "pilots": [
+    {
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "points": 23.42,
+      "scored": 2,
+      "flights": [
+        {
+          "id": "fbyw03atd9qdt5bfe177ra1k94",
+          "identity": "5782b33df19716953603d69bacb63a14",
+          "pilot": {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          },
+          "visibility": "public",
+          "uploaded_at": "2026-11-18T19:05:00Z",
+          "start": "2026-08-16T12:05:00Z",
+          "airtime_s": 1752,
+          "takeoff": {
+            "time": "2026-08-16T12:05:00Z",
+            "position": {
+              "lat": 47.6642,
+              "lon": 11.7967
+            },
+            "altitude_m": 1620
+          },
+          "landing": {
+            "time": "2026-08-16T12:34:12Z",
+            "position": {
+              "lat": 47.692167,
+              "lon": 11.767483
+            },
+            "altitude_m": 786
+          },
+          "track_length_m": 18402.3,
+          "max_altitude_m": 2117,
+          "max_climb_ms": 2.4,
+          "score": {
+            "kind": "free_flight",
+            "closed": false,
+            "distance_m": 11975.7,
+            "points": 11.98
+          },
+          "glider": "Sample Wing",
+          "outline": [
+            [
+              47.6642,
+              11.7967
+            ],
+            [
+              47.6697,
+              11.78986
+            ]
+          ],
+          "file_bytes": 68008,
+          "analysis_version": 1
+        },
+        {
+          "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
+          "identity": "57096780ebf49faa9e60b4ed78bfdcf6",
+          "pilot": {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          },
+          "visibility": "public",
+          "uploaded_at": "2026-11-18T19:05:00Z",
+          "start": "2026-08-15T11:10:00Z",
+          "airtime_s": 1500,
+          "takeoff": {
+            "time": "2026-08-15T11:10:00Z",
+            "position": {
+              "lat": 47.6642,
+              "lon": 11.7967
+            },
+            "altitude_m": 1620
+          },
+          "track_length_m": 15877.9,
+          "max_altitude_m": 2117,
+          "max_climb_ms": 2.4,
+          "score": {
+            "kind": "free_flight",
+            "closed": false,
+            "distance_m": 11444.3,
+            "points": 11.44
+          },
+          "glider": "Sample Wing",
+          "outline": [
+            [
+              47.6642,
+              11.7967
+            ],
+            [
+              47.6697,
+              11.78986
+            ]
+          ],
+          "file_bytes": 55650,
+          "analysis_version": 1
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "points": 11.98,
+      "scored": 1,
+      "flights": [
+        {
+          "id": "5t1eshypdtvrq7rxw39a18vsrg",
+          "identity": "0f0d88442e01f52f291d25b2660b8bed",
+          "pilot": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "visibility": "public",
+          "uploaded_at": "2026-11-18T19:05:00Z",
+          "start": "2026-08-15T10:30:00Z",
+          "airtime_s": 1752,
+          "takeoff": {
+            "time": "2026-08-15T10:30:00Z",
+            "position": {
+              "lat": 47.6642,
+              "lon": 11.7967
+            },
+            "altitude_m": 1620
+          },
+          "landing": {
+            "time": "2026-08-15T10:59:12Z",
+            "position": {
+              "lat": 47.692167,
+              "lon": 11.767483
+            },
+            "altitude_m": 786
+          },
+          "track_length_m": 18402.3,
+          "max_altitude_m": 2117,
+          "max_climb_ms": 2.4,
+          "score": {
+            "kind": "free_flight",
+            "closed": false,
+            "distance_m": 11975.7,
+            "points": 11.98
+          },
+          "glider": "Sample Wing",
+          "outline": [
+            [
+              47.6642,
+              11.7967
+            ],
+            [
+              47.6697,
+              11.78986
+            ]
+          ],
+          "file_bytes": 68008,
+          "analysis_version": 1
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `counted` | How many of a pilot's flights count at most: 3. It is in the answer so that a client words the rule from what the server did |
+| `pilots[]` | The pilots, the one with the most points first. Pilots with the same points follow each other by `handle`, compared byte by byte |
+| `pilots[].pilot` | The pilot, as in a [flight](#get-v1flightsid) |
+| `pilots[].points` | The sum of the points of the flights that count, rounded to hundredths as a flight's points are |
+| `pilots[].scored` | How many of the pilot's public flights among those asked for scored at all, the ones that count among them. A client can say "best 3 of 14" |
+| `pilots[].flights[]` | The flights that count, the best first, each as the list of public flights shows it. Flights with the same points follow each other by `id`, the larger first |
+
+**Who is ranked.** A pilot with at least one public flight that scores, among the flights asked for. A flight too short to score counts for nothing, and a pilot who has only such flights, or none that is public, is not in the answer. The points are worked out by this server from the flight's file, for every flight by the same rules ([`score`](#get-v1flightsid)); they are not a league's, and neither is this ranking.
+
+**The rule is the server's.** Three flights count, of any kind of route, and nothing weighs a flight by its glider's class, the pilot's country or the day. *The owner has not decided the rule; it is built this way so that there is a ranking to look at.*
+
+**The top only.** The answer holds up to `limit` pilots from the top and has no `next`: a ranking is not read page by page. A server with more than a hundred ranked pilots shows the first hundred.
+
+**Who may keep an answer.** `Cache-Control: public, no-cache` and an `ETag`, as for the list of public flights: a flight that is made private counts no longer with the next question, also for whoever kept the ranking.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_bbox` | `bbox` is not four numbers that form a box |
+| 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time. `message` names the parameter |
+| 400 | `invalid_range` | `from` is not earlier than `to` |
+| 400 | `invalid_limit` | `limit` is not a number from 1 to 100 |
 
 ## Live tracks
 

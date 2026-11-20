@@ -47,9 +47,10 @@ use venti_core::{
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
     KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics, LogbookView, PilotPage, PlanBoard,
-    PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, ReportForm, ReportReason,
-    ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory,
-    Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint, WindMap,
+    PlanDraft, PlanView, PublicFlight, PublicFlights, PublicFlightsOrder, Ranking, RankingSeason,
+    ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus, SignedIn, SitesMap,
+    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, TrackPoint,
+    WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -508,7 +509,7 @@ impl Core {
     pub fn plan_board(&self, status: u16, body: Vec<u8>) -> Result<Ts<PlanBoard>, JsValue> {
         let board = self
             .session
-            .call_as_the_pilot(|core| core.plan_board(status, body))
+            .call(|core| core.plan_board(status, body))
             .map_err(thrown)?;
         to_js(&board)
     }
@@ -525,7 +526,7 @@ impl Core {
     pub fn group_made(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupMade>, JsValue> {
         let made = self
             .session
-            .call_as_the_pilot(|core| core.group_made(status, body))
+            .call(|core| core.group_made(status, body))
             .map_err(thrown)?;
         to_js(&made)
     }
@@ -542,7 +543,7 @@ impl Core {
     pub fn group_joined(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupJoined>, JsValue> {
         let joined = self
             .session
-            .call_as_the_pilot(|core| core.group_joined(status, body))
+            .call(|core| core.group_joined(status, body))
             .map_err(thrown)?;
         to_js(&joined)
     }
@@ -558,7 +559,7 @@ impl Core {
     pub fn group(&self, status: u16, body: Vec<u8>) -> Result<Ts<GroupDetail>, JsValue> {
         let detail = self
             .session
-            .call_as_the_pilot(|core| core.group(status, body))
+            .call(|core| core.group(status, body))
             .map_err(thrown)?;
         to_js(&detail)
     }
@@ -684,7 +685,7 @@ impl Core {
     pub fn plan(&self, status: u16, body: Vec<u8>) -> Result<Ts<PlanView>, JsValue> {
         let plan = self
             .session
-            .call_as_the_pilot(|core| core.plan(status, body))
+            .call(|core| core.plan(status, body))
             .map_err(thrown)?;
         to_js(&plan)
     }
@@ -1026,6 +1027,45 @@ pub fn pilot_page(status: u16, body: Vec<u8>) -> Result<Ts<PilotPage>, JsValue> 
     to_js(&venti_core::pilot_page(status, body).map_err(thrown)?)
 }
 
+/// The seasons a page offers a ranking for. A list alone does not cross to
+/// the page as a typed value, so it comes in a record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Tsify)]
+#[serde(rename_all = "camelCase")]
+pub struct RankingSeasons {
+    /// The newest first, and all years together last.
+    pub seasons: Vec<RankingSeason>,
+}
+
+/// The seasons a page offers a ranking for at a moment: its year and the
+/// three before, and all years together.
+#[wasm_bindgen(js_name = rankingSeasons)]
+pub fn ranking_seasons(now_unix_s: f64) -> Result<Ts<RankingSeasons>, JsValue> {
+    to_js(&RankingSeasons {
+        seasons: venti_core::ranking_seasons(whole_seconds(now_unix_s)),
+    })
+}
+
+/// The path and query to `GET` for the ranking of the server's pilots by
+/// their best public flights: of the flights that began at or after the
+/// one moment and before the other, as `rankingSeasons` names them, or of
+/// all of them.
+#[wasm_bindgen(js_name = rankingPath)]
+pub fn ranking_path(from_unix_s: Option<f64>, to_unix_s: Option<f64>) -> Result<String, JsValue> {
+    venti_core::ranking_path(
+        // No page has a map to narrow the ranking by yet.
+        None,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+    )
+    .map_err(thrown)
+}
+
+/// Reads the server's answer to `rankingPath`.
+#[wasm_bindgen(js_name = ranking)]
+pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ts<Ranking>, JsValue> {
+    to_js(&venti_core::ranking(status, body).map_err(thrown)?)
+}
+
 /// The path to `GET` for one public flight that is reached by its address
 /// alone, as from a link.
 #[wasm_bindgen(js_name = publicFlightPath)]
@@ -1180,21 +1220,6 @@ impl Session {
         call: impl FnOnce(&venti_core::Core) -> Result<T, CoreError>,
     ) -> Result<T, CoreError> {
         settle(&self.staged, call(&self.core))
-    }
-
-    /// Reads an answer in which the pilot is "you": an answer about the
-    /// pilot's groups and their plans. Who that is, is the handle of the
-    /// account, so the account is looked at first. The core's own readers
-    /// take "not fetched from the store yet" for "signed out", and would
-    /// call no plan the pilot's own and no group one the pilot keeps.
-    fn call_as_the_pilot<T>(
-        &self,
-        read: impl FnOnce(&venti_core::Core) -> Result<T, CoreError>,
-    ) -> Result<T, CoreError> {
-        self.call(|core| {
-            core.account()?;
-            read(core)
-        })
     }
 
     /// Takes in the flight files fetched since the last time and drops them
@@ -1484,25 +1509,17 @@ mod tests {
         let session = open(&store);
         let board = recorded("plan_board.json");
 
-        // Read as the core reads it by itself, the demo pilot is nobody:
-        // the plan they posted is not theirs, and they are not in on it.
-        let unknowing = session
-            .call(|core| core.plan_board(200, board.clone()))
-            .unwrap();
-        assert!(!unknowing.days[0].plans[0].is_mine);
-        assert!(!unknowing.groups[0].is_kept_by_me);
-        // The account was wanted, but a call that succeeds is not made
-        // again for it.
-        assert_eq!(session.staged.take_wanted().len(), 1);
-
-        // Read as the binding reads it, the account is asked for first.
+        // Who "you" is, is the handle of the account. The core does not
+        // take "not fetched from the store yet" for "signed out", which
+        // would call no plan the pilot's own and no group one the pilot
+        // keeps: it asks for the account first, as for any stored file.
         let error = session
-            .call_as_the_pilot(|core| core.plan_board(200, board.clone()))
+            .call(|core| core.plan_board(200, board.clone()))
             .unwrap_err();
         assert_eq!(CoreErrorKind::of(&error), CoreErrorKind::Storage);
         assert_eq!(fetch(&session.staged, &store, usize::MAX), 1);
         let board = session
-            .call_as_the_pilot(|core| core.plan_board(200, board.clone()))
+            .call(|core| core.plan_board(200, board.clone()))
             .unwrap();
         let plan = &board.days[0].plans[0];
         assert!(plan.is_mine && plan.am_in && plan.can_delete);

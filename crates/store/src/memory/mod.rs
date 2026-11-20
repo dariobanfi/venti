@@ -20,9 +20,10 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Suspension, Visibility, VisibilityChange, airspace, batch, forecast, site,
+    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange, airspace, batch,
+    forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -539,6 +540,18 @@ impl Store for MemoryStore {
     ) -> Result<Vec<Flight>, StoreError> {
         let inner = self.lock();
         Ok(inner.flights.public(which, order, limit, &inner.accounts))
+    }
+
+    async fn ranking(
+        &self,
+        which: &PublicFlights,
+        counted: usize,
+        limit: usize,
+    ) -> Result<Vec<Ranked>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .flights
+            .ranking(which, counted, limit, &inner.accounts))
     }
 
     async fn flight_changes(

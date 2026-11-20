@@ -545,6 +545,47 @@ impl PublicFlightsRequest {
     }
 }
 
+/// Path of the ranking of pilots by their best public flights.
+pub const RANKING_PATH: &str = "/v1/ranking";
+
+/// A request for the pilots of everyone's public flights, ranked by the sum
+/// of the points of their best.
+///
+/// A season is asked for as a span of time, as a day is of the list of
+/// flights: the server knows no calendar of its own.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RankingRequest {
+    /// Only flights that took off inside this box count. `None` counts
+    /// flights from anywhere.
+    pub bbox: Option<BoundingBox>,
+    /// Only flights that started at this moment or later count.
+    pub from: Option<Timestamp>,
+    /// Only flights that started before this moment count.
+    pub to: Option<Timestamp>,
+    /// How many pilots to return from the top, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
+    /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl RankingRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        let path = match &self.bbox {
+            Some(bbox) => format!("{RANKING_PATH}?bbox={}", format_bbox(bbox)),
+            None => RANKING_PATH.to_owned(),
+        };
+        with_query(
+            path,
+            [
+                ("from", self.from.map(format_time)),
+                ("to", self.to.map(format_time)),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
 /// Appends the parameters that have a value to a path, which may have a
 /// query string already.
 fn with_query<const N: usize>(mut path: String, parameters: [(&str, Option<String>); N]) -> String {
@@ -837,6 +878,30 @@ mod tests {
             limit: Some(5),
         };
         assert_eq!(pilot.path_and_query(), "/v1/pilots/demo?limit=5");
+    }
+
+    #[test]
+    fn a_request_for_a_ranking_names_only_what_was_asked_for() {
+        assert_eq!(RankingRequest::default().path_and_query(), "/v1/ranking");
+        let year = RankingRequest {
+            from: Some(Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap()),
+            to: Some(Utc.with_ymd_and_hms(2027, 1, 1, 0, 0, 0).unwrap()),
+            ..RankingRequest::default()
+        };
+        assert_eq!(
+            year.path_and_query(),
+            "/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z"
+        );
+        let here = RankingRequest {
+            bbox: Some(BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap()),
+            limit: Some(20),
+            ..year
+        };
+        assert_eq!(
+            here.path_and_query(),
+            "/v1/ranking?bbox=11.6,47.55,12,47.85\
+             &from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&limit=20"
+        );
     }
 
     #[test]

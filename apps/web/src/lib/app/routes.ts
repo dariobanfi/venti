@@ -39,6 +39,15 @@ export function everyoneHref(query = ''): string {
 	return `${resolve('/logbook/everyone')}${query}`;
 }
 
+/**
+ * The ranking of the server's pilots. `season` is the name of a season as
+ * the core offers it; without one the page shows the newest.
+ */
+export function rankingHref(season = ''): string {
+	const path = resolve('/logbook/ranking');
+	return season ? `${path}?season=${encodeURIComponent(season)}` : path;
+}
+
 /** The public flights of one pilot, by handle. */
 export function pilotHref(handle: string): string {
 	return `${resolve('/logbook/everyone/pilot')}?handle=${encodeURIComponent(handle)}`;

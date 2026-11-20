@@ -62,6 +62,7 @@ mod maps;
 mod mcp;
 mod observations;
 mod pilots;
+mod ranking;
 mod reports;
 mod shape;
 mod share;
@@ -85,7 +86,7 @@ use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHTS_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    PUBLIC_FLIGHTS_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -419,6 +420,7 @@ impl<S: Store> Api<S> {
             .route(FLIGHTS_PATH, get(flights::list::<S>))
             .route(FLIGHT_CHANGES_PATH, get(flights::changes::<S>))
             .route(PUBLIC_FLIGHTS_PATH, get(feed::list::<S>))
+            .route(RANKING_PATH, get(ranking::list::<S>))
             .route(
                 "/v1/flights/{id}",
                 get(flights::show::<S>)

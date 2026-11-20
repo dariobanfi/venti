@@ -1,7 +1,8 @@
 /**
  * Other pilots' flights from the Venti server, as the worker fetches them:
  * the flights the server's pilots share with everyone, in one list; one
- * pilot's page of them; and one flight, shown from its file.
+ * pilot's page of them; the ranking of the pilots by their best flights;
+ * and one flight, shown from its file.
  *
  * The core says what to ask the server for and reads its answers. This file
  * sends the requests in between. Nothing is kept: a flight of another pilot
@@ -28,7 +29,12 @@ import {
 	publicFlights,
 	type PublicFlights,
 	type PublicFlightsOrder,
-	publicFlightsPath
+	publicFlightsPath,
+	ranking,
+	type Ranking,
+	rankingPath,
+	type RankingSeason,
+	rankingSeasons
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 import type { Get } from './wind-source';
@@ -58,6 +64,15 @@ export interface PublicFlightsAsked {
 	toUnixS?: number;
 	/** The `next` of the page before, for the page after it. */
 	after?: string;
+}
+
+/** The pilots of a season ranked, with the seasons there are to choose from. */
+export interface SeasonRanking {
+	/** The seasons a page offers, the newest first, and all years together last. */
+	seasons: RankingSeason[];
+	/** The season this is the ranking of. */
+	season: RankingSeason;
+	ranking: Ranking;
 }
 
 /** Another pilot's flight, prepared for display like one of the logbook. */
@@ -102,6 +117,20 @@ export class CommunitySource {
 		if (!(await this.#present())) return undefined;
 		const answer = await this.#get(pilotPagePath(handle, after));
 		return pilotPage(answer.status, answer.body);
+	}
+
+	/**
+	 * The pilots of a season, ranked by the sum of the points of their best
+	 * public flights. `season` is the name of one of the seasons the core
+	 * offers at `nowUnixS`; any other text, or none, means the newest.
+	 * Nothing if this site has no server.
+	 */
+	async ranking(season?: string, nowUnixS = Date.now() / 1000): Promise<SeasonRanking | undefined> {
+		if (!(await this.#present())) return undefined;
+		const { seasons } = rankingSeasons(nowUnixS);
+		const chosen = seasons.find((offered) => offered.name === season) ?? seasons[0];
+		const answer = await this.#get(rankingPath(chosen.fromUnixS, chosen.toUnixS));
+		return { seasons, season: chosen, ranking: ranking(answer.status, answer.body) };
 	}
 
 	/**

@@ -23,6 +23,7 @@
 //! | [`flight_file_path`] | GET | | the flight file |
 //! | [`pilot_path`] | GET | [`PilotRequest`] | [`PilotResponse`] |
 //! | [`PUBLIC_FLIGHTS_PATH`] | GET | [`PublicFlightsRequest`] | [`FlightsResponse`] |
+//! | [`RANKING_PATH`] | GET | [`RankingRequest`] | [`RankingResponse`] |
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
@@ -88,8 +89,8 @@ pub use error::{ErrorBody, ErrorCode, ErrorResponse};
 pub use flights::{
     DEFAULT_PAGE_SIZE, DeletedFlight, Flight, FlightChangesResponse, FlightId, FlightIdError,
     FlightPlace, FlightResponse, FlightScore, FlightsResponse, MAX_FLIGHT_FILE_BYTES,
-    MAX_PAGE_SIZE, Pilot, PilotResponse, RouteKind, UpdateFlightRequest, UploadResponse,
-    Visibility,
+    MAX_PAGE_SIZE, Pilot, PilotResponse, RANKING_COUNTED, RankedPilot, RankingResponse, RouteKind,
+    UpdateFlightRequest, UploadResponse, Visibility,
 };
 pub use forecast::{ForecastLayer, ForecastResponse};
 pub use groups::{
@@ -124,12 +125,12 @@ pub use request::{
     FlightSortError, FlightsRequest, ForecastRequest, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest, LiveTracksRequest, ObservationsRequest,
     PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays, PlansRequest,
-    PositionError, PublicFlightsRequest, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
-    SitesRequest, StationsRequest, TimeError, flight_file_path, flight_path, format_bbox,
-    format_day, format_time, group_invite_path, group_keeper_path, group_member_path, group_path,
-    group_plans_path, live_page_path, live_track_path, observations_path, parse_bbox, parse_day,
-    parse_position, parse_time, pilot_path, plan_in_path, plan_path, session_path,
-    share_image_path, share_path,
+    PositionError, PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest, SESSIONS_PATH,
+    SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError, flight_file_path,
+    flight_path, format_bbox, format_day, format_time, group_invite_path, group_keeper_path,
+    group_member_path, group_path, group_plans_path, live_page_path, live_track_path,
+    observations_path, parse_bbox, parse_day, parse_position, parse_time, pilot_path, plan_in_path,
+    plan_path, session_path, share_image_path, share_path,
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};

@@ -5,10 +5,10 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::flight::{Kept, Room, Saved, cut, may_be_set, score_order};
+use crate::flight::{Kept, Room, Saved, cut, may_be_set, ranked_order, score_order};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    PublicFlights, PublicOrder, ScoreKey, StoreError, Visibility, VisibilityChange,
+    PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility, VisibilityChange,
 };
 
 #[derive(Debug, Default)]
@@ -173,6 +173,41 @@ impl Flights {
         }
         flights.truncate(limit);
         flights
+    }
+
+    pub(super) fn ranking(
+        &self,
+        which: &PublicFlights,
+        counted: usize,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Vec<Ranked> {
+        // Each pilot's scored public flights among those asked for.
+        let mut by_pilot: BTreeMap<String, Vec<(ScoreKey, Flight)>> = BTreeMap::new();
+        for entry in self.flights.values() {
+            if entry.flight.visibility != Visibility::Public || !which.holds(&entry.flight) {
+                continue;
+            }
+            let flight = Self::read(entry, accounts);
+            if let Some(key) = flight.score_key() {
+                by_pilot
+                    .entry(flight.account_id.clone())
+                    .or_default()
+                    .push((key, flight));
+            }
+        }
+        let mut ranked: Vec<Ranked> = by_pilot
+            .into_values()
+            .filter_map(|mut scored| {
+                let all = u32::try_from(scored.len()).unwrap_or(u32::MAX);
+                scored.sort_by(|a, b| score_order(&b.0, &a.0));
+                scored.truncate(counted);
+                Ranked::of(scored.into_iter().map(|(_, flight)| flight).collect(), all)
+            })
+            .collect();
+        ranked.sort_by(ranked_order);
+        ranked.truncate(limit);
+        ranked
     }
 
     pub(super) fn changes(

@@ -425,6 +425,56 @@ pub(crate) fn score_order(a: &ScoreKey, b: &ScoreKey) -> std::cmp::Ordering {
         .then_with(|| a.1.cmp(&b.1))
 }
 
+/// A pilot's place among the pilots of a list of public flights: the sum
+/// of the points of their best flights in it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ranked {
+    /// The pilot's handle, as the account is now.
+    pub pilot_handle: String,
+    /// The pilot's display name, as the account is now.
+    pub pilot_name: String,
+    /// The sum of the points of the flights that count.
+    pub points: f64,
+    /// The flights that count, the best first.
+    pub flights: Vec<Flight>,
+    /// How many of the pilot's flights in the list scored at all, those
+    /// that count among them.
+    pub scored: u32,
+}
+
+impl Ranked {
+    /// A pilot's place from the flights that count for it, the best
+    /// first; `None` without a flight.
+    ///
+    /// The points are summed here, in that order, whichever store ranks:
+    /// two stores that each summed in an order of their own could differ
+    /// in the last digit.
+    pub(crate) fn of(flights: Vec<Flight>, scored: u32) -> Option<Self> {
+        let first = flights.first()?;
+        Some(Self {
+            pilot_handle: first.pilot_handle.clone(),
+            pilot_name: first.pilot_name.clone(),
+            points: flights
+                .iter()
+                .filter_map(|flight| flight.derived.score)
+                .map(|score| score.points)
+                .sum(),
+            flights,
+            scored,
+        })
+    }
+}
+
+/// How two places in a ranking compare: the pilot with more points comes
+/// first, and among pilots with the same points the handle decides, byte
+/// by byte.
+pub(crate) fn ranked_order(a: &Ranked, b: &Ranked) -> std::cmp::Ordering {
+    b.points
+        .partial_cmp(&a.points)
+        .unwrap_or(std::cmp::Ordering::Equal)
+        .then_with(|| a.pilot_handle.cmp(&b.pilot_handle))
+}
+
 /// The next change number of an account whose latest is `latest`, for a
 /// change made at `now`.
 ///

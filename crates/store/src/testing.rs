@@ -18,9 +18,9 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Suspension, Visibility, VisibilityChange,
+    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -246,6 +246,15 @@ impl Store for TroubledStore {
         _: &PublicOrder,
         _: usize,
     ) -> Result<Vec<Flight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn ranking(
+        &self,
+        _: &PublicFlights,
+        _: usize,
+        _: usize,
+    ) -> Result<Vec<Ranked>, StoreError> {
         self.fail().await
     }
 

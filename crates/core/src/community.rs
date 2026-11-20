@@ -14,12 +14,12 @@
 //! What another pilot wrote, a name or a glider, is cut to one bounded
 //! line before it reaches a screen.
 
-use chrono::DateTime;
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 use venti_api_types::v1::{
     self as api, Flight, FlightResponse, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
-    PublicFlightsRequest,
+    PublicFlightsRequest, RankingRequest, RankingResponse,
 };
-use venti_domain::BoundingBox;
+use venti_domain::{BoundingBox, Timestamp};
 
 use crate::live::one_line;
 use crate::server::answer;
@@ -102,8 +102,45 @@ pub fn public_flights_path(
     to_unix_s: Option<i64>,
     after: Option<String>,
 ) -> Result<String, CoreError> {
+    let Which { bbox, from, to } = which(
+        area,
+        from_unix_s,
+        to_unix_s,
+        "The app could not ask the server for these flights.",
+    )?;
+    Ok(PublicFlightsRequest {
+        bbox,
+        from,
+        to,
+        sort: match order {
+            // The server's own order: nothing to say.
+            PublicFlightsOrder::Newest => None,
+            PublicFlightsOrder::Best => Some(FlightSort::Score),
+        },
+        after: after.filter(|after| !after.is_empty()),
+        limit: None,
+    }
+    .path_and_query())
+}
+
+/// Which public flights a question means: a part of the map and a span of
+/// time, as the server's requests name them.
+struct Which {
+    bbox: Option<BoundingBox>,
+    from: Option<Timestamp>,
+    to: Option<Timestamp>,
+}
+
+/// Reads what a screen asks for into the server's terms. What cannot be
+/// asked for is refused in `words`.
+fn which(
+    area: Option<Bounds>,
+    from_unix_s: Option<i64>,
+    to_unix_s: Option<i64>,
+    words: &str,
+) -> Result<Which, CoreError> {
     let unreadable = || CoreError::Server {
-        message: "The app could not ask the server for these flights.".to_owned(),
+        message: words.to_owned(),
     };
     let bbox = area
         .map(|area| {
@@ -125,19 +162,7 @@ pub fn public_flights_path(
     if from.zip(to).is_some_and(|(from, to)| to <= from) {
         return Err(unreadable());
     }
-    Ok(PublicFlightsRequest {
-        bbox,
-        from,
-        to,
-        sort: match order {
-            // The server's own order: nothing to say.
-            PublicFlightsOrder::Newest => None,
-            PublicFlightsOrder::Best => Some(FlightSort::Score),
-        },
-        after: after.filter(|after| !after.is_empty()),
-        limit: None,
-    }
-    .path_and_query())
+    Ok(Which { bbox, from, to })
 }
 
 /// The path and query to `GET` for the public flights that took off near a
@@ -272,6 +297,156 @@ fn row(flight: &Flight) -> PublicFlight {
     }
 }
 
+/// A span of time a ranking is asked for, as a screen offers it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RankingSeason {
+    /// What it is called: "2026", "All years".
+    pub name: String,
+    /// Its first second, seconds since 1970-01-01 UTC. Absent for all
+    /// years.
+    pub from_unix_s: Option<i64>,
+    /// The first second after it. Absent for all years.
+    pub to_unix_s: Option<i64>,
+}
+
+/// How many years a screen offers a ranking for.
+const SEASONS_OFFERED: i32 = 4;
+
+/// The seasons a screen offers at a moment: the year of that moment and
+/// the three before it, the newest first, and all years together.
+///
+/// A season is a calendar year by UTC. The owner has not decided what a
+/// season is; a year is what needs no explaining.
+#[uniffi::export]
+pub fn ranking_seasons(now_unix_s: i64) -> Vec<RankingSeason> {
+    let this_year = DateTime::from_timestamp(now_unix_s, 0).map_or(1970, |now| now.year());
+    let first_second = |year: i32| {
+        Utc.with_ymd_and_hms(year, 1, 1, 0, 0, 0)
+            .single()
+            .map(|start| start.timestamp())
+    };
+    let mut seasons: Vec<RankingSeason> = (0..SEASONS_OFFERED)
+        .map(|back| this_year - back)
+        .filter_map(|year| {
+            Some(RankingSeason {
+                name: year.to_string(),
+                from_unix_s: Some(first_second(year)?),
+                to_unix_s: Some(first_second(year + 1)?),
+            })
+        })
+        .collect();
+    seasons.push(RankingSeason {
+        name: "All years".to_owned(),
+        from_unix_s: None,
+        to_unix_s: None,
+    });
+    seasons
+}
+
+/// A pilot's place in a ranking, as a row shows it.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RankedPilot {
+    /// The place: 1 for the most points. Pilots with the same points
+    /// share a place, and the place after them is left out: 1, 2, 2, 4.
+    pub place: u32,
+    /// The pilot's handle.
+    pub handle: String,
+    /// The name the pilot is shown by, on one line.
+    pub name: String,
+    /// The sum of the points of the flights that count.
+    pub points: f64,
+    /// What counts, in words: "1 flight", "3 flights", "Best 3 of 14
+    /// flights".
+    pub counted: String,
+    /// The flights that count, the best first.
+    pub flights: Vec<PublicFlight>,
+}
+
+/// The pilots of a server's public flights, ranked.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct Ranking {
+    /// The pilots, the one with the most points first.
+    pub pilots: Vec<RankedPilot>,
+    /// The rule in a sentence, for under the list.
+    pub rule: String,
+}
+
+/// The path and query to `GET` from the server for the ranking of its
+/// pilots: by the sum of the points of each pilot's best public flights.
+///
+/// `area` counts only flights that took off inside a part of the map;
+/// `from_unix_s` and `to_unix_s` only flights that began at or after the
+/// one and before the other, as [`ranking_seasons`] names them.
+#[uniffi::export]
+pub fn ranking_path(
+    area: Option<Bounds>,
+    from_unix_s: Option<i64>,
+    to_unix_s: Option<i64>,
+) -> Result<String, CoreError> {
+    let Which { bbox, from, to } = which(
+        area,
+        from_unix_s,
+        to_unix_s,
+        "The app could not ask the server for this ranking.",
+    )?;
+    Ok(RankingRequest {
+        bbox,
+        from,
+        to,
+        limit: None,
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`ranking_path`].
+#[uniffi::export]
+pub fn ranking(status: u16, body: Vec<u8>) -> Result<Ranking, CoreError> {
+    let response: RankingResponse = answer(status, &body)?;
+    let mut pilots: Vec<RankedPilot> = Vec::with_capacity(response.pilots.len());
+    for (index, ranked) in response.pilots.iter().enumerate() {
+        // The server sends the pilots in order. One with the points of
+        // the pilot before shares that pilot's place.
+        let place = match pilots.last() {
+            Some(before) if before.points == ranked.points => before.place,
+            _ => u32::try_from(index + 1).unwrap_or(u32::MAX),
+        };
+        let counting = ranked.flights.len();
+        pilots.push(RankedPilot {
+            place,
+            handle: ranked.pilot.handle.to_string(),
+            name: one_line(&ranked.pilot.display_name, 40),
+            points: ranked.points,
+            counted: match (counting, ranked.scored as usize) {
+                (1, scored) if scored <= 1 => "1 flight".to_owned(),
+                (counting, scored) if scored <= counting => format!("{counting} flights"),
+                (1, scored) => format!("Best of {scored} flights"),
+                (counting, scored) => format!("Best {counting} of {scored} flights"),
+            },
+            flights: ranked.flights.iter().map(row).collect(),
+        });
+    }
+    let rule = match response.counted {
+        1 => "A pilot's points are those of their best flight shared with everyone.".to_owned(),
+        counted => format!(
+            "A pilot's points are those of their best {counted} flights shared with everyone, \
+             added up."
+        ),
+    };
+    Ok(Ranking {
+        pilots,
+        rule: format!(
+            "{rule} Worked out by this server from the flights' files, by the same rules for \
+             every flight. It is not a league's result."
+        ),
+    })
+}
+
 /// The path to `GET` from the server for one flight that is reached by its
 /// address alone, as from a link: what a row of the list says about it,
 /// which names the pilot and where its file is.
@@ -308,6 +483,104 @@ mod tests {
     fn golden(name: &str) -> Vec<u8> {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/tests/golden/");
         std::fs::read(format!("{path}{name}")).unwrap()
+    }
+
+    #[test]
+    fn a_ranking_is_asked_for_by_season_and_read_into_places() {
+        // 18 November 2026, 19:05 UTC: the development mode's clock.
+        let seasons = ranking_seasons(1_795_028_700);
+        let names: Vec<&str> = seasons.iter().map(|season| season.name.as_str()).collect();
+        assert_eq!(names, ["2026", "2025", "2024", "2023", "All years"]);
+        let this_year = &seasons[0];
+        assert_eq!(
+            ranking_path(None, this_year.from_unix_s, this_year.to_unix_s).unwrap(),
+            "/v1/ranking?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z"
+        );
+        let always = seasons.last().unwrap();
+        assert_eq!(
+            ranking_path(None, always.from_unix_s, always.to_unix_s).unwrap(),
+            "/v1/ranking"
+        );
+        let area = Bounds {
+            south: 47.55,
+            west: 11.6,
+            north: 47.85,
+            east: 12.0,
+        };
+        assert_eq!(
+            ranking_path(Some(area), None, None).unwrap(),
+            "/v1/ranking?bbox=11.6,47.55,12,47.85"
+        );
+        // A season that ends before it begins is not asked for.
+        assert!(ranking_path(None, Some(10), Some(10)).is_err());
+
+        // The development mode's August: Mara's two flights before the
+        // demo pilot's one.
+        let ranking = ranking(200, golden("ranking.json")).unwrap();
+        let rows: Vec<(u32, &str, f64, &str, usize)> = ranking
+            .pilots
+            .iter()
+            .map(|pilot| {
+                (
+                    pilot.place,
+                    pilot.name.as_str(),
+                    pilot.points,
+                    pilot.counted.as_str(),
+                    pilot.flights.len(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                (1, "Mara Muster", 23.42, "2 flights", 2),
+                (2, "Demo Pilot", 11.98, "1 flight", 1),
+            ]
+        );
+        assert_eq!(ranking.pilots[0].handle, "mara");
+        assert_eq!(ranking.pilots[0].flights[0].pilot, "Mara Muster");
+        assert_eq!(
+            ranking.rule,
+            "A pilot's points are those of their best 3 flights shared with everyone, added up. \
+             Worked out by this server from the flights' files, by the same rules for every \
+             flight. It is not a league's result."
+        );
+    }
+
+    #[test]
+    fn pilots_with_the_same_points_share_a_place_and_more_flights_than_count_are_said() {
+        let mut answer: Value = serde_json::from_slice(&golden("ranking.json")).unwrap();
+        let first = answer["pilots"][0].clone();
+        // Four pilots: the second and third with the same points, the last
+        // with fourteen scored flights of which the two listed count.
+        let with = |handle: &str, points: f64, scored: u32| {
+            let mut pilot = first.clone();
+            pilot["pilot"]["handle"] = json!(handle);
+            pilot["points"] = json!(points);
+            pilot["scored"] = json!(scored);
+            pilot
+        };
+        answer["pilots"] = json!([
+            with("anna", 300.0, 2),
+            with("bernd", 250.5, 2),
+            with("carla", 250.5, 2),
+            with("dario", 100.0, 14),
+        ]);
+        let ranking = ranking(200, serde_json::to_vec(&answer).unwrap()).unwrap();
+        let places: Vec<(u32, &str)> = ranking
+            .pilots
+            .iter()
+            .map(|pilot| (pilot.place, pilot.handle.as_str()))
+            .collect();
+        assert_eq!(
+            places,
+            [(1, "anna"), (2, "bernd"), (2, "carla"), (4, "dario")]
+        );
+        assert_eq!(ranking.pilots[3].counted, "Best 2 of 14 flights");
+
+        // A server that cannot answer says so in the app's words.
+        assert!(super::ranking(503, Vec::new()).is_err());
+        assert!(super::ranking(200, b"{}".to_vec()).is_err());
     }
 
     #[test]

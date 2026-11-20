@@ -169,6 +169,15 @@ export class CoreClient {
 	}
 
 	/**
+	 * The server's pilots ranked by their best public flights, in the
+	 * season of that name or in the newest. Nothing if this site has no
+	 * server.
+	 */
+	ranking(season?: string) {
+		return this.#call('ranking', season);
+	}
+
+	/**
 	 * Another pilot's flight, by its address on the server, fetched and
 	 * prepared for display. Nothing of it is kept.
 	 */

@@ -1,7 +1,7 @@
 /**
  * Other pilots' flights as the screens see them: everyone's public flights
- * in the order and for the days the pilot chose, one pilot's flights, and
- * one flight of them opened from its file.
+ * in the order and for the days the pilot chose, one pilot's flights, the
+ * ranking of the pilots in a season, and one flight opened from its file.
  *
  * `pages.ts` holds the rules. This class gives them the page: the core in
  * its worker to ask, and what the screens watch. It lives as long as the
@@ -10,7 +10,7 @@
  */
 
 import { untrack } from 'svelte';
-import type { CoreClient, OpenedFlight } from '#lib/core/index.ts';
+import type { CoreClient, OpenedFlight, RankedPilot } from '#lib/core/index.ts';
 import {
 	type Asked,
 	EVERYTHING,
@@ -18,7 +18,8 @@ import {
 	NOT_LISTED,
 	PagedFlights,
 	sameAsked,
-	span
+	span,
+	words
 } from './pages';
 
 /** One pilot and the flights that pilot shares with everyone. */
@@ -29,7 +30,44 @@ export interface PilotState {
 	list: ListState;
 }
 
+/** What a screen is shown of the ranking of a season. */
+export interface RankingState {
+	/** The season asked for, by its name. Empty asks for the newest. */
+	asked: string;
+	/** Whether the server has answered. */
+	known: boolean;
+	/** The seasons there are to choose from, by name. None before the first answer. */
+	seasons: string[];
+	/** The season the ranking is of. */
+	season: string;
+	/** The pilots, the one with the most points first. */
+	pilots: RankedPilot[];
+	/** The rule in a sentence, for under the list. */
+	rule: string;
+	/** Whether the ranking is being fetched. */
+	loading: boolean;
+	/** Why it is missing, in words for the pilot. */
+	problem: string | undefined;
+	/** Whether this site turned out to have no server to ask. */
+	absent: boolean;
+}
+
+export const NOT_RANKED: RankingState = {
+	asked: '',
+	known: false,
+	seasons: [],
+	season: '',
+	pilots: [],
+	rule: '',
+	loading: false,
+	problem: undefined,
+	absent: false
+};
+
 export class CommunityModel {
+	/** The ranking of the server's pilots in the season last asked for. */
+	ranking = $state.raw<RankingState>(NOT_RANKED);
+
 	/** What is asked of everyone's flights: their order, and the days. */
 	asked = $state.raw<Asked>(EVERYTHING);
 
@@ -42,6 +80,8 @@ export class CommunityModel {
 	#core: CoreClient;
 	#everyone: PagedFlights | undefined;
 	#ofPilot: PagedFlights | undefined;
+	/** The season whose ranking was last asked for. Nothing before the first. */
+	#ranked: string | undefined;
 
 	constructor(core: CoreClient) {
 		this.#core = core;
@@ -110,6 +150,52 @@ export class CommunityModel {
 	/** Asks again for the pilot's flights from the top. */
 	againPilot(): void {
 		void this.#ofPilot?.load();
+	}
+
+	/**
+	 * Shows the ranking of a season, named as the core names it; an empty
+	 * name is the newest. A ranking that is there for the same season, or on
+	 * its way, is left as it is.
+	 */
+	showRanking(season: string): void {
+		untrack(() => {
+			const there = this.ranking.known || this.ranking.loading;
+			if (this.#ranked === season && there) return;
+			void this.#rank(season);
+		});
+	}
+
+	/** Asks again: for a ranking that could not be fetched. */
+	rankAgain(): void {
+		void this.#rank(this.ranking.asked);
+	}
+
+	async #rank(season: string): Promise<void> {
+		this.#ranked = season;
+		// The seasons stay to choose from while another one is fetched.
+		const seasons = this.ranking.seasons;
+		this.ranking = { ...NOT_RANKED, asked: season, seasons, season, loading: true };
+		try {
+			const answer = await this.#core.ranking(season || undefined);
+			// Another season has been asked for since.
+			if (this.#ranked !== season) return;
+			this.ranking = answer
+				? {
+						asked: season,
+						known: true,
+						seasons: answer.seasons.map((offered) => offered.name),
+						season: answer.season.name,
+						pilots: answer.ranking.pilots,
+						rule: answer.ranking.rule,
+						loading: false,
+						problem: undefined,
+						absent: false
+					}
+				: { ...NOT_RANKED, asked: season, absent: true };
+		} catch (error) {
+			if (this.#ranked !== season) return;
+			this.ranking = { ...NOT_RANKED, asked: season, seasons, season, problem: words(error) };
+		}
 	}
 
 	/**

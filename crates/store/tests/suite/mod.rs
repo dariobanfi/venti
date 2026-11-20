@@ -103,6 +103,7 @@ macro_rules! store_suite {
             public_flights_are_found_by_where_they_took_off,
             public_flights_are_found_by_when_they_started,
             public_flights_are_listed_best_first_by_their_points,
+            pilots_are_ranked_by_the_sum_of_their_best_public_flights,
             a_live_track_begins_with_its_first_fixes,
             the_same_live_fixes_again_change_nothing,
             live_fixes_that_arrive_late_reach_those_who_wait,

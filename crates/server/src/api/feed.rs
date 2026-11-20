@@ -80,6 +80,37 @@ fn moment(name: &str, text: Option<&str>) -> Result<Option<Timestamp>, ApiError>
     .transpose()
 }
 
+/// Which of everyone's public flights a request means, from its `bbox`,
+/// `from` and `to` as they were sent. The ranking is asked in the same
+/// words.
+pub(super) fn which(
+    bbox: Option<&str>,
+    from: Option<&str>,
+    to: Option<&str>,
+) -> Result<PublicFlights, ApiError> {
+    let area = bbox
+        .map(|bbox| {
+            parse_bbox(bbox).map_err(|error| {
+                ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
+            })
+        })
+        .transpose()?;
+    let from = moment("from", from)?;
+    let to = moment("to", to)?;
+    if from.zip(to).is_some_and(|(from, to)| from >= to) {
+        return Err(ApiError::bad_request(
+            ErrorCode::InvalidRange,
+            "from must lie before to: what is asked for are the flights that started at or \
+             after from and before to",
+        ));
+    }
+    Ok(PublicFlights {
+        area,
+        from,
+        before: to,
+    })
+}
+
 /// `GET /v1/flights/public`: one page of everyone's public flights.
 ///
 /// Like a pilot's page, the answer may be kept and is checked before every
@@ -90,24 +121,11 @@ pub(crate) async fn list<S: Store>(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let limit = body::page_size(params.limit.as_deref())?;
-    let area = params
-        .bbox
-        .as_deref()
-        .map(|bbox| {
-            parse_bbox(bbox).map_err(|error| {
-                ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
-            })
-        })
-        .transpose()?;
-    let from = moment("from", params.from.as_deref())?;
-    let to = moment("to", params.to.as_deref())?;
-    if from.zip(to).is_some_and(|(from, to)| from >= to) {
-        return Err(ApiError::bad_request(
-            ErrorCode::InvalidRange,
-            "from must lie before to: the list holds the flights that started at or after \
-             from and before to",
-        ));
-    }
+    let which = which(
+        params.bbox.as_deref(),
+        params.from.as_deref(),
+        params.to.as_deref(),
+    )?;
     let sort = match params.sort.as_deref() {
         None => FlightSort::default(),
         Some(text) => text
@@ -122,11 +140,6 @@ pub(crate) async fn list<S: Store>(
     let order = match sort {
         FlightSort::Newest => PublicOrder::Newest(after.map(page_key).transpose()?),
         FlightSort::Score => PublicOrder::Best(after.map(score_key).transpose()?),
-    };
-    let which = PublicFlights {
-        area,
-        from,
-        before: to,
     };
 
     // One more than asked for, to know whether a page follows.

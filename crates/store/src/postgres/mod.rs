@@ -29,9 +29,9 @@ use crate::{
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
     MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
     OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Report, ReportClosing, ReportKey, ReportListing, ReportSaved,
-    RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest,
-    Store, StoreError, Suspension, Visibility, VisibilityChange, batch,
+    PublicFlights, PublicOrder, Ranked, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, Visibility, VisibilityChange, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -660,6 +660,15 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<Vec<Flight>, StoreError> {
         flights::public(&self.client().await?, which, order, limit).await
+    }
+
+    async fn ranking(
+        &self,
+        which: &PublicFlights,
+        counted: usize,
+        limit: usize,
+    ) -> Result<Vec<Ranked>, StoreError> {
+        flights::ranking(&self.client().await?, which, counted, limit).await
     }
 
     async fn flight_changes(

@@ -6,7 +6,13 @@
 
 import type { NewAccount } from './account-source';
 import type { PublicFlightsAsked } from './community-source';
-import type { Bounds, Coordinate, FlightVisibility } from './pkg/venti_core_wasm.js';
+import type {
+	Bounds,
+	Coordinate,
+	FlightVisibility,
+	ReportReason,
+	ReportSubject
+} from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
 	type Calls,
@@ -204,6 +210,19 @@ export class CoreClient {
 	/** Changes who may see a flight. */
 	shareFlight(id: string, visibility: FlightVisibility) {
 		return this.#call('shareFlight', { id, visibility });
+	}
+
+	/** What a report can say, and what the pilot is told before sending one. */
+	reportForm() {
+		return this.#call('reportForm', undefined);
+	}
+
+	/**
+	 * Reports a flight, a pilot's page or a live track to whoever runs the
+	 * server, from the pilot's account. Answers in a line what became of it.
+	 */
+	report(subject: ReportSubject, reason: ReportReason, text: string) {
+		return this.#call('report', { subject, reason, text });
 	}
 
 	/** Takes in an airspace file. Its bytes are handed over, not copied. */

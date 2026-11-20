@@ -13,6 +13,8 @@
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { everyoneHref, pilotHref } from '#lib/app/routes.ts';
 	import { queryOf, words } from '#lib/community/pages.ts';
+	import { reportedFlight } from '#lib/community/report.ts';
+	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import type { OpenedFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -32,6 +34,8 @@
 		{ is: 'loading' } | { is: 'loaded'; opened: OpenedFlight } | { is: 'failed'; message: string };
 
 	let phase = $state.raw<Phase>({ is: 'loading' });
+	/** Whether the form that reports the flight is open. */
+	let reporting = $state(false);
 
 	$effect(() => {
 		if (app.failure) {
@@ -89,7 +93,10 @@
 		}
 	}
 
-	/** What can be done with another pilot's flight: hand its page on. */
+	/**
+	 * What can be done with another pilot's flight: hand its page on, and
+	 * tell whoever runs the server that it should not be there.
+	 */
 	function actions(opened: OpenedFlight): MenuItem[] {
 		return [
 			{
@@ -97,7 +104,8 @@
 				icon: 'link',
 				onselect: () => window.open(pageOf(opened), '_blank', 'noopener')
 			},
-			{ label: 'Copy the link to its page', icon: 'copy', onselect: () => void copyLink(opened) }
+			{ label: 'Copy the link to its page', icon: 'copy', onselect: () => void copyLink(opened) },
+			{ label: 'Report this flight', icon: 'warning', onselect: () => (reporting = true) }
 		];
 	}
 
@@ -123,6 +131,11 @@
 			actions={actions(opened)}
 			inLogbook={false}
 			whose={{ name: opened.row.pilot, href: pilotHref(opened.row.handle) }}
+		/>
+		<ReportSheet
+			open={reporting}
+			{...reportedFlight(opened.row.id)}
+			onclose={() => (reporting = false)}
 		/>
 	{/key}
 {:else if phase.is === 'failed'}

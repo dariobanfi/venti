@@ -19,6 +19,12 @@ import {
 	type AccountView,
 	type FlightSharing,
 	type FlightVisibility,
+	reportForm,
+	type ReportForm,
+	type ReportReason,
+	reportRequest,
+	reportSent,
+	type ReportSubject,
 	type ServerRequest,
 	type SyncSummary,
 	syncSummaryInWords
@@ -237,6 +243,29 @@ export class AccountSource {
 		const request = await this.#session.ask((core) => core.shareRequest(id, visibility));
 		const answer = await this.#send(request, await this.#session.token());
 		return this.#session.change((core) => core.shared(id, answer.status, answer.body));
+	}
+
+	/**
+	 * What a report can say: the server's reasons with a line about each,
+	 * how long the pilot's own words may be, and what happens to a report.
+	 * All of it is the core's.
+	 */
+	reportForm(): ReportForm {
+		return reportForm();
+	}
+
+	/**
+	 * Tells whoever runs the server that a flight, a pilot's page or a live
+	 * track should not be there, from the account this browser is signed in
+	 * to. Returns in a line what became of the report. Throws, in the core's
+	 * words, when the report cannot be sent as it is (no words where they
+	 * are needed, or too many), before the server is asked, and when the
+	 * server refuses it.
+	 */
+	async report(subject: ReportSubject, reason: ReportReason, text: string): Promise<string> {
+		const request = reportRequest(subject, reason, text);
+		const answer = await this.#send(request, await this.#session.token());
+		return reportSent(answer.status, answer.body);
 	}
 
 	/**

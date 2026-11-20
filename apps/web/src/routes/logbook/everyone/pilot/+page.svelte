@@ -9,6 +9,8 @@
 	import { everyoneHref } from '#lib/app/routes.ts';
 	import { NOT_LISTED, queryOf } from '#lib/community/pages.ts';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
+	import { reportedPilot } from '#lib/community/report.ts';
+	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import { nothingListed, PILOTS_RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
 
@@ -26,6 +28,9 @@
 
 	/** The pilot's name as the server has it. What another pilot wrote is shown as text. */
 	const name = $derived(pilot?.name ?? (handle ? `@${handle}` : 'Pilot'));
+	/** Whether the form that reports the pilot's page is open. */
+	let reporting = $state(false);
+
 	/** Back to everyone's flights as they were asked for. */
 	const back = $derived(everyoneHref(everyone ? queryOf(everyone.asked) : ''));
 </script>
@@ -68,6 +73,19 @@
 			onmore={() => everyone?.morePilot()}
 			onagain={() => everyone?.againPilot()}
 		/>
+		<!-- A page the server has can be reported to whoever runs the server. -->
+		{#if pilot?.name && handle}
+			<div class="report">
+				<button class="button-plain" type="button" onclick={() => (reporting = true)}>
+					Report this pilot
+				</button>
+			</div>
+			<ReportSheet
+				open={reporting}
+				{...reportedPilot(handle)}
+				onclose={() => (reporting = false)}
+			/>
+		{/if}
 	{/if}
 </div>
 
@@ -107,6 +125,11 @@
 
 	header p {
 		color: var(--text-secondary);
+	}
+
+	.report {
+		margin-top: 1rem;
+		padding: 0 0.25rem;
 	}
 
 	.unavailable {

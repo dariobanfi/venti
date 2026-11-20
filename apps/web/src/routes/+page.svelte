@@ -11,6 +11,8 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
+	import { reportedTrack } from '#lib/community/report.ts';
+	import ReportSheet from '#lib/community/ReportSheet.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
 	import GliderView from '#lib/live/GliderView.svelte';
 	import LiveList from '#lib/live/LiveList.svelte';
@@ -111,6 +113,8 @@
 	 */
 	let chosenGlider = $state<string>();
 	let listingGliders = $state(false);
+	/** The live track being reported to whoever runs the server, by its identifier. */
+	let reportedGlider = $state<string>();
 	const glider = $derived(chosenGlider === undefined ? undefined : live?.glider(chosenGlider));
 	const NO_TRACK: readonly never[] = [];
 	/** The flight of the chosen glider so far, for the map to draw as a line. */
@@ -254,7 +258,7 @@
 				onclose={() => (chosenGlider = undefined)}
 			>
 				{#if chosenGlider}
-					<GliderView id={chosenGlider} {live} />
+					<GliderView id={chosenGlider} {live} onreport={() => (reportedGlider = chosenGlider)} />
 				{/if}
 			</MapPanel>
 		{/if}
@@ -340,6 +344,13 @@
 		onclose={() => (listingGliders = false)}
 	/>
 {/if}
+
+<!-- A live track that should not be there is reported from its glider's page. -->
+<ReportSheet
+	open={reportedGlider !== undefined}
+	{...reportedTrack(reportedGlider ?? '')}
+	onclose={() => (reportedGlider = undefined)}
+/>
 
 <style>
 	.screen {

@@ -33,6 +33,9 @@ import type {
 	PilotPage,
 	PublicFlights,
 	Registration,
+	ReportForm,
+	ReportReason,
+	ReportSubject,
 	SitesMap,
 	StationHistory
 } from './pkg/venti_core_wasm.js';
@@ -114,6 +117,17 @@ export interface Calls {
 	/** Given a flight's identifier: how it is shared, if the server has it. */
 	flightSharing: { given: string; answer: FlightSharing | undefined };
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
+	/** What a report can say, and what the pilot is told before sending one. */
+	reportForm: { given: undefined; answer: ReportForm };
+	/**
+	 * Reports a flight, a pilot's page or a live track to whoever runs the
+	 * server, from the pilot's account. The answer is what became of it, in
+	 * a line.
+	 */
+	report: {
+		given: { subject: ReportSubject; reason: ReportReason; text: string };
+		answer: string;
+	};
 	/** An airspace file's name and bytes, as the pilot picked or dropped it. */
 	importAirspace: { given: { name: string; bytes: ArrayBuffer }; answer: AirspaceImport };
 	airspaceFiles: { given: undefined; answer: AirspaceFile[] };
@@ -199,6 +213,8 @@ export async function answer<Name extends CallName>(
 		sync: () => account.sync(),
 		flightSharing: (id) => account.sharing(id),
 		shareFlight: ({ id, visibility }) => account.share(id, visibility),
+		reportForm: () => account.reportForm(),
+		report: ({ subject, reason, text }) => account.report(subject, reason, text),
 		importAirspace: ({ name, bytes }) =>
 			session.importAirspace(name, new Uint8Array(bytes), Math.floor(Date.now() / 1000)),
 		airspaceFiles: () => session.airspaceFiles(),

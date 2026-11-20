@@ -289,6 +289,12 @@ A flight file is read as UTF-8, or as Western European text if it is not valid U
 - **Three pages, written out like the others**: `/logbook/everyone/`, `/logbook/everyone/pilot/?handle=…` and `/logbook/everyone/flight/?id=…`. What is asked of the list is in the first one's query.
 - **A site without a server** has no switch in its logbook, and the pages say that there is no server.
 
+#### Reports in the browser
+
+- **Sent by the worker, from the pilot's account** (`apps/web/src/lib/core/account-source.ts`): the core hands out the request, which needs the session token, and reads the answer into the one line the form shows afterwards. What the core refuses, words missing with "Something else" or more words than a report has room for, never reaches the server.
+- **The form is the core's** (`reportForm` in the browser's binding): its six reasons, the line about each, how long the words may be, and the notice that says who reads a report. The page asks for it once. `apps/web/src/lib/community/ReportSheet.svelte` lays it out and holds no rule: that nothing is sent before a reason is chosen is the one thing it enforces by itself, as the iPhone's form does.
+- **Three entries, one form**: another pilot's flight (by its address), a pilot's page (by handle) and a live track (by its identifier), each handed to the form as the subject the core's request takes.
+
 #### The content security policy
 
 - **Every page carries one**, written into it by the build as a `meta` element ahead of everything the page loads: SvelteKit's `csp` setting with hashes (`apps/web/vite.config.ts`), over the list in `apps/web/src/lib/app/security-policy.ts`. `apps/web/README.md` has every entry with the reason it is there. The policy starts from "nothing" and allows the app's own files, the two tile hosts, and `data:` addresses for images and for the label fonts the build keeps inside a script. No inline script but the one that starts the app, by its hash; no inline style but one of SvelteKit's, by its hash; no text made into code.
@@ -570,7 +576,7 @@ The page at `/live/{id}` is described in [design.md](design.md#the-page-of-a-liv
 
 ### Reports and taking down
 
-Built on 2026-11-20 on the server; the core has the form's reasons, the request and the answer since the same day (`report_form`, `report_request`, `report_sent`), and the iPhone and the Android app send reports with them. The web app does not yet, and no app shows what the operator did before the pilot runs into it. It is what a server needs before people its owner does not know share flights and gliders on it, in its plainest form: pilots report, and a person decides, by hand. [api.md](api.md#reports) has the endpoint, [deploy/README.md](../deploy/README.md#reports-and-taking-things-down) the operator's commands.
+Built on 2026-11-20 on the server; the core has the form's reasons, the request and the answer since the same day (`report_form`, `report_request`, `report_sent`), and the iPhone, the Android and the web app send reports with them. No app shows what the operator did before the pilot runs into it. It is what a server needs before people its owner does not know share flights and gliders on it, in its plainest form: pilots report, and a person decides, by hand. [api.md](api.md#reports) has the endpoint, [deploy/README.md](../deploy/README.md#reports-and-taking-things-down) the operator's commands.
 
 ```
 POST /v1/reports                   a signed-in pilot: what (a flight, a pilot's page, a live track),

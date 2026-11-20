@@ -15,7 +15,10 @@ import {
 	type FlightVisibility,
 	isInWords,
 	type NewAccount,
-	type Registration
+	type Registration,
+	type ReportForm,
+	type ReportReason,
+	type ReportSubject
 } from '#lib/core/index.ts';
 import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
@@ -53,6 +56,8 @@ export class AccountModel {
 	/** Called after a sync, which may have changed the logbook. */
 	#onSynced: () => Promise<void>;
 	#lastSyncAt: number | undefined;
+	/** What a report can say, once the core was asked. */
+	#reportForm: Promise<ReportForm> | undefined;
 
 	private constructor(
 		core: CoreClient,
@@ -116,6 +121,29 @@ export class AccountModel {
 			return words(error);
 		} finally {
 			this.working = false;
+		}
+	}
+
+	/**
+	 * What a report can say: the server's reasons, how long the pilot's own
+	 * words may be, and what happens to a report. The core's, and the same
+	 * every time, so it is asked for once.
+	 */
+	reportForm(): Promise<ReportForm> {
+		this.#reportForm ??= this.#core.reportForm();
+		return this.#reportForm;
+	}
+
+	/**
+	 * Reports a flight, a pilot's page or a live track to whoever runs the
+	 * server, from this account. Answers in a line what became of the
+	 * report; throws in words when it could not be sent.
+	 */
+	async report(subject: ReportSubject, reason: ReportReason, text: string): Promise<string> {
+		try {
+			return await this.#core.report(subject, reason, text);
+		} catch (error) {
+			throw new Error(words(error));
 		}
 	}
 

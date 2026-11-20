@@ -14,9 +14,11 @@
 		/** The identifier of the glider's track. */
 		id: string;
 		live: LiveModel;
+		/** Opens the form that reports the track to whoever runs the server. */
+		onreport: () => void;
 	}
 
-	let { id, live }: Props = $props();
+	let { id, live, onreport }: Props = $props();
 
 	const text = format();
 
@@ -90,6 +92,10 @@
 			</div>
 			<p class="footnote">The server’s page needs no app and keeps itself up to date.</p>
 		</section>
+
+		<div class="card">
+			<button class="link" type="button" onclick={onreport}>Report this track</button>
+		</div>
 	</div>
 {:else}
 	<p class="gone">{problem ?? NO_LONGER_HERE}</p>
@@ -139,9 +145,11 @@
 	.link {
 		display: flex;
 		align-items: center;
+		width: 100%;
 		min-height: var(--target);
 		padding: 0.5rem 1rem;
 		color: var(--accent);
+		text-align: left;
 	}
 
 	@media (hover: hover) {

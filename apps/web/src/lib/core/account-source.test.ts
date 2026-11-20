@@ -561,6 +561,113 @@ describe('sharing a flight', () => {
 	});
 });
 
+describe('reporting what another pilot shares', () => {
+	/** The flight of the server's recorded report. */
+	const REPORTED = { kind: 'flight', id: 'fbyw03atd9qdt5bfe177ra1k94' } as const;
+	const WORDS = 'I flew there that day. This is my track, not hers.';
+
+	/** A signed-in tab, with what the server has been asked so far forgotten. */
+	async function signedIn() {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		await account.signIn('demo', 'demo-pilot-password');
+		browser.server.asked = [];
+		return account;
+	}
+
+	it('offers the server’s six reasons, each with a line, and says what happens to a report', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+
+		const form = account.reportForm();
+
+		expect(form.reasons.map((choice) => choice.reason)).toEqual([
+			'offensive',
+			'impersonation',
+			'privacy',
+			'notAFlight',
+			'spam',
+			'other'
+		]);
+		expect(form.reasons.every((choice) => choice.title && choice.explanation)).toBe(true);
+		expect(form.textAtMost).toBe(1000);
+		// A report is not anonymous to whoever runs the server, and says so.
+		expect(form.notice).toContain('sees that it came from you');
+	});
+
+	it('goes to the server from the pilot’s account, as the server’s own example writes it', async () => {
+		const account = await signedIn();
+		browser.server.instead = () => answer(201, recorded('report.json'));
+
+		const said = await account.report(REPORTED, 'notAFlight', WORDS);
+
+		expect(browser.server.asked).toHaveLength(1);
+		const [asked] = browser.server.asked;
+		expect(asked).toMatchObject({ method: 'POST', path: '/v1/reports', token: TOKEN });
+		expect(JSON.parse(asked.body)).toEqual(JSON.parse(text(recorded('report_request.json'))));
+		expect(said).toBe('Sent. Whoever runs this server will read it.');
+	});
+
+	it('names a pilot’s page and a live track as the server wants them named', async () => {
+		const account = await signedIn();
+		browser.server.instead = () => answer(201, recorded('report.json'));
+
+		await account.report({ kind: 'pilot', handle: 'mara' }, 'impersonation', '');
+		await account.report({ kind: 'liveTrack', id: '11111111111111111111111111' }, 'privacy', '');
+
+		expect(browser.server.asked.map((asked) => JSON.parse(asked.body))).toEqual([
+			{ subject: { pilot: 'mara' }, reason: 'impersonation' },
+			{ subject: { live_track: '11111111111111111111111111' }, reason: 'privacy' }
+		]);
+	});
+
+	it('says that a thing reported before is still waiting to be read', async () => {
+		const account = await signedIn();
+		browser.server.instead = () => answer(200, json({ created: false }));
+
+		expect(await account.report(REPORTED, 'spam', '')).toBe(
+			'You reported this before. Your report is still waiting to be read.'
+		);
+	});
+
+	it('is refused by the core before the server is asked, where words are missing or too many', async () => {
+		const account = await signedIn();
+
+		await expect(account.report(REPORTED, 'other', '  ')).rejects.toThrow(
+			'Say in a few words what is wrong.'
+		);
+		await expect(account.report(REPORTED, 'spam', 'x'.repeat(1001))).rejects.toThrow(
+			'A report has room for 1000 characters. Shorten it.'
+		);
+		expect(browser.server.asked).toEqual([]);
+	});
+
+	it('hears the server’s refusals in the core’s words', async () => {
+		const account = await signedIn();
+
+		browser.server.instead = () => refusal(404, 'flight_not_found');
+		await expect(account.report(REPORTED, 'spam', '')).rejects.toThrow(
+			'This flight is no longer there.'
+		);
+		browser.server.instead = () => refusal(429, 'rate_limited');
+		await expect(account.report(REPORTED, 'spam', '')).rejects.toThrow(
+			'You have sent many reports today. Try again tomorrow.'
+		);
+	});
+
+	it('is told by the server to sign in when this browser is not signed in', async () => {
+		browser = new Browser();
+		const { account } = await browser.tab();
+		browser.server.instead = () => refusal(401, 'unauthorized');
+
+		await expect(account.report(REPORTED, 'spam', '')).rejects.toThrow(
+			'This device is no longer signed in. Sign in again.'
+		);
+		// No token was there to send.
+		expect(browser.server.asked[0].token).toBeUndefined();
+	});
+});
+
 describe('what a browser is called among the account’s devices', () => {
 	it('is its name and the system it runs on, as far as it says', () => {
 		const said = (agent: string) => deviceName(agent);

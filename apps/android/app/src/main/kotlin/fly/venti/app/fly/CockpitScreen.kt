@@ -160,6 +160,7 @@ fun CockpitScreen(
                     modifier = Modifier.fillMaxSize(),
                     onUpdate = {
                         map.airspace = fly.airspace()
+                        map.range = fly.range
                         map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                     },
                 )

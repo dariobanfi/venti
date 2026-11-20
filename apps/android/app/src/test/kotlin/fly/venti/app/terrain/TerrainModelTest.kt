@@ -3,6 +3,7 @@ package fly.venti.app.terrain
 import fly.venti.app.HttpAnswer
 import fly.venti.app.TestSupport
 import fly.venti.app.fly.AltitudeWords
+import fly.venti.app.fly.CockpitMap
 import fly.venti.app.fly.FlySession
 import fly.venti.app.fly.FlightSensors
 import fly.venti.app.fly.SilentTone
@@ -24,6 +25,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.maplibre.geojson.LineString
 import java.io.File
 import java.io.IOException
 import java.util.Collections
@@ -224,8 +226,19 @@ class TerrainModelTest {
         // The side view of what lies ahead has the ground too, while the
         // session runs.
         assertTrue(checkNotNull(fly.airspaceAhead()).ground.isNotEmpty())
+        // And the map has the edge of what a straight glide reaches: a
+        // closed ring, a place every five degrees, drawn as one line.
+        val range = checkNotNull(fly.range)
+        assertEquals(73, range.outline.size)
+        assertEquals(range.outline.first(), range.outline.last())
+        assertEquals(100.0, range.reserveM, 0.0)
+        assertTrue(range.nearestM < range.farthestM)
+        val line = CockpitMap.rangeFeatures(range).single().geometry() as LineString
+        assertEquals(73, line.coordinates().size)
+        assertTrue(CockpitMap.rangeFeatures(null).isEmpty())
         fly.finish()
         assertNull(fly.airspaceAhead())
+        assertNull(fly.range)
     }
 
     private companion object {

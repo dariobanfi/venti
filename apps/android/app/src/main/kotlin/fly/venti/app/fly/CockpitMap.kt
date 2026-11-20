@@ -16,6 +16,7 @@ import fly.venti.core.CockpitView
 import fly.venti.app.wind.contains
 import fly.venti.core.Coordinate
 import fly.venti.core.FaiAreas
+import fly.venti.core.GlideRange
 import fly.venti.core.LiftView
 import fly.venti.core.TaskStatusView
 import fly.venti.core.TaskTurnpointView
@@ -90,6 +91,10 @@ class CockpitMap : MapContent {
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
 
+    /** How far the glider glides over the ground as it is, and the edge last drawn. */
+    var range: GlideRange? = null
+    private var drawnRange: List<Coordinate>? = null
+
     /** Where to fly for an FAI triangle, and the side the areas last drawn stand on. */
     private var fai: FaiAreas? = null
     private var drawnFaiSide: List<Coordinate>? = null
@@ -139,6 +144,17 @@ class CockpitMap : MapContent {
 
         // Airspace lowest of all.
         AirspaceLayers.add(style)
+
+        // How far the glider glides: a green line around what a straight
+        // glide still reaches with height to spare, over the ground as it
+        // is. Low in the pile: it is there to be glanced at, under
+        // everything the pilot steers by.
+        style.addSource(GeoJsonSource(RANGE))
+        val rangeEdge = MapSetup.line("cockpit-range-edge", RANGE, MapSetup.WHITE, 4f)
+        rangeEdge.setProperties(PropertyFactory.lineOpacity(0.7f))
+        style.addLayer(rangeEdge)
+        style.addLayer(MapSetup.line("cockpit-range-line", RANGE, RANGE_GREEN, 2f))
+        drawnRange = null
 
         // Where to fly for an FAI triangle: two dashed outlines, under the
         // route they belong to.
@@ -429,6 +445,11 @@ class CockpitMap : MapContent {
             FeatureCollection.fromFeatures(trail.features().orEmpty() + liftPicture(view.lift) + glider),
         )
 
+        if (range?.outline != drawnRange) {
+            drawnRange = range?.outline
+            style.getSourceAs<GeoJsonSource>(RANGE)?.setGeoJson(FeatureCollection.fromFeatures(rangeFeatures(range)))
+        }
+
         if (fai?.side != drawnFaiSide) {
             drawnFaiSide = fai?.side
             style.getSourceAs<GeoJsonSource>(FAI)?.setGeoJson(
@@ -473,6 +494,19 @@ class CockpitMap : MapContent {
         private const val TARGET = "cockpit-target"
         private const val THERMALS = "cockpit-thermals"
         private const val FAI = "cockpit-fai"
+        private const val RANGE = "cockpit-range"
+
+        /** The green of the line around what a glide reaches: the iPhone's. */
+        private const val RANGE_GREEN = 0xFF1B7F5C.toInt()
+
+        /**
+         * The edge of what a straight glide reaches, as the map draws it:
+         * one closed line, or nothing while the core hands out no edge.
+         */
+        fun rangeFeatures(range: GlideRange?): List<Feature> {
+            val edge = range?.outline.orEmpty()
+            return if (edge.size >= 3) listOf(Feature.fromGeometry(edge.lineString())) else emptyList()
+        }
         private const val TASK = "cockpit-task"
         private const val TASK_WAY = "cockpit-task-way"
         const val LABEL = "label"

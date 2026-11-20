@@ -14,6 +14,7 @@ import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
 import fly.venti.core.Coordinate
 import fly.venti.core.FlightSession
+import fly.venti.core.GlideRange
 import fly.venti.core.LandingOption
 import fly.venti.core.LiveAudience
 import fly.venti.core.LiveScore
@@ -194,6 +195,14 @@ class FlySession(
      * pilot who keeps no landings with a height.
      */
     var landing: LandingOption? by mutableStateOf(null)
+        private set
+
+    /**
+     * How far the glider glides over the ground as it is, every way, for a
+     * line on the map. Absent on the ground and where the phone has no
+     * ground under the glider.
+     */
+    var range: GlideRange? by mutableStateOf(null)
         private set
 
     /**
@@ -464,6 +473,7 @@ class FlySession(
         mode = null
         live = null
         landing = null
+        range = null
         view = null
         way = null
         score = null
@@ -584,6 +594,11 @@ class FlySession(
             val option = session.landingOption(landings().map { it.place }, now)
             if (option != landing) {
                 landing = option
+            }
+            // And how far it glides, every way, over the ground as it is.
+            val reach = session.glideRange(now)
+            if (reach != range) {
+                range = reach
             }
         }
         // The ground around the glider: what is not there yet is brought.

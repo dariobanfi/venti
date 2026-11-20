@@ -13,6 +13,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
 /**
@@ -127,6 +128,25 @@ class CockpitMapTest {
         }
         // The sample's thermal lifts at 2.4 m/s all around: every dot of it is in a climbing band.
         assertTrue(dots.all { it.getNumberProperty(CockpitMap.BAND).toInt() >= ClimbBand.Climb.ordinal })
+
+        // The whole picture goes into the glider's own source, each
+        // feature marked with what it is: the circle to fly first, a
+        // closed line, then the dots, then the middle.
+        val picture = CockpitMap.liftPicture(lift)
+        assertEquals(dots.size + 2, picture.size)
+        assertEquals(
+            listOf(CockpitMap.RING) + List(dots.size) { CockpitMap.DOT } + CockpitMap.CENTRE,
+            picture.map { it.getStringProperty(CockpitMap.PART) },
+        )
+        val ring = (picture.first().geometry() as LineString).coordinates()
+        assertEquals(49, ring.size)
+        assertEquals(ring.first(), ring.last())
+        val middle = picture.last().geometry() as Point
+        assertEquals(checkNotNull(lift.centre).position.lat, middle.latitude(), 1e-9)
+        // Before most of a circle is flown there is no circle to fly yet: only the dots.
+        val early = lift.copy(centre = null)
+        assertEquals(dots.size, CockpitMap.liftPicture(early).size)
+        assertTrue(CockpitMap.liftPicture(null).isEmpty())
 
         // On the glide after it there is no picture, and nothing of it to draw.
         replay.advance(session, 300.0)

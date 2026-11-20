@@ -29,6 +29,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
@@ -88,10 +89,6 @@ class CockpitMap : MapContent {
 
     /** The thermals last drawn. */
     private var drawnThermals: List<ThermalMarkView>? = null
-
-    /** The picture of the thermal being circled in that was last drawn, and whether any was. */
-    private var drawnLift: LiftView? = null
-    private var hasDrawnLift = false
 
     /** Where to fly for an FAI triangle, and the side the areas last drawn stand on. */
     private var fai: FaiAreas? = null
@@ -187,6 +184,9 @@ class CockpitMap : MapContent {
 
         style.addSource(GeoJsonSource(FLIGHT))
         MapSetup.addBandLayers(style, FLIGHT, edgeWidth = 6f)
+        // The source also holds the picture of the thermal, below: the
+        // trail's white edge is not for its ring.
+        style.getLayerAs<LineLayer>("$FLIGHT-edge")?.setFilter(Expression.not(Expression.has(PART)))
 
         // The thermals already used: a dot in the colour of climb with the
         // climb beside it, over the trail, so that the lift can be found
@@ -215,40 +215,50 @@ class CockpitMap : MapContent {
         // its climb and larger where the climb is stronger. The dots lie
         // over the ring: a circle that is centred covers it, and the dots
         // are what there is to read.
-        style.addSource(GeoJsonSource(LIFT_RING))
-        style.addLayer(MapSetup.line("cockpit-lift-ring-edge", LIFT_RING, MapSetup.WHITE, 4.5f))
-        val circle = MapSetup.line("cockpit-lift-ring-line", LIFT_RING, MapSetup.ink, 2f)
+        //
+        // All of it is part of the glider's own source. The map draws each
+        // source in its own time, and a ring that waits for its dots, or a
+        // picture that waits for its glider, is a wrong picture.
+        val ringEdge = MapSetup.line("cockpit-lift-ring-edge", FLIGHT, MapSetup.WHITE, 4.5f)
+        ringEdge.setFilter(part(RING))
+        style.addLayer(ringEdge)
+        val circle = MapSetup.line("cockpit-lift-ring-line", FLIGHT, MapSetup.ink, 2f)
         circle.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
+        circle.setFilter(part(RING))
         style.addLayer(circle)
-        style.addSource(GeoJsonSource(LIFT))
         for (band in ClimbBand.entries) {
-            val dots = CircleLayer("cockpit-lift-${band.ordinal}", LIFT).withProperties(
+            val dots = CircleLayer("cockpit-lift-${band.ordinal}", FLIGHT).withProperties(
                 PropertyFactory.circleRadius(Expression.get(RADIUS)),
                 PropertyFactory.circleColor(MapSetup.colour(band)),
                 PropertyFactory.circleStrokeColor(MapSetup.WHITE),
                 PropertyFactory.circleStrokeWidth(1f),
             )
-            dots.setFilter(Expression.eq(Expression.get(BAND), Expression.literal(band.ordinal)))
+            dots.setFilter(
+                Expression.all(part(DOT), Expression.eq(Expression.get(BAND), Expression.literal(band.ordinal))),
+            )
             style.addLayer(dots)
         }
-        style.addSource(GeoJsonSource(LIFT_CENTRE))
-        style.addLayer(
-            CircleLayer("cockpit-lift-centre-dot", LIFT_CENTRE).withProperties(
-                PropertyFactory.circleRadius(4f),
-                PropertyFactory.circleColor(MapSetup.ink),
-                PropertyFactory.circleStrokeColor(MapSetup.WHITE),
-                PropertyFactory.circleStrokeWidth(2f),
-            ),
+        val centre = CircleLayer("cockpit-lift-centre-dot", FLIGHT).withProperties(
+            PropertyFactory.circleRadius(4f),
+            PropertyFactory.circleColor(MapSetup.ink),
+            PropertyFactory.circleStrokeColor(MapSetup.WHITE),
+            PropertyFactory.circleStrokeWidth(2f),
         )
-        drawnLift = null
-        hasDrawnLift = false
+        centre.setFilter(part(CENTRE))
+        style.addLayer(centre)
 
         style.addSource(GeoJsonSource(TAKEOFF))
         style.addLayer(MapSetup.dot("cockpit-takeoff-dot", TAKEOFF, 5f, MapSetup.WHITE, MapSetup.ink))
         // The glider goes on top: the same mark as the one a finished
         // flight's map puts at the moment being inspected.
         val glider = MapSetup.dot("cockpit-glider-dot", FLIGHT, 8f, MapSetup.accent, MapSetup.WHITE)
-        glider.setFilter(Expression.eq(Expression.geometryType(), Expression.literal("Point")))
+        // The one place in the source that is no part of the thermal's picture.
+        glider.setFilter(
+            Expression.all(
+                Expression.eq(Expression.geometryType(), Expression.literal("Point")),
+                Expression.not(Expression.has(PART)),
+            ),
+        )
         style.addLayer(glider)
 
         update()
@@ -411,8 +421,12 @@ class CockpitMap : MapContent {
             climbs = view.trail.map { it.climbMs },
         )
         val glider = Feature.fromGeometry(position.point)
+        // The glider, its trail and, while circling, the thermal's picture:
+        // one piece of data, so none of them is drawn without the others.
+        // Once the thermal is left the core hands out no picture, and
+        // nothing of it is in the source.
         style.getSourceAs<GeoJsonSource>(FLIGHT)?.setGeoJson(
-            FeatureCollection.fromFeatures(trail.features().orEmpty() + glider),
+            FeatureCollection.fromFeatures(trail.features().orEmpty() + liftPicture(view.lift) + glider),
         )
 
         if (fai?.side != drawnFaiSide) {
@@ -429,20 +443,6 @@ class CockpitMap : MapContent {
             style.getSourceAs<GeoJsonSource>(THERMALS)?.setGeoJson(
                 FeatureCollection.fromFeatures(view.thermals.map(::thermalFeature)),
             )
-        }
-
-        // The thermal's picture, and nothing of it once the thermal is left.
-        val lift = view.lift
-        if (!hasDrawnLift || lift != drawnLift) {
-            hasDrawnLift = true
-            drawnLift = lift
-            style.getSourceAs<GeoJsonSource>(LIFT)?.setGeoJson(FeatureCollection.fromFeatures(liftFeatures(lift)))
-            val centre = lift?.centre
-            val outline = centre?.outline.orEmpty()
-            val ring = if (outline.size >= 2) listOf(Feature.fromGeometry(outline.lineString())) else emptyList()
-            style.getSourceAs<GeoJsonSource>(LIFT_RING)?.setGeoJson(FeatureCollection.fromFeatures(ring))
-            val middle = listOfNotNull(centre?.position?.let { Feature.fromGeometry(it.point) })
-            style.getSourceAs<GeoJsonSource>(LIFT_CENTRE)?.setGeoJson(FeatureCollection.fromFeatures(middle))
         }
 
         if (route != drawnRoute) {
@@ -475,13 +475,34 @@ class CockpitMap : MapContent {
         private const val FAI = "cockpit-fai"
         private const val TASK = "cockpit-task"
         private const val TASK_WAY = "cockpit-task-way"
-        private const val LIFT = "cockpit-lift"
-        private const val LIFT_RING = "cockpit-lift-ring"
-        private const val LIFT_CENTRE = "cockpit-lift-centre"
         const val LABEL = "label"
         const val NEXT = "next"
         const val BAND = "band"
         const val RADIUS = "radius"
+
+        /** Which part of the thermal's picture a feature of the glider's source is. The glider and its trail are none. */
+        const val PART = "part"
+        const val RING = "ring"
+        const val DOT = "dot"
+        const val CENTRE = "centre"
+
+        private fun part(name: String): Expression = Expression.eq(Expression.get(PART), Expression.literal(name))
+
+        /**
+         * The picture of the thermal being circled in, as the map draws
+         * it: the circle to fly, the places of the last circles and the
+         * middle. Nothing without a picture.
+         */
+        fun liftPicture(lift: LiftView?): List<Feature> {
+            val centre = lift?.centre
+            val ring = centre?.outline.orEmpty().takeIf { it.size >= 2 }?.let { outline ->
+                Feature.fromGeometry(outline.lineString()).apply { addStringProperty(PART, RING) }
+            }
+            val middle = centre?.position?.let { place ->
+                Feature.fromGeometry(place.point).apply { addStringProperty(PART, CENTRE) }
+            }
+            return listOfNotNull(ring) + liftFeatures(lift) + listOfNotNull(middle)
+        }
 
         /**
          * The places of a thermal's picture, a dot each: its climb band for
@@ -490,6 +511,7 @@ class CockpitMap : MapContent {
         fun liftFeatures(lift: LiftView?): List<Feature> =
             lift?.points.orEmpty().map { point ->
                 Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat)).apply {
+                    addStringProperty(PART, DOT)
                     addNumberProperty(BAND, ClimbBand.of(point.climbMs).ordinal)
                     addNumberProperty(RADIUS, liftDotRadius(point.strength))
                 }

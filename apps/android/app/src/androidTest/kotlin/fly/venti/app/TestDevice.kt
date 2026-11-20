@@ -68,6 +68,14 @@ object TestDevice {
     /** How long a test waits for something before it gives up. See `VentiUiTest.waitFor`. */
     const val PATIENCE_SECONDS = 120
 
+    /**
+     * How long a test waits for what comes late in a replayed flight. The
+     * sample flight takes a minute and a half at twenty times its speed,
+     * and longer on a slow emulator: a replay moves on by two seconds of
+     * the clock at most at once, however long the app was held.
+     */
+    const val WHOLE_FLIGHT_SECONDS = 480
+
     /** What the map's own thread is given to draw the frame it was last asked for. */
     private const val MAP_FRAME_MILLISECONDS = 400L
 

@@ -287,6 +287,20 @@ class FlySessionTest {
     }
 
     @Test
+    fun aReplayDoesNotLeapOverWhatNobodySaw() {
+        // Refreshed five times a second, a replay moves on by its speed.
+        assertEquals(0.2, FlySession.replayStep(elapsed = 0.2, speed = 1.0), 1e-9)
+        assertEquals(4.0, FlySession.replayStep(elapsed = 0.2, speed = 20.0), 1e-9)
+        // Two seconds of the clock are the longest step there is.
+        assertEquals(40.0, FlySession.replayStep(elapsed = 2.0, speed = 20.0), 1e-9)
+        // Held for sixteen seconds, the replay carries on from where it
+        // was: forty seconds of the flight at twenty times its speed, not
+        // five minutes of it.
+        assertEquals(40.0, FlySession.replayStep(elapsed = 16.0, speed = 20.0), 1e-9)
+        assertEquals(2.0, FlySession.replayStep(elapsed = 16.0, speed = 1.0), 1e-9)
+    }
+
+    @Test
     fun theFlightIsScoredWhileItIsFlown() {
         val fly = makeSession(TestSupport.newFolder("fly"))
         fly.startReplay(TestSupport.sampleFlight, speed = 500.0)

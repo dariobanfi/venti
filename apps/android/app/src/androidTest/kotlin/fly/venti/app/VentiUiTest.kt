@@ -104,6 +104,20 @@ class VentiUiTest {
         screen.waitUntil(seconds * 1000L) { screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /**
+     * Waits for several things to be on screen at the same moment, with
+     * one look at the screen for all of them. A replay goes on while a
+     * test looks, and on the emulator a look can take seconds: looked for
+     * one after the other, the first may be gone when the last is found.
+     */
+    private fun waitForAll(vararg what: SemanticsMatcher, seconds: Int = TestDevice.PATIENCE_SECONDS) {
+        val any = what.reduce { one, other -> one or other }
+        screen.waitUntil(seconds * 1000L) {
+            val found = screen.onAllNodes(any).fetchSemanticsNodes()
+            what.all { wanted -> found.any(wanted::matches) }
+        }
+    }
+
     private fun exists(what: SemanticsMatcher) = screen.onAllNodes(what).fetchSemanticsNodes().isNotEmpty()
 
     private fun tap(what: SemanticsMatcher) {
@@ -238,25 +252,25 @@ class VentiUiTest {
         // itself, and its map pictures the thermal: the last circles as
         // dots around the circle to fly, and a badge that says where the
         // lift is stronger. The sample's thermal lifts evenly all around.
-        waitFor(described("Gained"))
-        assertTrue(exists(described("Thermal")))
-        waitFor(hasTestTag("lift-badge"))
-        waitFor(described("Lift") and saying("Centred"))
         // At the map's other corner, the landing to think of first: the
         // one landing among the sample waypoints, well within reach from
-        // up here, with the height the glider would arrive with.
+        // up here, with the height the glider would arrive with. All of
+        // it is looked for at one look: the flight goes on meanwhile.
         val landing = hasTestTag("landing-badge")
-        waitFor(landing and saying("Sample landing field, arriving +"))
+        waitForAll(
+            described("Gained"),
+            described("Thermal"),
+            hasTestTag("lift-badge"),
+            described("Lift") and saying("Centred"),
+            landing and saying("Sample landing field, arriving +"),
+        )
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-2-thermal")
 
         // On the glide after the thermal it changes back, now with the wind
-        // it worked out while circling.
-        waitFor(described("Glide"))
-        assertTrue(exists(described("Speed")))
-        assertTrue(exists(described("Wind")))
-        // Beside the glide it is making, the glide it needs to get home.
-        assertTrue(exists(described("Needs")))
+        // it worked out while circling. Beside the glide it is making, the
+        // glide it needs to get home.
+        waitForAll(described("Glide"), described("Speed"), described("Wind"), described("Needs"))
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-3-glide")
 
@@ -489,8 +503,7 @@ class VentiUiTest {
 
         val scenario = checkNotNull(app)
         val banner = hasTestTag("airspace-banner")
-        waitFor(banner, seconds = 120)
-        assertTrue(exists(banner and saying("SAMPLE ZONE (NOT REAL)")))
+        waitFor(banner and saying("SAMPLE ZONE (NOT REAL)"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         // The zone itself is on the cockpit's map: the map is asked, since
         // a screenshot does not fail a test. The map has stepped back as
         // far as it takes to show the zone the warning is about.
@@ -674,7 +687,7 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("task-progress")) }
 
         // The flight reaches the goal, and the line says so.
-        waitFor(strip and saying("In goal"), seconds = 240)
+        waitFor(strip and saying("In goal"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         letTheMapDraw(2)
         keepScreenshot("$prefix-task-4-in-goal")
         tap(hasText("End replay"))
@@ -720,8 +733,7 @@ class VentiUiTest {
 
         // With the first wind, measured in the thermal, the line is there,
         // in the core's words.
-        waitFor(hasTestTag("strong-wind-badge"))
-        assertTrue(exists(described("Strong wind") and saying("Into the wind ")))
+        waitForAll(hasTestTag("strong-wind-badge"), described("Strong wind") and saying("Into the wind "))
         // On a glide, five minutes after the wind was last measured, the
         // wind says its age, and the line still stands under it. The glide
         // after the second thermal is the long one, and its wind leaves
@@ -729,7 +741,7 @@ class VentiUiTest {
         // stand again once the flight has ended.
         val old = hasTestTag("wind-badge") and saying(", measured ")
         val strong = hasTestTag("strong-wind-badge") and saying("Into the wind 7 km/h")
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { exists(old) && exists(strong) }
+        waitForAll(old, strong, seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-7-old-and-strong-wind")
 
@@ -768,16 +780,14 @@ class VentiUiTest {
 
         // The cockpit a pilot flies with. What is replayed is not shared:
         // there is no button for live tracking.
-        waitFor(described("Altitude"))
-        assertTrue(exists(hasText("Replay ×20")))
+        waitForAll(described("Altitude"), hasText("Replay ×20"))
         assertFalse(exists(hasTestTag("live-button")))
-        waitFor(described("Gained"))
         // The picture is taken once the thermal is centred and stays so.
         // At twenty times the speed the map on the emulator is drawn a
         // good part of a circle behind the numbers; while the circle is
         // still being found, the ring would stand beside what the badge
         // says of it.
-        waitFor(described("Lift") and saying("Centred"))
+        waitForAll(described("Gained"), described("Lift") and saying("Centred"))
         letTheMapDraw(2)
         keepScreenshot("replay-2-cockpit")
 

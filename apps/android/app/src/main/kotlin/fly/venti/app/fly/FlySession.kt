@@ -511,7 +511,7 @@ class FlySession(
         val replay = replay
         val mode = mode
         val now = if (replay != null && mode is Mode.Replay) {
-            replay.advance(session, elapsed * mode.speed)
+            replay.advance(session, replayStep(elapsed, mode.speed))
             replay.now()
         } else {
             clock()
@@ -593,6 +593,21 @@ class FlySession(
          * leaves the rest it needs.
          */
         const val SLOW_REFRESH_MILLISECONDS = 2_000L
+
+        /**
+         * The longest stretch of the clock a replay moves on by at once,
+         * in seconds. When the phone was busy with something else for
+         * longer, the replay carries on from where it was instead of
+         * leaping over minutes of the flight that nobody saw.
+         */
+        const val REPLAY_STEP_AT_MOST_SECONDS = 2.0
+
+        /**
+         * How many seconds of the flight a replay at this many times its
+         * speed moves on by, when the last refresh was `elapsed` seconds
+         * ago.
+         */
+        fun replayStep(elapsed: Double, speed: Double): Double = minOf(elapsed, REPLAY_STEP_AT_MOST_SECONDS) * speed
 
         /** How long passes between two looks at the score. */
         private const val SCORE_MILLISECONDS = 1_000L

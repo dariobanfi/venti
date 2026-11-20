@@ -1253,7 +1253,7 @@ Every answer with a file, or with a part of one, has these headers:
 
 **Browsers.** A page on an origin the server allows may send `Range` and `If-Range` with its request and may read `Content-Range`, `Accept-Ranges` and `ETag` from the answer.
 
-**Size.** The region in the example is 3.2 MB of base map and 4.2 MB of terrain for one valley. A region the size of the server's first one has not been built yet: scaled up by area it would be about 1.6 GB and 2.1 GB, which is arithmetic and not a measurement ([deploy/README.md](../deploy/README.md#map-regions)).
+**Size.** The region in the example is 3.2 MB of base map and 4.2 MB of terrain for one valley. A region the size of the server's first one has not been built yet: scaled up by area it would be about 1.6 GB and 2.1 GB, which is arithmetic and not a measurement ([deploy/AGENTS.md](../deploy/AGENTS.md#map-regions)).
 
 ## Accounts and sessions
 

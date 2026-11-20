@@ -89,7 +89,7 @@ All commands run on the server.
 | Settings | `deploy/.env` | Write them again; the database password must match the one the database was created with |
 | Database dumps | `deploy/backups` (or `VENTI_BACKUP_DIR`) | There is nothing to restore from |
 
-Flight files are in the database, not in a folder: one dump holds everything. Map tiles do not exist yet, and the web app is not published. Until they are, the site's front page is empty and only `/v1`, the pages of shared flights under `/f/` and the pages of live tracks under `/live/` answer. Files put into `data/tiles` are served under `/tiles/` with HTTP range requests, which is what PMTiles archives need. That folder is for a map that reads its tiles piece by piece over the network. What an app downloads whole, to draw without a network, is in `data/maps` and goes out through the server: [Map regions](#map-regions).
+Flight files are in the database, not in a folder: one dump holds everything. Map tiles do not exist yet, and the web app is not published. Until they are, the site's front page is empty and only `/v1`, the pages of shared flights under `/f/` and the pages of live tracks under `/live/` answer. Files put into `data/tiles` are served under `/tiles/` with HTTP range requests, which is what PMTiles archives need. What an app downloads whole is in `data/maps`: see [Map regions](#map-regions).
 
 ## Update
 
@@ -361,11 +361,9 @@ An instance somewhere else works the same way: give its address as `VENTI_OPEN_M
 
 ## Map regions
 
-An app can download the map of a region and draw it where there is no network: a vector base map and the terrain, two PMTiles archives. The server hands out the regions it finds in one folder, at `/v1/maps` ([docs/api.md](../docs/api.md#maps)). While the folder is empty it hands out none, and everything else works as before.
+The server hands out the map regions it finds in one folder, for the apps to download and draw without a network ([docs/api.md](../docs/api.md#maps)). While the folder is empty it hands out none. Background, estimates and what is still to verify are in [AGENTS.md](AGENTS.md#map-regions).
 
-None of this has run on a real server, and no region but the small one in the repository has been built. What was tried is said at the end. Every size here is an estimate *(to verify)*.
-
-**Where the regions go.** Into `deploy/data/maps`, or the folder that `VENTI_MAPS_DIR` in `.env` names. The server sees it at `/srv/maps` and only reads it. Each region is a folder in it, called whatever you like, with the region's files and a `map.toml` that describes them:
+**Where they go.** Into `deploy/data/maps`, or the folder that `VENTI_MAPS_DIR` in `.env` names. Each region is a folder in it, with its files and a `map.toml` that describes them:
 
 ```
 data/maps/
@@ -375,101 +373,28 @@ data/maps/
     terrain.pmtiles
 ```
 
-```toml
-id = "alps-de-at"
-name = "Germany and Austria"
-version = "2026-11-20"
-covers = { south = 46.3, west = 9.4, north = 48.5, east = 17.2 }
+The server must be able to read them: `chmod -R a+rX data/maps`.
 
-[[files]]
-role = "basemap"
-name = "basemap.pmtiles"
-sha256 = "0f343b0931126a20f133d67c2b018a3b5f1a2b5e0f8f1d3f6f0f4d8a3b1c2d3e"
-credits = [
-  { text = "© OpenStreetMap contributors", url = "https://www.openstreetmap.org/copyright" },
-  { text = "© OpenMapTiles", url = "https://openmaptiles.org" },
-]
-
-[[files]]
-role = "terrain"
-name = "terrain.pmtiles"
-sha256 = "5f1a2b5e0f8f1d3f6f0f4d8a3b1c2d3e0f343b0931126a20f133d67c2b018a3b"
-credits = [
-  { text = "© Mapterhorn and the surveys it combines", url = "https://mapterhorn.com/attribution" },
-]
-```
-
-The rules, each of which the server holds a region to:
-
-- `id`, `version` and every file's `name` are lowercase letters and digits with `-`, `_` and `.` between them, 64 characters at most. They become the file's address, `/v1/maps/<id>/<version>/<name>`.
-- `role` is `basemap`, `terrain` or `other`.
-- `sha256` is the SHA-256 of the file as it lies there, in lowercase (`sha256sum` prints it so).
-- Every file names at least one credit: whose data it holds, worded as that provider asks. The apps show it wherever the file is drawn. A `url` starts with `https://` or `http://`.
-- A file lies in the region's own folder. A link that leads out of the folder is refused.
-- No two folders have the same `id`. If two do, neither is handed out.
-
-The server runs as the user with the number 10001 and must be able to read the files: `chmod -R a+rX data/maps` makes them readable to everyone on the machine, which they are to everyone on the internet anyway.
-
-**Building a region.** `tools/region-map/build.sh` is written to build the folder of the region the server collects for, `map.toml` and hashes included, from OpenStreetMap and from Mapterhorn's elevation tiles:
+**Build a region** with `tools/region-map/build.sh`, outside `data/maps`. The script's header says what it needs. It has not built a real region yet *(to verify)*.
 
 ```bash
 cd /opt/venti
 tools/region-map/build.sh regions/alps-de-at/region.toml /opt/venti-maps/alps-de-at
 ```
 
-**It has not been run for a real region.** Its header says what it needs and where each number comes from: Java, Go and Python; from the extract of Europe it starts with, which was 35.5 GB on 2026-11-19, about 18 GB of memory for Java and 180 to 360 GB of free disk by the rule of thumb in Planetiler's README; and less of all three from a smaller extract that covers the region. A server of the smallest size this runbook names cannot build a region. Build it on another machine and copy the folder over.
-
-The credits the script writes are the ones above. They are those of the region in the repository, which is built from the same two sources; what OpenStreetMap asks of whoever passes its data on is in [data-sources.md](../docs/data-sources.md#flying-sites). Mapterhorn's terms for a server that hands an extract of its tiles on to many pilots are *to verify* with that project before a public release, as [architecture.md](../docs/architecture.md#maps-and-terrain) says of its tile service.
-
-**What the server does with the folder.** When it starts, it reads the `map.toml` of every folder, then reads every file from its first byte to its last and works out its SHA-256. A region is handed out only if each hash is the one its `map.toml` states. An app checks its download against the hash the server lists; a wrong one would make every download fail at its end, after gigabytes. The reading happens beside everything else: the API answers at once, and a region appears at `/v1/maps` when its files are read. The log says what became of each, in lines like these:
+**Put it in place, or renew it.** A region is replaced whole, under a new `version`, which the script writes. Never change a region's files in place.
 
 ```bash
-docker compose logs server | grep 'maps:'
+cd /opt/venti/deploy
+mkdir -p data/maps
+mv data/maps/alps-de-at /opt/venti-maps/alps-de-at.old    # when renewing: two folders with one id are both left out
+mv /opt/venti-maps/alps-de-at data/maps/alps-de-at
+docker compose restart server
+docker compose logs --since 5m server | grep 'maps:'
+curl -s http://localhost/v1/maps
 ```
 
-```
-maps: reading the regions in /srv/maps; each is handed out once its files are checked
-maps: handing out alps-de-at, version 2026-11-20: 2 files, 3712.4 MB
-```
-
-A region that is not handed out has a line that says why, with its folder: a file whose hash is another (the line has both hashes), a name that breaks the rule above, a file that is missing, two folders with one `id`. The server runs on without that region. How long the reading takes on a server's disk is *to verify*; expect about as long as the disk needs to read the files once.
-
-**Renewing a region.** An app keeps a download going by the file's address, and the address holds the version: the bytes behind an address must never change. So a region is renewed whole, under a new `version`, and never edited in place.
-
-1. Build the new folder somewhere outside `data/maps`, on the same disk. The script writes the day as the version.
-2. Swap the folders and start the server again:
-
-   ```bash
-   cd /opt/venti/deploy
-   mv data/maps/alps-de-at /opt/venti-maps/alps-de-at.old
-   mv /opt/venti-maps/alps-de-at data/maps/alps-de-at
-   docker compose restart server
-   docker compose logs --since 5m server | grep 'maps:'
-   curl -s http://localhost/v1/maps
-   ```
-
-3. Remove the old folder once the list shows the new version.
-
-The old folder goes out of `data/maps` first: two folders with one `id` are both left out. Starting the server again ends the downloads that are under way. An app whose download was of the old version is told `404` when it asks for the rest, and starts again with the new one; an app that has the old version keeps drawing it and finds the new one in the list.
-
-If a file is changed while the server runs, the server notices at the next request for it: the file's size or the time it was written is no longer what it read. It then stops handing that region out and says so in the log, once, until it is started again. A copy of the new files over the old ones therefore does not go out with the old hashes.
-
-**Disk and traffic** *(estimates, to verify with the first region)*.
-
-- **Disk.** Scaled up by area from the region in the repository (7 MB for one valley), the first region comes to about 1.6 GB of base map and 2.1 GB of terrain. That is arithmetic and not a measurement. [architecture.md](../docs/architecture.md#sizing) reckons with 3 to 5 GB a region. While a region is renewed, the disk holds it twice.
-- **Traffic.** Every app that keeps the region downloads all of it once for each version. A hundred pilots and a region of 4 GB are 400 GB for each renewal; how often to renew is a question of how much the map changed, and of this number.
-- **No limit.** The server sends a file as fast as a client takes it. It counts nothing and refuses nobody, however many download at once, and a download has no time limit. If downloads crowd out the rest, the place to bound them is in front of the server.
-- **Through Caddy.** A download reaches the server through Caddy like every request to `/v1`. The server sends a file uncompressed, with its length, and answers requests for a part of it, so that a download that broke off goes on where it stopped; the `Caddyfile` adds nothing to requests under `/v1`. A download of gigabytes through Caddy has not been tried.
-
-**Check once on a new server** *(to verify)*, from another machine: fetch a whole file, break the download off, let it go on, and compare the result with the list.
-
-```bash
-curl -s https://<domain>/v1/maps
-curl -C - -O https://<domain>/v1/maps/alps-de-at/<version>/basemap.pmtiles    # press Ctrl-C, then run it again
-sha256sum basemap.pmtiles                                                      # the sha256 of the list
-```
-
-**What was tried**, on 2026-11-20 on a development machine with the server's debug build, not in a container and not through Caddy: the region in the repository (two files, 7 MB) listed and fetched whole and in parts with `curl`, with and without `--compressed`; a download of a file of 200 MB broken off by stopping the server, which was gone half a second after it was told to stop, and gone on with after the next start, with the listed hash in the end; and the building script from its first line to its last with stand-ins for its three heavy steps, and the folder it wrote listed by the server. Not tried: a region of gigabytes, the script's real steps, the Compose setup with the folder mounted, and anything on a phone.
+After its start the server reads every file once, and lists a region when each file has the hash its `map.toml` states. A region it leaves out has a line in the log that says why. The restart breaks off the downloads that are under way; the apps go on with them afterwards, or start again when the version is new. Remove the old folder once the list shows the new version.
 
 ## What the web app's pages may do
 
@@ -702,13 +627,6 @@ cargo run -p venti-server -- dev          # the API over recorded data on http:/
 ```
 
 It starts with a demo account and three flights, and with two further pilots whose public flights fill the list of everyone's flights; the handles, the password and a token that always works are in [docs/api.md](../docs/api.md#try-it).
-
-It hands out map regions when it is told a folder of them. The one region the repository holds is the valley the apps bundle:
-
-```bash
-cargo run -p venti-server -- dev --maps apps/ios/Venti/Resources
-curl http://127.0.0.1:8080/v1/maps
-```
 
 For the real thing, and for the store's tests against PostgreSQL, start a database in a container. The password below is for a throwaway database on the loopback address; it is not a secret.
 

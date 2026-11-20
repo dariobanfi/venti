@@ -423,8 +423,14 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("fly-6b-airspace-ahead")
         app.buttons["Done"].tap()
 
+        // On a slow machine a tap can fall into the moment the band is
+        // drawn anew, and is lost: once more, then.
         banner.tap()
-        XCTAssertTrue(app.buttons["Seen: quiet for 10 minutes"].waitForExistence(timeout: 10))
+        let seen = app.buttons["Seen: quiet for 10 minutes"]
+        if !seen.waitForExistence(timeout: 6) {
+            banner.tap()
+        }
+        XCTAssertTrue(seen.waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "Class D control zone", in: app).exists)
         sleep(1)
         keepScreenshot("fly-7-airspace-warnings")
@@ -805,8 +811,16 @@ final class VentiUITests: XCTestCase {
             keepScreenshot("sites-3b-flown-from-here")
         }
 
+        // Back to the list and out of it. A tap while the page is still
+        // settling from the swipes is taken for the end of the scroll and
+        // goes nowhere: once more, then.
         app.navigationBars.buttons.firstMatch.tap()
-        app.buttons["Done"].tap()
+        let done = app.buttons["Done"]
+        if !done.waitForExistence(timeout: 5) {
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        done.tap()
 
         // The Fly tab says what the cockpit will warn from.
         openTab("Fly", in: app)

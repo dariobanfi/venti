@@ -85,7 +85,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(page.getByRole('button', { name: 'Show flight totals' })).toBeVisible();
 	await expect(metric(moment, 'Time')).toHaveText('12:38');
 	await expect(metric(moment, 'Altitude')).toHaveText(/^\d{4}\sm$/);
-	await expect(metric(moment, 'Climb')).toHaveText(/^[+-]?\d\.\d\sm\/s$/);
+	await expect(metric(moment, 'Climb')).toHaveText(/^[+\u2212]?\d\.\d\sm\/s$/);
 	await expect(metric(totals, 'Airtime')).toBeHidden();
 	await expect(chart).toHaveAttribute(
 		'aria-valuetext',
@@ -119,7 +119,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	}
 	await expect(metric(details, 'Landing')).toHaveText('12:59');
 	await expect(metric(details, 'Lowest')).toHaveText('786 m');
-	await expect(metric(details, 'Strongest sink')).toHaveText('-1.9 m/s');
+	await expect(metric(details, 'Strongest sink')).toHaveText('\u22121.9 m/s');
 	await expect(metric(details, 'Pilot')).toHaveText('Sample Pilot');
 	await expect(metric(details, 'Recorder')).toHaveText('XVE 000');
 	await expect(metric(details, 'Positions')).toHaveText('1,745');

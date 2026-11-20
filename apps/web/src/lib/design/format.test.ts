@@ -96,7 +96,7 @@ describe('numbers', () => {
 
 	it('gives a climb rate a sign unless it is zero', () => {
 		expect(format.climb(2.4)).toBe('+2.4');
-		expect(format.climb(-1.94)).toBe('-1.9');
+		expect(format.climb(-1.94)).toBe('\u22121.9');
 		expect(format.climb(0)).toBe('0.0');
 		expect(format.climb(0.04)).toBe('0.0');
 	});

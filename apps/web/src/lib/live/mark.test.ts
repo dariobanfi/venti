@@ -105,7 +105,7 @@ describe('the gliders in a list', () => {
 	});
 
 	it('say how high, how it climbs and how old the position is', () => {
-		expect(detail(glider(), 'Now', text)).toBe('1596 m · -1.0 m/s · Now');
+		expect(detail(glider(), 'Now', text)).toBe('1596 m · \u22121.0 m/s · Now');
 		// A glider on the ground does not climb.
 		expect(detail(glider({ landed: true, altitudeM: 786 }), 'Landed 9 min ago', text)).toBe(
 			'786 m · Landed 9 min ago'

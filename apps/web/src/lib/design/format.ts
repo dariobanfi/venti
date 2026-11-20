@@ -124,7 +124,8 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const tenths = number(1);
 	const signedTenths = number(1, { signDisplay: 'exceptZero' });
 	// Heights as the design pack writes them: no mark for thousands ("2410
-	// m"), and a loss with the true minus sign, as wide as the plus.
+	// m"), and a loss with the true minus sign, as wide as the plus; climb
+	// and sink rates take the same minus.
 	const height = number(0, { useGrouping: false });
 	const signedHeight = number(0, { useGrouping: false, signDisplay: 'exceptZero' });
 	const trueMinus = (text: string) => text.replace('-', '\u2212');
@@ -172,7 +173,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 		wholeKilometres: (metres) => whole.format(metres / 1000),
 		metres: (metres) => trueMinus(height.format(metres)),
 		signedMetres: (metres) => trueMinus(signedHeight.format(metres)),
-		climb: (metresPerSecond) => signedTenths.format(metresPerSecond),
+		climb: (metresPerSecond) => trueMinus(signedTenths.format(metresPerSecond)),
 		kilometresPerHour: (metresPerSecond) => whole.format(metresPerSecond * 3.6),
 		glideRatio: (ratio) => tenths.format(ratio),
 		percent: (share) => percent.format(share),

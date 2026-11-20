@@ -106,9 +106,16 @@ struct RouteMapPlanner: View {
                 .disabled(places.isEmpty)
                 // A triangle ends where it began: one tap instead of
                 // aiming a finger at the first place.
-                Button("Back to the start", systemImage: "arrow.triangle.capsulepath") {
+                Button {
                     problem = nil
                     places.append(places[0])
+                } label: {
+                    // The words are what says it: the sign goes first
+                    // where a narrow iPhone has no room for both.
+                    ViewThatFits(in: .horizontal) {
+                        Label("Back to the start", systemImage: "arrow.triangle.capsulepath")
+                        Text("Back to the start")
+                    }
                 }
                 .disabled(places.count < 3 || places.last == places.first)
                 Spacer(minLength: 0)

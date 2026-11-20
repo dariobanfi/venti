@@ -200,7 +200,8 @@ class LiveFlightTest {
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, true)
         app = ActivityScenario.launch(intent)
-        waitFor(hasContentDescription("Show my position"))
+        // The app opens on Today; the cockpit is on the Fly tab.
+        waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
         waitFor(hasText("Open the cockpit"))
         // Eight seconds at the take-off, forty-five of flight at 10 m/s
@@ -250,7 +251,8 @@ class LiveFlightTest {
             .putExtra(LaunchOptions.UI_TESTING, true)
             .putExtra(LaunchOptions.BUNDLED_MAP, true)
         app = ActivityScenario.launch(intent)
-        waitFor(hasContentDescription("Show my position"))
+        // The app opens on Today; the cockpit is on the Fly tab.
+        waitFor(hasText("Fly") and isSelectable())
         tap(hasText("Fly") and isSelectable())
         waitFor(hasText("Open the cockpit"))
 

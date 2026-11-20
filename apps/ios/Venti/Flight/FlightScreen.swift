@@ -132,7 +132,7 @@ extension FlightScreen {
 /// The map fills the screen and the panel floats over its lower part, as a
 /// control layer above the content. The map is told how much of it the panel
 /// covers so the track is fitted into the part that shows.
-private struct FlightDetail: View {
+struct FlightDetail: View {
     let flight: FlightView
     let analysis: FlightAnalysis?
     let airspaceCheck: FlightAirspace?

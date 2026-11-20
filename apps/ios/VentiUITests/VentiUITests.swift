@@ -476,6 +476,26 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "the wind stations around a place", in: app).exists)
         sleep(1)
         keepScreenshot("wind-4-assistant")
+
+        // What the pilots of the server share with everyone: on the
+        // Logbook tab, beside the pilot's own flights. The server's
+        // development mode has public flights of three made-up pilots.
+        openTab("Logbook", in: app)
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
+        everyone.tap()
+        let flight = element("public-flight-row", in: app)
+        XCTAssertTrue(flight.waitForExistence(timeout: 30))
+        XCTAssertTrue(labelled(containing: "Mara Muster", in: app).exists)
+        sleep(1)
+        keepScreenshot("community-1-everyone")
+        // Another pilot's flight opens like one's own.
+        flight.tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))
+        sleep(6)
+        keepScreenshot("community-2-flight")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
     }
 
     /// A long press on the map shows the server's forecast for the place

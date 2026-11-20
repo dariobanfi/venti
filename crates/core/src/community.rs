@@ -1,0 +1,318 @@
+//! Other pilots' flights: the flights the pilots of a Venti server made
+//! public, in one list, as XContest lists what was flown.
+//!
+//! As everywhere, the core does not talk to the server: one function says
+//! what to ask for, another reads the answer into rows for a screen, and
+//! the shell does the request in between. A flight of the list is opened
+//! by fetching its file and handing the text to
+//! [`flight_from_file`](crate::flight_from_file), which shows it like one
+//! of the pilot's own and keeps nothing.
+//!
+//! What another pilot wrote, a name or a glider, is cut to one bounded
+//! line before it reaches a screen.
+
+use chrono::DateTime;
+use venti_api_types::v1::{self as api, Flight, FlightSort, FlightsResponse, PublicFlightsRequest};
+use venti_domain::BoundingBox;
+
+use crate::live::one_line;
+use crate::server::answer;
+use crate::{Bounds, Coordinate, CoreError, EntryScore, RouteKind};
+
+/// The order of a list of public flights.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub enum PublicFlightsOrder {
+    /// The newest first, by when the flight began.
+    Newest,
+    /// The most points first. Flights too short to score are left out.
+    Best,
+}
+
+/// One public flight as a row of a list shows it.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PublicFlight {
+    /// The flight's address on the server.
+    pub id: String,
+    /// Its pilot's handle.
+    pub handle: String,
+    /// The name its pilot is shown by, on one line.
+    pub pilot: String,
+    /// When it began, seconds since 1970-01-01 UTC.
+    pub start_unix_s: i64,
+    /// Seconds in the air.
+    pub airtime_s: i64,
+    /// Where it took off, if the recording shows a take-off.
+    pub takeoff: Option<Coordinate>,
+    /// Distance along the track, metres.
+    pub track_length_m: f64,
+    /// The highest altitude, metres.
+    pub max_altitude_m: f64,
+    /// The best climb averaged over half a minute, metres per second.
+    pub max_climb_ms: f64,
+    /// The glider, as its pilot's file names it, on one line.
+    pub glider: Option<String>,
+    /// How it scores as a cross-country flight, by the server's reckoning,
+    /// which is the logbook's.
+    pub score: Option<EntryScore>,
+    /// The shape of the track in a few dozen points.
+    pub outline: Vec<Coordinate>,
+    /// The path of the flight's page on the server: "/f/…".
+    pub page_path: String,
+    /// The path to fetch its file from, to open the flight.
+    pub file_path: String,
+}
+
+/// One page of a list of public flights.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct PublicFlights {
+    /// The flights, in the order asked for.
+    pub flights: Vec<PublicFlight>,
+    /// What to pass as `after` for the next page. Absent on the last.
+    pub next: Option<String>,
+}
+
+/// The path and query to `GET` from the server for one page of the public
+/// flights.
+///
+/// `area` narrows the list to flights that took off inside a part of the
+/// map. `from_unix_s` and `to_unix_s` narrow it to flights that began at
+/// or after the one and before the other: a day is its first second and
+/// the first second of the next. `after` is the `next` of the page before,
+/// asked for with everything else unchanged.
+#[uniffi::export]
+pub fn public_flights_path(
+    order: PublicFlightsOrder,
+    area: Option<Bounds>,
+    from_unix_s: Option<i64>,
+    to_unix_s: Option<i64>,
+    after: Option<String>,
+) -> Result<String, CoreError> {
+    let unreadable = || CoreError::Server {
+        message: "The app could not ask the server for these flights.".to_owned(),
+    };
+    let bbox = area
+        .map(|area| {
+            BoundingBox::new(
+                area.south.clamp(-90.0, 90.0),
+                area.west.clamp(-180.0, 180.0),
+                area.north.clamp(-90.0, 90.0),
+                area.east.clamp(-180.0, 180.0),
+            )
+            .map_err(|_| unreadable())
+        })
+        .transpose()?;
+    let time = |seconds: Option<i64>| {
+        seconds
+            .map(|seconds| DateTime::from_timestamp(seconds, 0).ok_or_else(unreadable))
+            .transpose()
+    };
+    let (from, to) = (time(from_unix_s)?, time(to_unix_s)?);
+    if from.zip(to).is_some_and(|(from, to)| to <= from) {
+        return Err(unreadable());
+    }
+    Ok(PublicFlightsRequest {
+        bbox,
+        from,
+        to,
+        sort: match order {
+            // The server's own order: nothing to say.
+            PublicFlightsOrder::Newest => None,
+            PublicFlightsOrder::Best => Some(FlightSort::Score),
+        },
+        after: after.filter(|after| !after.is_empty()),
+        limit: None,
+    }
+    .path_and_query())
+}
+
+/// Reads the server's answer to [`public_flights_path`].
+#[uniffi::export]
+pub fn public_flights(status: u16, body: Vec<u8>) -> Result<PublicFlights, CoreError> {
+    let response: FlightsResponse = answer(status, &body)?;
+    Ok(PublicFlights {
+        flights: response.flights.iter().map(row).collect(),
+        next: response.next,
+    })
+}
+
+fn row(flight: &Flight) -> PublicFlight {
+    PublicFlight {
+        id: flight.id.to_string(),
+        handle: flight.pilot.handle.to_string(),
+        pilot: one_line(&flight.pilot.display_name, 40),
+        start_unix_s: flight.start.timestamp(),
+        airtime_s: flight.airtime_s.max(0),
+        takeoff: flight.takeoff.map(|takeoff| Coordinate {
+            lat: takeoff.position.lat(),
+            lon: takeoff.position.lon(),
+        }),
+        track_length_m: flight.track_length_m,
+        max_altitude_m: f64::from(flight.max_altitude_m),
+        max_climb_ms: flight.max_climb_ms,
+        glider: flight
+            .glider
+            .as_deref()
+            .map(|glider| one_line(glider, 40))
+            .filter(|glider| !glider.is_empty()),
+        score: flight.score.and_then(|score| {
+            Some(EntryScore {
+                kind: match score.kind {
+                    api::RouteKind::FreeFlight => RouteKind::FreeFlight,
+                    api::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
+                    api::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
+                    // A kind of route this version has no name for: the
+                    // flight is listed without a score.
+                    api::RouteKind::Unknown => return None,
+                },
+                closed: score.closed,
+                distance_m: score.distance_m,
+                points: score.points,
+            })
+        }),
+        outline: flight
+            .outline
+            .iter()
+            .map(|&[lat, lon]| Coordinate { lat, lon })
+            .collect(),
+        page_path: api::share_path(&flight.id),
+        file_path: api::flight_file_path(&flight.id),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    fn golden(name: &str) -> Vec<u8> {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/tests/golden/");
+        std::fs::read(format!("{path}{name}")).unwrap()
+    }
+
+    #[test]
+    fn the_list_is_asked_for_in_the_servers_words() {
+        assert_eq!(
+            public_flights_path(PublicFlightsOrder::Newest, None, None, None, None).unwrap(),
+            "/v1/flights/public"
+        );
+        // The best flights of 15 August 2026 around the Tegernsee, second
+        // page.
+        let area = Bounds {
+            south: 47.55,
+            west: 11.6,
+            north: 47.85,
+            east: 12.0,
+        };
+        let path = public_flights_path(
+            PublicFlightsOrder::Best,
+            Some(area),
+            Some(1_786_752_000),
+            Some(1_786_838_400),
+            Some("abc".to_owned()),
+        )
+        .unwrap();
+        assert_eq!(
+            path,
+            "/v1/flights/public?bbox=11.6,47.55,12,47.85&from=2026-08-15T00:00:00Z&to=2026-08-16T00:00:00Z&sort=score&after=abc"
+        );
+        // A day that ends before it begins is not asked for.
+        assert!(
+            public_flights_path(PublicFlightsOrder::Newest, None, Some(10), Some(10), None)
+                .is_err()
+        );
+        // An empty mark is the first page.
+        assert_eq!(
+            public_flights_path(
+                PublicFlightsOrder::Newest,
+                None,
+                None,
+                None,
+                Some(String::new())
+            )
+            .unwrap(),
+            "/v1/flights/public"
+        );
+    }
+
+    #[test]
+    fn the_servers_list_becomes_rows() {
+        let page = public_flights(200, golden("public_flights.json")).unwrap();
+        assert!(!page.flights.is_empty());
+        let raw: Value = serde_json::from_slice(&golden("public_flights.json")).unwrap();
+        assert_eq!(page.flights.len(), raw["flights"].as_array().unwrap().len());
+        assert_eq!(page.next.as_deref(), raw["next"].as_str());
+
+        let (row, flight) = (&page.flights[0], &raw["flights"][0]);
+        assert_eq!(row.id, flight["id"].as_str().unwrap());
+        assert_eq!(row.handle, flight["pilot"]["handle"].as_str().unwrap());
+        assert_eq!(row.pilot, flight["pilot"]["display_name"].as_str().unwrap());
+        assert_eq!(row.airtime_s, flight["airtime_s"].as_i64().unwrap());
+        assert_eq!(row.page_path, format!("/f/{}", row.id));
+        assert_eq!(row.file_path, format!("/v1/flights/{}/igc", row.id));
+        assert_eq!(
+            row.outline.len(),
+            flight["outline"].as_array().unwrap().len()
+        );
+        let score = row.score.unwrap();
+        assert_eq!(
+            score.distance_m,
+            flight["score"]["distance_m"].as_f64().unwrap()
+        );
+        assert_eq!(score.kind, RouteKind::FreeFlight);
+        assert!(row.takeoff.is_some());
+
+        // The best first is read the same way.
+        let best = public_flights(200, golden("public_flights_best.json")).unwrap();
+        let points: Vec<f64> = best
+            .flights
+            .iter()
+            .map(|flight| flight.score.unwrap().points)
+            .collect();
+        assert!(
+            points.windows(2).all(|pair| pair[0] >= pair[1]),
+            "{points:?}"
+        );
+
+        // A refusal comes in words.
+        assert!(public_flights(503, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn what_another_pilot_wrote_is_one_bounded_line() {
+        let mut answer: Value = serde_json::from_slice(&golden("public_flights.json")).unwrap();
+        answer["flights"][0]["pilot"]["display_name"] = json!("Anna\nMaier ".repeat(20));
+        answer["flights"][0]["glider"] = json!("  \n ");
+        answer["flights"][1]["score"]["kind"] = json!("something_new");
+        let page = public_flights(200, answer.to_string().into_bytes()).unwrap();
+        assert!(page.flights[0].pilot.chars().count() <= 40);
+        assert!(!page.flights[0].pilot.contains('\n'));
+        // A glider of nothing but space is no glider, and a kind of route
+        // this version does not know is no score.
+        assert_eq!(page.flights[0].glider, None);
+        assert_eq!(page.flights[1].score, None);
+    }
+
+    #[test]
+    fn another_pilots_flight_is_shown_from_its_file_like_ones_own() {
+        let text = venti_flight::igc::write(&venti_flight::testing::synthetic_flight());
+        let flight = crate::flight_from_file(text.clone()).unwrap();
+        assert_eq!(flight.id, "");
+        assert!(flight.track.len() > 1000);
+        assert_eq!(flight.pilot.as_deref(), Some("Sample Pilot"));
+        let analysis = crate::flight_analysis_from_file(text).unwrap();
+        assert_eq!(analysis.thermals.len(), 2);
+        // What is no flight file is said so, and not shown.
+        assert!(crate::flight_from_file("<html>not found</html>".to_owned()).is_err());
+        assert!(crate::flight_analysis_from_file(String::new()).is_err());
+    }
+}

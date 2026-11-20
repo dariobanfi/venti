@@ -125,71 +125,82 @@ impl Core {
     /// thermal and glide, and the free distance.
     pub fn flight_analysis(&self, id: String) -> Result<FlightAnalysis, CoreError> {
         let text = self.logbook.flight_text(&id)?;
-        let file = igc::parse(&text).map_err(LogbookError::Invalid)?;
-        // Moments count from the take-off, like the track `flight` returns.
-        let analysis = analysis::analyse(&file.fixes);
-
-        let moment = |moment: analysis::Moment| FlightMoment {
-            track_index: u32::try_from(moment.index).unwrap_or(u32::MAX),
-            seconds: u32::try_from(moment.seconds).unwrap_or(0),
-            position: Coordinate {
-                lat: moment.position.lat(),
-                lon: moment.position.lon(),
-            },
-            altitude_m: f64::from(moment.altitude_m),
-        };
-
-        Ok(FlightAnalysis {
-            takeoff: analysis.takeoff.map(moment),
-            landing: analysis.landing.map(moment),
-            airtime_s: analysis.airtime_s,
-            thermalling_s: analysis.thermalling_s,
-            gliding_s: analysis.gliding_s,
-            height_gained_m: f64::from(analysis.height_gained_m),
-            thermals: analysis
-                .thermals
-                .iter()
-                .map(|thermal| ThermalSummary {
-                    entry: moment(thermal.entry),
-                    exit: moment(thermal.exit),
-                    gain_m: f64::from(thermal.gain_m),
-                    climb_ms: thermal.climb_ms,
-                    wind: thermal.wind.map(|wind| WindView {
-                        from_deg: wind.from_deg,
-                        speed_ms: wind.speed_ms,
-                    }),
-                })
-                .collect(),
-            glides: analysis
-                .glides
-                .iter()
-                .map(|glide| GlideSummary {
-                    start: moment(glide.start),
-                    end: moment(glide.end),
-                    distance_m: glide.distance_m,
-                    height_lost_m: f64::from(glide.height_lost_m),
-                    glide_ratio: glide.glide_ratio,
-                    speed_ms: glide.speed_ms,
-                })
-                .collect(),
-            score: analysis.score.map(|score| {
-                let kind = match score.kind {
-                    scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
-                    scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
-                    scoring::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
-                };
-                FlightScore {
-                    kind,
-                    closed: score.closed,
-                    distance_m: score.distance_m,
-                    points: score.points,
-                    points_per_km: score.kind.points_per_km(score.closed),
-                    route: score.points_on_track.into_iter().map(moment).collect(),
-                    closing_m: score.closing_m,
-                }
-            }),
-        })
+        analysis_of(&text)
     }
+}
+
+/// Analyses a flight that is not in the logbook, from its file's text:
+/// another pilot's public flight. Nothing is kept.
+#[uniffi::export]
+pub fn flight_analysis_from_file(igc_text: String) -> Result<FlightAnalysis, CoreError> {
+    analysis_of(&igc_text)
+}
+
+fn analysis_of(text: &str) -> Result<FlightAnalysis, CoreError> {
+    let file = igc::parse(text).map_err(LogbookError::Invalid)?;
+    // Moments count from the take-off, like the track `flight` returns.
+    let analysis = analysis::analyse(&file.fixes);
+
+    let moment = |moment: analysis::Moment| FlightMoment {
+        track_index: u32::try_from(moment.index).unwrap_or(u32::MAX),
+        seconds: u32::try_from(moment.seconds).unwrap_or(0),
+        position: Coordinate {
+            lat: moment.position.lat(),
+            lon: moment.position.lon(),
+        },
+        altitude_m: f64::from(moment.altitude_m),
+    };
+
+    Ok(FlightAnalysis {
+        takeoff: analysis.takeoff.map(moment),
+        landing: analysis.landing.map(moment),
+        airtime_s: analysis.airtime_s,
+        thermalling_s: analysis.thermalling_s,
+        gliding_s: analysis.gliding_s,
+        height_gained_m: f64::from(analysis.height_gained_m),
+        thermals: analysis
+            .thermals
+            .iter()
+            .map(|thermal| ThermalSummary {
+                entry: moment(thermal.entry),
+                exit: moment(thermal.exit),
+                gain_m: f64::from(thermal.gain_m),
+                climb_ms: thermal.climb_ms,
+                wind: thermal.wind.map(|wind| WindView {
+                    from_deg: wind.from_deg,
+                    speed_ms: wind.speed_ms,
+                }),
+            })
+            .collect(),
+        glides: analysis
+            .glides
+            .iter()
+            .map(|glide| GlideSummary {
+                start: moment(glide.start),
+                end: moment(glide.end),
+                distance_m: glide.distance_m,
+                height_lost_m: f64::from(glide.height_lost_m),
+                glide_ratio: glide.glide_ratio,
+                speed_ms: glide.speed_ms,
+            })
+            .collect(),
+        score: analysis.score.map(|score| {
+            let kind = match score.kind {
+                scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
+                scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
+                scoring::RouteKind::FaiTriangle => RouteKind::FaiTriangle,
+            };
+            FlightScore {
+                kind,
+                closed: score.closed,
+                distance_m: score.distance_m,
+                points: score.points,
+                points_per_km: score.kind.points_per_km(score.closed),
+                route: score.points_on_track.into_iter().map(moment).collect(),
+                closing_m: score.closing_m,
+            }
+        }),
+    })
 }
 
 #[cfg(test)]

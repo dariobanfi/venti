@@ -754,7 +754,7 @@ pub fn live_age_in_words(age_s: f64, landed: bool) -> String {
 }
 
 /// Text another pilot wrote, as one line of bounded length.
-fn one_line(text: &str, at_most: usize) -> String {
+pub(crate) fn one_line(text: &str, at_most: usize) -> String {
     let mut line: String = text
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })

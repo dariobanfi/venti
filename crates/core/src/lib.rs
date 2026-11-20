@@ -28,6 +28,7 @@ mod airspace;
 mod analysis;
 mod assistant;
 mod cockpit;
+mod community;
 mod export;
 mod flight_airspace;
 mod forecast;
@@ -49,6 +50,7 @@ pub use airspace::*;
 pub use analysis::*;
 pub use assistant::*;
 pub use cockpit::*;
+pub use community::*;
 pub use export::*;
 pub use flight_airspace::*;
 pub use forecast::*;
@@ -416,62 +418,7 @@ impl Core {
     /// the part of the recording that was flown.
     pub fn flight(&self, id: String) -> Result<FlightView, CoreError> {
         let text = self.logbook.flight_text(&id)?;
-        let mut file = igc::parse(&text).map_err(LogbookError::Invalid)?;
-        file.fixes = venti_flight::analysis::flown_part(&file.fixes).to_vec();
-        let summary =
-            summarise(&file.fixes).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
-
-        let altitudes = track::altitudes(&file.fixes);
-        let climbs = track::climb_rates(&file.fixes, TRACK_CLIMB_WINDOW_S);
-        let seconds = |seconds: i64| u32::try_from(seconds).unwrap_or(0);
-        let track = file
-            .fixes
-            .iter()
-            .zip(altitudes.iter().zip(&climbs))
-            .map(|(fix, (&altitude, &climb))| TrackPoint {
-                lat: fix.position.lat(),
-                lon: fix.position.lon(),
-                altitude_m: f64::from(altitude),
-                seconds: seconds((fix.time - summary.start).num_seconds()),
-                climb_ms: climb,
-            })
-            .collect();
-        let profile = track::altitude_profile(&file.fixes, PROFILE_POINTS)
-            .into_iter()
-            .map(|point| ProfilePoint {
-                seconds: seconds(point.seconds),
-                altitude_m: f64::from(point.altitude_m),
-            })
-            .collect();
-
-        // The domain's box keeps its edges private; read them back through
-        // the corner points of the track's extent.
-        let (south, west, north, east) = extent(&file.fixes);
-
-        Ok(FlightView {
-            id,
-            pilot: file.pilot,
-            glider: file.glider_type,
-            recorder: format!("{} {}", file.manufacturer, file.recorder_id)
-                .trim()
-                .to_owned(),
-            start_unix_s: summary.start.timestamp(),
-            duration_s: summary.duration_s(),
-            track_length_m: summary.track_length_m,
-            max_altitude_m: f64::from(summary.max_altitude_m),
-            min_altitude_m: f64::from(summary.min_altitude_m),
-            max_climb_ms: summary.max_climb_ms,
-            max_sink_ms: summary.max_sink_ms,
-            bounds: Bounds {
-                south,
-                west,
-                north,
-                east,
-            },
-            track,
-            profile,
-            skipped_lines: u32::try_from(file.skipped_lines).unwrap_or(u32::MAX),
-        })
+        flight_view(id, &text)
     }
 
     /// Removes a flight from the logbook for good.
@@ -484,6 +431,74 @@ impl Core {
         self.note_flight_deleted(&id);
         Ok(())
     }
+}
+
+/// A flight that is not in the logbook, prepared for display from its
+/// file's text: another pilot's public flight, fetched from the server.
+/// Nothing is kept. Its `id` is empty.
+#[uniffi::export]
+pub fn flight_from_file(igc_text: String) -> Result<FlightView, CoreError> {
+    flight_view(String::new(), &igc_text)
+}
+
+/// One flight prepared for display from its file's text. What is shown is
+/// the part of the recording that was flown.
+fn flight_view(id: String, text: &str) -> Result<FlightView, CoreError> {
+    let mut file = igc::parse(text).map_err(LogbookError::Invalid)?;
+    file.fixes = venti_flight::analysis::flown_part(&file.fixes).to_vec();
+    let summary = summarise(&file.fixes).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
+
+    let altitudes = track::altitudes(&file.fixes);
+    let climbs = track::climb_rates(&file.fixes, TRACK_CLIMB_WINDOW_S);
+    let seconds = |seconds: i64| u32::try_from(seconds).unwrap_or(0);
+    let track = file
+        .fixes
+        .iter()
+        .zip(altitudes.iter().zip(&climbs))
+        .map(|(fix, (&altitude, &climb))| TrackPoint {
+            lat: fix.position.lat(),
+            lon: fix.position.lon(),
+            altitude_m: f64::from(altitude),
+            seconds: seconds((fix.time - summary.start).num_seconds()),
+            climb_ms: climb,
+        })
+        .collect();
+    let profile = track::altitude_profile(&file.fixes, PROFILE_POINTS)
+        .into_iter()
+        .map(|point| ProfilePoint {
+            seconds: seconds(point.seconds),
+            altitude_m: f64::from(point.altitude_m),
+        })
+        .collect();
+
+    // The domain's box keeps its edges private; read them back through
+    // the corner points of the track's extent.
+    let (south, west, north, east) = extent(&file.fixes);
+
+    Ok(FlightView {
+        id,
+        pilot: file.pilot,
+        glider: file.glider_type,
+        recorder: format!("{} {}", file.manufacturer, file.recorder_id)
+            .trim()
+            .to_owned(),
+        start_unix_s: summary.start.timestamp(),
+        duration_s: summary.duration_s(),
+        track_length_m: summary.track_length_m,
+        max_altitude_m: f64::from(summary.max_altitude_m),
+        min_altitude_m: f64::from(summary.min_altitude_m),
+        max_climb_ms: summary.max_climb_ms,
+        max_sink_ms: summary.max_sink_ms,
+        bounds: Bounds {
+            south,
+            west,
+            north,
+            east,
+        },
+        track,
+        profile,
+        skipped_lines: u32::try_from(file.skipped_lines).unwrap_or(u32::MAX),
+    })
 }
 
 impl Core {

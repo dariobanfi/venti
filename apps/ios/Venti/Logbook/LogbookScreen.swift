@@ -7,7 +7,11 @@ struct LogbookScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(AccountModel.self) private var account
     @Environment(AppNavigation.self) private var navigation
+    @Environment(WindModel.self) private var wind
 
+    /// Whether the tab shows everyone's public flights instead of the
+    /// pilot's own.
+    @State private var showsEveryone = false
     @State private var isChoosingFiles = false
     @State private var notice: ImportNotice?
     @State private var flightToDelete: LogbookEntry?
@@ -16,7 +20,9 @@ struct LogbookScreen: View {
         @Bindable var navigation = navigation
         NavigationStack(path: $navigation.logbookPath) {
             Group {
-                if logbook.view.years.isEmpty {
+                if showsEveryone, wind.server != nil {
+                    PublicFlightsList()
+                } else if logbook.view.years.isEmpty {
                     emptyState
                 } else {
                     list
@@ -24,12 +30,27 @@ struct LogbookScreen: View {
             }
             .navigationTitle("Logbook")
             .toolbar {
+                // With a Venti server set: the pilot's own flights, or
+                // what everyone there shares.
+                if wind.server != nil {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Whose flights", selection: $showsEveryone) {
+                            Text("Mine").tag(false)
+                            Text("Everyone").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 220)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Import flights", systemImage: "plus") {
                         isChoosingFiles = true
                     }
                     .disabled(logbook.importProgress != nil)
                 }
+            }
+            .navigationDestination(for: PublicFlight.self) { flight in
+                PublicFlightScreen(flight: flight)
             }
             .navigationDestination(for: FlightRoute.self) { route in
                 FlightScreen(id: route.id)

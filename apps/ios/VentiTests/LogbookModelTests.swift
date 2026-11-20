@@ -125,7 +125,11 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertEqual(Format.hoursMinutes(seconds: 1744), "0:29")
         XCTAssertEqual(Format.hoursMinutes(seconds: 5 * 3600 + 42 * 60), "5:42")
         XCTAssertTrue(Format.climb(metresPerSecond: 2.4).hasPrefix("+"))
-        XCTAssertFalse(Format.climb(metresPerSecond: -1.5).hasPrefix("+"))
+        // A loss has the true minus sign, and a height no mark between
+        // its thousands.
+        XCTAssertEqual(Format.climb(metresPerSecond: -1.5), "\u{2212}1.5")
+        XCTAssertEqual(Format.metres(2410), "2410")
+        XCTAssertEqual(Format.signedMetres(-1135), "\u{2212}1135")
         XCTAssertEqual(Format.flights(1), "1 flight")
         XCTAssertEqual(Format.stopwatch(seconds: 754), "0:12:34")
         XCTAssertEqual(Format.kilometresPerHour(metresPerSecond: 10), "36")

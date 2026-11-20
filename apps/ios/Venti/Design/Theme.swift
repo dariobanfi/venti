@@ -13,6 +13,10 @@ extension EnvironmentValues {
     /// The theme a view is drawn in. `ventiThemed()` sets it from the
     /// iPhone's appearance; the cockpit sets the flight theme.
     @Entry var venti: VentiTheme = .light
+
+    /// Whether a view is in the cockpit, in flight: its buttons are larger,
+    /// for gloves, and what floats over the map has an edge and no shadow.
+    @Entry var ventiInFlight = false
 }
 
 extension VentiTheme {
@@ -163,9 +167,13 @@ extension View {
     }
 
     /// The same in the flight theme, whatever the iPhone is set to: for
-    /// the cockpit from take-off to landing.
+    /// the cockpit, and for every sheet it opens. What the system draws
+    /// there is light too, and the text grows no further than the screen
+    /// has room for.
     func ventiFlightThemed() -> some View {
         modifier(Themed(isInFlight: true))
+            .preferredColorScheme(.light)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 }
 
@@ -177,6 +185,7 @@ private struct Themed: ViewModifier {
         let theme = isInFlight ? VentiTheme.flight : VentiTheme.of(scheme)
         content
             .environment(\.venti, theme)
+            .environment(\.ventiInFlight, isInFlight)
             .tint(theme.primary)
             .foregroundStyle(theme.text, theme.textSecondary, theme.textMuted)
             .font(.ventiType(.body))

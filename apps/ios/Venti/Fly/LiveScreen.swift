@@ -147,21 +147,23 @@ struct LiveScreen: View {
     }
 }
 
-/// The cockpit's way to live tracking: a round sign that says by its
-/// colour whether the flight is going out.
+/// The cockpit's way to live tracking: a button whose sign says whether
+/// the flight is going out, by its shape and by its colour.
 struct LiveButton: View {
     let live: LiveShareView?
     let open: () -> Void
 
     var body: some View {
         Button(action: open) {
-            Label("Live tracking", systemImage: Self.symbol(for: live?.state))
-                .labelStyle(.iconOnly)
-                .frame(width: 30, height: 30)
+            Label {
+                Text("Live tracking")
+            } icon: {
+                Image(systemName: Self.symbol(for: live?.state))
+                    .foregroundStyle(.venti(Self.role(for: live?.state) ?? .text))
+            }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.venti(.quiet))
-        .controlSize(.large)
-        .tint(Self.tint(for: live?.state))
         .accessibilityValue(live?.words ?? "Off")
         .accessibilityIdentifier("live-button")
     }
@@ -174,12 +176,12 @@ struct LiveButton: View {
         }
     }
 
-    /// Green while positions go out, amber while they wait, plain when
-    /// nothing is shared.
-    static func tint(for state: LiveShareState?) -> Color? {
+    /// The colour of "good" while positions go out, of caution while they
+    /// wait, plain when nothing is shared.
+    static func role(for state: LiveShareState?) -> VentiColor.Role? {
         switch state {
-        case .sharing: .green
-        case .waiting: .orange
+        case .sharing: .good
+        case .waiting: .caution
         case .ended, .stopped, nil: nil
         }
     }

@@ -22,14 +22,20 @@ pub struct Config {
     pub averaging_s: f64,
     /// The glider has taken off once it has moved at least this fast over
     /// the ground, metres per second, for `takeoff_hold_s` seconds, or has
-    /// left its starting height by `takeoff_height_m`. A walking pilot stays
-    /// under 2 m/s; a paraglider flies at 8 or more, less into a strong
-    /// headwind, which is what the height rule is for.
+    /// left the height it had `takeoff_height_s` seconds before by
+    /// `takeoff_height_m`. A walking pilot stays under 2 m/s; a paraglider
+    /// flies at 8 or more, less into a strong headwind, which is what the
+    /// height rule is for. The height is measured over a short while and
+    /// not from where the session began, because a pilot who waits for the
+    /// take-off walks about the hill: up a slope a walker gains a third of
+    /// a metre a second, a glider that has left the ground a metre or more.
     pub takeoff_speed_ms: f64,
     /// See `takeoff_speed_ms`.
     pub takeoff_hold_s: f64,
     /// See `takeoff_speed_ms`.
     pub takeoff_height_m: f64,
+    /// See `takeoff_speed_ms`.
+    pub takeoff_height_s: f64,
     /// The glider has landed once it has moved slower than this over the
     /// ground, metres per second, without climbing or sinking, for
     /// `landing_hold_s` seconds.
@@ -62,6 +68,7 @@ impl Default for Config {
             takeoff_speed_ms: 4.0,
             takeoff_hold_s: 5.0,
             takeoff_height_m: 25.0,
+            takeoff_height_s: 30.0,
             landing_speed_ms: 2.0,
             landing_hold_s: 20.0,
             circling_start_deg: 90.0,
@@ -306,7 +313,6 @@ pub struct FlightComputer {
     /// When and where the ground speed first met the take-off or landing
     /// condition in its current unbroken run.
     condition_since: Option<Mark>,
-    start_altitude_m: Option<f64>,
 
     last_position: Option<PositionSample>,
     /// The sample before the latest, as a moment of the flight.
@@ -375,7 +381,6 @@ impl FlightComputer {
             takeoff: None,
             landing_time_s: None,
             condition_since: None,
-            start_altitude_m: None,
             last_position: None,
             previous: None,
             velocity: None,
@@ -455,12 +460,16 @@ impl FlightComputer {
 
         let altitude = self.altitude(now);
         if let Some(altitude) = altitude {
-            self.start_altitude_m.get_or_insert(altitude);
             self.altitudes.push_back((now, altitude));
+            let kept_s = self
+                .config
+                .averaging_s
+                .max(self.config.takeoff_height_s)
+                .max(30.0);
             while self
                 .altitudes
                 .front()
-                .is_some_and(|&(time, _)| time < now - self.config.averaging_s.max(30.0) - 1.0)
+                .is_some_and(|&(time, _)| time < now - kept_s - 1.0)
             {
                 self.altitudes.pop_front();
             }
@@ -857,12 +866,16 @@ impl FlightComputer {
                 if !fast {
                     self.condition_since = None;
                 }
-                let left_the_ground =
-                    altitude
-                        .zip(self.start_altitude_m)
-                        .is_some_and(|(altitude, start)| {
-                            (altitude - start).abs() >= self.config.takeoff_height_m
-                        });
+                // Against the height of a short while ago: the oldest
+                // altitude still within that while.
+                let before = self
+                    .altitudes
+                    .iter()
+                    .find(|&&(time, _)| time >= now - self.config.takeoff_height_s)
+                    .map(|&(_, altitude)| altitude);
+                let left_the_ground = altitude.zip(before).is_some_and(|(altitude, before)| {
+                    (altitude - before).abs() >= self.config.takeoff_height_m
+                });
                 let run_start = fast.then(|| *self.condition_since.get_or_insert(run_origin));
                 let held =
                     run_start.is_some_and(|start| now - start.time_s >= self.config.takeoff_hold_s);
@@ -1268,5 +1281,47 @@ mod tests {
             (state.landing_time_s.unwrap() - 302.0).abs() <= 12.0,
             "{state:?}"
         );
+    }
+
+    /// Feeds a second of standing, walking or flying straight north.
+    fn step(computer: &mut FlightComputer, second: i32, north_m: f64, altitude_m: f64) {
+        computer.position(PositionSample {
+            time_s: f64::from(second),
+            position: GeoPoint::new(47.0 + north_m / M_PER_DEG_LAT, 11.0).unwrap(),
+            altitude_m: Some(altitude_m),
+            ground_speed_ms: None,
+            course_deg: None,
+        });
+    }
+
+    #[test]
+    fn walking_up_to_the_take_off_is_not_a_take_off() {
+        let mut computer = FlightComputer::new(Config::default());
+        // Ten minutes up a steep path: 1.2 m/s along it, a third of a metre
+        // a second up, 180 m of height in all.
+        for second in 0..600 {
+            let seconds = f64::from(second);
+            step(&mut computer, second, 1.2 * seconds, 1400.0 + 0.3 * seconds);
+        }
+        let state = computer.state(600.0);
+        assert_eq!(state.phase, Phase::Ground, "{state:?}");
+        assert!(state.takeoff_time_s.is_none());
+    }
+
+    #[test]
+    fn a_glider_hanging_in_a_headwind_has_taken_off_by_its_height() {
+        let mut computer = FlightComputer::new(Config::default());
+        // Five minutes at the take-off, then into a wind as fast as the
+        // glider: 1 m/s over the ground, sinking 1.2 m/s.
+        for second in 0..300 {
+            step(&mut computer, second, 0.0, 1600.0);
+        }
+        assert_eq!(computer.state(300.0).phase, Phase::Ground);
+        for second in 300..340 {
+            let flown = f64::from(second - 300);
+            step(&mut computer, second, flown, 1600.0 - 1.2 * flown);
+        }
+        let state = computer.state(340.0);
+        assert_eq!(state.phase, Phase::Flying, "{state:?}");
     }
 }

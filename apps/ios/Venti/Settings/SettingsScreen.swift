@@ -13,7 +13,6 @@ struct SettingsScreen: View {
     @AppStorage(Preferences.glideRatio) private var glideRatio = Preferences.defaultGlideRatio
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
     @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
-    @AppStorage(Preferences.cockpitForSun) private var cockpitForSun = false
 
     var body: some View {
         NavigationStack {
@@ -71,11 +70,10 @@ struct SettingsScreen: View {
                             set: { isOn in keepsBrightness = !isOn }
                         )
                     )
-                    Toggle("Cockpit for bright sun", isOn: $cockpitForSun)
                 } header: {
                     Text("In the sun")
                 } footer: {
-                    Text("With full brightness the cockpit turns the screen all the way up while it is open and back afterwards; it costs battery. For bright sun the cockpit is drawn light, whatever the iPhone's appearance, and in bold type.")
+                    Text("With full brightness the cockpit turns the screen all the way up while it is open and back afterwards; it costs battery. The cockpit is always drawn for the sun: near-black on white, whatever the iPhone's appearance.")
                 }
 
                 Section {

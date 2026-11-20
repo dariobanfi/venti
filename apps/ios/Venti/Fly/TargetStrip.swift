@@ -1,8 +1,8 @@
 import SwiftUI
 import VentiCore
 
-/// The line between the map and the instruments that says where the
-/// cockpit is navigating to: which way to turn, how far, and how high the
+/// The line under the cockpit's map that says where the cockpit is
+/// navigating to: which way to turn, how far, and how high the
 /// glider is expected to arrive. A tap chooses another place.
 struct TargetStrip: View {
     /// The way to the target, if there is one to go to yet.
@@ -23,7 +23,7 @@ struct TargetStrip: View {
                         Text("\(Format.kilometres(metres: way.distanceM)) km")
                             .font(.venti(.subheadline, .medium))
                             .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.venti(.textSecondary))
                     }
                     Spacer(minLength: 8)
                     arrival(way)
@@ -36,8 +36,7 @@ struct TargetStrip: View {
                     Spacer(minLength: 8)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.venti(.footnote, .semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.venti(.subheadline, .semibold))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
@@ -72,24 +71,24 @@ struct TargetStrip: View {
                     .font(.venti(.subheadline, .semibold))
                     .foregroundStyle(.venti(.danger))
                 Text("in \(Format.kilometres(metres: meets)) km")
-                    .font(.venti(.caption))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
                     .monospacedDigit()
             } else if let height = way.arrivalHeightM {
-                Text("\(Text(Format.signedMetres(height)).font(.venti(.title3, .semibold)))\(Text(" m").font(.venti(.footnote, .medium)).foregroundStyle(.secondary))")
+                Text("\(Text(Format.signedMetres(height)).font(.venti(.title3, .semibold)))\(Text(" m").font(.venti(.subheadline, .medium)))")
                     .monospacedDigit()
                     // Falling short is the one thing here worth a warning colour.
-                    .foregroundStyle(height < 0 ? Color.venti(.danger) : Color.venti(.text))
+                    .foregroundStyle(.venti(height < 0 ? .danger : .text))
                 Text(way.windKnown ? "Arrival" : "Arrival in still air")
-                    .font(.venti(.caption))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
             } else if way.expectedGlide == nil {
                 Text("Wind too strong")
                     .font(.venti(.subheadline, .semibold))
                     .foregroundStyle(.venti(.danger))
                 Text("to get there")
-                    .font(.venti(.caption))
-                    .foregroundStyle(.secondary)
+                    .font(.venti(.subheadline))
+                    .foregroundStyle(.venti(.textSecondary))
             }
         }
         .lineLimit(1)
@@ -146,7 +145,7 @@ struct TargetPicker: View {
                         HStack(spacing: 12) {
                             Image(systemName: fliesTask ? "flag.checkered" : "house.circle")
                                 .font(.venti(.title3))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.venti(.textSecondary))
                                 .frame(width: 28)
                             Text(fliesTask ? "Along the task" : "Take-off")
                             Spacer(minLength: 8)
@@ -186,10 +185,10 @@ struct TargetPicker: View {
                     }
                     if waypoints.all.isEmpty {
                         Text("You have no waypoints yet. Venti reads SeeYou files (.cup) and GEO files (.wpt).")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.venti(.textSecondary))
                     } else if places.isEmpty {
                         Text("No waypoint matches “\(search)”.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.venti(.textSecondary))
                     }
                     Button("Add waypoints from a file", systemImage: "square.and.arrow.down") {
                         isChoosingFiles = true

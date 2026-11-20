@@ -104,15 +104,15 @@ final class LiftTests: XCTestCase {
         XCTAssertEqual(best.index, 1)
         XCTAssertEqual(best.inReach, 1)
         XCTAssertEqual(LandingBadge.height(best), "+510 m")
-        XCTAssertEqual(LandingBadge.color(best.reach.reach), .primary)
+        XCTAssertEqual(LandingBadge.role(best.reach.reach), .text)
         XCTAssertEqual(LandingBadge.spoken(best), "Downwind, arriving +510 m above it")
 
         // Only the one into the wind: none in reach, and that is what the
-        // badge says, in red.
+        // badge says, in the colour of danger.
         let none = try XCTUnwrap(session.landingOption(landings: [upwind], nowUnixS: replay.now()))
         XCTAssertNil(LandingBadge.height(none))
         XCTAssertEqual(LandingBadge.spoken(none), "No landing in reach")
-        XCTAssertEqual(LandingBadge.color(none.reach.reach), .red)
+        XCTAssertEqual(LandingBadge.role(none.reach.reach), .danger)
 
         // The same for a list: one answer for each place, in its order.
         let reach = session.reach(places: [upwind, downwind], nowUnixS: replay.now())

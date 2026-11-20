@@ -1,21 +1,52 @@
 import SwiftUI
 import VentiCore
 
-/// The cockpit: what the pilot looks at in the air.
+/// The pages of the cockpit. "Next page" goes around them.
+enum CockpitPage: CaseIterable {
+    /// The readings over the map: what the pilot flies by.
+    case instruments
+    /// The map as large as it gets, with the way to the place flown to.
+    case map
+    /// How the flight stands, and what can be switched.
+    case flight
+
+    var next: CockpitPage {
+        switch self {
+        case .instruments: .map
+        case .map: .flight
+        case .flight: .instruments
+        }
+    }
+
+    /// The page in a word, for a pilot who has the screen read out.
+    var name: String {
+        switch self {
+        case .instruments: "Instruments"
+        case .map: "Map"
+        case .flight: "Flight"
+        }
+    }
+}
+
+/// The cockpit: what the pilot looks at in the air, in the design
+/// language's flight theme: a white ground and near-black ink whatever the
+/// iPhone is set to, one very large reading, four large ones and two
+/// buttons.
 ///
-/// Few numbers, very large, in fixed places. The map follows the glider by
-/// itself. While the core says the glider is circling in lift, the lower
-/// row changes from cruise numbers to thermal numbers and the map zooms in;
-/// nothing needs to be touched in flight.
+/// It has three pages: the readings over the map, the map with the way to
+/// the place flown to, and the flight with what can be switched. Warnings
+/// stand at the top of every page. Nothing needs to be touched in flight:
+/// while the core says the glider is circling in lift the readings change
+/// from cruise numbers to thermal numbers and the map zooms in.
 struct CockpitScreen: View {
-    /// Called when the pilot has confirmed the end of the session.
+    /// Called when the pilot has held the button that ends the session.
     let onFinish: () -> Void
 
     @Environment(FlySession.self) private var fly
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
     @Environment(OfflineMapsModel.self) private var maps
-    @State private var isConfirmingFinish = false
+    @State private var page = CockpitPage.instruments
     @State private var isShowingTask = false
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
@@ -31,7 +62,6 @@ struct CockpitScreen: View {
     /// Whether the map shows the whole flight instead of following closely.
     @State private var showsWholeFlight = false
     @AppStorage(Preferences.hidesFaiAreas) private var hidesFaiAreas = false
-    @AppStorage(Preferences.cockpitForSun) private var isForSun = false
 
     /// Whether the cockpit's map is drawn from a region kept on the iPhone.
     private var mapIsKept: Bool {
@@ -42,240 +72,52 @@ struct CockpitScreen: View {
     }
 
     var body: some View {
-        @Bindable var fly = fly
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(
-                    view: view, score: fly.score, mode: fly.mode, varioName: fly.vario.connectedName,
-                    mapIsKept: mapIsKept
+                    view: view, mode: fly.mode, varioName: fly.vario.connectedName, mapIsKept: mapIsKept
                 )
-                CockpitMap(
-                    view: view, way: fly.way, airspace: fly.airspace(),
-                    airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
-                    route: fly.score?.route ?? [],
-                    fai: hidesFaiAreas ? nil : fly.faiAreas,
-                    range: fly.range,
-                    gliders: fly.gliders,
-                    showsWholeFlight: showsWholeFlight,
-                    task: fly.task == nil ? nil : tasks.task,
-                    taskStatus: fly.task,
-                    source: maps.flyingSource
-                )
-                    // Drawn from the region kept on the iPhone wherever
-                    // one covers the glider: the map is made anew when
-                    // the glider comes into one or leaves it.
-                    .id(maps.flyingSource.key)
-                    // The map is left out of the accessibility tree: what it
-                    // shows is in the instruments, and its hundreds of map
-                    // labels made reading the screen by code or by VoiceOver
-                    // time out. The badges laid over it stay in.
-                    .accessibilityHidden(true)
-                    .overlay(alignment: .topTrailing) {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            if let wind = view.wind {
-                                // A tap lists the wind of every band of
-                                // height the glider has circled in.
-                                WindBadge(wind: wind, ageS: view.windAgeS)
-                                    .contentShape(.capsule)
-                                    .onTapGesture {
-                                        windsBeginOnTheGround = false
-                                        isShowingWinds = true
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityHint("Shows the wind by height")
-                                    .accessibilityIdentifier("wind-badge")
-                            }
-                            // A wind that leaves the glider little way
-                            // into it, said where the wind is read.
-                            if let words = view.strongWind {
-                                StrongWindBadge(words: words)
-                            }
-                            // The wind on the ground: the station that
-                            // speaks for the landing, else the nearest.
-                            // A tap lists the stations around.
-                            if let station = fly.windBelow?.stations.first {
-                                GroundWindBadge(station: station)
-                                    .contentShape(.capsule)
-                                    .onTapGesture {
-                                        windsBeginOnTheGround = true
-                                        isShowingWinds = true
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityHint("Shows the wind stations around")
-                                    .accessibilityIdentifier("ground-wind-badge")
-                            }
-                            // While circling: which way the lift is
-                            // stronger, in words beside the picture on the
-                            // map.
-                            if let centre = view.lift?.centre {
-                                LiftBadge(centre: centre)
-                            }
-                        }
-                        .padding(10)
+                alerts(view)
+                switch page {
+                case .instruments:
+                    Instruments(view: view, way: fly.way) {
+                        windsBeginOnTheGround = false
+                        isShowingWinds = true
                     }
-                    .overlay(alignment: .leading) {
-                        VStack(spacing: 10) {
-                            // The whole flight at a glance, with the scored
-                            // route and where to go for an FAI triangle;
-                            // again for the close view that follows the
-                            // glider.
-                            Button {
-                                showsWholeFlight.toggle()
-                            } label: {
-                                Image(
-                                    systemName: showsWholeFlight
-                                        ? "location.fill" : "arrow.up.left.and.arrow.down.right"
-                                )
-                                .font(.venti(.headline))
-                                .frame(width: 44, height: 44)
-                                .contentShape(.circle)
-                            }
-                            .buttonStyle(.plain)
-                            .ventiFloating(in: .circle)
-                            .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
-                            // With airspace to warn from, or the ground
-                            // to draw: what lies on the line ahead, seen
-                            // from the side.
-                            if fly.airspaceCheck != .noAirspace || view.groundElevationM != nil {
-                                Button {
-                                    isShowingAhead = true
-                                } label: {
-                                    Image(systemName: "chart.line.downtrend.xyaxis")
-                                        .font(.venti(.headline))
-                                        .frame(width: 44, height: 44)
-                                        .contentShape(.circle)
-                                }
-                                .buttonStyle(.plain)
-                                .ventiFloating(in: .circle)
-                                .accessibilityLabel("Ahead, from the side")
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .overlay(alignment: .topLeading) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let daylight = fly.daylight {
-                                DaylightBadge(daylight: daylight)
-                            }
-                            // The landing to think of first, and whether
-                            // the glide reaches it. A tap lists the places
-                            // to fly to, each with its reach.
-                            if let landing = fly.landing {
-                                LandingBadge(landing: landing)
-                                    .contentShape(.capsule)
-                                    .onTapGesture {
-                                        isChoosingTarget = true
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityHint("Lists the places to fly to")
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .overlay(alignment: .bottom) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            // Whose airspace the map draws: its licence
-                            // asks for the credit next to the data. Beside
-                            // the map's own credits, in the corner.
-                            if let credit = Self.airspaceCredit(airspace.credits) {
-                                Text(credit)
-                                    .font(.venti(.caption2))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .ventiFloating(in: .rect(cornerRadius: 8))
-                                    .padding(.leading, 34)
-                                    .accessibilityIdentifier("cockpit-airspace-credit")
-                            }
-                            // A strong wind where the pilot means to land,
-                            // over the airspace's place on the map.
-                            if let warning = fly.windWarning {
-                                GroundWindBanner(alert: warning) {
-                                    windsBeginOnTheGround = true
-                                    isShowingWinds = true
-                                } putAway: {
-                                    fly.putWindWarningAway()
-                                }
-                            }
-                            AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
-                                isShowingAirspace = true
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                    }
-                    .overlay(alignment: .top) {
-                        if view.phase != .flying {
-                            Text(view.phase == .ground ? "Waiting for take-off" : "Landed")
-                                .font(.venti(.headline))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .ventiFloating(in: .capsule)
-                                .padding(10)
-                        }
-                    }
-                // With a task: where the flight stands in it, above the
-                // line that says where to fly, which is then its next
-                // turnpoint unless the pilot chose another place.
-                if let status = fly.task {
-                    TaskStrip(status: status) {
-                        isShowingTask = true
-                    }
-                    Divider()
-                }
-                TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
-                    isChoosingTarget = true
-                }
-                Instruments(view: view, way: fly.way)
-                HStack(spacing: 12) {
-                    Button(isReplay ? "End replay" : "Finish flight") {
-                        isConfirmingFinish = true
-                    }
-                    .buttonStyle(.venti(.quiet))
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-
-                    // Nothing on the screen answers a touch until it is
-                    // unlocked by holding a finger on the lock.
-                    Button {
+                case .map:
+                    EmptyView()
+                case .flight:
+                    FlightPage(view: view, score: fly.score, isReplay: isReplay) {
                         isLocked = true
-                    } label: {
-                        Label("Lock the screen", systemImage: "lock.open")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 30, height: 30)
+                    } showLive: {
+                        isShowingLive = true
                     }
-                    .buttonStyle(.venti(.quiet))
-                    .controlSize(.large)
-
-                    // Who watches the flight, and whether it is going
-                    // out. Not in a replay: what is replayed is not shared.
-                    if !isReplay {
-                        LiveButton(live: fly.live) {
-                            isShowingLive = true
+                }
+                CockpitRule()
+                // The map alone gives way when a warning takes room at the
+                // top: the readings keep their size and their place.
+                map(view)
+                    .layoutPriority(-1)
+                CockpitRule()
+                if page == .map {
+                    // With a task: where the flight stands in it, above
+                    // the line that says where to fly, which is then its
+                    // next turnpoint unless the pilot chose another place.
+                    if let status = fly.task {
+                        TaskStrip(status: status) {
+                            isShowingTask = true
                         }
                     }
-                    Toggle(isOn: $fly.isMuted) {
-                        Label("Mute the vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 30, height: 30)
+                    TargetStrip(way: fly.way, courseDeg: Self.course(of: view)) {
+                        isChoosingTarget = true
                     }
-                    .toggleStyle(.button)
-                    .controlSize(.large)
+                    MapReadings(view: view)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                foot
+                    // Locked, the lock stands in the buttons' place.
+                    .opacity(isLocked ? 0 : 1)
             }
             .background(.venti(.bg))
-            // For bright sun: dark type on a light ground whatever the
-            // iPhone's appearance, and every letter and number in bold.
-            // A pilot who has bold text switched on in the system keeps it
-            // either way.
-            .transformEnvironment(\.legibilityWeight) { weight in
-                if isForSun {
-                    weight = .bold
-                }
-            }
-            .preferredColorScheme(isForSun ? .light : nil)
             // With the first position, and a network, the airspace around
             // it is fetched if what the iPhone keeps is old or from
             // elsewhere. A change reaches the running session by itself.
@@ -295,9 +137,8 @@ struct CockpitScreen: View {
                         .accessibilityHidden(true)
                         .overlay(alignment: .bottom) {
                             Label("Locked. Hold to unlock", systemImage: "lock.fill")
-                                .font(.venti(.headline))
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 14)
+                                .font(.ventiType(.heading))
+                                .frame(maxWidth: .infinity, minHeight: VentiSize.touchInFlight)
                                 .ventiFloating(in: .capsule)
                                 .contentShape(.capsule)
                                 .onLongPressGesture(minimumDuration: 0.8) {
@@ -311,25 +152,30 @@ struct CockpitScreen: View {
                                     isLocked = false
                                 }
                                 .accessibilityIdentifier("cockpit-unlock")
-                                .padding(.bottom, 14)
+                                .padding(.horizontal, VentiSpace.s4)
+                                .padding(.vertical, VentiSpace.s3)
                         }
                 }
             }
             .sheet(isPresented: $isShowingAirspace) {
                 AirspaceWarningsSheet()
                     .presentationDetents([.medium, .large])
+                    .ventiFlightThemed()
             }
             .sheet(isPresented: $isShowingWinds) {
                 WindByHeightSheet(groundFirst: windsBeginOnTheGround)
                     .presentationDetents([.medium, .large])
+                    .ventiFlightThemed()
             }
             .sheet(isPresented: $isShowingAhead) {
                 AirspaceAheadSheet()
                     .presentationDetents([.large])
+                    .ventiFlightThemed()
             }
             .sheet(isPresented: $isShowingTask) {
                 TaskProgressSheet()
                     .presentationDetents([.medium, .large])
+                    .ventiFlightThemed()
             }
             .sheet(isPresented: $isShowingLive) {
                 NavigationStack {
@@ -343,6 +189,7 @@ struct CockpitScreen: View {
                         }
                 }
                 .presentationDetents([.medium, .large])
+                .ventiFlightThemed()
             }
             .sheet(isPresented: $isChoosingTarget) {
                 TargetPicker(
@@ -352,21 +199,182 @@ struct CockpitScreen: View {
                 ) { waypoint in
                     fly.goTo(waypoint?.place)
                 }
+                .ventiFlightThemed()
             }
-            .confirmationDialog(
-                isReplay ? "End the replay?" : "Finish the flight?",
-                isPresented: $isConfirmingFinish,
-                titleVisibility: .visible
-            ) {
-                Button(isReplay ? "Close the cockpit" : "Save flight") {
-                    onFinish()
+            .ventiFlightThemed()
+        }
+    }
+
+    /// What the pilot must know now, at the top of every page: airspace,
+    /// a strong wind at the landing, and where the flight is in its life
+    /// while it is not in the air.
+    private func alerts(_ view: CockpitView) -> some View {
+        VStack(spacing: VentiSpace.s2) {
+            AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
+                isShowingAirspace = true
+            }
+            if let warning = fly.windWarning {
+                GroundWindBanner(alert: warning) {
+                    windsBeginOnTheGround = true
+                    isShowingWinds = true
+                } putAway: {
+                    fly.putWindWarningAway()
                 }
-            } message: {
-                if !isReplay {
-                    Text("Recording stops and the flight is added to the logbook.")
-                }
+            }
+            if let notice = PhaseNotice(view: view, isReplay: isReplay) {
+                notice
             }
         }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.bottom, VentiSpace.s2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The map, with what lies over it. On the first page that is little:
+    /// the map is small there, and the wind is among the readings.
+    private func map(_ view: CockpitView) -> some View {
+        CockpitMap(
+            view: view, way: fly.way, airspace: fly.airspace(),
+            airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
+            route: fly.score?.route ?? [],
+            fai: hidesFaiAreas ? nil : fly.faiAreas,
+            range: fly.range,
+            gliders: fly.gliders,
+            showsWholeFlight: showsWholeFlight,
+            task: fly.task == nil ? nil : tasks.task,
+            taskStatus: fly.task,
+            source: maps.flyingSource
+        )
+            // Drawn from the region kept on the iPhone wherever one covers
+            // the glider: the map is made anew when the glider comes into
+            // one or leaves it.
+            .id(maps.flyingSource.key)
+            // The map is left out of the accessibility tree: what it shows
+            // is in the readings, and its hundreds of map labels made
+            // reading the screen by code or by VoiceOver time out. The
+            // badges laid over it stay in.
+            .accessibilityHidden(true)
+            .frame(minHeight: 120)
+            .overlay(alignment: .topTrailing) {
+                VStack(alignment: .trailing, spacing: VentiSpace.s2) {
+                    if page != .instruments, let wind = view.wind {
+                        // A tap lists the wind of every band of height the
+                        // glider has circled in.
+                        WindBadge(wind: wind, ageS: view.windAgeS)
+                            .contentShape(.capsule)
+                            .onTapGesture {
+                                windsBeginOnTheGround = false
+                                isShowingWinds = true
+                            }
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Shows the wind by height")
+                            .accessibilityIdentifier("wind-badge")
+                    }
+                    // A wind that leaves the glider little way into it,
+                    // said where the wind is read.
+                    if let words = view.strongWind {
+                        StrongWindBadge(words: words)
+                    }
+                    // The wind on the ground: the station that speaks for
+                    // the landing, else the nearest. A tap lists the
+                    // stations around.
+                    if let station = fly.windBelow?.stations.first {
+                        GroundWindBadge(station: station)
+                            .contentShape(.capsule)
+                            .onTapGesture {
+                                windsBeginOnTheGround = true
+                                isShowingWinds = true
+                            }
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Shows the wind stations around")
+                            .accessibilityIdentifier("ground-wind-badge")
+                    }
+                    // While circling: which way the lift is stronger, in
+                    // words beside the picture on the map.
+                    if let centre = view.lift?.centre {
+                        LiftBadge(centre: centre)
+                    }
+                }
+                .padding(VentiSpace.s2)
+            }
+            .overlay(alignment: .bottomLeading) {
+                if page == .map {
+                    HStack(spacing: VentiSpace.s2) {
+                        // The whole flight at a glance, with the scored
+                        // route and where to go for an FAI triangle; again
+                        // for the close view that follows the glider.
+                        MapButton(
+                            name: showsWholeFlight ? "Follow the glider" : "Show the whole flight",
+                            symbol: showsWholeFlight ? "location.fill" : "arrow.up.left.and.arrow.down.right"
+                        ) {
+                            showsWholeFlight.toggle()
+                        }
+                        // With airspace to warn from, or the ground to
+                        // draw: what lies on the line ahead, seen from the
+                        // side.
+                        if fly.airspaceCheck != .noAirspace || view.groundElevationM != nil {
+                            MapButton(name: "Ahead, from the side", symbol: "chart.line.downtrend.xyaxis") {
+                                isShowingAhead = true
+                            }
+                        }
+                    }
+                    .padding(VentiSpace.s2)
+                    // Clear of the map's own credits in the corner.
+                    .padding(.bottom, VentiSpace.s5)
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                    if let daylight = fly.daylight {
+                        DaylightBadge(daylight: daylight)
+                    }
+                    // The landing to think of first, and whether the glide
+                    // reaches it. A tap lists the places to fly to, each
+                    // with its reach.
+                    if let landing = fly.landing {
+                        LandingBadge(landing: landing)
+                            .contentShape(.capsule)
+                            .onTapGesture {
+                                isChoosingTarget = true
+                            }
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Lists the places to fly to")
+                    }
+                }
+                .padding(VentiSpace.s2)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                // Whose airspace the map draws: its licence asks for the
+                // credit next to the data.
+                if let credit = Self.airspaceCredit(airspace.credits) {
+                    Text(credit)
+                        .font(.ventiType(.label))
+                        .padding(.horizontal, VentiSpace.s2)
+                        .padding(.vertical, VentiSpace.s1)
+                        .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
+                        .padding(VentiSpace.s2)
+                        .accessibilityIdentifier("cockpit-airspace-credit")
+                }
+            }
+    }
+
+    /// The two buttons of the cockpit, in the same place on every page.
+    private var foot: some View {
+        HStack(spacing: VentiSpace.s3) {
+            Button {
+                page = page.next
+            } label: {
+                Text("Next page")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.venti(.quiet))
+            .accessibilityValue(page.name)
+            .accessibilityIdentifier("cockpit-next-page")
+
+            HoldToEnd(action: onFinish)
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, VentiSpace.s3)
     }
 
     private var isReplay: Bool {
@@ -387,6 +395,147 @@ struct CockpitScreen: View {
     private static func course(of view: CockpitView) -> Double? {
         guard let speed = view.groundSpeedMs, speed >= 2 else { return nil }
         return view.courseDeg
+    }
+}
+
+/// The line the design language draws between the readings and the map.
+private struct CockpitRule: View {
+    var body: some View {
+        Rectangle()
+            .fill(.venti(.border))
+            .frame(height: 2)
+    }
+}
+
+/// A round button over the map, as large as a finger in a glove needs.
+private struct MapButton: View {
+    let name: String
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.ventiType(.heading))
+                .frame(width: VentiSize.touchInFlight, height: VentiSize.touchInFlight)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .ventiFloating(in: .circle)
+        .accessibilityLabel(name)
+    }
+}
+
+/// The button that ends the session: held for a second, so that a glove, a
+/// line or a drop of rain ends nothing. It fills while the finger stays. A
+/// pilot who has the screen read out ends with the usual double tap, which
+/// is deliberate enough.
+private struct HoldToEnd: View {
+    let action: () -> Void
+
+    /// How long the finger has to stay, in seconds.
+    private static let hold = 1.0
+
+    @State private var isHeld = false
+    /// Counts the holds that were long enough, for the tap that says so.
+    @State private var ended = 0
+
+    var body: some View {
+        Text("Hold to end")
+            .font(.ventiType(.heading))
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: VentiSize.touchInFlight)
+            .foregroundStyle(.venti(.onPrimary))
+            .background {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(.venti(.primary))
+                        Rectangle()
+                            .fill(VentiBrand.purple)
+                            .frame(width: isHeld ? proxy.size.width : 0)
+                            .animation(
+                                isHeld ? .linear(duration: Self.hold) : .easeOut(duration: 0.15), value: isHeld
+                            )
+                    }
+                }
+                .clipShape(.capsule)
+            }
+            .contentShape(.capsule)
+            .onLongPressGesture(minimumDuration: Self.hold, maximumDistance: 60) {
+                isHeld = false
+                ended += 1
+                action()
+            } onPressingChanged: { isPressing in
+                isHeld = isPressing
+            }
+            .sensoryFeedback(.success, trigger: ended)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Hold to end")
+            .accessibilityHint("Ends the session")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, action)
+            .accessibilityIdentifier("cockpit-end")
+    }
+}
+
+/// Where the flight is in its life, while it is not in the air: ready on
+/// the ground, or landed and about to be saved.
+private struct PhaseNotice: View {
+    let title: String
+    let detail: String?
+    let icon: String
+
+    /// Nothing in the air: the readings say all there is to say.
+    init?(view: CockpitView, isReplay: Bool) {
+        switch view.phase {
+        case .flying:
+            return nil
+        case .ground:
+            icon = "icon-takeoff"
+            if view.waitingForTakeoff {
+                title = "Ready for take-off"
+                detail = "Recording starts by itself."
+            } else if view.recording {
+                title = "Recording"
+                detail = "Waiting for take-off."
+            } else {
+                title = "Waiting for take-off"
+                detail = nil
+            }
+        case .landed:
+            icon = "icon-landing"
+            title = "Landed"
+            if let left = view.savesInS, !isReplay {
+                detail = "The flight is saved in \(Format.minutesSeconds(seconds: left))."
+            } else {
+                detail = nil
+            }
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: VentiSpace.s3) {
+            Image(icon)
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(.ventiType(.heading))
+                if let detail {
+                    Text(detail)
+                        .font(.ventiType(.label))
+                        .monospacedDigit()
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, VentiSpace.s2)
+        .frame(minHeight: VentiSize.touch)
+        .background(.venti(.surfaceRaised), in: .rect(cornerRadius: VentiRadius.m))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("cockpit-phase")
     }
 }
 
@@ -434,17 +583,15 @@ private struct ReplaySpeedMenu: View {
             } label: {
                 Label(Self.words(speed), systemImage: speed == 0 ? "pause.fill" : "play.fill")
             }
-            .tint(.primary)
             .accessibilityIdentifier("replay-speed")
         }
     }
 }
 
-/// The line at the top: is it recording, how long, and are the sensors there.
+/// The line at the top: is it recording, how long, and are the sensors
+/// there. What is lost is said in words: "No GPS".
 private struct StatusLine: View {
     let view: CockpitView
-    /// How the flight scores so far.
-    let score: LiveScore?
     let mode: FlySession.Mode?
     let varioName: String?
     /// Whether the map is drawn from a region kept on the iPhone, and so
@@ -452,68 +599,41 @@ private struct StatusLine: View {
     var mapIsKept = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: VentiSpace.s2) {
             if case .replay = mode {
                 ReplaySpeedMenu()
             } else if view.recording {
-                Label("Recording", systemImage: "record.circle.fill")
-                    .symbolRenderingMode(.multicolor)
+                Label {
+                    Text("Recording")
+                } icon: {
+                    Image(systemName: "record.circle.fill")
+                        .foregroundStyle(.venti(.accentText))
+                }
+            } else if view.waitingForTakeoff {
+                Text("Ready")
             }
             if let seconds = view.flightTimeS {
                 Text(Format.stopwatch(seconds: seconds))
                     .monospacedDigit()
             }
-            // The cross-country distance so far, once there is a kilometre
-            // of it, with a triangle when it scores as one.
-            if let score, score.distanceM >= 1000 {
-                Label(
-                    "\(Format.kilometres(metres: score.distanceM)) km",
-                    systemImage: score.kind == .freeFlight ? "arrow.up.right" : "triangle"
-                )
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Cross-country distance")
-                .accessibilityValue(
-                    "\(Format.kilometres(metres: score.distanceM)) kilometres, \(Self.kindWords(score))"
-                )
-                // An open triangle: how far it is to where it began.
-                if let gap = score.closingM, !score.closed, gap >= 100 {
-                    Text("\(Format.kilometres(metres: gap)) to close")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 8)
+            Spacer(minLength: VentiSpace.s2)
             if positionIsLost {
-                Label("No position", systemImage: "location.slash.fill")
+                Label("No GPS", systemImage: "location.slash.fill")
                     .foregroundStyle(.venti(.danger))
             }
             if mapIsKept {
                 // One glyph: the line is full as it is.
                 Image(systemName: "arrow.down.circle.fill")
-                    .foregroundStyle(.secondary)
                     .accessibilityLabel("Map from this iPhone")
                     .accessibilityIdentifier("map-kept")
             }
             Text(varioText)
-                .foregroundStyle(varioIsLost ? Color.venti(.danger) : Color.venti(.textSecondary))
+                .foregroundStyle(.venti(varioIsLost ? .danger : .text))
         }
-        .font(.venti(.subheadline, .medium))
+        .font(.ventiType(.label))
         .lineLimit(1)
-        // With everything on it the line is full; it shrinks a little
-        // before anything is cut off.
-        .minimumScaleFactor(0.75)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    private static func kindWords(_ score: LiveScore) -> String {
-        switch score.kind {
-        case .freeFlight: "free flight"
-        case .freeTriangle: score.closed ? "closed triangle" : "triangle"
-        case .faiTriangle: score.closed ? "closed FAI triangle" : "FAI triangle"
-        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.vertical, VentiSpace.s2)
     }
 
     /// No position for five seconds means the fix is gone.
@@ -544,161 +664,325 @@ private struct StatusLine: View {
     }
 }
 
-/// The numbers. The upper pair never changes; the lower row is for cruising
-/// or for thermalling.
+/// The readings of the first page, as the design language's flight screen
+/// has them: the climb very large beside its scale, and four large ones in
+/// fixed places. Altitude and wind never move; the other two are for
+/// cruising or for thermalling.
 private struct Instruments: View {
     let view: CockpitView
     let way: WayToTarget?
+    /// Lists the wind of every band of height the glider has circled in.
+    let showWinds: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 0) {
-                Instrument(
-                    title: "Altitude",
+        VStack(alignment: .leading, spacing: VentiSpace.s1) {
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                Reading(
+                    name: "Climb",
+                    value: view.climbMs.map(Format.climb(metresPerSecond:)),
+                    unit: "m/s",
+                    note: view.averageClimbMs.map { "\(Format.climb(metresPerSecond: $0)) m/s average" },
+                    size: .veryLarge
+                )
+                VarioScale(climb: view.climbMs)
+                    .padding(.top, VentiSpace.s3)
+            }
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                Reading(
+                    name: "Altitude",
                     value: view.altitudeM.map(Format.metres),
                     unit: "m",
                     // Over the ground where the iPhone has the ground;
                     // over the take-off where it has not.
-                    detail: view.heightAboveGroundM.map { "\(Format.metres(max($0, 0))) m over ground" }
-                        ?? view.heightAboveTakeoffM.map { "\(Format.signedMetres($0)) m over take-off" },
-                    size: .large
+                    note: view.heightAboveGroundM.map { "\(Format.metres(max($0, 0))) m over ground" }
+                        ?? view.heightAboveTakeoffM.map { "\(Format.signedMetres($0)) m over take-off" }
                 )
-                Divider()
-                HStack(spacing: 10) {
-                    VarioBar(climb: view.climbMs)
-                    Instrument(
-                        title: "Climb",
-                        value: view.climbMs.map(Format.climb(metresPerSecond:)),
-                        unit: "m/s",
-                        detail: view.averageClimbMs.map { "\(Format.climb(metresPerSecond: $0)) average" },
-                        size: .large
-                    )
-                }
-                .padding(.leading, 12)
-            }
-            Divider()
-            HStack(spacing: 0) {
                 if view.circling {
-                    Instrument(
-                        title: "Gained",
+                    Reading(
+                        name: "Gained",
                         value: view.thermal.map { Format.signedMetres($0.gainM) },
                         unit: "m"
                     )
-                    Divider()
-                    Instrument(
-                        title: "Thermal",
-                        value: view.thermal.map { Format.climb(metresPerSecond: $0.climbMs) },
-                        unit: "m/s"
-                    )
-                    Divider()
-                    Instrument(
-                        title: "Wind",
-                        value: view.wind.map { Format.kilometresPerHour(metresPerSecond: $0.speedMs) },
-                        unit: view.wind.map { "km/h \(Format.compassPoint(degrees: $0.fromDeg))" } ?? "km/h"
-                    )
                 } else {
-                    Instrument(
-                        title: "Speed",
+                    Reading(
+                        name: "Ground speed",
                         value: view.groundSpeedMs.map(Format.kilometresPerHour(metresPerSecond:)),
                         unit: "km/h"
                     )
-                    Divider()
-                    Instrument(
-                        title: "Glide",
-                        value: view.glideRatio.map(Format.glideRatio),
-                        unit: ""
-                    )
-                    Divider()
-                    // Next to the glide the glider is making: the glide
-                    // it needs to reach the place it is flying to.
-                    Instrument(
-                        title: "Needs",
-                        value: way?.requiredGlide.map(Format.glideRatio),
-                        unit: ""
-                    )
                 }
             }
-            Divider()
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                if view.circling {
+                    Reading(
+                        name: "Thermal",
+                        value: view.thermal.map { Format.climb(metresPerSecond: $0.climbMs) },
+                        unit: "m/s"
+                    )
+                } else {
+                    // Under the glide the glider is making: the glide it
+                    // needs to reach the place it is flying to.
+                    Reading(
+                        name: "Glide",
+                        value: view.glideRatio.map(Format.glideRatio),
+                        unit: "",
+                        note: way?.requiredGlide.map { "Needs \(Format.glideRatio($0))" }
+                    )
+                }
+                // The wind as last measured while circling. One from a
+                // while ago is a memory of another place and height: its
+                // age stands under it.
+                Reading(
+                    name: view.wind.map { "Wind from \(Format.compassPoint(degrees: $0.fromDeg))" } ?? "Wind",
+                    spoken: "Wind",
+                    value: view.wind.map { Format.kilometresPerHour(metresPerSecond: $0.speedMs) },
+                    unit: "km/h",
+                    note: WindBadge.age(view.windAgeS).map { "\($0) old" }
+                )
+                .contentShape(.rect)
+                .onTapGesture(perform: showWinds)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Shows the wind by height")
+            }
         }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.bottom, VentiSpace.s2)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// One number in the cockpit. The sizes are fixed on purpose: an instrument
-/// has to be in the same place at the same size every time the pilot
-/// glances at it.
-private struct Instrument: View {
-    enum Size {
-        case large
-        case regular
-    }
-
-    let title: String
-    /// The value as text, or `nil` while the sensors have not supplied it.
-    let value: String?
-    let unit: String
-    var detail: String?
-    var size: Size = .regular
+/// The readings under the map of the second page: three, of middle size.
+private struct MapReadings: View {
+    let view: CockpitView
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.venti(.caption, .semibold))
-                .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value ?? "–")
-                    .font(.system(size: size == .large ? 46 : 32, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.5)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.system(size: size == .large ? 17 : 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .lineLimit(1)
-            if size == .large {
-                Text(detail ?? " ")
-                    .font(.venti(.footnote))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+        HStack(alignment: .top, spacing: VentiSpace.s3) {
+            Reading(
+                name: "Climb",
+                value: view.climbMs.map(Format.climb(metresPerSecond:)),
+                unit: "m/s",
+                size: .medium
+            )
+            Reading(
+                name: "Altitude",
+                value: view.altitudeM.map(Format.metres),
+                unit: "m",
+                size: .medium
+            )
+            Reading(
+                name: "Ground speed",
+                value: view.groundSpeedMs.map(Format.kilometresPerHour(metresPerSecond:)),
+                unit: "km/h",
+                size: .medium
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(value.map { unit.isEmpty ? $0 : "\($0) \(unit)" } ?? "not available")
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.top, VentiSpace.s1)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// Climb and sink as a bar that grows up or down from the middle, in the
-/// colours the track has on the map. Full scale is 5 m/s.
-private struct VarioBar: View {
-    let climb: Double?
+/// The third page: how the flight stands, and what can be switched. Its
+/// buttons are large, for gloves, and none of them ends anything.
+private struct FlightPage: View {
+    let view: CockpitView
+    /// How the flight scores so far.
+    let score: LiveScore?
+    let isReplay: Bool
+    let lock: () -> Void
+    let showLive: () -> Void
+
+    @Environment(FlySession.self) private var fly
 
     var body: some View {
-        GeometryReader { proxy in
-            let half = proxy.size.height / 2
-            let rate = climb ?? 0
-            let length = min(abs(rate) / 5, 1) * half
-            ZStack(alignment: .top) {
-                Capsule()
-                    .fill(Color.venti(.surfaceRaised))
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(ClimbBand(metresPerSecond: rate).color)
-                    .frame(height: max(length, 2))
-                    .offset(y: rate >= 0 ? half - length : half)
+        VStack(spacing: VentiSpace.s2) {
+            HStack(alignment: .top, spacing: VentiSpace.s3) {
+                Reading(
+                    name: "Flight time",
+                    value: view.flightTimeS.map(Format.stopwatch(seconds:)),
+                    unit: ""
+                )
+                // The cross-country distance so far, and how it scores.
+                Reading(
+                    name: "Distance",
+                    spoken: "Cross-country distance",
+                    value: score.map { Format.kilometres(metres: $0.distanceM) },
+                    unit: "km",
+                    note: score.map(Self.kind)
+                )
             }
-            .clipShape(Capsule())
+            HStack(spacing: VentiSpace.s3) {
+                Button {
+                    fly.isMuted.toggle()
+                } label: {
+                    Label(fly.isMuted ? "Unmute vario" : "Mute vario", systemImage: fly.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("cockpit-mute")
+                // Nothing on the screen answers a touch until it is
+                // unlocked by holding a finger on the lock.
+                Button(action: lock) {
+                    Label("Lock screen", systemImage: "lock.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("cockpit-lock")
+            }
+            // Who watches the flight, and whether it is going out. Not in
+            // a replay: what is replayed is not shared, nor recorded.
+            if !isReplay {
+                HStack(spacing: VentiSpace.s3) {
+                    LiveButton(live: fly.live, open: showLive)
+                    // For a pilot who would rather not wait for the
+                    // take-off to be noticed.
+                    if view.waitingForTakeoff {
+                        Button {
+                            fly.recordNow()
+                        } label: {
+                            Text("Record now")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .accessibilityIdentifier("cockpit-record-now")
+                    }
+                }
+            }
         }
-        .frame(width: 10)
-        .padding(.vertical, 10)
+        .buttonStyle(.venti(.quiet))
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.bottom, VentiSpace.s3)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// How the distance scores, and for an open triangle how far it is to
+    /// where it began: "Triangle, 1.2 km to close".
+    static func kind(_ score: LiveScore) -> String {
+        let kind = switch score.kind {
+        case .freeFlight: "Free flight"
+        case .freeTriangle: score.closed ? "Closed triangle" : "Triangle"
+        case .faiTriangle: score.closed ? "Closed FAI triangle" : "FAI triangle"
+        }
+        if let gap = score.closingM, !score.closed, gap >= 100 {
+            return "\(kind), \(Format.kilometres(metres: gap)) km to close"
+        }
+        return kind
+    }
+}
+
+/// One reading of the cockpit: the number, and under it its name.
+///
+/// The numbers are the design language's instrument sizes and do not grow
+/// with the text size: a reading has to be in the same place at the same
+/// size every time the pilot glances at it. A value the sensors have not
+/// supplied is two dashes, never an old number.
+private struct Reading: View {
+    enum Size {
+        /// The one reading a page may have of this size.
+        case veryLarge
+        case large
+        case medium
+    }
+
+    /// The name under the number.
+    let name: String
+    /// The name as it is read out, where the one shown says more than a
+    /// name: "Wind" for "Wind from W".
+    var spoken: String?
+    /// The value as text, or `nil` while the sensors have not supplied it.
+    let value: String?
+    let unit: String
+    /// What is worth knowing beside it, under the name.
+    var note: String?
+    var size = Size.large
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s1) {
+                Text(value ?? "– –")
+                    .font(numberFont)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.6)
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(unitFont)
+                }
+            }
+            .lineLimit(1)
+            // The typeface leaves room under its figures for descenders
+            // that numbers do not have: the name moves up into it.
+            .padding(.bottom, size == .veryLarge ? -10 : size == .large ? -4 : 0)
+            Text(name)
+                .font(.ventiType(.label))
+                .lineLimit(1)
+            // Its line is kept when there is nothing to say, so that the
+            // readings below stay where they are.
+            if size != .medium {
+                Text(note ?? " ")
+                    .font(.ventiType(.label))
+                    .monospacedDigit()
+                    .foregroundStyle(.venti(.textMuted))
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken ?? name)
+        .accessibilityValue(spokenValue)
+    }
+
+    private var numberFont: Font {
+        switch size {
+        case .veryLarge: .custom("FiraSans-Bold", fixedSize: 84)
+        case .large: .custom("FiraSans-Bold", fixedSize: 44)
+        case .medium: .custom("FiraSans-SemiBold", fixedSize: 24)
+        }
+    }
+
+    private var unitFont: Font {
+        switch size {
+        case .veryLarge: .custom("FiraSans-SemiBold", fixedSize: 24)
+        case .large: .custom("FiraSans-SemiBold", fixedSize: 16)
+        case .medium: .custom("FiraSans-Medium", fixedSize: 14)
+        }
+    }
+
+    private var spokenValue: String {
+        guard let value else { return "not available" }
+        let number = unit.isEmpty ? value : "\(value) \(unit)"
+        return note.map { "\(number), \($0)" } ?? number
+    }
+}
+
+/// Climb and sink at a glance, as the design language draws it: three
+/// steps above a line for the climb and three below for the sink, each lit
+/// in its colour of the vario scale once the glider climbs or sinks that
+/// fast. It is read by its shape: more steps, more climb.
+private struct VarioScale: View {
+    let climb: Double?
+
+    @Environment(\.venti) private var theme
+
+    private static let up: [ClimbBand] = [.strongClimb, .climb, .lightClimb]
+    private static let down: [ClimbBand] = [.lightSink, .sink, .strongSink]
+
+    var body: some View {
+        let band = climb.map { ClimbBand(metresPerSecond: $0) } ?? .level
+        VStack(spacing: VentiSpace.s1) {
+            ForEach(Self.up, id: \.self) { step in
+                segment(step, isLit: band.rawValue >= step.rawValue)
+            }
+            Rectangle()
+                .fill(theme.text)
+                .frame(height: 3)
+            ForEach(Self.down, id: \.self) { step in
+                segment(step, isLit: band.rawValue <= step.rawValue)
+            }
+        }
+        .frame(width: 44)
         .accessibilityHidden(true)
+    }
+
+    private func segment(_ step: ClimbBand, isLit: Bool) -> some View {
+        Rectangle()
+            .fill(isLit ? theme.vario[step.rawValue] : theme.surfaceRaised)
+            .frame(height: 12)
     }
 }
 
@@ -726,7 +1010,7 @@ private struct DaylightBadge: View {
             Label(text.words, systemImage: text.isLate ? "moon.fill" : "sunset.fill")
                 .font(.venti(.subheadline, .semibold))
                 .monospacedDigit()
-                .foregroundStyle(text.isLate ? Color.venti(.danger) : Color.venti(.text))
+                .foregroundStyle(.venti(text.isLate ? .danger : .text))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .ventiFloating(in: .capsule)
@@ -776,8 +1060,9 @@ struct WindBadge: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "arrow.up")
-                .font(.venti(.headline, .bold))
+            Image("icon-arrow-wind")
+                .resizable()
+                .frame(width: 20, height: 20)
                 // The arrow shows where the wind goes; the map is north-up.
                 .rotationEffect(.degrees(wind.fromDeg + 180))
             Text("\(Format.kilometresPerHour(metresPerSecond: wind.speedMs)) km/h")
@@ -789,7 +1074,6 @@ struct WindBadge: View {
                 Text(age)
                     .font(.venti(.subheadline))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 12)
@@ -812,20 +1096,21 @@ struct WindBadge: View {
     }
 }
 
-/// The wind on the ground in one badge: a flag, where the wind goes and
-/// its mean and gusts, as the station that speaks for the landing
+/// The wind on the ground in one badge: a windsock, where the wind goes
+/// and its mean and gusts, as the station that speaks for the landing
 /// measured it, or else the nearest. Red when it is strong for a landing.
 struct GroundWindBadge: View {
     let station: GroundWindStation
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "flag.fill")
-                .font(.venti(.subheadline))
-                .foregroundStyle(.secondary)
+            Image("icon-windsock")
+                .resizable()
+                .frame(width: 20, height: 20)
             if let from = station.fromDeg {
-                Image(systemName: "arrow.up")
-                    .font(.venti(.subheadline, .bold))
+                Image("icon-arrow-wind")
+                    .resizable()
+                    .frame(width: 16, height: 16)
                     .rotationEffect(.degrees(from + 180))
             }
             // Mean and gusts, and how far off the station is when it is
@@ -834,7 +1119,7 @@ struct GroundWindBadge: View {
                 .font(.venti(.subheadline, .semibold))
                 .monospacedDigit()
         }
-        .foregroundStyle(station.isStrong ? Color.venti(.danger) : Color.venti(.text))
+        .foregroundStyle(.venti(station.isStrong ? .danger : .text))
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .ventiFloating(in: .capsule)
@@ -854,14 +1139,17 @@ struct GroundWindBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Button(action: open) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "wind")
-                        .font(.venti(.title3))
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .top, spacing: VentiSpace.s3) {
+                    Image("icon-wind")
+                        .resizable()
+                        .frame(width: VentiSize.icon, height: VentiSize.icon)
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(alert.title)
-                            .font(.venti(.headline))
+                            .font(.ventiType(.heading))
+                            .multilineTextAlignment(.leading)
                         Text(alert.detail)
-                            .font(.venti(.footnote))
+                            .font(.ventiType(.label))
+                            .multilineTextAlignment(.leading)
                     }
                     Spacer(minLength: 0)
                 }
@@ -871,14 +1159,16 @@ struct GroundWindBanner: View {
             .accessibilityIdentifier("ground-wind-warning")
             Button("Put the warning away", systemImage: "xmark", action: putAway)
                 .labelStyle(.iconOnly)
-                .font(.venti(.headline))
-                .frame(width: 36, height: 36)
+                .font(.ventiType(.heading))
+                .frame(width: VentiSize.touch, height: VentiSize.touch)
+                .contentShape(.rect)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .foregroundStyle(.venti(.caution))
+        .padding(.leading, VentiSpace.s4)
+        .padding(.trailing, VentiSpace.s1)
+        .padding(.vertical, VentiSpace.s2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.72, green: 0.32, blue: 0.06), in: .rect(cornerRadius: 14))
+        .background(.venti(.cautionSoft), in: .rect(cornerRadius: VentiRadius.m))
     }
 }
 
@@ -897,18 +1187,18 @@ struct LandingBadge: View {
                 // half a name says less than the height alone.
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 6) {
-                        Image(systemName: "airplane.arrival")
+                        Self.sign
                         Text(landing.name)
                         Text(height)
                     }
                     HStack(spacing: 6) {
-                        Image(systemName: "airplane.arrival")
+                        Self.sign
                         Text(height)
                     }
                 }
             } else {
                 HStack(spacing: 6) {
-                    Image(systemName: "airplane.arrival")
+                    Self.sign
                     Text("No landing in reach")
                 }
             }
@@ -916,7 +1206,7 @@ struct LandingBadge: View {
         .lineLimit(1)
         .font(.venti(.subheadline, .semibold))
         .monospacedDigit()
-        .foregroundStyle(Self.color(landing.reach.reach))
+        .foregroundStyle(.venti(Self.role(landing.reach.reach)))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .ventiFloating(in: .capsule)
@@ -937,14 +1227,22 @@ struct LandingBadge: View {
         return "\(Format.signedMetres((arrival / 10).rounded() * 10)) m"
     }
 
-    /// Plain while there is height to spare, amber when there is little,
-    /// red when no landing is within reach.
-    static func color(_ reach: Reach) -> Color {
+    /// The design language's sign for a landing.
+    private static var sign: some View {
+        Image("icon-landing")
+            .resizable()
+            .frame(width: 20, height: 20)
+    }
+
+    /// Plain while there is height to spare, the colour of caution when
+    /// there is little, of danger when no landing is within reach. The
+    /// words say the same.
+    static func role(_ reach: Reach) -> VentiColor.Role {
         switch reach {
-        case .within: .primary
-        case .just: .orange
-        case .beyond: .red
-        case .unknown: .secondary
+        case .within: .text
+        case .just: .caution
+        case .beyond: .danger
+        case .unknown: .textSecondary
         }
     }
 
@@ -960,16 +1258,22 @@ private struct StrongWindBadge: View {
     let words: String
 
     var body: some View {
-        Label(words, systemImage: "exclamationmark.triangle.fill")
-            .font(.venti(.subheadline, .semibold))
-            .monospacedDigit()
-            .foregroundStyle(.venti(.caution))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .ventiFloating(in: .capsule)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Strong wind")
-            .accessibilityValue(words)
-            .accessibilityIdentifier("strong-wind-badge")
+        Label {
+            Text(words)
+        } icon: {
+            Image("icon-caution")
+                .resizable()
+                .frame(width: 20, height: 20)
+        }
+        .font(.venti(.subheadline, .semibold))
+        .monospacedDigit()
+        .foregroundStyle(.venti(.caution))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .ventiFloating(in: .capsule)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Strong wind")
+        .accessibilityValue(words)
+        .accessibilityIdentifier("strong-wind-badge")
     }
 }

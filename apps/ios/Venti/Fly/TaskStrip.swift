@@ -23,9 +23,8 @@ struct TaskStrip: View {
                     Text(Self.detail(status))
                         .font(.venti(.subheadline, .medium))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.venti(.textSecondary))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
                 }
                 Spacer(minLength: 8)
                 if status.phase != .inGoal {
@@ -34,14 +33,13 @@ struct TaskStrip: View {
                             .font(.venti(.headline))
                             .monospacedDigit()
                         Text(Self.goalDetail(status))
-                            .font(.venti(.caption))
-                            .foregroundStyle(.secondary)
+                            .font(.venti(.subheadline))
+                            .foregroundStyle(.venti(.textSecondary))
                             .monospacedDigit()
                     }
                 }
                 Image(systemName: "chevron.right")
-                    .font(.venti(.footnote, .semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.venti(.subheadline, .semibold))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
@@ -187,7 +185,7 @@ struct TaskProgressSheet: View {
                     }
                 } else {
                     Text("No task is being flown.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.venti(.textSecondary))
                 }
             }
             .navigationTitle("Task")

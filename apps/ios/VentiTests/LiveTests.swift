@@ -28,10 +28,10 @@ final class LiveTests: XCTestCase {
     }
 
     func testTheButtonShowsWhetherTheFlightGoesOut() {
-        XCTAssertEqual(LiveButton.tint(for: .sharing), .green)
-        XCTAssertEqual(LiveButton.tint(for: .waiting), .orange)
-        XCTAssertNil(LiveButton.tint(for: .stopped))
-        XCTAssertNil(LiveButton.tint(for: nil))
+        XCTAssertEqual(LiveButton.role(for: .sharing), .good)
+        XCTAssertEqual(LiveButton.role(for: .waiting), .caution)
+        XCTAssertNil(LiveButton.role(for: .stopped))
+        XCTAssertNil(LiveButton.role(for: nil))
         XCTAssertEqual(LiveButton.symbol(for: nil), "antenna.radiowaves.left.and.right.slash")
         XCTAssertEqual(LiveButton.symbol(for: .waiting), "wifi.exclamationmark")
         XCTAssertEqual(LiveButton.symbol(for: .sharing), "antenna.radiowaves.left.and.right")
@@ -99,7 +99,7 @@ final class LiveTests: XCTestCase {
         )
         let landed = live.gliders[1]
         XCTAssertEqual(live.ageInWords(of: landed, at: live.answeredAt), "Landed 9 min ago")
-        XCTAssertEqual(LiveGliderRow.detail(of: flying, age: "Now"), "1,596 m · -1.0 m/s · Now")
+        XCTAssertEqual(LiveGliderRow.detail(of: flying, age: "Now"), "1596 m · \u{2212}1.0 m/s · Now")
         XCTAssertEqual(LiveGliderRow.detail(of: landed, age: "Landed 9 min ago"), "786 m · Landed 9 min ago")
 
         // On the map: a wing turned the way it flies, and a disc that

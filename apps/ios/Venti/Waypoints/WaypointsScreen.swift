@@ -163,7 +163,7 @@ struct WaypointRow: View {
                 Text("\(Format.signedMetres((arrival / 10).rounded() * 10)) m")
                     .font(.venti(.subheadline, .medium))
                     .monospacedDigit()
-                    .foregroundStyle(LandingBadge.color(reach.reach))
+                    .foregroundStyle(.venti(LandingBadge.role(reach.reach)))
             }
             if isChosen {
                 Image(systemName: "checkmark")

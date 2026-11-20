@@ -28,6 +28,23 @@ final class VentiUITests: XCTestCase {
         app.descendants(matching: .any)[name].firstMatch
     }
 
+    /// Turns the cockpit to its next page: from the readings to the map,
+    /// to the flight with what can be switched, and around.
+    private func nextPage(in app: XCUIApplication) {
+        let next = element("cockpit-next-page", in: app)
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        next.tap()
+        usleep(500_000)
+    }
+
+    /// Ends the session in the cockpit: its button is held, and nothing
+    /// asks again.
+    private func endTheCockpit(in app: XCUIApplication) {
+        let end = element("cockpit-end", in: app)
+        XCTAssertTrue(end.waitForExistence(timeout: 10))
+        end.press(forDuration: 1.6)
+    }
+
     /// Waits until everything named, by identifier or by label, is on the
     /// screen at one and the same look, and says whether it came to that.
     /// What a replay shows passes: looked for one thing after the other,
@@ -279,11 +296,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
         choose("10 times faster", from: element("replay-speed", in: app), in: app)
         XCTAssertTrue(labelled(containing: "Replay ×10", in: app).waitForExistence(timeout: 10))
-        app.buttons["End replay"].tap()
-        let close = app.buttons["Close the cockpit"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        endTheCockpit(in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
         // Back to the logbook, where the flight's page still is. It hides
         // the tab bar, so the tab cannot be asked whether it is selected.
         let logbookTab = app.tabBars.buttons["Logbook"]
@@ -311,7 +325,7 @@ final class VentiUITests: XCTestCase {
     func testTheCockpitShowsAReplayedFlight() {
         let app = launch(bundledMap: true, extra: ["--sample-waypoints"])
         openTab("Fly", in: app)
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
         keepScreenshot("fly-1-ready")
 
         // Who may watch a flight while it is under way: nobody, until the
@@ -323,7 +337,7 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("fly-1b-live")
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 10))
 
         choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
         XCTAssertTrue(element("Altitude", in: app).waitForExistence(timeout: 20))
@@ -346,8 +360,11 @@ final class VentiUITests: XCTestCase {
         sleep(3)
         keepScreenshot("fly-3-glide")
 
-        // The cockpit shows the way back to the take-off until the pilot
-        // chooses a place; the waypoints are listed nearest first.
+        // The second page: the map as large as it gets, and under it the
+        // way to the place flown to. The cockpit shows the way back to the
+        // take-off until the pilot chooses a place; the waypoints are
+        // listed nearest first.
+        nextPage(in: app)
         let strip = element("target-strip", in: app)
         XCTAssertTrue(valued(containing: "Take-off", in: app).exists)
         strip.tap()
@@ -378,25 +395,32 @@ final class VentiUITests: XCTestCase {
         app.buttons["Follow the glider"].tap()
         XCTAssertTrue(app.buttons["Show the whole flight"].waitForExistence(timeout: 10))
 
+        // The third page: how the flight stands, and what can be switched.
+        nextPage(in: app)
+        let lock = element("cockpit-lock", in: app)
+        XCTAssertTrue(lock.waitForExistence(timeout: 10))
+        XCTAssertTrue(element("Flight time", in: app).exists)
+        XCTAssertTrue(element("cockpit-mute", in: app).exists)
+        sleep(1)
+        keepScreenshot("fly-5d-flight-page")
+
         // Locked, the screen answers no touch: a press where the button
-        // to end the flight is does nothing. Holding the lock opens it.
-        app.buttons["Lock the screen"].tap()
+        // for the next page is leaves the page where it is. Holding the
+        // lock opens it.
+        lock.tap()
         let unlock = element("cockpit-unlock", in: app)
         XCTAssertTrue(unlock.waitForExistence(timeout: 10))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.92)).tap()
         sleep(1)
-        XCTAssertFalse(app.navigationBars["Fly to"].exists)
-        keepScreenshot("fly-5d-locked")
+        XCTAssertTrue(lock.exists)
+        keepScreenshot("fly-5e-locked")
         unlock.press(forDuration: 1.6)
-        XCTAssertTrue(app.buttons["Lock the screen"].waitForExistence(timeout: 10))
         sleep(1)
         XCTAssertFalse(element("cockpit-unlock", in: app).exists)
+        XCTAssertTrue(lock.exists)
 
-        app.buttons["End replay"].tap()
-        let close = app.buttons["Close the cockpit"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        endTheCockpit(in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
 
         // Settings, and the credits the map data's licences ask for.
         openTab("Settings", in: app)
@@ -435,7 +459,7 @@ final class VentiUITests: XCTestCase {
         // cockpit is checking: no notice, no warning.
         sleep(3)
         keepScreenshot("fly-6a-before-the-zone")
-        XCTAssertTrue(app.buttons["End replay"].exists, "The cockpit can be read while it replays.")
+        XCTAssertTrue(element("cockpit-end", in: app).exists, "The cockpit can be read while it replays.")
         XCTAssertFalse(element("airspace-notice", in: app).exists)
 
         // The warning comes when the glider is two kilometres from the
@@ -450,7 +474,8 @@ final class VentiUITests: XCTestCase {
         // from the ground up, the ground under it, and the glide running
         // into the one or the other. Looked at while the glider still
         // glides towards the zone: holding the replay first took until it
-        // circled again.
+        // circled again. Its button is on the map's page.
+        nextPage(in: app)
         app.buttons["Ahead, from the side"].tap()
         XCTAssertTrue(element("ahead-words", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "SAMPLE ZONE", in: app).exists)
@@ -478,10 +503,7 @@ final class VentiUITests: XCTestCase {
         app.buttons["Does not apply today"].tap()
         XCTAssertTrue(element("Airspace warning, quieted", in: app).waitForExistence(timeout: 10))
 
-        app.buttons["End replay"].tap()
-        let close = app.buttons["Close the cockpit"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
+        endTheCockpit(in: app)
 
         // The files behind the warnings.
         openTab("Settings", in: app)
@@ -711,8 +733,10 @@ final class VentiUITests: XCTestCase {
 
         // The flight leaves the start cylinder seven minutes in, which at
         // twenty times its speed is after some twenty seconds.
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
         choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        // Where the flight stands in its task is on the map's page.
+        nextPage(in: app)
         let strip = element("task-strip", in: app)
         XCTAssertTrue(strip.waitForExistence(timeout: 30))
         XCTAssertTrue(valued(containing: "Sample start", in: app).waitForExistence(timeout: 10))
@@ -737,11 +761,8 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Skip to the next turnpoint"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
 
-        app.buttons["End replay"].tap()
-        let close = app.buttons["Close the cockpit"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        endTheCockpit(in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
     }
 
     /// A route of the pilot's own waypoints: tapped in the order to fly
@@ -1125,7 +1146,7 @@ final class VentiUITests: XCTestCase {
         }
         let app = launch(bundledMap: true, extra: ["--server", server])
         openTab("Fly", in: app)
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
 
         // Before take-off the Fly tab says whether there is a map for
         // flying without a network, and leads to the regions.
@@ -1158,7 +1179,7 @@ final class VentiUITests: XCTestCase {
 
         // Back on the Fly tab, the region is named among what to check.
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Start flight"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
         XCTAssertTrue(labelled(containing: "Tegernsee valley", in: app).waitForExistence(timeout: 10))
 
         // The sample flight is over the Tegernsee, inside the region: the
@@ -1170,7 +1191,7 @@ final class VentiUITests: XCTestCase {
         sleep(6)
         keepScreenshot("maps-3-cockpit")
         // The height over the ground is read from the region's elevation.
-        XCTAssertTrue(labelled(containing: "over ground", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(saying("over ground", in: app).waitForExistence(timeout: 30))
 
         // The wind on the ground, from the server's wind stations: the
         // nearest in a badge, and all of them in the wind's sheet, which

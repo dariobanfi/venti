@@ -55,15 +55,23 @@ enum Format {
 
     /// A number with a fixed count of decimals: "59.36", "1,596".
     static func decimal(_ value: Double, places: Int) -> String {
-        value.formatted(.number.precision(.fractionLength(places)).locale(numbers))
+        minus(value.formatted(.number.precision(.fractionLength(places)).locale(numbers)))
     }
 
-    /// The same with a sign, except for zero: "+2.4", "-135".
+    /// The same with a sign, except for zero: "+2.4", "−1.4".
     private static func signed(_ value: Double, places: Int) -> String {
-        value.formatted(
-            .number.precision(.fractionLength(places)).sign(strategy: .always(includingZero: false))
-                .locale(numbers)
+        minus(
+            value.formatted(
+                .number.precision(.fractionLength(places)).sign(strategy: .always(includingZero: false))
+                    .locale(numbers)
+            )
         )
+    }
+
+    /// The design language's minus, U+2212, in place of the hyphen the
+    /// system writes before a negative number.
+    private static func minus(_ text: String) -> String {
+        text.replacingOccurrences(of: "-", with: "\u{2212}")
     }
 
     /// A whole number of things: "1,745".
@@ -86,14 +94,21 @@ enum Format {
         decimal(metres / 1000, places: 0)
     }
 
-    /// Whole metres.
+    /// Whole metres, as a height is written: "2410", with no mark between
+    /// the thousands. The design language writes heights so, an altimeter
+    /// does, and a comma there reads as a decimal to half of Europe.
     static func metres(_ metres: Double) -> String {
-        decimal(metres, places: 0)
+        minus(metres.formatted(.number.precision(.fractionLength(0)).grouping(.never).locale(numbers)))
     }
 
-    /// Whole metres with a sign, for a gain or a loss.
+    /// Whole metres with a sign, for a gain or a loss: "+1140", "−135".
     static func signedMetres(_ metres: Double) -> String {
-        signed(metres, places: 0)
+        minus(
+            metres.formatted(
+                .number.precision(.fractionLength(0)).grouping(.never)
+                    .sign(strategy: .always(includingZero: false)).locale(numbers)
+            )
+        )
     }
 
     /// Metres per second with one decimal and always a sign, except for zero.

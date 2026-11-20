@@ -53,14 +53,15 @@ struct VentiButtonStyle: ButtonStyle {
         let configuration: Configuration
 
         @Environment(\.venti) private var theme
+        @Environment(\.ventiInFlight) private var isInFlight
         @Environment(\.isEnabled) private var isEnabled
 
         var body: some View {
             configuration.label
-                .font(.venti(.body, .semibold))
+                .font(isInFlight ? .ventiType(.heading) : .venti(.body, .semibold))
                 .lineLimit(1)
-                .padding(.horizontal, VentiSpace.s5)
-                .frame(minHeight: VentiSize.touch)
+                .padding(.horizontal, isInFlight ? VentiSpace.s4 : VentiSpace.s5)
+                .frame(minHeight: isInFlight ? VentiSize.touchInFlight : VentiSize.touch)
                 .foregroundStyle(ink)
                 .background(fill, in: .capsule)
                 .overlay {
@@ -169,10 +170,29 @@ extension View {
     }
 
     /// What floats over a map: the pack's surface in a shape, with the
-    /// pack's shadow for it (`--shadow-float`). No glass.
+    /// pack's shadow for it (`--shadow-float`). No glass. In flight there
+    /// are no shadows: the shape has an edge instead.
     func ventiFloating(in shape: some Shape) -> some View {
-        background(.venti(.surface), in: shape)
-            .shadow(color: VentiBrand.ink.opacity(0.14), radius: 3, y: 2)
-            .shadow(color: VentiBrand.ink.opacity(0.16), radius: 12, y: 8)
+        modifier(Floating(shape: shape))
+    }
+}
+
+private struct Floating<Outline: Shape>: ViewModifier {
+    let shape: Outline
+    @Environment(\.ventiInFlight) private var isInFlight
+
+    func body(content: Content) -> some View {
+        if isInFlight {
+            content
+                .background(.venti(.surface), in: shape)
+                .overlay {
+                    shape.stroke(.venti(.borderStrong), lineWidth: 1.5)
+                }
+        } else {
+            content
+                .background(.venti(.surface), in: shape)
+                .shadow(color: VentiBrand.ink.opacity(0.14), radius: 3, y: 2)
+                .shadow(color: VentiBrand.ink.opacity(0.16), radius: 12, y: 8)
+        }
     }
 }

@@ -15,7 +15,7 @@ extension AirspaceLevel {
     }
 }
 
-/// The most urgent airspace warning, laid over the cockpit's map. A tap
+/// The most urgent airspace warning, at the top of the cockpit. A tap
 /// opens all of them, with the ways to quiet one.
 struct AirspaceBanner: View {
     let warnings: [AirspaceWarning]
@@ -38,11 +38,11 @@ struct AirspaceBanner: View {
         VStack(spacing: 6) {
             if let notice {
                 Label(notice, systemImage: "eye.slash")
-                    .font(.venti(.footnote, .medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .font(.ventiType(.label))
+                    .padding(.horizontal, VentiSpace.s4)
+                    .padding(.vertical, VentiSpace.s2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .ventiFloating(in: .rect(cornerRadius: 14))
+                    .background(.venti(.surfaceRaised), in: .rect(cornerRadius: VentiRadius.m))
                     .accessibilityIdentifier("airspace-notice")
             }
             band
@@ -52,34 +52,41 @@ struct AirspaceBanner: View {
     @ViewBuilder private var band: some View {
         if let warning = warnings.first(where: { !$0.silenced }) ?? warnings.first {
             Button(action: open) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: warning.silenced ? "bell.slash.fill" : "exclamationmark.triangle.fill")
-                        .font(.venti(.title3))
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .center, spacing: VentiSpace.s3) {
+                    if warning.silenced {
+                        Image(systemName: "bell.slash.fill")
+                            .font(.ventiType(.heading))
+                            .frame(width: VentiSize.icon)
+                    } else {
+                        Image("icon-airspace")
+                            .resizable()
+                            .frame(width: VentiSize.icon, height: VentiSize.icon)
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(warning.headline)
-                            .font(.venti(.headline))
+                            .font(.ventiType(.heading))
                             .multilineTextAlignment(.leading)
                         Text(warning.detail)
-                            .font(.venti(.footnote))
+                            .font(.ventiType(.label))
                             .multilineTextAlignment(.leading)
                         if let uncertain = warning.uncertain {
                             Text(uncertain)
-                                .font(.venti(.footnote))
+                                .font(.ventiType(.label))
                                 .multilineTextAlignment(.leading)
                         }
                     }
-                    Spacer(minLength: 4)
+                    Spacer(minLength: VentiSpace.s1)
                     if warnings.count > 1 {
                         Text("+\(warnings.count - 1)")
-                            .font(.venti(.subheadline, .semibold))
+                            .font(.ventiType(.heading))
                             .monospacedDigit()
                     }
                 }
-                .foregroundStyle(Self.ink(for: warning))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Self.ground(for: warning), in: .rect(cornerRadius: 16))
+                .foregroundStyle(.venti(Self.ink(for: warning)))
+                .padding(.horizontal, VentiSpace.s4)
+                .padding(.vertical, VentiSpace.s2)
+                .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .leading)
+                .background(.venti(Self.ground(for: warning)), in: .rect(cornerRadius: VentiRadius.m))
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
@@ -90,27 +97,28 @@ struct AirspaceBanner: View {
         }
     }
 
-    /// Red when the glider is inside or about to be, amber when very near,
-    /// plain otherwise. A quieted warning is plain whatever its level.
-    private static func ground(for warning: AirspaceWarning) -> AnyShapeStyle {
+    /// The design language's alert when the glider is inside or about to
+    /// be, its caution when very near, plain otherwise. A quieted warning
+    /// is plain whatever its level. The words say the level too.
+    static func ground(for warning: AirspaceWarning) -> VentiColor.Role {
         if warning.silenced {
-            return AnyShapeStyle(.venti(.surface))
+            return .surfaceRaised
         }
-        switch warning.level {
-        case .inside, .entering: return AnyShapeStyle(Color(red: 0.72, green: 0.14, blue: 0.17))
-        case .veryNear: return AnyShapeStyle(Color(red: 0.98, green: 0.70, blue: 0.10))
-        case .near: return AnyShapeStyle(.venti(.surface))
+        return switch warning.level {
+        case .inside, .entering: .dangerFill
+        case .veryNear: .cautionSoft
+        case .near: .surfaceRaised
         }
     }
 
-    private static func ink(for warning: AirspaceWarning) -> Color {
+    static func ink(for warning: AirspaceWarning) -> VentiColor.Role {
         if warning.silenced {
-            return .secondary
+            return .textSecondary
         }
-        switch warning.level {
-        case .inside, .entering: return .white
-        case .veryNear: return Color(red: 0.04, green: 0.04, blue: 0.04)
-        case .near: return .primary
+        return switch warning.level {
+        case .inside, .entering: .onDangerFill
+        case .veryNear: .caution
+        case .near: .text
         }
     }
 }

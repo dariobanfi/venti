@@ -11,7 +11,9 @@ import VentiCore
 /// vario should sound like. It contains no flying logic.
 ///
 /// A session is either live, fed by the sensors and recorded, or a replay
-/// of a recorded flight, fed by the core and not recorded.
+/// of a recorded flight, fed by the core and not recorded. A live one
+/// records by itself: the core begins the flight file at the take-off and
+/// says when the flight is over.
 @MainActor
 @Observable
 final class FlySession {
@@ -96,6 +98,11 @@ final class FlySession {
     /// Carries a request to that server and brings back its answer, or
     /// `nil` if none came. The app sets this.
     @ObservationIgnored var carry: @MainActor (ServerRequest) async -> AccountModel.Answer? = { _ in nil }
+    /// Takes the recording of a flight that ended by itself, to put it
+    /// into the logbook as one the pilot ended. The Fly tab sets this.
+    /// Without it the file waits in the data folder and is found at the
+    /// next launch.
+    @ObservationIgnored var savedByItself: @MainActor (PendingRecording) -> Void = { _ in }
     /// Something the pilot must be told, such as location being denied.
     var problem: String?
     /// Whether the vario is silent. Remembered between flights.
@@ -161,15 +168,17 @@ final class FlySession {
         self.dataFolder = dataFolder
     }
 
-    /// Switches the sensors on and starts recording.
+    /// Switches the sensors on and makes the session ready: it waits on
+    /// the ground and records from the take-off.
     func startFlight() {
         guard mode == nil else { return }
         let session = FlightSession(dataFolder: dataFolder.path)
         do {
             let defaults = UserDefaults.standard
-            try session.startRecording(
+            try session.recordFromTakeoff(
                 pilot: defaults.string(forKey: Preferences.pilot),
-                glider: defaults.string(forKey: Preferences.glider)
+                glider: defaults.string(forKey: Preferences.glider),
+                nowUnixS: Date().timeIntervalSince1970
             )
         } catch {
             problem = error.words
@@ -189,6 +198,37 @@ final class FlySession {
         begin(session, mode: .live)
         // Shown to others from take-off, if the pilot chose so.
         share(with: LiveChoice.stored.audience)
+    }
+
+    /// Records from now, for a pilot who would rather not wait for the
+    /// take-off to be noticed. The flight file begins with the half minute
+    /// the session has kept.
+    func recordNow() {
+        guard let session, mode == .live else { return }
+        do {
+            let defaults = UserDefaults.standard
+            try session.startRecording(
+                pilot: defaults.string(forKey: Preferences.pilot),
+                glider: defaults.string(forKey: Preferences.glider)
+            )
+        } catch {
+            problem = error.words
+        }
+        refresh(elapsed: 0)
+    }
+
+    /// Ends a flight that is over by itself: landed and saved as if the
+    /// pilot had ended it, or given up on because nobody took off.
+    private func endByItself(_ over: SessionOver) {
+        let recording = finish()
+        switch over {
+        case .landed:
+            if let recording {
+                savedByItself(recording)
+            }
+        case .noTakeoff:
+            problem = "Nobody took off in two hours, so the cockpit closed to save the battery. Nothing was recorded."
+        }
     }
 
     /// How each of some places lies within the glider's reach now, in
@@ -534,6 +574,12 @@ final class FlySession {
             now = Date().timeIntervalSince1970
         }
         let view = session.view(nowUnixS: now)
+        // A flight that records itself also ends by itself: some minutes
+        // after the landing, or when nobody took off.
+        if let over = view.over, mode == .live {
+            endByItself(over)
+            return
+        }
         self.view = view
         way = session.navigation(nowUnixS: now)
         sound.play(view.tone)

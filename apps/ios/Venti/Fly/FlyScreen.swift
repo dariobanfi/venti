@@ -25,7 +25,7 @@ struct FlyScreen: View {
                         LabeledContent {
                             Text(varioSummary)
                         } label: {
-                            Label("Vario", systemImage: "dot.radiowaves.left.and.right")
+                            Label("Vario", image: "icon-vario")
                         }
                     }
                     .foregroundStyle(.primary)
@@ -37,7 +37,7 @@ struct FlyScreen: View {
                         LabeledContent {
                             Text(airspace.inALine)
                         } label: {
-                            Label("Airspace", systemImage: "square.dashed")
+                            Label("Airspace", image: "icon-airspace")
                         }
                     }
                     .accessibilityIdentifier("airspace-before-takeoff")
@@ -60,7 +60,7 @@ struct FlyScreen: View {
                         LabeledContent {
                             Text(liveSummary)
                         } label: {
-                            Label("Live tracking", systemImage: "antenna.radiowaves.left.and.right")
+                            Label("Live tracking", image: "icon-live")
                         }
                     }
                     .accessibilityIdentifier("live-before-takeoff")
@@ -71,7 +71,7 @@ struct FlyScreen: View {
                         LabeledContent {
                             Text(maps.inALine)
                         } label: {
-                            Label("Offline map", systemImage: "map")
+                            Label("Offline map", image: "icon-map")
                         }
                     }
                     .accessibilityIdentifier("map-before-takeoff")
@@ -84,15 +84,18 @@ struct FlyScreen: View {
                 }
 
                 Section {
-                    Button("Start flight") {
+                    Button {
                         fly.startFlight()
+                    } label: {
+                        Text("Open the cockpit")
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.venti(.primary))
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.venti(.accent))
+                    .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
+                    .accessibilityIdentifier("open-cockpit")
                 } footer: {
-                    Text("Recording starts at once and carries on with the screen off. When you finish, the flight is saved to the logbook.")
+                    Text("The cockpit waits on the ground and records from the moment you take off, with the screen off too. Two minutes after you have landed, the flight is saved to the logbook.")
                 }
 
                 Section {
@@ -109,6 +112,15 @@ struct FlyScreen: View {
                 }
             }
             .navigationTitle("Fly")
+        }
+        .onAppear {
+            // A flight that ends by itself is kept as one the pilot ends.
+            let logbook = logbook
+            let navigation = navigation
+            let fly = fly
+            fly.savedByItself = { recording in
+                Self.keep(recording, in: logbook, showingItWith: navigation, for: fly)
+            }
         }
         .sheet(isPresented: $isChoosingVario) {
             VarioSheet(vario: fly.vario)
@@ -177,6 +189,14 @@ struct FlyScreen: View {
     /// Ends the session, and for a real flight saves it and shows it.
     private func finish() {
         guard let recording = fly.finish() else { return }
+        Self.keep(recording, in: logbook, showingItWith: navigation, for: fly)
+    }
+
+    /// Puts a recording into the logbook and shows the flight.
+    private static func keep(
+        _ recording: PendingRecording, in logbook: LogbookModel, showingItWith navigation: AppNavigation,
+        for fly: FlySession
+    ) {
         Task {
             do {
                 navigation.show(flight: try await logbook.adopt(recording))

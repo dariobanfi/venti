@@ -13,9 +13,19 @@
 //! it. A file still there at the next launch is a recording that was cut
 //! short; [`pending_recordings`] finds it so it can be imported.
 //!
+//! A flight records itself. [`FlightSession::record_from_takeoff`] makes the
+//! session wait on the ground: it keeps the last half minute of positions
+//! and writes nothing. When the flight computer notices the take-off the
+//! file begins, with that half minute first. Two minutes after the glider
+//! has come to rest the view says the session is over, and the shell saves
+//! the flight as if the pilot had ended it. A session that has waited two
+//! hours without a take-off says the same, with nothing to save. The times
+//! are our own; to verify in the air.
+//!
 //! [`Replay`] feeds a recorded flight through a session at any speed. It is
 //! how the cockpit is tried on the ground and how its screens are tested.
 
+use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -46,6 +56,19 @@ use crate::{
 /// How long an external instrument may be silent, in seconds, before it
 /// counts as disconnected and the phone's own pressure sensor takes over.
 const INSTRUMENT_SILENCE_S: f64 = 3.0;
+
+/// A flight that records itself begins this many seconds before its
+/// take-off was noticed: the run, and a little of the standing before it.
+const LEAD_S: f64 = 30.0;
+
+/// A flight that records itself is over this many seconds after the glider
+/// came to rest: long enough to be sure of the landing, and over before
+/// the pilot has packed and driven away.
+const SAVE_AFTER_LANDING_S: f64 = 120.0;
+
+/// A session that waits for a take-off gives up after this many seconds:
+/// waiting keeps the phone's receivers on.
+const WAIT_FOR_TAKEOFF_S: f64 = 2.0 * 3600.0;
 
 /// Fixes written between forced writes to the disk. The system keeps
 /// written data safe across an app crash by itself; forcing matters only if
@@ -79,6 +102,16 @@ pub enum FlightPhase {
     Flying,
     /// Back on the ground after a flight.
     Landed,
+}
+
+/// Why a session that records its flight by itself is over.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SessionOver {
+    /// The glider has landed and stayed where it is: the flight is to be
+    /// saved.
+    Landed,
+    /// Nobody took off while the session waited: there is nothing to save.
+    NoTakeoff,
 }
 
 /// Where the climb rate comes from.
@@ -253,6 +286,16 @@ pub struct CockpitView {
     pub phase: FlightPhase,
     /// Whether fixes are being written to a recording.
     pub recording: bool,
+    /// Whether the session waits for the take-off to begin its recording
+    /// by itself. Nothing is written while it waits.
+    pub waiting_for_takeoff: bool,
+    /// Why the session is over by itself, once it is: the shell then ends
+    /// it as if the pilot had, and saves what was recorded. Only for a
+    /// session that records its flight by itself.
+    pub over: Option<SessionOver>,
+    /// Seconds until a flight that has landed is saved by itself. Absent
+    /// before the landing, and for a session the pilot ends.
+    pub saves_in_s: Option<i64>,
     /// Fixes written to the recording so far.
     pub recorded_fixes: u32,
     /// Seconds in the air: since take-off, or from take-off to landing.
@@ -551,6 +594,11 @@ struct Inner {
     instrument: Option<Instrument>,
     pressure_source: Option<PressureSource>,
     recorder: Option<Recorder>,
+    /// While the recording waits for the take-off: since when, and the
+    /// last positions on the ground.
+    lead: Option<Lead>,
+    /// Whether the flight records itself, and so also ends by itself.
+    by_itself: bool,
     last_position_s: Option<f64>,
     /// The place the pilot chose to fly to. Without one the cockpit
     /// navigates back to the take-off.
@@ -578,6 +626,36 @@ struct Inner {
     /// replayed is never shared: it would put a glider on other people's
     /// maps that is not there.
     replayed: bool,
+}
+
+/// A recording that waits for the take-off.
+#[derive(Debug)]
+struct Lead {
+    /// When the session began to wait.
+    since_s: f64,
+    /// The positions of the last [`LEAD_S`] seconds, oldest first, as the
+    /// recorder takes them.
+    fixes: VecDeque<(LocationSample, GeoPoint, Option<f64>)>,
+}
+
+impl Lead {
+    /// Keeps a position, and lets go of those older than the lead.
+    fn keep(
+        &mut self,
+        sample: LocationSample,
+        position: GeoPoint,
+        pressure_altitude_m: Option<f64>,
+    ) {
+        while self
+            .fixes
+            .front()
+            .is_some_and(|(kept, _, _)| kept.time_unix_s < sample.time_unix_s - LEAD_S)
+        {
+            self.fixes.pop_front();
+        }
+        self.fixes
+            .push_back((sample, position, pressure_altitude_m));
+    }
 }
 
 /// Which sensor is supplying pressure.
@@ -629,6 +707,8 @@ impl FlightSession {
                 instrument: None,
                 pressure_source: None,
                 recorder: None,
+                lead: None,
+                by_itself: false,
                 last_position_s: None,
                 target: None,
                 glider: Glider::default(),
@@ -1290,10 +1370,25 @@ impl FlightSession {
                 state.average_climb_ms,
             );
         }
+        let inner = &mut *inner;
         if let Some(recorder) = inner.recorder.as_mut() {
-            // A failed write must not stop the flight computer. The fix is
-            // lost; the next one tries again.
-            let _ = recorder.add(&sample, position, pressure_altitude);
+            match inner.lead.as_mut() {
+                // Waiting for the take-off: kept, not written.
+                Some(lead) if state.phase == Phase::Ground => {
+                    lead.keep(sample, position, pressure_altitude);
+                }
+                // A failed write must not stop the flight computer. The fix
+                // is lost; the next one tries again.
+                _ => {
+                    // The take-off: the file begins with what was kept.
+                    if let Some(lead) = inner.lead.take() {
+                        for (kept, position, pressure_altitude) in lead.fixes {
+                            let _ = recorder.add(&kept, position, pressure_altitude);
+                        }
+                    }
+                    let _ = recorder.add(&sample, position, pressure_altitude);
+                }
+            }
         }
     }
 
@@ -1357,18 +1452,53 @@ impl FlightSession {
         }
     }
 
-    /// Starts writing fixes to a recording. Does nothing if one is running.
-    /// The pilot's and the glider's names go into the flight file's header,
-    /// if given.
+    /// Starts writing fixes to a recording, from now. Does nothing if one
+    /// is running; one that waits for the take-off waits no longer, and
+    /// begins with the half minute it has kept. The pilot's and the
+    /// glider's names go into the flight file's header, if given.
     pub fn start_recording(
         &self,
         pilot: Option<String>,
         glider: Option<String>,
     ) -> Result<(), CoreError> {
         let mut inner = self.lock();
+        let inner = &mut *inner;
         if inner.recorder.is_none() {
             let recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider));
             inner.recorder = Some(recorder.map_err(storage)?);
+        }
+        if let (Some(lead), Some(recorder)) = (inner.lead.take(), inner.recorder.as_mut()) {
+            for (kept, position, pressure_altitude) in lead.fixes {
+                let _ = recorder.add(&kept, position, pressure_altitude);
+            }
+        }
+        Ok(())
+    }
+
+    /// Makes the flight record itself. Nothing is written while the glider
+    /// is on the ground; when it takes off the flight file begins, with the
+    /// last half minute before. From then the view says when the session
+    /// is over: a while after the landing, or when nobody has taken off for
+    /// two hours. Does nothing if a recording is running or waiting.
+    pub fn record_from_takeoff(
+        &self,
+        pilot: Option<String>,
+        glider: Option<String>,
+        now_unix_s: f64,
+    ) -> Result<(), CoreError> {
+        let mut inner = self.lock();
+        if inner.recorder.is_some() {
+            return Ok(());
+        }
+        let recorder = Recorder::new(&inner.folder, header_text(pilot), header_text(glider));
+        inner.recorder = Some(recorder.map_err(storage)?);
+        inner.by_itself = true;
+        // A session switched on in the air records at once.
+        if inner.computer.state(now_unix_s).phase == Phase::Ground {
+            inner.lead = Some(Lead {
+                since_s: now_unix_s,
+                fixes: VecDeque::new(),
+            });
         }
         Ok(())
     }
@@ -1378,7 +1508,13 @@ impl FlightSession {
     /// [`clear_recording`] is called, so the text is not lost if importing
     /// it fails.
     pub fn stop_recording(&self) -> Result<Option<PendingRecording>, CoreError> {
-        let Some(recorder) = self.lock().recorder.take() else {
+        let recorder = {
+            let mut inner = self.lock();
+            inner.lead = None;
+            inner.by_itself = false;
+            inner.recorder.take()
+        };
+        let Some(recorder) = recorder else {
             return Ok(None);
         };
         recorder.finish().map_err(storage)
@@ -1393,6 +1529,19 @@ impl FlightSession {
             lon: point.lon(),
         };
         let end = state.landing_time_s.unwrap_or(now_unix_s);
+        // A flight that records itself is saved a while after the landing.
+        let saves_in_s = state
+            .landing_time_s
+            .filter(|_| inner.by_itself && state.phase == Phase::Landed)
+            .map(|landed| (landed + SAVE_AFTER_LANDING_S - now_unix_s).max(0.0).ceil() as i64);
+        let waited_s = inner.lead.as_ref().map(|lead| now_unix_s - lead.since_s);
+        let over = if saves_in_s == Some(0) {
+            Some(SessionOver::Landed)
+        } else if waited_s.is_some_and(|waited| waited >= WAIT_FOR_TAKEOFF_S) {
+            Some(SessionOver::NoTakeoff)
+        } else {
+            None
+        };
 
         CockpitView {
             phase: match state.phase {
@@ -1400,7 +1549,10 @@ impl FlightSession {
                 Phase::Flying => FlightPhase::Flying,
                 Phase::Landed => FlightPhase::Landed,
             },
-            recording: inner.recorder.is_some(),
+            recording: inner.recorder.is_some() && inner.lead.is_none(),
+            waiting_for_takeoff: inner.lead.is_some(),
+            over,
+            saves_in_s,
             recorded_fixes: inner.recorder.as_ref().map_or(0, |recorder| recorder.fixes),
             flight_time_s: state
                 .takeoff_time_s
@@ -2937,6 +3089,138 @@ mod tests {
         session.start_recording(None, None).unwrap();
         assert_eq!(session.stop_recording().unwrap(), None);
         assert!(pending_recordings(folder_text(&folder)).is_empty());
+    }
+
+    /// A session at 47 N 11 E: a second standing, walking or flying
+    /// straight north.
+    fn step(session: &FlightSession, time_s: f64, north_m: f64, altitude_m: f64) {
+        session.on_location(LocationSample {
+            time_unix_s: time_s,
+            lat: 47.0 + north_m / 111_194.9,
+            lon: 11.0,
+            altitude_m: Some(altitude_m),
+            ground_speed_ms: None,
+            course_deg: None,
+        });
+    }
+
+    /// Five minutes at the take-off, three minutes of flight at 9 m/s
+    /// sinking 1 m/s, then standing in the landing field until `until_s`
+    /// seconds after the session began. Returns when the session began.
+    fn stand_fly_and_land(session: &FlightSession, until_s: i32) -> f64 {
+        let began = 1_786_000_000.0;
+        for second in 0..until_s {
+            let time = began + f64::from(second);
+            let flown = f64::from((second - 300).clamp(0, 180));
+            step(session, time, 9.0 * flown, 1600.0 - flown);
+        }
+        began
+    }
+
+    #[test]
+    fn a_flight_records_itself_from_half_a_minute_before_its_take_off() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        session.record_from_takeoff(None, None, began).unwrap();
+
+        // Five minutes at the take-off: waiting, and nothing written.
+        stand_fly_and_land(&session, 300);
+        let view = session.view(began + 300.0);
+        assert_eq!(view.phase, FlightPhase::Ground);
+        assert!(view.waiting_for_takeoff);
+        assert!(!view.recording);
+        assert_eq!(view.recorded_fixes, 0);
+        assert_eq!(view.over, None);
+        assert!(pending_recordings(folder_text(&folder)).is_empty());
+
+        // In the air: recording, with the half minute before.
+        stand_fly_and_land(&session, 330);
+        let view = session.view(began + 330.0);
+        assert_eq!(view.phase, FlightPhase::Flying);
+        assert!(!view.waiting_for_takeoff);
+        assert!(view.recording);
+        assert_eq!(view.saves_in_s, None);
+
+        // Landed: saved by itself two minutes after coming to rest.
+        stand_fly_and_land(&session, 540);
+        let view = session.view(began + 540.0);
+        assert_eq!(view.phase, FlightPhase::Landed);
+        assert_eq!(view.over, None);
+        let left = view.saves_in_s.unwrap();
+        assert!((55..=70).contains(&left), "{left}");
+        let view = session.view(began + 540.0 + left as f64);
+        assert_eq!(view.over, Some(SessionOver::Landed));
+        assert_eq!(view.saves_in_s, Some(0));
+
+        let recording = session.stop_recording().unwrap().unwrap();
+        let file = igc::parse(&recording.igc_text).unwrap();
+        let first = file.fixes[0].time.timestamp() as f64 - began;
+        // The take-off is believed some seconds into the run, and the file
+        // begins half a minute before that.
+        assert!((270.0..=280.0).contains(&first), "{first}");
+        assert_eq!(session.view(began + 700.0).over, None);
+    }
+
+    #[test]
+    fn a_session_that_waits_two_hours_for_a_take_off_is_over_with_nothing_to_save() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        session.record_from_takeoff(None, None, began).unwrap();
+        for second in 0..60 {
+            step(&session, began + f64::from(second), 0.0, 1600.0);
+        }
+        assert_eq!(session.view(began + 7199.0).over, None);
+        assert_eq!(
+            session.view(began + 7200.0).over,
+            Some(SessionOver::NoTakeoff)
+        );
+        assert_eq!(session.stop_recording().unwrap(), None);
+        assert!(pending_recordings(folder_text(&folder)).is_empty());
+    }
+
+    #[test]
+    fn recording_from_now_ends_the_wait_and_keeps_the_half_minute() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        let began = 1_786_000_000.0;
+        session.record_from_takeoff(None, None, began).unwrap();
+        for second in 0..60 {
+            step(&session, began + f64::from(second), 0.0, 1600.0);
+        }
+        session.start_recording(None, None).unwrap();
+        let view = session.view(began + 60.0);
+        assert!(view.recording);
+        assert!(!view.waiting_for_takeoff);
+        assert_eq!(view.recorded_fixes, 31);
+        // Ground handling for hours is not given up on.
+        assert_eq!(session.view(began + 8000.0).over, None);
+        // A flight after it still ends by itself.
+        for second in 60..600 {
+            let flown = f64::from((second - 300).clamp(0, 180));
+            step(
+                &session,
+                began + f64::from(second),
+                9.0 * flown,
+                1600.0 - flown,
+            );
+        }
+        assert_eq!(session.view(began + 700.0).over, Some(SessionOver::Landed));
+    }
+
+    #[test]
+    fn a_flight_the_pilot_starts_does_not_end_by_itself() {
+        let folder = TempFolder::new();
+        let session = FlightSession::new(folder_text(&folder));
+        session.start_recording(None, None).unwrap();
+        let began = stand_fly_and_land(&session, 700);
+        let view = session.view(began + 700.0);
+        assert_eq!(view.phase, FlightPhase::Landed);
+        assert_eq!(view.over, None);
+        assert_eq!(view.saves_in_s, None);
+        // Recorded from the tap: the standing before the flight is in it.
+        assert_eq!(view.recorded_fixes, 700);
     }
 
     #[test]

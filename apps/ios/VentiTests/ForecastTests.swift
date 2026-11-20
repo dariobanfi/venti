@@ -128,7 +128,7 @@ final class ForecastTests: XCTestCase {
             ["700 hPa", "850 hPa", "80 m above ground", "ground", "base", "cloud", "rain", "temperature", "freezing"]
         )
         // A pressure surface is named by about how high it lies.
-        XCTAssertEqual(rows[0].name, "3,100 m")
+        XCTAssertEqual(rows[0].name, "3100 m")
         XCTAssertEqual(rows[0].detail, "700 hPa")
         XCTAssertEqual(rows[2].name, "80 m")
         XCTAssertEqual(rows[2].detail, "above ground")
@@ -148,12 +148,12 @@ final class ForecastTests: XCTestCase {
         }
         XCTAssertEqual(ground.label, "9/25")
 
-        XCTAssertEqual(rows[4].cells, [.number("2,400"), .empty, .empty])
+        XCTAssertEqual(rows[4].cells, [.number("2400"), .empty, .empty])
         XCTAssertEqual(rows[5].cells, [.cloud(percent: 30), .cloud(percent: 80), .empty])
         // A dry hour is a dot, so that the wet ones stand out.
         XCTAssertEqual(rows[6].cells, [.number(ForecastTable.dry), .number("1.2"), .empty])
         XCTAssertEqual(rows[7].cells, [.number("24"), .number("25"), .empty])
-        XCTAssertEqual(rows[8].cells, [.number("3,900"), .empty, .empty])
+        XCTAssertEqual(rows[8].cells, [.number("3900"), .empty, .empty])
     }
 
     func testAModelWithOnlyAGroundWindHasOnlyThatRow() async throws {

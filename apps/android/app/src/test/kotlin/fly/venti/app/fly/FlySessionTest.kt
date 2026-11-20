@@ -146,6 +146,54 @@ class FlySessionTest {
     }
 
     @Test
+    fun aReplayIsHeldAtAMomentAndRunsOnAtAnotherSpeed() {
+        val fly = makeSession(TestSupport.newFolder("fly"))
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        Thread.sleep(1200)
+
+        // Held: the flight stays where it is, however long the pilot looks.
+        fly.setReplaySpeed(0.0)
+        assertEquals(FlySession.Mode.Replay(0.0), fly.mode)
+        Thread.sleep(400)
+        val held = checkNotNull(fly.view).flightTimeS
+        assertNotNull(held)
+        Thread.sleep(800)
+        assertEquals(held, checkNotNull(fly.view).flightTimeS)
+
+        // Run on, it carries on from that moment.
+        fly.setReplaySpeed(500.0)
+        Thread.sleep(800)
+        assertTrue(checkNotNull(checkNotNull(fly.view).flightTimeS) > checkNotNull(held))
+
+        // A speed that is no speed changes nothing.
+        fly.setReplaySpeed(-1.0)
+        fly.setReplaySpeed(Double.NaN)
+        assertEquals(FlySession.Mode.Replay(500.0), fly.mode)
+        fly.finish()
+
+        // What the cockpit's menu offers, and what its line says.
+        assertEquals(
+            listOf("Paused", "Real time", "10 times faster", "20 times faster"),
+            ReplayWords.SPEEDS.map(ReplayWords::choice),
+        )
+        assertEquals(
+            listOf("Replay paused", "Replay", "Replay ×10", "Replay ×20"),
+            ReplayWords.SPEEDS.map(ReplayWords::words),
+        )
+    }
+
+    @Test
+    fun aRecordedFlightHasNoSpeedToChange() {
+        val sensors = FakeSensors()
+        val fly = makeSession(TestSupport.newFolder("fly"), sensors = sensors)
+        fly.startFlight()
+        assertEquals(FlySession.Mode.Live, fly.mode)
+        fly.setReplaySpeed(0.0)
+        assertEquals(FlySession.Mode.Live, fly.mode)
+        fly.finish()
+    }
+
+    @Test
     fun theCockpitNavigatesBackToTheTakeoffUntilAPlaceIsChosen() {
         val fly = makeSession(TestSupport.newFolder("fly"))
         assertNull(fly.way)

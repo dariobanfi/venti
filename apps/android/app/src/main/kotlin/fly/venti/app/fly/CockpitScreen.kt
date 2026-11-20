@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,6 +49,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -125,6 +130,9 @@ fun CockpitScreen(
     var isShowingAhead by remember { mutableStateOf(false) }
     var isShowingTask by remember { mutableStateOf(false) }
     var isShowingLive by remember { mutableStateOf(false) }
+    // Whether the screen takes no touches: against a glove, a line or rain
+    // pressing a button in flight.
+    var isLocked by remember { mutableStateOf(false) }
     // The task is drawn only while the session flies one.
     val taskStatus = fly.task
     val task = tasks.task.takeIf { taskStatus != null }
@@ -147,140 +155,154 @@ fun CockpitScreen(
         view.position?.let(airspace::refreshSoon)
     }
     // The cockpit covers the whole app; the back button ends it like the
-    // button on screen does, and asks first.
-    BackHandler { isConfirmingFinish = true }
+    // button on screen does, and asks first. Locked, it does nothing.
+    BackHandler { if (!isLocked) isConfirmingFinish = true }
 
     // A surface, so that text without a colour of its own takes the theme's.
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.systemBarsPadding()) {
-            StatusLine(view, fly.score, fly.mode, varioName)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                MapSurface(
-                    content = map,
-                    modifier = Modifier.fillMaxSize(),
-                    onUpdate = {
-                        map.airspace = fly.airspace()
-                        map.range = fly.range
-                        map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
-                    },
-                )
-                // The whole flight at a glance, with the scored route and
-                // where to go for an FAI triangle; again for the close view
-                // that follows the glider.
-                Column(
-                    modifier = Modifier.align(Alignment.CenterStart).padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = { showsWholeFlight = !showsWholeFlight },
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
+    Box(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.systemBarsPadding()) {
+                StatusLine(view, fly.score, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    MapSurface(
+                        content = map,
+                        modifier = Modifier.fillMaxSize(),
+                        onUpdate = {
+                            map.airspace = fly.airspace()
+                            map.range = fly.range
+                            map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
+                        },
+                    )
+                    // The whole flight at a glance, with the scored route and
+                    // where to go for an FAI triangle; again for the close view
+                    // that follows the glider.
+                    Column(
+                        modifier = Modifier.align(Alignment.CenterStart).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Icon(
-                            painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
-                            contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
-                        )
-                    }
-                    // With airspace to warn from, or the ground to draw:
-                    // what lies on the line ahead, seen from the side.
-                    if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
                         SmallFloatingActionButton(
-                            onClick = { isShowingAhead = true },
+                            onClick = { showsWholeFlight = !showsWholeFlight },
                             shape = CircleShape,
                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             contentColor = MaterialTheme.colorScheme.onSurface,
                         ) {
-                            Icon(painterResource(R.drawable.ic_elevation), contentDescription = AheadWords.TITLE)
+                            Icon(
+                                painterResource(if (showsWholeFlight) R.drawable.ic_my_location else R.drawable.ic_open_in_full),
+                                contentDescription = if (showsWholeFlight) "Follow the glider" else "Show the whole flight",
+                            )
+                        }
+                        // With airspace to warn from, or the ground to draw:
+                        // what lies on the line ahead, seen from the side.
+                        if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
+                            SmallFloatingActionButton(
+                                onClick = { isShowingAhead = true },
+                                shape = CircleShape,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_elevation), contentDescription = AheadWords.TITLE)
+                            }
+                        }
+                    }
+                    Column(
+                        // Less room above than the other badges: a badge that
+                        // can be pressed is given a taller touch target than it
+                        // is drawn, and stands in its middle.
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        view.wind?.let { wind ->
+                            WindBadge(wind, view.windAgeS, onOpen = { isShowingWinds = true })
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // A wind that leaves the glider little way into
+                            // it: said by the core, and only while it says so.
+                            view.strongWind?.let { words -> StrongWindBadge(words) }
+                            // While circling: which way the lift is stronger,
+                            // in words beside the picture on the map.
+                            view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                        }
+                    }
+                    AirspaceBanner(
+                        fly.airspaceWarnings,
+                        fly.airspaceCheck,
+                        onOpen = { isShowingAirspace = true },
+                        // Clear of the map's own credits button in the corner.
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
+                    )
+                    // The landing to think of first, and whether the glide
+                    // reaches it. A tap lists the places to fly to, each with
+                    // its reach.
+                    fly.landing?.let { landing ->
+                        LandingBadge(
+                            landing,
+                            onOpen = { isChoosingTarget = true },
+                            // A badge that can be pressed stands in the middle
+                            // of a taller touch target, as the wind's does.
+                            modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 6.dp),
+                        )
+                    }
+                    if (view.phase != FlightPhase.FLYING) {
+                        Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
+                            Text(
+                                if (view.phase == FlightPhase.GROUND) "Waiting for take-off" else "Landed",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
                         }
                     }
                 }
-                Column(
-                    // Less room above than the other badges: a badge that
-                    // can be pressed is given a taller touch target than it
-                    // is drawn, and stands in its middle.
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                HorizontalDivider()
+                // With a task: where the flight stands in it, above the line
+                // that says where to fly, which is then its next turnpoint
+                // unless the pilot chose another place.
+                if (taskStatus != null) {
+                    TaskStrip(taskStatus, onOpen = { isShowingTask = true })
+                    HorizontalDivider()
+                }
+                TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
+                Instruments(view, way)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    view.wind?.let { wind ->
-                        WindBadge(wind, view.windAgeS, onOpen = { isShowingWinds = true })
+                    OutlinedButton(
+                        onClick = { isConfirmingFinish = true },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                    ) {
+                        Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
                     }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // A wind that leaves the glider little way into
-                        // it: said by the core, and only while it says so.
-                        view.strongWind?.let { words -> StrongWindBadge(words) }
-                        // While circling: which way the lift is stronger,
-                        // in words beside the picture on the map.
-                        view.lift?.centre?.let { centre -> LiftBadge(centre) }
+                    // Nothing on the screen answers a touch until it is
+                    // unlocked by holding a finger on the lock.
+                    Spacer(Modifier.width(12.dp))
+                    FilledTonalIconButton(onClick = { isLocked = true }, modifier = Modifier.size(56.dp)) {
+                        Icon(painterResource(R.drawable.ic_lock_open), contentDescription = "Lock the screen")
                     }
-                }
-                AirspaceBanner(
-                    fly.airspaceWarnings,
-                    fly.airspaceCheck,
-                    onOpen = { isShowingAirspace = true },
-                    // Clear of the map's own credits button in the corner.
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
-                )
-                // The landing to think of first, and whether the glide
-                // reaches it. A tap lists the places to fly to, each with
-                // its reach.
-                fly.landing?.let { landing ->
-                    LandingBadge(
-                        landing,
-                        onOpen = { isChoosingTarget = true },
-                        // A badge that can be pressed stands in the middle
-                        // of a taller touch target, as the wind's does.
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 6.dp),
-                    )
-                }
-                if (view.phase != FlightPhase.FLYING) {
-                    Badge(Modifier.align(Alignment.TopCenter).padding(10.dp)) {
-                        Text(
-                            if (view.phase == FlightPhase.GROUND) "Waiting for take-off" else "Landed",
-                            style = MaterialTheme.typography.titleMedium,
+                    // Who watches the flight, and whether it is going out. Not
+                    // in a replay: what is replayed is not shared.
+                    if (!isReplay) {
+                        Spacer(Modifier.width(12.dp))
+                        LiveButton(fly.live, onOpen = { isShowingLive = true })
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    FilledTonalIconToggleButton(
+                        checked = fly.isMuted,
+                        onCheckedChange = { fly.isMuted = it },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(
+                            painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
+                            contentDescription = "Mute the vario",
                         )
                     }
                 }
             }
-            HorizontalDivider()
-            // With a task: where the flight stands in it, above the line
-            // that says where to fly, which is then its next turnpoint
-            // unless the pilot chose another place.
-            if (taskStatus != null) {
-                TaskStrip(taskStatus, onOpen = { isShowingTask = true })
-                HorizontalDivider()
-            }
-            TargetStrip(way, course(view), onChoose = { isChoosingTarget = true })
-            Instruments(view, way)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(
-                    onClick = { isConfirmingFinish = true },
-                    modifier = Modifier.weight(1f).height(56.dp),
-                ) {
-                    Text(if (isReplay) "End replay" else "Finish flight", style = MaterialTheme.typography.titleMedium)
-                }
-                // Who watches the flight, and whether it is going out. Not
-                // in a replay: what is replayed is not shared.
-                if (!isReplay) {
-                    Spacer(Modifier.width(12.dp))
-                    LiveButton(fly.live, onOpen = { isShowingLive = true })
-                }
-                Spacer(Modifier.width(12.dp))
-                FilledTonalIconToggleButton(
-                    checked = fly.isMuted,
-                    onCheckedChange = { fly.isMuted = it },
-                    modifier = Modifier.size(56.dp),
-                ) {
-                    Icon(
-                        painterResource(if (fly.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up),
-                        contentDescription = "Mute the vario",
-                    )
-                }
-            }
+        }
+        // Locked: a cover over everything takes the touches, and a lock at the
+        // foot of the screen opens it when held. The cockpit goes on showing
+        // and sounding as before.
+        if (isLocked) {
+            LockCover(onUnlock = { isLocked = false })
         }
     }
 
@@ -363,7 +385,14 @@ private fun KeepScreenOn() {
 
 /** The line at the top: is it recording, how long, and are the sensors there. */
 @Composable
-private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mode?, varioName: String?) {
+private fun StatusLine(
+    view: CockpitView,
+    score: LiveScore?,
+    mode: FlySession.Mode?,
+    varioName: String?,
+    /** Called with the speed the pilot chose for a replay. */
+    onReplaySpeed: (Double) -> Unit,
+) {
     val style = MaterialTheme.typography.labelLarge
     val missing = MaterialTheme.colorScheme.error
     Row(
@@ -371,9 +400,8 @@ private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mo
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (mode is FlySession.Mode.Replay) {
-            Icon(painterResource(R.drawable.ic_play_arrow), contentDescription = null, Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(if (mode.speed == 1.0) "Replay" else "Replay ×${mode.speed.toInt()}", style = style, maxLines = 1)
+            // A replay can be held at a moment and run on, slower or faster.
+            ReplaySpeedMenu(mode.speed, onChoose = onReplaySpeed)
         } else if (view.recording) {
             Icon(
                 painterResource(R.drawable.ic_record),
@@ -386,7 +414,7 @@ private fun StatusLine(view: CockpitView, score: LiveScore?, mode: FlySession.Mo
         }
         view.flightTimeS?.let { seconds ->
             Spacer(Modifier.width(8.dp))
-            Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1)
+            Text(Format.stopwatch(seconds), style = style.numbers, maxLines = 1, modifier = Modifier.testTag("flight-time"))
         }
         // The cross-country distance so far, once there is a kilometre of
         // it, with a triangle when it scores as one.
@@ -855,6 +883,67 @@ private fun WindBadge(wind: WindView, ageSeconds: Double?, onOpen: () -> Unit, m
                 style = MaterialTheme.typography.titleSmall.numbers,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/** How long a finger is held on the lock to open it, milliseconds. */
+private const val HOLD_TO_UNLOCK_MILLISECONDS = 800L
+
+/**
+ * Lies over the whole cockpit while it is locked and takes every touch, so
+ * that nothing beneath it can be pressed. At its foot, a lock that opens it
+ * when a finger is held on it.
+ */
+@Composable
+private fun LockCover(onUnlock: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                // Every touch ends here, wherever it lands.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false).consume()
+                    do {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+            .clearAndSetSemantics {},
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .systemBarsPadding()
+                .padding(bottom = 14.dp)
+                .testTag("cockpit-unlock")
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown().consume()
+                        // Held long enough: the finger has not come up.
+                        val lifted = withTimeoutOrNull(HOLD_TO_UNLOCK_MILLISECONDS) { waitForUpOrCancellation() }
+                        if (lifted == null) onUnlock()
+                    }
+                }
+                .clearAndSetSemantics {
+                    contentDescription = "Unlock the screen"
+                    stateDescription = "Hold to unlock"
+                    role = Role.Button
+                    onClick(label = "Unlock") {
+                        onUnlock()
+                        true
+                    }
+                },
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+        ) {
+            Row(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_lock), contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Locked. Hold to unlock", style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }

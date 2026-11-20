@@ -443,6 +443,16 @@ class FlySession(
     }
 
     /**
+     * Changes how fast a replay runs: 1 is the flight's own speed, and 0
+     * holds it where it is. Does nothing while a flight is recorded.
+     */
+    @Synchronized
+    fun setReplaySpeed(speed: Double) {
+        if (mode !is Mode.Replay || !speed.isFinite() || speed < 0) return
+        mode = Mode.Replay(speed)
+    }
+
+    /**
      * Ends the session. For a live flight, returns the recording to put
      * into the logbook, if any position was recorded.
      */

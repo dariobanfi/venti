@@ -271,6 +271,22 @@ class VentiUiTest {
         letTheMapDraw(3)
         keepScreenshot("$prefix-fly-2-thermal")
 
+        // A replay can be held at a moment, to look at it, and run on: the
+        // word at the top is a menu of speeds.
+        tap(hasTestTag("replay-speed"))
+        waitFor(hasText("Paused"))
+        tap(hasText("Paused"))
+        waitFor(hasTestTag("replay-speed") and saying("Replay paused"))
+        val held = screen.onNode(hasTestTag("flight-time")).fetchSemanticsNode().config
+            .getOrNull(SemanticsProperties.Text)?.joinToString()
+        letTheMapDraw(4)
+        assertTrue(exists(hasTestTag("flight-time") and hasText(checkNotNull(held))))
+        keepScreenshot("$prefix-fly-2a-paused")
+        tap(hasTestTag("replay-speed"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(hasTestTag("replay-speed") and saying("Replay ×20"))
+
         // On the glide after the thermal it changes back, now with the wind
         // it worked out while circling. Beside the glide it is making, the
         // glide it needs to get home.
@@ -338,6 +354,17 @@ class VentiUiTest {
         waitFor(strip and saying("Sample landing field"))
         letTheMapDraw(2)
         keepScreenshot("$prefix-fly-5-to-landing")
+
+        // Locked, the screen answers no touch: a press on the button that
+        // ends the replay does nothing. Holding the lock opens it.
+        tap(described("Lock the screen"))
+        waitFor(hasTestTag("cockpit-unlock"))
+        tap(hasText("End replay"))
+        letTheMapDraw(2)
+        assertFalse(exists(hasText("Close the cockpit")))
+        keepScreenshot("$prefix-fly-5b-locked")
+        screen.onNode(hasTestTag("cockpit-unlock")).performTouchInput { longClick(durationMillis = 1_600) }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("cockpit-unlock")) }
 
         tap(hasText("End replay"))
         waitFor(hasText("Close the cockpit"))

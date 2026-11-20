@@ -59,7 +59,8 @@ crates/
                  what the data sources deliver (stations, observations, airspace),
                  pilots' accounts and flights, the live tracks of flights under
                  way, and pilots' groups with their plans for a flying day.
-  client-store   Client offline store (SQLite) and sync.
+  client-store   Client offline store (SQLite). Not built: the logbook and its sync
+                 with the server live in `core` so far.
   api-types      The wire format of the HTTP API, shared by server and clients. No I/O.
   tools          Assistant tool definitions: one definition, served in-app and over MCP.
   mcp            The Model Context Protocol as a server speaks it over HTTP: reads a
@@ -67,7 +68,10 @@ crates/
   llm            Provider clients for the in-app assistant.
   core           Client application core: state, events, view models. UniFFI exports.
                  Today it keeps the logbook: flight files in the app's storage and an
-                 index beside them. This moves into `client-store` when sync arrives.
+                 index beside them, kept in step with the pilot's server
+                 (`account.rs`). It also runs the cockpit session, the assistant,
+                 the ground from elevation tiles and every request the apps make
+                 of a Venti server.
   core-wasm      The core as a WebAssembly module with TypeScript declarations
                  (wasm-bindgen). The web app's only way into Rust.
   terrain3d      Terrain and flight-replay renderer on wgpu.
@@ -355,7 +359,7 @@ screen and vario tone                            (shell: draws and synthesises)
 - **The thermal's picture** (`live::thermal`) is what a thermal assistant draws. Each place flown through in the last fifty seconds of a climb is moved with the wind to where its air is now, which turns the loops over the ground back into the circles flown. A circle is fitted to those places, and around it the climb as a mean and a lean (least squares, both). The middle of the lift is the circle's middle moved toward the stronger side: a full radius for a lean of 1 m/s, never more. No centre is given for less than three quarters of a circle or for places that lie further from the circle than 0.35 of its radius, which is what a wrong wind leaves. The climb shown at a place is the mean over two seconds either side; the fit takes the readings as they came. To verify in the air: the measure of 1 m/s for a radius, and that a vario's delay and a position's cancel.
 - **Recording** cannot lose a track to a crash: each fix is appended to `recordings/<start>.igc` in the data folder as it arrives, and that file is a complete flight file at every moment. Stopping imports it into the logbook and removes it; one found at launch is imported then.
 - **The vario tone** is described by the core (pitch, rhythm) and synthesised by the shell.
-- **Airspace warnings** come from `airspace::WarningEngine`, which is fed the computer's state once a second and, like the computer, reads no clock. It is built and tested and not yet wired into the session; [airspace.md](airspace.md#feeding-the-engine-from-the-cockpit) says how.
+- **Airspace warnings** come from `airspace::WarningEngine`, which is fed the computer's state once a second and, like the computer, reads no clock. It is built and tested, and since 2026-11-19 the session feeds it (`crates/core/src/airspace.rs`); [airspace.md](airspace.md#feeding-the-engine-from-the-cockpit) says how.
 
 To verify in the air: the take-off and landing thresholds, the tone table and the filter's settings are first values. None has flown yet.
 
@@ -370,7 +374,7 @@ Until the server exists, the iOS app fetches its tiles from two public services 
 | Vector base map | OpenFreeMap, `tiles.openfreemap.org` (unmodified OpenMapTiles schema, the one our style is written for) | Free public instance, "no limits on the number of map views or requests", commercial use allowed, attribution required. [openfreemap.org](https://openfreemap.org/) |
 | Terrain | Mapterhorn, `tiles.mapterhorn.com` | A public tile endpoint is documented on [mapterhorn.com/data-access](https://mapterhorn.com/data-access); no usage limit is stated there. To verify with the project before any public release. Attribution required. |
 
-The app asks Mapterhorn for terrain only up to zoom 12, the level it serves for the whole world; finer tiles exist only for some countries and return "not found" elsewhere. Both services see the IP address and the map areas of whoever uses the app. This is a development arrangement, not the product: it ends when our own tile server is up, and it must end before a public release unless both projects agree. Since 2026-11-20 the same terrain tiles are also read for their heights: the 25 tiles around the glider while the cockpit is open, fetched once each and kept on the iPhone, and the tiles under a flight when its page is opened. That is a few megabytes per place flown at and no more requests than the map itself makes for the same tiles, but it is one more thing that depends on this arrangement, and a cockpit that knows the ground only where it has had a network; downloading a region's terrain ahead of a flight is being built: since 2026-11-20 the core reads a region's elevation archive from its file, tile by tile as the glider moves (`Terrain::open_archive`), and reads the list of regions a server hands out (`crates/core/src/maps.rs`); no app downloads one yet.
+The app asks Mapterhorn for terrain only up to zoom 12, the level it serves for the whole world; finer tiles exist only for some countries and return "not found" elsewhere. Both services see the IP address and the map areas of whoever uses the app. This is a development arrangement, not the product: it ends when our own tile server is up, and it must end before a public release unless both projects agree. Since 2026-11-20 the same terrain tiles are also read for their heights: the 25 tiles around the glider while the cockpit is open, fetched once each and kept on the iPhone and, since the same day, on Android, and the tiles under a flight when its page is opened. That is a few megabytes per place flown at and no more requests than the map itself makes for the same tiles, but it is one more thing that depends on this arrangement, and a cockpit that knows the ground only where it has had a network; downloading a region's terrain ahead of a flight is being built: since 2026-11-20 the core reads a region's elevation archive from its file, tile by tile as the glider moves (`Terrain::open_archive`), and reads the list of regions a server hands out (`crates/core/src/maps.rs`); since the same day the iPhone app downloads a region from the pilot's server and flies with it (`apps/ios/Venti/Maps`), and the Android and the web app do not.
 
 | Layer | Source | Notes |
 |---|---|---|
@@ -783,11 +787,11 @@ What is built (2026-11-19): the in-app route for Anthropic, answering from the l
 - The wind tools read from a Venti server and are answered in two steps, so the crate does no I/O: one function says which path to ask the server for, one turns the server's answer (the types of `venti-api-types`) into the tool's result. The server's MCP connector builds the same answer types from its database and uses the same second step.
 - `core::Assistant` runs the conversation as steps: the shell gets a request to send, sends it, and hands back the answer; the core runs the tools between. For a wind tool the step is an address on the pilot's server to fetch with a plain `GET`: the key, the question and the conversation never go to a Venti server, which sees an area of the map and nothing else. The wind tools are offered to the model only when a server is set. A server that cannot be reached is told to the model as the tool's result, and the conversation goes on. The key is passed in with each step and stored nowhere in the core. A failure of the provider puts the conversation back to where it was before the question.
 - The iOS app keeps the key in the Keychain (this device only), sends requests with an ephemeral URL session, and says on the screen where the key is entered what leaves the phone: the question and whatever the tools looked up, to Anthropic, billed to the pilot's account.
-- Not built: OpenAI and OpenRouter, streaming replies, voice, anything proactive.
+- Since 2026-11-19 the core also runs the assistant at services that speak the chat completions format, such as OpenAI and OpenRouter (`crates/llm/src/chat_completions.rs`); the iPhone app offers that choice, the others not yet. Not built: streaming replies, voice, anything proactive.
 
 **The connector (2026-11-19).** `/mcp` on the server offers `wind_stations`, `station_history` and a third tool, `airspace_at`: the airspace over a place and near it, with what the cockpit's warning table makes of each one, and with the caveats in the result itself. It answers four revisions of the protocol at the one address, one JSON object per request, with no stream and no session. It is open to everyone and knows nobody: no token is looked at, so nothing a pilot keeps on the server can be reached through it. Requests are bounded in size, in time and in number per address, and a tool call cannot make the server fetch anything. [mcp.md](mcp.md) has the rest: how a pilot adds it, what the server learns, and which client programs it was tested with. Claude and ChatGPT themselves have not called it yet, because the project has no server on the internet.
 
-The airspace tool is not yet offered by the app's own assistant. `venti-tools` has it (`airspace::AIRSPACE_TOOLS`, `request`, `result`), answered in the same two steps as the wind tools; the core has to offer it and fetch its path.
+The app's own assistant offers the airspace tool too, since 2026-11-19: `venti-tools` has it (`airspace::AIRSPACE_TOOLS`, `request`, `result`), and the core offers it and fetches its path in the same two steps as the wind tools (`crates/core/src/assistant.rs`).
 
 **What signing in will need.** A pilot's logbook over the connector means an assistant acting for one account, and MCP's way to that is OAuth 2.1. None of it is built. In the order it would be built, as the protocol's authorization chapter describes it (*to verify* against the revision in force then):
 

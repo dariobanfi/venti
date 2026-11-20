@@ -1,8 +1,10 @@
 import SwiftUI
 import VentiCore
 
-/// The panel over the flight map: when the flight was, its headline numbers,
-/// and its altitude profile.
+/// The panel under the flight map, as the design language's flight screen
+/// has it: the flight in one large number, what kind of flight it was and
+/// when, three readings, its altitude profile, and for the pilot's own
+/// flight the button that sends it to a league.
 ///
 /// Dragging along the profile moves a marker along the track, and the numbers
 /// change to that moment. The marker stays where the finger left it, so the
@@ -18,12 +20,15 @@ struct FlightPanel: View {
     var compared: ComparedFlight?
     /// Called when the pilot taps the line about the second flight.
     var onShowComparison: () -> Void = {}
+    /// Hands the flight to a league. Absent for a flight that is not the
+    /// pilot's own.
+    var onSendToLeague: (() -> Void)?
     @Binding var cursor: Int?
     @Binding var isPlaying: Bool
     @Binding var isShowingDetails: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
             header
             if let cursor {
                 moment(flight.track[cursor])
@@ -33,22 +38,54 @@ struct FlightPanel: View {
             if let compared {
                 beside(compared)
             }
-            AltitudeChart(flight: flight, ground: ground, compared: compared, cursor: $cursor)
-                .frame(height: 124)
-            ClimbLegend()
+            VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                AltitudeChart(flight: flight, ground: ground, compared: compared, cursor: $cursor)
+                    .frame(height: 124)
+                ClimbLegend()
+            }
+            .ventiCard()
+            if let onSendToLeague {
+                Button(action: onSendToLeague) {
+                    Text("Send to a league")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.venti(.primary))
+                .accessibilityIdentifier("send-to-league")
+            }
         }
-        .padding(EdgeInsets(top: 18, leading: 18, bottom: 22, trailing: 18))
-        .ventiFloating(in: .rect(cornerRadius: 36))
+        // Down to the screen's edge, like the page it is: the last of the
+        // padding keeps its content clear of the home bar.
+        .padding(EdgeInsets(top: VentiSpace.s4, leading: VentiSpace.s4, bottom: 30, trailing: VentiSpace.s4))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.venti(.bg))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.venti(.border))
+                .frame(height: 1)
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 4) {
+        HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Format.day(unixSeconds: flight.startUnixS))
-                    .font(.venti(.headline))
+                // The flight in one number, the one the logbook's list
+                // has: the scored distance. Until it is worked out, and
+                // for a flight too short to score, the length of the track.
+                Text("\(Format.kilometres(metres: score?.distanceM ?? flight.trackLengthM)) km")
+                    .font(.ventiType(.hero))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel(score == nil ? "Track" : "Distance")
+                    .accessibilityValue(
+                        "\(Format.kilometres(metres: score?.distanceM ?? flight.trackLengthM)) kilometres"
+                    )
+                    .accessibilityIdentifier("flight-headline")
+                Text(kindAndDay)
+                    .lineLimit(1)
                 Text(subtitle)
-                    .font(.venti(.subheadline))
-                    .foregroundStyle(.secondary)
+                    .font(.ventiType(.label))
+                    .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -106,6 +143,20 @@ struct FlightPanel: View {
         .accessibilityHint("Shows the two flights side by side in numbers")
     }
 
+    /// What kind of flight it was and on which day: "FAI triangle · Sat,
+    /// Jul 4, 2026". The day alone until the flight is scored.
+    private var kindAndDay: String {
+        let day = Format.day(unixSeconds: flight.startUnixS)
+        guard let score else { return day }
+        let kind =
+            switch score.kind {
+            case .freeFlight: "Free flight"
+            case .freeTriangle: score.closed ? "Closed triangle" : "Triangle"
+            case .faiTriangle: score.closed ? "Closed FAI triangle" : "FAI triangle"
+            }
+        return "\(kind) · \(day)"
+    }
+
     private var subtitle: String {
         let start = Format.time(unixSeconds: flight.startUnixS)
         let end = Format.time(unixSeconds: flight.startUnixS + flight.durationS)
@@ -116,14 +167,6 @@ struct FlightPanel: View {
     private var totals: some View {
         HStack(alignment: .top, spacing: 8) {
             Metric(caption: "Airtime", value: Format.hoursMinutes(seconds: flight.durationS), unit: "h")
-            // The scored distance, as in the logbook's list. Until it is
-            // worked out, and for a flight too short to score, the length
-            // of the track.
-            if let score {
-                Metric(caption: "Distance", value: Format.kilometres(metres: score.distanceM), unit: "km")
-            } else {
-                Metric(caption: "Track", value: Format.kilometres(metres: flight.trackLengthM), unit: "km")
-            }
             Metric(caption: "Highest", value: Format.metres(flight.maxAltitudeM), unit: "m")
             Metric(caption: "Best climb", value: Format.climb(metresPerSecond: flight.maxClimbMs), unit: "m/s")
         }

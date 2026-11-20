@@ -47,7 +47,8 @@ struct FlightScreen: View {
                 FlightDetail(
                     flight: flight, analysis: analysis, airspaceCheck: airspaceCheck,
                     // The airspace around the flight, for its map.
-                    airspace: airspace.shapes(in: flight.bounds.grown(by: 0.2))
+                    airspace: airspace.shapes(in: flight.bounds.grown(by: 0.2)),
+                    onSendToLeague: { isHandingOver = true }
                 )
             }
         }
@@ -61,9 +62,6 @@ struct FlightScreen: View {
                     }
                     if let exported {
                         ShareLink("Share flight file", item: exported)
-                    }
-                    Button("Send to a league", systemImage: "trophy") {
-                        isHandingOver = true
                     }
                     // The flight once more, as the cockpit would have
                     // shown it in the air: its wind, its thermals, the
@@ -137,14 +135,17 @@ extension FlightScreen {
     }
 }
 
-/// The map fills the screen and the panel floats over its lower part, as a
-/// control layer above the content. The map is told how much of it the panel
-/// covers so the track is fitted into the part that shows.
+/// The map fills the screen and the panel lies over its lower part, from
+/// edge to edge, as the design language's flight screen has the flight
+/// under its map. The map is told how much of it the panel covers so the
+/// track is fitted into the part that shows.
 struct FlightDetail: View {
     let flight: FlightView
     let analysis: FlightAnalysis?
     let airspaceCheck: FlightAirspace?
     let airspace: [AirspaceShape]
+    /// Hands the flight to a league: for the pilot's own flight only.
+    var onSendToLeague: (() -> Void)?
 
     @Environment(TerrainModel.self) private var terrain
     @Environment(OfflineMapsModel.self) private var maps
@@ -182,7 +183,7 @@ struct FlightDetail: View {
                     covered: UIEdgeInsets(
                         top: proxy.safeAreaInsets.top,
                         left: 0,
-                        bottom: panelHeight + 2 * Self.panelMargin,
+                        bottom: panelHeight,
                         right: 0
                     ),
                     source: mapSource,
@@ -202,6 +203,7 @@ struct FlightDetail: View {
                     FlightPanel(
                         flight: flight, score: analysis?.score, ground: ground,
                         compared: compared, onShowComparison: { isShowingComparison = true },
+                        onSendToLeague: onSendToLeague,
                         cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
                     )
                         .onGeometryChange(for: CGFloat.self) { panel in
@@ -209,10 +211,9 @@ struct FlightDetail: View {
                         } action: { height in
                             panelHeight = height
                         }
-                        .padding(Self.panelMargin)
                 }
-                // The panel sits near the bottom edge like a system sheet;
-                // its own padding keeps its content clear of the home bar.
+                // The panel goes down to the screen's edge; its own
+                // padding keeps its content clear of the home bar.
                 .ignoresSafeArea(.container, edges: .bottom)
             }
         }
@@ -285,6 +286,4 @@ struct FlightDetail: View {
             }
         }
     }
-
-    private static let panelMargin: CGFloat = 8
 }

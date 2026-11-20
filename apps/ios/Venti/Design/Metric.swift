@@ -3,8 +3,9 @@ import SwiftUI
 /// One number with its unit and what it measures: the building block of the
 /// logbook totals and the flight panel.
 ///
-/// Numbers are set in the rounded system face with fixed-width digits, so a
-/// value that changes while the pilot drags along the chart does not jitter.
+/// The number is the design language's middle instrument size, with
+/// fixed-width digits, so a value that changes while the pilot drags along
+/// the chart does not jitter; its name under it is a label, not a caption.
 struct Metric: View {
     let caption: String
     let value: String
@@ -17,8 +18,8 @@ struct Metric: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(caption)
-                .font(.venti(.caption))
-                .foregroundStyle(.secondary)
+                .font(.ventiType(.label))
+                .foregroundStyle(.venti(.textSecondary))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -28,20 +29,20 @@ struct Metric: View {
     }
 
     private var valueText: Text {
-        Text(value).font(.venti(.title3, .semibold))
+        Text(value).font(.ventiType(.instrumentM))
     }
 
     private var unitText: Text {
         Text(unit.isEmpty ? "" : " \(unit)")
-            .font(.venti(.footnote, .medium))
-            .foregroundStyle(.secondary)
+            .font(.venti(.subheadline, .medium))
+            .foregroundStyle(.venti(.textSecondary))
     }
 }
 
 #Preview {
     HStack {
         Metric(caption: "Airtime", value: "0:29", unit: "h")
-        Metric(caption: "Highest", value: "2,117", unit: "m")
+        Metric(caption: "Highest", value: "2117", unit: "m")
         Metric(caption: "Best climb", value: "+2.4", unit: "m/s")
     }
     .padding()

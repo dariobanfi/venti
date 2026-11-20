@@ -264,8 +264,8 @@ final class VentiUITests: XCTestCase {
         let app = launch(bundledMap: true)
         addSampleFlightAndOpenIt(in: app, prefix: "league")
 
-        app.buttons["More"].tap()
-        app.buttons["Send to a league"].tap()
+        // The flight's own button, under its profile.
+        tapWhenStill(element("send-to-league", in: app))
         XCTAssertTrue(app.navigationBars["Send to a league"].waitForExistence(timeout: 15))
 
         // The sample flight is of 4 July 2026: the leagues take it until

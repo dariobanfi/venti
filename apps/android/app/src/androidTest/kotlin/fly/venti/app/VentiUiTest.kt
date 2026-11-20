@@ -1674,6 +1674,48 @@ class VentiUiTest {
     @Test
     fun theSameInDarkAppearance() = importInspectAndDelete("dark", dark = true)
 
+    /**
+     * The wind on the ground in the cockpit, from Venti's wind stations: the
+     * nearest in a badge, and all of them in the wind's sheet, which begins
+     * with them when it is opened from that badge. The development mode's
+     * stations stand fifty kilometres off and more, and the badge says so.
+     */
+    private fun lookAtTheWindOnTheGround(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        waitFor(hasText("Replay the sample flight"))
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"))
+
+        val badge = hasTestTag("ground-wind-badge")
+        waitFor(badge and saying(" km/h"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-fly-ground-wind-1-badge")
+
+        tap(badge)
+        waitForAll(hasText("Wind on the ground"), hasText("On the ground"), hasTestTag("ground-wind-row"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-fly-ground-wind-2-sheet")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasText("Wind on the ground")) }
+
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        waitFor(hasText("Start flight"))
+    }
+
+    @Test
+    fun theCockpitShowsTheWindOnTheGround() = lookAtTheWindOnTheGround("light", dark = false)
+
+    @Test
+    fun theWindOnTheGroundInDarkAppearance() = lookAtTheWindOnTheGround("dark", dark = true)
+
     @Test
     fun theCockpitShowsAReplayedFlight() = flyAReplayAndVisitTheSettings("light", dark = false)
 

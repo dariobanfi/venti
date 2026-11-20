@@ -1,5 +1,11 @@
 package fly.venti.app.fly
 
+import fly.venti.core.GroundWindStation
+import fly.venti.core.GroundWind
+import fly.venti.core.Credit
+import fly.venti.app.design.SectionHeader
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -72,6 +78,28 @@ object WindByHeightWords {
 
     const val NONE_YET = "No wind measured yet. It is worked out from your drift while you circle."
 
+    /** The sheet's title: what it begins with. */
+    fun title(groundFirst: Boolean): String = if (groundFirst) "Wind on the ground" else "Wind by height"
+
+    const val ON_THE_GROUND = "On the ground"
+    const val BY_HEIGHT = "By height"
+
+    /** What the stations' numbers are, and whose. */
+    fun groundFootnote(credits: List<Credit>): String {
+        val what = "The nearest wind stations within 75 km with a reading of the last hour, as Venti had them " +
+            "when it was last asked, every two minutes in flight. A station measures where it stands, and some " +
+            "report three quarters of an hour late: the age stands beside each. Mean wind and gusts in km/h."
+        val whose = credits.joinToString(" · ") { it.text }
+        return if (whose.isEmpty()) what else "$what\n$whose"
+    }
+
+    /** Where a station stands, and whether it speaks for the landing. */
+    fun groundPlace(station: GroundWindStation): String =
+        if (station.isAtLanding) "At your landing · ${station.place}" else station.place
+
+    /** A station as a screen reader says it. */
+    fun spokenGround(station: GroundWindStation): String = "${station.wind}, ${station.age}"
+
     const val EXPLANATION =
         "Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band " +
             "you have not circled in has no wind to show, and an old one may have changed. Under the wind " +
@@ -88,7 +116,16 @@ object WindByHeightWords {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WindByHeightSheet(bands: List<WindAtHeightView>, onDismiss: () -> Unit) {
+fun WindByHeightSheet(
+    bands: List<WindAtHeightView>,
+    /** The wind the stations measured on the ground, if the cockpit has any. */
+    ground: GroundWind?,
+    /** Whose data those stations are. */
+    groundCredits: List<Credit>,
+    /** Whether the wind on the ground comes first: the pilot tapped its badge or its warning. */
+    groundFirst: Boolean,
+    onDismiss: () -> Unit,
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(),
@@ -98,10 +135,16 @@ fun WindByHeightSheet(bands: List<WindAtHeightView>, onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Wind by height", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(WindByHeightWords.title(groundFirst), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss) { Text("Done") }
         }
+        val stations = ground?.stations.orEmpty()
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp)) {
+            // The wind down where the landings are: first when asked for.
+            if (groundFirst && stations.isNotEmpty()) {
+                onTheGround(stations, groundCredits)
+                item { SectionHeader(WindByHeightWords.BY_HEIGHT) }
+            }
             item {
                 if (bands.isEmpty()) {
                     Text(
@@ -118,6 +161,92 @@ fun WindByHeightSheet(bands: List<WindAtHeightView>, onDismiss: () -> Unit) {
                 }
             }
             item { SectionFooter(WindByHeightWords.EXPLANATION) }
+            if (!groundFirst && stations.isNotEmpty()) {
+                onTheGround(stations, groundCredits)
+            }
+        }
+    }
+}
+
+/** The stations around: what they measured last. */
+private fun LazyListScope.onTheGround(stations: List<GroundWindStation>, credits: List<Credit>) {
+    item { SectionHeader(WindByHeightWords.ON_THE_GROUND) }
+    item {
+        Group {
+            for (station in stations) {
+                row { GroundWindRow(station) }
+            }
+        }
+    }
+    item { SectionFooter(WindByHeightWords.groundFootnote(credits)) }
+}
+
+/** One wind station: where the air moves there, its name and where it stands, and what it measured. */
+@Composable
+private fun GroundWindRow(station: GroundWindStation) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("ground-wind-row")
+            .clearAndSetSemantics {
+                contentDescription = "${station.name}, ${WindByHeightWords.groundPlace(station)}"
+                stateDescription = WindByHeightWords.spokenGround(station)
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val from = station.fromDeg
+        Icon(
+            painterResource(if (from != null) R.drawable.ic_arrow_upward else R.drawable.ic_record),
+            contentDescription = null,
+            // The arrow shows where the wind goes, north at the top.
+            modifier = Modifier.size(24.dp).rotate(((from ?: 180.0) + 180).toFloat()),
+            tint = windBand(station.speedMs).color,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                station.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (station.isAtLanding) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                WindByHeightWords.groundPlace(station),
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        // The wind over its age, each on a line of its own.
+        Column(horizontalAlignment = Alignment.End) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // A wind that is strong for a landing says so with a sign, not by colour alone.
+                if (station.isStrong) {
+                    Icon(
+                        painterResource(R.drawable.venti_caution),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    station.wind,
+                    style = MaterialTheme.typography.titleSmall.numbers,
+                    color = if (station.isStrong) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                station.age,
+                style = MaterialTheme.typography.bodyMedium.numbers,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }

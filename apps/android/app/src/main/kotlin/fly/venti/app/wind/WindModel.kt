@@ -14,6 +14,7 @@ import fly.venti.core.CoreException
 import fly.venti.core.Credit
 import fly.venti.core.ForecastView
 import fly.venti.core.StationHistory
+import fly.venti.core.WindMap
 import fly.venti.core.WindStation
 import fly.venti.core.forecastPath
 import fly.venti.core.serverStatus
@@ -249,6 +250,41 @@ class WindModel(
                 stations = emptyList()
                 credits = emptyList()
             }
+        }
+    }
+
+    /**
+     * The stations around the glider and around the place the pilot means
+     * to land, for the cockpit's wind on the ground. Some eighty kilometres
+     * every way from the glider: the stations of the weather services stand
+     * far apart. `null` without a server or an answer. Nothing of it is kept
+     * for the map.
+     */
+    suspend fun stationsAround(place: Coordinate, landing: Coordinate?): WindMap? {
+        val server = url ?: return null
+        var area = Bounds(south = place.lat - 0.75, west = place.lon - 1.1, north = place.lat + 0.75, east = place.lon + 1.1)
+        if (landing != null) {
+            area = Bounds(
+                south = minOf(area.south, landing.lat - 0.05),
+                west = minOf(area.west, landing.lon - 0.07),
+                north = maxOf(area.north, landing.lat + 0.05),
+                east = maxOf(area.east, landing.lon + 0.07),
+            )
+        }
+        return try {
+            // Ages are measured against the server's clock. A pilot who went
+            // straight to the cockpit has not read it yet.
+            if (serverClock == null) {
+                val answer = transport(server + serverStatusPath())
+                val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
+                serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+            }
+            val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
+            withContext(background) { windMap(answer.status.asStatus(), answer.body, now) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
         }
     }
 

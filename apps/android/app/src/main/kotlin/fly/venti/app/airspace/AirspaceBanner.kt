@@ -318,6 +318,20 @@ class AirspaceVoice(context: Context) : Announcer {
         }
     }
 
+    /** Said after what is being said: a warning that is not about airspace. */
+    @Synchronized
+    override fun sayAfter(text: String) {
+        val speech = speech
+        if (speech != null && isReady) {
+            speech.speak(text, TextToSpeech.QUEUE_ADD, null, UTTERANCE)
+        } else {
+            waiting = listOfNotNull(waiting, text).joinToString(" ")
+            if (speech == null) {
+                this.speech = TextToSpeech(context) { status -> engineAnswered(status) }
+            }
+        }
+    }
+
     @Synchronized
     private fun engineAnswered(status: Int) {
         val speech = speech ?: return

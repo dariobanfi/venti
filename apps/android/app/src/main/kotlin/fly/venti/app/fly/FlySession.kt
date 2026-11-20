@@ -7,6 +7,13 @@ import fly.venti.app.HttpAnswer
 import fly.venti.app.pilotMessage
 import fly.venti.app.settings.Preferences
 import fly.venti.app.waypoints.place
+import fly.venti.core.GroundWind
+import fly.venti.core.GroundWindAlert
+import fly.venti.core.GroundWindPlace
+import fly.venti.core.WindMap
+import fly.venti.core.Credit
+import fly.venti.core.FlightPhase
+import fly.venti.core.groundWind
 import fly.venti.core.AirspaceAhead
 import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
@@ -55,7 +62,11 @@ interface FlightSensors {
 
 /** Whatever says a warning aloud. */
 interface Announcer {
+    /** Says this at once, in place of whatever is being said. */
     fun say(text: String)
+
+    /** Says this once what is being said is over: after a warning about airspace. */
+    fun sayAfter(text: String) = say(text)
 
     fun stop()
 }
@@ -229,6 +240,43 @@ class FlySession(
      * `null` if none came. The app sets this.
      */
     var carry: suspend (ServerRequest) -> HttpAnswer? = { null }
+
+    /**
+     * The wind on the ground around the glider and where the pilot means
+     * to land, as the wind stations last measured it. Absent without a
+     * server, without a network, and on the ground.
+     */
+    var windBelow: GroundWind? by mutableStateOf(null)
+        private set
+
+    /** Whose data those stations are: the licences ask for the credit beside the data. */
+    var windBelowCredits: List<Credit> by mutableStateOf(emptyList())
+        private set
+
+    /** Whether the pilot has put the warning of a strong wind at the landing away. */
+    private var isWindWarningPutAway by mutableStateOf(false)
+
+    /**
+     * Asks Venti for the wind stations around a place and around a second
+     * one. The app sets this; `null` when there is no answer.
+     */
+    var windOnTheGround: suspend (Coordinate, Coordinate?) -> WindMap? = { _, _ -> null }
+
+    /** When the wind on the ground was last asked for, by the phone's clock, and whether an answer is awaited. */
+    private var askedForWindBelow = Double.NEGATIVE_INFINITY
+    private var isAskingForWindBelow = false
+
+    /** The station whose strong wind was last said aloud. */
+    private var warnedOfWindAt: String? = null
+
+    /** The warning of a strong wind where the pilot means to land, unless the pilot has put it away. */
+    val windWarning: GroundWindAlert?
+        get() = if (isWindWarningPutAway) null else windBelow?.alert
+
+    /** Puts the warning away. It comes back for another station, and for this one after its wind has dropped and risen again. */
+    fun putWindWarningAway() {
+        isWindWarningPutAway = true
+    }
 
     /** Something the pilot must be told, such as location being denied. */
     var problem: String? by mutableStateOf(null)
@@ -493,6 +541,11 @@ class FlySession(
         handedAirspace = null
         task = null
         chosenPlace = null
+        windBelow = null
+        windBelowCredits = emptyList()
+        isWindWarningPutAway = false
+        warnedOfWindAt = null
+        isAskingForWindBelow = false
         return recording
     }
 
@@ -515,6 +568,9 @@ class FlySession(
         session.useTerrain(terrain())
         refreshesSinceTerrain = (TERRAIN_MILLISECONDS / refreshMilliseconds).toInt()
         refreshesSinceScore = 0
+        // The wind on the ground is asked for as soon as the glider flies.
+        askedForWindBelow = Double.NEGATIVE_INFINITY
+        isAskingForWindBelow = false
         askedForLiveRequest = 0.0
         sending = null
         sound.isMuted = isMuted
@@ -618,6 +674,24 @@ class FlySession(
             refreshesSinceTerrain = 0
             wantTerrain(position)
         }
+        // The wind on the ground, in flight only: around the glider, and
+        // where the pilot means to land. Every two minutes by the phone's
+        // own clock, also in a replay: stations report every five to ten.
+        val wallClock = System.nanoTime() / 1e9
+        if (position != null && view.phase == FlightPhase.FLYING && !isAskingForWindBelow &&
+            wallClock - askedForWindBelow >= WIND_BELOW_SECONDS
+        ) {
+            askedForWindBelow = wallClock
+            isAskingForWindBelow = true
+            val place = placeToLand(view)
+            val trimSpeedMs = preferences.trimSpeed / 3.6
+            scope.launch {
+                val found = windOnTheGround(position, place?.position)
+                isAskingForWindBelow = false
+                if (found == null || this@FlySession.session !== session) return@launch
+                take(groundWind(found.stations, position, place, trimSpeedMs), found.credits)
+            }
+        }
         // Files brought in or removed in the middle of a session reach the
         // core at once; what the pilot silenced stays silenced.
         val latest = airspace()
@@ -640,7 +714,47 @@ class FlySession(
         sound.play(view.tone)
     }
 
+    /**
+     * Where the pilot means to land, as far as the cockpit knows: the place
+     * it navigates to, unless that is the take-off, else the landing it
+     * names as the one to think of first.
+     */
+    private fun placeToLand(view: CockpitView): GroundWindPlace? {
+        val way = way
+        if (way != null && !way.isTakeoff) {
+            val elevation = view.altitudeM?.let { altitude -> way.heightAboveM?.let { altitude - it } }
+            return GroundWindPlace(way.name, way.position, elevation)
+        }
+        val option = landing ?: return null
+        val place = landings().getOrNull(option.index.toInt()) ?: return null
+        return GroundWindPlace(place.name, place.position, place.elevationM)
+    }
+
+    /**
+     * Takes the wind on the ground as it was just worked out. A warning is
+     * said aloud when it comes up, after anything about airspace, and again
+     * only for another station or after it has been gone.
+     */
+    @Synchronized
+    private fun take(wind: GroundWind, credits: List<Credit>) {
+        if (wind != windBelow) windBelow = wind
+        if (credits != windBelowCredits) windBelowCredits = credits
+        val alert = wind.alert
+        if (alert == null) {
+            warnedOfWindAt = null
+            return
+        }
+        if (alert.stationId != warnedOfWindAt) {
+            warnedOfWindAt = alert.stationId
+            isWindWarningPutAway = false
+            voice.sayAfter(alert.spoken)
+        }
+    }
+
     companion object {
+        /** How often the wind on the ground is asked for in flight, seconds. */
+        const val WIND_BELOW_SECONDS = 120.0
+
         /** How often the screen and the vario tone are refreshed. */
         const val REFRESH_MILLISECONDS = 200L
 

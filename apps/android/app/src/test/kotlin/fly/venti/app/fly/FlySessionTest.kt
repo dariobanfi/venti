@@ -16,6 +16,7 @@ import fly.venti.core.Replay
 import fly.venti.core.TargetPlace
 import fly.venti.core.ToneView
 import fly.venti.core.pendingRecordings
+import fly.venti.core.windMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -248,6 +249,64 @@ class FlySessionTest {
         }
 
         override fun stop() = Unit
+    }
+
+    @Test
+    fun inFlightTheCockpitAsksForTheWindOnTheGroundAndWarnsOfAStrongWindAtTheLanding() {
+        val voice = Spoken()
+        val fly = FlySession(TestSupport.newFolder("fly"), MemoryPreferences(), FakeSensors(), SilentTone(), scope, voice)
+        // The stations Venti's own tests keep, read ten minutes after the newest of them.
+        val now = java.time.Instant.parse("2026-11-18T19:10:00Z").epochSecond.toLong()
+        val stations = windMap(200u, TestSupport.recordedAnswers.resolve("stations.json").readBytes(), now)
+        val asked = java.util.Collections.synchronizedList(mutableListOf<Pair<Coordinate, Coordinate?>>())
+        fly.windOnTheGround = { place, landing ->
+            asked += place to landing
+            stations
+        }
+
+        // On the ground nothing is asked. The pilot chooses to fly to a
+        // field beside the station on the Hohenpeissenberg, where it blows
+        // at 44 km/h, more than the glider can go against.
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        val field = TargetPlace(
+            name = "Sample field by a station",
+            position = Coordinate(lat = 47.8005, lon = 11.0100),
+            elevationM = 977.0,
+        )
+        fly.goTo(field)
+        Thread.sleep(1500)
+
+        // Asked once in flight, around the glider and around the field.
+        assertEquals(1, asked.size)
+        assertEquals(field.position, asked.single().second)
+        val below = checkNotNull(fly.windBelow)
+        val first = below.stations.first()
+        assertEquals("Hohenpeißenberg", first.name)
+        assertTrue(first.isAtLanding)
+        assertTrue(first.isStrong)
+        assertTrue(fly.windBelowCredits.isNotEmpty())
+        // The warning stands over the map and is said once, after anything about airspace.
+        val warning = checkNotNull(fly.windWarning)
+        assertEquals("Strong wind at Sample field by a station", warning.title)
+        assertEquals(listOf(warning.spoken), voice.said.toList())
+        // Put away, it stays away.
+        fly.putWindWarningAway()
+        assertNull(fly.windWarning)
+
+        fly.finish()
+        assertNull(fly.windBelow)
+        assertTrue(fly.windBelowCredits.isEmpty())
+        assertNull(fly.windWarning)
+    }
+
+    @Test
+    fun withoutAnAnswerTheCockpitSaysNothingAboutTheGroundsWind() {
+        val fly = makeSession(TestSupport.newFolder("fly"))
+        fly.startReplay(TestSupport.sampleFlight, speed = 500.0)
+        Thread.sleep(1200)
+        assertNull(fly.windBelow)
+        assertNull(fly.windWarning)
+        fly.finish()
     }
 
     @Test

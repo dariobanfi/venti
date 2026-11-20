@@ -180,6 +180,8 @@ sealed interface Session {
             // Flying sites come from that server too.
             val sites = SitesModel(scope)
             sites.server = { (wind.server as? WindServer.Usable)?.url }
+            // The cockpit's wind on the ground, from the same stations.
+            fly.windOnTheGround = { place, landing -> wind.stationsAround(place, landing) }
             // So do the other pilots in the air.
             val live = LiveModel(scope)
             live.server = { (wind.server as? WindServer.Usable)?.url }

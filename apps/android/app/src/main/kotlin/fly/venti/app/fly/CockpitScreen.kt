@@ -1,5 +1,9 @@
 package fly.venti.app.fly
 
+import fly.venti.core.GroundWindStation
+import fly.venti.core.GroundWindAlert
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.clickable
 import app.venti.design.VentiSpace
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.BorderStroke
@@ -135,6 +139,9 @@ fun CockpitScreen(
     var isChoosingTarget by remember { mutableStateOf(false) }
     var isShowingAirspace by remember { mutableStateOf(false) }
     var isShowingWinds by remember { mutableStateOf(false) }
+    // Whether the wind's sheet begins with the wind on the ground: it was
+    // opened from that badge or from its warning.
+    var windsBeginOnTheGround by remember { mutableStateOf(false) }
     var isShowingAhead by remember { mutableStateOf(false) }
     var isShowingTask by remember { mutableStateOf(false) }
     var isShowingLive by remember { mutableStateOf(false) }
@@ -221,24 +228,59 @@ fun CockpitScreen(
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         view.wind?.let { wind ->
-                            WindBadge(wind, view.windAgeS, onOpen = { isShowingWinds = true })
+                            WindBadge(
+                            wind,
+                            view.windAgeS,
+                            onOpen = {
+                                windsBeginOnTheGround = false
+                                isShowingWinds = true
+                            },
+                        )
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             // A wind that leaves the glider little way into
                             // it: said by the core, and only while it says so.
                             view.strongWind?.let { words -> StrongWindBadge(words) }
+                        // The wind on the ground: the station that speaks
+                        // for the landing, else the nearest. A tap lists the
+                        // stations around.
+                        fly.windBelow?.stations?.firstOrNull()?.let { station ->
+                            GroundWindBadge(
+                                station,
+                                onOpen = {
+                                    windsBeginOnTheGround = true
+                                    isShowingWinds = true
+                                },
+                            )
+                        }
                             // While circling: which way the lift is stronger,
                             // in words beside the picture on the map.
                             view.lift?.centre?.let { centre -> LiftBadge(centre) }
                         }
                     }
-                    AirspaceBanner(
-                        fly.airspaceWarnings,
-                        fly.airspaceCheck,
-                        onOpen = { isShowingAirspace = true },
+                    Column(
                         // Clear of the map's own credits button in the corner.
                         modifier = Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 10.dp, bottom = 10.dp),
-                    )
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        // A strong wind where the pilot means to land, over
+                        // the airspace's place on the map.
+                        fly.windWarning?.let { warning ->
+                            GroundWindBanner(
+                                warning,
+                                onOpen = {
+                                    windsBeginOnTheGround = true
+                                    isShowingWinds = true
+                                },
+                                onPutAway = fly::putWindWarningAway,
+                            )
+                        }
+                        AirspaceBanner(
+                            fly.airspaceWarnings,
+                            fly.airspaceCheck,
+                            onOpen = { isShowingAirspace = true },
+                        )
+                    }
                     // The landing to think of first, and whether the glide
                     // reaches it. A tap lists the places to fly to, each with
                     // its reach.
@@ -332,7 +374,13 @@ fun CockpitScreen(
 
     if (isShowingWinds) {
         // The running session's bands: the list fills while it is open.
-        WindByHeightSheet(view.windsByHeight, onDismiss = { isShowingWinds = false })
+        WindByHeightSheet(
+            view.windsByHeight,
+            ground = fly.windBelow,
+            groundCredits = fly.windBelowCredits,
+            groundFirst = windsBeginOnTheGround,
+            onDismiss = { isShowingWinds = false },
+        )
     }
 
     if (isChoosingTarget) {
@@ -838,6 +886,96 @@ private fun StrongWindBadge(words: String, modifier: Modifier = Modifier) {
         Icon(painterResource(R.drawable.venti_caution), contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(words, style = MaterialTheme.typography.titleSmall.numbers, color = Color.Unspecified)
+    }
+}
+
+/**
+ * The wind one station measured on the ground: a flag, an arrow where the
+ * air moves there, mean and gusts, and how far off the station is when it
+ * neither speaks for the landing nor stands near. Strong for a landing, it
+ * is on the ground of a warning, with a warning sign.
+ */
+@Composable
+private fun GroundWindBadge(station: GroundWindStation, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val strong = station.isStrong
+    Badge(
+        modifier
+            .testTag("ground-wind-badge")
+            .clearAndSetSemantics {
+                contentDescription = if (station.isAtLanding) "Wind at the landing" else "Wind on the ground"
+                stateDescription = "${station.name}, ${station.wind}, ${station.age}"
+                role = Role.Button
+                onClick(label = "Show the wind stations around") {
+                    onOpen()
+                    true
+                }
+            },
+        onClick = onOpen,
+        ground = if (strong) Venti.colours.dangerSoft else null,
+        ink = if (strong) Venti.colours.danger else null,
+    ) {
+        Icon(
+            painterResource(if (strong) R.drawable.venti_caution else R.drawable.venti_windsock),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        station.fromDeg?.let { from ->
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                painterResource(R.drawable.ic_arrow_upward),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp).rotate((from + 180).toFloat()),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(station.badge, style = MaterialTheme.typography.titleSmall.numbers, color = Color.Unspecified, maxLines = 1)
+    }
+}
+
+/**
+ * A strong wind where the pilot means to land: what a station there
+ * measured, in the core's words. A tap lists the stations around; the cross
+ * puts it away.
+ */
+@Composable
+private fun GroundWindBanner(alert: GroundWindAlert, onOpen: () -> Unit, onPutAway: () -> Unit) {
+    val colours = Venti.colours
+    Surface(
+        color = colours.cautionSoft,
+        contentColor = colours.caution,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, colours.caution),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("ground-wind-warning")
+                    .clickable(onClick = onOpen)
+                    .clearAndSetSemantics {
+                        contentDescription = alert.title
+                        stateDescription = alert.detail
+                        role = Role.Button
+                        onClick(label = "Show the wind stations around") {
+                            onOpen()
+                            true
+                        }
+                    }
+                    .padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.venti_windsock), contentDescription = null, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(alert.title, style = MaterialTheme.typography.titleMedium)
+                    Text(alert.detail, style = MaterialTheme.typography.bodyMedium.numbers)
+                }
+            }
+            IconButton(onClick = onPutAway, modifier = Modifier.size(VentiSize.touchFlight)) {
+                Icon(painterResource(R.drawable.ic_close), contentDescription = "Put the warning away")
+            }
+        }
     }
 }
 

@@ -8,6 +8,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import fly.venti.core.LocationSample
 
@@ -31,6 +32,12 @@ class LocationProvider(private val context: Context) {
 
     private val listener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
+            // Only a fix of now: a receiver that has just woken hands on
+            // where it was last, or a guess, and the cockpit took a jump
+            // from there for a take-off.
+            val ageS = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1e9
+            val accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else null
+            if (!Positions.isUsable(accuracy, ageS)) return
             onSample?.invoke(
                 LocationSample(
                     timeUnixS = location.time / 1000.0,
@@ -104,4 +111,21 @@ class LocationProvider(private val context: Context) {
             "Location is switched off on this phone, so Venti gets no positions. " +
                 "Switch it on in the phone's Settings."
     }
+}
+
+/** Which positions the cockpit flies by. */
+object Positions {
+    /** A position less accurate than this, metres, is no fix to fly by. */
+    const val WORST_ACCURACY_M = 100.0
+
+    /** A position older than this, seconds, is not one of now. */
+    const val OLDEST_S = 10.0
+
+    /**
+     * Whether a position is one to fly by: its accuracy known and no worse
+     * than [WORST_ACCURACY_M], and no older than [OLDEST_S]. As the
+     * iPhone's `LocationProvider.isUsable`.
+     */
+    fun isUsable(accuracyM: Double?, ageS: Double): Boolean =
+        accuracyM != null && accuracyM >= 0 && accuracyM <= WORST_ACCURACY_M && ageS <= OLDEST_S
 }

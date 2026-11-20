@@ -353,18 +353,15 @@ fn kilometres(metres: f64) -> String {
     format!("{:.1} km", metres / 1000.0)
 }
 
-/// "2,412 m".
+/// "2412 m": a height has no mark between the thousands, as the design
+/// language and an altimeter write it, and a loss has the true minus.
 fn metres(metres: f64) -> String {
     let whole = metres.round() as i64;
-    let digits = whole.abs().to_string();
-    let mut grouped = String::new();
-    for (place, digit) in digits.chars().enumerate() {
-        if place > 0 && (digits.len() - place).is_multiple_of(3) {
-            grouped.push(',');
-        }
-        grouped.push(digit);
-    }
-    format!("{}{grouped} m", if whole < 0 { "-" } else { "" })
+    format!(
+        "{}{} m",
+        if whole < 0 { "\u{2212}" } else { "" },
+        whole.abs()
+    )
 }
 
 /// "85 m" up to a kilometre, then "1.2 km".
@@ -564,9 +561,10 @@ mod tests {
         assert_eq!(duration(2 * 3600 + 14 * 60), "2 h 14 min");
         assert_eq!(duration(3600 + 5 * 60), "1 h 05 min");
         assert_eq!(kilometres(45_230.0), "45.2 km");
-        assert_eq!(metres(2412.4), "2,412 m");
+        assert_eq!(metres(2412.4), "2412 m");
         assert_eq!(metres(812.0), "812 m");
-        assert_eq!(metres(12_345_678.0), "12,345,678 m");
+        assert_eq!(metres(12_345_678.0), "12345678 m");
+        assert_eq!(metres(-135.0), "\u{2212}135 m");
         assert_eq!(distance(83.0), "85 m");
         assert_eq!(distance(1240.0), "1.2 km");
         assert_eq!(height_between(124.0), "120 m higher");

@@ -225,7 +225,7 @@ What our cockpit already does in the layout's place, and where it differs:
 | The layout has | Ours, 2026-11-20 |
 |---|---|
 | Speed, altitude, height over ground, wind speed and direction, climb, glide, air time, always in the same place | The same readings on the first page, the climb largest; air time in the line at the top. While circling, speed and glide give way to the thermal's gain and average |
-| A thermal assistant **beside** the map, always there | One map that zooms in while the glider circles and marks the thermals it has left. **Gap:** no second, close-up view that stays; no circle drawn. This is the largest difference in how the page works |
+| A thermal assistant **beside** the map, always there | Since 2026-11-20 on the iPhone, by the owner's word: a drawn close-up beside the first page's map, with the last circles where their air is now, the circle to fly next and the wind; on the glide the last minutes of track ([design.md](design.md#the-cockpit)). Android follows. Not flown |
 | Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. **Gap:** nothing says "the nearest airspace is 3.2 km away and 400 m above" while nothing is urgent |
 | Bearing as a reading | **Gap:** the course is computed and turns the glider's arrow, but is not written |
 | The scored distance and the unclosed triangle beside the map | On the third page, away from the map. **Gap:** not visible while looking at the map |
@@ -236,7 +236,7 @@ What our cockpit already does in the layout's place, and where it differs:
 | FAI areas, closing circle | FAI areas, since 2026-11-19; the closing circle is *to check* |
 | The competition page's nine readings | A task has its line, its start and its progress in the cockpit ([design.md](design.md#a-task-in-the-cockpit)); reading by reading against this page is *to do* |
 
-What follows for the presets: the first page should be able to show a close-up thermal view beside the map on a screen wide enough for both, and the cross-country numbers belong on the map's page. Neither is built.
+What follows for the presets: the cross-country numbers belong on the map's page, and the nearest airspace should be readable while nothing is urgent. Neither is built.
 
 ## Where we go beyond
 

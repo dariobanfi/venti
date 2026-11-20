@@ -239,9 +239,28 @@ struct CockpitScreen: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// The room under the readings. On the first page it is shared: the
+    /// thermal view on the left, a little under half the width, and the
+    /// map on the right. On the other pages the map has all of it.
+    private func map(_ view: CockpitView) -> some View {
+        GeometryReader { proxy in
+            HStack(spacing: 0) {
+                if page == .instruments {
+                    ThermalCloseUp(view: view)
+                        .frame(width: (proxy.size.width * 0.48).rounded())
+                    Rectangle()
+                        .fill(.venti(.border))
+                        .frame(width: 2)
+                }
+                theMap(view)
+            }
+        }
+        .frame(minHeight: 120)
+    }
+
     /// The map, with what lies over it. On the first page that is little:
     /// the map is small there, and the wind is among the readings.
-    private func map(_ view: CockpitView) -> some View {
+    private func theMap(_ view: CockpitView) -> some View {
         CockpitMap(
             view: view, way: fly.way, airspace: fly.airspace(),
             airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
@@ -252,7 +271,10 @@ struct CockpitScreen: View {
             showsWholeFlight: showsWholeFlight,
             task: fly.task == nil ? nil : tasks.task,
             taskStatus: fly.task,
-            source: maps.flyingSource
+            source: maps.flyingSource,
+            // On the first page the thermal view beside it is where the
+            // circle is looked at.
+            followsTheCircle: page != .instruments
         )
             // Drawn from the region kept on the iPhone wherever one covers
             // the glider: the map is made anew when the glider comes into
@@ -299,8 +321,9 @@ struct CockpitScreen: View {
                             .accessibilityIdentifier("ground-wind-badge")
                     }
                     // While circling: which way the lift is stronger, in
-                    // words beside the picture on the map.
-                    if let centre = view.lift?.centre {
+                    // words beside the picture on the map. On the first
+                    // page they stand under the thermal view.
+                    if page != .instruments, let centre = view.lift?.centre {
                         LiftBadge(centre: centre)
                     }
                 }

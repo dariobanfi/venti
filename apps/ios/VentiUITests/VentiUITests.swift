@@ -386,6 +386,8 @@ final class VentiUITests: XCTestCase {
         // spare. All three at one look, because the thermal is over a
         // quarter of a minute after it began.
         XCTAssertTrue(waitForAll(["Gained", "lift-badge", "landing-badge"], in: app, timeout: 180))
+        // The circles are pictured in the thermal view beside the map.
+        XCTAssertTrue(element("thermal-view", in: app).exists)
         sleep(1)
         keepScreenshot("fly-2-thermal")
 

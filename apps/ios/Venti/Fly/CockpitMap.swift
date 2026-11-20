@@ -38,6 +38,10 @@ struct CockpitMap: UIViewRepresentable {
     /// covers the glider. Read when the map is made; the screen makes the
     /// map anew when it changes.
     var source: MapStyle.Source = .standard
+    /// Whether the map follows the circle: zooms in while the glider
+    /// circles and pictures the lift among the circles. Not where the
+    /// thermal view stands beside it and does that.
+    var followsTheCircle = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -65,6 +69,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
+        context.coordinator.followsTheCircle = followsTheCircle
         context.coordinator.show(route, on: map)
         context.coordinator.show(view, way: way, on: map)
     }
@@ -88,6 +93,7 @@ struct CockpitMap: UIViewRepresentable {
         private var target: Coordinate?
         private var drawnThermals: [ThermalMarkView]?
         private var drawnLift: LiftView?
+        var followsTheCircle = true
         /// The zoom the map was last set to by itself.
         private var chosenZoom: Double?
         var fai: FaiAreas?
@@ -344,12 +350,15 @@ struct CockpitMap: UIViewRepresentable {
                 drawnThermals = view.thermals
                 source.shape = MLNShapeCollectionFeature(shapes: view.thermals.map(Self.thermalFeature))
             }
-            if view.lift != drawnLift {
-                drawnLift = view.lift
+            // The picture of the lift, unless the thermal view beside the
+            // map draws it.
+            let lift = followsTheCircle ? view.lift : nil
+            if lift != drawnLift {
+                drawnLift = lift
                 if let source = style.source(withIdentifier: "cockpit-lift") as? MLNShapeSource {
-                    source.shape = MLNShapeCollectionFeature(shapes: Self.liftFeatures(view.lift))
+                    source.shape = MLNShapeCollectionFeature(shapes: Self.liftFeatures(lift))
                 }
-                let centre = view.lift?.centre
+                let centre = lift?.centre
                 if let source = style.source(withIdentifier: "cockpit-lift-ring") as? MLNShapeSource {
                     let corners = (centre?.outline ?? []).map(\.location)
                     source.shape = corners.count >= 2
@@ -431,7 +440,8 @@ struct CockpitMap: UIViewRepresentable {
             // warning is about comes into or goes out of reach, so a zoom
             // level the pilot pinched to is kept until then.
             let zoom = Self.zoom(
-                circling: view.circling, showing: airspaceDistance, latitude: position.lat, in: map.bounds.size
+                circling: view.circling && followsTheCircle, showing: airspaceDistance,
+                latitude: position.lat, in: map.bounds.size
             )
             if zoom != chosenZoom {
                 chosenZoom = zoom

@@ -44,6 +44,57 @@ final class LiftTests: XCTestCase {
         XCTAssertTrue(CockpitMap.Coordinator.liftFeatures(nil).isEmpty)
     }
 
+    /// The thermal view beside the map places what the core gives it:
+    /// close on the circles while the glider circles, wider around the
+    /// glider on the glide.
+    func testTheThermalViewShowsTheCirclesCloseAndTheGlideWide() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("venti-lift-test-\(UUID().uuidString)", isDirectory: true)
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let session = FlightSession(dataFolder: folder.path)
+        let replay = try Replay(igcText: try String(contentsOf: url, encoding: .utf8))
+        let size = CGSize(width: 180, height: 300)
+
+        // On the glide: six hundred metres across, the glider in the middle.
+        _ = replay.advance(session: session, seconds: 60)
+        let gliding = session.view(nowUnixS: replay.now())
+        let wide = try XCTUnwrap(CloseUpGeometry(view: gliding))
+        XCTAssertEqual(wide.acrossM, 600)
+        XCTAssertEqual(wide.scaleM, 200)
+        let glider = wide.point(try XCTUnwrap(gliding.position), in: size)
+        XCTAssertEqual(glider.x, 90, accuracy: 0.01)
+        XCTAssertEqual(glider.y, 150, accuracy: 0.01)
+
+        // In the climb: as wide as the circles need, which for circles of
+        // 45 m is less than the glide's view and more than the closest.
+        _ = replay.advance(session: session, seconds: 240)
+        let circling = session.view(nowUnixS: replay.now())
+        let lift = try XCTUnwrap(circling.lift)
+        let close = try XCTUnwrap(CloseUpGeometry(view: circling))
+        XCTAssertGreaterThanOrEqual(close.acrossM, CloseUpGeometry.closestM)
+        XCTAssertLessThan(close.acrossM, 300)
+        XCTAssertEqual(close.scaleM, 50)
+        // Every place of the picture, the circle to fly and the glider lie
+        // inside the view's width.
+        var places = lift.points.map { Coordinate(lat: $0.lat, lon: $0.lon) }
+        places.append(contentsOf: lift.centre?.outline ?? [])
+        places.append(try XCTUnwrap(circling.position))
+        for place in places {
+            let at = close.point(place, in: size)
+            XCTAssertTrue((0...size.width).contains(at.x), "\(at)")
+        }
+    }
+
+    func testTheThermalViewMeasuresInMetresAndNorthIsUp() {
+        let origin = Coordinate(lat: 47.5, lon: 11.5)
+        let north = CloseUpGeometry.metres(from: origin, to: Coordinate(lat: 47.501, lon: 11.5))
+        XCTAssertEqual(north.north, 110.5, accuracy: 0.5)
+        XCTAssertEqual(north.east, 0, accuracy: 0.001)
+        let east = CloseUpGeometry.metres(from: origin, to: Coordinate(lat: 47.5, lon: 11.501))
+        XCTAssertEqual(east.east, 75.2, accuracy: 0.5)
+        XCTAssertEqual(east.north, 0, accuracy: 0.001)
+    }
+
     func testAWindsAgeIsShownOnceItIsFiveMinutesOld() {
         XCTAssertNil(WindBadge.age(nil))
         XCTAssertNil(WindBadge.age(40))

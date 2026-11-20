@@ -43,7 +43,7 @@ describe('a flight laid beside another', () => {
 		const here = point(420, 47.66);
 		const there = otherAt(beside(), 420)!;
 		expect(Math.round(metresApart(here, there))).toBe(334);
-		expect(otherInWords(beside(), here, text)).toBe('1,800 m · 330 m away');
+		expect(otherInWords(beside(), here, text)).toBe('1800 m · 330 m away');
 		expect(otherInWords(beside(), point(30), text)).toBe('Not in the air then');
 	});
 });

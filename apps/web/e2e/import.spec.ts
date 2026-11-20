@@ -122,7 +122,7 @@ test('a flight is deleted from its row on a wide screen', async ({ page, wide })
 
 	// The wide list has room for two more numbers.
 	const row = page.getByRole('link', { name: /Sat, 4 Jul/ });
-	await expect(row).toContainText('2,117 m');
+	await expect(row).toContainText('2117 m');
 	await expect(row).toContainText('+2.4 m/s');
 
 	// The button appears with the mouse over the row, and asks first.

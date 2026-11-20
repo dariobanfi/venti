@@ -22,7 +22,7 @@ export interface Writing {
 export const CAUTION =
 	'A site on the map is not permission to fly there. Ask the club or the owner, and look at the place.';
 
-/** One site in a line under its name: "Take-off · 1,560 m · wind S to SW". */
+/** One site in a line under its name: "Take-off · 1560 m · wind S to SW". */
 export function detail(site: SiteView, text: Pick<Writing, 'metres'>): string {
 	const parts: string[] = [];
 	// An unnamed site is called what it is already.

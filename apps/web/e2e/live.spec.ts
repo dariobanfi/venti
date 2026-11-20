@@ -83,7 +83,7 @@ test('the map draws who is in the air, lists them, and follows the flight of one
 	await expect(rows).toHaveCount(2);
 	await expect(rows.first()).toContainText('Demo Pilot');
 	// The age is in the core's words, counted on by this browser's clock.
-	await expect(rows.first()).toContainText(/1,596 m · -1\.0 m\/s · (Now|\d+ s ago)$/);
+	await expect(rows.first()).toContainText(/1596 m · -1\.0 m\/s · (Now|\d+ s ago)$/);
 	await expect(rows.last()).toContainText(/786 m · Landed (9|10) min ago$/);
 	await expect(list).toContainText(
 		'A glider nothing was heard of for a while has most likely no network: it is not known to have landed.'
@@ -97,14 +97,14 @@ test('the map draws who is in the air, lists them, and follows the flight of one
 	await expect(glider).toBeVisible();
 	await expect(metric(glider, 'Pilot')).toHaveText('Demo Pilot');
 	await expect(metric(glider, 'Position')).toHaveText(/^(Now|\d+ s ago)$/);
-	await expect(metric(glider, 'Altitude')).toHaveText(/^1,596\sm$/);
+	await expect(metric(glider, 'Altitude')).toHaveText(/^1596\sm$/);
 	await expect(metric(glider, 'Climb')).toHaveText(/^-1\.0\sm\/s$/);
 	await expect(metric(glider, 'Speed')).toHaveText(/^38\skm\/h$/);
 	await expect(metric(glider, 'Flying')).toHaveText(/^N\s20°$/);
 	// The flight so far, once the server has handed its track out: twenty
 	// minutes of it, with the climb the line on the map is red for.
 	await expect(metric(glider, 'Shown for')).toHaveText(/^0:20\sh$/);
-	await expect(metric(glider, 'Highest')).toHaveText(/^2,117\sm$/);
+	await expect(metric(glider, 'Highest')).toHaveText(/^2117\sm$/);
 	await expect(
 		glider.getByRole('link', { name: 'The server’s page of this flight' })
 	).toHaveAttribute('href', `/live/${FLYING.id}`);
@@ -258,7 +258,7 @@ test('a glider nothing was heard of for a while is drawn held back, and never ca
 	await page.getByRole('button', { name: 'In the air' }).click();
 	const list = page.getByRole('dialog', { name: 'In the air' });
 	await expect(list.getByRole('listitem').first()).toContainText(
-		/1,596 m · -1\.0 m\/s · No position for 7 min$/
+		/1596 m · -1\.0 m\/s · No position for 7 min$/
 	);
 	await list.getByRole('listitem').first().getByRole('button').click();
 

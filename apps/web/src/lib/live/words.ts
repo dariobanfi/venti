@@ -21,7 +21,7 @@ export const NO_LONGER_HERE =
 
 /**
  * One glider in a line of a list: how high, how it climbs, and how old the
- * position is. "1,596 m · -1.0 m/s · Now". A glider on the ground does not
+ * position is. "1596 m · -1.0 m/s · Now". A glider on the ground does not
  * climb.
  */
 export function detail(glider: LiveGlider, age: string, text: Format): string {

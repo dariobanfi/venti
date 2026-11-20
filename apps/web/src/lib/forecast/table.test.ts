@@ -105,7 +105,7 @@ describe('the rows of a forecast table', () => {
 
 		expect(table.map((row) => [row.name, row.detail])).toEqual([
 			// A pressure surface by about how high it lies, the surface in small print.
-			['2,900 m', '700 hPa'],
+			['2900 m', '700 hPa'],
 			['80 m', 'above ground'],
 			['10 m', 'with gusts'],
 			['Cloud', '% of sky'],
@@ -125,12 +125,12 @@ describe('the rows of a forecast table', () => {
 		expect(row('Cloud')[0]).toEqual({ is: 'cloud', percent: 60 });
 		expect(row('Rain').map((cell) => cell.is === 'number' && cell.text)).toEqual([DRY, DRY, '1.3']);
 		expect(row('Temperature')[0]).toEqual({ is: 'number', text: '3' });
-		expect(row('0 °C')[0]).toEqual({ is: 'number', text: '1,800' });
+		expect(row('0 °C')[0]).toEqual({ is: 'number', text: '1800' });
 		// An hour without convective cloud shows none; the row is there for the one that has.
 		expect(row('Cloud base')).toEqual([
 			{ is: 'empty' },
 			{ is: 'empty' },
-			{ is: 'number', text: '2,400' }
+			{ is: 'number', text: '2400' }
 		]);
 	});
 
@@ -155,7 +155,7 @@ describe('the rows of a forecast table', () => {
 describe('what stands under a forecast table', () => {
 	it('says which cell of which model, how high its ground is, and that it is no verdict', () => {
 		expect(caveat(model(), text)).toBe(
-			"What the weather model ICON-D2 computes for the cell of its grid that holds this place (2 km cells). The model's ground there is at 1,266 m: its wind at 10 m is the wind 10 m above that, which in the mountains is not the wind at a take-off or in the valley. The cloud base is that of the model's convective cloud; an hour without one shows none. Nothing here says whether the day can be flown."
+			"What the weather model ICON-D2 computes for the cell of its grid that holds this place (2 km cells). The model's ground there is at 1266 m: its wind at 10 m is the wind 10 m above that, which in the mountains is not the wind at a take-off or in the valley. The cloud base is that of the model's convective cloud; an hour without one shows none. Nothing here says whether the day can be flown."
 		);
 	});
 

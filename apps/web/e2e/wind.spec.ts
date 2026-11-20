@@ -49,7 +49,7 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	// A screen reader hears a sentence, not a fraction.
 	await expect(
 		list.getByRole('button', {
-			name: 'Zugspitze. Wind 54 kilometres per hour, gusts 93, from W. 2,956 m'
+			name: 'Zugspitze. Wind 54 kilometres per hour, gusts 93, from W. 2956 m'
 		})
 	).toBeVisible();
 	await expect(list).toContainText('Quelle: Deutscher Wetterdienst');
@@ -71,7 +71,7 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	await expect(metric(station, 'Gusts')).toHaveText(/^93\skm\/h$/);
 	await expect(metric(station, 'From')).toHaveText(/^W\s260°$/);
 	await expect(metric(station, 'Temperature')).toHaveText(/^-7\s°C$/);
-	await expect(metric(station, 'Height')).toHaveText(/^2,956\sm$/);
+	await expect(metric(station, 'Height')).toHaveText(/^2956\sm$/);
 	await expect(metric(station, 'Measured')).toHaveText('19:20');
 	await expect(station).toContainText('Measured 45 minutes ago.');
 

@@ -37,7 +37,7 @@ test('a flight’s profile is drawn over the ground, and the marked moment says 
 	// the Tegernsee and the Wallberg's ridge, as the tiles have them.
 	await expect(chart).toHaveAttribute(
 		'aria-valuetext',
-		'From 786 to 2,117 metres, over ground from 731 to 1,710 metres. Nothing marked.'
+		'From 786 to 2117 metres, over ground from 731 to 1710 metres. Nothing marked.'
 	);
 	for (const tile of ['12/2181/1429', '12/2182/1429']) {
 		expect(fetched).toContain(`https://tiles.mapterhorn.com/${tile}.webp`);
@@ -68,7 +68,7 @@ test('a flight’s profile is drawn over the ground, and the marked moment says 
 	await page.keyboard.press('PageUp');
 	await page.keyboard.press('PageUp');
 	await page.keyboard.press('PageUp');
-	await expect(metric(moment, 'Over ground')).toHaveText(/^1,\d{3}\sm$/);
+	await expect(metric(moment, 'Over ground')).toHaveText(/^1\d{3}\sm$/);
 	await chart.blur();
 	await keep('72-flight-ground-moment');
 
@@ -102,10 +102,7 @@ test('without elevation tiles the profile is as it was', async ({ context, page,
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await asked;
 
-	await expect(chart).toHaveAttribute(
-		'aria-valuetext',
-		'From 786 to 2,117 metres. Nothing marked.'
-	);
+	await expect(chart).toHaveAttribute('aria-valuetext', 'From 786 to 2117 metres. Nothing marked.');
 	await chart.focus();
 	await page.keyboard.press('End');
 	await expect(metric(moment, 'In the air')).toHaveText('0:29 h');

@@ -292,7 +292,7 @@ test('a flight’s details list the airspace it entered, and say what that is wo
 	// above its floor the app cannot tell: "possibly", in the core's words.
 	const restricted = entered.filter({ hasText: 'ED-R VALLEY' });
 	await expect(restricted).toContainText('Restricted area · 1000 ft AGL to FL 100');
-	await expect(restricted).toContainText('12:30 · 786 to 2,117 m');
+	await expect(restricted).toContainText('12:30 · 786 to 2117 m');
 	await expect(restricted).toContainText(
 		'Possibly clear: the app does not know the height of the ground there.'
 	);

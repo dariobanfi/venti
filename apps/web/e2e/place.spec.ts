@@ -126,7 +126,7 @@ test('a site on the map leads to its page, which says when nobody flew from it',
 	await expect(
 		page.getByRole('heading', { level: 1, name: 'Fluggelände Jägerkamp/Nagelspitz' })
 	).toBeVisible();
-	await expect(page.locator('header').first()).toContainText('Take-off · 1,560 m');
+	await expect(page.locator('header').first()).toContainText('Take-off · 1560 m');
 	await expect(page.getByText('Nobody shares a flight from here')).toBeVisible();
 	await expect(page.getByText('Nobody is ranked')).toBeVisible();
 	await keep('88-place-nobody');

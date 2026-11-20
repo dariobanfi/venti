@@ -69,7 +69,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	await page.getByRole('button', { name: 'Flying sites' }).click();
 	const rows = list.getByRole('listitem');
 	await expect(rows.first()).toContainText('Fluggelände Jägerkamp/Nagelspitz');
-	await expect(rows.first()).toContainText('Take-off · 1,560 m');
+	await expect(rows.first()).toContainText('Take-off · 1560 m');
 	await expect(rows.filter({ hasText: 'Landeplatz Jägerkamp/Nagelspitz' })).toContainText(
 		'Landing'
 	);
@@ -95,7 +95,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	const site = sitePanel(page, wide, 'Fluggelände Jägerkamp/Nagelspitz');
 	await expect(site).toBeVisible();
 	await expect(metric(site, 'What it is')).toHaveText('Take-off');
-	await expect(metric(site, 'Height')).toHaveText(/^1,560\sm$/);
+	await expect(metric(site, 'Height')).toHaveText(/^1560\sm$/);
 	await expect(metric(site, 'Wind it works in')).toHaveText('Not given');
 	await expect(site.getByRole('list', { name: 'What its source marks it as' })).toHaveText(
 		'Marked as an official site'
@@ -159,7 +159,7 @@ test('a site is opened by its sign, and a station still by its arrow', async ({
 
 	const site = sitePanel(page, wide, 'Fluggelände Jägerkamp/Nagelspitz');
 	await expect(site).toBeVisible();
-	await expect(metric(site, 'Height')).toHaveText(/^1,560\sm$/);
+	await expect(metric(site, 'Height')).toHaveText(/^1560\sm$/);
 
 	// A click on the bare map chooses nothing.
 	await closeButton(site, wide).click();

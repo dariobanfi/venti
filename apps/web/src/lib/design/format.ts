@@ -21,9 +21,9 @@ export interface Format {
 	kilometres(metres: number): string;
 	/** Whole kilometres, for totals. */
 	wholeKilometres(metres: number): string;
-	/** Whole metres. */
+	/** Whole metres of a height, as the design pack writes them: "2410", "−35". */
 	metres(metres: number): string;
-	/** Whole metres with a sign, for a gain or a loss. */
+	/** Whole metres with a sign, for a gain or a loss: "+1140", "−135". */
 	signedMetres(metres: number): string;
 	/** Metres per second with one decimal and always a sign, except for zero. */
 	climb(metresPerSecond: number): string;
@@ -123,7 +123,11 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const whole = number(0);
 	const tenths = number(1);
 	const signedTenths = number(1, { signDisplay: 'exceptZero' });
-	const signedWhole = number(0, { signDisplay: 'exceptZero' });
+	// Heights as the design pack writes them: no mark for thousands ("2410
+	// m"), and a loss with the true minus sign, as wide as the plus.
+	const height = number(0, { useGrouping: false });
+	const signedHeight = number(0, { useGrouping: false, signDisplay: 'exceptZero' });
+	const trueMinus = (text: string) => text.replace('-', '\u2212');
 	const percent = number(0, { style: 'percent' });
 	const hundredths = number(2);
 	const tenThousandths = number(4);
@@ -166,8 +170,8 @@ export function createFormat(locale: string, timeZone?: string): Format {
 			`${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`,
 		kilometres: (metres) => tenths.format(metres / 1000),
 		wholeKilometres: (metres) => whole.format(metres / 1000),
-		metres: (metres) => whole.format(metres),
-		signedMetres: (metres) => signedWhole.format(metres),
+		metres: (metres) => trueMinus(height.format(metres)),
+		signedMetres: (metres) => trueMinus(signedHeight.format(metres)),
 		climb: (metresPerSecond) => signedTenths.format(metresPerSecond),
 		kilometresPerHour: (metresPerSecond) => whole.format(metresPerSecond * 3.6),
 		glideRatio: (ratio) => tenths.format(ratio),

@@ -15,11 +15,11 @@ describe('a site in a line', () => {
 			windInWords: 'S to SW'
 		});
 
-		expect(detail(named, text)).toBe('Take-off · 1,540 m · wind S to SW');
+		expect(detail(named, text)).toBe('Take-off · 1540 m · wind S to SW');
 	});
 
 	it('does not repeat what an unnamed site is called already', () => {
-		expect(detail(site({ elevationM: 1100 }), text)).toBe('1,100 m');
+		expect(detail(site({ elevationM: 1100 }), text)).toBe('1100 m');
 		expect(detail(site(), text)).toBe('No more is known');
 	});
 });

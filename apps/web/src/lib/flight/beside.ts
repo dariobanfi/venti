@@ -55,7 +55,7 @@ export function metresApart(one: TrackPoint, other: TrackPoint): number {
 
 /**
  * What to say of the other glider at a moment: how high and how far away
- * ("1,840 m · 320 m away"), or that it was not in the air then.
+ * ("1840 m · 320 m away"), or that it was not in the air then.
  */
 export function otherInWords(beside: Beside, point: TrackPoint, text: Format): string {
 	const other = otherAt(beside, point.seconds);

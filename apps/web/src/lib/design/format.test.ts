@@ -88,8 +88,9 @@ describe('numbers', () => {
 		expect(format.wholeKilometres(18402.3)).toBe('18');
 	});
 
-	it('writes altitudes in whole metres with a separator for thousands', () => {
-		expect(format.metres(2117)).toBe('2,117');
+	it('writes heights in whole metres without a mark for thousands, as the design pack does', () => {
+		expect(format.metres(2117)).toBe('2117');
+		expect(format.metres(-35)).toBe('\u221235');
 		expect(format.metres(786.4)).toBe('786');
 	});
 
@@ -108,7 +109,7 @@ describe('numbers', () => {
 
 	it('gives a height gained or lost a sign', () => {
 		expect(format.signedMetres(853.2)).toBe('+853');
-		expect(format.signedMetres(-1240)).toBe('-1,240');
+		expect(format.signedMetres(-1240)).toBe('\u22121240');
 		expect(format.signedMetres(0)).toBe('0');
 	});
 
@@ -205,7 +206,7 @@ describe('what the wind screens write', () => {
 		for (const region of ['en-GB', 'en-DE', 'en-AT', 'en-CH', 'en-IT', 'en-FR', 'en-US']) {
 			const text = createFormat(region, 'Europe/Berlin');
 			expect(text.kilometres(2500), region).toBe('2.5');
-			expect(text.metres(3100), region).toBe('3,100');
+			expect(text.metres(3100), region).toBe('3100');
 			expect(text.place(47.6642, 11.7967), region).toBe('47.6642° N, 11.7967° E');
 		}
 	});

@@ -55,7 +55,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	// The flight in one number: its scored distance, in the hero style.
 	await expect(page.getByLabel('Distance: 12.0 kilometres')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Free flight, Sat, 4 Jul 2026' })).toBeVisible();
-	await expect(metric(totals, 'Highest')).toHaveText('2,117 m');
+	await expect(metric(totals, 'Highest')).toHaveText('2117 m');
 	await expect(metric(totals, 'Best climb')).toHaveText('+2.4 m/s');
 	await expect(page.getByRole('img', { name: /Track colours/ })).toBeVisible();
 	await expect(page.getByRole('region', { name: 'Map of the flight' })).toBeVisible();
@@ -84,7 +84,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await page.mouse.move(...along(0.8));
 	await expect(page.getByRole('button', { name: 'Show flight totals' })).toBeVisible();
 	await expect(metric(moment, 'Time')).toHaveText('12:38');
-	await expect(metric(moment, 'Altitude')).toHaveText(/^\d,\d{3}\sm$/);
+	await expect(metric(moment, 'Altitude')).toHaveText(/^\d{4}\sm$/);
 	await expect(metric(moment, 'Climb')).toHaveText(/^[+-]?\d\.\d\sm\/s$/);
 	await expect(metric(totals, 'Airtime')).toBeHidden();
 	await expect(chart).toHaveAttribute(
@@ -214,7 +214,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	const longest = page.getByRole('link', { name: /Longest flight/ });
 	await expect(longest).toContainText('Sat, 4 Jul 2026');
 	await expect(longest).toContainText('0:29 h');
-	await expect(page.getByRole('link', { name: /Highest/ })).toContainText('2,117 m');
+	await expect(page.getByRole('link', { name: /Highest/ })).toContainText('2117 m');
 	await keep('09-statistics');
 	await page.getByText('Distance', { exact: true }).click();
 	await expect(page.getByRole('radio', { name: 'Distance' })).toBeChecked();

@@ -214,7 +214,7 @@ describe('a flight checked against airspace', () => {
 			name: 'CTR TEST',
 			airspace: 'Class D control zone · GND to 9000 ft AMSL',
 			// Twelve minutes after a take-off at 12:30 where the reader is.
-			stretch: '12:42 · 1,498 to 1,612 m',
+			stretch: '12:42 · 1498 to 1612 m',
 			duration: '1:15 min'
 		});
 	});

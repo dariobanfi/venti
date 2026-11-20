@@ -159,7 +159,7 @@ test('another pilot’s flight opens like one’s own, from its file, and is kep
 	const pilot = page.getByRole('link', { name: 'Jonas Beispiel' });
 	await expect(pilot).toHaveAttribute('href', /\/logbook\/everyone\/pilot\/?\?handle=jonas$/);
 	await expect(metric(panel(page).totals, 'Airtime')).toHaveText(/^0:29\sh$/);
-	await expect(metric(panel(page).totals, 'Highest')).toHaveText(/^2,117\sm$/);
+	await expect(metric(panel(page).totals, 'Highest')).toHaveText(/^2117\sm$/);
 	await mapDrawn();
 	await keep('65-public-flight');
 

@@ -84,7 +84,7 @@ describe('the ground under a flight', () => {
 		).toBe(true);
 
 		// The flight starts on the Wallberg, where the tiles give the ground
-		// of the take-off as 1,621 m, and ends over the valley of the
+		// of the take-off as 1621 m, and ends over the valley of the
 		// Tegernsee, whose shore lies at some 730 m. It is a made-up flight
 		// and not a flown one: for a few moments its line runs through the
 		// mountain it started from.

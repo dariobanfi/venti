@@ -1041,7 +1041,7 @@ class VentiUiTest {
         // development mode keeps a report until it is stopped, and a
         // second report about the same flight is not a new one, so the two
         // appearances report two pilots' flights.
-        tap(hasTestTag("logbook-everyone"))
+        tap(tab("League"))
         val theirs = hasTestTag("public-flight-row") and described(if (dark) "Mara Muster" else "Jonas Beispiel")
         waitFor(theirs)
         screen.onAllNodes(theirs).onFirst().performClick()
@@ -1078,7 +1078,7 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-outcome")) }
         tap(described("Back"))
         waitFor(hasTestTag("public-flight-row"))
-        tap(hasTestTag("logbook-mine"))
+        tap(tab("Logbook"))
         waitFor(hasTestTag("logbook-row"))
 
         // Who flies where: the plans of the pilot's groups, from the map.
@@ -1413,11 +1413,11 @@ class VentiUiTest {
     }
 
     /**
-     * Everyone's flights: with a server set, the Logbook tab also lists
-     * what the pilots of that server share with everyone, the newest first
-     * or the best. The development mode has five public flights of three
-     * made-up pilots. One opens like a flight of the logbook, from its
-     * file, and nothing of it is kept. Skipped without a server.
+     * Everyone's flights: the League tab lists what the pilots of Venti
+     * share with everyone, the newest first or the best, and ranks them.
+     * The development mode has five public flights of three made-up
+     * pilots. One opens like a flight of the logbook, from its file, and
+     * nothing of it is kept. Skipped without a server.
      */
     private fun lookAtEveryonesFlights(prefix: String, dark: Boolean) {
         val server = InstrumentationRegistry.getArguments().getString("ventiServer")
@@ -1433,12 +1433,8 @@ class VentiUiTest {
         assertFalse(exists(hasTestTag("plans-groups")))
         tap(hasText("Done") and hasClickAction())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("plans-signed-out")) }
-        tap(tab("Logbook"))
-        // The pilot's own logbook is empty. The switch is there because a
-        // server is set.
-        waitFor(hasText("No flights yet"))
-        waitFor(hasTestTag("logbook-everyone"))
-        tap(hasTestTag("logbook-everyone"))
+        tap(tab("League"))
+        waitFor(hasTestTag("league-everyone") and isSelected())
 
         // The newest first: the one of September, then August's.
         val row = hasTestTag("public-flight-row")
@@ -1515,16 +1511,33 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasTestTag("public-flight-pilot"))
 
-        // Back to the list, in the order it was left in; and the pilot's
-        // own logbook is as empty as before.
+        // Back to the list, in the order it was left in.
         tap(described("Back"))
         waitFor(hasTestTag("public-flights-best") and isSelected())
-        tap(hasTestTag("logbook-mine"))
+
+        // The ranking: the pilots by the points of their best flights, in
+        // the newest season, and in all years. A flight that counts opens
+        // like any public flight.
+        tap(hasTestTag("league-ranking"))
+        waitFor(hasTestTag("ranking-season"))
+        val allYears = hasText("All years") and hasAnyAncestor(hasTestTag("ranking-season"))
+        tap(allYears)
+        waitFor(hasTestTag("ranked-pilot"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-everyone-6-ranking")
+        screen.onAllNodes(hasTestTag("ranked-flight")).onFirst().performClick()
+        waitFor(hasTestTag("public-flight-pilot"))
+        waitFor(described("Flight details"))
+        tap(described("Back"))
+        waitFor(hasTestTag("ranked-pilot"))
+
+        // The pilot's own logbook is as empty as before.
+        tap(tab("Logbook"))
         waitFor(hasText("No flights yet"))
     }
 
     @Test
-    fun theLogbookTabListsEveryonesFlights() = lookAtEveryonesFlights("light", dark = false)
+    fun theLeagueTabListsEveryonesFlights() = lookAtEveryonesFlights("light", dark = false)
 
     @Test
     fun everyonesFlightsInDarkAppearance() = lookAtEveryonesFlights("dark", dark = true)

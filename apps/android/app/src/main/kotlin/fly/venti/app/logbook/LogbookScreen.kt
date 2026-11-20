@@ -29,10 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,7 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +55,6 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.AppNavigation
 import fly.venti.app.LogbookRoute
 import fly.venti.app.R
-import fly.venti.app.community.CommunityModel
-import fly.venti.app.community.PublicFlightsList
 import fly.venti.app.design.Format
 import fly.venti.app.design.Metric
 import fly.venti.app.design.numbers
@@ -81,18 +76,11 @@ fun LogbookScreen(
     imports: CoroutineScope,
     /** Called with what there is to say about an import or a deletion. */
     onNotice: (ImportNotice?) -> Unit,
-    /** Everyone's public flights on the pilot's Venti server. */
-    community: CommunityModel,
-    /** Whether a Venti server is set: then the tab also lists what everyone there shares. */
-    hasServer: Boolean,
     bars: PaddingValues,
 ) {
     val context = LocalContext.current.applicationContext
     var flightToDelete by remember { mutableStateOf<LogbookEntry?>(null) }
     var isChoosingWhat by remember { mutableStateOf(false) }
-    // Whether the tab shows everyone's public flights instead of the
-    // pilot's own. Kept while the pilot looks at one of them.
-    var showsEveryone by rememberSaveable { mutableStateOf(false) }
     val progress = logbook.importProgress
 
     // After an import: open the flight if there was exactly one new one,
@@ -131,23 +119,14 @@ fun LogbookScreen(
     Scaffold(
         modifier = Modifier.padding(bottom = bars.calculateBottomPadding()),
         topBar = {
-            Column {
-                LogbookBar(progress, isChoosingWhat, onChoosingWhat = { isChoosingWhat = it }, chooseFiles, chooseFolder)
-                // With a Venti server set: the pilot's own flights, or what
-                // everyone there shares.
-                if (hasServer) {
-                    WhoseFlights(showsEveryone, onChange = { showsEveryone = it })
-                }
-            }
+            LogbookBar(progress, isChoosingWhat, onChoosingWhat = { isChoosingWhat = it }, chooseFiles, chooseFolder)
         },
         // The tab bar below already keeps clear of the system's own bar.
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.padding(padding)) {
             Box(Modifier.weight(1f)) {
-                if (showsEveryone && hasServer) {
-                    PublicFlightsList(community, onOpen = { navigation.open(LogbookRoute.PublicFlight(it.id)) })
-                } else if (logbook.view.years.isEmpty()) {
+                if (logbook.view.years.isEmpty()) {
                     EmptyLogbook(
                         isImporting = progress != null,
                         onImport = chooseFiles,
@@ -184,33 +163,6 @@ fun LogbookScreen(
                 }
             },
             onDismiss = { flightToDelete = null },
-        )
-    }
-}
-
-/**
- * The switch under the title bar: the pilot's own flights, or everyone's.
- * Material's tabs, which is how Android sets two views of one section side
- * by side.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun WhoseFlights(showsEveryone: Boolean, onChange: (Boolean) -> Unit) {
-    PrimaryTabRow(
-        selectedTabIndex = if (showsEveryone) 1 else 0,
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Tab(
-            selected = !showsEveryone,
-            onClick = { onChange(false) },
-            text = { Text("Mine") },
-            modifier = Modifier.testTag("logbook-mine"),
-        )
-        Tab(
-            selected = showsEveryone,
-            onClick = { onChange(true) },
-            text = { Text("Everyone") },
-            modifier = Modifier.testTag("logbook-everyone"),
         )
     }
 }

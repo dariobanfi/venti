@@ -17,6 +17,7 @@ enum class AppTab(val title: String, @param:DrawableRes val icon: Int) {
     Map("Map", R.drawable.venti_map),
     Fly("Fly", R.drawable.venti_wing),
     Logbook("Logbook", R.drawable.venti_track),
+    League("League", R.drawable.venti_league),
 }
 
 /** A page of the Today tab, opened from its corner. */
@@ -35,12 +36,15 @@ sealed interface LogbookRoute {
 
     /** The statistics. */
     data object Statistics : LogbookRoute
+}
 
+/** A screen reached from the League tab's lists, or from a flight flown from a site. */
+sealed interface LeagueRoute {
     /** Another pilot's public flight, by its address on the server. */
-    data class PublicFlight(val id: String) : LogbookRoute
+    data class PublicFlight(val id: String) : LeagueRoute
 
     /** A pilot's public flights: the pilot's handle, and the name to show until the server has said it. */
-    data class Pilot(val handle: String, val name: String) : LogbookRoute
+    data class Pilot(val handle: String, val name: String) : LeagueRoute
 }
 
 /** A screen reached from the settings. */
@@ -89,6 +93,9 @@ class AppNavigation {
     /** The screens opened on top of the logbook's list, the newest last. */
     val logbookPath = mutableStateListOf<LogbookRoute>()
 
+    /** The screens opened on top of the League tab's lists, the newest last. */
+    val leaguePath = mutableStateListOf<LeagueRoute>()
+
     /** The screen opened on top of the settings, if any. */
     var settingsRoute: SettingsRoute? by mutableStateOf(null)
 
@@ -105,6 +112,7 @@ class AppNavigation {
             AppTab.Today -> todayRoute != TodayRoute.Settings || settingsRoute == null
             AppTab.Logbook -> logbookPath.isEmpty()
             AppTab.Fly -> flyRoute == null
+            AppTab.League -> leaguePath.isEmpty()
             AppTab.Map -> true
         }
 
@@ -114,6 +122,7 @@ class AppNavigation {
             AppTab.Today -> todayRoute != null
             AppTab.Logbook -> logbookPath.isNotEmpty()
             AppTab.Fly -> flyRoute != null
+            AppTab.League -> leaguePath.isNotEmpty()
             AppTab.Map -> false
         }
 
@@ -152,10 +161,25 @@ class AppNavigation {
         logbookPath += route
     }
 
+    fun open(route: LeagueRoute) {
+        leaguePath += route
+    }
+
+    /** One of everyone's flights, on the League tab, from wherever it was found. */
+    fun showPublic(flight: String) {
+        tab = AppTab.League
+        leaguePath.clear()
+        leaguePath += LeagueRoute.PublicFlight(flight)
+    }
+
     /** One step back. Returns false if there is nowhere to go back to. */
     fun back(): Boolean = when {
         tab == AppTab.Logbook && logbookPath.isNotEmpty() -> {
             logbookPath.removeAt(logbookPath.lastIndex)
+            true
+        }
+        tab == AppTab.League && leaguePath.isNotEmpty() -> {
+            leaguePath.removeAt(leaguePath.lastIndex)
             true
         }
         tab == AppTab.Today && todayRoute == TodayRoute.Settings && settingsRoute != null -> {
@@ -191,10 +215,14 @@ class AppNavigation {
                     navigation.logbookPath.map { route ->
                         when (route) {
                             is LogbookRoute.Flight -> FLIGHT + route.id
-                            is LogbookRoute.PublicFlight -> PUBLIC_FLIGHT + route.id
-                            // A handle has no space in it; a name may.
-                            is LogbookRoute.Pilot -> "$PILOT${route.handle} ${route.name}"
                             LogbookRoute.Statistics -> STATISTICS
+                        }
+                    } +
+                    navigation.leaguePath.map { route ->
+                        when (route) {
+                            is LeagueRoute.PublicFlight -> PUBLIC_FLIGHT + route.id
+                            // A handle has no space in it; a name may.
+                            is LeagueRoute.Pilot -> "$PILOT${route.handle} ${route.name}"
                         }
                     }
             },
@@ -205,13 +233,13 @@ class AppNavigation {
                     flyRoute = FlyRoute.entries.firstOrNull { it.name == saved[2] }
                     todayRoute = TodayRoute.entries.firstOrNull { it.name == saved[3] }
                     saved.drop(4).forEach { route ->
-                        logbookPath += when {
-                            route == STATISTICS -> LogbookRoute.Statistics
-                            route.startsWith(PUBLIC_FLIGHT) -> LogbookRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
+                        when {
+                            route == STATISTICS -> logbookPath += LogbookRoute.Statistics
+                            route.startsWith(PUBLIC_FLIGHT) -> leaguePath += LeagueRoute.PublicFlight(route.removePrefix(PUBLIC_FLIGHT))
                             route.startsWith(PILOT) -> route.removePrefix(PILOT).let { pilot ->
-                                LogbookRoute.Pilot(pilot.substringBefore(' '), pilot.substringAfter(' ', ""))
+                                leaguePath += LeagueRoute.Pilot(pilot.substringBefore(' '), pilot.substringAfter(' ', ""))
                             }
-                            else -> LogbookRoute.Flight(route.removePrefix(FLIGHT))
+                            else -> logbookPath += LogbookRoute.Flight(route.removePrefix(FLIGHT))
                         }
                     }
                 }

@@ -70,6 +70,7 @@ class CommunityModelTest {
                     } else {
                         HttpAnswer(200, recorded("pilot.json"))
                     }
+                "/v1/ranking" in url -> HttpAnswer(200, recorded("ranking.json"))
                 "/v1/pilots/" in url -> HttpAnswer(404, """{"error": {"code": "not_found", "message": "x"}}""".toByteArray())
                 "/v1/flights/public" !in url -> HttpAnswer(404, ByteArray(0))
                 refusal != null -> checkNotNull(refusal)
@@ -100,6 +101,48 @@ class CommunityModelTest {
 
     private fun model(server: Server, address: () -> String? = { BASE }) =
         CommunityModel(transport = server::answer).also { it.server = address }
+
+    @Test
+    fun theRankingIsOfASeasonAndItsFlightsOpenLikeAnyPublicFlight() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        // 20 November 2026.
+        val now = 1_795_132_800L
+        community.rank(nowUnixS = now)
+
+        val ranked = community.ranked
+        // The seasons are the core's, the newest first; the first is shown.
+        assertTrue(ranked.seasons.size > 1)
+        assertEquals(ranked.seasons.first().name, ranked.season)
+        assertTrue(server.asked.single(), server.asked.single().startsWith("$BASE/v1/ranking?from="))
+        assertFalse(ranked.isLoading)
+        assertNull(ranked.problem)
+        assertEquals("Mara Muster", ranked.pilots.first().name)
+        assertEquals(1u, ranked.pilots.first().place)
+        assertTrue(ranked.rule.isNotEmpty())
+        val flight = ranked.pilots.first().flights.first()
+        assertEquals(flight, community.flight(flight.id))
+
+        // Another season: asked for by its own span; all years by none.
+        val always = ranked.seasons.last()
+        community.rank(always.name, nowUnixS = now)
+        assertEquals(always.name, community.ranked.season)
+        assertEquals("$BASE/v1/ranking", server.asked.last())
+
+        // A server that cannot be reached is said in words.
+        server.isReachable = false
+        community.rank(nowUnixS = now)
+        assertTrue(community.ranked.problem.orEmpty().startsWith("Venti could not be reached for the ranking."))
+    }
+
+    @Test
+    fun withoutVentiThereIsNoRanking() = runBlocking {
+        val server = Server()
+        val community = model(server, address = { null })
+        community.rank()
+        assertTrue(community.ranked.seasons.isEmpty())
+        assertTrue(server.asked.isEmpty())
+    }
 
     @Test
     fun whatWasFlownFromASiteAndAroundAFlightIsAskedForByPlaceAndTime() = runBlocking {

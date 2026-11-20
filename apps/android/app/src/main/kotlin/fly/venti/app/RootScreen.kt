@@ -37,6 +37,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.account.AccountScreen
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
+import fly.venti.app.community.LeagueScreen
 import fly.venti.app.community.PilotFlightsScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.flight.PublicFlightScreen
@@ -315,8 +316,7 @@ private fun Sections(
                             community = session.community,
                             onOpenFlight = { flight ->
                                 todaySite = null
-                                navigation.showLogbook()
-                                navigation.open(LogbookRoute.PublicFlight(flight.id))
+                                navigation.showPublic(flight.id)
                             },
                         )
                     }
@@ -335,11 +335,8 @@ private fun Sections(
                     requests = session.scope,
                     bars,
                     community = session.community,
-                    // A flight flown from a site opens like one of everyone's, on the Logbook tab.
-                    onOpenFlight = { flight ->
-                        navigation.showLogbook()
-                        navigation.open(LogbookRoute.PublicFlight(flight.id))
-                    },
+                    // A flight flown from a site opens like one of everyone's, on the League tab.
+                    onOpenFlight = { flight -> navigation.showPublic(flight.id) },
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {
@@ -377,8 +374,6 @@ private fun Sections(
                         navigation,
                         imports = session.scope,
                         onNotice = onNotice,
-                        community = session.community,
-                        hasServer = hasServer,
                         bars = bars,
                     )
                 }
@@ -395,7 +390,25 @@ private fun Sections(
                         onBack = { navigation.back() },
                     )
                 }
-                is LogbookRoute.PublicFlight -> {
+                LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
+                    StatisticsScreen(
+                        logbook,
+                        onOpen = { navigation.open(LogbookRoute.Flight(it)) },
+                        onBack = { navigation.back() },
+                    )
+                }
+            }
+            AppTab.League -> when (val route = navigation.leaguePath.lastOrNull()) {
+                null -> kept.SaveableStateProvider("league") {
+                    LeagueScreen(
+                        session.community,
+                        hasServer = hasServer,
+                        onOpenFlight = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
+                        onOpenPilot = { handle, name -> navigation.open(LeagueRoute.Pilot(handle, name)) },
+                        bars = bars,
+                    )
+                }
+                is LeagueRoute.PublicFlight -> {
                     val flight = session.community.flight(route.id)
                     if (flight == null) {
                         // The list it was opened from is gone: the app was
@@ -412,13 +425,13 @@ private fun Sections(
                                 requests = session.scope,
                                 compareSources = CompareSources(logbook, session.community),
                                 // Everything else this pilot shares with everyone.
-                                onPilot = { navigation.open(LogbookRoute.Pilot(flight.handle, flight.pilot)) },
+                                onPilot = { navigation.open(LeagueRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },
                             )
                         }
                     }
                 }
-                is LogbookRoute.Pilot -> kept.SaveableStateProvider("pilot-${route.handle}") {
+                is LeagueRoute.Pilot -> kept.SaveableStateProvider("pilot-${route.handle}") {
                     PilotFlightsScreen(
                         route.handle,
                         route.name,
@@ -426,14 +439,7 @@ private fun Sections(
                         session.account,
                         server = (session.wind.server as? WindServer.Usable)?.url,
                         requests = session.scope,
-                        onOpen = { navigation.open(LogbookRoute.PublicFlight(it.id)) },
-                        onBack = { navigation.back() },
-                    )
-                }
-                LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
-                    StatisticsScreen(
-                        logbook,
-                        onOpen = { navigation.open(LogbookRoute.Flight(it)) },
+                        onOpen = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
                         onBack = { navigation.back() },
                     )
                 }

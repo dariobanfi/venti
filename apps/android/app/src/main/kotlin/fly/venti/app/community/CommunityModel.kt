@@ -22,6 +22,11 @@ import fly.venti.core.pilotPage
 import fly.venti.core.pilotPagePath
 import fly.venti.core.publicFlights
 import fly.venti.core.publicFlightsPath
+import fly.venti.core.RankedPilot
+import fly.venti.core.RankingSeason
+import fly.venti.core.ranking
+import fly.venti.core.rankingPath
+import fly.venti.core.rankingSeasons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +95,25 @@ class CommunityModel(
 
     /** The pilot whose flights were last looked at. */
     var pilot: PilotFlights? by mutableStateOf(null)
+        private set
+
+    /** What the pilot sees of the ranking of the server's pilots. */
+    data class Ranked(
+        /** The seasons to choose from, the newest first. None before the ranking was first asked for. */
+        val seasons: List<RankingSeason> = emptyList(),
+        /** The name of the season the ranking is of. */
+        val season: String = "",
+        /** The pilots, the one with the most points first. */
+        val pilots: List<RankedPilot> = emptyList(),
+        /** The rule in a sentence, for under the list. */
+        val rule: String = "",
+        val isLoading: Boolean = false,
+        /** Why it is missing, in words for the pilot. */
+        val problem: String? = null,
+    )
+
+    /** The ranking of the season last asked for. */
+    var ranked: Ranked by mutableStateOf(Ranked())
         private set
 
     /** What to ask the next page with. */
@@ -170,6 +194,46 @@ class CommunityModel(
             }
         } finally {
             isLoading = false
+        }
+    }
+
+    /**
+     * Fetches the ranking of a season, by the name the core gives it.
+     * Without a name it is the season last shown, or the newest. The
+     * seasons are the core's, from the time now.
+     */
+    suspend fun rank(season: String? = null, nowUnixS: Long = System.currentTimeMillis() / 1000) {
+        val server = server()
+        if (server == null) {
+            ranked = Ranked()
+            return
+        }
+        val seasons = rankingSeasons(nowUnixS)
+        val wanted = season ?: ranked.season
+        val chosen = seasons.firstOrNull { it.name == wanted } ?: seasons.firstOrNull() ?: return
+        // Another season's pilots are not this one's.
+        val shown = if (chosen.name == ranked.season) ranked else Ranked()
+        ranked = shown.copy(seasons = seasons, season = chosen.name, problem = null, isLoading = true)
+        try {
+            val answer = transport(server + rankingPath(null, chosen.fromUnixS, chosen.toUnixS))
+            val ranking = withContext(background) { ranking(answer.status16, answer.body) }
+            // The pilot may have chosen another season or server while this
+            // was under way: that question's answer sets the rest.
+            if (server != this.server() || ranked.season != chosen.name) return
+            ranking.pilots.forEach { pilot -> known += pilot.flights.associateBy { it.id } }
+            ranked = ranked.copy(pilots = ranking.pilots, rule = ranking.rule, isLoading = false)
+        } catch (error: CancellationException) {
+            if (ranked.season == chosen.name) ranked = ranked.copy(isLoading = false)
+            throw error
+        } catch (error: Exception) {
+            if (ranked.season != chosen.name) return
+            ranked = ranked.copy(
+                isLoading = false,
+                problem = when (error) {
+                    is CoreException -> error.pilotMessage
+                    else -> "Venti could not be reached for the ranking. ${error.pilotMessage}"
+                },
+            )
         }
     }
 
@@ -289,6 +353,7 @@ class CommunityModel(
         listed = null
         problem = null
         pilot = null
+        ranked = Ranked()
         known.clear()
     }
 

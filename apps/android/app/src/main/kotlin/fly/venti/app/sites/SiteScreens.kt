@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -126,7 +127,9 @@ fun SiteSheet(
     var kept by remember { mutableStateOf(emptySet<String>()) }
     // The list opens at full height, for the search field and the names; a
     // site tapped on the map leaves the map in view.
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = showsList)
+    // Keyed by which it is: a sheet state kept for the page at half
+    // height must not come back for the list, which has no half height.
+    val sheet = key(showsList) { rememberModalBottomSheetState(skipPartiallyExpanded = showsList) }
     // A forecast is a table of a whole day, and a station has its charts:
     // they take all the room there is.
     LaunchedEffect(opened.size) {

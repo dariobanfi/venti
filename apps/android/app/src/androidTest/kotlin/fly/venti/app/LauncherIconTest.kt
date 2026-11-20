@@ -18,7 +18,10 @@ class LauncherIconTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     /** What the launcher shows, as the system's own tool writes it out. */
-    private fun shown(): String = TestDevice.shell("uiautomator dump /dev/tty")
+    private fun shown(): String {
+        TestDevice.shell("uiautomator dump $DUMP")
+        return TestDevice.shell("cat $DUMP")
+    }
 
     /** Whether Venti's icon, with its name under it, is among what the launcher shows. */
     private fun showsVenti(): Boolean = shown().let { "text=\"Venti\"" in it || "content-desc=\"Venti\"" in it }
@@ -42,8 +45,15 @@ class LauncherIconTest {
         if (!waitForVenti(looks = 5)) {
             TestDevice.shell("input text Venti")
         }
-        assertTrue("The launcher shows no app called Venti ($app).", waitForVenti(looks = 10))
+        val isShown = waitForVenti(looks = 10)
+        // Kept either way: what the launcher showed is the point.
         TestDevice.keepScreenshot("icon-1-launcher")
+        assertTrue("The launcher shows no app called Venti ($app).", isShown)
         TestDevice.shell("input keyevent KEYCODE_HOME")
+    }
+
+    private companion object {
+        /** Where the system's tool writes what the launcher shows. */
+        const val DUMP = "/data/local/tmp/venti-launcher.xml"
     }
 }

@@ -19,6 +19,7 @@ import fly.venti.app.AppFiles
 import fly.venti.app.BuildConfig
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Palette
+import fly.venti.app.terrain.TerrainModel
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import org.maplibre.android.MapLibre
@@ -39,6 +40,7 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.MultiLineString
 import org.maplibre.geojson.Point
+import java.io.File
 import kotlin.math.roundToInt
 
 /** What one screen draws on its map. The map calls it as it comes to life. */
@@ -112,12 +114,31 @@ object MapSetup {
     fun style(context: Context): String {
         prepared?.let { (source, json) -> if (source == this.source) return json }
         val files = AssetFiles(context)
-        val region = MapRegion.install(
-            files,
-            folder = context.noBackupFilesDir.resolve("map"),
-            stamp = "${BuildConfig.VERSION_NAME}-${installedAt(context)}",
-        )
-        return MapStyle.json(source, files.text(AppFiles.MAP_STYLE), region).also { prepared = source to it }
+        return MapStyle.json(source, files.text(AppFiles.MAP_STYLE), region(context)).also { prepared = source to it }
+    }
+
+    /**
+     * The folder with the label fonts and the region that came with the
+     * app, copied out of the app the first time it is asked for. The
+     * cockpit reads the ground from the region's elevation tiles when the
+     * map is drawn from it.
+     */
+    @Synchronized
+    fun region(context: Context): File = MapRegion.install(
+        AssetFiles(context),
+        folder = context.noBackupFilesDir.resolve("map"),
+        stamp = "${BuildConfig.VERSION_NAME}-${installedAt(context)}",
+    )
+
+    /**
+     * Where the ground's elevation tiles come from: the place the map's
+     * own come from, so that the heights are of the relief the pilot sees.
+     */
+    fun terrain(context: Context): TerrainModel.Source = when (source) {
+        MapStyle.Source.Online -> TerrainModel.Source.Server(MapStyle.Online.TERRAIN_TILES)
+        MapStyle.Source.Bundled ->
+            runCatching { TerrainModel.Source.Archive(region(context).resolve(MapStyle.BUNDLED_TERRAIN)) }
+                .getOrDefault(TerrainModel.Source.Nowhere)
     }
 
     /** When this copy of the app was installed or last updated. */

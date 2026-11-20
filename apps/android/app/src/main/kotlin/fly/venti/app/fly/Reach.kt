@@ -48,10 +48,14 @@ val ReachTone.type: Color
 object ReachWords {
     const val NO_LANDING = "No landing in reach"
 
+    /** Said where the straight glide to a place meets a ridge first. */
+    const val GROUND_IN_THE_WAY = "Ground in the way"
+
     const val HOW_IT_IS_WORKED_OUT =
         "The height beside a place is what the glider is expected to arrive with, by its trim speed and " +
-            "glide ratio from the settings and the wind last measured, in a straight line. The ground in " +
-            "between is not looked at."
+            "glide ratio from the settings and the wind last measured, in a straight line. A mountain " +
+            "marks a place with a ridge in the way of that line, where the phone has the ground; where it " +
+            "has not, the ground in between is not looked at."
 
     /** A height to arrive with, "+510 m", to ten metres: the prediction is no finer. */
     fun height(arrivalM: Double): String {
@@ -66,11 +70,14 @@ object ReachWords {
      */
     fun beside(reach: ReachView?): String? {
         val arrival = reach?.arrivalHeightM ?: return null
-        return if (reach.reach == Reach.UNKNOWN) null else height(arrival)
+        // With a ridge in the way the height it would arrive with says
+        // nothing: the row shows a mountain in its place.
+        return if (reach.reach == Reach.UNKNOWN || reach.groundInTheWayM != null) null else height(arrival)
     }
 
     /** The same for someone who cannot see the row. */
     fun spoken(reach: ReachView?): String? {
+        if (reach?.groundInTheWayM != null) return "Out of reach: the ground is in the way."
         val arrival = reach?.arrivalHeightM
         return when (reach?.reach) {
             Reach.WITHIN, Reach.JUST -> arrival?.let { "Arriving ${height(it).removeSuffix(" m")} metres above it." }

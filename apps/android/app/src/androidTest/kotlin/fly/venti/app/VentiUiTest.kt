@@ -254,10 +254,14 @@ class VentiUiTest {
         // lift is stronger. The sample's thermal lifts evenly all around.
         // At the map's other corner, the landing to think of first: the
         // one landing among the sample waypoints, well within reach from
-        // up here, with the height the glider would arrive with. All of
-        // it is looked for at one look: the flight goes on meanwhile.
+        // up here, with the height the glider would arrive with. Under
+        // the altitude stands the height over the ground: the map is
+        // drawn from the region that comes with the app, and the ground
+        // is read from that region's elevation. All of it is looked for
+        // at one look: the flight goes on meanwhile.
         val landing = hasTestTag("landing-badge")
         waitForAll(
+            described("Altitude") and saying(" m over ground"),
             described("Gained"),
             described("Thermal"),
             hasTestTag("lift-badge"),
@@ -310,7 +314,7 @@ class VentiUiTest {
         tap(strip)
         waitFor(hasText("Fly to"))
         waitFor(described("Sample landing field"))
-        assertTrue(exists(described("Sample summit far away") and saying("Out of reach.")))
+        assertTrue(exists(described("Sample summit far away") and saying("Out of reach")))
         assertTrue(exists(hasTestTag("reach-footer")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-fly-4-fly-to")

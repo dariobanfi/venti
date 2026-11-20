@@ -173,6 +173,13 @@ class FlySessionTest {
         // The glider is above the field, so there is a glide that would reach it.
         assertNotNull(way.heightAboveM)
         assertTrue(TargetWords.spoken(way).startsWith("Sample landing field, "))
+        // No ground was handed to this session, so nothing is in the way.
+        assertNull(way.groundInTheWayM)
+        // With a ridge on the straight line, that is what the line says,
+        // in place of the height the glide would arrive with.
+        val behind = TargetWords.spoken(way.copy(groundInTheWayM = 4_020.0))
+        assertTrue(behind, behind.endsWith(", the ground is in the way in 4.0 kilometres"))
+        assertFalse(behind.contains("expected to"))
 
         // Choosing nothing goes back to the take-off.
         fly.goTo(null)

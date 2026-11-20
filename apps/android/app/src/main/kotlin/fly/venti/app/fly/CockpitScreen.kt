@@ -458,7 +458,7 @@ private fun Instruments(view: CockpitView, way: WayToTarget?) {
                 title = "Altitude",
                 value = view.altitudeM?.let(Format::metres),
                 unit = "m",
-                detail = view.heightAboveTakeoffM?.let { "${Format.signedMetres(it)} m over take-off" },
+                detail = AltitudeWords.under(view.heightAboveGroundM, view.heightAboveTakeoffM),
                 isLarge = true,
                 modifier = Modifier.weight(1f),
             )
@@ -508,6 +508,18 @@ private fun Instruments(view: CockpitView, way: WayToTarget?) {
 private val LARGE_ROW = 106.dp
 private val SMALL_ROW = 74.dp
 
+/** What stands under the altitude. */
+object AltitudeWords {
+    /**
+     * Over the ground where the phone has the ground under the glider;
+     * over the take-off where it has not. The ground is a model's: a
+     * glider it puts a few metres under the ground stands on it.
+     */
+    fun under(aboveGroundM: Double?, aboveTakeoffM: Double?): String? =
+        aboveGroundM?.let { "${Format.metres(maxOf(it, 0.0))} m over ground" }
+            ?: aboveTakeoffM?.let { "${Format.signedMetres(it)} m over take-off" }
+}
+
 /**
  * One number in the cockpit. The sizes are fixed on purpose, and do not
  * follow the phone's text-size setting: an instrument has to be in the same
@@ -530,11 +542,15 @@ private fun Instrument(
             .padding(horizontal = 14.dp, vertical = 8.dp)
             .clearAndSetSemantics {
                 contentDescription = title
-                stateDescription = when {
-                    value == null -> "not available"
-                    unit.isEmpty() -> value
-                    else -> "$value $unit"
-                }
+                // The number, and the line under it where it has one.
+                stateDescription = listOfNotNull(
+                    when {
+                        value == null -> "not available"
+                        unit.isEmpty() -> value
+                        else -> "$value $unit"
+                    },
+                    detail,
+                ).joinToString(", ")
             },
     ) {
         Text(title, style = fixed(12.dp, FontWeight.SemiBold), color = quiet, maxLines = 1)

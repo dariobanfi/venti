@@ -11,6 +11,7 @@ import fly.venti.core.AirspaceCheck
 import fly.venti.core.AirspaceSet
 import fly.venti.core.AirspaceWarning
 import fly.venti.core.CockpitView
+import fly.venti.core.Coordinate
 import fly.venti.core.FlightSession
 import fly.venti.core.LandingOption
 import fly.venti.core.LiveAudience
@@ -25,6 +26,7 @@ import fly.venti.core.ServerRequest
 import fly.venti.core.TargetPlace
 import fly.venti.core.TaskFile
 import fly.venti.core.TaskStatusView
+import fly.venti.core.Terrain
 import fly.venti.core.ToneView
 import fly.venti.core.WayToTarget
 import fly.venti.core.WaypointView
@@ -487,6 +489,10 @@ class FlySession(
         } catch (error: Exception) {
             problem = error.pilotMessage
         }
+        // The ground, as far as the phone has it; more of it arrives
+        // while the session runs. The first refresh asks for it.
+        session.useTerrain(terrain())
+        refreshesSinceTerrain = (TERRAIN_MILLISECONDS / refreshMilliseconds).toInt()
         refreshesSinceScore = 0
         askedForLiveRequest = 0.0
         sending = null
@@ -504,6 +510,18 @@ class FlySession(
             }
         }
     }
+
+    /**
+     * The ground, as far as the phone has it. Without it the cockpit knows
+     * no height above ground.
+     */
+    var terrain: () -> Terrain? = { null }
+
+    /** Asks for the ground around a place to be brought, where it is not there yet. */
+    var wantTerrain: (Coordinate) -> Unit = {}
+
+    /** Refreshes of the screen since the ground was last asked for. */
+    private var refreshesSinceTerrain = 0
 
     @Synchronized
     private fun refresh(elapsed: Double) {
@@ -558,6 +576,13 @@ class FlySession(
                 landing = option
             }
         }
+        // The ground around the glider: what is not there yet is brought.
+        refreshesSinceTerrain += 1
+        val position = view.position
+        if (position != null && refreshesSinceTerrain * refreshMilliseconds >= TERRAIN_MILLISECONDS) {
+            refreshesSinceTerrain = 0
+            wantTerrain(position)
+        }
         // Files brought in or removed in the middle of a session reach the
         // core at once; what the pilot silenced stays silenced.
         val latest = airspace()
@@ -608,6 +633,13 @@ class FlySession(
          * ago.
          */
         fun replayStep(elapsed: Double, speed: Double): Double = minOf(elapsed, REPLAY_STEP_AT_MOST_SECONDS) * speed
+
+        /**
+         * How long passes before the ground around the glider is asked for
+         * again: in ten seconds a glider goes two hundred metres, and the
+         * tiles reach thirteen kilometres.
+         */
+        private const val TERRAIN_MILLISECONDS = 10_000L
 
         /** How long passes between two looks at the score. */
         private const val SCORE_MILLISECONDS = 1_000L

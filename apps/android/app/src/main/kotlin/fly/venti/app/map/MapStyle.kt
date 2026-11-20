@@ -45,6 +45,9 @@ object MapStyle {
         const val TERRAIN_ATTRIBUTION = "<a href=\"https://mapterhorn.com/attribution\">© Mapterhorn</a>"
     }
 
+    /** The elevation tiles of the region that comes with the app, by their file's name in it. */
+    const val BUNDLED_TERRAIN = "terrain.pmtiles"
+
     class StyleError(message: String) : Exception(message)
 
     /**
@@ -78,7 +81,7 @@ object MapStyle {
             )
             Source.Bundled -> mapOf(
                 "basemap" to basemap.with("url" to archive(region, "basemap.pmtiles")),
-                "terrain" to terrain.with("url" to archive(region, "terrain.pmtiles")),
+                "terrain" to terrain.with("url" to archive(region, BUNDLED_TERRAIN)),
             )
         }
         return style.with(

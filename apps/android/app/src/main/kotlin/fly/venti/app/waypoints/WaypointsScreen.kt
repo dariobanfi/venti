@@ -323,6 +323,16 @@ fun WaypointRow(
                 )
             }
         }
+        // A straight glide would get there, and a ridge is in its way: a
+        // mountain in red, in place of a height that says nothing.
+        if (reach?.groundInTheWayM != null) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                painterResource(R.drawable.ic_landscape),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
         // The height the glider would arrive with: plain with height to
         // spare, amber with little, red when it comes down before.
         ReachWords.beside(reach)?.let { height ->

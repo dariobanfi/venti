@@ -25,11 +25,13 @@ import fly.venti.app.fly.VarioLink
 import fly.venti.app.fly.VarioSound
 import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
+import fly.venti.app.map.MapSetup
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.SitesModel
 import fly.venti.app.task.TaskModel
+import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.waypoints.WaypointsModel
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
@@ -195,6 +197,15 @@ sealed interface Session {
             // server, with the account's token.
             fly.server = { account.account?.server.takeIf { account.isSignedIn } }
             fly.carry = account::carry
+            // The ground under the glider, from the map's elevation tiles:
+            // brought as the glider moves, and kept on the phone beside
+            // the map's region, outside any backup. A test keeps none.
+            val ground = TerrainModel(
+                source = { MapSetup.terrain(app) },
+                folder = if (isUnderTest) null else app.noBackupFilesDir.resolve("terrain"),
+            )
+            fly.terrain = { ground.terrain }
+            fly.wantTerrain = { place -> scope.launch { ground.load(place) } }
             // The task the pilot keeps, which the cockpit flies.
             val tasks = logbook.makeTasks()
             if (sampleTask) {

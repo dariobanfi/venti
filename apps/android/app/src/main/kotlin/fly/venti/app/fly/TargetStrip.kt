@@ -143,7 +143,23 @@ private fun Arrival(way: WayToTarget) {
     // Falling short is the one thing here worth a warning colour.
     val warning = MaterialTheme.colorScheme.error
     Column(horizontalAlignment = Alignment.End) {
-        if (height != null) {
+        val meets = way.groundInTheWayM
+        if (meets != null) {
+            // The straight glide would arrive with height to spare, and
+            // meets a ridge on the way: that is what counts.
+            Text(
+                ReachWords.GROUND_IN_THE_WAY,
+                style = MaterialTheme.typography.titleSmall,
+                color = warning,
+                maxLines = 1,
+            )
+            Text(
+                "in ${Format.kilometres(meets)} km",
+                style = MaterialTheme.typography.bodySmall.numbers,
+                color = quiet,
+                maxLines = 1,
+            )
+        } else if (height != null) {
             val unit = MaterialTheme.typography.bodySmall
             Text(
                 buildAnnotatedString {
@@ -181,7 +197,10 @@ object TargetWords {
         if (way == null) return "Nothing chosen"
         val parts = mutableListOf("${way.name}, ${Format.kilometres(way.distanceM)} kilometres")
         val height = way.arrivalHeightM
-        if (height != null) {
+        val meets = way.groundInTheWayM
+        if (meets != null) {
+            parts += "the ground is in the way in ${Format.kilometres(meets)} kilometres"
+        } else if (height != null) {
             parts += if (height < 0) {
                 "expected to fall short by ${Format.metres(-height)} metres"
             } else {

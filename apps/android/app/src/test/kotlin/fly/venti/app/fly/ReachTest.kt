@@ -102,8 +102,29 @@ class ReachTest {
         assertNull(ReachWords.spoken(reach(Reach.UNKNOWN, null)))
         assertNull(ReachWords.spoken(null as ReachView?))
 
-        // The list says how the heights are worked out, and what is not looked at.
-        assertTrue(ReachWords.HOW_IT_IS_WORKED_OUT.endsWith("The ground in between is not looked at."))
+        // The list says how the heights are worked out, what the
+        // mountain means, and what is not looked at.
+        assertTrue(ReachWords.HOW_IT_IS_WORKED_OUT.contains("A mountain marks a place with a ridge in the way"))
+        assertTrue(ReachWords.HOW_IT_IS_WORKED_OUT.endsWith("where it has not, the ground in between is not looked at."))
+    }
+
+    @Test
+    fun aPlaceBehindARidgeIsOutOfReachWhateverHeightTheGlideWouldArriveWith() {
+        // The straight glide would arrive 240 m over the place, and
+        // meets the ground 1.8 km from the glider.
+        val behind = ReachView(
+            distanceM = 3_000.0, bearingDeg = 300.0, arrivalHeightM = 240.0, reach = Reach.BEYOND,
+            groundInTheWayM = 1_800.0,
+        )
+        // No height beside it: the row shows a mountain in red in its place.
+        assertNull(ReachWords.beside(behind))
+        assertEquals(ReachTone.Red, ReachTone.of(behind.reach))
+        assertEquals("Out of reach: the ground is in the way.", ReachWords.spoken(behind))
+        assertEquals("Ground in the way", ReachWords.GROUND_IN_THE_WAY)
+        // A landing behind a ridge is none to name over the map.
+        val landing = LandingOption(index = 0u, name = "Sample landing field", reach = behind, inReach = 0u)
+        assertNull(ReachWords.height(landing))
+        assertEquals(ReachWords.NO_LANDING, ReachWords.spoken(landing))
     }
 
     @Test

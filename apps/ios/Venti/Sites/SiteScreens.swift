@@ -176,9 +176,13 @@ struct SiteScreen: View {
     @Environment(SitesModel.self) private var sites
     @Environment(WindModel.self) private var wind
     @Environment(WaypointsModel.self) private var waypoints
+    @Environment(CommunityModel.self) private var community
     @Environment(\.dismiss) private var dismiss
 
     @State private var kept: String?
+    /// The newest public flights that took off here. Empty until the
+    /// server has answered, and for a site nobody shared a flight from.
+    @State private var flown: [PublicFlight] = []
 
     /// How far from a site a wind station still says something about it,
     /// metres.
@@ -252,6 +256,10 @@ struct SiteScreen: View {
                     }
                     .accessibilityIdentifier("site-forecast")
                 }
+                // What others flew from here and shared with everyone.
+                if !flown.isEmpty {
+                    FlownFromHere(flights: flown)
+                }
             }
             Section {
                 Button(kept == nil ? "Add to my waypoints" : "In your waypoints", systemImage: kept == nil ? "plus" : "checkmark") {
@@ -276,6 +284,12 @@ struct SiteScreen: View {
         }
         .navigationTitle(site.name)
         .navigationBarTitleDisplayMode(.inline)
+        // What was flown from a place to take off from; a landing field
+        // has no flights that began there.
+        .task(id: site.id) {
+            guard wind.server != nil, site.kind == .takeoff || site.kind == .towing else { return }
+            flown = (try? await community.flights(near: site.position)) ?? []
+        }
     }
 
     /// The credit and the notice of the site's source, and what a site on

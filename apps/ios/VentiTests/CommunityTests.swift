@@ -112,6 +112,21 @@ final class CommunityTests: XCTestCase {
         XCTAssertEqual(analysis?.thermals.count, 2)
     }
 
+    func testWhatWasFlownFromAPlaceIsAskedForAsItsSurroundings() async throws {
+        let asked = Asked()
+        let community = CommunityModel(transport: server(noting: asked, sample: try sampleText()))
+        let address = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        community.server = { address }
+
+        let flights = try await community.flights(near: Coordinate(lat: 47.6642, lon: 11.7967))
+        XCTAssertEqual(flights.count, 2)
+        let last = await asked.addresses.last
+        let question = try XCTUnwrap(last?.absoluteString)
+        // The square a kilometre and a half to each side of the place.
+        XCTAssertTrue(question.hasPrefix("http://127.0.0.1:8080/v1/flights/public?bbox=11.77"), question)
+        XCTAssertFalse(question.contains("sort="))
+    }
+
     func testAPilotsPublicFlightsAreListed() async throws {
         let asked = Asked()
         let community = CommunityModel(transport: server(noting: asked, sample: try sampleText()))

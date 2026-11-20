@@ -140,6 +140,36 @@ pub fn public_flights_path(
     .path_and_query())
 }
 
+/// The path and query to `GET` for the public flights that took off near a
+/// place, the newest first: what was flown from a site. The server is
+/// asked for the square around the place, `radius_m` to each side, at
+/// most fifty kilometres.
+#[uniffi::export]
+pub fn public_flights_near_path(lat: f64, lon: f64, radius_m: f64) -> Result<String, CoreError> {
+    const M_PER_DEGREE: f64 = 111_320.0;
+    let unreadable = || CoreError::Server {
+        message: "The app could not ask the server for the flights from this place.".to_owned(),
+    };
+    if !(lat.is_finite() && lon.is_finite() && radius_m.is_finite()) || lat.abs() > 89.0 {
+        return Err(unreadable());
+    }
+    let reach = radius_m.clamp(100.0, 50_000.0);
+    let north_south = reach / M_PER_DEGREE;
+    let east_west = reach / (M_PER_DEGREE * lat.to_radians().cos());
+    public_flights_path(
+        PublicFlightsOrder::Newest,
+        Some(Bounds {
+            south: lat - north_south,
+            west: lon - east_west,
+            north: lat + north_south,
+            east: lon + east_west,
+        }),
+        None,
+        None,
+        None,
+    )
+}
+
 /// Reads the server's answer to [`public_flights_path`].
 #[uniffi::export]
 pub fn public_flights(status: u16, body: Vec<u8>) -> Result<PublicFlights, CoreError> {
@@ -323,6 +353,31 @@ mod tests {
             .unwrap(),
             "/v1/flights/public"
         );
+    }
+
+    #[test]
+    fn the_flights_from_a_place_are_asked_for_as_the_square_around_it() {
+        // A kilometre and a half around the Wallberg's take-off.
+        let path = public_flights_near_path(47.6642, 11.7967, 1500.0).unwrap();
+        let bbox = path.strip_prefix("/v1/flights/public?bbox=").unwrap();
+        let edges: Vec<f64> = bbox.split(',').map(|edge| edge.parse().unwrap()).collect();
+        let (west, south, east, north) = (edges[0], edges[1], edges[2], edges[3]);
+        assert!((north - south - 2.0 * 1500.0 / 111_320.0).abs() < 1e-6);
+        // Degrees of longitude are shorter there: the square is wider in them.
+        assert!((east - west) > (north - south) * 1.4);
+        assert!(west < 11.7967 && east > 11.7967 && south < 47.6642 && north > 47.6642);
+        // No farther than fifty kilometres, whatever is asked, and what is
+        // no place is not asked for.
+        let far = public_flights_near_path(47.6642, 11.7967, 1e9).unwrap();
+        let wide: Vec<f64> = far
+            .strip_prefix("/v1/flights/public?bbox=")
+            .unwrap()
+            .split(',')
+            .map(|edge| edge.parse().unwrap())
+            .collect();
+        assert!((wide[3] - wide[1] - 2.0 * 50_000.0 / 111_320.0).abs() < 1e-6);
+        assert!(public_flights_near_path(f64::NAN, 11.8, 1500.0).is_err());
+        assert!(public_flights_near_path(89.9, 11.8, 1500.0).is_err());
     }
 
     #[test]

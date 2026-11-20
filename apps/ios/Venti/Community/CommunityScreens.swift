@@ -128,7 +128,6 @@ struct PublicFlightScreen: View {
     @Environment(CommunityModel.self) private var community
     @Environment(AirspaceModel.self) private var airspace
     @Environment(WindModel.self) private var wind
-    @Environment(AppNavigation.self) private var navigation
 
     private enum Phase {
         case loading
@@ -137,6 +136,7 @@ struct PublicFlightScreen: View {
     }
 
     @State private var phase = Phase.loading
+    @State private var showsPilot = false
 
     var body: some View {
         Group {
@@ -166,7 +166,7 @@ struct PublicFlightScreen: View {
                 Menu("More", systemImage: "ellipsis") {
                     // Everything else this pilot shares with everyone.
                     Button("Flights of \(flight.pilot)", systemImage: "person") {
-                        navigation.logbookPath.append(PilotRoute(handle: flight.handle, name: flight.pilot))
+                        showsPilot = true
                     }
                     // The flight's page on the server, to hand on.
                     if let server = wind.server, let page = URL(string: server.absoluteString + flight.pagePath) {
@@ -176,6 +176,11 @@ struct PublicFlightScreen: View {
                     }
                 }
             }
+        }
+        // Wherever this page stands, in the logbook's list or on a site's
+        // page over the map, the pilot's flights follow it there.
+        .navigationDestination(isPresented: $showsPilot) {
+            PilotFlightsScreen(pilot: PilotRoute(handle: flight.handle, name: flight.pilot))
         }
         .task(id: flight.id) {
             do {
@@ -209,7 +214,9 @@ struct PilotFlightsScreen: View {
         List {
             Section {
                 ForEach(flights, id: \.id) { flight in
-                    NavigationLink(value: flight) {
+                    NavigationLink {
+                        PublicFlightScreen(flight: flight)
+                    } label: {
                         PublicFlightRow(flight: flight)
                     }
                     .accessibilityIdentifier("pilot-flight-row")
@@ -261,6 +268,33 @@ struct PilotFlightsScreen: View {
             problem = error is CoreError
                 ? error.words
                 : "The server could not be reached. \(error.localizedDescription)"
+        }
+    }
+}
+
+/// What was flown from a place: the newest public flights that took off
+/// there, as a section of a flying site's page. The page fetches them; a
+/// site nobody shared a flight from has no such section.
+struct FlownFromHere: View {
+    let flights: [PublicFlight]
+
+    /// The most flights a site's page lists.
+    static let atMost = 5
+
+    var body: some View {
+        Section {
+            ForEach(flights.prefix(Self.atMost), id: \.id) { flight in
+                NavigationLink {
+                    PublicFlightScreen(flight: flight)
+                } label: {
+                    PublicFlightRow(flight: flight)
+                }
+                .accessibilityIdentifier("site-flight")
+            }
+        } header: {
+            Text("Flown from here")
+        } footer: {
+            Text("The newest flights that pilots on your Venti server share with everyone and that took off within a kilometre and a half of this place.")
         }
     }
 }

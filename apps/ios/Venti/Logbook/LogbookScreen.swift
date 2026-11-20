@@ -52,9 +52,6 @@ struct LogbookScreen: View {
             .navigationDestination(for: PublicFlight.self) { flight in
                 PublicFlightScreen(flight: flight)
             }
-            .navigationDestination(for: PilotRoute.self) { pilot in
-                PilotFlightsScreen(pilot: pilot)
-            }
             .navigationDestination(for: FlightRoute.self) { route in
                 FlightScreen(id: route.id)
             }

@@ -45,6 +45,7 @@ Working notes: what to know before changing the app or its tests. What the app d
 
 ## Pitfalls
 
+- **A number reaches the page through `src/lib/design/format.ts`**, which writes it the English way whatever the reader's region. `toLocaleString` and an `Intl.NumberFormat` of the reader's locale write "2,5 km" beside the core's "10.0 km NE" for a reader in Germany.
 - **A form that fills itself when it opens must not fill itself again** while the pilot types. The board is asked for anew when the tab comes back to the front, which hands the form new objects. `src/lib/groups/PlanForm.svelte` reads what it starts from inside `untrack`, so that only opening fills it.
 - **A board is one account's.** `src/lib/groups/board.ts` puts the board away when another pilot has signed in, before the server is asked. State of that kind that outlives a page needs the same.
 - **What a pilot typed is set as text.** No `{@html}` for a group's name, a place or a note. `e2e/plans.spec.ts` posts a plan whose place is markup and looks for no image.

@@ -195,6 +195,6 @@ final class AirspaceModel {
     }
 
     nonisolated static func count(_ airspaces: UInt32) -> String {
-        airspaces == 1 ? "1 airspace" : "\(airspaces.formatted()) airspaces"
+        airspaces == 1 ? "1 airspace" : "\(Format.count(airspaces)) airspaces"
     }
 }

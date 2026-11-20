@@ -209,7 +209,7 @@ struct TaskTurnpointRow: View {
                     Image(systemName: "checkmark")
                         .font(.footnote.weight(.bold))
                 } else {
-                    Text(turnpoint.number.formatted())
+                    Text(Format.count(turnpoint.number))
                         .font(.footnote.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(isNext ? Color.white : Color.primary)
@@ -238,7 +238,7 @@ struct TaskTurnpointRow: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(turnpoint.number.formatted()), \(turnpoint.name), \(turnpoint.detail)")
+        .accessibilityLabel("\(Format.count(turnpoint.number)), \(turnpoint.name), \(turnpoint.detail)")
         .accessibilityValue(spoken)
         .accessibilityIdentifier("task-turnpoint")
     }

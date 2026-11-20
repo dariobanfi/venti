@@ -14,8 +14,7 @@ import java.util.Locale
 class FormatTest {
     private val locale = Locale.getDefault()
 
-    // Digit grouping, the decimal mark and month names follow the phone's
-    // language; the tests fix one.
+    // Month names follow the phone's language; the tests fix one.
     @Before
     fun useEnglish() {
         Locale.setDefault(Locale.UK)
@@ -25,6 +24,21 @@ class FormatTest {
     @After
     fun restore() {
         Locale.setDefault(locale)
+    }
+
+    @Test
+    fun numbersAreWrittenTheEnglishWayOnAPhoneSetToGerman() {
+        // The core words its own numbers with a point: "10.0 km NE". A phone
+        // set to German once wrote "2,5 km" beside it.
+        Locale.setDefault(Locale.GERMANY)
+
+        assertEquals("2.5", Format.kilometres(2_500.0))
+        assertEquals("3,100", Format.metres(3_100.0))
+        assertEquals("+2.4", Format.climb(2.4))
+        assertEquals("1,745", Format.count(1_745))
+        assertEquals("1.4", Format.plain(1.4))
+        assertEquals("23%", Format.percent(0.23))
+        assertEquals("47.6642° N, 11.7967° E", Format.place(47.6642, 11.7967))
     }
 
     @Test

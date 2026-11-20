@@ -75,7 +75,7 @@ struct StatisticsScreen: View {
             Section("Your bests") {
                 best("Longest flight", statistics.longest) { "\(Format.hoursMinutes(seconds: Int64($0))) h" }
                 best("Farthest", statistics.farthest) { "\(Format.kilometres(metres: $0)) km" }
-                best("Most points", statistics.mostPoints) { $0.formatted(.number.precision(.fractionLength(2))) }
+                best("Most points", statistics.mostPoints) { Format.decimal($0, places: 2) }
                 best("Highest", statistics.highest) { "\(Format.metres($0)) m" }
                 best("Best climb", statistics.bestClimb) { "\(Format.climb(metresPerSecond: $0)) m/s" }
             }

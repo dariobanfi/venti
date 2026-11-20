@@ -217,7 +217,7 @@ struct StationScreen: View {
                         AxisGridLine()
                         AxisValueLabel {
                             if let speed = value.as(Double.self) {
-                                Text(speed.formatted(.number.precision(.fractionLength(0))))
+                                Text(Format.decimal(speed, places: 0))
                             }
                         }
                     }
@@ -280,10 +280,10 @@ struct StationScreen: View {
         }
         var parts = [sample.time.formatted(date: .omitted, time: .shortened)]
         if let wind = sample.wind {
-            parts.append("\(wind.formatted(.number.precision(.fractionLength(0)))) km/h")
+            parts.append("\(Format.decimal(wind, places: 0)) km/h")
         }
         if let gusts = sample.gusts {
-            parts.append("gusts \(gusts.formatted(.number.precision(.fractionLength(0))))")
+            parts.append("gusts \(Format.decimal(gusts, places: 0))")
         }
         if let from = sample.from {
             parts.append("from \(Format.compassPoint(degrees: from))")

@@ -28,6 +28,7 @@ Working notes: what to know before changing the app or its tests. What the app d
 
 ## Conventions in the code
 
+- A number reaches the screen through `Format` (`design/Format.kt`), which names the locale numbers are written in. Never format a number with the phone's own locale: beside the core's words a screen then shows "2,5 km" next to "10.0 km NE" on a phone set to German.
 - Words that are not the core's stand in an object beside the screen (`PlanWords`, `GroupWords`, `ReportWords`, `AheadWords`, `ReachWords`), so that a unit test can hold them.
 - Talking to the pilot's server is one way round: the core puts the request together, `AccountModel.answer` sends it with the session's token, the core reads the answer. Nothing of groups, plans or reports is kept on the phone.
 - Icons are Material Symbols, outlined, 24 px, taken as Android vector drawables from `google/material-design-icons` (`symbols/android/<name>/materialsymbolsoutlined/<name>_24px.xml`), with the tint removed and the fill set to `#FF000000`, named `ic_<name>.xml`.

@@ -69,9 +69,10 @@ export interface Format {
 }
 
 /**
- * The locale the app writes in: English words, because all its text is
- * English, with the habits of the reader's region, so a pilot in Germany
- * gets a 24-hour clock and one in the United States gets AM and PM.
+ * The locale the app writes dates and times in: English words, because all
+ * its text is English, with the habits of the reader's region, so a pilot
+ * in Germany gets a 24-hour clock and one in the United States gets AM and
+ * PM.
  */
 export function displayLocale(preferred: string | undefined): string {
 	try {
@@ -83,14 +84,24 @@ export function displayLocale(preferred: string | undefined): string {
 }
 
 /**
+ * How numbers are written: the English way, with a point before the decimals
+ * and a comma between thousands, whatever the reader's region. The core words
+ * its own numbers that way ("10.0 km NE"), and a page must not write one
+ * number with a comma and the next with a point: for a reader in Germany it
+ * did. This changes with the app's language, when the app is translated.
+ */
+const NUMBERS = 'en';
+
+/**
  * Formatters for a locale and time zone. Screens use {@link format}; tests
- * name both so that their results do not depend on the machine.
+ * name both so that their results do not depend on the machine. The locale
+ * decides how dates and times are written, not numbers: see {@link NUMBERS}.
  */
 export function createFormat(locale: string, timeZone?: string): Format {
 	const date = (options: Intl.DateTimeFormatOptions) =>
 		new Intl.DateTimeFormat(locale, { timeZone, ...options });
 	const number = (digits: number, options: Intl.NumberFormatOptions = {}) =>
-		new Intl.NumberFormat(locale, {
+		new Intl.NumberFormat(NUMBERS, {
 			minimumFractionDigits: digits,
 			maximumFractionDigits: digits,
 			...options
@@ -112,7 +123,7 @@ export function createFormat(locale: string, timeZone?: string): Format {
 	const percent = number(0, { style: 'percent' });
 	const hundredths = number(2);
 	const tenThousandths = number(4);
-	const plain = new Intl.NumberFormat(locale);
+	const plain = new Intl.NumberFormat(NUMBERS);
 	const at = (unixSeconds: number) => new Date(unixSeconds * 1000);
 	// The core counts months in UTC. The middle of a month is in that month
 	// in every time zone.

@@ -4,6 +4,7 @@ import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -11,10 +12,20 @@ import kotlin.math.roundToLong
  * Turns the core's plain numbers into text for the screen.
  *
  * Metric units only for now. Values and units are separate so a screen can
- * set them in different sizes. Digit grouping, the decimal mark and the
- * names of days and months follow the phone's language.
+ * set them in different sizes. The names of days and months follow the
+ * phone's language; numbers do not.
  */
 object Format {
+    /**
+     * How numbers are written: the English way, with a point before the
+     * decimals and a comma between thousands, whatever language the phone
+     * is set to. The core words its own numbers that way ("10.0 km NE"),
+     * and a screen must not write one number with a comma and the next with
+     * a point: on a phone set to German it did. This changes with the app's
+     * language, when the app is translated.
+     */
+    private val numbers: Locale = Locale.ENGLISH
+
     /**
      * Whether times of day use the 24-hour clock. The app sets it at launch
      * from the phone's own setting, which Java's formatters do not know.
@@ -106,7 +117,7 @@ object Format {
     fun percent(share: Double): String = "${number(share * 100, decimals = 0)}%"
 
     /** A number as it is, with no more decimals than it has: "1.4", "20". */
-    fun plain(value: Double): String = NumberFormat.getNumberInstance().format(value)
+    fun plain(value: Double): String = NumberFormat.getNumberInstance(numbers).format(value)
 
     /** A number rounded to a whole one: "24". */
     fun whole(value: Double): String = number(value, decimals = 0)
@@ -115,7 +126,7 @@ object Format {
     fun oneDecimal(value: Double): String = number(value, decimals = 1)
 
     /** A count: "1,745". */
-    fun count(count: Long): String = NumberFormat.getIntegerInstance().format(count)
+    fun count(count: Long): String = NumberFormat.getIntegerInstance(numbers).format(count)
 
     /** A compass direction in one or two letters: "N", "SW". */
     fun compassPoint(degrees: Double): String {
@@ -164,7 +175,7 @@ object Format {
     fun flights(count: UInt): String = if (count == 1u) "1 flight" else "${count(count.toLong())} flights"
 
     private fun number(value: Double, decimals: Int): String =
-        NumberFormat.getNumberInstance().apply {
+        NumberFormat.getNumberInstance(numbers).apply {
             minimumFractionDigits = decimals
             maximumFractionDigits = decimals
         }.format(value)

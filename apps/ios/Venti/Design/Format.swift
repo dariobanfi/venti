@@ -45,38 +45,65 @@ enum Format {
         Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond))
     }
 
+    /// How numbers are written: the English way, with a point before the
+    /// decimals and a comma between thousands, whatever region the iPhone
+    /// is set to. The core words its own numbers that way ("10.0 km NE"),
+    /// and a screen must not write one number with a comma and the next
+    /// with a point: on an iPhone set to English in Germany it did. This
+    /// changes with the app's language, when the app is translated.
+    static let numbers = Locale(identifier: "en_US")
+
+    /// A number with a fixed count of decimals: "59.36", "1,596".
+    static func decimal(_ value: Double, places: Int) -> String {
+        value.formatted(.number.precision(.fractionLength(places)).locale(numbers))
+    }
+
+    /// The same with a sign, except for zero: "+2.4", "-135".
+    private static func signed(_ value: Double, places: Int) -> String {
+        value.formatted(
+            .number.precision(.fractionLength(places)).sign(strategy: .always(includingZero: false))
+                .locale(numbers)
+        )
+    }
+
+    /// A whole number of things: "1,745".
+    static func count<Value: BinaryInteger>(_ value: Value) -> String {
+        IntegerFormatStyle<Value>(locale: numbers).format(value)
+    }
+
+    /// A share in whole per cent: "23%".
+    static func percent(_ share: Double) -> String {
+        share.formatted(.percent.precision(.fractionLength(0)).locale(numbers))
+    }
+
     /// Kilometres with one decimal.
     static func kilometres(metres: Double) -> String {
-        (metres / 1000).formatted(.number.precision(.fractionLength(1)))
+        decimal(metres / 1000, places: 1)
     }
 
     /// Whole kilometres, for totals.
     static func wholeKilometres(metres: Double) -> String {
-        (metres / 1000).formatted(.number.precision(.fractionLength(0)))
+        decimal(metres / 1000, places: 0)
     }
 
     /// Whole metres.
     static func metres(_ metres: Double) -> String {
-        metres.formatted(.number.precision(.fractionLength(0)))
+        decimal(metres, places: 0)
     }
 
     /// Whole metres with a sign, for a gain or a loss.
     static func signedMetres(_ metres: Double) -> String {
-        metres.formatted(
-            .number.precision(.fractionLength(0)).sign(strategy: .always(includingZero: false))
-        )
+        signed(metres, places: 0)
     }
 
     /// Metres per second with one decimal and always a sign, except for zero.
     static func climb(metresPerSecond: Double) -> String {
-        metresPerSecond.formatted(
-            .number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false))
-        )
+        signed(metresPerSecond, places: 1)
     }
 
     /// Kilometres per hour, whole, from metres per second.
     static func kilometresPerHour(metresPerSecond: Double) -> String {
-        (metresPerSecond * 3.6).formatted(.number.precision(.fractionLength(0)))
+        decimal(metresPerSecond * 3.6, places: 0)
     }
 
     /// A speed as VoiceOver says it: "1 kilometre per hour", "12 kilometres
@@ -88,7 +115,7 @@ enum Format {
 
     /// A glide ratio with one decimal.
     static func glideRatio(_ ratio: Double) -> String {
-        ratio.formatted(.number.precision(.fractionLength(1)))
+        decimal(ratio, places: 1)
     }
 
     /// Hours, minutes and seconds of a running flight: "0:12:34".
@@ -99,7 +126,7 @@ enum Format {
     /// A place in degrees with four decimals, which is to about ten
     /// metres: "47.6642° N, 11.7967° E".
     static func place(lat: Double, lon: Double) -> String {
-        let degrees = { (value: Double) in abs(value).formatted(.number.precision(.fractionLength(4))) }
+        let degrees = { (value: Double) in decimal(abs(value), places: 4) }
         return "\(degrees(lat))° \(lat < 0 ? "S" : "N"), \(degrees(lon))° \(lon < 0 ? "W" : "E")"
     }
 
@@ -114,7 +141,7 @@ enum Format {
     static func temperature(celsius: Double) -> String {
         // Minus zero would read "-0".
         let rounded = celsius.rounded()
-        return (rounded == 0 ? 0 : rounded).formatted(.number.precision(.fractionLength(0)))
+        return decimal(rounded == 0 ? 0 : rounded, places: 0)
     }
 
     /// Whole minutes between two moments, never negative.
@@ -135,6 +162,6 @@ enum Format {
     }
 
     static func flights(_ count: UInt32) -> String {
-        count == 1 ? "1 flight" : "\(count.formatted()) flights"
+        count == 1 ? "1 flight" : "\(Format.count(count)) flights"
     }
 }

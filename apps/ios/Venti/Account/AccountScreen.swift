@@ -138,9 +138,9 @@ private struct SignedInView: View {
                 if signedIn.needsSignIn {
                     Label("This iPhone was signed out. Sign out here and sign in again.", systemImage: "exclamationmark.triangle")
                 }
-                LabeledContent("Flights on the server", value: signedIn.flightsOnServer.formatted())
+                LabeledContent("Flights on the server", value: Format.count(signedIn.flightsOnServer))
                 if signedIn.flightsToSend > 0 {
-                    LabeledContent("Waiting to be sent", value: signedIn.flightsToSend.formatted())
+                    LabeledContent("Waiting to be sent", value: Format.count(signedIn.flightsToSend))
                 }
                 if let last = signedIn.lastSyncUnixS {
                     LabeledContent(

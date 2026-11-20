@@ -159,6 +159,6 @@ extension TaskTurnpointView {
         }
         let kilometres = metres / 1000
         let isWhole = kilometres == kilometres.rounded()
-        return "\(kilometres.formatted(.number.precision(.fractionLength(isWhole ? 0 : 1)))) km"
+        return "\(Format.decimal(kilometres, places: isWhole ? 0 : 1)) km"
     }
 }

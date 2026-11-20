@@ -284,7 +284,7 @@ struct ForecastTable: View {
             }),
             Row(id: "rain", name: "Rain", detail: "mm", cells: hours.map { hour -> Row.Cell in
                 guard let rain = hour.precipitationMm else { return Row.Cell.empty }
-                return Row.Cell.number(rain < 0.05 ? dry : rain.formatted(.number.precision(.fractionLength(1))))
+                return Row.Cell.number(rain < 0.05 ? dry : Format.decimal(rain, places: 1))
             }),
             Row(id: "temperature", name: "Temperature", detail: "°C at 2 m", cells: hours.map { hour -> Row.Cell in
                 guard let temperature = hour.temperatureC else { return Row.Cell.empty }
@@ -378,7 +378,7 @@ private struct ForecastCell: View {
                 .fill(Color.primary.opacity(0.08 + 0.5 * min(max(percent, 0), 100) / 100))
                 .frame(width: 22, height: 22)
                 .overlay {
-                    Text(Int(percent.rounded()).formatted())
+                    Text(Format.count(Int(percent.rounded())))
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(percent > 55 ? Color(uiColor: .systemBackground) : Color.primary)
                 }

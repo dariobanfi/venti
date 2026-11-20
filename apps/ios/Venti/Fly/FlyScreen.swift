@@ -211,7 +211,7 @@ private struct VarioSheet: View {
                 }
                 if vario.connectedName != nil {
                     Section {
-                        LabeledContent("Received", value: "\(vario.report.bytes.formatted()) bytes")
+                        LabeledContent("Received", value: "\(Format.count(vario.report.bytes)) bytes")
                         ForEach(Array(vario.report.lines.enumerated()), id: \.offset) { line in
                             Text(line.element)
                                 .font(.caption.monospaced())

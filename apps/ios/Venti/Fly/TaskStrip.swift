@@ -93,7 +93,7 @@ struct TaskStrip: View {
         case .onTask, .speedSectionDone:
             var parts: [String] = []
             if let next = status.next {
-                parts.append("\(next.number.formatted()) of \(status.reached.count)")
+                parts.append("\(Format.count(next.number)) of \(status.reached.count)")
             }
             // The end of the speed section, where it is not the goal:
             // the distance to goal is on the right already.

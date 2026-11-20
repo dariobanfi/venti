@@ -150,7 +150,7 @@ private struct AheadChart: View {
                 AxisGridLine()
                 AxisValueLabel {
                     if let kilometres = value.as(Double.self) {
-                        Text(verbatim: "\(kilometres.formatted(.number.precision(.fractionLength(0)))) km")
+                        Text(verbatim: "\(Format.decimal(kilometres, places: 0)) km")
                     }
                 }
             }

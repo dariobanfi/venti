@@ -169,7 +169,7 @@ struct AirspaceScreen: View {
     }
 
     private func detail(of file: AirspaceFile) -> String {
-        let count = file.airspaces == 1 ? "1 airspace" : "\(file.airspaces.formatted()) airspaces"
+        let count = file.airspaces == 1 ? "1 airspace" : "\(Format.count(file.airspaces)) airspaces"
         guard let imported = file.importedUnixS else { return count }
         return "\(count) · brought in \(Format.day(unixSeconds: imported))"
     }

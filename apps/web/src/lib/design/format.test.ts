@@ -199,6 +199,17 @@ describe('what the wind screens write', () => {
 		expect(text.temperature(-0.2)).toBe('0');
 	});
 
+	it('writes numbers the English way, whatever the reader’s region', () => {
+		// The core words its own numbers with a point: "10.0 km NE". A reader
+		// in Germany once got "2,5 km" beside it.
+		for (const region of ['en-GB', 'en-DE', 'en-AT', 'en-CH', 'en-IT', 'en-FR', 'en-US']) {
+			const text = createFormat(region, 'Europe/Berlin');
+			expect(text.kilometres(2500), region).toBe('2.5');
+			expect(text.metres(3100), region).toBe('3,100');
+			expect(text.place(47.6642, 11.7967), region).toBe('47.6642° N, 11.7967° E');
+		}
+	});
+
 	it('joins names with an English “and”, whatever the reader’s region', () => {
 		const german = createFormat('en-DE', 'Europe/Berlin');
 

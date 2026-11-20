@@ -21,7 +21,7 @@ struct RoutePlanner: View {
                 Section {
                     ForEach(Array(route.enumerated()), id: \.offset) { index, waypoint in
                         HStack(spacing: 12) {
-                            Text((index + 1).formatted())
+                            Text(Format.count(index + 1))
                                 .font(.footnote.weight(.semibold))
                                 .monospacedDigit()
                                 .frame(width: 28, height: 28)

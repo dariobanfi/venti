@@ -177,7 +177,7 @@ private struct ImportProgressBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Importing \(progress.done.formatted()) of \(progress.total.formatted())")
+            Text("Importing \(Format.count(progress.done)) of \(Format.count(progress.total))")
                 .font(.subheadline.weight(.medium))
                 .monospacedDigit()
             ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
@@ -200,7 +200,7 @@ private struct TotalsRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Metric(caption: totals.flights == 1 ? "Flight" : "Flights", value: totals.flights.formatted())
+            Metric(caption: totals.flights == 1 ? "Flight" : "Flights", value: Format.count(totals.flights))
             Metric(caption: "Airtime", value: Format.hoursMinutes(seconds: totals.airtimeS), unit: "h")
             Metric(caption: "Distance", value: Format.wholeKilometres(metres: totals.distanceM), unit: "km")
         }

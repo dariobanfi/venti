@@ -100,7 +100,7 @@ struct LiveScreen: View {
                     LabeledContent("Status", value: live.words)
                         .accessibilityIdentifier("live-status")
                     if live.state != .stopped {
-                        LabeledContent("Positions sent", value: live.taken.formatted())
+                        LabeledContent("Positions sent", value: Format.count(live.taken))
                         if let link = URL(string: live.link) {
                             ShareLink(item: link) {
                                 Label("Send the link", systemImage: "square.and.arrow.up")

@@ -47,14 +47,14 @@ struct FlightDetailsSheet: View {
                     Section {
                         row("Scored as", Self.name(of: score))
                         row("Distance", "\(Format.kilometres(metres: score.distanceM)) km")
-                        row("Points", score.points.formatted(.number.precision(.fractionLength(2))))
+                        row("Points", Format.decimal(score.points, places: 2))
                         if let closing = score.closingM {
                             row("Start to finish", "\(Format.kilometres(metres: closing)) km")
                         }
                     } header: {
                         Text("Cross-country")
                     } footer: {
-                        Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm == 1 ? "1 point" : "\(score.pointsPerKm.formatted()) points") per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
+                        Text("Worked out by Venti from the World XContest's published rules, at \(score.pointsPerKm == 1 ? "1 point" : "\(Format.decimal(score.pointsPerKm, places: 1)) points") per kilometre for this kind of route. The dashed line on the map is the scored route. A league's own result can differ a little.")
                     }
                 }
                 if let airspace {
@@ -153,9 +153,9 @@ struct FlightDetailsSheet: View {
                         row("Glider", glider)
                     }
                     row("Recorder", flight.recorder)
-                    row("Positions", flight.track.count.formatted())
+                    row("Positions", Format.count(flight.track.count))
                     if flight.skippedLines > 0 {
-                        row("Unreadable lines", flight.skippedLines.formatted())
+                        row("Unreadable lines", Format.count(flight.skippedLines))
                     }
                 }
             }
@@ -201,7 +201,7 @@ struct FlightDetailsSheet: View {
     private func share(of seconds: Int64, in analysis: FlightAnalysis) -> String {
         let time = "\(Format.hoursMinutes(seconds: seconds)) h"
         guard analysis.airtimeS > 0 else { return time }
-        let percent = (Double(seconds) / Double(analysis.airtimeS)).formatted(.percent.precision(.fractionLength(0)))
+        let percent = Format.percent(Double(seconds) / Double(analysis.airtimeS))
         return "\(time), \(percent)"
     }
 }

@@ -1,13 +1,13 @@
 # The server's HTTP API
 
-Last revised: 2026-11-19
+Last revised: 2026-11-20
 
 The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, and for live tracks. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has three parts:
 
 - **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
-- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), and [the page a shared flight has](#the-page-a-shared-flight-has).
+- **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), and [the page a shared flight has](#the-page-a-shared-flight-has).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 
 ## Try it
@@ -34,6 +34,21 @@ curl http://127.0.0.1:8080/v1/flights \
   -H 'Authorization: Bearer venti_0000000000000000000000000000000000000000000000000000'
 ```
 
+Two further pilots are there as well, so that [the list of everyone's public flights](#public-flights) holds the flights of several. Their names are made up, as "Max Mustermann" is. Each signs in with the demo account's password; neither has a token that always works, and neither has a live track.
+
+| Handle | Display name | Flights |
+|---|---|---|
+| `mara` | Mara Muster | Public: 2026-08-15 at 11:10 UTC (the first 25 minutes of the sample flight) and 2026-08-16 at 12:05 (the whole of it, with a landing). Unlisted: 2026-08-17 |
+| `jonas` | Jonas Beispiel | Public: 2026-08-16 at 10:00 UTC (the first 20 minutes) and 2026-09-06 at 13:00 (the whole of it, with a landing). Private: 2026-09-07 |
+
+That makes nine flights, of which five are public: these four and the demo account's. Every one of them is the sample flight, flown on another day and at another time of day, some cut short; a flight that is cut short ends in the air and has no landing. The sample flight is the only flight file the project may ship, so every flight of this mode takes off from the same place, the Wallberg at 47.6642° N, 11.7967° E: a `bbox` holds all five public flights or none. The three whole flights score the same 11.98 points, the two that are cut short score less.
+
+```bash
+curl http://127.0.0.1:8080/v1/flights/public                          # the five public flights, newest first
+curl 'http://127.0.0.1:8080/v1/flights/public?bbox=11.6,47.55,12,47.85&sort=score'
+curl http://127.0.0.1:8080/v1/pilots/mara
+```
+
 The demo account's [live tracks](#live-tracks) are over the Tegernsee valley, where the sample flight is. Their times are fixed against this mode's clock, which stands at 19:05:00 UTC on 2026-11-18, so an app that works out "how old is this position" against the server's clock always gets the same answer:
 
 | Identifier | Who sees it | What it is |
@@ -50,7 +65,7 @@ curl http://127.0.0.1:8080/live/11111111111111111111111111             # the pag
 
 Every fix of these tracks but the first of each says how fast the glider moved, how fast it climbed and where it was heading; the first says only where it was, and a glider that stands still has no heading. That is what a real app sends too.
 
-None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. Whatever a client changes is forgotten when the program stops. The addresses of the demo flights and the identifiers of the demo live tracks are the same on every start.
+None of this is a secret, and none of it exists on a real server. Anyone may create further accounts in this mode, without an invite; the limits on attempts are off, and uploads work. Whatever a client changes is forgotten when the program stops. The addresses of the flights of all three pilots and the identifiers of the demo live tracks are the same on every start.
 
 Because its clock stands still, this mode takes live fixes of **any time**, where a real server refuses those from the future and those more than 12 hours old, and it never treats a track as too old to read or to add to. An app under test can therefore send the fixes of a replayed flight of last summer, or of its own clock. Two things stay as on a real server: an answer says when a track would be removed (`expires_at`), and the list of public tracks holds a track only while its newest fix is no older than half an hour by this mode's clock. A track sent with the times of a replayed flight is thus read by its identifier and is not on the list.
 
@@ -103,7 +118,8 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from`, `to` or `after` is not an RFC 3339 time |
-| 400 | `invalid_range` | `from` lies after `to`, or the window is longer than seven days |
+| 400 | `invalid_range` | `from` lies after `to`, or the window of observations is longer than seven days. For the list of public flights: `from` is not earlier than `to` |
+| 400 | `invalid_sort` | `sort` is not an order the list of public flights has: `newest` or `score` |
 | 400 | `invalid_request` | The request could not be read at all: a path that is not valid UTF-8, a body that is not the JSON the endpoint expects. For a body, `message` says where it stops making sense and never repeats what stands there |
 | 400 | `invalid_handle`, `invalid_display_name`, `invalid_password` | A new account's handle, name or password is not as [described](#accounts-and-sessions) |
 | 400 | `invalid_visibility` | `visibility` is not `private`, `unlisted` or `public`; for a live track, not `link` or `public` |
@@ -1641,6 +1657,270 @@ Each entry of `flights` is a flight as `GET /v1/flights/{id}` shows it. `after`,
 
 A pilot has a page once they have made a flight public. A handle nobody has gives `404` with `pilot_not_found`, and so does the handle of a pilot who shares nothing publicly: an account that keeps to itself cannot be found here, and the two answers cannot be told apart.
 
+## Public flights
+
+### `GET /v1/flights/public?bbox=&from=&to=&sort=&after=&limit=`
+
+Everyone's public flights in one list: what pilots flew, the newest first. Anyone may ask, without a token, and the answer is the same for everyone. The list holds the flights their pilots made `public` and no others. A flight that is private or unlisted is in no page of it, whatever is asked for, and that includes the asker's own: a pilot's own flights are at [`GET /v1/flights`](#get-v1flightsafterlimit).
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `bbox` | `west,south,east,north` in degrees, as for [stations](#get-v1stationsbboxwestsoutheastnorth): only flights that **took off** inside the box, edges included. Where a flight went afterwards does not count. A flight whose recording never shows the glider flying has no take-off and is in no box | Flights from anywhere |
+| `from` | An RFC 3339 time: only flights that started at this moment or later | No bound |
+| `to` | An RFC 3339 time: only flights that started **before** this moment. It must be later than `from` | No bound |
+| `sort` | `newest`: by the start of the flight, the latest first. `score`: by `score.points`, the most first; a flight too short to score is not in that list | `newest` |
+| `limit` | How many flights to return, 1 to 100 | 50 |
+| `after` | The `next` of the answer before, with every other parameter as it was | The top of the list |
+
+Every parameter narrows the list or orders it. They can all be used together: the best flights of a day in a part of the map are `bbox`, `from`, `to` and `sort=score`.
+
+**A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public?from=2026-08-15T00:00:00Z&to=2026-08-16T00:00:00Z&sort=score'
+```
+
+```json
+{
+  "flights": [
+    {
+      "id": "5t1eshypdtvrq7rxw39a18vsrg",
+      "identity": "0f0d88442e01f52f291d25b2660b8bed",
+      "pilot": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-08-15T10:30:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-08-15T10:30:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-08-15T10:59:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    },
+    {
+      "id": "rnwkdftnzbzv3jpcc5v1ajq97w",
+      "identity": "57096780ebf49faa9e60b4ed78bfdcf6",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-08-15T11:10:00Z",
+      "airtime_s": 1500,
+      "takeoff": {
+        "time": "2026-08-15T11:10:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "track_length_m": 15877.9,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11444.3,
+        "points": 11.44
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 55650,
+      "analysis_version": 1
+    }
+  ]
+}
+```
+
+(The outlines are cut to two points here.)
+
+The newest flights, two to a page:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/flights/public?limit=2'
+```
+
+```json
+{
+  "flights": [
+    {
+      "id": "nfmvgygyr34epnfbcekb04nwqc",
+      "identity": "e721900dacb914a34358110db513e503",
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-09-06T13:00:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-09-06T13:00:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-09-06T13:29:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    },
+    {
+      "id": "fbyw03atd9qdt5bfe177ra1k94",
+      "identity": "5782b33df19716953603d69bacb63a14",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-08-16T12:05:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-08-16T12:05:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-08-16T12:34:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    }
+  ],
+  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94"
+}
+```
+
+(The outlines are cut to two points here.)
+
+| Field | Meaning |
+|---|---|
+| `flights` | The flights of this page, each as [`GET /v1/flights/{id}`](#get-v1flightsid) shows it, which is also what a [pilot's page](#get-v1pilotshandleafterlimit) lists. `visibility` is `public` in every one |
+| `next` | Pass this as `after` to get the next page, with the other parameters unchanged. Left out on the last page. Treat it as an opaque value |
+
+What a row of a list needs is in every flight: `id`, the flight's address, under which its details, its file and [its page](#the-page-a-shared-flight-has) are found; `pilot`, with the handle that leads to the pilot's page; `start`; `airtime_s`; `score`, where `distance_m` is the cross-country distance and `kind` and `points` say how it scores; `takeoff.position`; and `outline` for a thumbnail. The server knows the place a flight took off from by its coordinates only. It has no name for it: the [flying sites](#get-v1sitesbboxwestsoutheastnorth) come from another source under a licence of its own, and nothing of them is put into a flight.
+
+**The order.** Flights that start in the same second, and under `sort=score` flights with the same points, follow each other by `id`, the larger first. That says nothing about the flights; it keeps the pages apart. The points are worked out by this server from the flight's file, for every flight by the same rules ([`score`](#get-v1flightsid)); they are not a league's.
+
+**Reading on.** `next` names the last flight of a page, and the next page begins behind it. A flight that is made public while a client reads, and belongs before that place, is not in the pages that follow; it is there when the client begins again at the top. A flight that stops being public is in no page from that moment, also not in one a client reaches with a `next` it was given earlier.
+
+**Who may keep an answer.** `Cache-Control: public, no-cache` and an `ETag`, like a pilot's page: an answer may be kept, by anyone, and must be checked with `If-None-Match` before every reuse, which ends in `304` without a body while the page has not changed. That is how a flight that is made private leaves every copy of the list at once. A token changes nothing about the answer.
+
+**How large an answer is.** A flight is about 0.6 kB and 20 bytes for each point of its outline, of which it has 96 at most. A page of 50 long flights is therefore up to 130 kB, and one of 100 up to 250 kB *(worked out from the format, not measured on real flights)*. The five flights of the development mode, whose outlines have 13 points, are 4.4 kB, and 0.9 kB with gzip.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_bbox` | `bbox` is not four numbers that form a box |
+| 400 | `invalid_time` | `from` or `to` is not an RFC 3339 time. `message` names the parameter |
+| 400 | `invalid_range` | `from` is not earlier than `to` |
+| 400 | `invalid_sort` | `sort` is not `newest` or `score` |
+| 400 | `invalid_limit` | `limit` is not a number from 1 to 100 |
+| 400 | `invalid_cursor` | `after` is not a `next` the server gave out for this order: a `next` of `sort=newest` is none for `sort=score`, and the other way round |
+
 ## Live tracks
 
 A signed-in pilot can let other people see where the glider is while it flies: the people who were given a link, or everyone who looks at this server's map. Nothing is shared unless the pilot's app sends it, and an app sends it only for a flight the pilot switched it on for. The app sends the glider's positions in small batches; the server keeps them as a **live track**, hands them to whoever may see it, and removes the track 48 hours after its newest position.
@@ -2057,4 +2337,4 @@ What is left to build: a map under the line, and one that moves without the page
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)), and a way to report a track or to take one down, which a server that lets strangers register needs before it lets them put gliders on everyone's map. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)), and a way to report a track or to take one down, which a server that lets strangers register needs before it lets them put gliders on everyone's map. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

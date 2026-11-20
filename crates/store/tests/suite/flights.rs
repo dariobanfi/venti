@@ -1,10 +1,10 @@
 //! What every store must do with pilots' flights.
 
 use chrono::Duration;
-use venti_domain::{GeoPoint, Timestamp};
+use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 use venti_store::{
-    Account, Derived, Flight, Kept, Listing, NewFlight, Place, Room, Saved, Score, ScoreKind,
-    Store, StoreError, Visibility,
+    Account, Derived, Flight, Kept, Listing, NewFlight, Place, PublicFlights, PublicOrder, Room,
+    Saved, Score, ScoreKind, Store, StoreError, Visibility,
 };
 
 use super::accounts::{create, id};
@@ -752,4 +752,415 @@ pub(crate) async fn derived_values_can_be_worked_out_again(store: &impl Store) {
             .await
             .unwrap()
     );
+}
+
+// --- Everyone's public flights -------------------------------------------
+
+const WALLBERG: (f64, f64) = (47.6642, 11.7967);
+const BRAUNECK: (f64, f64) = (47.6639, 11.5236);
+const KOESSEN: (f64, f64) = (47.6536, 12.4291);
+
+/// A flight like [`new_flight`] that took off at a place and scores
+/// `points`, or is too short to score.
+fn flown(
+    account: &Account,
+    n: u8,
+    start: Timestamp,
+    (lat, lon): (f64, f64),
+    points: Option<f64>,
+) -> NewFlight {
+    let mut new = new_flight(account, n, start);
+    new.derived.takeoff = Some(Place {
+        time: start,
+        position: GeoPoint::new(lat, lon).unwrap(),
+        altitude_m: 1620,
+    });
+    new.derived.score = points.map(|points| Score {
+        kind: ScoreKind::FreeFlight,
+        closed: false,
+        distance_m: points * 1000.0,
+        points,
+    });
+    new
+}
+
+/// Stores a flight and sets who may see it.
+async fn share(store: &impl Store, new: &NewFlight, visibility: Visibility) -> Flight {
+    save(store, new).await;
+    store
+        .set_visibility(&new.account_id, &new.id, visibility, at(21, 0))
+        .await
+        .unwrap()
+        .expect("the flight was just stored")
+}
+
+async fn publish(store: &impl Store, new: &NewFlight) -> Flight {
+    share(store, new, Visibility::Public).await
+}
+
+async fn public(store: &impl Store, which: &PublicFlights, order: &PublicOrder) -> Vec<String> {
+    short(&store.public_flights(which, order, 100).await.unwrap())
+}
+
+fn everywhere() -> PublicFlights {
+    PublicFlights::default()
+}
+
+fn area(south: f64, west: f64, north: f64, east: f64) -> PublicFlights {
+    PublicFlights {
+        area: Some(BoundingBox::new(south, west, north, east).unwrap()),
+        ..PublicFlights::default()
+    }
+}
+
+const NEWEST: PublicOrder = PublicOrder::Newest(None);
+const BEST: PublicOrder = PublicOrder::Best(None);
+
+pub(crate) async fn public_flights_are_listed_newest_first_whoever_flew_them(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    assert!(public(store, &everywhere(), &NEWEST).await.is_empty());
+
+    // Dario's second flight and Anna's first start in the same second.
+    publish(store, &new_flight(&dario, 1, at(9, 0))).await;
+    publish(store, &new_flight(&dario, 2, at(11, 0))).await;
+    publish(store, &new_flight(&anna, 1, at(11, 0))).await;
+    publish(store, &new_flight(&bernd, 1, at(7, 0))).await;
+    // What is not public: a private flight, and one for those with a link.
+    save(store, &new_flight(&dario, 3, at(13, 0))).await;
+    share(
+        store,
+        &new_flight(&anna, 2, at(12, 0)),
+        Visibility::Unlisted,
+    )
+    .await;
+
+    let order = ["dario2", "anna1", "dario1", "bernd1"];
+    assert_eq!(public(store, &everywhere(), &NEWEST).await, order);
+    // Each flight names its own pilot, as the account is now.
+    let all = store
+        .public_flights(&everywhere(), &NEWEST, 100)
+        .await
+        .unwrap();
+    let pilots: Vec<&str> = all.iter().map(|f| f.pilot_handle.as_str()).collect();
+    assert_eq!(pilots, ["dario", "anna", "dario", "bernd"]);
+    assert_eq!(all[1].pilot_name, "Pilot anna");
+    assert!(all.iter().all(|f| f.visibility == Visibility::Public));
+
+    // Page by page, each page continuing after the last flight of the page
+    // before, also between two flights of the same second.
+    for size in [1, 3] {
+        let mut seen = Vec::new();
+        let mut after = None;
+        loop {
+            let page = store
+                .public_flights(&everywhere(), &PublicOrder::Newest(after), size)
+                .await
+                .unwrap();
+            let Some(last) = page.last() else { break };
+            assert!(page.len() <= size);
+            after = Some(last.key());
+            seen.extend(short(&page));
+        }
+        assert_eq!(seen, order, "pages of {size}");
+    }
+    let none = store
+        .public_flights(&everywhere(), &NEWEST, 0)
+        .await
+        .unwrap();
+    assert!(none.is_empty());
+
+    // A flight joins the list when it is made public and leaves it when it
+    // is not public any more, deleted, or its account is.
+    store
+        .set_visibility(&dario.id, &id("dario3"), Visibility::Public, at(21, 10))
+        .await
+        .unwrap();
+    store
+        .set_visibility(&dario.id, &id("dario2"), Visibility::Unlisted, at(21, 20))
+        .await
+        .unwrap();
+    assert!(
+        store
+            .delete_flight(&dario.id, &id("dario1"), at(21, 30))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        public(store, &everywhere(), &NEWEST).await,
+        ["dario3", "anna1", "bernd1"]
+    );
+    store.delete_account(&anna.id).await.unwrap();
+    assert_eq!(
+        public(store, &everywhere(), &NEWEST).await,
+        ["dario3", "bernd1"]
+    );
+}
+
+pub(crate) async fn what_is_not_public_is_in_no_list_of_public_flights(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    // One public flight among flights that are not, all from one take-off
+    // on one day. Of the ones that are not public some are newer and score
+    // more than the public one, some older and less, and one is its twin.
+    let shown = publish(store, &flown(&dario, 1, at(10, 0), WALLBERG, Some(20.0))).await;
+    let hidden = [
+        (flown(&dario, 2, at(12, 0), WALLBERG, Some(90.0)), None),
+        (
+            flown(&dario, 3, at(8, 0), WALLBERG, Some(5.0)),
+            Some(Visibility::Unlisted),
+        ),
+        (
+            flown(&anna, 1, at(11, 0), WALLBERG, Some(300.0)),
+            Some(Visibility::Unlisted),
+        ),
+        (flown(&anna, 2, at(9, 0), WALLBERG, Some(1.0)), None),
+        (flown(&anna, 3, at(10, 0), WALLBERG, Some(20.0)), None),
+    ];
+    let mut secret = Vec::new();
+    for (new, visibility) in &hidden {
+        secret.push(match visibility {
+            Some(visibility) => share(store, new, *visibility).await,
+            None => save(store, new).await,
+        });
+    }
+    // A flight that was public for a while, and whose place in both
+    // orders someone wrote down then.
+    let once = publish(store, &flown(&anna, 4, at(10, 30), WALLBERG, Some(25.0))).await;
+    store
+        .set_visibility(&anna.id, &once.id, Visibility::Private, at(21, 30))
+        .await
+        .unwrap();
+    secret.push(once);
+
+    // Every way of asking: anywhere, in a box around the take-off, on the
+    // day, both; from the top of either order, and after the place of
+    // every flight there is, public or not.
+    let the_day = PublicFlights {
+        from: Some(at(0, 0)),
+        before: Some(at(0, 0) + Duration::days(1)),
+        ..PublicFlights::default()
+    };
+    let around = area(47.6, 11.7, 47.7, 11.9);
+    let which = [
+        everywhere(),
+        around,
+        the_day,
+        PublicFlights {
+            area: around.area,
+            ..the_day
+        },
+    ];
+    let last_address = "z".repeat(26);
+    let mut orders = vec![
+        NEWEST,
+        BEST,
+        PublicOrder::Newest(Some((at(23, 59), last_address.clone()))),
+        PublicOrder::Best(Some((1e12, last_address))),
+    ];
+    for flight in secret.iter().chain([&shown]) {
+        orders.push(PublicOrder::Newest(Some(flight.key())));
+        orders.push(PublicOrder::Best(flight.score_key()));
+        // The place just above it, from where a list would go on with it.
+        let (start, points) = (flight.derived.start, flight.score_key().unwrap().0);
+        let above = format!("{}z", &flight.id[..25]);
+        orders.push(PublicOrder::Newest(Some((start, above.clone()))));
+        orders.push(PublicOrder::Best(Some((points, above))));
+    }
+    let mut asked = 0;
+    let mut answered = 0;
+    for which in &which {
+        for order in &orders {
+            for limit in [1, 2, 100] {
+                let found = store.public_flights(which, order, limit).await.unwrap();
+                assert!(
+                    found.iter().all(|flight| flight.id == shown.id),
+                    "{which:?} {order:?} gave {:?}",
+                    short(&found)
+                );
+                assert!(found.len() <= 1, "{which:?} {order:?}");
+                asked += 1;
+                answered += found.len();
+            }
+        }
+    }
+    assert!(asked > 300, "{asked} questions were asked");
+    assert!(answered > 0, "the public flight is found at all");
+}
+
+pub(crate) async fn public_flights_are_found_by_where_they_took_off(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    publish(store, &flown(&dario, 1, at(9, 0), WALLBERG, Some(10.0))).await;
+    publish(store, &flown(&dario, 2, at(10, 0), BRAUNECK, Some(30.0))).await;
+    publish(store, &flown(&dario, 3, at(11, 0), KOESSEN, Some(20.0))).await;
+    // A recording that never shows the glider flying took off nowhere.
+    let mut ground = new_flight(&dario, 4, at(12, 0));
+    ground.derived.takeoff = None;
+    publish(store, &ground).await;
+    // A flight from the Wallberg that is not public.
+    save(store, &flown(&dario, 5, at(13, 0), WALLBERG, Some(99.0))).await;
+
+    let whole = ["dario4", "dario3", "dario2", "dario1"];
+    assert_eq!(public(store, &everywhere(), &NEWEST).await, whole);
+    // The valley of the Tegernsee, and everything east of the Isar.
+    let tegernsee = area(47.6, 11.7, 47.8, 11.9);
+    assert_eq!(public(store, &tegernsee, &NEWEST).await, ["dario1"]);
+    let east = area(47.0, 11.6, 48.0, 13.0);
+    assert_eq!(public(store, &east, &NEWEST).await, ["dario3", "dario1"]);
+    assert_eq!(public(store, &east, &BEST).await, ["dario3", "dario1"]);
+    // The edges of a box belong to it: boxes with the Wallberg in a
+    // corner, and one that is that point and nothing else.
+    let (lat, lon) = WALLBERG;
+    for corner in [
+        area(lat, lon, 48.0, 12.0),
+        area(47.0, 11.6, lat, lon),
+        area(lat, lon, lat, lon),
+    ] {
+        assert_eq!(public(store, &corner, &NEWEST).await, ["dario1"]);
+    }
+    // A hair past it, the flight is outside.
+    let beside = area(lat + 1e-9, lon, 48.0, 12.0);
+    assert!(public(store, &beside, &NEWEST).await.is_empty());
+    // A box with nothing in it, and the whole globe, which holds every
+    // flight that took off somewhere.
+    let nothing = area(0.0, 0.0, 1.0, 1.0);
+    assert!(public(store, &nothing, &NEWEST).await.is_empty());
+    let globe = area(-90.0, -180.0, 90.0, 180.0);
+    assert_eq!(
+        public(store, &globe, &NEWEST).await,
+        ["dario3", "dario2", "dario1"]
+    );
+
+    // Page by page inside a box.
+    let first = store.public_flights(&east, &NEWEST, 1).await.unwrap();
+    assert_eq!(short(&first), ["dario3"]);
+    let after = PublicOrder::Newest(Some(first[0].key()));
+    assert_eq!(public(store, &east, &after).await, ["dario1"]);
+}
+
+pub(crate) async fn public_flights_are_found_by_when_they_started(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let midnight = at(0, 0);
+    let day = Duration::days(1);
+    let second = Duration::seconds(1);
+    // The last second of the 17th, the first and the middle of the 18th,
+    // and the first second of the 19th.
+    for (n, start) in [
+        (1, midnight - second),
+        (2, midnight),
+        (3, at(12, 0)),
+        (4, midnight + day),
+    ] {
+        publish(store, &flown(&dario, n, start, WALLBERG, Some(n.into()))).await;
+    }
+    save(store, &flown(&dario, 5, at(13, 0), WALLBERG, Some(50.0))).await;
+    let span = |from: Option<Timestamp>, before: Option<Timestamp>| PublicFlights {
+        from,
+        before,
+        ..PublicFlights::default()
+    };
+
+    // A day begins with its first moment and ends before the next day's.
+    let the_18th = span(Some(midnight), Some(midnight + day));
+    assert_eq!(
+        public(store, &the_18th, &NEWEST).await,
+        ["dario3", "dario2"]
+    );
+    assert_eq!(public(store, &the_18th, &BEST).await, ["dario3", "dario2"]);
+    let the_17th = span(Some(midnight - day), Some(midnight));
+    assert_eq!(public(store, &the_17th, &NEWEST).await, ["dario1"]);
+    // Either end alone.
+    let since = span(Some(at(12, 0)), None);
+    assert_eq!(public(store, &since, &NEWEST).await, ["dario4", "dario3"]);
+    let until = span(None, Some(at(12, 0)));
+    assert_eq!(public(store, &until, &NEWEST).await, ["dario2", "dario1"]);
+    // A span without a moment in it holds nothing.
+    for empty in [
+        span(Some(midnight), Some(midnight)),
+        span(Some(at(12, 0)), Some(midnight)),
+        span(Some(midnight + day + day), None),
+    ] {
+        assert!(public(store, &empty, &NEWEST).await.is_empty(), "{empty:?}");
+    }
+    // Together with a box, and page by page.
+    let here = PublicFlights {
+        area: area(47.6, 11.7, 47.8, 11.9).area,
+        ..the_18th
+    };
+    assert_eq!(public(store, &here, &NEWEST).await, ["dario3", "dario2"]);
+    let first = store.public_flights(&here, &NEWEST, 1).await.unwrap();
+    let after = PublicOrder::Newest(Some(first[0].key()));
+    assert_eq!(public(store, &here, &after).await, ["dario2"]);
+    let elsewhere = PublicFlights {
+        area: area(0.0, 0.0, 1.0, 1.0).area,
+        ..the_18th
+    };
+    assert!(public(store, &elsewhere, &NEWEST).await.is_empty());
+}
+
+pub(crate) async fn public_flights_are_listed_best_first_by_their_points(store: &impl Store) {
+    let dario = create(store, "dario").await;
+    let anna = create(store, "anna").await;
+    // Points that do not survive rounding, two flights with the same
+    // points, one with none, and one too short to score.
+    publish(
+        store,
+        &flown(&dario, 1, at(9, 0), WALLBERG, Some(0.1 + 0.2)),
+    )
+    .await;
+    publish(store, &flown(&dario, 2, at(10, 0), KOESSEN, Some(104.37))).await;
+    publish(store, &flown(&dario, 3, at(11, 0), WALLBERG, Some(51.5))).await;
+    publish(store, &flown(&anna, 1, at(12, 0), WALLBERG, Some(51.5))).await;
+    publish(store, &flown(&anna, 2, at(13, 0), WALLBERG, Some(0.0))).await;
+    publish(store, &flown(&anna, 3, at(14, 0), WALLBERG, None)).await;
+    // The best flight of all is not public.
+    save(store, &flown(&anna, 4, at(15, 0), WALLBERG, Some(400.0))).await;
+
+    // Among flights with the same points, by address, as among flights of
+    // the same second.
+    let order = ["dario2", "dario3", "anna1", "dario1", "anna2"];
+    assert_eq!(public(store, &everywhere(), &BEST).await, order);
+    // A flight too short to score is in the list of all, and not here.
+    assert_eq!(public(store, &everywhere(), &NEWEST).await.len(), 6);
+
+    for size in [1, 2] {
+        let mut seen = Vec::new();
+        let mut after = None;
+        loop {
+            let page = store
+                .public_flights(&everywhere(), &PublicOrder::Best(after), size)
+                .await
+                .unwrap();
+            let Some(last) = page.last() else { break };
+            after = last.score_key();
+            assert!(after.is_some());
+            seen.extend(short(&page));
+        }
+        assert_eq!(seen, order, "pages of {size}");
+    }
+
+    // The best of a part of the map, of a span of time, and of both.
+    let tegernsee = area(47.6, 11.7, 47.8, 11.9);
+    assert_eq!(
+        public(store, &tegernsee, &BEST).await,
+        ["dario3", "anna1", "dario1", "anna2"]
+    );
+    let morning = PublicFlights {
+        from: Some(at(9, 0)),
+        before: Some(at(12, 0)),
+        ..PublicFlights::default()
+    };
+    assert_eq!(
+        public(store, &morning, &BEST).await,
+        ["dario2", "dario3", "dario1"]
+    );
+    let both = PublicFlights {
+        area: tegernsee.area,
+        ..morning
+    };
+    assert_eq!(public(store, &both, &BEST).await, ["dario3", "dario1"]);
+    let first = store.public_flights(&both, &BEST, 1).await.unwrap();
+    let after = PublicOrder::Best(first[0].score_key());
+    assert_eq!(public(store, &both, &after).await, ["dario1"]);
 }

@@ -15,7 +15,7 @@ use super::{corrupt, db_error};
 use crate::flight::{Kept, Room, Saved, cut, next_change};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    Place, Score, ScoreKind, StoreError, Visibility,
+    Place, PublicFlights, PublicOrder, Score, ScoreKind, StoreError, Visibility,
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
@@ -387,6 +387,88 @@ pub(super) async fn of_account(
         None => client.query(&statement, &[&account_id, &limit]).await,
     }
     .map_err(db_error)?;
+    rows.iter().map(flight_from).collect()
+}
+
+/// One page of everyone's public flights.
+///
+/// The condition on visibility is in every form of the query, as text and
+/// spelled as in the three partial indexes that hold the public flights:
+/// by start, by points, and by where they took off. Nothing a caller
+/// passes can take it out.
+///
+/// Which of the indexes answers best depends on what is asked: a box
+/// around one take-off holds a few flights that are quickly sorted, a box
+/// around the Alps holds most, and then walking the list in its order and
+/// leaving out what lies elsewhere is quicker. The database can only tell
+/// with the box and the times in hand. So this query is planned anew for
+/// every call, and not kept prepared like the others: a kept plan is made
+/// for values nobody has named yet.
+pub(super) async fn public(
+    client: &Client,
+    which: &PublicFlights,
+    order: &PublicOrder,
+    limit: usize,
+) -> Result<Vec<Flight>, StoreError> {
+    let edges = which
+        .area
+        .map(|area| [area.west(), area.south(), area.east(), area.north()]);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let mut parameters: Vec<&(dyn ToSql + Sync)> = Vec::new();
+    let mut conditions = vec!["f.visibility = 'public'".to_owned()];
+
+    if let Some(from) = &which.from {
+        parameters.push(from);
+        conditions.push(format!("f.started_at >= ${}", parameters.len()));
+    }
+    if let Some(before) = &which.before {
+        parameters.push(before);
+        conditions.push(format!("f.started_at < ${}", parameters.len()));
+    }
+    if let Some([west, south, east, north]) = &edges {
+        let w = parameters.len() + 1;
+        let (s, e, n) = (w + 1, w + 2, w + 3);
+        parameters.extend([west as &(dyn ToSql + Sync), south, east, north]);
+        // `&&` lets the index find the candidates; the exact comparison
+        // follows, edges included.
+        conditions.push(format!(
+            "f.takeoff && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)
+             AND f.takeoff_lon BETWEEN ${w} AND ${e}
+             AND f.takeoff_lat BETWEEN ${s} AND ${n}"
+        ));
+    }
+    let sorted = match order {
+        PublicOrder::Newest(after) => {
+            if let Some((start, id)) = after {
+                parameters.extend([start as &(dyn ToSql + Sync), id]);
+                let last = parameters.len();
+                conditions.push(format!("(f.started_at, f.id) < (${}, ${last})", last - 1));
+            }
+            "f.started_at DESC, f.id DESC"
+        }
+        PublicOrder::Best(after) => {
+            conditions.push("f.score_points IS NOT NULL".to_owned());
+            if let Some((points, id)) = after {
+                parameters.extend([points as &(dyn ToSql + Sync), id]);
+                let last = parameters.len();
+                conditions.push(format!("(f.score_points, f.id) < (${}, ${last})", last - 1));
+            }
+            "f.score_points DESC, f.id DESC"
+        }
+    };
+    parameters.push(&limit);
+    let query = format!(
+        "SELECT {FLIGHT_COLUMNS} {FLIGHT_FROM}
+         WHERE {}
+         ORDER BY {sorted}
+         LIMIT ${}",
+        conditions.join(" AND "),
+        parameters.len()
+    );
+    let rows = client
+        .query(query.as_str(), &parameters)
+        .await
+        .map_err(db_error)?;
     rows.iter().map(flight_from).collect()
 }
 

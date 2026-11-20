@@ -14,9 +14,9 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
-    StoreError, Visibility, airspace, batch, forecast, site,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
+    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Visibility, airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -497,6 +497,16 @@ impl Store for MemoryStore {
         Ok(inner
             .flights
             .of_account(account_id, listing, after, limit, &inner.accounts))
+    }
+
+    async fn public_flights(
+        &self,
+        which: &PublicFlights,
+        order: &PublicOrder,
+        limit: usize,
+    ) -> Result<Vec<Flight>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.flights.public(which, order, limit, &inner.accounts))
     }
 
     async fn flight_changes(

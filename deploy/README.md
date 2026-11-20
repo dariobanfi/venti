@@ -1,6 +1,6 @@
 # Running Venti on a server
 
-Last revised: 2026-11-19
+Last revised: 2026-11-20
 
 This folder holds everything needed to run Venti on one Linux machine with Docker Compose:
 
@@ -466,7 +466,7 @@ No server is needed to work on the server. The development mode needs nothing at
 cargo run -p venti-server -- dev          # the API over recorded data on http://127.0.0.1:8080
 ```
 
-It starts with a demo account and three flights; its handle, password and a token that always works are in [docs/api.md](../docs/api.md#try-it).
+It starts with a demo account and three flights, and with two further pilots whose public flights fill the list of everyone's flights; the handles, the password and a token that always works are in [docs/api.md](../docs/api.md#try-it).
 
 For the real thing, and for the store's tests against PostgreSQL, start a database in a container. The password below is for a throwaway database on the loopback address; it is not a secret.
 

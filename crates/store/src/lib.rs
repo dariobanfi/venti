@@ -49,7 +49,8 @@ pub use account::{
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use flight::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Kept, Listing, NewFlight,
-    OutdatedFlight, Place, Room, Saved, Score, ScoreKind, Visibility,
+    OutdatedFlight, Place, PublicFlights, PublicOrder, Room, Saved, Score, ScoreKey, ScoreKind,
+    Visibility,
 };
 pub use forecast::ForecastModel;
 pub use live::{
@@ -501,6 +502,20 @@ pub trait Store: Send + Sync + 'static {
         account_id: &str,
         listing: Listing,
         after: Option<&FlightKey>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Flight>, StoreError>> + Send;
+
+    /// One page of everyone's public flights: those `which` describes, in
+    /// the order `order` names, after the place it names. At most `limit`
+    /// are returned.
+    ///
+    /// A flight that is private or unlisted is never among them, whatever
+    /// `which` and `order` say: not in a box, not on a day, and not after
+    /// a place that was taken from it while it was public.
+    fn public_flights(
+        &self,
+        which: &PublicFlights,
+        order: &PublicOrder,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<Flight>, StoreError>> + Send;
 

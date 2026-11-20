@@ -22,6 +22,7 @@
 //! | [`flight_path`] | PATCH | [`UpdateFlightRequest`] | [`FlightResponse`] |
 //! | [`flight_file_path`] | GET | | the flight file |
 //! | [`pilot_path`] | GET | [`PilotRequest`] | [`PilotResponse`] |
+//! | [`PUBLIC_FLIGHTS_PATH`] | GET | [`PublicFlightsRequest`] | [`FlightsResponse`] |
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
@@ -82,12 +83,13 @@ pub use live::{
 pub use observations::{ObservationsResponse, Reading};
 pub use request::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AirspaceRequest, BboxError,
-    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightsRequest,
-    ForecastRequest, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest,
-    LiveTracksRequest, ObservationsRequest, PilotRequest, PositionError, SESSIONS_PATH, SITES_PATH,
-    STATIONS_PATH, SitesRequest, StationsRequest, TimeError, flight_file_path, flight_path,
-    format_bbox, format_time, live_page_path, live_track_path, observations_path, parse_bbox,
-    parse_position, parse_time, pilot_path, session_path, share_image_path, share_path,
+    FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, FlightChangesRequest, FlightSort,
+    FlightSortError, FlightsRequest, ForecastRequest, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
+    LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PUBLIC_FLIGHTS_PATH, PilotRequest,
+    PositionError, PublicFlightsRequest, SESSIONS_PATH, SITES_PATH, STATIONS_PATH, SitesRequest,
+    StationsRequest, TimeError, flight_file_path, flight_path, format_bbox, format_time,
+    live_page_path, live_track_path, observations_path, parse_bbox, parse_position, parse_time,
+    pilot_path, session_path, share_image_path, share_path,
 };
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};

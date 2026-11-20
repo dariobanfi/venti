@@ -375,11 +375,11 @@ pub(crate) struct PageParams {
 
 /// Where the next page of a list starts, as text for the client to hand
 /// back: the start of the last flight in microseconds and its address.
-fn page_token(key: &FlightKey) -> String {
+pub(crate) fn page_token(key: &FlightKey) -> String {
     format!("{}_{}", key.0.timestamp_micros(), key.1)
 }
 
-fn page_key(token: &str) -> Result<FlightKey, ApiError> {
+pub(crate) fn page_key(token: &str) -> Result<FlightKey, ApiError> {
     token
         .split_once('_')
         .and_then(|(micros, id)| {

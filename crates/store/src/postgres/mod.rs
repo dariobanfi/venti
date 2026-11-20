@@ -23,9 +23,9 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
-    StoreError, Visibility, batch,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
+    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Visibility, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -633,6 +633,15 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<Vec<Flight>, StoreError> {
         flights::of_account(&self.client().await?, account_id, listing, after, limit).await
+    }
+
+    async fn public_flights(
+        &self,
+        which: &PublicFlights,
+        order: &PublicOrder,
+        limit: usize,
+    ) -> Result<Vec<Flight>, StoreError> {
+        flights::public(&self.client().await?, which, order, limit).await
     }
 
     async fn flight_changes(

@@ -1,0 +1,105 @@
+{
+  "flights": [
+    {
+      "id": "nfmvgygyr34epnfbcekb04nwqc",
+      "identity": "e721900dacb914a34358110db513e503",
+      "pilot": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-09-06T13:00:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-09-06T13:00:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-09-06T13:29:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    },
+    {
+      "id": "fbyw03atd9qdt5bfe177ra1k94",
+      "identity": "5782b33df19716953603d69bacb63a14",
+      "pilot": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "visibility": "public",
+      "uploaded_at": "2026-11-18T19:05:00Z",
+      "start": "2026-08-16T12:05:00Z",
+      "airtime_s": 1752,
+      "takeoff": {
+        "time": "2026-08-16T12:05:00Z",
+        "position": {
+          "lat": 47.6642,
+          "lon": 11.7967
+        },
+        "altitude_m": 1620
+      },
+      "landing": {
+        "time": "2026-08-16T12:34:12Z",
+        "position": {
+          "lat": 47.692167,
+          "lon": 11.767483
+        },
+        "altitude_m": 786
+      },
+      "track_length_m": 18402.3,
+      "max_altitude_m": 2117,
+      "max_climb_ms": 2.4,
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11975.7,
+        "points": 11.98
+      },
+      "glider": "Sample Wing",
+      "outline": [
+        [
+          47.6642,
+          11.7967
+        ],
+        [
+          47.6697,
+          11.78986
+        ]
+      ],
+      "file_bytes": 68008,
+      "analysis_version": 1
+    }
+  ],
+  "next": "1786881900000000_fbyw03atd9qdt5bfe177ra1k94"
+}

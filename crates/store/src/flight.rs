@@ -1,7 +1,7 @@
 //! Pilots' flights: the file as it was uploaded and what was worked out
 //! from it.
 
-use venti_domain::{GeoPoint, Timestamp};
+use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 
 /// Who may see a flight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -306,6 +306,76 @@ impl Flight {
     pub fn key(&self) -> FlightKey {
         (self.derived.start, self.id.clone())
     }
+}
+
+/// Which of everyone's public flights a list holds.
+///
+/// Whatever is set here, a flight that is not public is never among them.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PublicFlights {
+    /// Only flights that took off inside this box, edges included. A
+    /// flight whose recording never shows the glider flying took off
+    /// nowhere and is in no box.
+    pub area: Option<BoundingBox>,
+    /// Only flights that started at this moment or later.
+    pub from: Option<Timestamp>,
+    /// Only flights that started before this moment.
+    pub before: Option<Timestamp>,
+}
+
+impl PublicFlights {
+    /// Whether a flight is one of these, as far as its values go. Whether
+    /// it is public is the caller's to ask.
+    pub(crate) fn holds(&self, flight: &Flight) -> bool {
+        let start = flight.derived.start;
+        let in_area = self.area.is_none_or(|area| {
+            flight
+                .derived
+                .takeoff
+                .is_some_and(|takeoff| area.contains(takeoff.position))
+        });
+        in_area
+            && self.from.is_none_or(|from| start >= from)
+            && self.before.is_none_or(|before| start < before)
+    }
+}
+
+/// The order of a list of public flights, with the place in that order
+/// after which the list goes on: the key of the last flight of the page
+/// before. `None` starts at the top.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PublicOrder {
+    /// Newest first: by start, and by address among flights that start in
+    /// the same second. The key is [`Flight::key`].
+    Newest(Option<FlightKey>),
+    /// Most points first, and by address among flights with the same
+    /// points. A flight too short to score is not in this list. The key is
+    /// [`Flight::score_key`].
+    Best(Option<ScoreKey>),
+}
+
+/// The place of a flight in a list sorted by points: its points and, for
+/// flights with the same points, its address.
+pub type ScoreKey = (f64, String);
+
+impl Flight {
+    /// The flight's place in a list sorted by points; `None` for a flight
+    /// too short to score.
+    pub fn score_key(&self) -> Option<ScoreKey> {
+        self.derived
+            .score
+            .map(|score| (score.points, self.id.clone()))
+    }
+}
+
+/// How two places in a list sorted by points compare: by points, and by
+/// address where the points are the same. This is how the database
+/// compares a pair of a number and a text; the in-memory store uses it so
+/// that the two page alike. Points are finite numbers.
+pub(crate) fn score_order(a: &ScoreKey, b: &ScoreKey) -> std::cmp::Ordering {
+    a.0.partial_cmp(&b.0)
+        .unwrap_or(std::cmp::Ordering::Equal)
+        .then_with(|| a.1.cmp(&b.1))
 }
 
 /// The next change number of an account whose latest is `latest`, for a

@@ -23,8 +23,10 @@
 //! **What pilots keep here.** An account is acted for with a session token
 //! in the `Authorization` header ([`auth`]). A flight is shown to its pilot
 //! and, unless it is private, to everyone else; a private flight and a
-//! flight that does not exist get the same answer. What may keep an answer
-//! is said in [`cache`].
+//! flight that does not exist get the same answer. Only a flight its pilot
+//! made public is in a list that others read: the pilot's page and the list
+//! of everyone's public flights ([`feed`]). What may keep an answer is said
+//! in [`cache`].
 //!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
@@ -36,6 +38,7 @@ mod body;
 mod cache;
 mod clients;
 mod error;
+mod feed;
 mod flights;
 mod forecast;
 mod health;
@@ -65,7 +68,7 @@ use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
-    MAX_LIVE_BODY_BYTES, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    MAX_LIVE_BODY_BYTES, PUBLIC_FLIGHTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -360,6 +363,7 @@ impl<S: Store> Api<S> {
             .route("/v1/sessions/{id}", delete(account::sign_out::<S>))
             .route(FLIGHTS_PATH, get(flights::list::<S>))
             .route(FLIGHT_CHANGES_PATH, get(flights::changes::<S>))
+            .route(PUBLIC_FLIGHTS_PATH, get(feed::list::<S>))
             .route(
                 "/v1/flights/{id}",
                 get(flights::show::<S>)

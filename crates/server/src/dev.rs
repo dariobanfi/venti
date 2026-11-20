@@ -11,7 +11,9 @@
 //! token are fixed and written down in `docs/api.md`. It also has three
 //! live tracks, made from the same flight and dated by this mode's clock:
 //! two that everyone may see, of a glider in the air and of one that has
-//! landed, and one for those with its link. Client work and UI tests run
+//! landed, and one for those with its link. Two further pilots with made-up
+//! names have three flights each, so that the list of everyone's public
+//! flights holds the flights of several. Client work and UI tests run
 //! against this.
 //!
 //! The clock stands still at the moment of the recording, so the data never
@@ -205,12 +207,13 @@ fn demo_live_tracks(account_id: &str, now: Timestamp) -> Vec<LiveBatch> {
     ]
 }
 
-/// The sample flight moved to another day, cut to its first `seconds` if
-/// given, and with the glider standing on the ground for `landed_s`
-/// seconds at the end.
-fn sample(date: NaiveDate, seconds: Option<usize>, landed_s: i64) -> Vec<u8> {
+/// The sample flight moved to another day and `later` in that day than it
+/// starts by itself, which is at 10:30 UTC; cut to its first `seconds` if
+/// given, and with the glider standing still for `landed_s` seconds at the
+/// end.
+fn sample(date: NaiveDate, later: Duration, seconds: Option<usize>, landed_s: i64) -> Vec<u8> {
     let original = synthetic_flight();
-    let moved_by = date - original.date;
+    let moved_by = date - original.date + later;
     let mut fixes = original.fixes;
     if let Some(seconds) = seconds {
         fixes.truncate(seconds + 1);
@@ -233,6 +236,10 @@ fn sample(date: NaiveDate, seconds: Option<usize>, landed_s: i64) -> Vec<u8> {
     igc::write(&file).into_bytes()
 }
 
+fn day(year: i32, month: u32, day: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, day).expect("valid date")
+}
+
 /// The demo account's flight files with who may see each, newest first:
 ///
 /// - a flight that lands, public: it is on the pilot's page and has a
@@ -241,29 +248,105 @@ fn sample(date: NaiveDate, seconds: Option<usize>, landed_s: i64) -> Vec<u8> {
 ///   page works and it is listed nowhere. Its recording ends in the air;
 /// - a short flight of the year before, private.
 fn demo_flights() -> Vec<(Vec<u8>, Visibility)> {
-    let day = |year, month, day| NaiveDate::from_ymd_opt(year, month, day).expect("valid date");
+    let at_its_time = Duration::zero();
     vec![
-        (sample(day(2026, 8, 15), None, 90), Visibility::Public),
+        (
+            sample(day(2026, 8, 15), at_its_time, None, 90),
+            Visibility::Public,
+        ),
         (
             igc::write(&synthetic_flight()).into_bytes(),
             Visibility::Unlisted,
         ),
-        (sample(day(2025, 6, 21), Some(700), 90), Visibility::Private),
+        (
+            sample(day(2025, 6, 21), at_its_time, Some(700), 90),
+            Visibility::Private,
+        ),
     ]
 }
 
-/// Puts the demo account, its session and its flights into the store.
-async fn add_demo_account(
+/// A pilot the development mode starts with beside the demo account, so
+/// that the list of everyone's public flights holds the flights of
+/// several. The names are made up, as "Max Mustermann" is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DemoPilot {
+    /// The account's identifier, fixed so that the addresses of its
+    /// flights are the same on every start.
+    id: &'static str,
+    /// Its handle.
+    pub handle: &'static str,
+    /// Its display name.
+    pub name: &'static str,
+}
+
+/// The two further pilots. Each signs in with [`DEMO_PASSWORD`]; neither
+/// has a token that always works, and neither has a live track.
+pub const DEMO_PILOTS: [DemoPilot; 2] = [
+    DemoPilot {
+        id: "00000000000000000000000003",
+        handle: "mara",
+        name: "Mara Muster",
+    },
+    DemoPilot {
+        id: "00000000000000000000000004",
+        handle: "jonas",
+        name: "Jonas Beispiel",
+    },
+];
+
+/// The flight files of the two further pilots, in the order of
+/// [`DEMO_PILOTS`], with who may see each. Every one is the sample flight:
+/// on another day, at another time of day, some of them cut short. A flight
+/// that is cut short ends in the air, as a recording does whose recorder
+/// was switched off early. Nothing else may be shipped as a flight, so all
+/// of them take off from the same place.
+///
+/// With the demo account's public flight that makes five public flights of
+/// three pilots: two on 15 August 2026, two on the 16th and one on 6
+/// September. One flight of each further pilot is not public, and must
+/// show in no list.
+fn further_flights() -> [Vec<(Vec<u8>, Visibility)>; 2] {
+    let minutes = Duration::minutes;
+    [
+        vec![
+            (
+                sample(day(2026, 8, 15), minutes(40), Some(1500), 0),
+                Visibility::Public,
+            ),
+            (
+                sample(day(2026, 8, 16), minutes(95), None, 90),
+                Visibility::Public,
+            ),
+            (
+                sample(day(2026, 8, 17), minutes(20), Some(900), 0),
+                Visibility::Unlisted,
+            ),
+        ],
+        vec![
+            (
+                sample(day(2026, 8, 16), minutes(-30), Some(1200), 0),
+                Visibility::Public,
+            ),
+            (
+                sample(day(2026, 9, 6), minutes(150), None, 90),
+                Visibility::Public,
+            ),
+            (
+                sample(day(2026, 9, 7), minutes(0), Some(600), 0),
+                Visibility::Private,
+            ),
+        ],
+    ]
+}
+
+/// Puts an account with the demo password and its flights into the store.
+async fn add_pilot(
     store: &MemoryStore,
-    now: Timestamp,
+    account: &Account,
+    flights: Vec<(Vec<u8>, Visibility)>,
     password_cost: Cost,
 ) -> Result<(), String> {
-    let account = Account {
-        id: DEMO_ACCOUNT_ID.to_owned(),
-        handle: DEMO_HANDLE.to_owned(),
-        display_name: DEMO_NAME.to_owned(),
-        created_at: now,
-    };
+    let now = account.created_at;
     let password_hash = Hasher::new(password_cost)
         .hash(&Password::new(DEMO_PASSWORD))
         .await
@@ -278,7 +361,49 @@ async fn add_demo_account(
         .await
         .map_err(|e| e.to_string())?;
     if created != AccountCreation::Created {
-        return Err("the demo account could not be created".to_owned());
+        return Err(format!(
+            "the account {} of the development mode could not be created",
+            account.handle
+        ));
+    }
+    for (file, visibility) in flights {
+        // These files are the server's own; they are analysed right here.
+        let derivation = derive(&file).map_err(|e| format!("a demo flight is unusable: {e}"))?;
+        let new = new_flight(&account.id, &file, derivation, now);
+        store
+            .save_flight(&new, &Room::UNLIMITED)
+            .await
+            .map_err(|e| e.to_string())?;
+        store
+            .set_visibility(&account.id, &new.id, visibility, now)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Puts the demo account, its session, its flights and its live tracks
+/// into the store, and the two further pilots with their flights.
+async fn add_demo_account(
+    store: &MemoryStore,
+    now: Timestamp,
+    password_cost: Cost,
+) -> Result<(), String> {
+    let account = Account {
+        id: DEMO_ACCOUNT_ID.to_owned(),
+        handle: DEMO_HANDLE.to_owned(),
+        display_name: DEMO_NAME.to_owned(),
+        created_at: now,
+    };
+    add_pilot(store, &account, demo_flights(), password_cost).await?;
+    for (pilot, flights) in DEMO_PILOTS.iter().zip(further_flights()) {
+        let further = Account {
+            id: pilot.id.to_owned(),
+            handle: pilot.handle.to_owned(),
+            display_name: pilot.name.to_owned(),
+            created_at: now,
+        };
+        add_pilot(store, &further, flights, password_cost).await?;
     }
 
     let session = Session {
@@ -292,20 +417,6 @@ async fn add_demo_account(
         .create_session(&session, &demo_token_hash()?, usize::MAX)
         .await
         .map_err(|e| e.to_string())?;
-
-    for (file, visibility) in demo_flights() {
-        // These files are the server's own; they are analysed right here.
-        let derivation = derive(&file).map_err(|e| format!("a demo flight is unusable: {e}"))?;
-        let new = new_flight(&account.id, &file, derivation, now);
-        store
-            .save_flight(&new, &Room::UNLIMITED)
-            .await
-            .map_err(|e| e.to_string())?;
-        store
-            .set_visibility(&account.id, &new.id, visibility, now)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
 
     // The live tracks are the server's own too: every fix is taken,
     // whatever its time.
@@ -443,5 +554,54 @@ mod tests {
         assert!(Token::parse(DEMO_TOKEN).is_some());
         assert!(Password::new(DEMO_PASSWORD).check().is_ok());
         assert!(venti_api_types::v1::Handle::new(DEMO_HANDLE).is_ok());
+    }
+
+    #[test]
+    fn the_further_pilots_fly_the_sample_flight_on_days_of_their_own() {
+        use crate::accounts::{is_reserved, secret};
+        use venti_api_types::v1::{Handle, parse_display_name};
+
+        let mut identities = Vec::new();
+        let mut starts = Vec::new();
+        let mut public = 0;
+        for (pilot, flights) in DEMO_PILOTS.iter().zip(further_flights()) {
+            // An account anyone could have registered.
+            let handle = Handle::new(pilot.handle).unwrap();
+            assert_eq!(handle.as_str(), pilot.handle);
+            assert!(!is_reserved(&handle));
+            assert_eq!(parse_display_name(pilot.name).unwrap(), pilot.name);
+            assert!(secret::is_id(pilot.id));
+            assert_ne!(pilot.id, DEMO_ACCOUNT_ID);
+            assert_ne!(pilot.id, DEMO_SESSION_ID);
+
+            for (file, visibility) in &flights {
+                let flight = derive(file).unwrap();
+                // Every one took off where the sample flight takes off.
+                let takeoff = flight.derived.takeoff.unwrap().position;
+                assert!((takeoff.lat() - 47.6642).abs() < 1e-4, "{takeoff:?}");
+                assert!((takeoff.lon() - 11.7967).abs() < 1e-4, "{takeoff:?}");
+                assert!(flight.derived.score.is_some());
+                public += usize::from(*visibility == Visibility::Public);
+                identities.push(flight.identity);
+                starts.push(flight.derived.start);
+            }
+            // Each pilot has a flight that is in no list.
+            assert!(flights.iter().any(|(_, v)| *v != Visibility::Public));
+        }
+        assert_eq!(public, 4);
+        // No two are the same flight, none is one of the demo account's,
+        // and no two start in the same second.
+        for (file, _) in demo_flights() {
+            let flight = derive(&file).unwrap();
+            identities.push(flight.identity);
+            starts.push(flight.derived.start);
+        }
+        let all = identities.len();
+        identities.sort();
+        identities.dedup();
+        assert_eq!(identities.len(), all);
+        starts.sort();
+        starts.dedup();
+        assert_eq!(starts.len(), all);
     }
 }

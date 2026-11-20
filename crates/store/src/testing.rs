@@ -14,9 +14,9 @@ use crate::flight::{Room, Saved};
 use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom,
-    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus, StationLatest, Store,
-    StoreError, Visibility,
+    LiveSaved, LiveTrack, Month, NewAccount, NewFlight, NewInvite, OutdatedFlight, PublicFlights,
+    PublicOrder, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet, SourceStatus,
+    StationLatest, Store, StoreError, Visibility,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -219,6 +219,15 @@ impl Store for TroubledStore {
         _: &str,
         _: Listing,
         _: Option<&FlightKey>,
+        _: usize,
+    ) -> Result<Vec<Flight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn public_flights(
+        &self,
+        _: &PublicFlights,
+        _: &PublicOrder,
         _: usize,
     ) -> Result<Vec<Flight>, StoreError> {
         self.fail().await

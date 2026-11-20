@@ -5,10 +5,10 @@ use std::collections::BTreeMap;
 use venti_domain::Timestamp;
 
 use super::accounts::Accounts;
-use crate::flight::{Kept, Room, Saved, cut};
+use crate::flight::{Kept, Room, Saved, cut, score_order};
 use crate::{
     DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    StoreError, Visibility,
+    PublicFlights, PublicOrder, ScoreKey, StoreError, Visibility,
 };
 
 #[derive(Debug, Default)]
@@ -127,6 +127,43 @@ impl Flights {
             .map(|entry| Self::read(entry, accounts))
             .collect();
         flights.sort_by_key(|flight| std::cmp::Reverse(flight.key()));
+        flights.truncate(limit);
+        flights
+    }
+
+    pub(super) fn public(
+        &self,
+        which: &PublicFlights,
+        order: &PublicOrder,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Vec<Flight> {
+        let mut flights: Vec<Flight> = self
+            .flights
+            .values()
+            .filter(|entry| entry.flight.visibility == Visibility::Public)
+            .filter(|entry| which.holds(&entry.flight))
+            .map(|entry| Self::read(entry, accounts))
+            .collect();
+        match order {
+            PublicOrder::Newest(after) => {
+                flights.retain(|flight| after.as_ref().is_none_or(|after| &flight.key() < after));
+                flights.sort_by_key(|flight| std::cmp::Reverse(flight.key()));
+            }
+            PublicOrder::Best(after) => {
+                let mut scored: Vec<(ScoreKey, Flight)> = flights
+                    .into_iter()
+                    .filter_map(|flight| Some((flight.score_key()?, flight)))
+                    .filter(|(key, _)| {
+                        after
+                            .as_ref()
+                            .is_none_or(|after| score_order(key, after).is_lt())
+                    })
+                    .collect();
+                scored.sort_by(|a, b| score_order(&b.0, &a.0));
+                flights = scored.into_iter().map(|(_, flight)| flight).collect();
+            }
+        }
         flights.truncate(limit);
         flights
     }

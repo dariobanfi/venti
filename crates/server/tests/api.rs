@@ -236,6 +236,8 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "upload.json",
         "flight_changes.json",
         "flight.json",
+        "public_flights.json",
+        "public_flights_best.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -251,6 +253,11 @@ fn the_documentation_shows_the_answers_as_they_are() {
         venti_server::dev::DEMO_TOKEN,
     ] {
         assert!(docs.contains(written_down), "{written_down}");
+    }
+    // So are the two further pilots.
+    for pilot in venti_server::dev::DEMO_PILOTS {
+        let row = format!("| `{}` | {} |", pilot.handle, pilot.name);
+        assert!(docs.contains(&row), "{row}");
     }
 }
 

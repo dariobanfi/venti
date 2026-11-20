@@ -229,10 +229,12 @@ pub struct UploadResponse {
     pub created: bool,
 }
 
-/// The answer of `GET /v1/flights`.
+/// The answer of `GET /v1/flights`, one page of the account's flights, and
+/// of `GET /v1/flights/public`, one page of everyone's public flights.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlightsResponse {
-    /// One page of the account's flights, newest first.
+    /// The flights of this page, in the order that was asked for: newest
+    /// first unless the request said otherwise.
     pub flights: Vec<Flight>,
     /// Pass this as `after` to get the next page. Left out on the last one.
     #[serde(default, skip_serializing_if = "Option::is_none")]

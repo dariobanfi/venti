@@ -56,6 +56,8 @@ pub enum ErrorCode {
     InvalidCursor,
     /// `limit` is not a number from one to the largest page.
     InvalidLimit,
+    /// `sort` names no order the list has.
+    InvalidSort,
     /// The request needs an account and carries no valid session token:
     /// none at all, one that was signed out, or one that expired.
     Unauthorized,

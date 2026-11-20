@@ -330,9 +330,95 @@ impl PilotRequest {
     }
 }
 
-/// Appends the parameters that have a value to a path.
+/// Path of everyone's public flights in one list.
+pub const PUBLIC_FLIGHTS_PATH: &str = "/v1/flights/public";
+
+/// The order of a list of public flights.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum FlightSort {
+    /// Newest first, by the start of the flight. The server's default.
+    #[default]
+    Newest,
+    /// Most points first. A flight too short to score is not in this list.
+    Score,
+}
+
+impl FlightSort {
+    /// The value of the `sort` parameter.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Newest => "newest",
+            Self::Score => "score",
+        }
+    }
+}
+
+/// Text that names no order of a list of public flights.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("sort must be one of newest, score")]
+pub struct FlightSortError;
+
+impl std::str::FromStr for FlightSort {
+    type Err = FlightSortError;
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        [Self::Newest, Self::Score]
+            .into_iter()
+            .find(|sort| sort.as_str() == text)
+            .ok_or(FlightSortError)
+    }
+}
+
+/// A request for one page of everyone's public flights.
+///
+/// Every part narrows the list or orders it; none can widen it beyond the
+/// flights their pilots made public.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PublicFlightsRequest {
+    /// Only flights that took off inside this box. `None` asks for flights
+    /// from anywhere.
+    pub bbox: Option<BoundingBox>,
+    /// Only flights that started at this moment or later.
+    pub from: Option<Timestamp>,
+    /// Only flights that started before this moment. A day is asked for
+    /// with its first moment as `from` and the next day's as `to`.
+    pub to: Option<Timestamp>,
+    /// The order. `None` leaves it to the server, which lists the newest
+    /// first.
+    pub sort: Option<FlightSort>,
+    /// The `next` of the page before, which was asked for with the same
+    /// other values. `None` asks for the first page.
+    pub after: Option<String>,
+    /// How many flights to return, at most
+    /// [`MAX_PAGE_SIZE`](super::MAX_PAGE_SIZE). The server's default is
+    /// [`DEFAULT_PAGE_SIZE`](super::DEFAULT_PAGE_SIZE).
+    pub limit: Option<usize>,
+}
+
+impl PublicFlightsRequest {
+    /// The path and query string to GET.
+    pub fn path_and_query(&self) -> String {
+        // A box is written with its commas, as the other requests write it.
+        let path = match &self.bbox {
+            Some(bbox) => format!("{PUBLIC_FLIGHTS_PATH}?bbox={}", format_bbox(bbox)),
+            None => PUBLIC_FLIGHTS_PATH.to_owned(),
+        };
+        with_query(
+            path,
+            [
+                ("from", self.from.map(format_time)),
+                ("to", self.to.map(format_time)),
+                ("sort", self.sort.map(|sort| sort.as_str().to_owned())),
+                ("after", self.after.clone()),
+                ("limit", self.limit.map(|limit| limit.to_string())),
+            ],
+        )
+    }
+}
+
+/// Appends the parameters that have a value to a path, which may have a
+/// query string already.
 fn with_query<const N: usize>(mut path: String, parameters: [(&str, Option<String>); N]) -> String {
-    let mut separator = '?';
+    let mut separator = if path.contains('?') { '&' } else { '?' };
     for (name, value) in parameters {
         if let Some(value) = value {
             path.push(separator);
@@ -621,6 +707,45 @@ mod tests {
             limit: Some(5),
         };
         assert_eq!(pilot.path_and_query(), "/v1/pilots/demo?limit=5");
+    }
+
+    #[test]
+    fn a_request_for_public_flights_names_only_what_was_asked_for() {
+        assert_eq!(
+            PublicFlightsRequest::default().path_and_query(),
+            "/v1/flights/public"
+        );
+        let day = PublicFlightsRequest {
+            from: Some(evening() - chrono::Duration::hours(18)),
+            to: Some(evening() + chrono::Duration::hours(6)),
+            sort: Some(FlightSort::Score),
+            ..PublicFlightsRequest::default()
+        };
+        assert_eq!(
+            day.path_and_query(),
+            "/v1/flights/public?from=2026-11-18T00:00:00Z&to=2026-11-19T00:00:00Z&sort=score"
+        );
+        let here = PublicFlightsRequest {
+            bbox: Some(BoundingBox::new(47.55, 11.6, 47.85, 12.0).unwrap()),
+            after: Some("p11.98_0123456789abcdefghjkmnpqrs".to_owned()),
+            limit: Some(20),
+            ..day
+        };
+        assert_eq!(
+            here.path_and_query(),
+            "/v1/flights/public?bbox=11.6,47.55,12,47.85\
+             &from=2026-11-18T00:00:00Z&to=2026-11-19T00:00:00Z&sort=score\
+             &after=p11.98_0123456789abcdefghjkmnpqrs&limit=20"
+        );
+
+        // The names of the orders are the values of the parameter.
+        for sort in [FlightSort::Newest, FlightSort::Score] {
+            assert_eq!(sort.as_str().parse(), Ok(sort));
+        }
+        assert_eq!(FlightSort::default(), FlightSort::Newest);
+        for unknown in ["", "Newest", "points", "newest,score"] {
+            assert_eq!(unknown.parse::<FlightSort>(), Err(FlightSortError));
+        }
     }
 
     #[test]

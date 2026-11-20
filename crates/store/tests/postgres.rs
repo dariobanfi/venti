@@ -171,7 +171,7 @@ async fn a_database_from_before_accounts_is_upgraded_in_place() {
         .await
         .unwrap();
     let versions: Vec<i32> = versions.iter().map(|row| row.get(0)).collect();
-    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8]);
 }
 
 #[tokio::test]
@@ -433,6 +433,118 @@ async fn the_questions_about_live_tracks_use_their_indexes() {
     .await;
     assert!(plan.contains("live_fixes_pkey"), "{plan}");
     assert!(!plan.contains("Sort"), "{plan}");
+}
+
+/// The store's question for a page of public flights, as it writes it,
+/// with the values written in: what the page is cut from, and its order.
+fn public_flights_question(conditions: &str, order: &str) -> String {
+    format!(
+        "EXPLAIN SELECT f.id, a.handle FROM flights f JOIN accounts a ON a.id = f.account_id
+         WHERE f.visibility = 'public' {conditions}
+         ORDER BY {order}
+         LIMIT 51"
+    )
+}
+
+#[tokio::test]
+async fn the_questions_about_public_flights_use_their_indexes() {
+    let Some(url) = fresh_schema("public_flight_indexes").await else {
+        return;
+    };
+    PgStore::connect(&url).await.unwrap();
+    let tables = look(&url).await;
+    // Twenty thousand flights of one pilot over two years, from thousands
+    // of take-offs between Lake Constance and Vienna; three in four are
+    // public. Enough for the planner to choose as it would on a server,
+    // which it is left to do: nothing is switched off here.
+    tables
+        .batch_execute(
+            "INSERT INTO accounts (id, handle, display_name, created_at)
+             VALUES ('000000000000000000000pilot', 'pilot', 'Pilot', '2025-01-01 00:00+00');
+             INSERT INTO flights
+                 (id, account_id, identity, visibility, uploaded_at, change, file, file_bytes,
+                  analysis_version, started_at, airtime_s, takeoff_at, takeoff_lat, takeoff_lon,
+                  takeoff_altitude_m, track_length_m, max_altitude_m, max_climb_ms, score_kind,
+                  score_closed, score_distance_m, score_points, outline, profile)
+             SELECT lpad(n::text, 26, '0'), '000000000000000000000pilot', lpad(n::text, 32, '0'),
+                    CASE WHEN n % 4 = 0 THEN 'private' ELSE 'public' END,
+                    '2026-11-18 19:05+00', n, ''::bytea, 60000, 1,
+                    timestamptz '2025-01-01 09:00+00' + n * interval '53 minutes', 3600,
+                    timestamptz '2025-01-01 09:00+00' + n * interval '53 minutes',
+                    46.5 + (n % 200) * 0.01, 9.5 + (n % 173) * 0.04, 1500,
+                    20000, 2400, 2.5, 'free_flight', false,
+                    (n % 997) * 100.0, (n % 997) / 10.0, '{}', '{}'
+             FROM generate_series(1, 20000) AS n;
+             ANALYZE accounts;
+             ANALYZE flights;",
+        )
+        .await
+        .unwrap();
+    let plan_of = |conditions: &'static str, order: &'static str| {
+        let tables = &tables;
+        async move {
+            let question = public_flights_question(conditions, order);
+            let plan = tables.query(&question, &[]).await.unwrap();
+            let plan: Vec<String> = plan.iter().map(|row| row.get(0)).collect();
+            plan.join("\n")
+        }
+    };
+    let newest = "f.started_at DESC, f.id DESC";
+    let best = "f.score_points DESC, f.id DESC";
+    // No question reads the table from end to end, and each of these is
+    // answered by walking an index in the order asked for, so that the
+    // first page costs what a page holds and not what the table holds.
+    let in_order = |plan: &str, index: &str| {
+        assert!(plan.contains(index), "{index} is not used:\n{plan}");
+        assert!(!plan.contains("Sort"), "{plan}");
+        assert!(!plan.contains("Seq Scan on flights"), "{plan}");
+    };
+
+    // The newest, the page after a flight, and the flights of a day.
+    in_order(&plan_of("", newest).await, "flights_public_newest_idx");
+    let after = "AND (f.started_at, f.id) < ('2026-06-01 10:00+00', '00000000000000000000012345')";
+    in_order(&plan_of(after, newest).await, "flights_public_newest_idx");
+    let a_day =
+        "AND f.started_at >= '2026-06-01 00:00+00' AND f.started_at < '2026-06-02 00:00+00'";
+    in_order(&plan_of(a_day, newest).await, "flights_public_newest_idx");
+
+    // The best, and the page after a flight.
+    let scored = "AND f.score_points IS NOT NULL";
+    in_order(&plan_of(scored, best).await, "flights_public_score_idx");
+    let after = "AND f.score_points IS NOT NULL AND (f.score_points, f.id) < (42.5, '00000000000000000000012345')";
+    in_order(&plan_of(after, best).await, "flights_public_score_idx");
+
+    // The best of one day: the day's few flights are found by their start
+    // and then sorted, which is less work than walking every flight there
+    // is from the best down.
+    let plan = plan_of(
+        "AND f.score_points IS NOT NULL AND f.started_at >= '2026-06-01 00:00+00'
+         AND f.started_at < '2026-06-02 00:00+00'",
+        best,
+    )
+    .await;
+    assert!(plan.contains("flights_public_newest_idx"), "{plan}");
+    assert!(!plan.contains("Seq Scan on flights"), "{plan}");
+
+    // A box around one take-off holds a few flights: they are found by
+    // where they took off.
+    let one_place = "AND f.takeoff
+             && ST_MakeEnvelope(11.69, 47.59, 11.71, 47.61, 4326)
+         AND f.takeoff_lon BETWEEN 11.69 AND 11.71 AND f.takeoff_lat BETWEEN 47.59 AND 47.61";
+    for order in [newest, best] {
+        let plan = plan_of(one_place, order).await;
+        assert!(plan.contains("flights_public_takeoff_idx"), "{plan}");
+        assert!(!plan.contains("Seq Scan on flights"), "{plan}");
+    }
+    // A box around everything holds every flight: the list is walked in
+    // its order instead, as without a box.
+    let everything = "AND f.takeoff
+             && ST_MakeEnvelope(5.0, 44.0, 18.0, 50.0, 4326)
+         AND f.takeoff_lon BETWEEN 5.0 AND 18.0 AND f.takeoff_lat BETWEEN 44.0 AND 50.0";
+    in_order(
+        &plan_of(everything, newest).await,
+        "flights_public_newest_idx",
+    );
 }
 
 #[tokio::test]

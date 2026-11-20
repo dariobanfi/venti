@@ -6,6 +6,11 @@ name: iOS
 # published as the `ios-screenshots` artifact. For the wind map the tests
 # talk to a Venti server started here in its development mode, which
 # answers from recorded data.
+#
+# The UI tests take over twenty minutes on one machine, so they are dealt
+# out to three machines that run side by side: every test function of
+# VentiUITests.swift, sorted by name, goes to one of them in turn. A new
+# test needs no entry here.
 
 on:
   push:
@@ -87,6 +92,88 @@ jobs:
           ')
           echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
 
+      - name: Build the app and run its unit tests on the simulator
+        run: |
+          set -o pipefail
+          # The build cache restores `target`, and with it what an earlier
+          # run left there. xcodebuild refuses to overwrite a result bundle.
+          #
+          # The app is signed for this Mac only ("-"), which needs no
+          # certificate. Left unsigned, it has no identity, and the
+          # simulator's Keychain then refuses to keep the session token and
+          # the assistant's key: the tests would not see what a phone does.
+          rm -rf target/apple/Venti.xcresult
+          mkdir -p target/apple
+          xcodebuild test \
+            -project apps/ios/Venti.xcodeproj \
+            -scheme Venti \
+            -destination "platform=iOS Simulator,id=$SIMULATOR" \
+            -derivedDataPath target/apple/DerivedData \
+            -resultBundlePath target/apple/Venti.xcresult \
+            -only-testing:VentiTests \
+            CODE_SIGN_IDENTITY=- \
+            2>&1 | tee target/apple/xcodebuild.log \
+            | grep -E "^Test (Suite|Case) |Executed [0-9]+ tests|(error|warning): |\*\* TEST"
+
+      - name: Keep the full build log when the build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: target/apple/xcodebuild.log
+
+  # The UI tests, dealt out to three machines. Each builds the app for
+  # itself: handing a built app from one machine to the next would save
+  # machine time and no waiting.
+  ui:
+    name: UI tests, part ${{ matrix.part }} of 3
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      # One part failing says nothing about the others, and their
+      # screenshots are wanted either way.
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup show
+
+      # One cache for the three parts, which build the same things.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ios-ui
+
+      - name: Build the Rust core for Apple platforms
+        run: apps/ios/scripts/build-core.sh
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios && xcodegen generate
+
+      - name: Pick the newest iPhone simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          best = None
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not match:
+                  continue
+              version = (int(match.group(1)), int(match.group(2)))
+              for device in devices:
+                  if device["name"].startswith("iPhone") and (best is None or version > best[0]):
+                      best = (version, device["udid"], device["name"])
+          if best is None:
+              sys.exit("no iPhone simulator is installed")
+          print("using", best[2], "with iOS", ".".join(map(str, best[0])), file=sys.stderr)
+          print(best[1])
+          ')
+          echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+
       - name: Start a Venti server on recorded data
         run: |
           cargo build -p venti-server
@@ -97,7 +184,17 @@ jobs:
           done
           curl -sf http://127.0.0.1:8080/v1/health
 
-      - name: Build and test the app on the simulator
+      - name: Choose this part's tests
+        run: |
+          # Every test function, sorted by name, dealt out in turn.
+          only=$(grep -oE 'func test[A-Za-z0-9_]+' apps/ios/VentiUITests/VentiUITests.swift \
+            | sed 's/^func //' | LC_ALL=C sort \
+            | awk -v part=${{ matrix.part }} '(NR - 1) % 3 == part - 1 { printf " -only-testing:VentiUITests/VentiUITests/%s", $0 }')
+          [ -n "$only" ] || { echo "no UI test fell to this part"; exit 1; }
+          echo "$only" | tr ' ' '\n'
+          echo "ONLY_TESTING=$only" >> "$GITHUB_ENV"
+
+      - name: Build the app and run this part of the UI tests
         env:
           # Reaches the UI tests as VENTI_SERVER. The simulator shares the
           # Mac's network, so the app finds the server at this address.
@@ -106,18 +203,16 @@ jobs:
           set -o pipefail
           # The build cache restores `target`, and with it what an earlier
           # run left there. xcodebuild refuses to overwrite a result bundle.
-          #
-          # The app is signed for this Mac only ("-"), which needs no
-          # certificate. Left unsigned, it has no identity, and the
-          # simulator's Keychain then refuses to keep the session token and
-          # the assistant's key: the tests would not see what a phone does.
+          # The app is signed for this Mac only, as for the unit tests.
           rm -rf target/apple/Venti.xcresult target/apple/attachments target/apple/screenshots
+          mkdir -p target/apple
           xcodebuild test \
             -project apps/ios/Venti.xcodeproj \
             -scheme Venti \
             -destination "platform=iOS Simulator,id=$SIMULATOR" \
             -derivedDataPath target/apple/DerivedData \
             -resultBundlePath target/apple/Venti.xcresult \
+            $ONLY_TESTING \
             CODE_SIGN_IDENTITY=- \
             2>&1 | tee target/apple/xcodebuild.log \
             | grep -E "^Test (Suite|Case) |Executed [0-9]+ tests|(error|warning): |\*\* TEST"
@@ -126,7 +221,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
+          name: xcodebuild-log-part-${{ matrix.part }}
           path: target/apple/xcodebuild.log
 
       - name: Collect the screenshots the UI tests took
@@ -203,9 +298,23 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ios-screenshots
+          name: ios-screenshots-part-${{ matrix.part }}
           path: target/apple/screenshots
           if-no-files-found: warn
+
+  # The three parts' screenshots as the one artifact everybody looks for.
+  screenshots:
+    name: All screenshots
+    needs: ui
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/upload-artifact/merge@v4
+        with:
+          name: ios-screenshots
+          pattern: ios-screenshots-part-*
+          delete-merged: true
 
   # An app for a real iPhone, built without a signature. Nobody's certificate
   # is in this repository: whoever installs the app signs this file with

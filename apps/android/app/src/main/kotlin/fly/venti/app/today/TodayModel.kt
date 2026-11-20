@@ -38,6 +38,8 @@ data class TodayPlace(
     val distanceM: Double,
     /** Absent until the server has answered, and when it could not. */
     val outlook: SiteOutlook? = null,
+    /** Whether the server has been asked and the asking is over, with an answer or without one. */
+    val isAsked: Boolean = false,
 )
 
 /** What the Today tab has to show. */
@@ -152,10 +154,12 @@ class TodayModel(
             coroutineScope {
                 for (takeoff in found) {
                     launch {
-                        val outlook = outlook(takeoff.site, server, nowUnixS) ?: return@launch
+                        val outlook = outlook(takeoff.site, server, nowUnixS)
                         if (server != server()) return@launch
-                        places = places.map { if (it.site.id == takeoff.site.id) it.copy(outlook = outlook) else it }
-                        if (credits.isEmpty()) {
+                        places = places.map {
+                            if (it.site.id == takeoff.site.id) it.copy(outlook = outlook, isAsked = true) else it
+                        }
+                        if (outlook != null && credits.isEmpty()) {
                             credits = outlook.credits
                         }
                     }

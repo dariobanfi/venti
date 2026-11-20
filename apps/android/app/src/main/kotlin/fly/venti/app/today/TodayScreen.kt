@@ -144,11 +144,11 @@ fun TodayScreen(
     val days = days(places)
     LaunchedEffect(places) {
         if (hasChosenDay) return@LaunchedEffect
-        val outlooks = places.mapNotNull { it.outlook }
-        val isOver = outlooks.isNotEmpty() && outlooks.all { it.days.firstOrNull()?.hours.isNullOrEmpty() }
-        day = if (isOver && days.size > 1) 1 else 0
+        // The first day that has flying hours left: in the evening that is tomorrow.
+        day = days.indexOfFirst { it.hours.isNotEmpty() }.coerceAtLeast(0)
     }
-    val shown = ordered(places, day)
+    val chosen = days.getOrNull(day)
+    val shown = ordered(places, chosen)
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -164,7 +164,7 @@ fun TodayScreen(
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Head(
                 dayLine = dayLine(days, day, isNearPilot = position.place != null && nearPilot),
-                headline = headline(today.state, shown, day),
+                headline = headline(today.state, shown, chosen),
                 onOpenSettings = onOpenSettings,
                 onOpenAssistant = onOpenAssistant,
             )
@@ -210,12 +210,12 @@ fun TodayScreen(
                             })
                         }
                         shown.firstOrNull()?.let { first ->
-                            TakeoffCard(first, outlookDay(first, day), onClick = { onOpen(first.site) })
+                            TakeoffCard(first, outlookDay(first, chosen), onClick = { onOpen(first.site) })
                         }
                         Column {
                             shown.drop(1).forEachIndexed { index, other ->
                                 if (index > 0) HorizontalDivider(color = Venti.colours.border)
-                                TakeoffRow(other, outlookDay(other, day), onClick = { onOpen(other.site) })
+                                TakeoffRow(other, outlookDay(other, chosen), onClick = { onOpen(other.site) })
                             }
                         }
                         if (!(nearPilot && position.place != null) && !position.isDenied) {
@@ -245,14 +245,26 @@ private val HOME = Coordinate(lat = 47.6, lon = 11.75)
 private fun days(places: List<TodayPlace>): List<OutlookDay> =
     places.mapNotNull { it.outlook?.days }.maxByOrNull { it.size }.orEmpty().take(3)
 
-private fun outlookDay(place: TodayPlace, day: Int): OutlookDay? = place.outlook?.days?.getOrNull(day)
+/**
+ * What a take-off's forecast says of the chosen day: the day that begins at
+ * the same moment, wherever it stands in that forecast.
+ */
+private fun outlookDay(place: TodayPlace, chosen: OutlookDay?): OutlookDay? =
+    chosen?.let { day -> place.outlook?.days?.firstOrNull { it.startUnixS == day.startUnixS } }
+
+/**
+ * What stands in place of a day's line for a take-off that has none: that
+ * the server is still being asked, or that its forecast does not reach the day.
+ */
+private fun waitingWords(place: TodayPlace): String =
+    if (place.isAsked) "No forecast for this day" else "Reading the forecast"
 
 /**
  * The take-offs in the order they are shown: by what the forecast says of
  * the chosen day, the better first, and among equals the nearer. One the
  * server has not answered for yet comes last.
  */
-private fun ordered(places: List<TodayPlace>, day: Int): List<TodayPlace> =
+private fun ordered(places: List<TodayPlace>, day: OutlookDay?): List<TodayPlace> =
     places.sortedWith(
         compareBy<TodayPlace> { place ->
             when (outlookDay(place, day)?.verdict) {
@@ -272,13 +284,14 @@ private fun dayLine(days: List<OutlookDay>, day: Int, isNearPilot: Boolean): Str
 }
 
 /** The day in a line: the best take-off's. Before there is one, what the screen is waiting for. */
-private fun headline(state: TodayState, shown: List<TodayPlace>, day: Int): String = when (state) {
+private fun headline(state: TodayState, shown: List<TodayPlace>, day: OutlookDay?): String = when (state) {
     TodayState.NoServer -> "No forecast yet"
     is TodayState.Failed -> "No forecast"
     TodayState.Idle, TodayState.Loading -> "Reading the forecast"
     TodayState.Loaded -> when {
         shown.isEmpty() -> "No take-offs near"
-        else -> shown.firstOrNull()?.let { outlookDay(it, day) }?.headline ?: "Reading the forecast"
+        else -> shown.firstOrNull()?.let { outlookDay(it, day) }?.headline
+            ?: if (shown.all { it.isAsked }) "No forecast" else "Reading the forecast"
     }
 }
 
@@ -290,7 +303,7 @@ private fun headline(state: TodayState, shown: List<TodayPlace>, day: Int): Stri
 @Composable
 private fun Head(dayLine: String, headline: String, onOpenSettings: () -> Unit, onOpenAssistant: () -> Unit) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    Box(modifier = Modifier.fillMaxWidth().height(top + VentiSpace.s8 * 3)) {
+    Box(modifier = Modifier.fillMaxWidth().height(top + VentiSpace.s8 * 3).testTag("today-head")) {
         Image(
             painterResource(R.drawable.venti_art_valley_strip),
             contentDescription = null,
@@ -365,7 +378,7 @@ private fun DaySwitch(days: List<OutlookDay>, chosen: Int, onChoose: (Int) -> Un
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    if (index == 0) "Today" else Format.shortWeekday(shown.startUnixS),
+                    shown.name,
                     style = MaterialTheme.typography.titleMedium,
                     color = if (isChosen) colours.onPrimary else colours.textSecondary,
                 )
@@ -398,7 +411,7 @@ private fun TakeoffCard(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit
                 day?.let { StatusChip(it.verdict.status, it.status) }
             }
             if (day == null) {
-                Text("Reading the forecast", color = colours.textSecondary)
+                Text(waitingWords(place), color = colours.textSecondary)
                 return@Column
             }
             if (day.why.isNotEmpty()) {
@@ -450,7 +463,7 @@ private fun TakeoffRow(place: TodayPlace, day: OutlookDay?, onClick: () -> Unit)
             Text(place.site.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 // What limits the day; for a day nothing limits, its line.
-                day?.let { it.why.ifEmpty { it.headline } } ?: "Reading the forecast",
+                day?.let { it.why.ifEmpty { it.headline } } ?: waitingWords(place),
                 style = MaterialTheme.typography.labelLarge,
                 color = colours.textSecondary,
                 maxLines = 2,

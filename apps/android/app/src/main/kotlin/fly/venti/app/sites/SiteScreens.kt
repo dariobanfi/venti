@@ -198,13 +198,13 @@ class SiteActions(
  * hours, and the two things to do from here.
  */
 @Composable
-private fun SiteHead(site: SiteView, day: Pair<OutlookDay, Boolean>?, isForTakingOff: Boolean, actions: SiteActions?) {
+private fun SiteHead(site: SiteView, day: OutlookDay?, isForTakingOff: Boolean, actions: SiteActions?) {
     val colours = Venti.colours
     Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s3)) {
         Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s1)) {
             Text(SiteWords.inALine(site), color = colours.textSecondary, modifier = Modifier.testTag("site-in-a-line"))
-            day?.let { (shown, isToday) ->
-                Text(SiteWords.outlook(shown, isToday), color = colours.textSecondary, modifier = Modifier.testTag("site-outlook"))
+            day?.let { shown ->
+                Text(SiteWords.outlook(shown), color = colours.textSecondary, modifier = Modifier.testTag("site-outlook"))
             }
         }
         if (actions != null) {
@@ -433,7 +433,7 @@ private fun SitePage(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).semantics { heading() },
             )
-            day?.let { (shown, _) ->
+            day?.let { shown ->
                 StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
             }
             TextButton(onClick = onDone) { Text("Done") }
@@ -684,21 +684,13 @@ object SiteWords {
         return line
     }
 
-    /**
-     * The first day the forecast has flying hours for, and whether that is
-     * today; today where it has none at all.
-     */
-    fun firstFlyingDay(outlook: SiteOutlook): Pair<OutlookDay, Boolean>? {
-        val first = outlook.days.firstOrNull() ?: return null
-        val index = outlook.days.indexOfFirst { it.hours.isNotEmpty() }
-        return if (index >= 0) outlook.days[index] to (index == 0) else first to true
-    }
+    /** The first day the forecast has flying hours for; the first day it has at all where none has any. */
+    fun firstFlyingDay(outlook: SiteOutlook): OutlookDay? =
+        outlook.days.firstOrNull { it.hours.isNotEmpty() } ?: outlook.days.firstOrNull()
 
-    /** "Good from noon. Gusts to 26 km/h after 15:00", with the day's name before it when it is not today. */
-    fun outlook(day: OutlookDay, isToday: Boolean): String {
-        val name = if (isToday) "" else "${Format.weekday(day.startUnixS)}: "
-        return if (day.why.isEmpty()) "$name${day.headline}" else "$name${day.headline}. ${day.why}"
-    }
+    /** "Today: Good from noon. Gusts to 26 km/h after 15:00", with the day as the core names it. */
+    fun outlook(day: OutlookDay): String =
+        if (day.why.isEmpty()) "${day.name}: ${day.headline}" else "${day.name}: ${day.headline}. ${day.why}"
 
     const val FLOWN_FROM_HERE = "Flown from here"
     const val FLOWN_FOOTER =

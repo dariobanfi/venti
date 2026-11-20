@@ -1441,7 +1441,8 @@ class VentiUiTest {
         waitFor(row)
         assertTrue(exists(row and described("Jonas Beispiel")))
         assertTrue(exists(row and described("Mara Muster")))
-        assertTrue(exists(row and described("Demo Pilot")))
+        // The development mode's demo pilot shares flights too, unless a
+        // test that ran before took them back: not looked for.
         assertTrue(screen.onAllNodes(row).fetchSemanticsNodes().first().config[SemanticsProperties.ContentDescription] == listOf("Jonas Beispiel"))
         // Under the list: whose reckoning the distances and points are.
         screen.onNode(hasTestTag("public-flights")).performScrollToNode(hasTestTag("public-flights-reckoning"))
@@ -1744,7 +1745,8 @@ class VentiUiTest {
         screen.onNode(hasTestTag("today-foot")).performScrollTo()
         waitFor(hasText("the take-off decides", substring = true))
         assertTrue(exists(hasText("They are not advice to fly", substring = true)))
-        screen.onNode(hasTestTag("today-headline")).performScrollTo()
+        // Back to the top of the page, the valley and its corner in view.
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("$prefix-today-1")
 

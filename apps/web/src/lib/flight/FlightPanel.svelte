@@ -23,9 +23,11 @@
 		playing: boolean;
 		/** Opens everything else known about the flight, where that is not on screen already. */
 		ondetails?: () => void;
+		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
+		whose?: { name: string; href: string };
 	}
 
-	let { flight, cursor = $bindable(), playing = $bindable(), ondetails }: Props = $props();
+	let { flight, cursor = $bindable(), playing = $bindable(), ondetails, whose }: Props = $props();
 
 	const text = format();
 	const moment = $derived(cursor === undefined ? undefined : flight.track[cursor]);
@@ -37,6 +39,9 @@
 <div class="panel">
 	<header>
 		<div class="when">
+			{#if whose}
+				<a class="whose" href={whose.href}>{whose.name}</a>
+			{/if}
 			<h1>{text.day(flight.startUnixS)}</h1>
 			<p>{flight.glider ? `${times} · ${flight.glider}` : times}</p>
 		</div>
@@ -126,6 +131,21 @@
 	h1 {
 		font-size: var(--body);
 		font-weight: 600;
+	}
+
+	/* Whose flight it is, for another pilot's: over the day, and the way to
+	   that pilot's other flights. Underlined, in the text's own colour: the
+	   accent does not hold its contrast on glass. */
+	.whose {
+		display: block;
+		font-size: var(--subheadline);
+		font-weight: 600;
+		text-decoration: underline;
+		text-decoration-thickness: 0.0625em;
+		text-underline-offset: 0.15em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.when p {

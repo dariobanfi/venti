@@ -22,6 +22,8 @@
  *   and keeps the logbook in step with it, also from the worker.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
  *   server when the core says it is time, for the core to keep.
+ * - `community-source.ts` asks it for the flights other pilots share with
+ *   everyone, and fetches one of them to show.
  */
 
 export type {
@@ -64,7 +66,11 @@ export type {
 	LogbookYear,
 	ModelForecast,
 	MonthStatistics,
+	PilotPage,
 	ProfilePoint,
+	PublicFlight,
+	PublicFlights,
+	PublicFlightsOrder,
 	Registration,
 	RouteKind,
 	SiteKind,
@@ -90,6 +96,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
+export type { OpenedFlight, PublicFlightsAsked } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 

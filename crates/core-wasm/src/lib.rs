@@ -7,9 +7,9 @@
 //! [`Core`] has the interface the phones have. The view types it returns
 //! are the core's own; their TypeScript declarations are generated from the
 //! Rust definitions, so there is nothing to keep in step by hand. Live wind,
-//! flying sites, forecasts and who is in the air are a handful of plain
-//! functions beside it, as they are in the core, and [`LiveFollow`] is the
-//! core's reader of one live track.
+//! flying sites, forecasts, who is in the air and other pilots' public
+//! flights are a handful of plain functions beside it, as they are in the
+//! core, and [`LiveFollow`] is the core's reader of one live track.
 //!
 //! The core never talks to a server. For the pilot's account it hands out a
 //! [`ServerRequest`] and reads the answer; the page sends the request in
@@ -44,8 +44,9 @@ use venti_core::{
     AccountView, AirspaceFetch, AirspaceFile, AirspaceImport, AirspaceShape, Bounds, CoreError,
     FlightAirspace, FlightAnalysis, FlightFile, FlightSharing, FlightView, FlightVisibility,
     ForecastView, ImportedFlight, KeptAirspace, LiveFollowView, LiveMap, LogbookStatistics,
-    LogbookView, ServerRequest, ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory,
-    Storage, SyncStep, SyncSummary, WindMap,
+    LogbookView, PilotPage, PublicFlight, PublicFlights, PublicFlightsOrder, ServerRequest,
+    ServerStatus, SignedIn, SitesMap, StagedStorage, StationHistory, Storage, SyncStep,
+    SyncSummary, WindMap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -683,6 +684,80 @@ impl LiveFollow {
     pub fn is_over(&self) -> bool {
         self.follow.is_over()
     }
+}
+
+// Other pilots' flights: the flights the pilots of the Venti server share
+// with everyone, in one list, a pilot's own page of them, and one of them
+// shown from its file like a flight of the logbook. Nothing of it is kept.
+
+/// The path and query to `GET` for one page of everyone's public flights:
+/// the newest first, or the best by points. `from_unix_s` and `to_unix_s`
+/// narrow the list to flights that began at or after the one and before
+/// the other; a day is its first second and the first second of the next.
+/// `after` is the `next` of the page before, with the rest unchanged.
+#[wasm_bindgen(js_name = publicFlightsPath)]
+pub fn public_flights_path(
+    order: Ts<PublicFlightsOrder>,
+    from_unix_s: Option<f64>,
+    to_unix_s: Option<f64>,
+    after: Option<String>,
+) -> Result<String, JsValue> {
+    venti_core::public_flights_path(
+        from_js(&order)?,
+        // No page has a map to narrow the list by yet.
+        None,
+        from_unix_s.map(whole_seconds),
+        to_unix_s.map(whole_seconds),
+        after,
+    )
+    .map_err(thrown)
+}
+
+/// Reads the server's answer to `publicFlightsPath`.
+#[wasm_bindgen(js_name = publicFlights)]
+pub fn public_flights(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlights>, JsValue> {
+    to_js(&venti_core::public_flights(status, body).map_err(thrown)?)
+}
+
+/// The path and query to `GET` for a pilot and one page of the flights
+/// that pilot shares with everyone.
+#[wasm_bindgen(js_name = pilotPagePath)]
+pub fn pilot_page_path(handle: String, after: Option<String>) -> Result<String, JsValue> {
+    venti_core::pilot_page_path(handle, after).map_err(thrown)
+}
+
+/// Reads the server's answer to `pilotPagePath`.
+#[wasm_bindgen(js_name = pilotPage)]
+pub fn pilot_page(status: u16, body: Vec<u8>) -> Result<Ts<PilotPage>, JsValue> {
+    to_js(&venti_core::pilot_page(status, body).map_err(thrown)?)
+}
+
+/// The path to `GET` for one public flight that is reached by its address
+/// alone, as from a link.
+#[wasm_bindgen(js_name = publicFlightPath)]
+pub fn public_flight_path(id: String) -> Result<String, JsValue> {
+    venti_core::public_flight_path(id).map_err(thrown)
+}
+
+/// Reads the server's answer to `publicFlightPath`, and also what the
+/// server says when it does not hand out the flight's file.
+#[wasm_bindgen(js_name = publicFlight)]
+pub fn public_flight(status: u16, body: Vec<u8>) -> Result<Ts<PublicFlight>, JsValue> {
+    to_js(&venti_core::public_flight(status, body).map_err(thrown)?)
+}
+
+/// A flight that is not in the logbook, prepared for display from its
+/// file's text. Its `id` is empty, and nothing is kept.
+#[wasm_bindgen(js_name = flightFromFile)]
+pub fn flight_from_file(igc_text: String) -> Result<Ts<FlightView>, JsValue> {
+    to_js(&venti_core::flight_from_file(igc_text).map_err(thrown)?)
+}
+
+/// What happened in a flight that is not in the logbook, from its file's
+/// text.
+#[wasm_bindgen(js_name = flightAnalysisFromFile)]
+pub fn flight_analysis_from_file(igc_text: String) -> Result<Ts<FlightAnalysis>, JsValue> {
+    to_js(&venti_core::flight_analysis_from_file(igc_text).map_err(thrown)?)
 }
 
 /// A moment as the core counts it. JavaScript has one kind of number, and a

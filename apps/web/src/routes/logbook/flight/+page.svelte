@@ -8,12 +8,14 @@
 	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import { logbookHref } from '#lib/app/routes.ts';
 	import type { FlightAnalysis, FlightView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import type { MenuItem } from '#lib/design/Menu.svelte';
 	import FlightScreen from '#lib/flight/FlightScreen.svelte';
 	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
@@ -34,6 +36,20 @@
 	/** What happened in the flight. It is worked out after the flight is on screen. */
 	let analysis = $state.raw<FlightAnalysis>();
 	let confirmingDelete = $state(false);
+	/** Whether the sheet that says who can see the flight is open. */
+	let sharing = $state(false);
+
+	/** What can be done with the flight besides looking at it. */
+	const actions: MenuItem[] = [
+		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
+		{ label: 'Download flight file', icon: 'download', onselect: () => void downloadFlight() },
+		{
+			label: 'Delete flight',
+			icon: 'trash',
+			destructive: true,
+			onselect: () => (confirmingDelete = true)
+		}
+	];
 
 	$effect(() => {
 		if (app.failure) {
@@ -109,9 +125,11 @@
 			flight={phase.flight}
 			{analysis}
 			wide={wide.current}
-			ondownload={downloadFlight}
-			ondelete={() => (confirmingDelete = true)}
+			back={{ href: logbookHref(), label: 'Logbook' }}
+			{actions}
+			inLogbook
 		/>
+		<ShareFlightSheet open={sharing} flight={phase.flight.id} onclose={() => (sharing = false)} />
 	{/key}
 {:else if phase.is === 'failed'}
 	<div class="unavailable">

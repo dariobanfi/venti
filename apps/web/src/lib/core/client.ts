@@ -5,6 +5,7 @@
  */
 
 import type { NewAccount } from './account-source';
+import type { PublicFlightsAsked } from './community-source';
 import type { Bounds, Coordinate, FlightVisibility } from './pkg/venti_core_wasm.js';
 import {
 	type CallName,
@@ -130,6 +131,27 @@ export class CoreClient {
 	/** How old positions are, in the core's words, one answer for each. */
 	liveAges(asked: { ageS: number; landed: boolean }[]) {
 		return this.#call('liveAges', asked);
+	}
+
+	/**
+	 * One page of the flights the server's pilots share with everyone.
+	 * Nothing if this site has no server.
+	 */
+	publicFlights(asked: PublicFlightsAsked) {
+		return this.#call('publicFlights', asked);
+	}
+
+	/** A pilot, by handle, and one page of that pilot's public flights. */
+	pilotPage(handle: string, after?: string) {
+		return this.#call('pilotPage', { handle, after });
+	}
+
+	/**
+	 * Another pilot's flight, by its address on the server, fetched and
+	 * prepared for display. Nothing of it is kept.
+	 */
+	openPublicFlight(id: string) {
+		return this.#call('openPublicFlight', id);
 	}
 
 	/** What the server's weather models say about a place. Nothing if this site has no server. */

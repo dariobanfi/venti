@@ -26,7 +26,9 @@
 	 * A flight fills a narrow screen: the bar steps aside, as the iPhone's tab
 	 * bar does, and the screen's own back button leads out.
 	 */
-	const covered = $derived(page.route.id === '/logbook/flight');
+	const covered = $derived(
+		page.route.id === '/logbook/flight' || page.route.id === '/logbook/everyone/flight'
+	);
 </script>
 
 <nav class:covered aria-label="Sections">

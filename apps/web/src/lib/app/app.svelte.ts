@@ -12,6 +12,7 @@ import { createContext } from 'svelte';
 import { goto } from '$app/navigation';
 import { AccountModel } from '#lib/account/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
+import { CommunityModel } from '#lib/community/model.svelte.ts';
 import {
 	askToKeepStorage,
 	type Coordinate,
@@ -44,6 +45,9 @@ export class App {
 	/** Who is in the air, for the map. Nothing until the core has started. */
 	live = $state.raw<LiveModel>();
 
+	/** Other pilots' public flights. Nothing until the core has started. */
+	everyone = $state.raw<CommunityModel>();
+
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
 
@@ -70,6 +74,7 @@ export class App {
 				this.wind = new WindModel(core);
 				this.sites = new SitesModel(core);
 				this.live = new LiveModel(core);
+				this.everyone = new CommunityModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());

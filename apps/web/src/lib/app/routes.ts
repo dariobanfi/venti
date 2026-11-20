@@ -34,6 +34,21 @@ export function airspaceHref(): string {
 	return resolve('/settings/airspace');
 }
 
+/** Everyone's public flights. `query` is what is asked of them, as `queryOf` writes it. */
+export function everyoneHref(query = ''): string {
+	return `${resolve('/logbook/everyone')}${query}`;
+}
+
+/** The public flights of one pilot, by handle. */
+export function pilotHref(handle: string): string {
+	return `${resolve('/logbook/everyone/pilot')}?handle=${encodeURIComponent(handle)}`;
+}
+
+/** Another pilot's flight, by its address on the server. */
+export function publicFlightHref(id: string): string {
+	return `${resolve('/logbook/everyone/flight')}?id=${encodeURIComponent(id)}`;
+}
+
 export function flightHref(id: string): string {
 	return `${resolve('/logbook/flight')}?id=${encodeURIComponent(id)}`;
 }

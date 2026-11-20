@@ -8,12 +8,15 @@
 //! [`flight_from_file`](crate::flight_from_file), which shows it like one
 //! of the pilot's own and keeps nothing.
 //!
+//! A flight that is reached by its address alone, as from a link, is read
+//! by [`public_flight_path`] and [`public_flight`].
+//!
 //! What another pilot wrote, a name or a glider, is cut to one bounded
 //! line before it reaches a screen.
 
 use chrono::DateTime;
 use venti_api_types::v1::{
-    self as api, Flight, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
+    self as api, Flight, FlightResponse, FlightSort, FlightsResponse, PilotRequest, PilotResponse,
     PublicFlightsRequest,
 };
 use venti_domain::BoundingBox;
@@ -239,6 +242,33 @@ fn row(flight: &Flight) -> PublicFlight {
     }
 }
 
+/// The path to `GET` from the server for one flight that is reached by its
+/// address alone, as from a link: what a row of the list says about it,
+/// which names the pilot and where its file is.
+#[uniffi::export]
+pub fn public_flight_path(id: String) -> Result<String, CoreError> {
+    let id = id.parse().map_err(|_| CoreError::Server {
+        message: "This is not the address of a flight.".to_owned(),
+    })?;
+    Ok(api::flight_path(&id))
+}
+
+/// Reads the server's answer to [`public_flight_path`], and also what the
+/// server says when it does not hand out the flight's file. A flight that
+/// is not there for the asker is said to be no longer public: the server
+/// does not tell a private flight from none.
+#[uniffi::export]
+pub fn public_flight(status: u16, body: Vec<u8>) -> Result<PublicFlight, CoreError> {
+    if status == 404 {
+        return Err(CoreError::Server {
+            message: "This flight is no longer public: its pilot took it back, or deleted it."
+                .to_owned(),
+        });
+    }
+    let response: FlightResponse = answer(status, &body)?;
+    Ok(row(&response.flight))
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{Value, json};
@@ -379,6 +409,53 @@ mod tests {
         // this version does not know is no score.
         assert_eq!(page.flights[0].glider, None);
         assert_eq!(page.flights[1].score, None);
+    }
+
+    fn words<T: std::fmt::Debug>(result: Result<T, CoreError>) -> String {
+        match result {
+            Err(CoreError::Server { message }) => message,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_flight_reached_by_its_address_is_read_as_a_row() {
+        let raw: Value = serde_json::from_slice(&golden("flight.json")).unwrap();
+        let id = raw["flight"]["id"].as_str().unwrap();
+        assert_eq!(
+            public_flight_path(id.to_owned()).unwrap(),
+            format!("/v1/flights/{id}")
+        );
+        // What is no address is never put into one.
+        for text in ["", "public", "../account", "5T1ESHYPDTVRQ7RXW39A18VSRG"] {
+            assert_eq!(
+                words(public_flight_path(text.to_owned())),
+                "This is not the address of a flight."
+            );
+        }
+
+        let flight = public_flight(200, golden("flight.json")).unwrap();
+        assert_eq!(flight.id, id);
+        assert_eq!(
+            flight.pilot,
+            raw["flight"]["pilot"]["display_name"].as_str().unwrap()
+        );
+        assert_eq!(flight.page_path, format!("/f/{id}"));
+        assert_eq!(flight.file_path, format!("/v1/flights/{id}/igc"));
+    }
+
+    #[test]
+    fn a_flight_that_is_not_there_for_the_asker_is_no_longer_public() {
+        let gone = br#"{"error":{"code":"flight_not_found","message":"x"}}"#.to_vec();
+        assert_eq!(
+            words(public_flight(404, gone)),
+            "This flight is no longer public: its pilot took it back, or deleted it."
+        );
+        // Anything else wrong with the server is said as everywhere.
+        assert_eq!(
+            words(public_flight(503, Vec::new())),
+            "The server is busy or being restarted. Try again in a moment."
+        );
     }
 
     #[test]

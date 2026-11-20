@@ -207,7 +207,7 @@ To verify, all of it: the app has been seen only in screenshots from an emulator
 
 ## Web
 
-The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind, flying sites, the forecast for a place and who is in the air, the Logbook and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
+The web app is the same product in a browser: the same screens, the same words. It has the Map with live wind, flying sites, the forecast for a place and who is in the air, the Logbook with everyone's flights beside the pilot's own and, under Settings, the pilot's account and airspace; the cockpit and its settings are for the phone. A browser has no system components to borrow, so the app draws its own, as plainly as it can, and keeps to what a browser does have: its dialogs, its popovers, its focus ring, the reader's text size, the system's light or dark appearance.
 
 Two layouts, chosen by the window's width alone (56 rem, 896 px at the usual text size, so a reader with large text gets the narrow layout sooner):
 
@@ -269,6 +269,18 @@ Where who is in the air differs on the web from the iPhone's:
 - **The picture in a list** is the map's wing or disc with its white edge, in both appearances, like the wind's arrow.
 - **For a screen reader** the map says how many gliders are on the part in view. A map itself says nothing.
 - **Nothing is sent.** A browser has no cockpit, so the web app shares no position and has no "Live tracking" page.
+
+Where everyone's flights differ on the web from the iPhone's:
+
+- **Two pages under the Logbook.** "Mine" and "Everyone" stand under the title as two links drawn as one switch, where the site has a Venti server; a site without one has no switch. Everyone's flights have an address of their own, and so have a pilot's flights and each flight.
+- **The address holds the question**: the order and the days (`?order=best&from=2026-08-15&to=2026-08-16`). The list can be handed on, opened again, and come back to from a flight with every page that had been fetched.
+- **A day, or a span of days.** Two date fields, "From" and "to", above the list beside "Newest" and "Best". Choosing the first day alone means that day: the last day follows it. Moving the last day on makes a span; a last day before the first moves the first; "Any day" empties both. The days are the reader's own, by the browser's clock, as every time on the web. Days on which nobody flew say so: "No public flights on these days".
+- **More by a button.** "More flights" stands under the list while the server has more; the iPhone fetches as the end of the list comes into view.
+- **The pilot's name is a link of its own**, to that pilot's public flights; the rest of the row opens the flight. A wide screen sets the numbers in columns under headings, with two more: the points and the highest altitude.
+- **A pilot's flights** are a page with the pilot's name as its title and the handle under it. Its rows begin with the day, as the logbook's do, and have no name. A handle the server knows no pilot by says so in the core's words; the server says the same of a pilot who shares nothing.
+- **Another pilot's flight** is the logbook's flight screen, with the pilot's name over the day as the link to that pilot's flights and "Everyone" as the way back. Its menu hands the flight's page on, "Open its page on the server" and "Copy the link to its page", and has nothing else: the flight is not the reader's to share, to download or to delete. It is not checked against the reader's airspace, and it is kept nowhere.
+- **No map beside the list** yet, and so no narrowing by the part of a map in view.
+- **What another pilot wrote** is set as text: a name or a glider is never read as markup.
 
 Where the web's account and sharing differ from the iPhone's:
 

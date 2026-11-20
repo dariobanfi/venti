@@ -10,10 +10,8 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import ShareFlightSheet from '#lib/account/ShareFlightSheet.svelte';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { logbookHref } from '#lib/app/routes.ts';
 	import type { FlightAirspace, FlightAnalysis, FlightView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -30,13 +28,20 @@
 		analysis: FlightAnalysis | undefined;
 		/** Whether the screen is wide enough for the panel to stand beside the map. */
 		wide: boolean;
-		/** Hands the pilot the flight's file. */
-		ondownload: () => void;
-		/** Asks to delete the flight. The page confirms first. */
-		ondelete: () => void;
+		/** Where the flight was opened from, to go back to. */
+		back: { href: string; label: string };
+		/** What can be done with the flight besides looking at it. */
+		actions: MenuItem[];
+		/**
+		 * Whether the flight is in the pilot's logbook. One that is, is
+		 * checked against the airspace the app has; another pilot's is not.
+		 */
+		inLogbook: boolean;
+		/** Whose flight it is, for another pilot's: the name, and the way to that pilot's flights. */
+		whose?: { name: string; href: string };
 	}
 
-	let { flight, analysis, wide, ondownload, ondelete }: Props = $props();
+	let { flight, analysis, wide, back, actions, inLogbook, whose }: Props = $props();
 
 	const app = getApp();
 	const text = format();
@@ -58,7 +63,7 @@
 	let airspaceCheck = $state.raw<FlightAirspace>();
 	$effect(() => {
 		const airspace = app.airspace;
-		if (airspace?.revision === undefined) return;
+		if (!inLogbook || airspace?.revision === undefined) return;
 		// Only the answer to the latest question counts.
 		let current = true;
 		airspace.check(flight.id).then(
@@ -79,20 +84,11 @@
 		airspaceDrawn === undefined ? '' : creditLine(app.airspace?.credits ?? [], text)
 	);
 
-	/** What can be done with the flight besides looking at it. */
-	const actions: MenuItem[] = $derived([
-		{ label: 'Share with a link', icon: 'link', onselect: () => (sharing = true) },
-		{ label: 'Download flight file', icon: 'download', onselect: ondownload },
-		{ label: 'Delete flight', icon: 'trash', destructive: true, onselect: ondelete }
-	]);
-
 	/** The position in the track the pilot is inspecting, if any. */
 	let cursor = $state<number>();
 	/** Whether the marker is moving through the flight by itself. */
 	let playing = $state(false);
 	let showingDetails = $state(false);
-	/** Whether the sheet that says who can see the flight is open. */
-	let sharing = $state(false);
 
 	// Playing moves the marker from where it is to the end of the flight in
 	// about half a minute, whatever the flight's length.
@@ -166,7 +162,7 @@
 		{/if}
 
 		<div class="bar" bind:clientHeight={barHeight}>
-			<MapButton label="Logbook" icon="back" href={logbookHref()} />
+			<MapButton label={back.label} icon="back" href={back.href} />
 			<Menu label="More" items={actions} floating />
 		</div>
 
@@ -187,9 +183,9 @@
 	<div class="dock" bind:this={dock} bind:clientHeight={dockHeight}>
 		<div class="side" class:glass={!wide}>
 			<div class="top">
-				<a class="back" href={logbookHref()}>
+				<a class="back" href={back.href}>
 					<Icon name="back" />
-					Logbook
+					{back.label}
 				</a>
 				<Menu label="More" items={actions} />
 			</div>
@@ -198,6 +194,7 @@
 					{flight}
 					bind:cursor
 					bind:playing
+					{whose}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
 				/>
 			</div>
@@ -213,8 +210,6 @@
 		<FlightDetails {flight} {analysis} airspace={airspaceCheck} onselect={mark} />
 	</Sheet>
 {/if}
-
-<ShareFlightSheet open={sharing} flight={flight.id} onclose={() => (sharing = false)} />
 
 <style>
 	/* Narrow: the map is the screen; bar, buttons and panel float on it. */

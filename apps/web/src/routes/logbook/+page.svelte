@@ -4,6 +4,8 @@
 -->
 <script lang="ts">
 	import { getApp } from '#lib/app/app.svelte.ts';
+	import { queryOf } from '#lib/community/pages.ts';
+	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import type { LogbookEntry } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Icon from '#lib/design/Icon.svelte';
@@ -49,6 +51,14 @@
 			</button>
 		{/if}
 	</header>
+
+	<!-- With a Venti server behind the site, the logbook has a second side:
+	     the flights everyone on that server shares. -->
+	{#if app.account?.hasServer}
+		<div class="whose">
+			<WhoseFlights current="mine" query={app.everyone ? queryOf(app.everyone.asked) : ''} />
+		</div>
+	{/if}
 
 	{#if logbook?.progress}
 		<p class="status" role="status">
@@ -135,6 +145,10 @@
 		font-size: var(--large-title);
 		font-weight: 700;
 		letter-spacing: -0.01em;
+	}
+
+	.whose {
+		margin-bottom: 1rem;
 	}
 
 	/* Narrow: a round button with a plus, as in the iPhone's toolbar. */

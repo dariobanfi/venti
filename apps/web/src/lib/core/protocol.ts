@@ -10,6 +10,7 @@
 
 import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
 import type { AirspaceSource } from './airspace-source';
+import type { CommunitySource, OpenedFlight, PublicFlightsAsked } from './community-source';
 import { flightFileText } from './flight-text';
 import type {
 	AccountView,
@@ -29,6 +30,8 @@ import type {
 	KeptAirspace,
 	LogbookStatistics,
 	LogbookView,
+	PilotPage,
+	PublicFlights,
 	Registration,
 	SitesMap,
 	StationHistory
@@ -83,6 +86,18 @@ export interface Calls {
 	unfollowLive: { given: undefined; answer: undefined };
 	/** How old positions are, in the core's words, one answer for each. */
 	liveAges: { given: { ageS: number; landed: boolean }[]; answer: string[] };
+	/**
+	 * One page of the flights the server's pilots share with everyone.
+	 * Nothing if this site has no server.
+	 */
+	publicFlights: { given: PublicFlightsAsked; answer: PublicFlights | undefined };
+	/** A pilot, by handle, and one page of that pilot's public flights. */
+	pilotPage: { given: { handle: string; after?: string }; answer: PilotPage | undefined };
+	/**
+	 * Given a flight's address on the server: another pilot's flight,
+	 * fetched and prepared for display. Nothing of it is kept.
+	 */
+	openPublicFlight: { given: string; answer: OpenedFlight | undefined };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -145,11 +160,12 @@ export interface Answering {
 	sites: SitesSource;
 	forecast: ForecastSource;
 	live: LiveSource;
+	community: CommunitySource;
 }
 
 /** Does what a call asks of the core. */
 export async function answer<Name extends CallName>(
-	{ session, wind, account, airspace, sites, forecast, live }: Answering,
+	{ session, wind, account, airspace, sites, forecast, live, community }: Answering,
 	call: Name,
 	given: Calls[Name]['given']
 ): Promise<Calls[Name]['answer']> {
@@ -170,6 +186,9 @@ export async function answer<Name extends CallName>(
 		followLive: (id) => live.follow(id),
 		unfollowLive: () => live.unfollow(),
 		liveAges: (asked) => live.ages(asked),
+		publicFlights: (asked) => community.flights(asked),
+		pilotPage: ({ handle, after }) => community.pilot(handle, after),
+		openPublicFlight: (id) => community.open(id),
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
 		account: () => account.account(),

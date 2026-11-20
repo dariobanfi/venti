@@ -6,6 +6,7 @@
 
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
+import { CommunitySource } from './community-source';
 import { ForecastSource } from './forecast-source';
 import { IdbStore } from './idb-store';
 import { LiveSource } from './live-source';
@@ -44,7 +45,8 @@ const starting: Promise<Answering> = (async () => {
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites: new SitesSource(() => wind.present()),
 		forecast: new ForecastSource(() => wind.present()),
-		live: new LiveSource(() => wind.present())
+		live: new LiveSource(() => wind.present()),
+		community: new CommunitySource(() => wind.present())
 	};
 })();
 

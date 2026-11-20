@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
+import { CommunitySource } from './community-source';
 import { type Channel, CoreClient } from './client';
 import { flightFileText } from './flight-text';
 import { ForecastSource } from './forecast-source';
@@ -45,7 +46,8 @@ class SameProcess implements Channel {
 						// Flying sites from a site that has no server.
 						sites: new SitesSource(async () => false),
 						forecast: new ForecastSource(async () => false),
-						live: new LiveSource(async () => false)
+						live: new LiveSource(async () => false),
+						community: new CommunitySource(async () => false)
 					},
 					call,
 					given

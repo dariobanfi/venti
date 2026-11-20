@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import tokens from '../../../../../design/tokens/tokens.json';
 import { fontLoader, fontTable, fontUrl } from './fonts';
-import { FONT_SCHEME, mapStyle, terrain3dSource } from './style';
+import { AERIAL_LAYERS, DRAWN_LAYERS, FONT_SCHEME, mapStyle, terrain3dSource } from './style';
 
 describe('the map style prepared for the browser', () => {
 	it('has no placeholder left in it', () => {
@@ -10,7 +10,12 @@ describe('the map style prepared for the browser', () => {
 
 		expect(JSON.stringify(style)).not.toContain('__');
 		expect(style.version).toBe(8);
-		expect(Object.keys(style.sources).sort()).toEqual(['basemap', 'terrain']);
+		expect(Object.keys(style.sources).sort()).toEqual([
+			'aerial-bavaria',
+			'aerial-world',
+			'basemap',
+			'terrain'
+		]);
 	});
 
 	it('fetches tiles from the services the iPhone app uses and keeps the terrain settings', () => {
@@ -47,6 +52,55 @@ describe('the map style prepared for the browser', () => {
 
 		expect(drawn.size).toBeGreaterThan(5);
 		expect([...drawn].filter((colour) => !pack.has(colour))).toEqual([]);
+	});
+
+	it('keeps the aerial view hidden until it is asked for, under every name', () => {
+		const layers = mapStyle().layers as {
+			id: string;
+			type: string;
+			source?: string;
+			layout?: { visibility?: string };
+		}[];
+		const photographs = layers.filter((layer) => layer.type === 'raster');
+
+		expect(AERIAL_LAYERS).toEqual([
+			'aerial-world',
+			'aerial-bavaria',
+			'aerial-road',
+			'aerial-aerialway-casing'
+		]);
+		expect(DRAWN_LAYERS).toEqual(['path', 'track', 'road-minor', 'road-major', 'rail']);
+		expect(photographs.map((layer) => layer.id)).toEqual(['aerial-world', 'aerial-bavaria']);
+		// The file stands in the drawn view: nothing of the photographs is fetched.
+		for (const layer of layers) {
+			expect(layer.layout?.visibility ?? 'visible', layer.id).toBe(
+				AERIAL_LAYERS.includes(layer.id) ? 'none' : 'visible'
+			);
+		}
+		// Shown, the photographs cover the drawn ground and nothing laid on it.
+		const first = layers.findIndex((layer) => layer.type === 'raster');
+		const last = layers.findLastIndex((layer) => layer.type === 'raster');
+		expect(layers.slice(0, first).map((layer) => layer.id)).toEqual([
+			'land',
+			'landcover-grass',
+			'landcover-wood',
+			'landcover-rock',
+			'landcover-ice',
+			'landuse-residential',
+			'hillshade',
+			'waterway',
+			'water',
+			'building'
+		]);
+		expect([...new Set(layers.slice(last + 1).map((layer) => layer.type))].sort()).toEqual([
+			'line',
+			'symbol'
+		]);
+		// Every provider is named on the map while its photographs are shown.
+		for (const layer of photographs) {
+			const source = mapStyle().sources[layer.source ?? ''] as { attribution?: string };
+			expect(source.attribution, layer.id).toBeTruthy();
+		}
 	});
 
 	it('asks the app for its label fonts, not the network', () => {

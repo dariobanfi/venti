@@ -2,7 +2,7 @@
   "version": 8,
   "name": "Venti",
   "metadata": {
-    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the two source URLs are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote."
+    "about": "The one map style shared by the iOS, Android and web apps. Its colours are the design language's map colours for the light theme (design/tokens, map.light), and no others. Vector data follows the OpenMapTiles schema. The glyphs URL and the URLs of the base map and the terrain are placeholders in capitals that each app replaces with the URLs of its tiles and fonts, local or remote. The map has two views, the drawn ground and the aerial view: photographs from above, laid over the drawn ground and under the names and everything an app draws. A layer that belongs to one view only says so in its metadata, venti:view, as drawn or aerial; an app shows the layers of the view the pilot chose and hides the other's, and every other layer stays. The file stands in the drawn view, and nothing of the photographs is fetched while they are hidden. Their addresses are the providers' own and the same for every app; docs/data-sources.md has each provider's terms."
   },
   "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
   "sources": {
@@ -15,6 +15,23 @@
       "url": "__TERRAIN_URL__",
       "tileSize": 512,
       "encoding": "terrarium"
+    },
+    "aerial-world": {
+      "type": "raster",
+      "tiles": [
+        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+      ],
+      "tileSize": 256,
+      "maxzoom": 13,
+      "attribution": "<a href=\"https://cloudless.eox.at\">EOxCloudless</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016 &amp; 2017)"
+    },
+    "aerial-bavaria": {
+      "type": "raster",
+      "tiles": ["https://wmtsod1.bayernwolke.de/wmts/by_dop/smerc/{z}/{x}/{y}"],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "bounds": [8.9451, 47.2485, 13.9089, 50.5799],
+      "attribution": "© Datenquellen: <a href=\"https://www.geodaten.bayern.de\">Bayerische Vermessungsverwaltung</a>, Europäische Union, enthält Copernicus Sentinel-2 Daten 2018, verarbeitet durch das Bundesamt für Kartographie und Geodäsie (BKG)"
     }
   },
   "layers": [
@@ -100,8 +117,39 @@
       "paint": { "fill-color": "#C9B9C9" }
     },
     {
+      "id": "aerial-world",
+      "type": "raster",
+      "metadata": { "venti:view": "aerial" },
+      "source": "aerial-world",
+      "layout": { "visibility": "none" }
+    },
+    {
+      "id": "aerial-bavaria",
+      "type": "raster",
+      "metadata": { "venti:view": "aerial" },
+      "source": "aerial-bavaria",
+      "minzoom": 11,
+      "layout": { "visibility": "none" }
+    },
+    {
+      "id": "aerial-road",
+      "type": "line",
+      "metadata": { "venti:view": "aerial" },
+      "source": "basemap",
+      "source-layer": "transportation",
+      "minzoom": 9,
+      "filter": ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary"]]],
+      "layout": { "visibility": "none", "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#FFFFFF",
+        "line-opacity": 0.55,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.6, 16, 3]
+      }
+    },
+    {
       "id": "path",
       "type": "line",
+      "metadata": { "venti:view": "drawn" },
       "source": "basemap",
       "source-layer": "transportation",
       "minzoom": 12,
@@ -116,6 +164,7 @@
     {
       "id": "track",
       "type": "line",
+      "metadata": { "venti:view": "drawn" },
       "source": "basemap",
       "source-layer": "transportation",
       "minzoom": 11,
@@ -130,6 +179,7 @@
     {
       "id": "road-minor",
       "type": "line",
+      "metadata": { "venti:view": "drawn" },
       "source": "basemap",
       "source-layer": "transportation",
       "minzoom": 10,
@@ -143,6 +193,7 @@
     {
       "id": "road-major",
       "type": "line",
+      "metadata": { "venti:view": "drawn" },
       "source": "basemap",
       "source-layer": "transportation",
       "filter": ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary"]]],
@@ -155,6 +206,7 @@
     {
       "id": "rail",
       "type": "line",
+      "metadata": { "venti:view": "drawn" },
       "source": "basemap",
       "source-layer": "transportation",
       "filter": ["==", ["get", "class"], "rail"],
@@ -162,6 +214,20 @@
         "line-color": "#A894B4",
         "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2],
         "line-dasharray": [4, 2]
+      }
+    },
+    {
+      "id": "aerial-aerialway-casing",
+      "type": "line",
+      "metadata": { "venti:view": "aerial" },
+      "source": "basemap",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["==", ["get", "class"], "aerialway"],
+      "layout": { "visibility": "none" },
+      "paint": {
+        "line-color": "#FFF8E8",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2.4, 16, 4.5]
       }
     },
     {

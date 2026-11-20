@@ -22,9 +22,32 @@ enum MapSetup {
         // The map is flat; tilting it shows nothing more.
         map.isPitchEnabled = false
         map.tintColor = Palette.accentOnMap
-        // The credits button is the map's, not one of the app's controls.
-        map.attributionButton.tintColor = UIColor(white: 0.25, alpha: 0.75)
+        map.attributionButton.tintColor = creditsTint(aerial: false)
         return map
+    }
+
+    /// The layers of the map's two views, read from the shared style once.
+    private static let views = try? MapStyle.views()
+
+    /// The credits button is the map's, not one of the app's controls:
+    /// quiet on the pale drawn map, and light on photographs, which are dark.
+    private static func creditsTint(aerial: Bool) -> UIColor {
+        aerial ? Palette.haloOnMap.withAlphaComponent(0.9) : UIColor(white: 0.25, alpha: 0.75)
+    }
+
+    /// Switches a map between the drawn ground and the aerial view:
+    /// photographs from above, under the map's names and under everything
+    /// the app draws. The photographs are fetched only while they show.
+    /// Nothing happens before the map has its style.
+    static func showAerial(_ aerial: Bool, on map: MLNMapView) {
+        guard let views, let style = map.style else { return }
+        for name in views.aerial {
+            style.layer(withIdentifier: name)?.isVisible = aerial
+        }
+        for name in views.drawn {
+            style.layer(withIdentifier: name)?.isVisible = !aerial
+        }
+        map.attributionButton.tintColor = creditsTint(aerial: aerial)
     }
 
     /// Moves the camera so the box is in view, clear of what covers the map.

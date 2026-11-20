@@ -1452,5 +1452,31 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 30))
         sleep(12)
         keepScreenshot("online-2-flight")
+
+        // The aerial view: photographs from above under the flight, at
+        // the round layers button. It is one choice for every map, so the
+        // map tab shows it too, until the button there switches it back.
+        let aerial = app.buttons["map-aerial"]
+        XCTAssertTrue(aerial.waitForExistence(timeout: 15))
+        // The choice is kept between launches: an earlier run that
+        // stopped half-way may have left it on.
+        if aerial.isSelected {
+            aerial.tap()
+        }
+        XCTAssertFalse(aerial.isSelected)
+        aerial.tap()
+        XCTAssertTrue(aerial.isSelected)
+        sleep(12)
+        keepScreenshot("online-3-flight-aerial")
+
+        // Back to the logbook: a flight's page has no tabs.
+        app.navigationBars.buttons.firstMatch.tap()
+        openTab("Map", in: app)
+        XCTAssertTrue(aerial.waitForExistence(timeout: 30))
+        XCTAssertTrue(aerial.isSelected)
+        sleep(12)
+        keepScreenshot("online-4-map-aerial")
+        aerial.tap()
+        XCTAssertFalse(aerial.isSelected)
     }
 }

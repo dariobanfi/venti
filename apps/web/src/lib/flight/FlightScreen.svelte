@@ -23,6 +23,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Menu, { type MenuItem } from '#lib/design/Menu.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
+	import { aerialOn, keepAerial } from '#lib/map/layers.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import { type Beside, otherAt } from './beside';
 	import { nearestIndex } from './chart';
@@ -183,6 +184,8 @@
 		return () => clearInterval(timer);
 	});
 	let terrain3d = $state(false);
+	/** Whether the ground is photographs from above: the pilot's choice for every map. */
+	let aerial = $state(aerialOn(globalThis.localStorage));
 	let map = $state<FlightMap>();
 
 	/** How much of the map the top bar and the panel cover, measured in pixels. */
@@ -217,6 +220,7 @@
 			coveredTop={wide ? 0 : barHeight}
 			coveredBottom={wide ? 0 : dockHeight}
 			{terrain3d}
+			{aerial}
 			airspace={app.airspace}
 			onairspace={(count) => (airspaceDrawn = count)}
 			{other}
@@ -242,6 +246,15 @@
 				icon="mountain"
 				pressed={terrain3d}
 				onclick={() => (terrain3d = !terrain3d)}
+			/>
+			<MapButton
+				label="Aerial view"
+				icon="layers"
+				pressed={aerial}
+				onclick={() => {
+					aerial = !aerial;
+					keepAerial(globalThis.localStorage, aerial);
+				}}
 			/>
 			<div class="zoom">
 				<MapButton label="Zoom in" icon="plus" onclick={() => map?.zoomBy(1)} />

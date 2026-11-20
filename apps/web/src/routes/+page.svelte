@@ -29,7 +29,14 @@
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
 	import OverviewMap from '#lib/map/OverviewMap.svelte';
-	import { keepLayersOff, type MapLayer, MAP_LAYERS, layersOff } from '#lib/map/layers.ts';
+	import {
+		aerialOn,
+		keepAerial,
+		keepLayersOff,
+		type MapLayer,
+		MAP_LAYERS,
+		layersOff
+	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteList from '#lib/sites/SiteList.svelte';
@@ -55,6 +62,8 @@
 		off = off.includes(layer) ? off.filter((one) => one !== layer) : [...off, layer];
 		keepLayersOff(globalThis.localStorage, off);
 	}
+	/** Whether the ground is photographs from above: the pilot's choice for every map. */
+	let aerial = $state(aerialOn(globalThis.localStorage));
 	const CHIP_ICONS = {
 		wind: 'wind',
 		airspace: 'airspace',
@@ -232,6 +241,7 @@
 		onglider={openGlider}
 		onairspace={(count) => (airspaceDrawn = count)}
 		hidden={off}
+		{aerial}
 	/>
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
 	{#if app.account?.hasServer}
@@ -356,6 +366,16 @@
 			<!-- Everyone the map shows in the air, as a list. -->
 			<MapButton label="In the air" icon="glider" onclick={() => (listingGliders = true)} />
 		{/if}
+		<!-- The ground under everything: the drawn map, or photographs from above. -->
+		<MapButton
+			label="Aerial view"
+			icon="layers"
+			pressed={aerial}
+			onclick={() => {
+				aerial = !aerial;
+				keepAerial(globalThis.localStorage, aerial);
+			}}
+		/>
 		<MapButton
 			label="Show my position"
 			icon="location"

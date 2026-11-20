@@ -28,10 +28,38 @@ final class MapStyleTests: XCTestCase {
         return [.online, .bundled, .kept(kept)]
     }
 
+    /// The two sources each place has in its own way: the base map and
+    /// the terrain. The aerial view's photographs come from their
+    /// providers wherever the rest is drawn from.
     private func sources(of style: [String: Any]) throws -> [String: [String: Any]] {
         let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
-        XCTAssertEqual(Set(sources.keys), ["basemap", "terrain"])
-        return sources
+        XCTAssertEqual(Set(sources.keys), ["basemap", "terrain", "aerial-world", "aerial-bavaria"])
+        return sources.filter { !$0.key.hasPrefix("aerial-") }
+    }
+
+    /// The shared style marks which layers belong to the drawn ground and
+    /// which to the aerial view, and stands in the drawn view: nothing of
+    /// the photographs is fetched until the pilot asks for them.
+    func testTheAerialViewIsHiddenUntilItIsAskedFor() throws {
+        let views = try MapStyle.views()
+        XCTAssertEqual(views.aerial, ["aerial-world", "aerial-bavaria", "aerial-road", "aerial-aerialway-casing"])
+        XCTAssertEqual(views.drawn, ["path", "track", "road-minor", "road-major", "rail"])
+
+        for source in try everySource() {
+            let style = try style(for: source)
+            let layers = try XCTUnwrap(style["layers"] as? [[String: Any]])
+            for layer in layers {
+                let name = try XCTUnwrap(layer["id"] as? String)
+                let visibility = (layer["layout"] as? [String: Any])?["visibility"] as? String
+                XCTAssertEqual(visibility ?? "visible", views.aerial.contains(name) ? "none" : "visible", name)
+            }
+            // Whoever made the photographs is named with them.
+            let sources = try XCTUnwrap(style["sources"] as? [String: [String: Any]])
+            for name in ["aerial-world", "aerial-bavaria"] {
+                XCTAssertEqual(sources[name]?["type"] as? String, "raster", name)
+                XCTAssertFalse((sources[name]?["attribution"] as? String ?? "").isEmpty, name)
+            }
+        }
     }
 
     func testEveryTileSourceOfTheBundledStyleIsAFileInTheApp() throws {

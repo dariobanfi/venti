@@ -74,6 +74,8 @@
 		onairspace: (count: number | undefined) => void;
 		/** The layers the pilot switched off with the map's chips. */
 		hidden?: readonly MapLayer[];
+		/** Whether the ground is photographs from above instead of the drawn map. */
+		aerial?: boolean;
 	}
 
 	let {
@@ -92,7 +94,8 @@
 		onsite,
 		onglider,
 		onairspace,
-		hidden = []
+		hidden = [],
+		aerial = false
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
@@ -297,6 +300,11 @@
 			const hide = off.some((start) => layer.id.startsWith(start));
 			map.setLayoutProperty(layer.id, 'visibility', hide ? 'none' : 'visible');
 		}
+	});
+
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.setAerial(map, aerial);
 	});
 
 	$effect(() => {

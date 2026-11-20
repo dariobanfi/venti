@@ -27,6 +27,23 @@ export const LABEL_FONT = 'noto-sans-regular';
 /** The name of the second elevation source, the one the 3D terrain is built from. */
 export const TERRAIN_3D_SOURCE = 'terrain-3d';
 
+/** The layers that belong to one of the map's two views only, as the shared style marks them. */
+function layersOf(view: 'aerial' | 'drawn'): readonly string[] {
+	return (template.layers as { id: string; metadata?: Record<string, string> }[])
+		.filter((layer) => layer.metadata?.['venti:view'] === view)
+		.map((layer) => layer.id);
+}
+
+/**
+ * The layers of the aerial view: photographs from above, and what is drawn
+ * on them in place of the drawn map's roads. The shared style keeps them
+ * hidden, and nothing of the photographs is fetched until they are shown.
+ */
+export const AERIAL_LAYERS = layersOf('aerial');
+
+/** The layers of the drawn map that the aerial view does without: its roads, tracks and paths. */
+export const DRAWN_LAYERS = layersOf('drawn');
+
 /** The style, pointing at the online tile services and the app's own fonts. */
 export function mapStyle(): StyleSpecification {
 	const style = structuredClone(template) as unknown as StyleSpecification;

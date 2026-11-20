@@ -300,12 +300,15 @@ struct VentiChip: View {
 /// The pack's round button (`.v-btn--round`): a sign alone, floating over
 /// a map. Its label is still said to VoiceOver.
 struct VentiRoundButtonStyle: ButtonStyle {
+    /// For a button that switches something on and off: whether it is on.
+    var isOn = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .labelStyle(.iconOnly)
             .font(.system(size: 20, weight: .medium))
             .frame(width: VentiSize.touch, height: VentiSize.touch)
-            .foregroundStyle(.venti(.text))
+            .foregroundStyle(.venti(isOn ? .link : .text))
             .ventiFloating(in: .circle, ground: configuration.isPressed ? .surfaceRaised : .surface)
             .contentShape(.circle)
     }
@@ -314,6 +317,9 @@ struct VentiRoundButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == VentiRoundButtonStyle {
     /// The pack's round button over a map.
     static var ventiRound: VentiRoundButtonStyle { VentiRoundButtonStyle() }
+
+    /// The pack's round button over a map, for something that is on or off.
+    static func ventiRound(isOn: Bool) -> VentiRoundButtonStyle { VentiRoundButtonStyle(isOn: isOn) }
 }
 
 private struct Floating<Outline: Shape>: ViewModifier {

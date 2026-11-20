@@ -157,6 +157,7 @@ struct FlightDetail: View {
     }
 
     /// The position in the track the pilot is inspecting, if any.
+    @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @State private var cursor: Int?
     /// The ground under the flight, once its tiles are there.
     @State private var ground: [GroundUnderFlight] = []
@@ -187,6 +188,7 @@ struct FlightDetail: View {
                         right: 0
                     ),
                     source: mapSource,
+                    aerial: showsAerial,
                     other: compared?.flight,
                     otherCursor: cursor.flatMap { compared?.point(atSeconds: flight.track[$0].seconds) }
                 )
@@ -197,6 +199,12 @@ struct FlightDetail: View {
                 .accessibilityLabel("Map of the flight")
 
                 StatusBarScrim()
+
+                // The ground under the flight: the drawn map, or
+                // photographs from above.
+                AerialButton()
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)

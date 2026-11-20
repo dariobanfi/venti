@@ -18,6 +18,8 @@ struct FlightMap: UIViewRepresentable {
     /// What the map is drawn from. Read when the map is made; the screen
     /// makes the map anew when it changes.
     var source: MapStyle.Source = .standard
+    /// Whether the ground is photographs from above instead of the drawn map.
+    var aerial = false
     /// A second flight laid beside this one, to draw under it.
     var other: FlightView?
     /// Where that flight's glider was at the moment marked, if it was in
@@ -38,6 +40,7 @@ struct FlightMap: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
+        context.coordinator.showAerial(aerial, on: map)
         context.coordinator.update(map, cursor: cursor, covered: covered, score: score, airspace: airspace)
         context.coordinator.update(map, other: other, otherCursor: otherCursor)
     }
@@ -51,6 +54,7 @@ struct FlightMap: UIViewRepresentable {
         private var airspace: [AirspaceShape] = []
         private var drawnAirspace: [AirspaceShape]?
         private var isStyleLoaded = false
+        private var aerial = false
         private var other: FlightView?
         /// Which other flight is drawn: by when it began and how many
         /// points it has, which is cheaper to compare than its track.
@@ -91,7 +95,18 @@ struct FlightMap: UIViewRepresentable {
             }
         }
 
+        /// Shows the drawn ground or the aerial view, now or once the
+        /// style is there.
+        func showAerial(_ aerial: Bool, on map: MLNMapView) {
+            guard aerial != self.aerial else { return }
+            self.aerial = aerial
+            if isStyleLoaded {
+                MapSetup.showAerial(aerial, on: map)
+            }
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            MapSetup.showAerial(aerial, on: mapView)
             // Airspace lowest of all, under the route and the track.
             AirspaceLayers.add(to: style)
             addRoute(to: style)

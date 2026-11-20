@@ -41,6 +41,8 @@ struct OverviewMap: UIViewRepresentable {
     /// What the map is drawn from. Read when the map is made; the screen
     /// makes the map anew when it changes.
     var source: MapStyle.Source = .standard
+    /// Whether the ground is photographs from above instead of the drawn map.
+    var aerial = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -90,6 +92,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
         coordinator.show(airspace, on: map)
+        coordinator.showAerial(aerial, on: map)
         coordinator.follow(isFollowing, on: map)
     }
 
@@ -121,6 +124,7 @@ struct OverviewMap: UIViewRepresentable {
         private var drawnSites: [SiteView]?
         private var isStyleLoaded = false
         private var requested = false
+        private var aerial = false
 
         private static let tracks = "logbook-tracks"
         private static let wind = "wind-stations"
@@ -193,8 +197,19 @@ struct OverviewMap: UIViewRepresentable {
             map.userTrackingMode = following ? .follow : .none
         }
 
+        /// Shows the drawn ground or the aerial view, now or once the
+        /// style is there.
+        func showAerial(_ aerial: Bool, on map: MLNMapView) {
+            guard aerial != self.aerial else { return }
+            self.aerial = aerial
+            if isStyleLoaded {
+                MapSetup.showAerial(aerial, on: map)
+            }
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             prepare(style)
+            MapSetup.showAerial(aerial, on: mapView)
             isStyleLoaded = true
             drawOutlines(on: mapView)
             drawStations(on: mapView)

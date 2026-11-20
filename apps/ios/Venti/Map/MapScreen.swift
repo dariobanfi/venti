@@ -20,6 +20,7 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
     @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
+    @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -90,7 +91,8 @@ struct MapScreen: View {
                         pressed = ChosenPlace(place: place)
                     }
                 },
-                source: maps.browsingSource(at: nil)
+                source: maps.browsingSource(at: nil),
+                aerial: showsAerial
             )
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
@@ -138,6 +140,9 @@ struct MapScreen: View {
                         showsPlans = true
                     }
                 }
+                // The ground under everything: the drawn map, or
+                // photographs from above.
+                AerialButton()
                 mapButton("Show my position", icon: Image(systemName: isFollowing ? "location.fill" : "location")) {
                     isFollowing.toggle()
                 }

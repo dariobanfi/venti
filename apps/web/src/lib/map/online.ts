@@ -18,5 +18,12 @@ export const ONLINE = {
 	 * holes.
 	 */
 	terrainMaxZoom: 12,
-	terrainAttribution: '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>'
+	terrainAttribution: '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>',
+	/**
+	 * Where the photographs of the aerial view come from: EOX for the whole
+	 * world, the Bavarian survey office for Bavaria. Their addresses stand
+	 * in the shared style (`map/style.json`), the same for every app; here
+	 * are their hosts, for the policy, and a test holds the two together.
+	 */
+	aerialHosts: ['https://tiles.maps.eox.at', 'https://wmtsod1.bayernwolke.de']
 } as const;

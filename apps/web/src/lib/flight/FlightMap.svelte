@@ -29,6 +29,8 @@
 		coveredBottom: number;
 		/** Whether the map is tilted to show the terrain in 3D. */
 		terrain3d: boolean;
+		/** Whether the ground is photographs from above instead of the drawn map. */
+		aerial: boolean;
 		/** Where the airspace to draw comes from, once the app has it. */
 		airspace: AirspaceForMaps | undefined;
 		/** Called with how many airspaces are drawn, or nothing while none can be. */
@@ -44,6 +46,7 @@
 		coveredTop,
 		coveredBottom,
 		terrain3d,
+		aerial,
 		airspace,
 		onairspace,
 		other
@@ -209,6 +212,11 @@
 		if (!map || !setup || terrain3d === tilted) return;
 		tilted = terrain3d;
 		setup.setTerrain3d(map, terrain3d);
+	});
+
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.setAerial(map, aerial);
 	});
 
 	/** One step closer or further away, for the buttons of a wide screen. */

@@ -96,7 +96,7 @@ export const test = base.extend<Fixtures>({
 		// The tiles on their way, with the moment each was asked for.
 		const fetching = new Map<Request, number>();
 		let lastActivity = Date.now();
-		const isTile = (request: Request) => request.url().startsWith('https://tiles.');
+		const isTile = (request: Request) => /^https:\/\/(tiles|wmtsod\d)\./.test(request.url());
 		page.on('request', (request) => {
 			if (!isTile(request)) return;
 			fetching.set(request, Date.now());

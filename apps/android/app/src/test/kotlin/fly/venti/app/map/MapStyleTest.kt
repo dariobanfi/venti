@@ -3,6 +3,7 @@ package fly.venti.app.map
 import fly.venti.app.AppFiles
 import fly.venti.app.TestSupport
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -49,10 +50,15 @@ class MapStyleTest {
         return style
     }
 
-    private fun sources(style: JsonObject): JsonObject {
+    /**
+     * The two sources each place has in its own way: the base map and the
+     * terrain. The aerial view's photographs come from their providers
+     * wherever the rest is drawn from.
+     */
+    private fun sources(style: JsonObject): Map<String, JsonElement> {
         val sources = style.getValue("sources").jsonObject
-        assertEquals(setOf("basemap", "terrain"), sources.keys)
-        return sources
+        assertEquals(setOf("basemap", "terrain", "aerial-world", "aerial-bavaria"), sources.keys)
+        return sources.filterKeys { !it.startsWith("aerial-") }
     }
 
     @Test

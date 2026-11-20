@@ -53,6 +53,7 @@
 	/** The pack's flying icons, by the names the app calls them. */
 	const pack = {
 		map: drawing('map'),
+		layers: drawing('layers'),
 		wind: drawing('wind'),
 		warning: drawing('caution'),
 		glider: drawing('wing'),

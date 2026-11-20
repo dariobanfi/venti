@@ -29,7 +29,11 @@ function origin(address: string): string {
 }
 
 /** The hosts the map's tiles come from, as the map style names them. */
-export const TILE_HOSTS: readonly string[] = [origin(ONLINE.basemap), origin(ONLINE.terrainTiles)];
+export const TILE_HOSTS: readonly string[] = [
+	origin(ONLINE.basemap),
+	origin(ONLINE.terrainTiles),
+	...ONLINE.aerialHosts
+];
 
 /**
  * The policy, as SvelteKit's `csp` setting takes it. SvelteKit adds to
@@ -58,9 +62,10 @@ export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[
 		'img-src': ['self', 'data:'],
 		// The app's own files that a page fetches: the font files for the
 		// map's labels and the sample flight. The small font files the build
-		// keeps inside a script, as `data:` addresses. And the two tile
-		// services, which a page asks for the base map's description and
-		// for the elevation tiles. (What the app asks its own server under
+		// keeps inside a script, as `data:` addresses. And the tile
+		// services, which a page asks for the base map's description, for
+		// the elevation tiles and, once the pilot switches to the aerial
+		// view, for its photographs. (What the app asks its own server under
 		// `/v1`, the core's worker asks, which this policy does not reach;
 		// held to it, it would find `/v1` under the app's own origin.)
 		'connect-src': ['self', 'data:', ...TILE_HOSTS],

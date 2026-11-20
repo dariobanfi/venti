@@ -61,6 +61,34 @@ enum MapStyle {
         static let terrainAttribution = "<a href=\"https://mapterhorn.com/attribution\">© Mapterhorn</a>"
     }
 
+    /// The layers that belong to one of the map's two views only: the
+    /// drawn ground, or the aerial view, photographs from above. Every
+    /// other layer is in both.
+    struct Views: Equatable {
+        let aerial: [String]
+        let drawn: [String]
+    }
+
+    /// Which layers of the shared style belong to which view. The style
+    /// says so itself, as `venti:view` in a layer's metadata, and stands
+    /// in the drawn view: the aerial view's layers are hidden in the file.
+    static func views(in bundle: Bundle = .main) throws -> Views {
+        guard let template = bundle.url(forResource: "style", withExtension: "json") else {
+            throw StyleError.missing("style.json")
+        }
+        guard let style = try JSONSerialization.jsonObject(with: Data(contentsOf: template)) as? [String: Any],
+              let layers = style["layers"] as? [[String: Any]]
+        else {
+            throw StyleError.malformed
+        }
+        func names(of view: String) -> [String] {
+            layers
+                .filter { ($0["metadata"] as? [String: Any])?["venti:view"] as? String == view }
+                .compactMap { $0["id"] as? String }
+        }
+        return Views(aerial: names(of: "aerial"), drawn: names(of: "drawn"))
+    }
+
     /// The folder inside the app that holds the bundled region and the fonts.
     static func bundledRegion(in bundle: Bundle = .main) throws -> URL {
         guard let folder = bundle.url(forResource: "MapDemo", withExtension: nil) else {

@@ -22,7 +22,14 @@ import './map.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { Bounds } from '#lib/core/index.ts';
 import { fontLoader } from './fonts';
-import { FONT_SCHEME, mapStyle, terrain3dSource, TERRAIN_3D_SOURCE } from './style';
+import {
+	AERIAL_LAYERS,
+	DRAWN_LAYERS,
+	FONT_SCHEME,
+	mapStyle,
+	terrain3dSource,
+	TERRAIN_3D_SOURCE
+} from './style';
 
 export type { Map } from 'maplibre-gl';
 export { LABEL_FONT } from './style';
@@ -191,6 +198,24 @@ export function shapes(map: Map, source: string): GeoJSONSource | undefined {
 
 /** How far the map leans back when it shows the terrain in 3D, in degrees. */
 const TILT = 58;
+
+/**
+ * Switches the map between the drawn ground and the aerial view:
+ * photographs from above, under the map's names and under everything the
+ * app draws. The shared style says which of its layers belong to which
+ * view. The photographs are fetched only while shown.
+ */
+export function setAerial(map: Map, on: boolean): void {
+	const show = (layers: readonly string[], visible: boolean) => {
+		for (const layer of layers) {
+			if (map.getLayer(layer)) {
+				map.setLayoutProperty(layer, 'visibility', visible ? 'visible' : 'none');
+			}
+		}
+	};
+	show(AERIAL_LAYERS, on);
+	show(DRAWN_LAYERS, !on);
+}
 
 /** How many zoom levels the camera steps away as it leans back. */
 const STEP_BACK = 0.7;

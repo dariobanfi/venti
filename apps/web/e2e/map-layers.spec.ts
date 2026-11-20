@@ -6,6 +6,7 @@
  */
 
 import type { Page } from '@playwright/test';
+import { AERIAL_HOSTS } from './bundled-map';
 import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from './helpers';
 
 const chip = (page: Page, name: string) =>
@@ -41,6 +42,51 @@ test('the chips switch the map’s layers, and the browser remembers them', asyn
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'false');
 	await chip(page, 'Wind').click();
 	await expect(chip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
+	expect(problems).toEqual([]);
+});
+
+test('the layers button lays photographs from above under the map, and the browser remembers it', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	// Every photograph the map asks for. (The test browser answers each with
+	// a square of green: `bundled-map.ts`.)
+	const photographs: string[] = [];
+	page.on('request', (request) => {
+		const host = new URL(request.url()).hostname;
+		if (AERIAL_HOSTS.includes(host)) photographs.push(host);
+	});
+
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+
+	// The drawn map, as the app comes: nothing is asked of the photographs' hosts.
+	const aerial = page.getByRole('button', { name: 'Aerial view' });
+	await expect(aerial).toHaveAttribute('aria-pressed', 'false');
+	expect(photographs).toEqual([]);
+
+	await aerial.click();
+	await expect(aerial).toHaveAttribute('aria-pressed', 'true');
+	await mapDrawn();
+	expect(new Set(photographs)).toContain('tiles.maps.eox.at');
+	// Whoever made the photographs is named on the map while they show.
+	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('EOX IT Services');
+	await keep('101-map-aerial');
+
+	// A reload keeps the view, and the button switches back to the drawn map.
+	await page.reload();
+	await mapTabDrawn(page, mapDrawn);
+	await expect(aerial).toHaveAttribute('aria-pressed', 'true');
+	await aerial.click();
+	await expect(aerial).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.locator('.maplibregl-ctrl-attrib-inner')).not.toContainText('EOX');
 	expect(problems).toEqual([]);
 });
 

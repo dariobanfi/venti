@@ -38,7 +38,12 @@ describe('the site’s content security policy', () => {
 
 		expect([...asked].sort()).toEqual([...TILE_HOSTS].sort());
 		expect(policy['connect-src']).toEqual(['self', 'data:', ...TILE_HOSTS]);
-		expect(TILE_HOSTS).toEqual(['https://tiles.openfreemap.org', 'https://tiles.mapterhorn.com']);
+		expect(TILE_HOSTS).toEqual([
+			'https://tiles.openfreemap.org',
+			'https://tiles.mapterhorn.com',
+			'https://tiles.maps.eox.at',
+			'https://wmtsod1.bayernwolke.de'
+		]);
 	});
 
 	it('lets one inline style through, by its hash', () => {

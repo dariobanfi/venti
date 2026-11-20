@@ -55,6 +55,19 @@ const BASEMAP_DESCRIPTION = {
 
 const ANY_PAGE = { 'access-control-allow-origin': '*' };
 
+/**
+ * What stands in for a photograph of the aerial view: a small square of
+ * one green, as a JPEG. The tests show that the map asks for photographs
+ * and lays them where they belong, not what the providers' look like.
+ */
+const PHOTOGRAPH = Buffer.from(
+	'/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAAIAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDBoooriOU//9k=',
+	'base64'
+);
+
+/** The hosts of the aerial view's photographs, as the shared style names them. */
+export const AERIAL_HOSTS = ['tiles.maps.eox.at', 'wmtsod1.bayernwolke.de'];
+
 async function answerWithTile(route: Route, archive: PMTiles, contentType: string): Promise<void> {
 	const match = /\/(\d+)\/(\d+)\/(\d+)\.\w+$/.exec(new URL(route.request().url()).pathname);
 	const tile = match
@@ -90,4 +103,9 @@ export async function serveBundledMap(context: BrowserContext): Promise<void> {
 	await context.route('https://tiles.mapterhorn.com/**', (route) =>
 		answerWithTile(route, terrain, 'image/webp')
 	);
+	for (const host of AERIAL_HOSTS) {
+		await context.route(`https://${host}/**`, (route) =>
+			route.fulfill({ status: 200, contentType: 'image/jpeg', headers: ANY_PAGE, body: PHOTOGRAPH })
+		);
+	}
 }

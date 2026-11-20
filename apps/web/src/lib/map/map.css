@@ -30,6 +30,12 @@
 	backdrop-filter: blur(0.75rem);
 }
 
+/* The credits never run under the buttons at the map's right edge: the
+   aerial view's are long. */
+.maplibregl-ctrl-bottom-left {
+	max-width: calc(100% - 4.5rem);
+}
+
 .maplibregl-ctrl-attrib a {
 	color: inherit;
 	text-decoration: underline;

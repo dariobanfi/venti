@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keepLayersOff, layersOff } from './layers';
+import { aerialOn, keepAerial, keepLayersOff, layersOff } from './layers';
 
 function memory() {
 	const kept = new Map<string, string>();
@@ -8,6 +8,31 @@ function memory() {
 		setItem: (key: string, value: string) => void kept.set(key, value)
 	};
 }
+
+describe('the aerial view', () => {
+	it('is off until the pilot asks for it, and remembered by the browser', () => {
+		const storage = memory();
+		expect(aerialOn(storage)).toBe(false);
+		keepAerial(storage, true);
+		expect(aerialOn(storage)).toBe(true);
+		keepAerial(storage, false);
+		expect(aerialOn(storage)).toBe(false);
+	});
+
+	it('is off where nothing can be read', () => {
+		expect(aerialOn(undefined)).toBe(false);
+		const refusing = {
+			getItem: () => {
+				throw new Error('denied');
+			},
+			setItem: () => {
+				throw new Error('denied');
+			}
+		};
+		expect(aerialOn(refusing)).toBe(false);
+		expect(() => keepAerial(refusing, true)).not.toThrow();
+	});
+});
 
 describe('the layers switched off on the map', () => {
 	it('are remembered by the browser, in the chips’ order', () => {

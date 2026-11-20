@@ -53,6 +53,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.forecast.ForecastSheet
+import fly.venti.app.live.GliderListSheet
+import fly.venti.app.live.GliderSheet
+import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.sites.SitesModel
@@ -67,8 +70,9 @@ import fly.venti.core.WindStation
 
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
- * server, the flying sites it knows, the pilot's airspace and the pilot's
- * own flights. A long press shows the forecast for the place pressed.
+ * server, the flying sites it knows, the pilots who show their flight to
+ * everyone, the pilot's airspace and the pilot's own flights. A long press
+ * shows the forecast for the place pressed.
  */
 @Composable
 fun MapScreen(
@@ -76,6 +80,7 @@ fun MapScreen(
     wind: WindModel,
     airspace: AirspaceModel,
     sites: SitesModel,
+    live: LiveModel,
     waypoints: WaypointsModel,
     bars: PaddingValues,
 ) {
@@ -86,6 +91,10 @@ fun MapScreen(
     var chosen by remember { mutableStateOf<WindStation?>(null) }
     var showsSites by remember { mutableStateOf(false) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
+    var showsGliders by remember { mutableStateOf(false) }
+    // The glider whose page is open, by its track's identifier: the page
+    // shows it as the newest answer has it.
+    var chosenGlider by remember { mutableStateOf<String?>(null) }
     // A place the pilot pressed on, to show its forecast.
     var pressed by remember { mutableStateOf<Coordinate?>(null) }
     val map = remember { OverviewMap() }
@@ -95,6 +104,7 @@ fun MapScreen(
         region = shown
         wind.show(shown)
         sites.show(shown)
+        live.show(shown)
         // The airspace around what the pilot is looking at, unless it is
         // the whole continent. The model asks only when it is due.
         if (shown.north - shown.south < 4) {
@@ -105,6 +115,7 @@ fun MapScreen(
     }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
+    map.onGlider = { id -> chosenGlider = id }
     // A long press: the forecast for the place under the finger, where
     // there is a server to ask.
     map.onPlace = { place ->
@@ -130,6 +141,11 @@ fun MapScreen(
     LaunchedEffect(wind.address, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { wind.keepCurrent() }
     }
+    // Other pilots are asked for again every quarter of a minute while the
+    // map is on screen, and not when it is not.
+    LaunchedEffect(wind.address, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { live.keepCurrent() }
+    }
 
     val statusBar = WindowInsets.statusBars.getTop(LocalDensity.current)
     val outlines = logbook.view.years.flatMap { year -> year.flights.map { it.outline } }
@@ -143,6 +159,10 @@ fun MapScreen(
         region?.takeIf { showsAirspace }?.let(airspace::shapes).orEmpty()
     }
     val flyingSites = sites.sites
+    val gliders = live.gliders
+    // The flight of the glider whose page is open, as far as the server
+    // has handed it out.
+    val followed = live.followed?.track.orEmpty()
     // Whose wind, airspace and sites are on the map. Their licences ask for
     // the credit next to the data; the full wording is on each station's
     // and each site's page and on the airspace screen.
@@ -157,7 +177,7 @@ fun MapScreen(
             content = map,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = "Map" },
             onUpdate = {
-                map.show(outlines, stations, airspaceInView, flyingSites, Covered(top = statusBar))
+                map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar))
                 map.follow(isFollowing)
             },
         )
@@ -184,6 +204,10 @@ fun MapScreen(
             if (flyingSites.isNotEmpty()) {
                 // The signs on the map, as a list.
                 MapButton(R.drawable.ic_pin_drop, "Flying sites") { showsSites = true }
+            }
+            if (gliders.isNotEmpty()) {
+                // Who is in the air on this part of the map, as a list.
+                MapButton(R.drawable.ic_group, "Pilots in the air") { showsGliders = true }
             }
             // Centres the map on the pilot and follows until the map is dragged.
             MapButton(
@@ -228,6 +252,28 @@ fun MapScreen(
                 chosenSite = null
                 showsSites = false
             },
+        )
+    }
+
+    if (showsGliders) {
+        GliderListSheet(
+            live,
+            // One sheet at a time: the list closes, and the glider's page
+            // opens at half height, with its flight on the map above it.
+            onChoose = { id ->
+                showsGliders = false
+                chosenGlider = id
+            },
+            onDismiss = { showsGliders = false },
+        )
+    }
+
+    chosenGlider?.let { id ->
+        GliderSheet(
+            id,
+            live,
+            server = (wind.server as? WindServer.Usable)?.url,
+            onDismiss = { chosenGlider = null },
         )
     }
 

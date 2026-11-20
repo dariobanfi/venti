@@ -22,6 +22,7 @@ import fly.venti.app.fly.SilentAnnouncer
 import fly.venti.app.fly.SilentTone
 import fly.venti.app.fly.VarioLink
 import fly.venti.app.fly.VarioSound
+import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
@@ -39,8 +40,9 @@ import java.util.UUID
 
 /**
  * What the app holds for as long as it runs: the logbook, the flying
- * session, the vario link, the conversation with the assistant, the wind
- * and the flying sites on the map, and the pilot's account on a server.
+ * session, the vario link, the conversation with the assistant, the wind,
+ * the flying sites and the other pilots on the map, and the pilot's account
+ * on a server.
  *
  * It belongs to the app's process, not to a screen. Android rebuilds the
  * screen whenever it likes, and a flight being recorded has to carry on
@@ -56,6 +58,7 @@ sealed interface Session {
         val waypoints: WaypointsModel,
         val airspace: AirspaceModel,
         val sites: SitesModel,
+        val live: LiveModel,
         val account: AccountModel,
         val tasks: TaskModel,
         val preferences: Preferences,
@@ -170,6 +173,9 @@ sealed interface Session {
             // Flying sites come from that server too.
             val sites = SitesModel(scope)
             sites.server = { (wind.server as? WindServer.Usable)?.url }
+            // So do the other pilots in the air.
+            val live = LiveModel(scope)
+            live.server = { (wind.server as? WindServer.Usable)?.url }
             // The pilot's account on that server, if there is one. A test
             // starts signed out, and its token stays out of the keystore.
             val account = logbook.makeAccount(
@@ -187,7 +193,8 @@ sealed interface Session {
             }
             fly.taskFile = { tasks.file }
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, account, tasks, preferences, files, scope,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, account, tasks, preferences, files,
+                scope,
             )
         }
     }

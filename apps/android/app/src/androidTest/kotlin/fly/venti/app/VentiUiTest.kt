@@ -1013,6 +1013,88 @@ class VentiUiTest {
         }
     }
 
+    /**
+     * Who is in the air: the server's development mode has two pilots who
+     * show their flight to everyone, over the valley east of the Tegernsee,
+     * one in the air and one who landed nine minutes ago. They are on the
+     * map and in a list; one's page opens at half height, and while it is
+     * open the map draws that flight. Skipped without a server, like the
+     * wind.
+     */
+    private fun lookAtWhoIsInTheAir(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+
+        // The valley, close enough to tell the two apart.
+        fun lookAtTheValley() {
+            assertTrue(TestDevice.lookAt(scenario, lat = 47.678, lon = 11.755, zoom = 11.6))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                (TestDevice.drawnOnTheMap(scenario, "live-gliders") ?: 0) >= 2
+            }
+        }
+        lookAtTheValley()
+        // The round button for the list is there once somebody is.
+        waitFor(described("Pilots in the air"))
+        letTheMapDraw()
+        keepScreenshot("$prefix-air-1-map")
+
+        // Both as a list: the pilot, and how high, how it climbs and how
+        // old the position is.
+        tap(described("Pilots in the air"))
+        waitFor(hasTestTag("live-row"))
+        assertTrue(exists(hasText("In the air")))
+        val landed = hasTestTag("live-row") and saying("Landed 9 min ago")
+        val flying = hasTestTag("live-row") and !saying("Landed")
+        assertTrue(exists(landed and described("Demo Pilot")))
+        assertTrue(exists(flying and saying("1,596 m")))
+        assertTrue(exists(hasText("it is not known to have landed", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-air-2-list")
+
+        // Choosing the one in the air closes the list and opens that
+        // pilot's page at half height. The flight so far is fetched, and
+        // the map above the page draws it and moves to show all of it.
+        tap(flying)
+        waitFor(hasTestTag("live-age"))
+        assertFalse(exists(hasTestTag("live-row")))
+        assertTrue(exists(hasText("@demo")))
+        waitFor(hasTestTag("live-duration"))
+        assertTrue(exists(hasText("Follow the flight in the browser")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "live-track-edge") ?: 0) > 0
+        }
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-air-3-flight")
+        tap(hasText("Done"))
+        // With the page the line goes.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            !exists(hasTestTag("live-age")) && TestDevice.drawnOnTheMap(scenario, "live-track-edge") == 0
+        }
+
+        // A tap on a glider on the map opens its page as well: the one on
+        // the ground, whose page says when it landed and nothing of a climb.
+        lookAtTheValley()
+        letTheMapDraw(1)
+        val disc = checkNotNull(TestDevice.onScreen(scenario, lat = 47.692168, lon = 11.767487))
+        TestDevice.tap(disc)
+        waitFor(hasTestTag("live-age") and hasText("Landed 9 min ago"))
+        assertFalse(exists(hasText("Climb")))
+        waitFor(hasTestTag("live-duration"))
+        letTheMapDraw(3)
+        keepScreenshot("$prefix-air-4-landed")
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-age")) }
+    }
+
+    @Test
+    fun theMapShowsWhoIsInTheAir() = lookAtWhoIsInTheAir("light", dark = false)
+
+    @Test
+    fun whoIsInTheAirInDarkAppearance() = lookAtWhoIsInTheAir("dark", dark = true)
+
     @Test
     fun aFlightIsSharedWhileItIsUnderWay() = shareAFlightLive("light", dark = false)
 

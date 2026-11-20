@@ -5,6 +5,8 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import fly.venti.app.airspace.AirspaceLayers
+import fly.venti.app.live.GliderFeature
+import fly.venti.app.live.LiveSymbols
 import fly.venti.app.sites.SiteFeature
 import fly.venti.app.sites.SiteSymbols
 import fly.venti.app.wind.WindFeature
@@ -12,7 +14,9 @@ import fly.venti.app.wind.WindSymbols
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
+import fly.venti.core.LiveGlider
 import fly.venti.core.SiteView
+import fly.venti.core.TrailPointView
 import fly.venti.core.WindStation
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -35,8 +39,9 @@ import org.maplibre.geojson.Point
 import kotlin.math.hypot
 
 /**
- * The map of the map tab: terrain, live wind, flying sites, every flight in
- * the logbook as a line, and the pilot's own position when asked for.
+ * The map of the map tab: terrain, live wind, flying sites, other pilots in
+ * the air, every flight in the logbook as a line, and the pilot's own
+ * position when asked for.
  */
 class OverviewMap : MapContent {
     /** Told when the map stops following the pilot by itself, because it was dragged. */
@@ -51,6 +56,9 @@ class OverviewMap : MapContent {
     /** Told a site's identifier when the pilot taps its sign. */
     var onSite: (String) -> Unit = {}
 
+    /** Told a live track's identifier when the pilot taps its glider. */
+    var onGlider: (String) -> Unit = {}
+
     /** Told the place under the finger after a long press on the map. */
     var onPlace: (Coordinate) -> Unit = {}
 
@@ -62,6 +70,10 @@ class OverviewMap : MapContent {
     private var drawnAirspace: List<AirspaceShape>? = null
     private var sites: List<SiteView> = emptyList()
     private var drawnSites: List<SiteView>? = null
+    private var gliders: List<LiveGlider> = emptyList()
+    private var drawnGliders: List<LiveGlider>? = null
+    private var followed: List<TrailPointView> = emptyList()
+    private var drawnFollowed: List<TrailPointView>? = null
     private var covered = Covered()
     private var isFollowing = false
 
@@ -87,14 +99,19 @@ class OverviewMap : MapContent {
         this.style = style
         this.view = view
         // What this map draws on top of the base map: airspace lowest,
-        // the flights over it, then the flying sites, the wind above them.
+        // the flights over it, then the flying sites, the wind above them,
+        // and other pilots above everything.
         AirspaceLayers.add(style)
         addTracks(style)
+        addFollowed(style)
         addSites(style, view)
         addWind(style, view)
+        addGliders(style, view)
         draw()
         drawStations()
         drawSites()
+        drawGliders()
+        drawFollowed()
         drawAirspace()
         if (isFollowing) {
             startFollowing()
@@ -105,24 +122,31 @@ class OverviewMap : MapContent {
     }
 
     /**
-     * The flights, the wind stations, the airspace and the flying sites to
-     * draw, and how much of the map the bars cover.
+     * The flights, the wind stations, the airspace, the flying sites and
+     * the gliders to draw, the track of the pilot whose flight is being
+     * followed, and how much of the map the bars cover.
      */
     fun show(
         outlines: List<List<Coordinate>>,
         stations: List<WindStation>,
         airspace: List<AirspaceShape>,
         sites: List<SiteView>,
+        gliders: List<LiveGlider>,
+        followed: List<TrailPointView>,
         covered: Covered,
     ) {
         this.outlines = outlines
         this.stations = stations
         this.airspace = airspace
         this.sites = sites
+        this.gliders = gliders
+        this.followed = followed
         this.covered = covered
         draw()
         drawStations()
         drawSites()
+        drawGliders()
+        drawFollowed()
         drawAirspace()
     }
 
@@ -308,10 +332,89 @@ class OverviewMap : MapContent {
     }
 
     /**
-     * A tap on a station's arrow opens the station, one on a site's sign
-     * the site. A finger is wider than either, so the nearest within its
-     * width counts. Wind lies over the sites, and wins where both are under
-     * the finger.
+     * The layers that draw the flight of a pilot who is being followed,
+     * empty at first: a line in the colours of climb, like a flight of the
+     * logbook when it is opened, over the logbook's own lines.
+     */
+    private fun addFollowed(style: Style) {
+        style.addSource(GeoJsonSource(LIVE_TRACK))
+        MapSetup.addBandLayers(style, LIVE_TRACK, edgeWidth = 5.5f)
+    }
+
+    /**
+     * Draws the followed flight, once the style is there and only when it
+     * has changed. When it first appears the map moves once to show all of
+     * it above the page that lies over the lower half.
+     */
+    private fun drawFollowed() {
+        val map = map ?: return
+        val view = view ?: return
+        val source = style?.getSourceAs<GeoJsonSource>(LIVE_TRACK) ?: return
+        if (followed == drawnFollowed) return
+        val isNew = drawnFollowed.isNullOrEmpty() && followed.isNotEmpty()
+        drawnFollowed = followed
+        source.setGeoJson(
+            MapSetup.bandFeatures(
+                places = followed.map { Point.fromLngLat(it.lon, it.lat) },
+                climbs = followed.map { it.climbMs },
+            ),
+        )
+        if (isNew) {
+            box(listOf(followed.map { Coordinate(lat = it.lat, lon = it.lon) }))?.let { box ->
+                view.post {
+                    if (!view.isDestroyed) {
+                        MapSetup.show(box, map, view, Covered(top = covered.top, bottom = view.height / 2))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The layer that draws other pilots in the air, empty at first, above
+     * everything: a wing turned the way it flies, with the pilot's name and
+     * altitude where there is room. Gliders are never left out for want of
+     * room.
+     */
+    private fun addGliders(style: Style, view: MapView) {
+        for ((name, picture) in LiveSymbols.all(view.context)) {
+            style.addImage(name, picture)
+        }
+        style.addSource(GeoJsonSource(GLIDERS))
+        style.addLayer(
+            SymbolLayer(GLIDERS, GLIDERS).withProperties(
+                PropertyFactory.iconImage(Expression.get(GliderFeature.PICTURE)),
+                PropertyFactory.iconRotate(Expression.get(GliderFeature.HEADING)),
+                // Turned against north, as the wind's arrows are.
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.textField(Expression.get(GliderFeature.LABEL)),
+                PropertyFactory.textFont(arrayOf("noto-sans-regular")),
+                PropertyFactory.textSize(12f),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textOffset(arrayOf(0f, 1.15f)),
+                PropertyFactory.textColor(MapSetup.ink),
+                PropertyFactory.textHaloColor(MapSetup.WHITE),
+                PropertyFactory.textHaloWidth(1.6f),
+                PropertyFactory.textOptional(true),
+            ),
+        )
+    }
+
+    /** Draws the gliders, once the style is there and only when they have changed. */
+    private fun drawGliders() {
+        val source = style?.getSourceAs<GeoJsonSource>(GLIDERS) ?: return
+        if (gliders == drawnGliders) return
+        drawnGliders = gliders
+        source.setGeoJson(FeatureCollection.fromFeatures(gliders.map(GliderFeature::of)))
+    }
+
+    /**
+     * A tap on a glider opens its page, one on a station's arrow the
+     * station, one on a site's sign the site. A finger is wider than any of
+     * them, so the nearest within its width counts. Gliders lie over the
+     * wind and the wind over the sites: what is on top wins where several
+     * are under the finger.
      */
     private fun tapped(place: LatLng, map: MapLibreMap, view: MapView): Boolean {
         val style = style ?: return false
@@ -323,6 +426,10 @@ class OverviewMap : MapContent {
             return map.queryRenderedFeatures(finger, layer)
                 .minByOrNull { distance(point, it, map) }
                 ?.getStringProperty(key)
+        }
+        nearest(GLIDERS, GliderFeature.ID)?.let { id ->
+            onGlider(id)
+            return true
         }
         nearest(WIND, WindFeature.ID)?.let { id ->
             onStation(id)
@@ -345,6 +452,8 @@ class OverviewMap : MapContent {
         private const val TRACKS = "logbook-tracks"
         private const val WIND = "wind-stations"
         private const val SITES = "flying-sites"
+        private const val GLIDERS = "live-gliders"
+        private const val LIVE_TRACK = "live-track"
 
         /** The zoom from which the sites' signs are drawn, as on the iPhone and the web. */
         private const val SITES_FROM_ZOOM = 9f

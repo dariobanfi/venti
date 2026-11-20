@@ -637,25 +637,36 @@ struct LandingBadge: View {
     let landing: LandingOption
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "airplane.arrival")
+        Group {
             if let height = Self.height(landing) {
-                Text(landing.name)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Text(height)
-                    .layoutPriority(1)
+                // The name where it fits whole beside the wind's badge;
+                // half a name says less than the height alone.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "airplane.arrival")
+                        Text(landing.name)
+                        Text(height)
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: "airplane.arrival")
+                        Text(height)
+                    }
+                }
             } else {
-                Text("No landing in reach")
+                HStack(spacing: 6) {
+                    Image(systemName: "airplane.arrival")
+                    Text("No landing in reach")
+                }
             }
         }
+        .lineLimit(1)
         .font(.system(.subheadline, design: .rounded, weight: .semibold))
         .monospacedDigit()
         .foregroundStyle(Self.color(landing.reach.reach))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .glassEffect(.regular, in: .capsule)
-        .frame(maxWidth: 210, alignment: .leading)
+        .frame(maxWidth: 190, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Landing")
         .accessibilityValue(Self.spoken(landing))

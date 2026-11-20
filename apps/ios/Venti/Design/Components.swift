@@ -178,6 +178,49 @@ extension View {
     }
 }
 
+/// The pack's empty state: its valley, what is not here yet, what brings
+/// it here, and what to do. For a place that is empty because nothing has
+/// happened there yet, which is an arrival. Not for something that went
+/// wrong: that is said with the caution sign and without art, which
+/// never stands where data is missed.
+struct VentiEmpty<Actions: View>: View {
+    let title: String
+    let text: String
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        VStack(spacing: VentiSpace.s4) {
+            Image("art-valley-wide-empty")
+                .resizable()
+                .aspectRatio(2, contentMode: .fit)
+                .clipShape(.rect(cornerRadius: VentiRadius.m))
+                .accessibilityHidden(true)
+            VStack(spacing: VentiSpace.s2) {
+                Text(title)
+                    .font(.ventiType(.heading))
+                    .accessibilityAddTraits(.isHeader)
+                Text(text)
+                    .foregroundStyle(.venti(.textSecondary))
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            actions
+        }
+        .padding(VentiSpace.s5)
+        .frame(maxWidth: 440)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The page's ground, also where the screen under it has none.
+        .background(.venti(.bg))
+    }
+}
+
+extension VentiEmpty where Actions == EmptyView {
+    /// An empty state with nothing to do about it here.
+    init(title: String, text: String) {
+        self.init(title: title, text: text) {}
+    }
+}
+
 /// The pack's chip (`.v-chip`): switches a layer of the map on and off.
 /// Drawn 36 high, with room above and below it for the finger.
 struct VentiChip: View {

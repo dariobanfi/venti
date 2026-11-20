@@ -25,13 +25,15 @@ struct WaypointsScreen: View {
         }
         .overlay {
             if waypoints.all.isEmpty {
-                ContentUnavailableView {
-                    Label("No waypoints yet", systemImage: "mappin.and.ellipse")
-                } description: {
-                    Text("Bring in a waypoint file to fly to its places in the cockpit. Venti reads SeeYou files (.cup) and GEO files (.wpt).")
-                } actions: {
-                    Button("Choose a file") {
+                VentiEmpty(
+                    title: "No waypoints yet",
+                    text: "Bring in a waypoint file to fly to its places in the cockpit. Venti reads SeeYou files (.cup) and GEO files (.wpt)."
+                ) {
+                    Button {
                         isChoosingFiles = true
+                    } label: {
+                        Text("Choose a file")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.venti(.primary))
                 }

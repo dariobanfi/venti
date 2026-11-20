@@ -51,7 +51,7 @@ private struct SignInForm: View {
     var body: some View {
         Form {
             Section {
-                Text("With an account, your flights are copied to your Venti server. They appear on your other devices, and you can share one with a link. A flight stays private until you share it.")
+                Text("With an account, your flights are copied to Venti. They appear on your other devices, and you can share one with a link. A flight stays private until you share it.")
             }
 
             if let address = server.server {
@@ -107,7 +107,7 @@ private struct SignInForm: View {
                 }
             } else {
                 Section {
-                    Text("Set the address of your Venti server in the settings first.")
+                    Text("Set Venti's address in the settings first.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -214,7 +214,7 @@ struct ShareFlightSheet: View {
             Form {
                 if !account.isSignedIn {
                     Section {
-                        Text("To share a flight with a link, sign in to your Venti server under Settings, Account.")
+                        Text("To share a flight with a link, sign in to Venti under Settings, Account.")
                             .foregroundStyle(.secondary)
                     }
                 } else if let sharing {

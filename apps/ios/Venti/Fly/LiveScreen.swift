@@ -58,7 +58,7 @@ struct LiveScreen: View {
             if !account.isSignedIn {
                 Section {
                     Label(
-                        "Sharing a flight needs an account on a Venti server. Sign in under Settings.",
+                        "Sharing a flight needs an account on Venti. Sign in under Settings.",
                         systemImage: "person.crop.circle.badge.exclamationmark"
                     )
                     .foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ struct LiveScreen: View {
             }
 
             Section {
-                Text("Your positions go from this iPhone to your Venti server from take-off on, every quarter of a minute, and nowhere else. The server removes the track two days after its last position, unless whoever runs it set another time. A track is not a flight in your logbook: that is the recording, which stays on this iPhone until you sync.")
+                Text("Your positions go from this iPhone to Venti from take-off on, every quarter of a minute, and nowhere else. Venti removes the track two days after its last position. A track is not a flight in your logbook: that is the recording, which stays on this iPhone until you sync.")
                     .font(.venti(.footnote))
                     .foregroundStyle(.secondary)
             }

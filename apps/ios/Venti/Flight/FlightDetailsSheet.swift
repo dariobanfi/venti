@@ -176,7 +176,7 @@ struct FlightDetailsSheet: View {
     static func caveat(for cover: AirspaceCover) -> String {
         let limits = "Checked against the airspace the app has today, not the airspace of the day of the flight, and without knowing what was active. A help for your own review, nothing more."
         return switch cover {
-        case .none: "Add an airspace file or set a Venti server under Settings, and the flight is checked against what the app then has."
+        case .none: "Add an airspace file or connect Venti in the settings, and the flight is checked against what the app then has."
         case .partly: "Part of this flight lies where the app has no airspace; of that part nothing is known. \(limits)"
         case .whole: limits
         }

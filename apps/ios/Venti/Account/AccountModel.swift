@@ -60,7 +60,7 @@ final class AccountModel {
     var deletionWarning: String {
         account == nil
             ? "Its file is removed from this iPhone. This cannot be undone."
-            : "Its file is removed from this iPhone, from your Venti server and from your other devices. This cannot be undone."
+            : "Its file is removed from this iPhone, from Venti and from your other devices. This cannot be undone."
     }
 
     // MARK: Signing in and out

@@ -80,22 +80,27 @@ struct LogbookScreen: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No flights yet", systemImage: "book.closed")
-        } description: {
-            Text("Import the IGC files your vario or flight app recorded, one by one or a whole folder of them. They stay on this iPhone.")
-        } actions: {
-            Button("Import flights") {
+        VentiEmpty(
+            title: "No flights yet",
+            text: "Import the IGC files your vario or flight app recorded, one by one or a whole folder of them. They stay on this iPhone."
+        ) {
+            Button {
                 isChoosingFiles = true
+            } label: {
+                Text("Import flights")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.venti(.primary))
-            .controlSize(.large)
 
-            Button("Add a sample flight") {
+            Button {
                 Task {
                     await finish(logbook.addSample())
                 }
+            } label: {
+                Text("Add a sample flight")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.venti(.quiet))
         }
     }
 

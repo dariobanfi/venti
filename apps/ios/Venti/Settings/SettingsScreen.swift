@@ -104,7 +104,7 @@ struct SettingsScreen: View {
                     }
                     .accessibilityIdentifier("offline-maps-link")
                 } header: {
-                    Text("Venti server")
+                    Text("Venti")
                 } footer: {
                     Text(serverNote)
                 }
@@ -126,7 +126,7 @@ struct SettingsScreen: View {
     /// What the address field means, and whether what is in it is usable.
     private var serverNote: String {
         if wind.address.trimmingCharacters(in: .whitespaces).isEmpty {
-            return "The address of a Venti server. The map shows the wind stations it collects, the assistant can look them up, and with an account your flights are kept there and can be shared. Without one, everything stays on this iPhone and the map has no wind."
+            return "Venti's address. The map shows the wind stations it collects, the assistant can look them up, and with an account your flights are kept there and can be shared. Without it, everything stays on this iPhone and the map has no wind."
         }
         if wind.server == nil {
             return "This is not an address the app can use. It should look like wind.example.org."
@@ -175,7 +175,7 @@ struct CreditsScreen: View {
                 // Whose stations the server delivers is the server's to
                 // say: the credits come with its answers.
                 if wind.credits.isEmpty {
-                    Text("Wind stations come from the Venti server set in the settings. Each station's page names whose data it is and under which licence.")
+                    Text("Wind stations come from Venti. Each station's page names whose data it is and under which licence.")
                         .font(.venti(.subheadline))
                         .foregroundStyle(.secondary)
                 } else {

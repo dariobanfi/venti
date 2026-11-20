@@ -135,7 +135,7 @@ struct OfflineMapsScreen: View {
     /// Why the list is empty.
     private var emptyWords: String {
         if wind.server == nil {
-            return "Maps for flying without a network come from a Venti server. Set its address under Settings, Venti server."
+            return "Maps for flying without a network come from Venti. Set its address in the settings."
         }
         if let problem = maps.problem {
             return problem

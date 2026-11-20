@@ -209,8 +209,8 @@ private struct Suggestions: View {
                 .font(.venti(.title2, .semibold))
             Text(
                 hasWind
-                    ? "The assistant reads your logbook to answer, and on your Venti server the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
-                    : "The assistant reads your logbook to answer. With a Venti server set it can also look up wind, airspace, forecasts, flying sites and other pilots' public flights."
+                    ? "The assistant reads your logbook to answer, and on Venti the wind stations, the airspace, the forecast, the flying sites and the flights other pilots share with everyone. It does not say whether a day can be flown, and it cannot see where other pilots are."
+                    : "The assistant reads your logbook to answer. With Venti connected it can also look up wind, airspace, forecasts, flying sites and other pilots' public flights."
             )
             .foregroundStyle(.secondary)
             ForEach(Self.questions + (hasWind ? [Self.windQuestion] : []), id: \.self) { question in
@@ -249,7 +249,7 @@ private struct KeyEntry: View {
             } header: {
                 Text("Your key")
             } footer: {
-                Text("Kept in this iPhone's Keychain and sent only to Anthropic. Your questions, and what the assistant looks up to answer them, go from this iPhone straight to Anthropic, which bills your account for them. No Venti server sees your key or your questions. When the assistant looks up live wind, the app asks your Venti server for the stations around a place, as the map does.")
+                Text("Kept in this iPhone's Keychain and sent only to Anthropic. Your questions, and what the assistant looks up to answer them, go from this iPhone straight to Anthropic, which bills your account for them. Venti sees neither your key nor your questions. When the assistant looks up live wind, the app asks Venti for the stations around a place, as the map does.")
             }
             Section {
                 if let console = URL(string: "https://console.anthropic.com/settings/keys") {

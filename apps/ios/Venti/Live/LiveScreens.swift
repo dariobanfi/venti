@@ -77,10 +77,9 @@ struct LiveList: View {
             }
             .overlay {
                 if live.gliders.isEmpty {
-                    ContentUnavailableView(
-                        "Nobody in the air here",
-                        systemImage: "paperplane",
-                        description: Text("Pilots who show their flight to everyone appear on this part of the map while they fly.")
+                    VentiEmpty(
+                        title: "Nobody in the air here",
+                        text: "Pilots who show their flight to everyone appear on this part of the map while they fly."
                     )
                 }
             }

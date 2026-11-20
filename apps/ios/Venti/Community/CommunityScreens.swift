@@ -48,21 +48,30 @@ struct PublicFlightsList: View {
                 }
             } footer: {
                 if !community.flights.isEmpty {
-                    Text("Flights their pilots share with everyone on your Venti server. Distances and points are the server's own reckoning by the World XContest's rules, not a league's.")
+                    Text("Flights their pilots share with everyone on Venti. Distances and points are Venti's own reckoning by the World XContest's rules, not a league's.")
                 }
             }
         }
         .listStyle(.insetGrouped)
         .overlay {
             if community.flights.isEmpty, !community.isLoading {
-                ContentUnavailableView(
-                    "No public flights yet",
-                    systemImage: "person.2",
-                    description: Text(
-                        community.problem
-                            ?? "Flights that pilots on your Venti server share with everyone are listed here."
+                if let problem = community.problem {
+                    // Something went wrong: said plainly, without art.
+                    ContentUnavailableView {
+                        Label {
+                            Text("No public flights")
+                        } icon: {
+                            Image("icon-caution")
+                        }
+                    } description: {
+                        Text(problem)
+                    }
+                } else {
+                    VentiEmpty(
+                        title: "No public flights yet",
+                        text: "Flights that pilots share with everyone on Venti are listed here."
                     )
-                )
+                }
             }
         }
         .refreshable {
@@ -326,7 +335,7 @@ struct FlownFromHere: View {
         } header: {
             Text("Flown from here")
         } footer: {
-            Text("The newest flights that pilots on your Venti server share with everyone and that took off within a kilometre and a half of this place.")
+            Text("The newest flights that pilots share with everyone on Venti and that took off within a kilometre and a half of this place.")
         }
     }
 }

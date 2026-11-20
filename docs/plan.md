@@ -14,7 +14,7 @@ These were set by the owner on 2026-11-18 and are not open for re-litigation in 
 2. **The project does not pay for AI.** Users connect their own assistant or credentials.
 3. **Native UI on every platform.** SwiftUI on iOS, Jetpack Compose on Android, a real web app in the browser. No React Native, no Flutter, no web views inside the mobile apps.
 4. **One Rust codebase** below the UI, shared by all clients and the server.
-5. **Self-hosted on one Linux server** the owner pays for. No services that bill by usage.
+5. **One central platform, self-hosted on one Linux server** the owner pays for, and on a set of them when it grows. No services that bill by usage. Venti is not made for clubs or pilots to run a server of their own: there is one Venti. Until it has an address, the apps ask for a server's address in their settings, which is a means of development: with the address known it is built into the apps, the setting is for developers, and the words that speak of "your Venti server" say "Venti".
 6. **Every external data source sits behind an adapter.** Regions are configuration. See [data-sources.md](data-sources.md).
 7. **First region: Germany and Austria**, then the whole Alps. The owner is based in Munich.
 8. **iOS first.** The owner flies with an iPhone and an external Bluetooth vario.

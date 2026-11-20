@@ -7,7 +7,7 @@ Read `docs/plan.md`, `docs/architecture.md` and `docs/data-sources.md` before ch
 - Native UI only: SwiftUI, Jetpack Compose, and a web app in the browser. No React Native, Flutter or web views in the mobile apps.
 - The look is the owner's design language, "Valley", in `design/`: its tokens, type, icons, logo and art, in the themes `light`, `dark` and `flight`. A screen takes colours, sizes, radii and fonts from the tokens and never writes its own; it uses the files in `design/assets` and never redraws, recolours or copies them. `design/DESIGN.md` decides how something looks; `docs/design.md` says what a screen does and where a platform differs. Do not change the files in `design/` except on the owner's word.
 - Shared logic is Rust. UI shells contain no business rules.
-- Self-hosted on one Linux server. Do not add a service that bills by usage.
+- Venti is one central platform that the owner runs, on one Linux server and on a set of them when it grows. It is not made for clubs or pilots to host a Venti of their own: there is one Venti, and the apps belong to it. "Self-hosted" means the owner's own server in place of a cloud service. Do not add a service that bills by usage.
 - The project pays for no AI inference. Users bring their own assistant or credentials.
 - The code is open source. Never commit secrets, API keys or personal data.
 

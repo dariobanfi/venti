@@ -1,14 +1,19 @@
 # Notes for AI sessions working on the web app
 
-Working notes: what to know before changing the app or its tests. What the app does and what is not built is in [docs/plan.md](../../docs/plan.md) and [docs/design.md](../../docs/design.md), how it is built in [docs/architecture.md](../../docs/architecture.md) under "Web". The `README.md` beside this file is for people.
+Working notes: what to know before changing the app or its tests. What the app does and what is not built is in [docs/plan.md](../../docs/plan.md) and [docs/design.md](../../docs/design.md#web), how it is built in [docs/architecture.md](../../docs/architecture.md#web) (the core in a worker, storage in IndexedDB, wind, account, airspace, sites, forecasts, live, everyone's flights, reports, plans, the ground under a flight, how it is tested). The `README.md` beside this file is for people.
 
 ## Checks before a push
 
-- From `apps/web`: `npm run check && npm run format:check && npm run licences && npm test`, then `npm run build && npm run test:e2e`. After a change to `crates/core`, `crates/core-wasm` or anything below them, `scripts/build-core.sh` first: the tests run against the module that was built last.
-- The browser tests take about a quarter of an hour on four cores, for 260 tests at four widths and appearances. One file at one width is quick: `npx playwright test e2e/plans.spec.ts --project=phone-light`.
-- They start `venti-server dev` with `cargo run` and use one that is already running. Another session's server on port 8080 holds what that session's tests left in it: name a port of your own for the tests, `VENTI_DEV_SERVER=http://127.0.0.1:18431`. Build the server with the same `CARGO_PROFILE_…` settings in the environment as the tests run with, or `cargo run` builds it again.
+- From `apps/web`: `npm run check && npm run format:check && npm run licences && npm test`, then `npm run build && npm run test:e2e`. After a change to `crates/core`, `crates/core-wasm` or anything below them, `scripts/build-core.sh` first: the tests run against the module that was built last. `npm run format` rewrites what `format:check` complains about.
+- The first run of `scripts/build-core.sh` installs the `wasm-bindgen` tool in the version `Cargo.lock` names, which takes a few minutes. Its last step, `scripts/strip-core.mjs`, removes from the module what only the phones use.
+- The browser tests need a Chromium that Playwright can drive: `npx playwright install chromium`, once.
+- The browser tests take about a quarter of an hour on four cores, for 260 tests at four widths and appearances. One file at one width is quick: `npx playwright test e2e/plans.spec.ts --project=phone-light`; one project: `npm run test:e2e -- --project=phone-light`.
+- They start `venti-server dev` with `cargo run` (which compiles it the first time) and use one that is already running. Another session's server on port 8080 holds what that session's tests left in it: name a port of your own for the tests, `VENTI_DEV_SERVER=http://127.0.0.1:18431`. Build the server with the same `CARGO_PROFILE_…` settings in the environment as the tests run with, or `cargo run` builds it again.
+- `npm run dev` and `npm run preview` pass `/v1` and `/f` on to `http://127.0.0.1:8080`, or to `VENTI_DEV_SERVER`. Without a server there the map says that the server could not answer.
 - The preview the tests start listens on port 4173 and on no other (`playwright.config.ts`), so two sessions cannot run the browser tests on one machine at the same time. Not tried.
-- The `Web` workflow takes 35 to 45 minutes, most of it the browser tests, which are slower on GitHub's machines than here. It lets a run that has started finish; of the runs waiting behind it only the newest is kept, so a push is often tested together with later commits. Look for the newest finished run that holds the commit, not for the commit's own.
+- The tests keep a screenshot of every screen in `screenshots/<project>/`, for four projects: a phone's width and a desktop's, each light and dark.
+- The `Web` workflow runs all of it on every push that touches the app or the core. Its artifacts: `web-screenshots`, `web-site` (the built site, the folder to serve once the owner decides to publish the app; nothing publishes it now) and, when the browser tests fail, `web-test-results`. Download with `gh run download <run> -n web-screenshots`.
+- The workflow takes 35 to 45 minutes, most of it the browser tests, which are slower on GitHub's machines than here. It lets a run that has started finish; of the runs waiting behind it only the newest is kept, so a push is often tested together with later commits. Look for the newest finished run that holds the commit, not for the commit's own.
 
 ## The core for the browser
 
@@ -20,12 +25,14 @@ Working notes: what to know before changing the app or its tests. What the app d
 
 ## Hosts the app talks to
 
-- The core's worker fetches elevation tiles for the ground under a flight from the host in `src/lib/map/online.ts`, which the map uses too. That host is in the page's content security policy (`src/lib/app/security-policy.ts`) and in the web server's header for the workers (`deploy/Caddyfile`). Another host would need both. The browser tests fail on anything the policy refuses (`refused` in `e2e/helpers.ts`), which is how a missing entry shows.
+- The base map comes from OpenFreeMap and terrain from Mapterhorn ([docs/architecture.md](../../docs/architecture.md#maps-and-terrain) has the terms). Opening a flight also asks Mapterhorn for the elevation tiles under it: up to three dozen tiles of about 140 kB each for a flight of some tens of kilometres, coarser ones for a longer flight.
+- The core's worker fetches those elevation tiles from the host in `src/lib/map/online.ts`, which the map uses too. That host is in the page's content security policy (`src/lib/app/security-policy.ts`) and in the web server's header for the workers (`deploy/Caddyfile`). Another host would need both. The browser tests fail on anything the policy refuses (`refused` in `e2e/helpers.ts`), which is how a missing entry shows.
 - Flying plans are asked of the app's own origin by the worker, with the session token, through `sendToThisOrigin` in `src/lib/core/account-source.ts`. A new request from the pilot's account goes the same way.
 
 ## Testing
 
-- **The ground under a flight** is tested with real elevation tiles, cut one at a time from `apps/ios/Venti/Resources/MapDemo/terrain.pmtiles`: in Node by `src/lib/core/terrain-source.test.ts`, in the browser tests by `e2e/bundled-map.ts`, which answers every request to the tile hosts, the core's worker's among them. Do not copy that file into the app. The sample flight lies on two tiles of zoom 12; a flight outside the Tegernsee valley has no ground in the tests.
+- **Tests of a module sit beside it** as `*.test.ts`. The browser tests are in `e2e/`.
+- **The ground under a flight** is tested with real elevation tiles, cut one at a time from `apps/ios/Venti/Resources/MapDemo/terrain.pmtiles`: in Node by `src/lib/core/terrain-source.test.ts`, in the browser tests by `e2e/bundled-map.ts`, which answers every request to the tile hosts, the core's worker's among them. The 4 MB file is read where it lies; do not copy it into the app. The sample flight lies on two tiles of zoom 12; a flight outside the Tegernsee valley has no ground in the tests, and outside that valley the test maps are blank. That is the region's edge, not a fault.
 - **`addSampleFlight` waits for the ground** (`groundDrawn` in `e2e/helpers.ts`). A test that keeps the elevation tiles away has to open the flight itself, as the last test of `e2e/ground.spec.ts` does.
 - **With the ground, the marked moment of a flight reads "Over ground"; without it, "In the air".** A test that reads the flight panel at a moment says which of the two it expects, or reads the time.
 - **The development server's clock stands still** at 19:05 UTC on 18 November 2026, and its made-up plans are for the 18th to the 20th. The board of plans is asked for from the browser's own today. A test that wants a plan on the board posts one, or sets the browser's clock to that day with `page.clock.setFixedTime`; `e2e/plans.spec.ts` does both.
@@ -34,6 +41,7 @@ Working notes: what to know before changing the app or its tests. What the app d
 - **Members who came into a group at the same moment are listed in an order no test can know.** With the server's clock standing still, that is every two members a test adds.
 - **A plan with a position cannot be made in the web app**, which has no waypoints to take one from. `postFromAPhone` in `e2e/plans.spec.ts` posts one through the API.
 - **A day of a plan is a date, not a moment.** Unit tests of `src/lib/groups/days.ts` set the time zone of the test process (`process.env.TZ`) to show that today is the reader's date and not UTC's; they put it back afterwards.
+- **The screenshots show the test machine's typeface**, because the app uses the system's. A bare Linux machine's is wide and cuts short text that fits on a phone; `e2e/fonts.conf` says how the `Web` workflow gives its screenshots Inter instead.
 
 ## Pitfalls
 
@@ -43,3 +51,83 @@ Working notes: what to know before changing the app or its tests. What the app d
 - **A dialog stays in the page and is opened and closed**, as on the other screens, and keeps its words while it closes. _To verify:_ what a browser does with the focus when an open dialog is taken out of the page instead; it was not tried.
 - **The switch in a row** is the class `toggle` in `src/app.css`. It is not a style of one screen.
 - **The navigation's bar has four sections** and shares the width of a narrow screen between them. A fifth needs the bar looked at on a phone's width, in the screenshots.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `src/routes/` | The screens and the frame around them: `/` the map; `/logbook/`, `/logbook/statistics/`, `/logbook/flight/?id=…`; `/logbook/everyone/`, `/logbook/everyone/pilot/?handle=…`, `/logbook/everyone/flight/?id=…`; `/plans/`, `/plans/plan/?id=…`, `/plans/groups/`, `/plans/groups/group/?id=…`; `/settings/`, `/settings/account/`, `/settings/airspace/`. |
+| `src/lib/app/` | What the app holds while it is open, the navigation, dropping files on the window, and the content security policy (`security-policy.ts`). |
+| `src/lib/core/` | The way into the Rust core. The core runs in a worker (`worker.ts`), the page calls it through `client.ts`; `session.ts` and `idb-store.ts` keep the core's files in the browser; the `*-source.ts` files (account, airspace, community, forecast, groups, live, sites, wind) send the core's requests to the server; `terrain-source.ts` fetches the elevation tiles under a flight. `pkg/` is built by `scripts/build-core.sh` and not committed. |
+| `src/lib/account/` | The pilot's account: when a sync runs (`model.svelte.ts`), the sign-in form, the signed-in screen, the sheet that shares a flight. |
+| `src/lib/airspace/` | When the server is asked (`model.svelte.ts`), when a map asks the core (`view.ts`), how airspace is drawn (`layers.ts`), the sentences about files and sources (`words.ts`). |
+| `src/lib/community/` | Other pilots' public flights: the list a page at a time and which days a pilot means (`pages.ts`), what the screens watch (`model.svelte.ts`), the row, the list, the switch between one's own and everyone's, and the report form (`ReportSheet.svelte`). |
+| `src/lib/design/` | Number formatting, the climb colours, and the components the app draws itself: metric, icon, dialogs, menu. |
+| `src/lib/forecast/` | The table of one day (`ForecastTable.svelte`), which days, hours and rows it has (`table.ts`), and the sheet around it. |
+| `src/lib/groups/` | Flying plans: when the board is asked for (`board.ts`), what the screens watch (`model.svelte.ts`), the pilot's today and the names of days (`days.ts`), sentences and the questions asked before something is done to a group (`words.ts`), a plan's row and form, the sheet that shows an invite code once. |
+| `src/lib/live/` | Who is in the air: when to ask and how a position's age is counted (`watch.ts`), the timers and the tab's visibility (`model.svelte.ts`), the wing and the disc (`symbols.ts`) and their layer (`mark.ts`), the list, a glider's page. |
+| `src/lib/logbook/` | The logbook's model over the core, import, the list, the track thumbnail, the statistics chart. |
+| `src/lib/flight/` | One flight: map, panel, altitude chart with the ground under it (`ground.ts`), details. |
+| `src/lib/map/` | The shared map setup, the style preparation, label fonts, the map of all flights, the pilot's position, the panel a chosen station, site or glider opens in. The tile hosts are in `online.ts`. |
+| `src/lib/sites/` | When to ask and how long to use an answer (`watch.ts`), the signs (`symbols.ts`) and their layer (`mark.ts`), sentences (`words.ts`), the list, a site with its compass. |
+| `src/lib/wind/` | When to ask and what to keep (`watch.ts`), how a station is drawn (`mark.ts`), the list, a station with its charts. |
+| `src/app.css` | Colours, type sizes and spacing, as custom properties. |
+| `scripts/check-licences.mjs` | The licence allowlist for npm packages. |
+| `static/favicon.svg` | The app icon, the iPhone's drawing. |
+
+The map style is `map/style.json` at the repository's root. The sample flight and the label fonts are taken from `apps/ios/Venti/Resources`, where the repository keeps its one copy.
+
+## Where the session token is kept
+
+[docs/architecture.md](../../docs/architecture.md#the-account-in-the-browser) says where: in IndexedDB, read by the worker only. What was weighed:
+
+- **What that is good for.** The browser sends the token nowhere by itself, as it would a cookie, so no other site can make the browser act for the pilot. It lasts across visits and is shared by the site's tabs, which a sync that runs by itself needs. It goes when the pilot signs out, when the server no longer takes it, and with the site's data.
+- **What it does not protect against.** A script running on this origin could read the token and act for the account until that session is signed out: read, upload, share and delete flights. It could not delete the account or change the password, which need the password. The app loads no script from anywhere else: no analytics, no fonts, no content network, and the map engine is part of the build. What remains is a flaw in the app or in a package it is built from that lets a stranger's script run, and whoever can change the files on the web server. Against the first there is the content security policy below.
+- **Why not elsewhere.** `localStorage` is as readable and cannot be reached from the worker. `sessionStorage` or memory alone would sign the pilot out with every closed tab, with a password of fifteen characters and a sync that is meant to run by itself.
+
+The better place is a cookie that scripts cannot read (`HttpOnly`). The server sets no cookies today; the decision log in `docs/architecture.md` lists what it would have to offer.
+
+## The content security policy
+
+Why it is a `meta` element written by SvelteKit's `csp` setting (`vite.config.ts`, over the list in `src/lib/app/security-policy.ts`), and why the web server adds two headers, is in the decision log of [docs/architecture.md](../../docs/architecture.md#decision-log). The page's policy:
+
+```
+default-src 'none';
+script-src 'self' 'sha256-…';
+style-src 'self';
+style-src-attr 'unsafe-hashes' 'sha256-…';
+img-src 'self' data:;
+connect-src 'self' data: https://tiles.openfreemap.org https://tiles.mapterhorn.com;
+worker-src 'self';
+base-uri 'none';
+form-action 'none'
+```
+
+| Entry | Why it is there |
+|---|---|
+| `default-src 'none'` | Whatever no other line allows is refused: frames, plug-ins, media, web fonts, a manifest. |
+| `script-src 'self'` | The app's own script files. |
+| `script-src 'sha256-…'` | The one script written into each page, with which SvelteKit starts the app, by the hash of its text. No other script in a page runs, no handler in markup, and no text is made into code. |
+| `style-src 'self'` | The app's own style sheets, the map engine's among them. No `style` element. |
+| `style-src-attr 'unsafe-hashes' 'sha256-…'` | One `style` attribute, SvelteKit's: it hides the element that tells a screen reader the title of the page the pilot has moved to. The build reads that attribute from the installed SvelteKit and names it by its hash, so an update cannot leave the two apart. What the app's scripts set is not an attribute and needs no entry. |
+| `img-src 'self'` | The app icon. |
+| `img-src data:` | The map engine's style sheet draws the icons of its own controls, such as the "i" of the credits, from `data:` addresses. |
+| `connect-src 'self'` | The app's own files a page fetches: the label fonts and the sample flight. |
+| `connect-src data:` | For every script the app has no letters for, the label fonts hold a file that says "no glyphs here", and the build keeps the small files inside a script as `data:` addresses. The map asks for one when a name is in such a script (Arabic, Thai, Georgian). A `data:` address reaches no host. |
+| `connect-src https://tiles.openfreemap.org https://tiles.mapterhorn.com` | The base map's description and the elevation tiles. They are the hosts in `src/lib/map/online.ts`; a unit test holds the map style and the policy together. |
+| `worker-src 'self'` | The core and the map engine each run in a worker, both from files of the app. `script-src` would say the same; it is said outright so that a change there cannot change it unseen. |
+| `base-uri 'none'`, `form-action 'none'` | No `base` element can send relative addresses elsewhere, and no form posts anywhere: the app's forms are handled by its scripts. |
+
+Not in it, because the browser refused nothing without them: `'unsafe-inline'`, `'unsafe-eval'`, `'wasm-unsafe-eval'` and `blob:`. The core's WebAssembly is compiled in its worker, which a page's policy does not reach, and the map engine is given its worker as a file of the app (`setWorkerUrl`) and makes none from a blob.
+
+**How the list was found and is kept true.** By starting from `default-src 'none'` with `'self'` alone for scripts, styles, images, connections and workers, reading what Chromium refused while the screens were used, then running the browser tests in all four projects (2026-11-19). The tests now fail on anything the browser refuses under the policy, in a page or in a worker, so a change that needs a new entry shows itself. `e2e/policy.spec.ts` checks that every page has the policy ahead of everything it loads, and that an inline script, a handler in markup, text made into code and a request to another host are refused. A test in `e2e/sites.spec.ts` names a site in Arabic, Thai and Georgian, which is what `connect-src data:` is for. Who is in the air, everyone's flights, flying plans and the ground under a flight needed no new entry: they are fetched from the app's own origin or from `tiles.mapterhorn.com`, and links to the server's pages are not governed by the policy.
+
+**What the web server sends** (`deploy/Caddyfile`). A page cannot say who may frame it (browsers ignore `frame-ancestors` in a `meta` element), so Caddy sends `Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'` and `X-Frame-Options: DENY` with the app's pages. A worker is held to the policy that arrives with its own script, not to its page's ([CSP3](https://www.w3.org/TR/CSP3/); MDN, "CSP in workers"), so Caddy sends this with every script file of the app, because the build decides where the two workers' scripts are (today `/_app/immutable/workers/` and `/_app/immutable/assets/`):
+
+```
+Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://tiles.openfreemap.org https://tiles.mapterhorn.com
+```
+
+CI compares its tile hosts with those in `src/lib/map/online.ts`; when the tile hosts change, both change. It was tried in Chromium twice: with a proxy in the browser tests that added the header to the core's worker (every screen worked; without `'wasm-unsafe-eval'` the core did not start), and through the real Caddy (without the tile hosts the map engine's worker fetched no tile).
+
+_To verify:_ all of this was seen in Chromium only. A browser that holds a worker to its page's policy would need `'wasm-unsafe-eval'` in the page's `script-src`, or the core does not start. Where a browser lacks `createImageBitmap`, the map engine decodes elevation tiles through an image with a `blob:` address, which would need `blob:` in `img-src`.

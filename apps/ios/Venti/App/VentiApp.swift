@@ -16,7 +16,7 @@ struct VentiApp: App {
             switch session {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
-                let live, let community, let ground, let groups, let maps
+                let live, let community, let ground, let groups, let maps, let today
             ):
                 RootScreen()
                     .environment(logbook)
@@ -33,6 +33,7 @@ struct VentiApp: App {
                     .environment(ground)
                     .environment(groups)
                     .environment(maps)
+                    .environment(today)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -51,7 +52,7 @@ struct VentiApp: App {
 enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
-        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel
+        TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel
     )
     case failed(String)
 
@@ -84,6 +85,10 @@ enum Session {
             // Flying sites come from the same server as the wind.
             let sites = SitesModel()
             sites.server = { wind.server }
+            // And the forecasts for the take-offs of the Today tab.
+            let today = TodayModel()
+            today.server = { wind.server }
+            today.clock = { await wind.serverNow() }
             // So do the other pilots in the air.
             let live = LiveModel()
             live.server = { wind.server }
@@ -157,7 +162,7 @@ enum Session {
             let groups = GroupsModel(core: core, account: account)
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps
+                groups, maps, today
             )
         } catch {
             return .failed(error.words)

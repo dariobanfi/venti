@@ -148,6 +148,19 @@ final class WindModel {
         }
     }
 
+    /// The current time by the server's clock, read from the server first
+    /// if it has not been yet. This iPhone's own time when there is no
+    /// server or no answer.
+    func serverNow() async -> Int64 {
+        if clock == nil, let server,
+           let (status, body) = try? await get(serverStatusPath(), from: server),
+           let state = try? serverStatus(status: status, body: body)
+        {
+            clock = (TimeInterval(state.timeUnixS) - Date().timeIntervalSince1970, Date())
+        }
+        return now
+    }
+
     /// The stations around a glider in the air and around the place its
     /// pilot means to land, with whose data they are: asked for once,
     /// beside what the map tab shows. `nil` without a server or without

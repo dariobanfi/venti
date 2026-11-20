@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The pilot's settings, and what the app is made of.
+/// The pilot's settings, and what the app is made of. A page of the Today
+/// tab's stack, opened from its corner: it brings no stack of its own.
 struct SettingsScreen: View {
     @Environment(FlySession.self) private var fly
     @Environment(WindModel.self) private var wind
@@ -15,7 +16,7 @@ struct SettingsScreen: View {
     @AppStorage(Preferences.cockpitKeepsBrightness) private var keepsBrightness = false
 
     var body: some View {
-        NavigationStack {
+        Group {
             Form {
                 Section {
                     TextField("Your name", text: $pilot)

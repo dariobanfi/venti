@@ -11,7 +11,7 @@ struct AssistantScreen: View {
     @FocusState private var isTyping: Bool
 
     var body: some View {
-        NavigationStack {
+        Group {
             Group {
                 if chat.hasKey {
                     conversation

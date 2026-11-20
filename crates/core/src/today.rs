@@ -121,10 +121,11 @@ pub struct OutlookDay {
     pub why: String,
     /// Its daylight hours still to come, the earliest first.
     pub hours: Vec<OutlookHour>,
-    /// The wind at the middle of the day's best stretch: its speed in
-    /// whole km/h with the gusts where they differ ("12/25"). Empty
-    /// without one.
+    /// The wind at the middle of the day's best stretch, 10 m above the
+    /// model's ground: its speed in whole km/h, "12". Empty without one.
     pub wind_kmh: String,
+    /// Its gusts in whole km/h: "25". Empty when the model gives none.
+    pub gust_kmh: String,
     /// Where that wind comes from, as a compass point: "N". Empty when
     /// the model gives none.
     pub wind_from: String,
@@ -472,12 +473,12 @@ fn day(start_unix_s: i64, hours: &[Judged<'_>]) -> OutlookDay {
             })
             .collect(),
         wind_kmh: middle
-            .and_then(|hour| {
-                Some(crate::wind::wind_speeds_label(
-                    hour.wind_speed_ms?,
-                    hour.wind_gust_ms,
-                ))
-            })
+            .and_then(|hour| hour.wind_speed_ms)
+            .map(|speed| format!("{:.0}", speed * 3.6))
+            .unwrap_or_default(),
+        gust_kmh: middle
+            .and_then(|hour| hour.wind_gust_ms)
+            .map(|gusts| format!("{:.0}", gusts * 3.6))
             .unwrap_or_default(),
         wind_from: middle
             .and_then(|hour| hour.wind_direction_deg)
@@ -574,7 +575,8 @@ mod tests {
         assert_eq!(day.hours.len(), 12);
         assert_eq!(day.hours[0].hour, "8");
         assert_eq!(day.hours[0].wind_kmh, "11");
-        assert_eq!(day.wind_kmh, "11/18");
+        assert_eq!(day.wind_kmh, "11");
+        assert_eq!(day.gust_kmh, "18");
         assert_eq!(day.wind_from, "N");
         assert_eq!(day.cloud_base_m, Some(2900.0));
     }

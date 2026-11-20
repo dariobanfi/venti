@@ -14,6 +14,8 @@ final class VentiUITests: XCTestCase {
         app.launchArguments =
             ["--ui-testing"] + (bundledMap ? ["--bundled-map"] : []) + (dark ? ["--dark"] : []) + extra
         app.launch()
+        // The app opens on Today; most tests begin on the map.
+        openTab("Map", in: app)
         return app
     }
 
@@ -130,6 +132,19 @@ final class VentiUITests: XCTestCase {
     /// until the button can be hit, tap, and tap again if the tab did not
     /// become the selected one.
     private func openTab(_ name: String, in app: XCUIApplication) {
+        // The settings and the assistant are pages of the Today tab,
+        // opened from its corner. A second tap on the tab goes back to
+        // Today itself, whatever page lay over it.
+        if name == "Settings" || name == "Assistant" {
+            openTab("Today", in: app)
+            app.tabBars.buttons["Today"].tap()
+            usleep(600_000)
+            let opener = app.navigationBars.buttons[name]
+            XCTAssertTrue(opener.waitForExistence(timeout: 15))
+            opener.tap()
+            XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 15))
+            return
+        }
         let tab = app.tabBars.buttons[name]
         XCTAssertTrue(tab.waitForExistence(timeout: 15))
         for _ in 0..<4 {
@@ -634,6 +649,70 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("map-airspace")
     }
 
+    /// Today, against a Venti server in development mode: the take-offs
+    /// around the Tegernsee, each with what the recorded forecast says
+    /// about flying from it.
+    func testTodaySaysWhatTheForecastSaysOfTheTakeoffs() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--bundled-map", "--server", server]
+        app.launch()
+
+        // The app opens on Today: the best take-off as a card, with its
+        // status in words once its forecast is read.
+        let card = element("today-card", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: 60))
+        let status = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label IN %@", ["Flyable", "Marginal", "Not flyable"]))
+            .firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 90))
+        // Its readings, and the other take-offs as rows.
+        XCTAssertTrue(labelled(containing: "Cloud base", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(element("today-row", in: app).exists)
+        // Whose forecast it is, and that it is a reading of a model.
+        XCTAssertTrue(labelled(containing: "the take-off decides", in: app).exists)
+        sleep(2)
+        keepScreenshot("today-1")
+
+        // Another day.
+        let days = app.buttons.matching(identifier: "today-days")
+        if days.count > 1 {
+            days.element(boundBy: days.count - 1).tap()
+            sleep(1)
+            keepScreenshot("today-2-another-day")
+        }
+
+        // A take-off's own page.
+        card.tap()
+        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("today-3-site")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
+    }
+
+    /// Today without a Venti to ask: the app opens on it, says what is
+    /// missing and leads to where it is set.
+    func testTodayWithoutVentiSaysWhatIsMissing() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--bundled-map"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Venti is not connected"].waitForExistence(timeout: 60))
+        XCTAssertTrue(element("today-headline", in: app).exists)
+        sleep(1)
+        keepScreenshot("today-0-not-connected")
+        app.buttons["Open the settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        // The tabs stay while the settings are open.
+        openTab("Fly", in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
+    }
+
     /// The assistant, with the provider played by a script: the real tool
     /// loop runs against the logbook, but no key and no network are used.
     func testTheAssistantAnswersFromTheLogbook() {
@@ -679,6 +758,7 @@ final class VentiUITests: XCTestCase {
         // The model provider is played by a script; the Venti server is real.
         app.launchArguments = ["--ui-testing", "--server", server, "--scripted-assistant"]
         app.launch()
+        openTab("Map", in: app)
 
         let stations = app.buttons["Wind stations"]
         XCTAssertTrue(stations.waitForExistence(timeout: 90))

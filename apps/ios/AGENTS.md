@@ -25,6 +25,7 @@ Working notes: what to know before changing the iPhone app or its tests. How to 
 | `Venti/Design/` | The design language in the app (`Theme.swift`: themes, colours by role, type, the list; `Components.swift`: the pack's button, status, card and floating surface), the colours of climb, number formatting and the metric component. |
 | `Venti/Logbook/` | The logbook screen, its model over the core, and import. |
 | `Venti/Flight/` | One flight: map, panel, altitude chart, details sheet, and a second flight laid beside it. |
+| `Venti/Today/` | The Today tab: the take-offs around the pilot and what the forecast says about flying from each (the core's `siteOutlook`), and the pilot's position for it. |
 | `Venti/Fly/` | The cockpit: the Fly tab, the cockpit screen and its map, the airspace ahead from the side, the wind by height, live tracking, and the sensors (position, pressure, Bluetooth vario, vario sound). |
 | `Venti/Task/` | A task: bringing one in from a file, the clipboard or a QR code, handing it on, and planning a route from waypoints. |
 | `Venti/Waypoints/` | The pilot's waypoints and the files they come from. |

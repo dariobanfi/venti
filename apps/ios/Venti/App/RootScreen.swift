@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// The app's sections. More join as the product grows: the cockpit, then the
-/// community.
+/// The app's sections, as the design language's tab bar has them. The
+/// assistant and the settings are not among them: they open from the
+/// Today tab's corner.
 enum AppTab: Hashable {
+    case today
     case map
     case fly
     case logbook
-    case assistant
-    case settings
 }
 
 /// A flight to show, as a step in a navigation stack.
@@ -23,7 +23,7 @@ struct StatisticsRoute: Hashable {}
 @MainActor
 @Observable
 final class AppNavigation {
-    var tab: AppTab = .map
+    var tab: AppTab = .today
     var logbookPath = NavigationPath()
 
     func show(flight id: String) {
@@ -43,8 +43,10 @@ struct RootScreen: View {
     var body: some View {
         @Bindable var navigation = navigation
         TabView(selection: $navigation.tab) {
-            // The flying icons are the design pack's; it has none for the
-            // assistant and the settings, which keep the system's.
+            // The icons are the design pack's.
+            Tab("Today", image: "icon-forecast", value: AppTab.today) {
+                TodayScreen()
+            }
             Tab("Map", image: "icon-map", value: AppTab.map) {
                 MapScreen()
             }
@@ -53,12 +55,6 @@ struct RootScreen: View {
             }
             Tab("Logbook", image: "icon-track", value: AppTab.logbook) {
                 LogbookScreen()
-            }
-            Tab("Assistant", systemImage: "sparkles", value: AppTab.assistant) {
-                AssistantScreen()
-            }
-            Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
-                SettingsScreen()
             }
         }
         .environment(navigation)

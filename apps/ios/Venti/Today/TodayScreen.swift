@@ -1,0 +1,519 @@
+import SwiftUI
+import VentiCore
+
+/// The Today tab, as the design language's Today screen has it: the day in
+/// a line over the valley, and under it the take-offs around with what the
+/// forecast says about flying from each. The nearest take-off with the
+/// best outlook is a card with its readings and its hours; the others are
+/// rows with their status.
+///
+/// What a forecast says about a take-off is the core's reading of a weather
+/// model, and the screen says so at its foot: the model, when the server
+/// last looked for a newer run, and that the take-off itself decides.
+struct TodayScreen: View {
+    @Environment(TodayModel.self) private var today
+    @Environment(WindModel.self) private var wind
+
+    /// Which of the forecast's days is shown: 0 is today.
+    @State private var day = 0
+    /// Whether the pilot has chosen the day. Until then an evening shows
+    /// tomorrow, since today has no flying hours left.
+    @State private var hasChosenDay = false
+    @State private var position = PilotPosition()
+    @State private var isShowingSettings = false
+    @State private var isShowingAssistant = false
+
+    /// Where the take-offs are looked for until the pilot's position is
+    /// known: the middle of the first region, between the Tegernsee and
+    /// the Achensee.
+    static let home = Coordinate(lat: 47.6, lon: 11.75)
+
+    private var place: Coordinate {
+        position.place ?? Self.home
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    header
+                    content
+                        .padding(.horizontal, VentiSpace.s4)
+                        .padding(.vertical, VentiSpace.s4)
+                }
+            }
+            .background(.venti(.bg))
+            .ignoresSafeArea(.container, edges: .top)
+            .refreshable {
+                await today.load(around: place)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Assistant", systemImage: "sparkles") {
+                        isShowingAssistant = true
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "gearshape") {
+                        isShowingSettings = true
+                    }
+                }
+            }
+            .navigationDestination(for: SiteView.self) { site in
+                SiteScreen(site: site)
+            }
+            // The settings and the assistant are pages of this tab: the
+            // tab bar stays, and they keep their place while the pilot
+            // looks at another tab.
+            .navigationDestination(isPresented: $isShowingSettings) {
+                SettingsScreen()
+            }
+            .navigationDestination(isPresented: $isShowingAssistant) {
+                AssistantScreen()
+            }
+        }
+        // Asked when the tab is first shown, when the pilot's position
+        // arrives, when the server's address changes, and again after a
+        // while.
+        .task(id: Asked(place: place, server: wind.server)) {
+            position.readIfAllowed()
+            if !today.isFresh(for: place) {
+                await today.load(around: place)
+            }
+        }
+        .onChange(of: today.places) {
+            guard !hasChosenDay else { return }
+            let outlooks = today.places.compactMap(\.outlook)
+            let isOver = !outlooks.isEmpty
+                && outlooks.allSatisfy { $0.days.first.map(\.hours.isEmpty) ?? true }
+            day = isOver && days.count > 1 ? 1 : 0
+        }
+    }
+
+    /// What decides that the server is asked again.
+    private struct Asked: Equatable {
+        let place: Coordinate
+        let server: URL?
+    }
+
+    /// The take-offs in the order they are shown: by what the forecast
+    /// says of the chosen day, the better first, and among equals the
+    /// nearer. One the server has not answered for yet comes last.
+    private var ordered: [TodayModel.Place] {
+        today.places.sorted { one, other in
+            let ranks = (rank(one), rank(other))
+            return ranks.0 == ranks.1 ? one.distanceM < other.distanceM : ranks.0 < ranks.1
+        }
+    }
+
+    private func rank(_ place: TodayModel.Place) -> Int {
+        switch outlookDay(of: place)?.verdict {
+        case .flyable: 0
+        case .marginal: 1
+        case .notFlyable: 2
+        case nil: 3
+        }
+    }
+
+    private func outlookDay(of place: TodayModel.Place) -> OutlookDay? {
+        guard let days = place.outlook?.days, days.indices.contains(day) else { return nil }
+        return days[day]
+    }
+
+    /// The days the forecasts reach over, three at most.
+    private var days: [OutlookDay] {
+        Array((today.places.compactMap(\.outlook).map(\.days).max { $0.count < $1.count } ?? []).prefix(3))
+    }
+
+    // MARK: The head
+
+    /// The valley, with the day and its line. The art is the design
+    /// pack's and is light in both appearances, so its words are in the
+    /// pack's ink whatever the iPhone is set to.
+    private var header: some View {
+        // The art fills a frame as wide as the screen and is cut at its
+        // edges: laid out by itself it would be as wide as it is drawn,
+        // and the page with it.
+        Color.clear
+            .frame(height: 230)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                Image("art-valley-strip")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            }
+            .clipped()
+            .accessibilityHidden(true)
+            .overlay(alignment: .top) {
+                VStack(spacing: 2) {
+                    Text(dayLine)
+                        .font(.ventiType(.label))
+                    Text(headline)
+                        .font(.ventiType(.hero))
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(2)
+                        .accessibilityIdentifier("today-headline")
+                }
+                .foregroundStyle(VentiBrand.ink)
+                .padding(.horizontal, VentiSpace.s4)
+                .padding(.top, 76)
+            }
+    }
+
+    /// "Saturday, near you", or the day alone while the take-offs are
+    /// those around the middle of the map.
+    private var dayLine: String {
+        let start = days.indices.contains(day)
+            ? Date(timeIntervalSince1970: TimeInterval(days[day].startUnixS)) : Date()
+        let name = start.formatted(.dateTime.weekday(.wide))
+        return position.place == nil ? name : "\(name), near you"
+    }
+
+    /// The day in a line: the best take-off's. Before there is one, what
+    /// the screen is waiting for.
+    private var headline: String {
+        switch today.state {
+        case .noServer: return "No forecast yet"
+        case .failed: return "No forecast"
+        case .idle, .loading: return "Reading the forecast"
+        case .loaded:
+            if today.places.isEmpty {
+                return "No take-offs near"
+            }
+            return ordered.first.flatMap(outlookDay(of:))?.headline ?? "Reading the forecast"
+        }
+    }
+
+    // MARK: The list
+
+    @ViewBuilder private var content: some View {
+        switch today.state {
+        case .noServer:
+            Explained(
+                title: "Venti is not connected",
+                words: "The forecast and the take-offs come from Venti. Set its address in the settings.",
+                action: "Open the settings"
+            ) {
+                isShowingSettings = true
+            }
+        case .failed(let message):
+            Explained(title: "The forecast could not be read", words: message, action: "Try again") {
+                Task { await today.load(around: place) }
+            }
+        case .idle, .loading:
+            ProgressView()
+                .padding(.top, VentiSpace.s6)
+        case .loaded:
+            if today.places.isEmpty {
+                Explained(
+                    title: "No take-offs within 30 km",
+                    words: position.place == nil
+                        ? "These would be the take-offs around the Tegernsee. Venti knows none there yet."
+                        : "Venti knows no take-off around where you are.",
+                    action: nil
+                ) {}
+            } else {
+                VStack(alignment: .leading, spacing: VentiSpace.s4) {
+                    if days.count > 1 {
+                        DaySwitch(
+                            days: days,
+                            day: Binding(
+                                get: { day },
+                                set: { chosen in
+                                    hasChosenDay = true
+                                    day = chosen
+                                }
+                            )
+                        )
+                    }
+                    let shown = ordered
+                    if let first = shown.first {
+                        NavigationLink(value: first.site) {
+                            TakeoffCard(place: first, day: outlookDay(of: first))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("today-card")
+                    }
+                    VStack(spacing: 0) {
+                        ForEach(shown.dropFirst()) { place in
+                            NavigationLink(value: place.site) {
+                                TakeoffRow(place: place, day: outlookDay(of: place))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("today-row")
+                            if place.id != shown.last?.id {
+                                Rectangle()
+                                    .fill(.venti(.border))
+                                    .frame(height: 1)
+                            }
+                        }
+                    }
+                    if position.place == nil, !position.isDenied {
+                        Button {
+                            position.ask()
+                        } label: {
+                            Text("Use my position")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.venti(.quiet))
+                        .accessibilityHint("Shows the take-offs around you")
+                    }
+                    foot
+                }
+            }
+        }
+    }
+
+    /// What the reading is, whose data it is, and how fresh: the design
+    /// language asks a forecast for its update time and its source.
+    private var foot: some View {
+        let outlook = today.places.compactMap(\.outlook).first
+        return VStack(alignment: .leading, spacing: VentiSpace.s2) {
+            if let outlook, !outlook.note.isEmpty {
+                Text(
+                    "\(outlook.note) Run of \(Format.time(unixSeconds: outlook.runUnixS)), looked up at \(Format.time(unixSeconds: outlook.fetchedUnixS))."
+                )
+            }
+            Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits. They are not advice to fly.")
+            ForEach(today.credits, id: \.source) { credit in
+                Text(credit.text)
+            }
+        }
+        .font(.ventiType(.caption))
+        .foregroundStyle(.venti(.textSecondary))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("today-foot")
+    }
+}
+
+/// A state of the screen in words, with the one thing to do about it,
+/// under the pack's empty valley.
+private struct Explained: View {
+    let title: String
+    let words: String
+    let action: String?
+    let act: () -> Void
+
+    var body: some View {
+        VStack(spacing: VentiSpace.s3) {
+            Text(title)
+                .font(.ventiType(.heading))
+            Text(words)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.venti(.textSecondary))
+            if let action {
+                Button(action: act) {
+                    Text(action)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.venti(.primary))
+            }
+        }
+        .padding(.top, VentiSpace.s5)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Today, tomorrow and the day after, as the pack's switch: the chosen
+/// day on the primary colour.
+private struct DaySwitch: View {
+    let days: [OutlookDay]
+    @Binding var day: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(days.enumerated()), id: \.offset) { index, shown in
+                Button {
+                    day = index
+                } label: {
+                    Text(Self.name(of: shown, at: index))
+                        .font(.venti(.body, .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .foregroundStyle(.venti(index == day ? .onPrimary : .textSecondary))
+                        .background(.venti(index == day ? .primary : .surfaceRaised), in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(index == day ? .isSelected : [])
+            }
+        }
+        .padding(VentiSpace.s1)
+        .background(.venti(.surfaceRaised), in: .capsule)
+        .accessibilityIdentifier("today-days")
+    }
+
+    static func name(of day: OutlookDay, at index: Int) -> String {
+        index == 0
+            ? "Today"
+            : Date(timeIntervalSince1970: TimeInterval(day.startUnixS)).formatted(.dateTime.weekday(.abbreviated))
+    }
+}
+
+extension VentiStatus {
+    /// The pack's status for what a forecast says about a take-off.
+    init(_ day: OutlookDay) {
+        let kind: Kind =
+            switch day.verdict {
+            case .flyable: .good
+            case .marginal: .caution
+            case .notFlyable: .danger
+            }
+        self.init(kind: kind, word: day.status)
+    }
+}
+
+/// The first take-off: its status, three readings, and its hours.
+private struct TakeoffCard: View {
+    let place: TodayModel.Place
+    let day: OutlookDay?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(place.site.name)
+                    .font(.ventiType(.heading))
+                    .lineLimit(2)
+                Spacer(minLength: VentiSpace.s2)
+                if let day {
+                    VentiStatus(day)
+                }
+            }
+            if let day {
+                if !day.why.isEmpty {
+                    Text(day.why)
+                        .foregroundStyle(.venti(.textSecondary))
+                }
+                HStack(alignment: .top, spacing: VentiSpace.s2) {
+                    Metric(
+                        caption: day.windFrom.isEmpty ? "Wind" : "Wind from \(day.windFrom)",
+                        value: day.windKmh.isEmpty ? "– –" : day.windKmh, unit: "km/h"
+                    )
+                    Metric(caption: "Gusts", value: day.gustKmh.isEmpty ? "– –" : day.gustKmh, unit: "km/h")
+                    Metric(
+                        caption: "Cloud base",
+                        value: day.cloudBaseM.map(Format.metres) ?? "– –", unit: "m"
+                    )
+                }
+                if !day.hours.isEmpty {
+                    HourStrip(hours: day.hours)
+                    Text("Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not.")
+                        .font(.ventiType(.caption))
+                        .foregroundStyle(.venti(.textSecondary))
+                }
+            } else {
+                Text("Reading the forecast")
+                    .foregroundStyle(.venti(.textSecondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ventiCard()
+        .contentShape(.rect)
+    }
+}
+
+/// Another take-off: its name, what limits its day, and its status.
+private struct TakeoffRow: View {
+    let place: TodayModel.Place
+    let day: OutlookDay?
+
+    var body: some View {
+        HStack(spacing: VentiSpace.s3) {
+            Image("icon-site")
+                .resizable()
+                .frame(width: VentiSize.icon, height: VentiSize.icon)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(place.site.name)
+                    .font(.ventiType(.heading))
+                    .lineLimit(1)
+                Text(detail)
+                    .font(.ventiType(.label))
+                    .foregroundStyle(.venti(.textSecondary))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: VentiSpace.s2)
+            if let day {
+                VentiStatus(day)
+            }
+        }
+        .padding(.vertical, VentiSpace.s3)
+        .frame(minHeight: VentiSize.touch)
+        .contentShape(.rect)
+    }
+
+    /// What limits the day; for a day nothing limits, its line.
+    private var detail: String {
+        guard let day else { return "Reading the forecast" }
+        return day.why.isEmpty ? day.headline : day.why
+    }
+}
+
+/// The day's hours side by side: the hour, where the wind goes, its
+/// speed, and a bar that is the hour's status by its height and its
+/// colour.
+private struct HourStrip: View {
+    let hours: [OutlookHour]
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(hours, id: \.timeUnixS) { hour in
+                VStack(spacing: VentiSpace.s1) {
+                    Text(hour.hour)
+                        .font(.ventiType(.caption))
+                        .foregroundStyle(.venti(.textSecondary))
+                    if let from = hour.windFromDeg {
+                        Image("icon-arrow-wind")
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                            // The arrow points where the wind goes.
+                            .rotationEffect(.degrees(from + 180))
+                    } else {
+                        Color.clear
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(hour.windKmh.isEmpty ? "–" : hour.windKmh)
+                        .font(.venti(.subheadline, .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Rectangle()
+                        .fill(.venti(Self.role(hour.verdict)))
+                        .frame(height: Self.height(hour.verdict))
+                        .frame(height: 12, alignment: .bottom)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(hour.hour) o'clock")
+                .accessibilityValue(Self.spoken(hour))
+            }
+        }
+    }
+
+    static func role(_ verdict: Flyability) -> VentiColor.Role {
+        switch verdict {
+        case .flyable: .good
+        case .marginal: .caution
+        case .notFlyable: .danger
+        }
+    }
+
+    /// Tall for flyable, low for not: the bar says it without its colour.
+    static func height(_ verdict: Flyability) -> CGFloat {
+        switch verdict {
+        case .flyable: 12
+        case .marginal: 7
+        case .notFlyable: 3
+        }
+    }
+
+    static func spoken(_ hour: OutlookHour) -> String {
+        let verdict =
+            switch hour.verdict {
+            case .flyable: "Flyable"
+            case .marginal: "Marginal"
+            case .notFlyable: "Not flyable"
+            }
+        let wind = hour.windKmh.isEmpty ? "" : ", wind \(hour.windKmh) kilometres an hour"
+        return hour.why.isEmpty ? "\(verdict)\(wind)" : "\(verdict): \(hour.why)\(wind)"
+    }
+}

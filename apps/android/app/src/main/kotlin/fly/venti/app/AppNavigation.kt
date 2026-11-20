@@ -47,6 +47,9 @@ enum class SettingsRoute {
 
     /** The pilot's account on a Venti server. */
     Account,
+
+    /** Maps for flying without a network. */
+    OfflineMaps,
 }
 
 /** A screen reached from the Fly tab. */
@@ -59,6 +62,9 @@ enum class FlyRoute {
 
     /** Live tracking: who may watch a flight while it is under way. */
     Live,
+
+    /** Maps for flying without a network. */
+    OfflineMaps,
 }
 
 /**

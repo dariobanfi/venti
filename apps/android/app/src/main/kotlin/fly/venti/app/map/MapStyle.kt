@@ -1,5 +1,6 @@
 package fly.venti.app.map
 
+import fly.venti.app.maps.KeptMap
 import fly.venti.app.AppFiles
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -57,7 +58,7 @@ object MapStyle {
      * disk that holds the label fonts and the bundled region. Label fonts
      * always come from there, so place names never wait for the network.
      */
-    fun json(source: Source, template: String, region: File): String {
+    fun json(source: Source, template: String, region: File, kept: KeptMap? = null): String {
         val style = try {
             Json.parseToJsonElement(template) as? JsonObject
         } catch (_: SerializationException) {
@@ -70,8 +71,13 @@ object MapStyle {
             throw StyleError("The map style has no base map or no terrain.")
         }
 
-        val prepared = when (source) {
-            Source.Online -> mapOf(
+        val prepared = when {
+            // A region downloaded for flying without a network: its two archives on the phone.
+            kept != null -> mapOf(
+                "basemap" to basemap.with("url" to JsonPrimitive("pmtiles://" + url(kept.basemap))),
+                "terrain" to terrain.with("url" to JsonPrimitive("pmtiles://" + url(kept.terrain))),
+            )
+            source == Source.Online -> mapOf(
                 "basemap" to basemap.with("url" to JsonPrimitive(Online.BASEMAP)),
                 "terrain" to JsonObject(terrain - "url").with(
                     "tiles" to JsonArray(listOf(JsonPrimitive(Online.TERRAIN_TILES))),
@@ -79,7 +85,7 @@ object MapStyle {
                     "attribution" to JsonPrimitive(Online.TERRAIN_ATTRIBUTION),
                 ),
             )
-            Source.Bundled -> mapOf(
+            else -> mapOf(
                 "basemap" to basemap.with("url" to archive(region, "basemap.pmtiles")),
                 "terrain" to terrain.with("url" to archive(region, BUNDLED_TERRAIN)),
             )

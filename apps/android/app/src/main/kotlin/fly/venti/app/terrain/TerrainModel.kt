@@ -55,6 +55,19 @@ class TerrainModel(
 
     private val isLoading = AtomicBoolean(false)
 
+    /** The elevation archives of the regions kept on the phone, read before anything is fetched. */
+    @Volatile
+    private var archives: List<File> = emptyList()
+
+    /** Uses the elevation of the regions kept on the phone, from their files. */
+    fun use(archives: List<File>) {
+        this.archives = archives
+        terrain.closeArchives()
+        for (file in archives) {
+            runCatching { terrain.openArchive(file.path) }
+        }
+    }
+
     /** The archive that was read, so that it is read once. */
     @Volatile
     private var archiveRead: File? = null
@@ -68,6 +81,11 @@ class TerrainModel(
     suspend fun load(around: Coordinate) {
         if (!isLoading.compareAndSet(false, true)) return
         try {
+            // What a kept region has is read from its file first; only what
+            // it lacks is fetched.
+            if (archives.isNotEmpty()) {
+                withContext(background) { terrain.readAround(around.lat, around.lon) }
+            }
             // Asking may copy the app's region out of the app: not here.
             when (val from = withContext(background) { source() }) {
                 Source.Nowhere -> Unit

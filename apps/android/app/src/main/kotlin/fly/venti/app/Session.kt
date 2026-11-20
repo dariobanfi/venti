@@ -1,5 +1,7 @@
 package fly.venti.app
 
+import fly.venti.app.maps.Connectivity
+import fly.venti.app.maps.OfflineMapsModel
 import fly.venti.app.flight.KeystoreUploadPasswordStore
 import fly.venti.app.flight.MemoryUploadPasswordStore
 import fly.venti.app.flight.Leagues
@@ -73,6 +75,8 @@ sealed interface Session {
         val tasks: TaskModel,
         /** Sending a flight to a league, from this phone. */
         val leagues: Leagues,
+        /** Maps for flying without a network. */
+        val maps: OfflineMapsModel,
         val preferences: Preferences,
         val files: AppFiles,
         /** Where work runs that must outlast the screen that started it: an import, a request. */
@@ -219,7 +223,25 @@ sealed interface Session {
                 folder = if (isUnderTest) null else app.noBackupFilesDir.resolve("terrain"),
             )
             fly.terrain = { ground.terrain }
-            fly.wantTerrain = { place -> scope.launch { ground.load(place) } }
+            // Maps for flying without a network, from Venti. The ground is
+            // read from their elevation wherever they reach, and the
+            // cockpit's map is drawn from them wherever the glider is
+            // inside one. A test keeps its downloads in its own folder.
+            val maps = OfflineMapsModel(
+                folder = if (isUnderTest) folder.resolve("Maps") else app.noBackupFilesDir.resolve("maps"),
+                scope = scope,
+            )
+            maps.server = { (wind.server as? WindServer.Usable)?.url }
+            maps.onKeptChanged = { archives -> ground.use(archives) }
+            ground.use(maps.terrainArchives)
+            MapSetup.browsing = { maps.browsingMap() }
+            if (!isUnderTest) {
+                Connectivity.watch(app) { online -> scope.launch { maps.isOnline = online } }
+            }
+            fly.wantTerrain = { place ->
+                maps.flying(place)
+                scope.launch { ground.load(place) }
+            }
             // The task the pilot keeps, which the cockpit flies.
             val tasks = logbook.makeTasks()
             if (sampleTask) {
@@ -236,7 +258,7 @@ sealed interface Session {
             )
             return Ready(
                 logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
-                leagues, preferences, files, scope,
+                leagues, maps, preferences, files, scope,
             )
         }
     }

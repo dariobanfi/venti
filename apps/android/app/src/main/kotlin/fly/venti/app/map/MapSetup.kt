@@ -1,5 +1,6 @@
 package fly.venti.app.map
 
+import fly.venti.app.maps.KeptMap
 import android.content.Context
 import android.graphics.Color
 import android.view.Gravity
@@ -60,10 +61,19 @@ interface MapContent {
  * the app is not on screen and frees its memory when the screen goes.
  */
 @Composable
-fun MapSurface(content: MapContent, modifier: Modifier = Modifier, onUpdate: () -> Unit = {}) {
+fun MapSurface(
+    content: MapContent,
+    modifier: Modifier = Modifier,
+    /**
+     * A region kept on the phone to draw from, where this map has one; by
+     * default the one maps for looking around use without a network.
+     */
+    kept: KeptMap? = MapSetup.browsing(),
+    onUpdate: () -> Unit = {},
+) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val view = remember(content) { MapSetup.makeMapView(context, content) }
+    val view = remember(content) { MapSetup.makeMapView(context, content, kept) }
 
     DisposableEffect(lifecycle, view) {
         // The view is told of each step of the screen's life in order, and
@@ -107,6 +117,13 @@ object MapSetup {
     private var prepared: Pair<MapStyle.Source, String>? = null
 
     /**
+     * The region kept on the phone that maps for looking around are drawn
+     * from, where there is one to use: without a network. The app sets this.
+     */
+    @Volatile
+    var browsing: () -> KeptMap? = { null }
+
+    /**
      * The style for the current source, as JSON. Prepared once: it copies
      * the label fonts out of the app the first time.
      */
@@ -146,7 +163,7 @@ object MapSetup {
         context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
 
     /** A map view with the app's style and no camera yet. */
-    fun makeMapView(context: Context, content: MapContent): MapView {
+    fun makeMapView(context: Context, content: MapContent, kept: KeptMap? = null): MapView {
         MapLibre.getInstance(context.applicationContext)
         val density = context.resources.displayMetrics.density
         val options = MapLibreMapOptions.createFromAttributes(context)
@@ -166,7 +183,13 @@ object MapSetup {
             content.prepare(map, view)
             // If the style cannot be prepared the map stays empty; the unit
             // tests check that it can.
-            val json = runCatching { style(context) }.getOrNull() ?: return@getMapAsync
+            val json = runCatching {
+                if (kept != null) {
+                    MapStyle.json(source, AssetFiles(context).text(AppFiles.MAP_STYLE), region(context), kept)
+                } else {
+                    style(context)
+                }
+            }.getOrNull() ?: return@getMapAsync
             map.setStyle(Style.Builder().fromJson(json)) { style -> content.styleLoaded(map, style, view) }
         }
         return view

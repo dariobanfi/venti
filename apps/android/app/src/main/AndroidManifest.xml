@@ -4,6 +4,9 @@
 
     <!-- Map tiles are fetched until the app can keep a region on the phone. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Whether there is a network: without one, maps are drawn from the
+         regions downloaded for flying. Granted at installation. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- The pilot's position, on the map and to record a flight. Android
          wants the approximate one named beside the precise one. -->

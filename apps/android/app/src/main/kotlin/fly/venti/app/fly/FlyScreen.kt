@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import fly.venti.app.maps.OfflineMapsWords
 import androidx.compose.material3.ButtonDefaults
 import android.Manifest
 import android.os.Build
@@ -70,6 +71,10 @@ fun FlyScreen(
     onOpenTask: () -> Unit,
     /** Called to show who may watch a flight while it is under way. */
     onOpenLive: () -> Unit,
+    /** The maps kept for flying without a network, in a line. */
+    offlineMaps: String,
+    /** Called to show the maps for flying without a network. */
+    onOpenMaps: () -> Unit,
     bars: PaddingValues,
 ) {
     var isChoosingVario by remember { mutableStateOf(false) }
@@ -124,6 +129,16 @@ fun FlyScreen(
                         value = airspace.inALine,
                         onClick = onOpenAirspace,
                         modifier = Modifier.testTag("airspace-before-takeoff"),
+                    )
+                }
+                // The map the cockpit will draw without a network.
+                row {
+                    ChoiceRow(
+                        icon = R.drawable.venti_map,
+                        title = OfflineMapsWords.ROW,
+                        value = offlineMaps,
+                        onClick = onOpenMaps,
+                        modifier = Modifier.testTag("maps-before-takeoff"),
                     )
                 }
                 // The task of the day, or a route planned for the flight:

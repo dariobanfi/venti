@@ -1,5 +1,6 @@
 package fly.venti.app
 
+import fly.venti.app.maps.OfflineMapsScreen
 import fly.venti.app.flight.CompareSources
 import androidx.compose.foundation.layout.Column
 import fly.venti.app.design.VentiTheme
@@ -159,6 +160,7 @@ fun RootScreen(
             preferences = session.preferences,
             varioName = session.vario.connectedName,
             showsFaiAreas = !session.preferences.hidesFaiAreas,
+            keptMap = session.maps.flyingMap,
             onFinish = {
                 // Ends the session, and for a real flight saves it and shows it.
                 val recording = fly.finish() ?: return@CockpitScreen
@@ -262,6 +264,7 @@ private fun Sections(
             AppTab.Fly -> when (navigation.flyRoute) {
                 FlyRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
                 FlyRoute.Task -> TaskScreen(session.tasks, session.waypoints, onBack = { navigation.back() })
+                FlyRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                 FlyRoute.Live -> LiveScreen(
                     session.fly,
                     session.account,
@@ -280,6 +283,8 @@ private fun Sections(
                         onOpenAirspace = { navigation.flyRoute = FlyRoute.Airspace },
                         onOpenTask = { navigation.flyRoute = FlyRoute.Task },
                         onOpenLive = { navigation.flyRoute = FlyRoute.Live },
+                        offlineMaps = session.maps.inALine,
+                        onOpenMaps = { navigation.flyRoute = FlyRoute.OfflineMaps },
                         bars = bars,
                     )
                 }
@@ -361,6 +366,7 @@ private fun Sections(
                     WaypointsScreen(session.waypoints, onBack = { navigation.back() })
                 }
                 SettingsRoute.Airspace -> AirspaceScreen(session.airspace, hasServer, onBack = { navigation.back() })
+                SettingsRoute.OfflineMaps -> OfflineMapsScreen(session.maps, hasServer, onBack = { navigation.back() })
                 SettingsRoute.Account -> kept.SaveableStateProvider("account") {
                     AccountScreen(session.account, session.wind, session.scope, onBack = { navigation.back() })
                 }
@@ -370,6 +376,7 @@ private fun Sections(
                         session.fly,
                         session.wind,
                         session.account,
+                        offlineMaps = session.maps.inALine,
                         onOpen = { navigation.settingsRoute = it },
                         bars = bars,
                     )

@@ -1,5 +1,6 @@
 package fly.venti.app.fly
 
+import fly.venti.app.maps.KeptMap
 import fly.venti.core.GroundWindStation
 import fly.venti.core.GroundWindAlert
 import androidx.compose.material3.IconButton
@@ -130,6 +131,8 @@ fun CockpitScreen(
     varioName: String?,
     /** Whether the map draws where to fly for an FAI triangle: the pilot's setting. */
     showsFaiAreas: Boolean,
+    /** The region kept on the phone that covers the glider, which the map is drawn from. */
+    keptMap: KeptMap? = null,
     /** Called when the pilot has confirmed the end of the session. */
     onFinish: () -> Unit,
 ) {
@@ -154,7 +157,10 @@ fun CockpitScreen(
     // Whether the map shows the whole flight instead of following closely.
     var showsWholeFlight by remember { mutableStateOf(false) }
     val fai = fly.faiAreas.takeIf { showsFaiAreas }
-    val map = remember { CockpitMap() }
+    // Drawn from the region kept on the phone wherever one covers the
+    // glider: the map is made anew when the glider comes into one or
+    // leaves it.
+    val map = remember(keptMap) { CockpitMap() }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
     // The airspace the loudest warning is about: the map steps back as far
@@ -177,11 +183,12 @@ fun CockpitScreen(
     Box(Modifier.fillMaxSize()) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.systemBarsPadding()) {
-                StatusLine(view, fly.score, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed)
+                StatusLine(view, fly.score, fly.mode, varioName, onReplaySpeed = fly::setReplaySpeed, mapIsKept = keptMap != null)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     MapSurface(
                         content = map,
                         modifier = Modifier.fillMaxSize(),
+                        kept = keptMap,
                         onUpdate = {
                             map.airspace = fly.airspace()
                             map.range = fly.range
@@ -450,6 +457,8 @@ private fun StatusLine(
     varioName: String?,
     /** Called with the speed the pilot chose for a replay. */
     onReplaySpeed: (Double) -> Unit,
+    /** Whether the map is drawn from a region kept on the phone, and so stays when the network goes. */
+    mapIsKept: Boolean = false,
 ) {
     val style = MaterialTheme.typography.labelLarge
     val missing = MaterialTheme.colorScheme.error
@@ -519,6 +528,16 @@ private fun StatusLine(
             )
             Spacer(Modifier.width(4.dp))
             Text("No position", style = style, color = missing, maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+        }
+        // The map is drawn from the phone: an arrow into a tray says so.
+        if (mapIsKept) {
+            Icon(
+                painterResource(R.drawable.ic_map_kept),
+                contentDescription = "Map from this phone",
+                modifier = Modifier.size(18.dp).testTag("map-kept"),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.width(8.dp))
         }
         // An external vario that was talking and has stopped.

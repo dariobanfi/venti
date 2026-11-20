@@ -1,5 +1,6 @@
 package fly.venti.app.settings
 
+import fly.venti.app.maps.OfflineMapsWords
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -62,6 +63,8 @@ fun SettingsScreen(
     fly: FlySession,
     wind: WindModel,
     account: AccountModel,
+    /** The maps kept for flying without a network, in a line. */
+    offlineMaps: String,
     /** Opens a screen on top of the settings. */
     onOpen: (SettingsRoute) -> Unit,
     bars: PaddingValues,
@@ -180,6 +183,16 @@ fun SettingsScreen(
                         value = account.account?.let { "@${it.handle}" } ?: "Not signed in",
                     ) {
                         onOpen(SettingsRoute.Account)
+                    }
+                }
+                row {
+                    LinkRow(
+                        OfflineMapsWords.TITLE,
+                        R.drawable.ic_chevron_right,
+                        Modifier.testTag("maps-link"),
+                        value = offlineMaps,
+                    ) {
+                        onOpen(SettingsRoute.OfflineMaps)
                     }
                 }
             }

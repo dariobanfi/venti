@@ -1886,6 +1886,60 @@ class VentiUiTest {
     @Test
     fun aRouteOnTheMapInDarkAppearance() = drawARouteOnTheMap("dark", dark = true)
 
+    /**
+     * A map for flying without a network: the development mode hands out
+     * the region that comes with the app. Downloaded, checked and kept,
+     * the Fly tab names it, and the cockpit over the Tegernsee draws from
+     * it and says so.
+     */
+    private fun downloadAMapForFlying(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+        tap(tab("Fly"))
+        val line = hasTestTag("maps-before-takeoff")
+        waitFor(line and hasText("None"))
+        tap(line)
+        waitFor(hasTestTag("map-region") and hasContentDescription("Tegernsee valley", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-maps-1-offered")
+
+        // The pilot is told the size before anything is fetched.
+        tap(hasTestTag("map-download"))
+        waitFor(hasTestTag("map-download-confirm"))
+        assertTrue(exists(hasText("counts against your plan", substring = true)))
+        tap(hasTestTag("map-download-confirm"))
+        // Seven megabytes from the same machine: fetched, checked and kept.
+        waitFor(hasTestTag("map-delete"), seconds = 120)
+        waitFor(hasTestTag("map-region") and saying("On this device"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-maps-2-kept")
+
+        tap(described("Back"))
+        waitFor(line and hasText("Tegernsee valley", substring = true))
+
+        // The sample flight is over the Tegernsee, inside the region.
+        tap(hasText("Replay the sample flight"))
+        waitFor(hasText("20 times faster"))
+        tap(hasText("20 times faster"))
+        waitFor(described("Altitude"))
+        waitFor(hasTestTag("map-kept"), seconds = TestDevice.WHOLE_FLIGHT_SECONDS)
+        waitFor(described("Altitude") and saying("over ground"))
+        letTheMapDraw(6)
+        keepScreenshot("$prefix-maps-3-cockpit")
+        tap(hasText("End replay"))
+        waitFor(hasText("Close the cockpit"))
+        tap(hasText("Close the cockpit"))
+        waitFor(hasText("Start flight"))
+    }
+
+    @Test
+    fun aMapIsDownloadedForFlyingWithoutANetwork() = downloadAMapForFlying("light", dark = false)
+
+    @Test
+    fun theOfflineMapsInDarkAppearance() = downloadAMapForFlying("dark", dark = true)
+
     @Test
     fun theCockpitShowsAReplayedFlight() = flyAReplayAndVisitTheSettings("light", dark = false)
 

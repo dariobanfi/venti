@@ -189,7 +189,7 @@ class Leagues(
 }
 
 /**
- * "Send to a league", from a flight's menu: what both leagues ask about,
+ * "Send to a league", from the button under a flight's profile: what both leagues ask about,
  * XContest's way with the file and its claim page, and the DHV-XC's form.
  */
 @OptIn(ExperimentalMaterial3Api::class)

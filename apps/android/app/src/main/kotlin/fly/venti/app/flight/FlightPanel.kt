@@ -34,6 +34,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Button
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.sp
+import app.venti.design.VentiSize
+import app.venti.design.VentiSpace
+import app.venti.design.VentiType
+import fly.venti.app.design.Venti
+import fly.venti.app.design.text
+import fly.venti.core.RouteKind
 import fly.venti.app.R
 import fly.venti.app.design.ClimbBand
 import fly.venti.app.design.Format
@@ -43,16 +56,19 @@ import fly.venti.core.FlightScore
 import fly.venti.core.TrackPoint
 
 /**
- * The panel over the flight map: when the flight was, its headline numbers,
- * and its altitude profile.
+ * The panel under the flight map, as the design language's flight screen
+ * has it: the flight in one large number, what kind of flight it was and
+ * when, three readings, its altitude profile, and for the pilot's own
+ * flight the button that sends it to a league.
  *
- * Dragging along the profile moves a marker along the track, and the numbers
- * change to that moment. The marker stays where the finger left it, so the
- * pilot can look from the chart to the map; the button in the corner returns
- * to the totals.
+ * Dragging along the profile moves a marker along the track, and the
+ * readings change to that moment. The marker stays where the finger left
+ * it, so the pilot can look from the chart to the map; the button in the
+ * corner returns to the totals.
  *
- * It is a Material surface, opaque and raised: the map is the content and
- * this is a control above it.
+ * It lies over the lower part of the map from edge to edge, like the page
+ * it is, and goes down to the screen's edge; its own padding keeps its
+ * content clear of the system's bar.
  */
 @Composable
 fun FlightPanel(
@@ -69,62 +85,95 @@ fun FlightPanel(
     compared: ComparedFlight? = null,
     /** Called to open the two flights side by side. */
     onShowComparison: () -> Unit = {},
+    /** Hands the flight to a league. Absent for a flight that is not the pilot's own. */
+    onSendToLeague: (() -> Unit)? = null,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = 6.dp,
-    ) {
-        Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 18.dp)) {
-            Header(flight, cursor, onCursor, isPlaying, onPlaying, onDetails)
-            Spacer(Modifier.height(10.dp))
-            val moment = cursor?.let { flight.track.getOrNull(it) }
-            if (moment != null) Moment(flight, moment) else Totals(flight, score)
-            if (compared != null) {
-                Spacer(Modifier.height(8.dp))
-                Beside(compared, moment, cursor != null, onShowComparison)
+    val colours = Venti.colours
+    Column(
+        modifier
+            .background(colours.bg)
+            .drawBehind {
+                // A line along its top, where the map ends.
+                drawLine(colours.border, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
             }
-            Spacer(Modifier.height(14.dp))
-            AltitudeChart(
-                flight = flight,
-                cursor = cursor,
-                onCursor = {
-                    // A finger on the chart takes over from the playback.
-                    onPlaying(false)
-                    onCursor(it)
-                },
-                modifier = Modifier.fillMaxWidth().height(124.dp),
-                compared = compared,
-            )
-            Spacer(Modifier.height(12.dp))
-            ClimbLegend()
+            .navigationBarsPadding()
+            .padding(VentiSpace.s4),
+        verticalArrangement = Arrangement.spacedBy(VentiSpace.s3),
+    ) {
+        Header(flight, score, cursor, onCursor, isPlaying, onPlaying, onDetails)
+        val moment = cursor?.let { flight.track.getOrNull(it) }
+        if (moment != null) Moment(flight, moment) else Totals(flight)
+        if (compared != null) {
+            Beside(compared, moment, cursor != null, onShowComparison)
+        }
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = colours.surface,
+            border = BorderStroke(1.dp, colours.border),
+        ) {
+            Column(Modifier.padding(VentiSpace.s3), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                AltitudeChart(
+                    flight = flight,
+                    cursor = cursor,
+                    onCursor = {
+                        // A finger on the chart takes over from the playback.
+                        onPlaying(false)
+                        onCursor(it)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(CHART_HEIGHT),
+                    compared = compared,
+                )
+                ClimbLegend()
+            }
+        }
+        if (onSendToLeague != null) {
+            Button(
+                onClick = onSendToLeague,
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("send-to-league"),
+            ) {
+                Text(LeagueWords.TITLE)
+            }
         }
     }
 }
 
+/** The altitude profile's height: the chart's own, as on the iPhone. */
+private val CHART_HEIGHT = VentiSpace.s8 + VentiSpace.s7
+
 @Composable
 private fun Header(
     flight: FlightView,
+    score: FlightScore?,
     cursor: Int?,
     onCursor: (Int?) -> Unit,
     isPlaying: Boolean,
     onPlaying: (Boolean) -> Unit,
     onDetails: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
+            // The flight in one number, the one the logbook's list has: the
+            // scored distance. Until it is worked out, and for a flight too
+            // short to score, the length of the track.
+            val kilometres = Format.kilometres(score?.distanceM ?: flight.trackLengthM)
             Text(
-                Format.day(flight.startUnixS),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                "$kilometres km",
+                style = VentiType.hero.text.numbers,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = VentiType.title.sizePx.sp,
+                    maxFontSize = VentiType.hero.sizePx.sp,
+                ),
+                modifier = Modifier.testTag("flight-headline").clearAndSetSemantics {
+                    contentDescription = if (score == null) "Track" else "Distance"
+                    stateDescription = "$kilometres kilometres"
+                },
             )
+            Text(kindAndDay(flight, score), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 subtitle(flight),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelLarge,
+                color = Venti.colours.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -145,24 +194,29 @@ private fun Header(
     }
 }
 
+/** What kind of flight it was and on which day: "FAI triangle · Sat, 4 Jul 2026". The day alone until it is scored. */
+internal fun kindAndDay(flight: FlightView, score: FlightScore?): String {
+    val day = Format.day(flight.startUnixS)
+    score ?: return day
+    val kind = when (score.kind) {
+        RouteKind.FREE_FLIGHT -> "Free flight"
+        RouteKind.FREE_TRIANGLE -> if (score.closed) "Closed triangle" else "Triangle"
+        RouteKind.FAI_TRIANGLE -> if (score.closed) "Closed FAI triangle" else "FAI triangle"
+    }
+    return "$kind · $day"
+}
+
 private fun subtitle(flight: FlightView): String {
     val times = "${Format.time(flight.startUnixS)} – ${Format.time(flight.startUnixS + flight.durationS)}"
     val glider = flight.glider
     return if (glider.isNullOrEmpty()) times else "$times · $glider"
 }
 
+/** Three readings under the number: the distance is that number. */
 @Composable
-private fun Totals(flight: FlightView, score: FlightScore?) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun Totals(flight: FlightView) {
+    Row(horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
         Metric("Airtime", Format.hoursMinutes(flight.durationS), Modifier.weight(1f), unit = "h")
-        // The scored distance, as in the logbook's list. Until it is
-        // worked out, and for a flight too short to score, the length of
-        // the track.
-        if (score != null) {
-            Metric("Distance", Format.kilometres(score.distanceM), Modifier.weight(1f), unit = "km")
-        } else {
-            Metric("Track", Format.kilometres(flight.trackLengthM), Modifier.weight(1f), unit = "km")
-        }
         Metric("Highest", Format.metres(flight.maxAltitudeM), Modifier.weight(1f), unit = "m")
         Metric("Best climb", Format.climb(flight.maxClimbMs), Modifier.weight(1f), unit = "m/s")
     }

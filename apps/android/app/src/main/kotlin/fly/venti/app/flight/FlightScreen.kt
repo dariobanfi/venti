@@ -9,13 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -146,12 +143,12 @@ fun FlightScreen(
                 // The airspace around the flight, for its map.
                 airspace = remember(current.flight, all) { airspace.shapes(current.flight.bounds.grown(0.2)) },
                 compareSources = compareSources,
+                onSendToLeague = { isSendingToALeague = true },
             )
         }
         TopButtons(
             onBack = onBack,
             onShareWithALink = { isSharing = true },
-            onLeague = { isSendingToALeague = true },
             onShare = {
                 scope.launch {
                     try {
@@ -219,7 +216,6 @@ val REPLAY_SPEEDS: List<Pair<String, Double>> = listOf(
 private fun TopButtons(
     onBack: () -> Unit,
     onShareWithALink: () -> Unit,
-    onLeague: () -> Unit,
     onShare: () -> Unit,
     /** Called with how many times faster than it was flown the flight is to be replayed. */
     onReplay: (Double) -> Unit,
@@ -269,14 +265,6 @@ private fun TopButtons(
                     onClick = {
                         isShowingMenu = false
                         onShareWithALink()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(LeagueWords.TITLE) },
-                    leadingIcon = { Icon(painterResource(R.drawable.venti_league), contentDescription = null) },
-                    onClick = {
-                        isShowingMenu = false
-                        onLeague()
                     },
                 )
                 DropdownMenuItem(
@@ -332,9 +320,10 @@ internal fun Failure(message: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * The map fills the screen and the panel floats over its lower part, as a
- * control layer above the content. The map is told how much of it the panel
- * covers so the track is fitted into the part that shows.
+ * The map fills the screen and the panel lies over its lower part, from
+ * edge to edge, as the design language's flight screen has the flight under
+ * its map. The map is told how much of it the panel covers so the track is
+ * fitted into the part that shows.
  */
 @Composable
 internal fun FlightDetail(
@@ -344,6 +333,8 @@ internal fun FlightDetail(
     airspace: List<AirspaceShape>,
     /** Where a flight to lay beside this one comes from; `null` where none can be. */
     compareSources: CompareSources? = null,
+    /** Hands the flight to a league: for the pilot's own flight only. */
+    onSendToLeague: (() -> Unit)? = null,
 ) {
     // A second flight laid beside this one, and the sheets that choose it and show the two.
     var compared by remember(flight.id) { mutableStateOf<ComparedFlight?>(null) }
@@ -361,7 +352,8 @@ internal fun FlightDetail(
     val covered = with(density) {
         Covered(
             top = WindowInsets.statusBars.getTop(this) + TOP_BUTTONS.roundToPx(),
-            bottom = panelHeight + 2 * PANEL_MARGIN.roundToPx() + WindowInsets.navigationBars.getBottom(this),
+            // The panel goes down to the screen's edge, the system's bar within it.
+            bottom = panelHeight,
         )
     }
 
@@ -392,12 +384,10 @@ internal fun FlightDetail(
             onDetails = { isShowingDetails = true },
             compared = compared,
             onShowComparison = { isShowingComparison = true },
+            onSendToLeague = onSendToLeague,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(PANEL_MARGIN)
-                // On a wide screen the panel stays the width of a phone.
-                .widthIn(max = 560.dp)
+                .fillMaxWidth()
                 .onSizeChanged { panelHeight = it.height },
         )
     }
@@ -467,8 +457,6 @@ internal fun FlightDetail(
         )
     }
 }
-
-private val PANEL_MARGIN = 8.dp
 
 /** The height the back and "more" buttons take below the status bar. */
 private val TOP_BUTTONS = 56.dp

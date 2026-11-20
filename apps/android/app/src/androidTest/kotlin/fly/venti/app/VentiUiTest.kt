@@ -1465,6 +1465,8 @@ class VentiUiTest {
         waitFor(hasTestTag("public-flight-pilot") and hasText(pilot))
         waitFor(described("Flight details"))
         assertTrue(exists(described("Airtime")))
+        // Another pilot's flight is not the pilot's to send to a league.
+        assertFalse(exists(hasTestTag("send-to-league")))
         letTheMapDraw(6)
         keepScreenshot("$prefix-everyone-3-flight")
 
@@ -1918,9 +1920,11 @@ class VentiUiTest {
         waitFor(hasText("Add a sample flight"))
         tap(hasText("Add a sample flight"))
         waitFor(described("Flight details"))
-        tap(described("More"))
-        waitFor(hasText("Send to a league"))
-        tap(hasText("Send to a league"))
+        // On the pilot's own flight the panel has the button, under the
+        // flight in one number.
+        waitFor(hasTestTag("send-to-league"))
+        assertTrue(exists(hasTestTag("flight-headline") and (described("Distance") or described("Track"))))
+        tap(hasTestTag("send-to-league"))
         // The sample was recorded by Venti and flown in July: unsigned, and late.
         waitForAll(hasTestTag("league-deadline"), hasTestTag("league-signature"))
         assertTrue(exists(hasText("Venti recorded this flight and does not sign its files yet", substring = true)))

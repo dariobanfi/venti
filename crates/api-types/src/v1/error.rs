@@ -142,6 +142,14 @@ pub enum ErrorCode {
     /// The live track holds as many fixes as a track may. Begin a new
     /// track with a new identifier.
     LiveTrackFull,
+    /// The server hands out no map file under this path: no region with
+    /// this identifier, not in this version, or no file of this name. A
+    /// region whose files were renewed has a new version; the list of
+    /// regions names it.
+    MapNotFound,
+    /// The bytes asked for with `Range` begin at or after the end of the
+    /// file. `Content-Range` says how long the file is.
+    RangeNotSatisfiable,
     /// Too many attempts. `Retry-After` says when to try again.
     RateLimited,
     /// The path is not part of the API.

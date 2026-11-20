@@ -17,7 +17,9 @@
 //! 3. **Serves.** A small versioned HTTP API reads and writes the store
 //!    ([`api`]). Its wire format is the `venti-api-types` crate, which the
 //!    clients share. Beside it, a flight that its pilot shares has a page
-//!    of its own for people and for link previews.
+//!    of its own for people and for link previews. The server also hands
+//!    out the map regions that whoever runs it put in a folder, for apps
+//!    to draw without a network ([`maps`]).
 //! 4. **Cleans up.** Data older than the configured retention is removed
 //!    ([`maintenance`]).
 //!
@@ -47,6 +49,7 @@ pub mod groups;
 pub mod ingest;
 pub mod live;
 pub mod maintenance;
+pub mod maps;
 pub mod moderation;
 pub mod plan;
 pub mod serve;

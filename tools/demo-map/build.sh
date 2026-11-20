@@ -52,4 +52,23 @@ python3 "$(dirname "$0")/empty-glyph-ranges.py" "$out/fonts/noto-sans-regular" $
 curl -fL -o "$out/fonts/OFL.txt" \
   https://raw.githubusercontent.com/protomaps/basemaps-assets/main/fonts/OFL.txt
 
+# The description a server hands this region out with, map.toml, states the
+# edition of the two archives and the SHA-256 of each, and a server lists
+# the region only while those are right. The archives are new, so both are
+# written again: the day as the version, and each hash on the line after
+# its file's name.
+sha256() {
+  if command -v sha256sum > /dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+}
+description="$out/map.toml"
+sed -i.bak "s/^version = \".*\"/version = \"$(date -u +%Y-%m-%d)\"/" "$description"
+for file in basemap.pmtiles terrain.pmtiles; do
+  sed -i.bak "/^name = \"$file\"/{n;s/^sha256 = \".*\"/sha256 = \"$(sha256 "$out/$file")\"/;}" "$description"
+done
+rm -f "$description.bak"
+
 ls -l "$out"
+echo "The server's tests keep the list of this region, which is also the example"
+echo "in docs/api.md. Accept the new list, then copy the file into the document:"
+echo "  VENTI_UPDATE_GOLDEN=1 cargo test -p venti-server --test maps"
+echo "  crates/server/tests/golden/maps.json"

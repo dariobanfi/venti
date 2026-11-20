@@ -27,6 +27,15 @@ regions = ["regions/alps-de-at/region.toml"]
 # parsing bug can be replayed. Leave it out to keep none.
 archive_dir = "var/archive"
 
+# Folder of the map regions the server hands out for     VENTI_MAPS_DIR
+# apps to draw without a network: one folder in it for each region, with
+# the region's files and a map.toml that describes them.
+# tools/region-map/build.sh builds one, and deploy/README.md says what a
+# region takes. The server reads the folder when it starts, and lists a
+# region once it has read its files and found the hashes map.toml states.
+# There is no default: without it the server hands out no maps.
+# maps_dir = "var/maps"
+
 # The User-Agent sent to data providers.                  VENTI_USER_AGENT
 # Some providers ask operators to name a contact here, for example
 # "venti-server/0.1 (+https://your-site.example/contact)". What to put in

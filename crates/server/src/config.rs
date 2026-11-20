@@ -34,6 +34,9 @@ pub struct Config {
     pub regions: Vec<PathBuf>,
     /// The folder raw provider payloads are archived in. `None` keeps none.
     pub archive_dir: Option<PathBuf>,
+    /// The folder of the map regions the server hands out, one folder with
+    /// a `map.toml` for each; see [`crate::maps`]. `None` hands out none.
+    pub maps_dir: Option<PathBuf>,
     /// The `User-Agent` sent to data providers.
     pub user_agent: String,
     /// Web origins that may call the API from a browser.
@@ -152,6 +155,7 @@ struct File {
     database_url: Option<String>,
     regions: Option<Vec<String>>,
     archive_dir: Option<String>,
+    maps_dir: Option<String>,
     user_agent: Option<String>,
     cors_origins: Option<Vec<String>>,
     log_level: Option<String>,
@@ -214,6 +218,10 @@ const REGIONS: Setting = Setting {
 const ARCHIVE_DIR: Setting = Setting {
     key: "archive_dir",
     variable: "VENTI_ARCHIVE_DIR",
+};
+const MAPS_DIR: Setting = Setting {
+    key: "maps_dir",
+    variable: "VENTI_MAPS_DIR",
 };
 const USER_AGENT: Setting = Setting {
     key: "user_agent",
@@ -359,6 +367,11 @@ impl Config {
 
         let archive_dir = env(&ARCHIVE_DIR).or(file.archive_dir).map(PathBuf::from);
 
+        // No default: a server that is not told where its map regions are
+        // hands out none. What is in the folder is looked at when the
+        // server runs, not here.
+        let maps_dir = env(&MAPS_DIR).or(file.maps_dir).map(PathBuf::from);
+
         let user_agent = env(&USER_AGENT)
             .or(file.user_agent)
             .unwrap_or_else(default_user_agent);
@@ -456,6 +469,7 @@ impl Config {
             database_url: DatabaseUrl(database_url),
             regions: regions.into_iter().map(PathBuf::from).collect(),
             archive_dir,
+            maps_dir,
             user_agent,
             cors_origins,
             log_level,
@@ -528,6 +542,8 @@ mod tests {
             [PathBuf::from("regions/alps-de-at/region.toml")]
         );
         assert_eq!(config.archive_dir, Some(PathBuf::from("var/archive")));
+        // The example hands out no maps until a folder is named.
+        assert_eq!(config.maps_dir, None);
         assert_eq!(config.user_agent, "venti-server/0.1");
         assert_eq!(config.cors_origins, ["http://localhost:5173"]);
         assert_eq!(config.log_level, Level::INFO);
@@ -575,6 +591,8 @@ mod tests {
             ]
         );
         assert_eq!(config.archive_dir, None);
+        // A server that is not told where its map regions are has none.
+        assert_eq!(config.maps_dir, None);
         assert_eq!(config.user_agent, default_user_agent());
         assert!(config.cors_origins.is_empty());
         // Nobody registers on a server that was not told who may.
@@ -674,6 +692,7 @@ mod tests {
             &[
                 ("VENTI_LISTEN", "0.0.0.0:9000"),
                 ("VENTI_ARCHIVE_DIR", ""),
+                ("VENTI_MAPS_DIR", "/srv/maps"),
                 (
                     "VENTI_CORS_ORIGINS",
                     "https://venti.example,https://www.venti.example",
@@ -700,6 +719,7 @@ mod tests {
         );
         assert_eq!(config.listen, "0.0.0.0:9000".parse().unwrap());
         assert_eq!(config.archive_dir, Some(PathBuf::from("var/archive")));
+        assert_eq!(config.maps_dir, Some(PathBuf::from("/srv/maps")));
         assert_eq!(
             config.cors_origins,
             ["https://venti.example", "https://www.venti.example"]

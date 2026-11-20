@@ -1,0 +1,36 @@
+# The map region bundled with the apps for development and tests, described
+# as a server hands a region out. With it,
+#
+#     venti-server dev --maps apps/ios/Venti/Resources
+#
+# lists this region and serves its two files for download. The credits are
+# those of ATTRIBUTION.txt beside this file, kept apart per file.
+#
+# tools/demo-map/build.sh rebuilds the two files and then writes the day
+# into `version` and the new hashes into the `sha256` lines here. It finds
+# a file's hash by the line after its `name`, so keep the two together.
+
+id = "tegernsee-demo"
+name = "Tegernsee valley (demo)"
+version = "2026-11-18"
+covers = { south = 47.60, west = 11.64, north = 47.76, east = 11.86 }
+
+# OpenStreetMap's data under the Open Database License 1.0, in the tile
+# schema of OpenMapTiles, which is under CC BY 4.0.
+[[files]]
+role = "basemap"
+name = "basemap.pmtiles"
+sha256 = "edb16f520a2ba491cd6a977ec755a1f2f5f1b5a5f27b15e10c50985420c4a43c"
+credits = [
+  { text = "© OpenStreetMap contributors", url = "https://www.openstreetmap.org/copyright" },
+  { text = "© OpenMapTiles", url = "https://openmaptiles.org" },
+]
+
+# Mapterhorn's elevation tiles. Its attribution page lists the surveys.
+[[files]]
+role = "terrain"
+name = "terrain.pmtiles"
+sha256 = "84dc4b23f4aa57b20a0be523091b636ba09f8c7c4fde035adcb22e6035d9bc6e"
+credits = [
+  { text = "© Mapterhorn and the surveys it combines", url = "https://mapterhorn.com/attribution" },
+]

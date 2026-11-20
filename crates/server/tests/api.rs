@@ -253,6 +253,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "plan_board.json",
         "plan_request.json",
         "plan.json",
+        "maps.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(

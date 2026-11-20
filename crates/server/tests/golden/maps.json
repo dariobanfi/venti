@@ -1,0 +1,47 @@
+{
+  "regions": [
+    {
+      "id": "tegernsee-demo",
+      "name": "Tegernsee valley (demo)",
+      "version": "2026-11-18",
+      "covers": {
+        "south": 47.6,
+        "west": 11.64,
+        "north": 47.76,
+        "east": 11.86
+      },
+      "files": [
+        {
+          "role": "basemap",
+          "name": "basemap.pmtiles",
+          "bytes": 3236717,
+          "sha256": "edb16f520a2ba491cd6a977ec755a1f2f5f1b5a5f27b15e10c50985420c4a43c",
+          "path": "/v1/maps/tegernsee-demo/2026-11-18/basemap.pmtiles",
+          "credits": [
+            {
+              "text": "© OpenStreetMap contributors",
+              "url": "https://www.openstreetmap.org/copyright"
+            },
+            {
+              "text": "© OpenMapTiles",
+              "url": "https://openmaptiles.org"
+            }
+          ]
+        },
+        {
+          "role": "terrain",
+          "name": "terrain.pmtiles",
+          "bytes": 4239720,
+          "sha256": "84dc4b23f4aa57b20a0be523091b636ba09f8c7c4fde035adcb22e6035d9bc6e",
+          "path": "/v1/maps/tegernsee-demo/2026-11-18/terrain.pmtiles",
+          "credits": [
+            {
+              "text": "© Mapterhorn and the surveys it combines",
+              "url": "https://mapterhorn.com/attribution"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

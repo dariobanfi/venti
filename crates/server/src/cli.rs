@@ -18,14 +18,17 @@ usage: venti-server <command>
       store them in PostgreSQL and serve the API. Settings come from FILE
       and from VENTI_* environment variables; see config.example.toml.
 
-  dev [--listen ADDRESS [--open-to-the-network]]
+  dev [--listen ADDRESS [--open-to-the-network]] [--maps FOLDER]
       Serve the same API over recorded data and a demo account. No
       network, no database. Listens on 127.0.0.1:8080 unless told
       otherwise. This mode has a demo account whose password is public,
       takes accounts from anyone and has no limits on attempts, so it
       listens on an address other machines can reach only when
       --open-to-the-network says so as well: for a phone on your own
-      network, or inside a container.
+      network, or inside a container. With --maps it hands out the map
+      regions in FOLDER as serve hands out those of its maps_dir, and
+      has read them before it listens; without, it hands out none. The
+      region the apps bundle is in apps/ios/Venti/Resources.
 
   invite [--config FILE] [--count N] [--expires-in-days N]
       Make invite codes and print them, one per line. Each creates one
@@ -88,6 +91,8 @@ pub enum Command {
     Dev {
         /// The address to listen on.
         listen: SocketAddr,
+        /// The folder of the map regions to hand out, if one was named.
+        maps: Option<PathBuf>,
     },
     /// Run a region's sources once.
     Ingest(oneshot::Args),
@@ -144,9 +149,11 @@ fn parse_serve(mut args: impl Iterator<Item = String>) -> Result<Command, String
 fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
     let mut listen = SocketAddr::from(([127, 0, 0, 1], 8080));
     let mut open_to_the_network = false;
+    let mut maps = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--open-to-the-network" => open_to_the_network = true,
+            "--maps" => maps = Some(PathBuf::from(value("--maps", &mut args)?)),
             "--listen" => {
                 let address = value("--listen", &mut args)?;
                 listen = address
@@ -167,7 +174,7 @@ fn parse_dev(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
              meant (a phone on your own network, a container), or run `serve` for a real server"
         ));
     }
-    Ok(Command::Dev { listen })
+    Ok(Command::Dev { listen, maps })
 }
 
 fn parse_ingest(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
@@ -302,16 +309,42 @@ mod tests {
         assert_eq!(
             parse_line("dev"),
             Ok(Command::Dev {
-                listen: "127.0.0.1:8080".parse().unwrap()
+                listen: "127.0.0.1:8080".parse().unwrap(),
+                maps: None,
             })
         );
         assert_eq!(
             parse_line("dev --listen [::1]:9000"),
             Ok(Command::Dev {
-                listen: "[::1]:9000".parse().unwrap()
+                listen: "[::1]:9000".parse().unwrap(),
+                maps: None,
             })
         );
         assert!(parse_line("dev --listen localhost").is_err());
+    }
+
+    #[test]
+    fn dev_hands_out_the_map_regions_of_a_folder_when_one_is_named() {
+        assert_eq!(
+            parse_line("dev --maps apps/ios/Venti/Resources"),
+            Ok(Command::Dev {
+                listen: "127.0.0.1:8080".parse().unwrap(),
+                maps: Some(PathBuf::from("apps/ios/Venti/Resources")),
+            })
+        );
+        // Before or after where to listen.
+        assert_eq!(
+            parse_line("dev --maps ../maps --listen 127.0.0.1:9000"),
+            Ok(Command::Dev {
+                listen: "127.0.0.1:9000".parse().unwrap(),
+                maps: Some(PathBuf::from("../maps")),
+            })
+        );
+        assert!(parse_line("dev --maps").is_err());
+        assert!(USAGE.contains("[--maps FOLDER]"));
+        // Only the development mode takes the option: a server is told
+        // in its configuration.
+        assert!(parse_line("serve --maps var/maps").is_err());
     }
 
     #[test]
@@ -330,7 +363,8 @@ mod tests {
             assert_eq!(
                 parse_line(&format!("dev --listen {address} --open-to-the-network")),
                 Ok(Command::Dev {
-                    listen: address.parse().unwrap()
+                    listen: address.parse().unwrap(),
+                    maps: None,
                 })
             );
         }
@@ -340,7 +374,8 @@ mod tests {
         assert_eq!(
             parse_line("dev --open-to-the-network"),
             Ok(Command::Dev {
-                listen: "127.0.0.1:8080".parse().unwrap()
+                listen: "127.0.0.1:8080".parse().unwrap(),
+                maps: None,
             })
         );
     }

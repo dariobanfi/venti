@@ -19,6 +19,10 @@
 //! group that the demo account is not in. Client work and UI tests run
 //! against this.
 //!
+//! Map regions are the one thing that is not compiled in: the mode hands
+//! out those of a folder it is given (`--maps`), by the code a real server
+//! runs, and none without. The region the apps bundle is such a folder.
+//!
 //! The clock stands still at the moment of the recording, so the data never
 //! ages: `/v1/health` reports fresh sources, and "the last 24 hours" is
 //! always the recorded day. Every start serves exactly the same answers.
@@ -26,6 +30,7 @@
 //! until the program stops.
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{Duration, NaiveDate, NaiveTime};
@@ -55,6 +60,7 @@ use crate::flights::new_flight;
 use crate::flights::share::PublicUrl;
 use crate::forecast::{self, Asking};
 use crate::ingest::{Collector, DirArchive};
+use crate::maps::Maps;
 use crate::{plan, serve};
 
 /// The region the payloads were recorded for, compiled in so that the
@@ -750,20 +756,34 @@ pub async fn recorded_with_its_store(
     Ok((api, store))
 }
 
-/// Serves the recorded data on `address` until the process is told to stop.
+/// Serves the recorded data on `address` until the process is told to stop,
+/// and with it the map regions in the folder `maps`, if one is given.
 ///
 /// Any web origin may call it: it holds nothing but test data, and a web
 /// app under development runs on whatever port its tooling picks.
-pub async fn dev(address: SocketAddr) -> Result<(), String> {
+pub async fn dev(address: SocketAddr, maps: Option<PathBuf>) -> Result<(), String> {
     // Uploads are analysed as on a real server, in a child of this program.
     let settings = settings(
         serve::local_url(address)?,
         Analyser::child_of_this_program()?,
         Cost::OWASP,
     );
-    let router = recorded_api(settings).await?.router(&Cors::Any);
     let shutdown = CancellationToken::new();
     tokio::spawn(serve::cancel_on_signal(shutdown.clone()));
+    let mut api = recorded_api(settings).await?;
+    if let Some(folder) = maps {
+        // Read by the code a real server runs, hashes and all, but before
+        // the first request is answered and not beside it: a test that
+        // asks for the regions as soon as the mode answers finds them.
+        // The region the apps bundle is a few megabytes.
+        let regions = Maps::new(shutdown.clone());
+        regions
+            .read_in_background(folder)
+            .await
+            .map_err(|error| format!("the map regions could not be read: {error}"))?;
+        api = api.with_maps(regions);
+    }
+    let router = api.router(&Cors::Any);
     tracing::info!(
         "development mode: recorded data of {}, no network, no database",
         adapters::recorded_at().format("%Y-%m-%d %H:%M UTC")

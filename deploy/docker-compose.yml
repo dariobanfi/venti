@@ -2,7 +2,8 @@
 #
 #   caddy   TLS, the web app's static files, map tiles, and the way in to the API
 #   server  venti-server: collects the data sources, keeps accounts and
-#           flights, serves /v1 and the share pages under /f
+#           flights, serves /v1 and the share pages under /f, and hands
+#           out the map regions for download
 #   db      PostgreSQL with PostGIS, the only database
 #
 # Only caddy is reachable from outside. Settings and the database password
@@ -114,8 +115,16 @@ services:
       # comes from Caddy's address. Only from there is X-Forwarded-For
       # believed; see the Caddyfile.
       VENTI_TRUSTED_PROXIES: ${VENTI_NETWORK:-172.30.250}.2
+      # Where the map regions are inside the container: the folder mounted
+      # below. An empty folder hands out no region.
+      VENTI_MAPS_DIR: /srv/maps
     volumes:
       - archive:/var/lib/venti/archive
+      # The map regions the server hands out for download, one folder for
+      # each, kept on the host so that a build or rsync can put them
+      # there. The server only reads them. In `.env`, VENTI_MAPS_DIR names
+      # the folder on the host.
+      - ${VENTI_MAPS_DIR:-./data/maps}:/srv/maps:ro
     # A run in flight is dropped on shutdown and repeated after the restart,
     # so the default ten seconds are enough.
     stop_grace_period: 10s

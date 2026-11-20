@@ -37,6 +37,10 @@
 //! else: to any other account a group answers exactly as one that does not
 //! exist ([`groups`]). Nothing of it is in any answer that others read.
 //!
+//! **The map regions the server hands out** ([`maps`]) are neither: they
+//! are files that whoever runs the server put in a folder, open data with
+//! the credits their descriptions name. Anyone may list and fetch them.
+//!
 //! The connector ([`mcp`]) offers what anyone may read to a pilot's own
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
 
@@ -54,6 +58,7 @@ mod groups;
 mod health;
 mod live;
 mod log;
+mod maps;
 mod mcp;
 mod observations;
 mod pilots;
@@ -79,8 +84,8 @@ use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH,
-    REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
+    PUBLIC_FLIGHTS_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -94,6 +99,7 @@ use crate::clock::Clock;
 use crate::flights::analyser::Analyser;
 use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
+use crate::maps::Maps;
 
 pub use mcp::MCP_PATH;
 
@@ -227,6 +233,9 @@ pub struct Api<S> {
     /// Groups and plans: their limits, and what each account has used of
     /// them.
     groups: groups::Groups,
+    /// The map regions the server hands out. None, unless it was given
+    /// some.
+    maps: Maps,
 }
 
 impl<S: Store> Api<S> {
@@ -304,6 +313,7 @@ impl<S: Store> Api<S> {
             forecasts: None,
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
+            maps: Maps::default(),
         }
     }
 
@@ -314,6 +324,16 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_forecasts(mut self, forecasts: Arc<dyn Forecasts>) -> Self {
         self.forecasts = Some(forecasts);
+        self
+    }
+
+    /// The same API, handing out the map regions in `maps`.
+    ///
+    /// Without this `/v1/maps` lists no region. The list follows `maps`:
+    /// a region that is read after this call is listed from then on.
+    #[must_use]
+    pub fn with_maps(mut self, maps: Maps) -> Self {
+        self.maps = maps;
         self
     }
 
@@ -339,7 +359,8 @@ impl<S: Store> Api<S> {
     ///
     /// From the outside in, a request passes: the request log, response
     /// compression, CORS, a note of the address it came from ([`clients`]),
-    /// and then one of five groups of routes.
+    /// and then one of five groups of routes. The files of a map region
+    /// are a sixth group, which response compression is not around.
     ///
     /// - The API's ordinary routes: the guarantee that every error is a
     ///   JSON error body, the deadline, a small limit on the body, the
@@ -352,6 +373,13 @@ impl<S: Store> Api<S> {
     ///   people, in HTML, errors included.
     /// - The connector: it answers assistants, in the protocol's own shape,
     ///   errors included, with a deadline and a body limit of its own.
+    /// - The files of a map region ([`maps`]): the request log, CORS, the
+    ///   note of the address, the guarantee about errors, the handler. A
+    ///   file is sent as it is on the disk, never compressed: a compressed
+    ///   answer has no length and cannot be taken up again where it broke
+    ///   off. And the group has no deadline and no limit of any kind: a
+    ///   download of some gigabytes takes as long as the client's network
+    ///   needs.
     ///
     /// The request log names the method and the path and never a header,
     /// so no token reaches it; a password travels in a body, which is not
@@ -411,6 +439,7 @@ impl<S: Store> Api<S> {
             )
             .route(GROUP_JOIN_PATH, post(groups::join::<S>))
             .route(PLAN_BOARD_PATH, get(groups::board::<S>))
+            .route(MAPS_PATH, get(maps::list::<S>))
             .route(
                 "/v1/groups/{id}",
                 get(groups::show::<S>)
@@ -472,6 +501,19 @@ impl<S: Store> Api<S> {
             .layer(axum::middleware::from_fn(mcp::rpc_errors));
 
         let api = Arc::new(self);
+        // The files of a map region. The group is merged in below, after
+        // the compression is laid around the others, and it has no
+        // deadline: see above. `get` answers `HEAD` as well.
+        let map_files = Router::new()
+            .route(maps::FILE_ROUTE, get(maps::file::<S>))
+            .layer(axum::middleware::from_fn(shape::uniform_errors))
+            .layer(axum::middleware::from_fn_with_state(
+                api.clone(),
+                clients::note::<S>,
+            ))
+            .with_state(api.clone())
+            .layer(cors_layer(cors));
+
         Router::new()
             .merge(ordinary)
             .merge(positions)
@@ -487,6 +529,7 @@ impl<S: Store> Api<S> {
             .with_state(api)
             .layer(cors_layer(cors))
             .layer(CompressionLayer::new())
+            .merge(map_files)
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(log::request_span)
@@ -520,10 +563,18 @@ fn cors_layer(cors: &Cors) -> CorsLayer {
                 header::AUTHORIZATION,
                 header::CONTENT_TYPE,
                 header::IF_NONE_MATCH,
+                // For a part of a map file.
+                header::RANGE,
+                header::IF_RANGE,
             ]
             .into_iter()
             .chain(mcp::REQUEST_HEADERS),
         ))
-        .expose_headers([header::ETAG, header::RETRY_AFTER])
+        .expose_headers([
+            header::ETAG,
+            header::RETRY_AFTER,
+            header::ACCEPT_RANGES,
+            header::CONTENT_RANGE,
+        ])
         .max_age(PREFLIGHT_MAX_AGE)
 }

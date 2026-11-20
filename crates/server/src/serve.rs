@@ -19,6 +19,7 @@ use crate::flights::refresh;
 use crate::flights::share::PublicUrl;
 use crate::forecast::{self, Asking};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
+use crate::maps::Maps;
 use crate::{adapters, groups, live, maintenance, plan};
 
 /// How far back from the time of a run observations are taken. See
@@ -90,6 +91,12 @@ pub async fn serve(config: Config) -> Result<(), String> {
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
     }
+    let shutdown = CancellationToken::new();
+    // The map regions are listed as their files are read, which the
+    // server begins further down, beside everything else. Reading them
+    // and handing them out both end when the server is told to stop.
+    let maps = Maps::new(shutdown.clone());
+    api = api.with_maps(maps.clone());
     let router = api.router(&Cors::Origins(config.cors_origins.clone()));
     tracing::info!("accounts: registration is {:?}", config.registration);
     if let Some(warning) = plain_http_warning(config.public_url.as_ref(), config.registration) {
@@ -105,8 +112,24 @@ pub async fn serve(config: Config) -> Result<(), String> {
     );
     tracing::info!("client addresses: {}", config.trusted_proxies.in_words());
 
-    let shutdown = CancellationToken::new();
     tokio::spawn(cancel_on_signal(shutdown.clone()));
+
+    // Every file of every region is read once, to check its hash, before
+    // the region is listed. For gigabytes that takes a while, so it does
+    // not hold up the start of the API.
+    let reading_maps = match config.maps_dir.clone() {
+        Some(folder) => {
+            tracing::info!(
+                "maps: reading the regions in {}; each is handed out once its files are checked",
+                folder.display()
+            );
+            Some(maps.read_in_background(folder))
+        }
+        None => {
+            tracing::info!("no maps: the server was not told where its map regions are (maps_dir)");
+            None
+        }
+    };
 
     let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
     tracing::info!("collecting {}", sources.join(", "));
@@ -147,6 +170,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let _ = schedule.await;
     let _ = housekeeping.await;
     let _ = refreshing.await;
+    if let Some(reading) = reading_maps {
+        let _ = reading.await;
+    }
     served
 }
 

@@ -2,11 +2,11 @@
 
 Last revised: 2026-11-20
 
-The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
+The server answers a small JSON API that the phone and web apps use: for the live wind map, for airspace, for flying sites, for forecasts, for a pilot's account and flights, for live tracks, and for the groups in which pilots plan a flying day. Beside the JSON it hands out the map regions that an app downloads to draw its map without a network. This document describes it for people. The exact wire format is the Rust crate `venti-api-types`, which the server builds its answers from and the clients decode them with; when this text and that crate disagree, the crate is right and this text has a bug.
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites and forecasts**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -19,6 +19,15 @@ curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
 The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, a day after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+
+Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
+
+```bash
+cargo run -p venti-server -- dev --maps apps/ios/Venti/Resources
+curl http://127.0.0.1:8080/v1/maps
+```
+
+The mode has read the region's files and checked their hashes before it answers its first request, so a test that asks at once finds the region; [Maps](#maps) has the answer.
 
 It also starts with one account, so that an app can be built and tested against it without creating one first:
 
@@ -120,9 +129,9 @@ Because its clock stands still, this mode takes live fixes of **any time**, wher
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and flying sites change once a day at most and carry `max-age=3600`. A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. The list of map regions carries `max-age=60`; a file of a region never changes under its path and may be kept for good, see [Maps](#maps). Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
 
-**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB. A live track of twenty minutes at a fix a second is 204 kB and 28 kB.
+**Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB. A live track of twenty minutes at a fix a second is 204 kB and 28 kB. The one answer that is never compressed is a file of a map region: [Maps](#maps) says why.
 
 **Bodies.** A request that carries JSON says so: `Content-Type: application/json`, with or without a character set. Anything else, and no type at all, is answered `415` with `unsupported_media_type` before the body is looked at. The one request whose body is not JSON is the upload of a flight file, which takes any type. A JSON body may be 16 kB, and one that carries the fixes of a live track 32 kB; a larger one is answered `413` and not read. The rule is what keeps a page on another site from sending sign-in or registration attempts through a visitor's browser: a browser sends a body typed `text/plain` anywhere without asking, and asks the server first before it sends one typed `application/json`.
 
@@ -177,6 +186,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
 | 404 | `group_not_found` | No [group](#groups) has this identifier, or the caller is not in it. The two cannot be told apart, on any endpoint about a group |
 | 404 | `group_member_not_found`, `plan_not_found` | Said to members of a group only: no member of it has this handle; it has no plan with this identifier, or none any more |
+| 404 | `map_not_found` | The server hands out no [map file](#get-and-head-v1mapsregionversionname) under this path: no region with this identifier, not in this version, or no file of this name. The three cannot be told apart |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
@@ -186,6 +196,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 410 | `live_track_gone` | Fixes were sent under an identifier whose live track was deleted or removed, or that was taken out of use. An identifier is used once: begin a new track with a new one |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, a batch of live fixes of more than 32 kB, or a flight file of more than 4 MB |
 | 415 | `unsupported_media_type` | A request whose body is JSON did not say so with `Content-Type: application/json` |
+| 416 | `range_not_satisfiable` | The bytes asked of a [map file](#get-and-head-v1mapsregionversionname) with `Range` begin at or after its end. `Content-Range` says how long the file is |
 | 422 | `invalid_flight` | The uploaded file is not a flight file the server can use |
 | 422 | `fixes_out_of_time` | None of the live fixes sent has a time the server takes: all lie in the future, or are too old. The device's clock is probably wrong; `message` says what the server's shows |
 | 429 | `rate_limited` | Too many attempts. `Retry-After` says when to try again |
@@ -1114,6 +1125,135 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 
 **In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-19 at 19:30 UTC, a day after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 19:00 UTC on 19 November to 18:00 UTC on the 21st, ICON-EU's from 16:00 UTC on the 19th to 21:00 UTC on the 20th. The first day with daylight hours is 20 November.
+
+## Maps
+
+The map regions a server hands out, for an app to draw its map where there is no network. A region is a few files that the app downloads whole: today a vector base map and the terrain, each a PMTiles archive. Which regions a server has is up to whoever runs it ([deploy/README.md](../deploy/README.md#map-regions)), and a server may have none. Anyone may read both endpoints, without an account: the maps are open data, as the wind is.
+
+### `GET /v1/maps`
+
+The regions, sorted by `id`.
+
+```bash
+curl http://127.0.0.1:8080/v1/maps
+```
+
+```json
+{
+  "regions": [
+    {
+      "id": "tegernsee-demo",
+      "name": "Tegernsee valley (demo)",
+      "version": "2026-11-18",
+      "covers": {
+        "south": 47.6,
+        "west": 11.64,
+        "north": 47.76,
+        "east": 11.86
+      },
+      "files": [
+        {
+          "role": "basemap",
+          "name": "basemap.pmtiles",
+          "bytes": 3236717,
+          "sha256": "edb16f520a2ba491cd6a977ec755a1f2f5f1b5a5f27b15e10c50985420c4a43c",
+          "path": "/v1/maps/tegernsee-demo/2026-11-18/basemap.pmtiles",
+          "credits": [
+            {
+              "text": "© OpenStreetMap contributors",
+              "url": "https://www.openstreetmap.org/copyright"
+            },
+            {
+              "text": "© OpenMapTiles",
+              "url": "https://openmaptiles.org"
+            }
+          ]
+        },
+        {
+          "role": "terrain",
+          "name": "terrain.pmtiles",
+          "bytes": 4239720,
+          "sha256": "84dc4b23f4aa57b20a0be523091b636ba09f8c7c4fde035adcb22e6035d9bc6e",
+          "path": "/v1/maps/tegernsee-demo/2026-11-18/terrain.pmtiles",
+          "credits": [
+            {
+              "text": "© Mapterhorn and the surveys it combines",
+              "url": "https://mapterhorn.com/attribution"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is the one region the development mode has when it is started with `--maps apps/ios/Venti/Resources`: the valley of the apps' sample flight, in the files the apps bundle. Without that option, and on a server that was given no maps, the answer is `{"regions":[]}`.
+
+| Field | Meaning |
+|---|---|
+| `regions[].id` | The region's identifier. It stays when the region's files are renewed |
+| `regions[].name` | The region's name for people |
+| `regions[].version` | Which edition of the region's files this is; by custom the day they were built. A client that has another version has an older or a newer map. Versions are compared for equality and for nothing else |
+| `regions[].covers` | The box the files cover: its four edges in degrees |
+| `regions[].files[].role` | What the file is. `basemap`: a PMTiles archive, version 3, of vector tiles in the OpenMapTiles schema. `terrain`: a PMTiles archive, version 3, of WebP tiles with heights in the Terrarium encoding. `other`: something this version of the API has no word for. A client leaves alone a file whose role it does not know |
+| `regions[].files[].name` | The file's name |
+| `regions[].files[].bytes` | Its size in bytes |
+| `regions[].files[].sha256` | The SHA-256 of its bytes, 64 lowercase hexadecimal digits. **Check a copy against it before using the copy** |
+| `regions[].files[].path` | Where to `GET` the file; see [below](#get-and-head-v1mapsregionversionname) |
+| `regions[].files[].credits` | Whose data the file holds: for each a `text`, worded as the provider asks, and a `url` for the text to link to, left out where there is none. **Show the credits of every file that is drawn, wherever it is drawn.** The licences require that |
+
+An `id`, a `version` and a `name` are lowercase letters and digits with `-`, `_` and `.` between them, 64 characters at most. Each is one step of a path here and can be one step of a folder on the device.
+
+**The files of a region are never merged.** Each holds data under its own licences and names its own credits: in the example the base map is OpenStreetMap's data in the schema of OpenMapTiles, and the terrain is Mapterhorn's. A client keeps the files apart, draws them as separate layers, and shows with each layer the credits of its file.
+
+**A region is listed once the server has read its files.** When the server starts, it reads every file of a region from beginning to end and lists the region only if each file has the SHA-256 that the region's description on the server states. So the hash in the list is the hash of the file that a `GET` sends, and a copy that does not match was damaged on its way. For a region of some gigabytes the reading takes a while, and until it is done the region is not in the list: just after a server started, a region that is missing from the list may be on its way and not gone.
+
+**Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like the stations.
+
+### `GET` and `HEAD /v1/maps/{region}/{version}/{name}`
+
+One file of a region, as it is on the server's disk. The path is the `path` the list gives. The version is part of it, so what a path names never changes: when a region's files are renewed the region gets a new version, its files get new paths, and the old paths answer `404`.
+
+```bash
+curl -O http://127.0.0.1:8080/v1/maps/tegernsee-demo/2026-11-18/terrain.pmtiles
+curl -C - -O http://127.0.0.1:8080/v1/maps/tegernsee-demo/2026-11-18/terrain.pmtiles   # goes on where a download broke off
+curl -I http://127.0.0.1:8080/v1/maps/tegernsee-demo/2026-11-18/terrain.pmtiles        # how large is it?
+```
+
+Every answer with a file, or with a part of one, has these headers:
+
+| Header | What it says |
+|---|---|
+| `Content-Length` | How many bytes this answer sends; for a `HEAD`, how many a `GET` would send. It is always there, so an app can show how far a download is |
+| `Accept-Ranges` | `bytes`: a part of the file can be asked for |
+| `ETag` | The file's SHA-256 in quotes, the one the list states. A strong validator |
+| `Cache-Control` | `public, max-age=31536000, immutable`: the bytes behind a path never change, and a copy may be kept for good |
+| `Content-Type` | `application/octet-stream` |
+
+**A part of a file.** `Range: bytes=a-b` asks for the bytes from `a` to `b`, counted from 0 and both included. `bytes=a-` asks for everything from `a` on, which is how a download that broke off goes on. `bytes=-n` asks for the last `n` bytes. The answer is `206` with `Content-Range: bytes a-b/size` and those bytes. A range that ends after the file ends with the file. A range that begins at or after the end of the file is answered `416` with `range_not_satisfiable` and `Content-Range: bytes */size`. Whatever else stands in the header is no range and gets the whole file with `200`, as HTTP allows a server to answer what it does not understand: another unit, several ranges at once, an end before the beginning. A `HEAD` takes no range.
+
+**Going on with the same file.** `If-Range` with the file's `ETag` beside a `Range` means "the part, if this is still that file": the answer is the part if it is, and the whole file with `200` if it is not. A client that goes on with a download sends it, so that it never joins the beginning of one file to the end of another. `If-None-Match` with the file's `ETag` is answered `304` without a body.
+
+**Never compressed.** A file is sent as it is, whatever `Accept-Encoding` a request carries, and no answer about a file has a `Content-Encoding`. A phone asks for gzip with every request; a compressed answer has no `Content-Length` and no ranges, so a download could neither show its progress nor go on where it broke off. The archives are compressed inside already. This is the one exception to the [rule about compression](#rules-that-hold-for-every-endpoint).
+
+**No time limit.** The API's other requests are given up when the server has no answer after a while, ten seconds for most of them. A file has no such bound, and none on how long its bytes take to arrive: a download takes as long as the client's network needs.
+
+**A download can break off**, and not only on the client's side: when the server is stopped, for an update or to renew a region, it ends the downloads that are under way, and the connection closes with bytes outstanding. The client asks for the rest with `Range` and `If-Range` once the server answers again. If the path then answers `404`, the region was renewed in between: the client fetches the list and starts again with the new version.
+
+**What a client does**, in order: ask for the list; download each file of a region to a place of its own, going on by range after every break; compare the size and the SHA-256 of each copy with the list; only then put the files where the map reads them, with the region's `version` beside them. When the list later names another version, there is a newer map to fetch.
+
+**When there is no file.**
+
+| Status | `error.code` | When |
+|---|---|---|
+| `404` | `map_not_found` | The server hands out no file under this path: no region with this identifier, not in this version, or no file of this name. The three are one answer. The list says what there is |
+| `416` | `range_not_satisfiable` | The range begins at or after the end of the file. `Content-Range` says how long the file is |
+| `503` | `unavailable` | The server could not open the file at this moment. `Retry-After` says when to try again |
+
+**Browsers.** A page on an origin the server allows may send `Range` and `If-Range` with its request and may read `Content-Range`, `Accept-Ranges` and `ETag` from the answer.
+
+**Size.** The region in the example is 3.2 MB of base map and 4.2 MB of terrain for one valley. A region the size of the server's first one has not been built yet: scaled up by area it would be about 1.6 GB and 2.1 GB, which is arithmetic and not a measurement ([deploy/README.md](../deploy/README.md#map-regions)).
 
 ## Accounts and sessions
 
@@ -3110,4 +3250,4 @@ What is left to build: a map under the line, and one that moves without the page
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here and no app sends one yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here and no app shows them yet. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps, pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here and no app sends or draws one yet. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here and no app sends one yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here and no app shows them yet. Not built for them: reporting a group or a plan, a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

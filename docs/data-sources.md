@@ -502,8 +502,19 @@ What follows: the layer is useful where it has data and must never be shown as c
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| thermal.kk7.ch | Thermal hotspots and skyways as map tiles | CC BY-NC-SA 4.0; the author asks to be contacted with expected load | Ask, then use as a separate overlay |
+| thermal.kk7.ch | Thermal maps and skyways as map tiles | CC BY-NC-SA 4.0, non-commercial as its author defines it (below) | **Agreed, by the owner's word; to build** as a separate overlay |
 | Our own flights | Hotspots and lines computed from uploaded tracks | Ours | Later |
+
+#### thermal.kk7.ch, as read on its own page on 2026-11-20
+
+The owner said on 2026-11-20 that the author agreed in person to Venti showing the maps. That is the owner's word and stands here as such; it is not in writing, and the rule for "Ask" sources asks for writing. *To do, by the owner:* a line from the author that says so, and in it the two things the page leaves open (the `src` value for an app, and what share-alike means for an app that only shows the tiles). Everything else below is the author's own text at `https://thermal.kk7.ch/` (sections "Developers", "License" and "Usage Policy"), and what an app must keep to.
+
+- **Licence.** "The Paragliding Thermal Maps Project by M. von Känel is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. NonCommercial means: the maps must not be used in commercial applications (paid apps, apps with paid features or ads, commercial services) without a separate agreement." Venti is free, has no advertising and no paid feature, and the tiles are shown as they come, on a layer of their own: share-alike and non-commercial data is merged with nothing (the rule above).
+- **Credit.** As the page's own examples write it: "thermal.kk7.ch CC-BY-NC-SA", the licence's name linked to `https://creativecommons.org/licenses/by-nc-sa/4.0/`. Shown with the map's credits while the layer is on, and on each app's credits screen.
+- **Who is asking.** "For tracking purposes every remote request has to append the URL parameter ?src=[hostname], or the domain of your app." "Web pages must send a valid Referer header and not suppress it via Referrer-Policy." "Fat clients should identify themselves in the User-Agent header." Measured on 2026-11-20: a `src` without a dot in it is refused (status 400). **Venti has no domain yet, so there is no honest value to send: the layer is not switched on until the owner names one.**
+- **Load.** "Fetch tiles on demand only, for the area and zoom a user is actually looking at." "Pre-fetching is not allowed, in particular not in bulk (whole regions, zoom ranges or layers in advance)." "A caching proxy or a fat client should send no more than 10 requests per second." "Caching tiles on your side (server, app or device) is allowed. Tiles change only when the maps are updated and are served with a 30 day cache lifetime." So: fetched by the apps straight from the author's server, only while the layer is on, never for a map kept for flying without a network, and not through Venti's server ("If you plan on including thermal tiles into your own map server contact me directly with your expected load").
+- **The tiles.** `https://thermal.kk7.ch/tiles/{layer}_{season}_{time}/{z}/{x}/{y}.png?src=…`, with y counted from the south (the TMS scheme; an ordinary y gets an empty tile, measured), PNG with transparency, 256 px. Layers `thermals` (to zoom 12) and `skyways` (to zoom 13); beyond that the last level is enlarged, since the server answers an empty tile and not an error. Seasons `all`, `jan`, `apr`, `jul`, `oct`; times of day `all`, `04` (morning), `07` (midday), `10` (evening). The whole year at any hour is `thermals_all_all`. `Access-Control-Allow-Origin: *` is sent, so a web page can read them.
+- *To verify:* whether the licence is meant for the tiles, the data or both (the page says "the maps"); where the credit has to stand; whether the hotspot downloads and the 3D tiles on the same site may be used (they are not asked for here).
 
 ### Webcams
 
@@ -589,7 +600,7 @@ Permissions to request, roughly in order of how much they block. AI sessions dra
 | Holfuy | Permission and an API key to show and re-serve station data in a free, open-source app | Wind at launch sites |
 | DHV | Permission to use and re-serve the site database | Authoritative site data |
 | XContest (`info@xcontest.org`) | A key for its upload interface for apps, and the terms for using it; a way for a pilot to fetch their own flights; recognition of the signature of tracks recorded by the app, or the way to it; use of the airspace activation data. Until then the app hands the pilot the file and opens XContest's claim page ([Leagues a flight goes to](#leagues-a-flight-goes-to)) | Sending a flight to XContest with one tap, importing a pilot's history from it, points for flights recorded with the app, airspace activations |
-| thermal.kk7.ch | Use of thermal and skyways tiles, with expected load | Thermal overlay |
+| thermal.kk7.ch | Agreed in person, by the owner's word (2026-11-20). Still wanted in writing: that line, the `src` value an app should send, and what share-alike means for an app that only shows the tiles | Nothing any more; the layer waits for a domain to name in `src` |
 | DFS | Written confirmation of the CC BY 4.0 terms. Since 2026-11-19 they are known to be stated on DFS's own page, per data set; whether a letter is still wanted is the owner's decision | German airspace |
 | Austro Control | Permission to re-serve airspace and obstacle files | Austrian airspace |
 | Land Tirol | Confirmation of licence for the station files and the obstacle dataset; they ask to be notified of use | Tirol stations, cables |

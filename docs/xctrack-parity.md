@@ -196,7 +196,7 @@ XCTrack's manual stresses battery-optimisation exemptions on Android, and 1.0.1 
 
 | XCTrack | Ours |
 |---|---|
-| Thermal hotspot map from thermal.kk7.ch, including a time-adjusted variant | v1 if permission is granted |
+| Thermal hotspot map from thermal.kk7.ch, including a time-adjusted variant | v1: the author has agreed, by the owner's word; to build ([data-sources.md](data-sources.md#thermalkk7ch-as-read-on-its-own-page-on-2026-11-20)) |
 | Rain radar | v1 |
 | SkySight forecast layers (finished, awaiting an agreement, paid) | Our own forecast and wind-station layers, v1 |
 
@@ -229,7 +229,7 @@ What our cockpit already does in the layout's place, and where it differs:
 | Airspace proximity as a standing reading (5 km), small on page 1 and large with a height line on page 3 | Airspace on the map, a band at the top once something is near, and a view from the side on the second page. **Gap:** nothing says "the nearest airspace is 3.2 km away and 400 m above" while nothing is urgent |
 | Bearing as a reading | **Gap:** the course is computed and turns the glider's arrow, but is not written |
 | The scored distance and the unclosed triangle beside the map | On the third page, away from the map. **Gap:** not visible while looking at the map |
-| The thermal map of thermal.kk7.ch under the track | **Gap**, and the catalogue's "Ask": the author has to be asked first ([data-sources.md](data-sources.md)). The owner flies with it, which is a reason to ask soon |
+| The thermal map of thermal.kk7.ch under the track | To build. The author has agreed, by the owner's word; his terms are read ([data-sources.md](data-sources.md#thermalkk7ch-as-read-on-its-own-page-on-2026-11-20)). It waits for a domain Venti can name to his server |
 | Other pilots with their tracks | Other pilots who show their flight are on the cockpit's map; their tracks are not. *To check* |
 | Obstacles on the map (cables), with a zoom-in when one is near | Cable cars from the base map only; no obstacle data and no warning yet (table above) |
 | Take-offs and towns on the map | Towns from the base map. Flying sites are on the map tab, not in the cockpit. *To check* |

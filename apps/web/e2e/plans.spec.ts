@@ -517,10 +517,13 @@ test('a board of several days, and a plan that says where its place is', async (
 	await expect(first).toContainText('10:30');
 	await expect(first).toContainText('Demo Pilot, Mara Muster and Jonas Beispiel');
 	await expect(first).toContainText('Mustergruppe');
-	await expect(plansOf(page, 'Tomorrow').filter({ hasText: 'Beispielwiese' })).toContainText(
-		'09:00'
-	);
-	await expect(plansOf(page, 'Friday, 20 Nov').filter({ hasText: 'Musterberg' })).toBeVisible();
+	// The made-up plans by their places written out in full: this test runs
+	// at four widths, two at a time, and each posts a plan of its own for
+	// tomorrow further down, at a place that begins the same.
+	const madeUp = (day: string, place: string) =>
+		plansOf(page, day).filter({ has: page.getByText(place, { exact: true }) });
+	await expect(madeUp('Tomorrow', 'Beispielwiese')).toContainText('09:00');
+	await expect(madeUp('Friday, 20 Nov', 'Musterberg')).toBeVisible();
 	await keep('82-plans-board-days');
 
 	// Another member's plan: to read, and to be in on.

@@ -465,6 +465,28 @@ pub struct LandingOption {
     pub in_reach: u32,
 }
 
+/// How far the glider glides: the edge of what a straight glide reaches
+/// over the ground as it is, for a line on the map.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct GlideRange {
+    /// The edge, as a closed ring around the glider: a place every five
+    /// degrees, and the first again at the end. In each direction it lies
+    /// where the glider's own glide, in the wind as last worked out, comes
+    /// down to the reserve over the ground. What lies behind a ridge is
+    /// outside it, although a pilot may get there another way.
+    pub outline: Vec<Coordinate>,
+    /// The height left over the ground at the edge, metres.
+    pub reserve_m: f64,
+    /// How far the edge is from the glider where it is nearest, metres.
+    pub nearest_m: f64,
+    /// And where it is farthest.
+    pub farthest_m: f64,
+    /// Whether the edge lies, somewhere, where the ground the app holds
+    /// ends and not where the glide does: there the glider reaches at
+    /// least that far.
+    pub is_cut_short: bool,
+}
+
 /// The way to the place the cockpit navigates to.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct WayToTarget {
@@ -991,6 +1013,47 @@ impl FlightSession {
                 )
             })
             .collect()
+    }
+
+    /// How far the glider glides, for a line on the map: see
+    /// [`GlideRange`]. `None` on the ground, without terrain under the
+    /// glider, and when it is lower over the ground than the reserve a
+    /// place within reach is left.
+    pub fn glide_range(&self, now_unix_s: f64) -> Option<GlideRange> {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        if state.phase != Phase::Flying {
+            return None;
+        }
+        let (position, altitude_m) = (state.position?, state.altitude_m?);
+        let edge = inner.terrain.as_ref()?.with(|terrain| {
+            live::range::range(
+                terrain,
+                position,
+                altitude_m,
+                state.wind,
+                &inner.glider,
+                REACH_RESERVE_M,
+            )
+        })?;
+        let mut outline: Vec<Coordinate> = edge
+            .iter()
+            .map(|point| Coordinate {
+                lat: point.position.lat(),
+                lon: point.position.lon(),
+            })
+            .collect();
+        outline.extend(outline.first().copied());
+        let distances = || edge.iter().map(|point| point.distance_m);
+        Some(GlideRange {
+            outline,
+            reserve_m: REACH_RESERVE_M,
+            nearest_m: distances().fold(f64::INFINITY, f64::min),
+            farthest_m: distances().fold(0.0, f64::max),
+            is_cut_short: edge
+                .iter()
+                .any(|point| point.end == live::range::EdgeEnd::Unknown),
+        })
     }
 
     /// The landing to think of first, among the places given: the one the
@@ -2296,6 +2359,57 @@ mod tests {
         assert_eq!(view.tone, None);
         assert_eq!(view.instrument, None);
         assert!(view.trail.is_empty());
+    }
+
+    #[test]
+    fn the_glide_range_reaches_far_over_the_valley_and_stops_at_the_mountain() {
+        let folder = TempFolder::new();
+        // Nine minutes in: 1,900 m over the valley, 1,150 m over the
+        // ground, with the Wallberg to the south-east and the lake to the
+        // north-west.
+        let (session, replay) = fly(&folder, 540.0, false);
+        assert_eq!(session.glide_range(replay.now()), None);
+
+        let terrain = Terrain::new();
+        terrain
+            .add_archive(
+                std::fs::read(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../apps/ios/Venti/Resources/MapDemo/terrain.pmtiles"
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+        session.use_terrain(Some(terrain));
+        let range = session.glide_range(replay.now()).unwrap();
+
+        // A ring of 72 places and the first again.
+        assert_eq!(range.outline.len(), 73);
+        assert_eq!(range.outline[0], range.outline[72]);
+        assert_eq!(range.reserve_m, 100.0);
+
+        let here = session.view(replay.now()).position.unwrap();
+        let here = GeoPoint::new(here.lat, here.lon).unwrap();
+        let reach = |bearing: usize| {
+            let place = range.outline[bearing / 5];
+            here.distance_m(GeoPoint::new(place.lat, place.lon).unwrap())
+        };
+        // Out over the lake to the north-north-west the glide is long: a
+        // thousand metres to lose at a glide of seven. Downwind along the
+        // valley to the east-north-east it is longer still. Towards the
+        // mountain in the south-east it ends on the slope, two kilometres
+        // out, and that is where the edge is nearest.
+        assert!(reach(330) > 6000.0, "{}", reach(330));
+        assert!(reach(75) > 8000.0, "{}", reach(75));
+        assert!(reach(135) < 3000.0, "{}", reach(135));
+        assert!((range.nearest_m - reach(135)).abs() < 400.0);
+        assert!(range.farthest_m > 8000.0 && range.farthest_m < 12_000.0);
+        // All of it over ground the app holds.
+        assert!(!range.is_cut_short);
+
+        // On the ground there is no range to draw.
+        let (session, replay) = fly(&TempFolder::new(), 0.0, false);
+        assert_eq!(session.glide_range(replay.now()), None);
     }
 
     #[test]

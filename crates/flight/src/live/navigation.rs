@@ -109,6 +109,14 @@ pub fn navigate(
     }
 }
 
+/// Metres forward over the ground for each metre of height lost, on a
+/// course held at the glider's trim speed in a wind. `None` when the wind
+/// lets the glider make no way on that course.
+pub fn glide_over_ground(course_deg: f64, wind: Option<Wind>, glider: &Glider) -> Option<f64> {
+    let sink_ms = glider.trim_speed_ms / glider.glide_ratio;
+    speed_towards(course_deg, wind, glider.trim_speed_ms).map(|speed| speed / sink_ms)
+}
+
 /// The speed over the ground along a course, flying at an airspeed and
 /// holding the course against the wind's push to the side. `None` when the
 /// wind is too strong: the glider cannot hold the course, or is carried

@@ -22,6 +22,8 @@ struct CockpitMap: UIViewRepresentable {
     var route: [Coordinate] = []
     /// Where to fly for an FAI triangle, if the pilot wants it drawn.
     var fai: FaiAreas?
+    /// How far the glider glides over the ground as it is, every way.
+    var range: GlideRange?
     /// Whether the map shows the whole flight, with the scored route and
     /// the FAI triangle areas, instead of following the glider closely.
     var showsWholeFlight = false
@@ -51,6 +53,7 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.airspace = airspace
         context.coordinator.airspaceDistance = airspaceDistance
         context.coordinator.fai = fai
+        context.coordinator.range = range
         context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
@@ -82,6 +85,8 @@ struct CockpitMap: UIViewRepresentable {
         var fai: FaiAreas?
         /// The side the drawn FAI triangle areas stand on.
         private var drawnFaiSide: [Coordinate]?
+        var range: GlideRange?
+        private var drawnRange: [Coordinate]?
         var showsWholeFlight = false
         /// The box the map shows while it shows the whole flight.
         private var wholeFlight: Bounds?
@@ -95,6 +100,17 @@ struct CockpitMap: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
+
+            // How far the glider glides: a green line around what a
+            // straight glide still reaches with height to spare, over the
+            // ground as it is. Low in the pile: it is there to be glanced
+            // at, under everything the pilot steers by.
+            let reach = MLNShapeSource(identifier: "cockpit-range", shape: nil, options: nil)
+            style.addSource(reach)
+            let reachEdge = MapSetup.line("cockpit-range-edge", from: reach, color: .white, width: 4)
+            reachEdge.lineOpacity = NSExpression(forConstantValue: 0.7)
+            style.addLayer(reachEdge)
+            style.addLayer(MapSetup.line("cockpit-range-line", from: reach, color: UIColor(hex: 0x1B7F5C), width: 2))
 
             // Where to fly for an FAI triangle: two dashed outlines, under
             // the route they belong to.
@@ -315,6 +331,14 @@ struct CockpitMap: UIViewRepresentable {
                         source.shape = nil
                     }
                 }
+            }
+
+            if range?.outline != drawnRange, let source = style.source(withIdentifier: "cockpit-range") as? MLNShapeSource {
+                drawnRange = range?.outline
+                let edge = (range?.outline ?? []).map(\.location)
+                source.shape = edge.count >= 3
+                    ? MLNPolylineFeature(coordinates: edge, count: UInt(edge.count))
+                    : nil
             }
 
             if fai?.side != drawnFaiSide, let source = style.source(withIdentifier: "cockpit-fai") as? MLNShapeSource {

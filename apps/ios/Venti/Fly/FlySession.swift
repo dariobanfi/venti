@@ -65,6 +65,9 @@ final class FlySession {
     /// glider would arrive highest above. Absent on the ground, and for a
     /// pilot who keeps no landings with a height.
     private(set) var landing: LandingOption?
+    /// How far the glider glides over the ground as it is, for a line on
+    /// the map. Absent on the ground and where the iPhone has no ground.
+    private(set) var range: GlideRange?
     /// The pilot's landings, asked for every few seconds in the air. The
     /// app sets this to the waypoints that are places to land.
     @ObservationIgnored var landings: () -> [WaypointView] = { [] }
@@ -358,6 +361,7 @@ final class FlySession {
         mode = nil
         live = nil
         landing = nil
+        range = nil
         view = nil
         way = nil
         score = nil
@@ -488,6 +492,11 @@ final class FlySession {
             let option = session.landingOption(landings: landings().map(\.place), nowUnixS: now)
             if option != landing {
                 landing = option
+            }
+            // And how far it glides, every way, over the ground as it is.
+            let reach = session.glideRange(nowUnixS: now)
+            if reach != range {
+                range = reach
             }
         }
 

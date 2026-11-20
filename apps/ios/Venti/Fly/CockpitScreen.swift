@@ -39,6 +39,7 @@ struct CockpitScreen: View {
                     airspaceDistance: fly.airspaceWarnings.first(where: { !$0.silenced })?.distanceM,
                     route: fly.score?.route ?? [],
                     fai: hidesFaiAreas ? nil : fly.faiAreas,
+                    range: fly.range,
                     showsWholeFlight: showsWholeFlight,
                     task: fly.task == nil ? nil : tasks.task,
                     taskStatus: fly.task

@@ -8,6 +8,7 @@
 pub mod atmosphere;
 mod computer;
 pub mod navigation;
+pub mod range;
 pub mod thermal;
 pub mod tone;
 pub mod vario;

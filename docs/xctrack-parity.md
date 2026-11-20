@@ -210,6 +210,7 @@ XCTrack's manual stresses battery-optimisation exemptions on Android, and 1.0.1 
 6. A glider polar and speed-to-fly.
 7. A voice assistant on the pilot's own AI account.
 8. A Live Activity on the lock screen and, later, a watch companion.
+9. The glide range over the terrain on the cockpit's map, and landings behind a ridge taken out of reach. Built on the iPhone on 2026-11-20 as a straight glide in every direction; flying around a ridge is not worked out.
 
 ## Still to verify
 

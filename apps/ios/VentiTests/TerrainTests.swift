@@ -54,6 +54,15 @@ final class TerrainTests: XCTestCase {
         let ground = try XCTUnwrap(ahead.groundWords)
         XCTAssertTrue(ground.hasPrefix("Your line meets the ground in "), ground)
         XCTAssertNotNil(ahead.lineMeetsGroundM)
+
+        // And how far it glides every way: a ring around the glider that
+        // lies nearer towards the mountain than out over the lake.
+        let range = try XCTUnwrap(session.glideRange(nowUnixS: replay.now()))
+        XCTAssertEqual(range.outline.count, 73)
+        XCTAssertEqual(range.outline.first, range.outline.last)
+        XCTAssertEqual(range.reserveM, 100)
+        XCTAssertLessThan(range.nearestM, 3000)
+        XCTAssertGreaterThan(range.farthestM, 8000)
     }
 
     func testTilesAreAskedOfTheServerByTheirAddressAndARefusalDoesNoHarm() async throws {

@@ -163,6 +163,10 @@ impl Tile {
 #[derive(Debug, Clone, Default)]
 pub struct Terrain {
     tiles: BTreeMap<TileAddress, Tile>,
+    /// The zoom levels of the tiles held, the finest first: a height is
+    /// asked for thousands of times a second, and this is not put
+    /// together anew each time.
+    zooms: Vec<u8>,
 }
 
 impl Terrain {
@@ -208,7 +212,16 @@ impl Terrain {
             })
             .collect();
         self.tiles.insert(address, Tile { side, heights });
+        self.note_zooms();
         Ok(())
+    }
+
+    fn note_zooms(&mut self) {
+        let mut zooms: Vec<u8> = self.tiles.keys().map(|address| address.z).collect();
+        zooms.sort_unstable();
+        zooms.dedup();
+        zooms.reverse();
+        self.zooms = zooms;
     }
 
     /// Whether a tile is held.
@@ -240,6 +253,7 @@ impl Terrain {
             let down = (i64::from(address.y) - i64::from(here.y)).abs();
             across.max(down) <= i64::from(rings)
         });
+        self.note_zooms();
     }
 
     /// The height of the ground under a place, metres above mean sea
@@ -253,14 +267,7 @@ impl Terrain {
     /// the height may step by what the ground changes over half a pixel.
     pub fn elevation_m(&self, position: GeoPoint) -> Option<f64> {
         // The finest zoom first.
-        let zooms: Vec<u8> = {
-            let mut zooms: Vec<u8> = self.tiles.keys().map(|address| address.z).collect();
-            zooms.sort_unstable();
-            zooms.dedup();
-            zooms.reverse();
-            zooms
-        };
-        zooms.into_iter().find_map(|z| {
+        self.zooms.iter().copied().find_map(|z| {
             let (x, y) = grid_position(position, z)?;
             let address = TileAddress {
                 z,

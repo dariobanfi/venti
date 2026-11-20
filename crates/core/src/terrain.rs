@@ -252,6 +252,11 @@ impl Terrain {
         self.lock().profile(from, bearing_deg, step_m, count)
     }
 
+    /// Lets the flight engine work on the heights.
+    pub(crate) fn with<R>(&self, work: impl FnOnce(&model::Terrain) -> R) -> R {
+        work(&self.lock())
+    }
+
     fn lock(&self) -> MutexGuard<'_, model::Terrain> {
         self.model
             .lock()

@@ -1,6 +1,6 @@
 [package]
 name = "venti-flight"
-description = "The flight engine: flight files, track analysis and, later, the live cockpit calculations. No I/O and no clock."
+description = "The flight engine: flight files, track analysis, scoring, and the live cockpit calculations. No I/O and no clock."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -13,9 +13,10 @@
 //! - Nothing per-frame or per-audio-sample crosses the boundary.
 //! - One error type crosses the boundary.
 //!
-//! So far the core keeps the pilot's logbook on the device: it imports flight
-//! files, lists them and prepares one flight for display. It grows with each
-//! product phase.
+//! It holds the pilot's logbook on the device and what is worked out from a
+//! flight, the cockpit's flying session, the reading of everything a Venti
+//! server answers, and the words the apps show. Each module's own heading
+//! says what it is for.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};

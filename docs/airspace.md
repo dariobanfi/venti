@@ -340,6 +340,6 @@ The warning update is cheap on the real data because most of what surrounds a pi
 - **Airways in OpenAir files** (`DY`).
 - **Drawing.** The crate gives a map the airspaces in a box and a side view its stretches; nothing here draws.
 - **Settings for the pilot.** Margins, look-ahead and the table are `Config`; nothing stores a pilot's choices.
-- **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it; no app uses it yet.
+- **Bundles.** The region bundle of [architecture.md](architecture.md#api-and-offline-sync) does not exist. The server's airspace endpoint stands in for it: since 2026-11-19 the three apps fetch the airspace around the pilot from it, and the two phones keep it on the device for the cockpit.
 - **Coverage by country.** The server's answer says which box its set is whole in and which countries it holds, but not where inside the box those countries end. For the first region every country in the box is fetched except Liechtenstein, which has no file. An OpenAir file says nothing of the kind at all.
 - **Rules for countries other than Germany and Austria.** See [above](#outside-germany-and-austria).

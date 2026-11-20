@@ -1084,6 +1084,8 @@ final class VentiUITests: XCTestCase {
         app.buttons["Plan route"].tap()
         XCTAssertTrue(element("route-map", in: app).waitForExistence(timeout: 20))
         XCTAssertTrue(app.navigationBars["Draw a route"].exists)
+        // The route can be drawn on photographs from above as well.
+        XCTAssertTrue(app.buttons["map-aerial"].exists)
         sleep(3)
         keepScreenshot("sites-3a-plan-route")
         app.buttons["Cancel"].tap()

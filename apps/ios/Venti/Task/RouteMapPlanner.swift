@@ -19,6 +19,7 @@ struct RouteMapPlanner: View {
     /// The places of the route so far, in order.
     @State private var places: [Coordinate]
     @State private var problem: String?
+    @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
 
     /// A route with nothing drawn yet, or one that begins at a place: a
     /// take-off whose page the pilot came from.
@@ -34,7 +35,8 @@ struct RouteMapPlanner: View {
                     places: places,
                     scored: plan.score?.route ?? [],
                     faiAreas: plan.faiAreas,
-                    source: maps.browsingSource(at: nil)
+                    source: maps.browsingSource(at: nil),
+                    aerial: showsAerial
                 ) { place in
                     add(place)
                 }
@@ -45,6 +47,12 @@ struct RouteMapPlanner: View {
                 .accessibilityLabel("Map to draw the route on")
                 .accessibilityHint("Tap where the route goes next")
                 .accessibilityIdentifier("route-map")
+
+                // The ground the route is drawn on: the drawn map, or
+                // photographs from above, to see a take-off or a field.
+                AerialButton()
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
                 panel(for: plan)
             }
@@ -155,6 +163,8 @@ struct RouteDrawingMap: UIViewRepresentable {
     var faiAreas: [[Coordinate]] = []
     /// What the map is drawn from. Read when the map is made.
     var source: MapStyle.Source = .standard
+    /// Whether the ground is photographs from above instead of the drawn map.
+    var aerial = false
     /// Called with the place under the finger after a tap.
     var onTap: (Coordinate) -> Void
 
@@ -186,6 +196,7 @@ struct RouteDrawingMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.onTap = onTap
+        context.coordinator.showAerial(aerial, on: map)
         context.coordinator.show(places, scored: scored, faiAreas: faiAreas, on: map)
     }
 
@@ -197,6 +208,17 @@ struct RouteDrawingMap: UIViewRepresentable {
         private var faiAreas: [[Coordinate]] = []
         private var drawn: ([Coordinate], [Coordinate], [[Coordinate]])?
         private var isStyleLoaded = false
+        private var aerial = false
+
+        /// Shows the drawn ground or the aerial view, now or once the
+        /// style is there.
+        func showAerial(_ aerial: Bool, on map: MLNMapView) {
+            guard aerial != self.aerial else { return }
+            self.aerial = aerial
+            if isStyleLoaded {
+                MapSetup.showAerial(aerial, on: map)
+            }
+        }
 
         func show(_ places: [Coordinate], scored: [Coordinate], faiAreas: [[Coordinate]], on map: MLNMapView) {
             self.places = places
@@ -212,6 +234,7 @@ struct RouteDrawingMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            MapSetup.showAerial(aerial, on: mapView)
             let ink = Palette.inkOnMap
 
             // Where a third place makes an FAI triangle of the first leg:

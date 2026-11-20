@@ -1194,16 +1194,42 @@ class VentiUiTest {
         keepScreenshot("$prefix-everyone-2-best")
 
         // A flight opens like one of the pilot's own, with its pilot's
-        // name over it and its page on the server to hand on. It has no
-        // menu: there is nothing of the pilot's to share, replay or delete.
+        // name over it.
+        val pilot = screen.onAllNodes(row).fetchSemanticsNodes().first()
+            .config[SemanticsProperties.ContentDescription].first()
         screen.onAllNodes(row).onFirst().performClick()
-        waitFor(hasTestTag("public-flight-pilot"))
+        waitFor(hasTestTag("public-flight-pilot") and hasText(pilot))
         waitFor(described("Flight details"))
         assertTrue(exists(described("Airtime")))
-        assertTrue(exists(described("Share the flight's page")))
-        assertFalse(exists(described("More")))
         letTheMapDraw(6)
         keepScreenshot("$prefix-everyone-3-flight")
+
+        // Its menu is not the menu of a flight of the logbook: there is
+        // nothing of the pilot's to share, replay or delete. It hands on
+        // the flight's page on the server, and leads to everything else
+        // that pilot shares with everyone.
+        tap(described("More"))
+        waitFor(hasText("Flights of $pilot"))
+        assertTrue(exists(hasText("Share the flight's page")))
+        assertFalse(exists(hasText("Delete flight")))
+        assertFalse(exists(hasText("Replay in the cockpit")))
+        tap(hasText("Flights of $pilot"))
+        val theirs = hasTestTag("pilot-flight-row")
+        waitFor(theirs)
+        assertTrue(exists(hasText(pilot)))
+        assertTrue(screen.onAllNodes(theirs).fetchSemanticsNodes().all {
+            it.config[SemanticsProperties.ContentDescription] == listOf(pilot)
+        })
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-everyone-4-pilot")
+        // One of them opens like the first, and the way back leads through
+        // the pilot's page.
+        screen.onAllNodes(theirs).onFirst().performClick()
+        waitFor(hasTestTag("public-flight-pilot") and hasText(pilot))
+        tap(described("Back"))
+        waitFor(theirs)
+        tap(described("Back"))
+        waitFor(hasTestTag("public-flight-pilot"))
 
         // Back to the list, in the order it was left in; and the pilot's
         // own logbook is as empty as before.

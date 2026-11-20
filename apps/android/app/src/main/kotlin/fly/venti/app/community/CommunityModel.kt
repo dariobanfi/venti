@@ -15,6 +15,8 @@ import fly.venti.core.PublicFlight
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.flightAnalysisFromFile
 import fly.venti.core.flightFromFile
+import fly.venti.core.pilotPage
+import fly.venti.core.pilotPagePath
 import fly.venti.core.publicFlights
 import fly.venti.core.publicFlightsPath
 import kotlinx.coroutines.CancellationException
@@ -63,8 +65,38 @@ class CommunityModel(
     /** The server to ask, without a slash at its end. The app sets this to the one in the settings. */
     var server: () -> String? = { null }
 
+    /**
+     * One pilot's public flights, the newest first: the page reached from a
+     * flight of that pilot's. Kept here, not in its screen, so that it is
+     * still there when the pilot comes back from one of its flights.
+     */
+    data class PilotFlights(
+        val handle: String,
+        val flights: List<PublicFlight> = emptyList(),
+        /** What to ask the next page with. Absent when there is none. */
+        val next: String? = null,
+        /** Whether the server has answered for this pilot. */
+        val isLoaded: Boolean = false,
+        val isLoading: Boolean = false,
+        /** Why the flights are missing, in words. */
+        val problem: String? = null,
+    )
+
+    /** Which request for a pilot's flights is the newest: an older one's answer is not shown. */
+    private var pilotRound = 0
+
+    /** The pilot whose flights were last looked at. */
+    var pilot: PilotFlights? by mutableStateOf(null)
+        private set
+
     /** What to ask the next page with. */
     private var next: String? = null
+
+    /**
+     * Every flight a list has shown, by its address on the server: the one
+     * that is open is looked up here, whichever list it was opened from.
+     */
+    private val known = mutableMapOf<String, PublicFlight>()
 
     /** Which server and order the list is from. */
     private var listed: Pair<String, PublicFlightsOrder>? = null
@@ -120,6 +152,7 @@ class CommunityModel(
             // was under way.
             if (server != this.server() || order != this.order) return
             flights = if (fromTheTop) page.flights else flights + page.flights
+            known += page.flights.associateBy { it.id }
             next = page.next
             hasMore = page.next != null
             listed = server to order
@@ -137,8 +170,59 @@ class CommunityModel(
         }
     }
 
-    /** One of the list's flights, by its address on the server. */
-    fun flight(id: String): PublicFlight? = flights.firstOrNull { it.id == id }
+    /** A flight one of the lists has shown, by its address on the server. */
+    fun flight(id: String): PublicFlight? = known[id]
+
+    /**
+     * Shows a pilot's public flights from their top, unless they are there
+     * already.
+     */
+    suspend fun showPilot(handle: String) {
+        val shown = pilot
+        if (shown != null && shown.handle == handle && shown.isLoaded && shown.problem == null) return
+        pilot = PilotFlights(handle)
+        loadPilot()
+    }
+
+    /** The pilot's next page, asked for when the last row comes into view. */
+    suspend fun morePilotFlights() {
+        val shown = pilot ?: return
+        if (shown.next == null || shown.isLoading) return
+        loadPilot()
+    }
+
+    /** The first page of the pilot's flights, or the one after what is listed. */
+    private suspend fun loadPilot() {
+        val shown = pilot ?: return
+        pilotRound += 1
+        val round = pilotRound
+        pilot = shown.copy(isLoading = true)
+        val result = try {
+            val server = server() ?: throw NoLongerPublic()
+            val answer = transport(server + pilotPagePath(shown.handle, shown.next))
+            val page = withContext(background) { pilotPage(answer.status16, answer.body) }
+            known += page.flights.associateBy { it.id }
+            shown.copy(flights = shown.flights + page.flights, next = page.next, isLoaded = true, problem = null)
+        } catch (error: CancellationException) {
+            // Whoever asked has left the page. The next to look at it asks again.
+            if (round == pilotRound) {
+                pilot = shown
+            }
+            throw error
+        } catch (error: Exception) {
+            shown.copy(
+                problem = when (error) {
+                    is CoreException -> error.pilotMessage
+                    is NoLongerPublic -> "No Venti server is set."
+                    else -> "The server could not be reached. ${error.pilotMessage}"
+                },
+            )
+        }
+        // Another pilot's page may have been opened while this was under way.
+        if (round == pilotRound) {
+            pilot = result
+        }
+    }
 
     /** A flight prepared for display, and its thermals and glides if they could be worked out. */
     class Opened(val flight: FlightView, val analysis: FlightAnalysis?)
@@ -175,6 +259,8 @@ class CommunityModel(
         hasMore = false
         listed = null
         problem = null
+        pilot = null
+        known.clear()
     }
 
     private val HttpAnswer.status16: UShort get() = status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort()

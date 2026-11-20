@@ -1,5 +1,6 @@
 package fly.venti.app.community
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +18,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
+import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.numbers
 import fly.venti.app.logbook.TrackThumbnail
 import fly.venti.app.logbook.groupedShape
@@ -137,10 +142,17 @@ fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit,
                 }
             }
             if (flights.isEmpty() && !community.isLoading) {
-                item(key = "none") { NoFlights(community.problem ?: CommunityWords.NONE_YET) }
+                item(key = "none") {
+                    NoFlights("No public flights yet", community.problem ?: CommunityWords.NONE_YET, R.drawable.ic_group)
+                }
             }
             itemsIndexed(flights, key = { _, flight -> flight.id }) { index, flight ->
-                PublicFlightRow(flight, shape = groupedShape(index, flights.size), onOpen = { onOpen(flight) })
+                PublicFlightRow(
+                    flight,
+                    shape = groupedShape(index, flights.size),
+                    tag = "public-flight-row",
+                    onOpen = { onOpen(flight) },
+                )
                 if (index < flights.lastIndex) {
                     Spacer(Modifier.size(2.dp))
                 } else {
@@ -167,21 +179,94 @@ fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit,
     }
 }
 
-/** Said in place of the list when it is empty. */
+/**
+ * One pilot's public flights, the newest first: reached from the menu of
+ * one of that pilot's flights.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NoFlights(text: String) {
+fun PilotFlightsScreen(
+    handle: String,
+    /** The pilot's name as the flight it was opened from had it. */
+    name: String,
+    community: CommunityModel,
+    onOpen: (PublicFlight) -> Unit,
+    onBack: () -> Unit,
+) {
+    LaunchedEffect(handle) {
+        community.showPilot(handle)
+    }
+    val pilot = community.pilot?.takeIf { it.handle == handle }
+    val flights = pilot?.flights.orEmpty()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).testTag("pilot-flights"),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        ) {
+            item(key = "handle") { SectionHeader("@$handle") }
+            if (flights.isEmpty() && pilot?.isLoading == false && (pilot.isLoaded || pilot.problem != null)) {
+                item(key = "none") {
+                    NoFlights(
+                        "No public flights",
+                        pilot.problem ?: "This pilot shares no flight with everyone at the moment.",
+                        R.drawable.ic_person,
+                    )
+                }
+            }
+            itemsIndexed(flights, key = { _, flight -> flight.id }) { index, flight ->
+                PublicFlightRow(
+                    flight,
+                    shape = groupedShape(index, flights.size),
+                    tag = "pilot-flight-row",
+                    onOpen = { onOpen(flight) },
+                )
+                if (index < flights.lastIndex) {
+                    Spacer(Modifier.size(2.dp))
+                } else {
+                    // The last row has come into view: fetch what follows it.
+                    LaunchedEffect(flight.id) {
+                        community.morePilotFlights()
+                    }
+                }
+            }
+            if (pilot == null || pilot.isLoading) {
+                item(key = "loading") {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(28.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Said in place of a list when it is empty. */
+@Composable
+private fun NoFlights(title: String, text: String, @DrawableRes icon: Int) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            painterResource(R.drawable.ic_group),
+            painterResource(icon),
             contentDescription = null,
             modifier = Modifier.size(40.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text("No public flights yet", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Text(
             text,
             style = MaterialTheme.typography.bodyLarge,
@@ -197,13 +282,19 @@ private fun NoFlights(text: String) {
  * logbook has the day.
  */
 @Composable
-private fun PublicFlightRow(flight: PublicFlight, shape: Shape, onOpen: () -> Unit) {
+private fun PublicFlightRow(
+    flight: PublicFlight,
+    shape: Shape,
+    /** What a test finds the row by: which list it is a row of. */
+    tag: String,
+    onOpen: () -> Unit,
+) {
     val triangle = CommunityWords.triangle(flight)
     Surface(shape = shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("public-flight-row")
+                .testTag(tag)
                 .clickable(role = Role.Button, onClick = onOpen)
                 .padding(horizontal = 12.dp, vertical = 10.dp)
                 // One element for a screen reader: the pilot, then the rest.

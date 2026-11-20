@@ -7,11 +7,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -46,9 +47,10 @@ import kotlinx.coroutines.CancellationException
  * the pilot's own: the track on the map, coloured by climb, with its
  * numbers, its altitude profile and its thermals. Nothing is kept.
  *
- * It has no menu: there is no file of the pilot's to share or delete, and
- * nothing to replay. What can be handed on is the flight's page on the
- * server.
+ * Its menu is not a flight's of the logbook: there is no file of the
+ * pilot's to share or delete, and nothing to replay. It leads to everything
+ * else that pilot shares with everyone, and hands on the flight's page on
+ * the server.
  */
 @Composable
 fun PublicFlightScreen(
@@ -57,9 +59,12 @@ fun PublicFlightScreen(
     airspace: AirspaceModel,
     /** The address of the server the flight is on, for the link to its page. */
     server: String?,
+    /** Called to list everything else this pilot shares with everyone. */
+    onPilot: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    var isShowingMenu by remember { mutableStateOf(false) }
     var opened by remember(flight.id) { mutableStateOf<CommunityModel.Opened?>(null) }
     var problem by remember(flight.id) { mutableStateOf<String?>(null) }
 
@@ -118,16 +123,31 @@ fun PublicFlightScreen(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            if (server != null) {
-                FilledTonalIconButton(
-                    onClick = { SharedFiles.shareText(context, server + flight.pagePath, "Share the flight's page") },
-                    colors = colours,
-                ) {
-                    Icon(painterResource(R.drawable.ic_share), contentDescription = "Share the flight's page")
+            Box {
+                FilledTonalIconButton(onClick = { isShowingMenu = true }, colors = colours) {
+                    Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
                 }
-            } else {
-                // Keeps the name in the middle.
-                Spacer(Modifier.size(48.dp))
+                DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Flights of ${flight.pilot}") },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_person), contentDescription = null) },
+                        onClick = {
+                            isShowingMenu = false
+                            onPilot()
+                        },
+                        modifier = Modifier.testTag("public-flight-pilot-flights"),
+                    )
+                    if (server != null) {
+                        DropdownMenuItem(
+                            text = { Text("Share the flight's page") },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_share), contentDescription = null) },
+                            onClick = {
+                                isShowingMenu = false
+                                SharedFiles.shareText(context, server + flight.pagePath, "Share the flight's page")
+                            },
+                        )
+                    }
+                }
             }
         }
     }

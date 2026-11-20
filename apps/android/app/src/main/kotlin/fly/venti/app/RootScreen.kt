@@ -27,6 +27,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.account.AccountScreen
 import fly.venti.app.airspace.AirspaceScreen
 import fly.venti.app.assistant.AssistantScreen
+import fly.venti.app.community.PilotFlightsScreen
 import fly.venti.app.flight.FlightScreen
 import fly.venti.app.flight.PublicFlightScreen
 import fly.venti.app.fly.CockpitScreen
@@ -284,10 +285,21 @@ private fun Sections(
                                 session.community,
                                 session.airspace,
                                 server = (session.wind.server as? WindServer.Usable)?.url,
+                                // Everything else this pilot shares with everyone.
+                                onPilot = { navigation.open(LogbookRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },
                             )
                         }
                     }
+                }
+                is LogbookRoute.Pilot -> kept.SaveableStateProvider("pilot-${route.handle}") {
+                    PilotFlightsScreen(
+                        route.handle,
+                        route.name,
+                        session.community,
+                        onOpen = { navigation.open(LogbookRoute.PublicFlight(it.id)) },
+                        onBack = { navigation.back() },
+                    )
                 }
                 LogbookRoute.Statistics -> kept.SaveableStateProvider("statistics") {
                     StatisticsScreen(

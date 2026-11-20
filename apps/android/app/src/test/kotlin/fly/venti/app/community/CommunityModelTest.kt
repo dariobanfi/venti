@@ -47,6 +47,10 @@ class CommunityModelTest {
         @Volatile
         var refusal: HttpAnswer? = null
 
+        /** Whether a pilot's flights take two pages. */
+        @Volatile
+        var pilotHasTwoPages = false
+
         /** What it hands out as a flight's file. */
         @Volatile
         var file: HttpAnswer = HttpAnswer(200, TestSupport.sampleFlight.toByteArray())
@@ -56,6 +60,15 @@ class CommunityModelTest {
             if (!isReachable) throw IOException("no route to host")
             return when {
                 url.endsWith("/igc") -> file
+                // The one pilot it knows, and what is left of the list after a first page.
+                "/v1/pilots/demo?after=m1" in url -> HttpAnswer(200, PILOT_LAST_PAGE.toByteArray())
+                url.endsWith("/v1/pilots/demo") ->
+                    if (pilotHasTwoPages) {
+                        HttpAnswer(200, PILOT_FIRST_PAGE.toByteArray())
+                    } else {
+                        HttpAnswer(200, recorded("pilot.json"))
+                    }
+                "/v1/pilots/" in url -> HttpAnswer(404, """{"error": {"code": "not_found", "message": "x"}}""".toByteArray())
                 "/v1/flights/public" !in url -> HttpAnswer(404, ByteArray(0))
                 refusal != null -> checkNotNull(refusal)
                 "sort=score" in url -> HttpAnswer(200, recorded("public_flights_best.json"))
@@ -73,6 +86,13 @@ class CommunityModelTest {
                 .replace("nfmvgygyr34epnfbcekb04nwqc", "aaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .replace("fbyw03atd9qdt5bfe177ra1k94", "bbbbbbbbbbbbbbbbbbbbbbbbbb")
                 .replace(Regex(""""next"\s*:\s*"[^"]*""""), """"next": null""")
+
+            /** The recorded page of a pilot as the first of two: with a mark for the next. */
+            val PILOT_FIRST_PAGE: String = recorded("pilot.json").decodeToString().replaceFirst("{", """{"next": "m1", """)
+
+            /** And the second: another flight of the same pilot, and nothing after it. */
+            val PILOT_LAST_PAGE: String =
+                recorded("pilot.json").decodeToString().replace("5t1eshypdtvrq7rxw39a18vsrg", "cccccccccccccccccccccccccc")
         }
     }
 
@@ -235,6 +255,81 @@ class CommunityModelTest {
         // No network.
         server.isReachable = false
         assertTrue(whyNot(community) { community.open(flight) }.startsWith("The flight could not be fetched."))
+    }
+
+    @Test
+    fun aPilotsPageListsWhatThatPilotSharesWithEveryone() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        assertNull(community.pilot)
+
+        community.showPilot("demo")
+        assertEquals(listOf("$BASE/v1/pilots/demo"), server.asked.toList())
+        val pilot = checkNotNull(community.pilot)
+        assertEquals("demo", pilot.handle)
+        assertTrue(pilot.isLoaded)
+        assertFalse(pilot.isLoading)
+        assertNull(pilot.problem)
+        assertNull(pilot.next)
+        assertTrue(pilot.flights.isNotEmpty())
+        assertTrue(pilot.flights.all { it.handle == "demo" && it.pilot == "Demo Pilot" })
+        // A flight of the page can be opened, though the list of everyone's
+        // flights was never looked at.
+        assertEquals(pilot.flights.first(), community.flight(pilot.flights.first().id))
+
+        // Come back to from one of its flights, the page is there: nothing is asked.
+        community.showPilot("demo")
+        community.morePilotFlights()
+        assertEquals(1, server.asked.size)
+
+        // A pilot the server does not know is said in the core's words.
+        community.showPilot("nobody")
+        assertEquals("$BASE/v1/pilots/nobody", server.asked.last())
+        assertEquals("The server knows no pilot by this handle.", community.pilot?.problem)
+        assertTrue(checkNotNull(community.pilot).flights.isEmpty())
+        // What cannot be a handle is not asked for at all.
+        val asked = server.asked.size
+        community.showPilot("../accounts")
+        assertEquals(asked, server.asked.size)
+        assertEquals("This is not the handle of a pilot.", community.pilot?.problem)
+
+        // No network: said, and asked again the next time the page is looked at.
+        server.isReachable = false
+        community.showPilot("demo")
+        assertTrue(checkNotNull(community.pilot?.problem).startsWith("The server could not be reached."))
+        server.isReachable = true
+        community.showPilot("demo")
+        assertNull(community.pilot?.problem)
+        assertEquals(1, community.pilot?.flights?.size)
+    }
+
+    @Test
+    fun aPilotsLaterFlightsFollowWhenTheEndOfThePageComesIntoView() = runBlocking {
+        val server = Server()
+        server.pilotHasTwoPages = true
+        val community = model(server)
+
+        community.showPilot("demo")
+        assertEquals("m1", community.pilot?.next)
+        assertEquals(1, community.pilot?.flights?.size)
+
+        community.morePilotFlights()
+        assertEquals("$BASE/v1/pilots/demo?after=m1", server.asked.last())
+        val pilot = checkNotNull(community.pilot)
+        assertEquals(2, pilot.flights.size)
+        assertEquals(2, pilot.flights.map { it.id }.distinct().size)
+        assertNull(pilot.next)
+        // That was the last page.
+        community.morePilotFlights()
+        assertEquals(2, server.asked.size)
+
+        // Without a server there is nothing to ask and nothing kept.
+        var address: String? = BASE
+        val other = model(server) { address }
+        other.showPilot("demo")
+        address = null
+        other.loadIfNeeded()
+        assertNull(other.pilot)
     }
 
     /** The words for what went wrong in `open`. */

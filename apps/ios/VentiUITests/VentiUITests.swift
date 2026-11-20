@@ -955,6 +955,61 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("plans-3-group")
     }
 
+    /// A flight is laid beside another pilot's of the same day: both on
+    /// the map and in the profile, and their numbers side by side. Runs
+    /// against a Venti server in development mode, whose two oldest
+    /// public flights were flown from the same place on the same day.
+    func testAFlightIsLaidBesideAnother() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        openTab("Logbook", in: app)
+        let everyone = app.buttons["Everyone"]
+        XCTAssertTrue(everyone.waitForExistence(timeout: 15))
+        everyone.tap()
+        // Five flights, the newest first: the last is the oldest.
+        let rows = app.descendants(matching: .any).matching(identifier: "public-flight-row")
+        let oldest = rows.element(boundBy: 4)
+        XCTAssertTrue(oldest.waitForExistence(timeout: 40))
+        oldest.tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 40))
+
+        // From the flight's details: lay another flight beside it.
+        app.buttons["Flight details"].tap()
+        let compare = element("flight-compare", in: app)
+        XCTAssertTrue(compare.waitForExistence(timeout: 10))
+        compare.tap()
+        // What other pilots flew there that day, and the pilot's own.
+        let other = element("compare-public-row", in: app)
+        XCTAssertTrue(other.waitForExistence(timeout: 40))
+        XCTAssertTrue(labelled(containing: "Your logbook holds no other flight", in: app).exists)
+        sleep(1)
+        keepScreenshot("compare-1-choose")
+        other.tap()
+
+        // Both flights on the page: the second track on the map, its
+        // altitude in the profile, and a line that says whose it is.
+        let beside = element("flight-beside", in: app)
+        XCTAssertTrue(beside.waitForExistence(timeout: 40))
+        sleep(3)
+        keepScreenshot("compare-2-beside")
+
+        // The two in numbers.
+        beside.tap()
+        XCTAssertTrue(app.navigationBars["Side by side"].waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "Airtime", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "Highest", in: app).exists)
+        sleep(1)
+        keepScreenshot("compare-3-numbers")
+
+        // Taken away again, the page is the one flight's as before.
+        element("compare-end", in: app).tap()
+        XCTAssertTrue(app.buttons["Flight details"].waitForExistence(timeout: 10))
+        XCTAssertFalse(element("flight-beside", in: app).exists)
+    }
+
     /// A region's map is downloaded from the pilot's server and kept, and
     /// the cockpit then draws its map from it. Runs against a Venti server
     /// whose development mode hands out the region that comes with the

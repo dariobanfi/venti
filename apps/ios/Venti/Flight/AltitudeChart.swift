@@ -8,14 +8,18 @@ struct AltitudeChart: View {
     let flight: FlightView
     /// The ground under the flight, in order of time. Empty without it.
     var ground: [GroundUnderFlight] = []
+    /// A second flight laid beside this one: its altitude is a second
+    /// line, on this flight's time.
+    var compared: ComparedFlight?
     @Binding var cursor: Int?
 
     /// The time under the finger while it is down.
     @State private var touched: Date?
 
     var body: some View {
-        let range = Self.altitudeRange(of: flight, over: ground)
+        let range = Self.altitudeRange(of: flight, over: ground, beside: compared?.flight)
         let marked = cursor.map { flight.track[$0] }
+        let otherMarked = marked.flatMap { compared?.point(atSeconds: $0.seconds) }
 
         Chart {
             ForEach(flight.profile, id: \.seconds) { point in
@@ -34,7 +38,8 @@ struct AltitudeChart: View {
                 )
                 LineMark(
                     x: .value("Time", time(point.seconds)),
-                    y: .value("Altitude", point.altitudeM)
+                    y: .value("Altitude", point.altitudeM),
+                    series: .value("Flight", "This")
                 )
                 .foregroundStyle(Palette.accent)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
@@ -50,6 +55,27 @@ struct AltitudeChart: View {
                 )
                 .foregroundStyle(Self.groundColor)
             }
+            // The flight laid beside this one, over everything but the
+            // marker: where it leaves this flight's time it is cut off.
+            if let compared {
+                ForEach(compared.flight.profile, id: \.seconds) { point in
+                    LineMark(
+                        x: .value("Time", moment(Double(point.seconds) + Double(compared.comparison.offsetS))),
+                        y: .value("Altitude", point.altitudeM),
+                        series: .value("Flight", "Other")
+                    )
+                    .foregroundStyle(Palette.otherFlight)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                }
+            }
+            if let marked, let otherMarked {
+                PointMark(
+                    x: .value("Time", time(marked.seconds)),
+                    y: .value("Altitude", otherMarked.altitudeM)
+                )
+                .symbolSize(60)
+                .foregroundStyle(Palette.otherFlight)
+            }
             if let marked {
                 RuleMark(x: .value("Time", time(marked.seconds)))
                     .foregroundStyle(Color.primary.opacity(0.45))
@@ -64,6 +90,10 @@ struct AltitudeChart: View {
         }
         .chartXScale(domain: time(0)...time(UInt32(clamping: max(flight.durationS, 1))))
         .chartYScale(domain: range)
+        // The other flight may begin before this one or end after it.
+        .chartPlotStyle { plot in
+            plot.clipped()
+        }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine()
@@ -96,7 +126,13 @@ struct AltitudeChart: View {
     }
 
     private func time(_ seconds: UInt32) -> Date {
-        Date(timeIntervalSince1970: TimeInterval(flight.startUnixS) + TimeInterval(seconds))
+        moment(Double(seconds))
+    }
+
+    /// The time of a moment given in seconds since the flight's first
+    /// fix, which for a flight laid beside it may be before or after.
+    private func moment(_ seconds: Double) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(flight.startUnixS) + seconds)
     }
 
     /// The position in the track closest to a moment.
@@ -128,11 +164,17 @@ struct AltitudeChart: View {
     /// The heights the chart shows: the flight's, and with the ground
     /// under it the lowest ground too.
     nonisolated static func altitudeRange(
-        of flight: FlightView, over ground: [GroundUnderFlight] = []
+        of flight: FlightView, over ground: [GroundUnderFlight] = [], beside other: FlightView? = nil
     ) -> ClosedRange<Double> {
-        let lowest = ground.map(\.elevationM).min().map { min($0, flight.minAltitudeM) } ?? flight.minAltitudeM
+        var lowest = ground.map(\.elevationM).min().map { min($0, flight.minAltitudeM) } ?? flight.minAltitudeM
+        var highest = flight.maxAltitudeM
+        // A flight laid beside this one is shown whole in height.
+        if let other {
+            lowest = min(lowest, other.minAltitudeM)
+            highest = max(highest, other.maxAltitudeM)
+        }
         let low = (lowest / 100).rounded(.down) * 100
-        let high = (flight.maxAltitudeM / 100).rounded(.up) * 100
+        let high = (highest / 100).rounded(.up) * 100
         return low...max(high, low + 100)
     }
 

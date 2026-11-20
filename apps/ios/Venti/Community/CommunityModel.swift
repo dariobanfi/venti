@@ -139,6 +139,20 @@ final class CommunityModel {
         return try publicFlights(status: UInt16(clamping: status), body: body).flights
     }
 
+    /// The public flights that took off inside a part of the map and
+    /// began in a span of time, the newest first: what was flown around a
+    /// flight on its day. The first page of them.
+    func flights(around area: Bounds, fromUnixS: Int64, toUnixS: Int64) async throws -> [PublicFlight] {
+        let path = try publicFlightsPath(
+            order: .newest, area: area, fromUnixS: fromUnixS, toUnixS: toUnixS, after: nil
+        )
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
+            throw URLError(.badURL)
+        }
+        let (status, body) = try await transport(url)
+        return try publicFlights(status: UInt16(clamping: status), body: body).flights
+    }
+
     /// One page of a pilot's public flights, the newest first. `after` is
     /// the `next` of the page before.
     func pilot(_ handle: String, after: String? = nil) async throws -> PilotPage {

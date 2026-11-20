@@ -12,6 +12,11 @@ struct FlightDetailsSheet: View {
     /// The flight checked against the airspace the app has, once that is
     /// done.
     let airspace: FlightAirspace?
+    /// Whether a second flight is laid beside this one already.
+    var isCompared = false
+    /// Called when the pilot wants a second flight laid beside this one,
+    /// or to see the two side by side.
+    var onCompare: () -> Void = {}
     /// Called with a position in the flight's track to mark.
     let onSelect: (Int) -> Void
 
@@ -26,6 +31,17 @@ struct FlightDetailsSheet: View {
                     row("Landing", Format.time(unixSeconds: flight.startUnixS + flight.durationS))
                     row("Airtime", "\(Format.hoursMinutes(seconds: flight.durationS)) h")
                     row("Track length", "\(Format.kilometres(metres: flight.trackLengthM)) km")
+                }
+                Section {
+                    Button(
+                        isCompared ? "The two flights side by side" : "Lay another flight beside it",
+                        systemImage: "square.split.2x1"
+                    ) {
+                        onCompare()
+                    }
+                    .accessibilityIdentifier("flight-compare")
+                } footer: {
+                    Text("One of your own, or one that other pilots show to everyone and that was flown here on the same day. Flights that were in the air together are shown by the clock.")
                 }
                 if let score = analysis?.score {
                     Section {

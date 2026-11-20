@@ -14,6 +14,10 @@ struct FlightPanel: View {
     var score: FlightScore?
     /// The ground under the flight, where the iPhone has it.
     var ground: [GroundUnderFlight] = []
+    /// A second flight laid beside this one.
+    var compared: ComparedFlight?
+    /// Called when the pilot taps the line about the second flight.
+    var onShowComparison: () -> Void = {}
     @Binding var cursor: Int?
     @Binding var isPlaying: Bool
     @Binding var isShowingDetails: Bool
@@ -26,7 +30,10 @@ struct FlightPanel: View {
             } else {
                 totals
             }
-            AltitudeChart(flight: flight, ground: ground, cursor: $cursor)
+            if let compared {
+                beside(compared)
+            }
+            AltitudeChart(flight: flight, ground: ground, compared: compared, cursor: $cursor)
                 .frame(height: 124)
             ClimbLegend()
         }
@@ -62,6 +69,41 @@ struct FlightPanel: View {
                 isShowingDetails = true
             }
         }
+    }
+
+    /// The flight laid beside this one, in a line: whose it is, and at
+    /// a marked moment how high its glider was and how far away; else how
+    /// the two lie to each other. A tap opens the numbers side by side.
+    private func beside(_ compared: ComparedFlight) -> some View {
+        let now = cursor.flatMap { compared.words(at: flight.track[$0]) }
+        return Button {
+            onShowComparison()
+        } label: {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Palette.otherFlight)
+                    .frame(width: 10, height: 10)
+                    .accessibilityHidden(true)
+                Text(compared.name)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Text(now ?? (cursor == nil ? compared.comparison.words : "Not in the air then"))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .monospacedDigit()
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .font(.subheadline)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("flight-beside")
+        .accessibilityHint("Shows the two flights side by side in numbers")
     }
 
     private var subtitle: String {

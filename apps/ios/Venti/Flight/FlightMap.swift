@@ -18,6 +18,11 @@ struct FlightMap: UIViewRepresentable {
     /// What the map is drawn from. Read when the map is made; the screen
     /// makes the map anew when it changes.
     var source: MapStyle.Source = .standard
+    /// A second flight laid beside this one, to draw under it.
+    var other: FlightView?
+    /// Where that flight's glider was at the moment marked, if it was in
+    /// the air then.
+    var otherCursor: TrackPoint?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(flight: flight)
@@ -34,6 +39,7 @@ struct FlightMap: UIViewRepresentable {
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.update(map, cursor: cursor, covered: covered, score: score, airspace: airspace)
+        context.coordinator.update(map, other: other, otherCursor: otherCursor)
     }
 
     @MainActor
@@ -45,6 +51,11 @@ struct FlightMap: UIViewRepresentable {
         private var airspace: [AirspaceShape] = []
         private var drawnAirspace: [AirspaceShape]?
         private var isStyleLoaded = false
+        private var other: FlightView?
+        /// Which other flight is drawn: by when it began and how many
+        /// points it has, which is cheaper to compare than its track.
+        private var drawnOther: String?
+        private var otherCursor: TrackPoint?
 
         init(flight: FlightView) {
             self.flight = flight
@@ -70,10 +81,21 @@ struct FlightMap: UIViewRepresentable {
             }
         }
 
+        /// Takes the flight laid beside this one, and where its glider is.
+        func update(_ map: MLNMapView, other: FlightView?, otherCursor: TrackPoint?) {
+            self.other = other
+            drawOther(on: map)
+            if otherCursor != self.otherCursor {
+                self.otherCursor = otherCursor
+                markOther(on: map)
+            }
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             // Airspace lowest of all, under the route and the track.
             AirspaceLayers.add(to: style)
             addRoute(to: style)
+            addOther(to: style)
             addTrack(to: style)
             addEnds(to: style)
             addCursor(to: style)
@@ -82,7 +104,57 @@ struct FlightMap: UIViewRepresentable {
             drawnAirspace = nil
             drawAirspace(on: mapView)
             drawRoute(on: mapView)
+            drawnOther = nil
+            drawOther(on: mapView)
             markCursor(on: mapView)
+            markOther(on: mapView)
+        }
+
+        /// The other flight goes under this one: a line of one colour,
+        /// with the same white edge, and a dot for its glider.
+        private func addOther(to style: MLNStyle) {
+            let track = MLNShapeSource(identifier: "flight-other", shape: nil, options: nil)
+            style.addSource(track)
+            style.addLayer(MapSetup.line("flight-other-edge", from: track, color: .white, width: 5.5))
+            style.addLayer(MapSetup.line("flight-other-line", from: track, color: Palette.otherFlightOnMap, width: 3))
+            let glider = MLNShapeSource(identifier: "flight-other-cursor", shape: nil, options: nil)
+            style.addSource(glider)
+            let dot = MapSetup.dot(
+                "flight-other-cursor-dot", from: glider, radius: 7, color: Palette.otherFlightOnMap, ring: .white
+            )
+            dot.isVisible = false
+            style.addLayer(dot)
+        }
+
+        /// Draws the other flight's track when it has changed, and fits
+        /// both flights into view.
+        private func drawOther(on map: MLNMapView) {
+            let key = other.map { "\($0.startUnixS)-\($0.track.count)" } ?? ""
+            guard isStyleLoaded, key != drawnOther,
+                  let source = map.style?.source(withIdentifier: "flight-other") as? MLNShapeSource
+            else { return }
+            drawnOther = key
+            if let other {
+                let coordinates = other.track.map(\.coordinate)
+                source.shape = MLNPolylineFeature(coordinates: coordinates, count: UInt(coordinates.count))
+            } else {
+                source.shape = nil
+            }
+            frame(map)
+        }
+
+        private func markOther(on map: MLNMapView) {
+            guard isStyleLoaded,
+                  let style = map.style,
+                  let source = style.source(withIdentifier: "flight-other-cursor") as? MLNShapeSource,
+                  let dot = style.layer(withIdentifier: "flight-other-cursor-dot")
+            else { return }
+            if let otherCursor {
+                let point = MLNPointFeature()
+                point.coordinate = otherCursor.coordinate
+                source.shape = point
+            }
+            dot.isVisible = otherCursor != nil
         }
 
         /// Draws the airspace around the flight, when it has changed.
@@ -92,11 +164,19 @@ struct FlightMap: UIViewRepresentable {
             AirspaceLayers.show(airspace, in: style)
         }
 
-        /// Fits the whole track into the part of the map that shows.
+        /// Fits the whole track into the part of the map that shows, and
+        /// with it the track of a flight laid beside it.
         private func frame(_ map: MLNMapView) {
             map.contentInset = covered
             guard isStyleLoaded else { return }
-            MapSetup.show(flight.bounds, on: map, animated: false)
+            var box = flight.bounds
+            if let beside = other?.bounds {
+                box = Bounds(
+                    south: min(box.south, beside.south), west: min(box.west, beside.west),
+                    north: max(box.north, beside.north), east: max(box.east, beside.east)
+                )
+            }
+            MapSetup.show(box, on: map, animated: false)
         }
 
         private func addTrack(to style: MLNStyle) {

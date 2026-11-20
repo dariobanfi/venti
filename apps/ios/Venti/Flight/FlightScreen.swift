@@ -155,6 +155,13 @@ struct FlightDetail: View {
     @State private var isPlaying = false
     @State private var panelHeight: CGFloat = 0
     @State private var isShowingDetails = false
+    /// A second flight laid beside this one, to compare the two.
+    @State private var compared: ComparedFlight?
+    @State private var isChoosingCompared = false
+    @State private var isShowingComparison = false
+    /// Whether the comparison was asked for from the details: it comes up
+    /// once the details have gone, since one sheet goes before the next.
+    @State private var comparesAfterDetails = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -170,7 +177,9 @@ struct FlightDetail: View {
                         bottom: panelHeight + 2 * Self.panelMargin,
                         right: 0
                     ),
-                    source: mapSource
+                    source: mapSource,
+                    other: compared?.flight,
+                    otherCursor: cursor.flatMap { compared?.point(atSeconds: flight.track[$0].seconds) }
                 )
                 // Without a network the map is drawn from the region kept
                 // on the iPhone, if one covers the flight.
@@ -184,6 +193,7 @@ struct FlightDetail: View {
                     Spacer(minLength: 0)
                     FlightPanel(
                         flight: flight, score: analysis?.score, ground: ground,
+                        compared: compared, onShowComparison: { isShowingComparison = true },
                         cursor: $cursor, isPlaying: $isPlaying, isShowingDetails: $isShowingDetails
                     )
                         .onGeometryChange(for: CGFloat.self) { panel in
@@ -219,14 +229,52 @@ struct FlightDetail: View {
             }
             isPlaying = false
         }
-        .sheet(isPresented: $isShowingDetails) {
-            FlightDetailsSheet(flight: flight, analysis: analysis, airspace: airspaceCheck) { index in
+        .sheet(
+            isPresented: $isShowingDetails,
+            onDismiss: {
+                guard comparesAfterDetails else { return }
+                comparesAfterDetails = false
+                if compared == nil {
+                    isChoosingCompared = true
+                } else {
+                    isShowingComparison = true
+                }
+            }
+        ) {
+            FlightDetailsSheet(
+                flight: flight, analysis: analysis, airspace: airspaceCheck,
+                isCompared: compared != nil,
+                onCompare: {
+                    comparesAfterDetails = true
+                    isShowingDetails = false
+                }
+            ) { index in
                 // Show a thermal or glide the pilot picked from the list.
                 isPlaying = false
                 cursor = min(index, flight.track.count - 1)
                 isShowingDetails = false
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $isChoosingCompared) {
+            CompareChooser(flight: flight, analysis: analysis) { chosen in
+                isPlaying = false
+                cursor = nil
+                compared = chosen
+            }
+        }
+        .sheet(isPresented: $isShowingComparison) {
+            if let compared {
+                ComparisonSheet(
+                    compared: compared,
+                    onNearest: {
+                        isPlaying = false
+                        cursor = compared.nearestIndex(in: flight.track)
+                    },
+                    onEnd: { self.compared = nil }
+                )
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 

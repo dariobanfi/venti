@@ -90,7 +90,7 @@ jobs:
       - name: Start a Venti server on recorded data
         run: |
           cargo build -p venti-server
-          nohup target/debug/venti-server dev > target/venti-server.log 2>&1 &
+          nohup target/debug/venti-server dev --maps apps/ios/Venti/Resources > target/venti-server.log 2>&1 &
           for attempt in $(seq 1 30); do
             curl -sf http://127.0.0.1:8080/v1/health > /dev/null && break
             sleep 1

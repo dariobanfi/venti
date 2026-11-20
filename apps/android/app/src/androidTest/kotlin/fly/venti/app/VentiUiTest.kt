@@ -2268,6 +2268,8 @@ class VentiUiTest {
         waitFor(aerial and isSelected().not())
         tap(aerial)
         waitFor(aerial and isSelected())
+        // Whose photographs they are, by name, while they show.
+        waitFor(hasText("Photos: basemap.at", substring = true))
         letTheMapDraw(12)
         keepScreenshot("online-1b-map-aerial")
 
@@ -2277,6 +2279,7 @@ class VentiUiTest {
         waitFor(described("Flight details"))
         // One choice for every map: the flight's map shows the photographs too.
         waitFor(aerial and isSelected())
+        waitFor(hasTestTag("photos-credit"))
         letTheMapDraw(12)
         keepScreenshot("online-2b-flight-aerial")
         // Off again, as the test found it.

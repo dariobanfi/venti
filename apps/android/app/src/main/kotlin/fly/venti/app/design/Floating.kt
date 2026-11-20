@@ -118,3 +118,26 @@ fun AerialButton(isOn: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier 
         onClick = { onChange(!isOn) },
     )
 }
+
+/**
+ * Who made the photographs of the aerial view, by name only, in a line at
+ * a map's corner while they show; their own full words are behind the
+ * map's credits button and on the credits screen.
+ */
+@Composable
+fun PhotosCredit(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.testTag("photos-credit"),
+        shape = MaterialTheme.shapes.small,
+        color = Venti.colours.surface.copy(alpha = 0.85f),
+    ) {
+        Text(
+            fly.venti.app.map.MapSetup.PHOTOS_CREDIT,
+            style = MaterialTheme.typography.labelSmall,
+            color = Venti.colours.textSecondary,
+            maxLines = 2,
+            modifier = Modifier.padding(horizontal = VentiSpace.s2, vertical = VentiSpace.s1),
+        )
+    }
+}
+

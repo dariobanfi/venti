@@ -220,6 +220,8 @@ fun MapScreen(
         wind.creditLine.takeIf { !hidesWind },
         airspace.mapCredit.takeIf { showsAirspace && !hidesAirspace },
         sites.creditLine.takeIf { region?.let(SitesModel::showsSites) == true && !hidesSites },
+        // Who made the photographs, by name, while they show.
+        MapSetup.PHOTOS_CREDIT.takeIf { aerial },
     )
     val hasServer = wind.server is WindServer.Usable
 

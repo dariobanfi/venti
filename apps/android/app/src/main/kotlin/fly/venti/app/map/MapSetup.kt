@@ -187,6 +187,12 @@ object MapSetup {
      * the photographs, which are dark.
      */
     fun showAerial(aerial: Boolean, style: Style, view: MapView) {
+        // The light casings under the app's own dark lines, for the photographs.
+        for (layer in style.layers) {
+            if (layer.id.endsWith(AERIAL_CASING)) {
+                layer.setProperties(PropertyFactory.visibility(if (aerial) Property.VISIBLE else Property.NONE))
+            }
+        }
         val views = views(view.context) ?: return
         // A layer the prepared style left out, one that asks Venti while
         // none is set, is not there and is passed over.
@@ -200,6 +206,24 @@ object MapSetup {
             map.uiSettings.setAttributionTintColor(if (aerial) Palette.haloOnMap.toArgb() else Color.argb(190, 64, 64, 64))
         }
     }
+
+    /** How a layer's name ends that is a casing for the aerial view only. */
+    private const val AERIAL_CASING = "-aerial-casing"
+
+    /**
+     * A light casing under one of the app's own dark lines, shown only
+     * while the photographs show: on them a plain dark line is lost. The
+     * map's label halo, about 1.5 px each side of a line this wide.
+     */
+    fun aerialCasing(line: String, source: String, width: Float): LineLayer =
+        line("$line$AERIAL_CASING", source, halo, width + 3f).withProperties(PropertyFactory.visibility(Property.NONE))
+
+    /**
+     * Who made the photographs, by name only, for the map's lower left
+     * while they show: their full words are behind the map's credits
+     * button and on the credits screen.
+     */
+    const val PHOTOS_CREDIT = "Photos: basemap.at · Bayerische Vermessungsverwaltung · EOX"
 
     /** A map view with the app's style and no camera yet. */
     fun makeMapView(context: Context, content: MapContent, kept: KeptMap? = null): MapView {

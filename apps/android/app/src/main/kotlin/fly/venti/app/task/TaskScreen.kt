@@ -1,5 +1,6 @@
 package fly.venti.app.task
 
+import fly.venti.app.settings.Preferences
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -94,7 +95,13 @@ import kotlin.math.min
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) {
+fun TaskScreen(
+    tasks: TaskModel,
+    waypoints: WaypointsModel,
+    onBack: () -> Unit,
+    /** Where the choice of the aerial view is kept, for the route map. */
+    preferences: Preferences? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isShowingMenu by remember { mutableStateOf(false) }
@@ -116,7 +123,7 @@ fun TaskScreen(tasks: TaskModel, waypoints: WaypointsModel, onBack: () -> Unit) 
 
     // Drawing a route takes the whole screen, with a map of its own.
     if (isDrawingRoute) {
-        RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false })
+        RouteMapPlanner(tasks, onDismiss = { isDrawingRoute = false }, preferences = preferences)
         return
     }
 

@@ -166,6 +166,7 @@ class FlightMap(private val flight: FlightView) : MapContent {
     /** The scored route goes under the track: a thin dashed line. */
     private fun addRoute(style: Style) {
         style.addSource(GeoJsonSource(ROUTE))
+        style.addLayer(MapSetup.aerialCasing("flight-route-line", ROUTE, 1.5f))
         val line = MapSetup.line("flight-route-line", ROUTE, MapSetup.ink, 1.5f)
         line.setProperties(
             PropertyFactory.lineOpacity(0.7f),

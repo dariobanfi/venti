@@ -1,5 +1,9 @@
 package fly.venti.app.task
 
+import app.venti.design.VentiSpace
+import fly.venti.app.settings.Preferences
+import fly.venti.app.design.PhotosCredit
+import fly.venti.app.design.AerialButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,7 +102,10 @@ fun RouteMapPlanner(
     onDismiss: () -> Unit,
     /** Where the route begins, if it begins at a place: a take-off whose page the pilot came from. */
     from: Coordinate? = null,
+    /** Where the choice of the aerial view is kept; `null` for none. */
+    preferences: Preferences? = null,
 ) {
+    var aerial by remember { mutableStateOf(preferences?.mapShowsAerial == true) }
     var places by remember { mutableStateOf(listOfNotNull(from)) }
     var problem by remember { mutableStateOf<String?>(null) }
     val plan = remember(places) { planRoute(places) }
@@ -135,8 +142,25 @@ fun RouteMapPlanner(
                     .fillMaxSize()
                     .testTag("route-map")
                     .semantics { contentDescription = "Map to draw the route on. Tap where the route goes next." },
-                onUpdate = { map.show(places, plan) },
+                onUpdate = {
+                    map.showAerial(aerial)
+                    map.show(places, plan)
+                },
             )
+            if (preferences != null) {
+                // The ground to draw on: the drawn map, or photographs from above.
+                AerialButton(
+                    aerial,
+                    onChange = { on ->
+                        aerial = on
+                        preferences.mapShowsAerial = on
+                    },
+                    Modifier.align(Alignment.TopEnd).padding(VentiSpace.s4),
+                )
+            }
+            if (aerial) {
+                PhotosCredit(Modifier.align(Alignment.TopStart).padding(VentiSpace.s2))
+            }
             Surface(
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(8.dp).fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -209,6 +233,18 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
     private var plan: RoutePlan? = null
     private var drawn: Pair<List<Coordinate>, RoutePlan?>? = null
 
+    /** Whether the map shows the aerial view, photographs from above. */
+    private var aerial = false
+
+    /** Switches between the drawn ground and the aerial view; at once if the style is there, else when it comes. */
+    fun showAerial(aerial: Boolean) {
+        if (aerial == this.aerial) return
+        this.aerial = aerial
+        val style = style ?: return
+        val view = view ?: return
+        MapSetup.showAerial(aerial, style, view)
+    }
+
     override fun prepare(map: MapLibreMap, view: MapView) {
         map.cameraPosition = if (start != null) {
             // A route that begins at a place: the country around it.
@@ -226,7 +262,9 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {
         this.style = style
         this.view = view
+        MapSetup.showAerial(aerial, style, view)
         style.addSource(GeoJsonSource(FAI))
+        style.addLayer(MapSetup.aerialCasing("route-fai-line", FAI, 1.5f))
         style.addLayer(
             MapSetup.line("route-fai-line", FAI, MapSetup.accent, 1.5f).withProperties(
                 PropertyFactory.lineDasharray(arrayOf(3f, 2f)),
@@ -237,6 +275,7 @@ private class RouteDrawingMap(private val start: Coordinate?, private val onTap:
         style.addLayer(MapSetup.line("route-drawn-edge", DRAWN, MapSetup.halo, 6f))
         style.addLayer(MapSetup.line("route-drawn-line", DRAWN, MapSetup.ink, 3f))
         style.addSource(GeoJsonSource(SCORED))
+        style.addLayer(MapSetup.aerialCasing("route-scored-line", SCORED, 2f))
         style.addLayer(
             MapSetup.line("route-scored-line", SCORED, MapSetup.accent, 2f)
                 .withProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f))),

@@ -2,6 +2,7 @@ package fly.venti.app.flight
 
 import app.venti.design.VentiSpace
 import fly.venti.app.design.AerialButton
+import fly.venti.app.design.PhotosCredit
 import fly.venti.app.settings.Preferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -384,6 +385,15 @@ internal fun FlightDetail(
             },
         )
         StatusBarScrim()
+        if (aerial) {
+            // Who made the photographs, by name, just above the panel.
+            PhotosCredit(
+                Modifier.align(Alignment.BottomStart).padding(
+                    start = VentiSpace.s2,
+                    bottom = with(density) { panelHeight.toDp() } + VentiSpace.s2,
+                ),
+            )
+        }
         // The ground under the flight: the drawn map, or photographs from above.
         if (preferences != null) {
             AerialButton(

@@ -74,6 +74,19 @@ final class FlySession {
     /// Asks the server who is in the air around a place. The app sets
     /// this; `nil` when there is no answer.
     @ObservationIgnored var others: (Coordinate) async -> [LiveGlider]? = { _ in nil }
+    /// The wind on the ground around the glider and where the pilot means
+    /// to land, as the wind stations of the pilot's server last measured
+    /// it. Absent without a server, without a network, and on the ground.
+    private(set) var windBelow: GroundWind?
+    /// Whose data those stations are: the licences ask for the credit
+    /// beside the data.
+    private(set) var windBelowCredits: [Credit] = []
+    /// Whether the pilot has put the warning of a strong wind at the
+    /// landing away.
+    private(set) var isWindWarningPutAway = false
+    /// Asks the server for the wind stations around a place and around a
+    /// second one. The app sets this; `nil` when there is no answer.
+    @ObservationIgnored var windOnTheGround: (Coordinate, Coordinate?) async -> WindMap? = { _, _ in nil }
     /// The pilot's landings, asked for every few seconds in the air. The
     /// app sets this to the waypoints that are places to land.
     @ObservationIgnored var landings: () -> [WaypointView] = { [] }
@@ -113,6 +126,12 @@ final class FlySession {
     /// and whether an answer is still awaited.
     @ObservationIgnored private var ticksSinceOthers = 0
     @ObservationIgnored private var isAskingForOthers = false
+    /// Refreshes of the screen since the wind on the ground was asked
+    /// for, whether an answer is still awaited, and the station whose
+    /// strong wind was last said aloud.
+    @ObservationIgnored private var ticksSinceWindBelow = 0
+    @ObservationIgnored private var isAskingForWindBelow = false
+    @ObservationIgnored private var warnedOfWindAt: String?
     /// How bright the screen was before the cockpit turned it up.
     @ObservationIgnored private var brightnessBefore: CGFloat?
 
@@ -127,6 +146,10 @@ final class FlySession {
     /// Who else is in the air is asked this many refreshes apart: every
     /// fifteen seconds, which is what the server asks for.
     private static let ticksBetweenOthers = 75
+
+    /// The wind on the ground is asked for this many refreshes apart:
+    /// every two minutes. Stations report every five to ten.
+    private static let ticksBetweenWindBelow = 600
 
     /// The longest stretch of the clock a replay moves on by at once, in
     /// seconds. When the phone was busy with something else for longer,
@@ -378,6 +401,10 @@ final class FlySession {
         range = nil
         gliders = []
         ticksSinceOthers = Self.ticksBetweenOthers
+        windBelow = nil
+        windBelowCredits = []
+        isWindWarningPutAway = false
+        warnedOfWindAt = nil
         view = nil
         way = nil
         score = nil
@@ -391,6 +418,55 @@ final class FlySession {
         return recording
     }
 
+    /// The warning of a strong wind where the pilot means to land, unless
+    /// the pilot has put it away.
+    var windWarning: GroundWindAlert? {
+        isWindWarningPutAway ? nil : windBelow?.alert
+    }
+
+    /// Puts the warning away. It comes back for another station, and for
+    /// this one after its wind has dropped and risen again.
+    func putWindWarningAway() {
+        isWindWarningPutAway = true
+    }
+
+    /// Where the pilot means to land, as far as the cockpit knows: the
+    /// place it navigates to, unless that is the take-off, else the
+    /// landing it names as the one to think of first.
+    private func placeToLand(from view: CockpitView) -> GroundWindPlace? {
+        if let way, !way.isTakeoff {
+            let elevation = view.altitudeM.flatMap { altitude in way.heightAboveM.map { altitude - $0 } }
+            return GroundWindPlace(name: way.name, position: way.position, elevationM: elevation)
+        }
+        let places = landings()
+        if let landing, places.indices.contains(Int(landing.index)) {
+            let place = places[Int(landing.index)]
+            return GroundWindPlace(name: place.name, position: place.position, elevationM: place.elevationM)
+        }
+        return nil
+    }
+
+    /// Takes the wind on the ground as it was just worked out. A warning
+    /// is said aloud when it comes up, and again only for another station
+    /// or after it has been gone.
+    private func take(_ wind: GroundWind, from credits: [Credit]) {
+        if wind != windBelow {
+            windBelow = wind
+        }
+        if credits != windBelowCredits {
+            windBelowCredits = credits
+        }
+        guard let alert = wind.alert else {
+            warnedOfWindAt = nil
+            return
+        }
+        if alert.stationId != warnedOfWindAt {
+            warnedOfWindAt = alert.stationId
+            isWindWarningPutAway = false
+            voice.sayAfter(alert.spoken)
+        }
+    }
+
     private func begin(_ session: FlightSession, mode: Mode) {
         self.session = session
         self.mode = mode
@@ -400,6 +476,9 @@ final class FlySession {
         // while the session runs.
         session.useTerrain(terrain: terrain())
         ticksSinceTerrain = Self.ticksBetweenTerrain
+        // The wind on the ground is asked for as soon as the glider flies.
+        ticksSinceWindBelow = Self.ticksBetweenWindBelow
+        isAskingForWindBelow = false
         // How the pilot's glider glides, for predicting arrival heights.
         // Unset values are zero, which the core ignores.
         let defaults = UserDefaults.standard
@@ -508,6 +587,28 @@ final class FlySession {
                         self.gliders = others
                     }
                 }
+            }
+        }
+
+        // The wind on the ground, in flight only: around the glider, and
+        // where the pilot means to land.
+        ticksSinceWindBelow += 1
+        if ticksSinceWindBelow >= Self.ticksBetweenWindBelow, !isAskingForWindBelow, view.phase == .flying,
+           let position = view.position
+        {
+            ticksSinceWindBelow = 0
+            isAskingForWindBelow = true
+            let place = placeToLand(from: view)
+            let trimSpeedMs = UserDefaults.standard.double(forKey: Preferences.trimSpeed) / 3.6
+            Task { [weak self] in
+                guard let self else { return }
+                let found = await self.windOnTheGround(position, place?.position)
+                self.isAskingForWindBelow = false
+                guard let found, self.mode != nil else { return }
+                let wind = groundWind(
+                    stations: found.stations, position: position, landing: place, trimSpeedMs: trimSpeedMs
+                )
+                self.take(wind, from: found.credits)
             }
         }
 

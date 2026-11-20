@@ -148,6 +148,32 @@ final class WindModel {
         }
     }
 
+    /// The stations around a glider in the air and around the place its
+    /// pilot means to land, with whose data they are: asked for once,
+    /// beside what the map tab shows. `nil` without a server or without
+    /// an answer, which in the air is nothing to tell the pilot about.
+    func stations(around place: Coordinate, andAround landing: Coordinate?) async -> WindMap? {
+        guard let server else { return nil }
+        // Some eighty kilometres every way from the glider: the stations
+        // of the weather services stand far apart.
+        var area = Bounds(
+            south: place.lat - 0.75, west: place.lon - 1.1, north: place.lat + 0.75, east: place.lon + 1.1
+        )
+        if let landing {
+            area = Bounds(
+                south: min(area.south, landing.lat - 0.05), west: min(area.west, landing.lon - 0.07),
+                north: max(area.north, landing.lat + 0.05), east: max(area.east, landing.lon + 0.07)
+            )
+        }
+        do {
+            let path = try windMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
+            let (status, body) = try await get(path, from: server)
+            return try windMap(status: status, body: body, nowUnixS: now)
+        } catch {
+            return nil
+        }
+    }
+
     /// What a station measured over the last 24 hours.
     func history(of station: WindStation) async throws -> StationHistory {
         guard let server else {

@@ -211,6 +211,15 @@ final class AirspaceVoice {
         tap.notificationOccurred(.warning)
     }
 
+    /// Speaks once whatever is being spoken has ended, without cutting
+    /// it off: for what matters less than airspace.
+    func sayAfter(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-GB")
+        synthesizer.speak(utterance)
+        tap.notificationOccurred(.warning)
+    }
+
     func stop() {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)

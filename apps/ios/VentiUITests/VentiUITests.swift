@@ -1067,6 +1067,17 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("maps-3-cockpit")
         // The height over the ground is read from the region's elevation.
         XCTAssertTrue(labelled(containing: "over ground", in: app).waitForExistence(timeout: 30))
+
+        // The wind on the ground, from the server's wind stations: the
+        // nearest in a badge, and all of them in the wind's sheet. The
+        // development mode's stations stand fifty kilometres off and more.
+        let ground = element("ground-wind-badge", in: app)
+        XCTAssertTrue(ground.waitForExistence(timeout: 60))
+        tapWhenStill(ground)
+        XCTAssertTrue(element("ground-wind-row", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("maps-4-wind-on-the-ground")
+        app.buttons["Done"].tap()
     }
 
     /// The same screens with tiles fetched from the public servers, as a

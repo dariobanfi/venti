@@ -25,6 +25,20 @@ struct WindByHeightSheet: View {
                 } footer: {
                     Text("Measured from your drift while you circled, as the mean over each visit to a band of 200 m. A band you have not circled in has no wind to show, and an old one may have changed. Under the wind stands how fast you climbed through the band while circling.")
                 }
+
+                // What the wind stations around measured last: the wind
+                // down where the landings are.
+                if let below = fly.windBelow, !below.stations.isEmpty {
+                    Section {
+                        ForEach(below.stations, id: \.id) { station in
+                            GroundWindRow(station: station)
+                        }
+                    } header: {
+                        Text("On the ground")
+                    } footer: {
+                        Text(groundFootnote)
+                    }
+                }
             }
             .navigationTitle("Wind by height")
             .navigationBarTitleDisplayMode(.inline)
@@ -36,6 +50,54 @@ struct WindByHeightSheet: View {
                 }
             }
         }
+    }
+}
+
+extension WindByHeightSheet {
+    /// What the stations' numbers are, and whose.
+    fileprivate var groundFootnote: String {
+        let what = "The nearest wind stations within 75 km with a reading of the last hour, as your server had them when it was last asked, every two minutes in flight. A station measures where it stands, and some report three quarters of an hour late: the age stands beside each. Mean wind and gusts in km/h."
+        let whose = fly.windBelowCredits.map(\.text).joined(separator: " · ")
+        return whose.isEmpty ? what : "\(what)\n\(whose)"
+    }
+}
+
+/// One wind station: where the air moves there, its name and where it
+/// stands, and what it measured.
+private struct GroundWindRow: View {
+    let station: GroundWindStation
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Group {
+                if let from = station.fromDeg {
+                    Image(systemName: "arrow.up")
+                        .rotationEffect(.degrees(from + 180))
+                } else {
+                    Image(systemName: "circle.dotted")
+                }
+            }
+            .font(.headline.weight(.bold))
+            .foregroundStyle(windBand(speedMs: station.speedMs).ink)
+            .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(station.name)
+                    .font(.body.weight(station.isAtLanding ? .semibold : .regular))
+                    .lineLimit(1)
+                Text(station.isAtLanding ? "At your landing · \(station.place)" : station.place)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text(station.wind)
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(station.isStrong ? Color.red : Color.primary)
+                .multilineTextAlignment(.trailing)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("ground-wind-row")
     }
 }
 

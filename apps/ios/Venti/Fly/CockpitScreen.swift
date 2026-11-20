@@ -86,6 +86,19 @@ struct CockpitScreen: View {
                             if let words = view.strongWind {
                                 StrongWindBadge(words: words)
                             }
+                            // The wind on the ground: the station that
+                            // speaks for the landing, else the nearest.
+                            // A tap lists the stations around.
+                            if let station = fly.windBelow?.stations.first {
+                                GroundWindBadge(station: station)
+                                    .contentShape(.capsule)
+                                    .onTapGesture {
+                                        isShowingWinds = true
+                                    }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityHint("Shows the wind stations around")
+                                    .accessibilityIdentifier("ground-wind-badge")
+                            }
                             // While circling: which way the lift is
                             // stronger, in words beside the picture on the
                             // map.
@@ -168,6 +181,15 @@ struct CockpitScreen: View {
                                     .background(.regularMaterial, in: .rect(cornerRadius: 8))
                                     .padding(.leading, 34)
                                     .accessibilityIdentifier("cockpit-airspace-credit")
+                            }
+                            // A strong wind where the pilot means to land,
+                            // over the airspace's place on the map.
+                            if let warning = fly.windWarning {
+                                GroundWindBanner(alert: warning) {
+                                    isShowingWinds = true
+                                } putAway: {
+                                    fly.putWindWarningAway()
+                                }
                             }
                             AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
                                 isShowingAirspace = true
@@ -781,6 +803,74 @@ struct WindBadge: View {
         guard let seconds, seconds >= 300 else { return nil }
         let minutes = Int(seconds / 60)
         return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h"
+    }
+}
+
+/// The wind on the ground in one badge: a flag, where the wind goes and
+/// its mean and gusts, as the station that speaks for the landing
+/// measured it, or else the nearest. Red when it is strong for a landing.
+struct GroundWindBadge: View {
+    let station: GroundWindStation
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "flag.fill")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if let from = station.fromDeg {
+                Image(systemName: "arrow.up")
+                    .font(.subheadline.weight(.bold))
+                    .rotationEffect(.degrees(from + 180))
+            }
+            Text(windSpeedsLabel(speedMs: station.speedMs, gustMs: station.gustMs))
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(station.isStrong ? Color.red : Color.primary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .glassEffect(.regular, in: .capsule)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(station.isAtLanding ? "Wind at the landing" : "Wind on the ground")
+        .accessibilityValue("\(station.name), \(station.wind)")
+    }
+}
+
+/// A strong wind where the pilot means to land: what a station there
+/// measured. A tap lists the stations around; the cross puts it away.
+struct GroundWindBanner: View {
+    let alert: GroundWindAlert
+    let open: () -> Void
+    let putAway: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button(action: open) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "wind")
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(alert.title)
+                            .font(.headline)
+                        Text(alert.detail)
+                            .font(.footnote)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("ground-wind-warning")
+            Button("Put the warning away", systemImage: "xmark", action: putAway)
+                .labelStyle(.iconOnly)
+                .font(.headline)
+                .frame(width: 36, height: 36)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.72, green: 0.32, blue: 0.06), in: .rect(cornerRadius: 14))
     }
 }
 

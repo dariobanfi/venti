@@ -110,6 +110,64 @@ final class WindModelTests: XCTestCase {
         XCTAssertEqual(last?.path, "/v1/stations/dwd-10min:05792/observations")
     }
 
+    func testTheCockpitGetsTheWindOnTheGroundFromTheStationsAround() async throws {
+        let asked = Asked()
+        let wind = WindModel(address: "http://127.0.0.1:8080", transport: server(noting: asked))
+        // The map tab has read the server's clock before the flight.
+        wind.show(alps)
+        await wind.load()
+
+        // A glider over Garmisch, with a landing in the valley below.
+        let glider = Coordinate(lat: 47.48, lon: 11.06)
+        let landing = GroundWindPlace(
+            name: "Valley landing", position: Coordinate(lat: 47.49, lon: 11.08), elevationM: 710
+        )
+        let answer = await wind.stations(around: glider, andAround: landing.position)
+        let found = try XCTUnwrap(answer)
+        // Some eighty kilometres every way, asked for beside the map's own.
+        let last = await asked.urls.last
+        XCTAssertEqual(last?.path, "/v1/stations")
+        XCTAssertTrue(last?.query?.hasPrefix("bbox=9.9") == true, last?.query ?? "")
+        XCTAssertEqual(wind.stations.count, 2)
+
+        let below = groundWind(
+            stations: found.stations, position: glider, landing: landing, trimSpeedMs: 38 / 3.6
+        )
+
+        // Garmisch's reading is five hours old and left out. The
+        // Zugspitze's is three quarters of an hour old, which is how late
+        // the weather service's readings come, and says so. It is strong,
+        // but nine kilometres off and two thousand metres up: it does not
+        // speak for the landing, and nothing is warned of.
+        XCTAssertEqual(below.stations.map(\.name), ["Zugspitze"])
+        let summit = try XCTUnwrap(below.stations.first)
+        XCTAssertEqual(summit.wind, "W 54/93 km/h · 45 min ago")
+        XCTAssertTrue(summit.isStrong)
+        XCTAssertFalse(summit.isAtLanding)
+        XCTAssertNil(below.alert)
+        XCTAssertEqual(found.credits.map(\.text), ["Quelle: Deutscher Wetterdienst"])
+
+        // A landing at the foot of the summit station, about as high as
+        // it: there its wind is the landing's, and is warned of.
+        let up = GroundWindPlace(
+            name: "Summit plateau", position: Coordinate(lat: 47.42, lon: 10.99), elevationM: 2900
+        )
+        let warned = groundWind(stations: found.stations, position: glider, landing: up, trimSpeedMs: 38 / 3.6)
+        XCTAssertEqual(warned.alert?.title, "Strong wind at Summit plateau")
+        XCTAssertEqual(
+            warned.alert?.spoken,
+            "Strong wind at the landing. 54 kilometres per hour, gusts 93, from the west."
+        )
+
+        // Without a server, and from a server that does not answer, there
+        // is nothing, and nothing to say about it in the air.
+        let none = await WindModel(address: "").stations(around: glider, andAround: nil)
+        XCTAssertNil(none)
+        let silent = WindModel(address: "http://127.0.0.1:8080") { _ in throw URLError(.timedOut) }
+        let nothing = await silent.stations(around: glider, andAround: nil)
+        XCTAssertNil(nothing)
+    }
+
     func testAServerThatCannotBeReachedIsSaidAndLeavesNoStations() async {
         let wind = WindModel(address: "wind.example.org") { _ in
             throw URLError(.cannotConnectToHost)

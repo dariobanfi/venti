@@ -110,6 +110,8 @@ enum Session {
             // Other pilots in the air around the glider, from the same
             // server as the map tab's.
             fly.others = { place in await live.around(place) }
+            // And the wind on the ground, from the server's wind stations.
+            fly.windOnTheGround = { place, landing in await wind.stations(around: place, andAround: landing) }
             // The ground under the glider, from the map's elevation tiles:
             // brought as the glider moves, and kept on the iPhone.
             let ground = TerrainModel()

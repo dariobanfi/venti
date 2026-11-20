@@ -42,6 +42,8 @@
 //! | [`plan_path`] | DELETE | | nothing |
 //! | [`plan_in_path`] | PUT, DELETE | | [`PlanResponse`] |
 //! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
+//! | [`MAPS_PATH`] | GET | | [`MapsResponse`] |
+//! | [`map_file_path`] | GET | | the file, or the range of it asked for |
 //!
 //! A request that cannot be answered gets an [`ErrorResponse`] with a 4xx or
 //! 5xx status.
@@ -67,6 +69,7 @@ mod forecast;
 mod groups;
 mod health;
 mod live;
+mod maps;
 mod observations;
 mod report;
 mod request;
@@ -105,6 +108,10 @@ pub use live::{
     LIVE_LISTED_MINUTES, LiveFix, LivePositionsRequest, LivePositionsResponse, LiveTrack,
     LiveTrackId, LiveTrackIdError, LiveTrackResponse, LiveTracksResponse, LiveVisibility,
     MAX_LIVE_BATCH_FIXES, MAX_LIVE_BODY_BYTES, MAX_LIVE_FIXES, MAX_LIVE_TRACKS,
+};
+pub use maps::{
+    MAPS_PATH, MAX_MAP_NAME_LENGTH, MapCredit, MapFile, MapFileRole, MapRegion, MapsResponse,
+    is_map_name, map_file_path,
 };
 pub use observations::{ObservationsResponse, Reading};
 pub use report::{

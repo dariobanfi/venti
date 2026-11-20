@@ -57,7 +57,7 @@ The map style is `map/style.json` at the repository's root, shared by all platfo
 
 What a simulator cannot show (recording for hours in the background, the vario connecting and reconnecting, the tone) is listed in [docs/architecture.md](../../docs/architecture.md#ios-first-target). Besides that:
 
-- **A flight that records itself.** The core's rule is tested with made-up positions; on the iPhone no test takes off, and nobody has. A simulator has no flight to notice.
+- **A flight that records itself.** The core's rule is tested with made-up positions, and the UI test `testAFlightRecordsItself` flies one on the simulator: it sets the simulated iPhone's position once a second (`XCUIDevice.shared.location`), stands, flies, stands, and finds the flight in the logbook. The positions wander by half a metre because the simulator hands a position on only when it differs from the last. Nobody has taken off with it, and it has not run with the screen off.
 - **Flying.** The cockpit has been tested with replayed flights on a simulator. It has not flown, and nobody has connected a real vario to it. What is worked out from the flying itself (the wind in strong wind, the thermal's picture, the landing within reach, the line about a strong wind) has only ever seen a made-up flight.
 - **Live tracking** has talked to the server's own example answers and to no server.
 - **The assistant** has only talked to a scripted stand-in in tests, never to the real service.

@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 
 /// Drives the app the way a pilot would, on a simulator, and keeps a
@@ -43,6 +44,26 @@ final class VentiUITests: XCTestCase {
         let end = element("cockpit-end", in: app)
         XCTAssertTrue(end.waitForExistence(timeout: 10))
         end.press(forDuration: 1.6)
+    }
+
+    /// Half a metre to and fro, for `put`.
+    private var wander = 0.0
+
+    /// Puts the simulated iPhone at a moment of a made-up flight: so many
+    /// metres north of a take-off above the Tegernsee, at a height and a
+    /// speed. A receiver's positions wander while it stands, and the
+    /// simulator hands a position on only when it is another than the
+    /// last: so these wander too, by half a metre.
+    private func put(metresNorth: Double, altitude: Double, speed: Double) {
+        wander = wander == 0 ? 0.5 : 0
+        let north = metresNorth + wander
+        XCUIDevice.shared.location = XCUILocation(
+            location: CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 47.664 + north / 111_195, longitude: 11.772),
+                altitude: altitude, horizontalAccuracy: 5, verticalAccuracy: 5,
+                course: 0, speed: speed, timestamp: Date()
+            )
+        )
     }
 
     /// Waits until everything named, by identifier or by label, is on the
@@ -440,6 +461,79 @@ final class VentiUITests: XCTestCase {
         app.buttons["Data and licences"].tap()
         XCTAssertTrue(app.staticTexts["Base map"].waitForExistence(timeout: 15))
         keepScreenshot("settings-2-credits")
+    }
+
+    /// A flight that records itself, with positions the test makes up:
+    /// the cockpit waits on the ground and writes nothing, takes off when
+    /// the iPhone moves as a glider does, lands when it stops, and two
+    /// minutes later the flight is in the logbook without a tap.
+    func testAFlightRecordsItself() {
+        let app = XCUIApplication()
+        app.resetAuthorizationStatus(for: .location)
+        app.launchArguments = ["--ui-testing", "--bundled-map"]
+        continueAfterFailure = false
+        app.launch()
+        openTab("Fly", in: app)
+        let open = app.buttons["Open the cockpit"]
+        XCTAssertTrue(open.waitForExistence(timeout: 30))
+
+        put(metresNorth: 0, altitude: 1600, speed: 0)
+        open.tap()
+        // The system asks whether Venti may use the position.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow While Using App"]
+        if allow.waitForExistence(timeout: 15) {
+            allow.tap()
+        }
+
+        // Standing at the take-off: ready, and nothing is recorded.
+        for _ in 0..<8 {
+            put(metresNorth: 0, altitude: 1600, speed: 0)
+            sleep(1)
+        }
+        XCTAssertTrue(saying("Ready for take-off", in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(saying("Recording starts by itself", in: app).exists)
+        XCTAssertTrue(element("Altitude", in: app).exists)
+        keepScreenshot("self-1-ready")
+        // What can be switched before the take-off, with "Record now" for
+        // a pilot who would rather not wait.
+        nextPage(in: app)
+        nextPage(in: app)
+        XCTAssertTrue(element("cockpit-record-now", in: app).waitForExistence(timeout: 10))
+        keepScreenshot("self-2-ready-flight-page")
+        nextPage(in: app)
+
+        // Forty-five seconds of flight: 10 m/s over the ground, sinking a
+        // metre a second. The take-off is noticed within seconds.
+        for second in 1...45 {
+            put(metresNorth: 10 * Double(second), altitude: 1600 - Double(second), speed: 10)
+            sleep(1)
+            if second == 20 {
+                XCTAssertTrue(saying("Recording", in: app).waitForExistence(timeout: 10))
+                XCTAssertFalse(saying("Ready for take-off", in: app).exists)
+                keepScreenshot("self-3-in-the-air")
+            }
+        }
+
+        // Standing in the landing field: landed after twenty seconds, and
+        // the cockpit says when the flight will be saved.
+        for _ in 0..<40 {
+            put(metresNorth: 450, altitude: 1555, speed: 0)
+            sleep(1)
+        }
+        XCTAssertTrue(saying("The flight is saved in", in: app).waitForExistence(timeout: 30))
+        keepScreenshot("self-4-landed")
+
+        // Two minutes after it came to rest the flight is in the logbook,
+        // and its page is open.
+        let details = app.buttons["Flight details"]
+        for _ in 0..<150 where !details.exists {
+            put(metresNorth: 450, altitude: 1555, speed: 0)
+            sleep(1)
+        }
+        XCTAssertTrue(details.waitForExistence(timeout: 30))
+        XCTAssertFalse(element("cockpit-end", in: app).exists)
+        sleep(2)
+        keepScreenshot("self-5-saved")
     }
 
     /// Airspace: a made-up control zone lies beside the end of the sample

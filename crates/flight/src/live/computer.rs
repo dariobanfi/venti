@@ -372,6 +372,13 @@ struct Velocity {
 /// trusting it and falls back to the next one.
 const STALE_S: f64 = 3.0;
 
+/// How old the latest position may be, in seconds, before what is worked
+/// out from positions is no longer reported: speed, course, glide, and
+/// the altitude and climb where they come from the satellites. A receiver
+/// reports once a second; five seconds without is a fix that is lost, and
+/// an old number shown as if it were now is worse than none.
+const POSITION_STALE_S: f64 = 5.0;
+
 impl FlightComputer {
     /// A computer for a new flight.
     pub fn new(config: Config) -> Self {
@@ -560,6 +567,8 @@ impl FlightComputer {
         let position = self.last_position.map(|sample| sample.position);
         let climb = self.climb(now_s);
         let takeoff_position = self.takeoff.map(|(_, position, _)| position);
+        // What is worked out from positions says nothing once they stop.
+        let velocity = self.velocity.filter(|_| self.has_position(now_s));
 
         LiveState {
             phase: self.phase,
@@ -570,10 +579,12 @@ impl FlightComputer {
             pressure_altitude_m: self.fresh_pressure_altitude(now_s),
             climb_ms: climb.map(|(climb, _)| climb),
             vario_source: climb.map(|(_, source)| source),
-            average_climb_ms: self.average_climb(self.config.averaging_s),
-            ground_speed_ms: self.velocity.map(|velocity| velocity.speed_ms),
-            course_deg: self.velocity.map(|velocity| velocity.course_deg),
-            glide_ratio: self.glide_ratio(),
+            average_climb_ms: self
+                .average_climb(self.config.averaging_s)
+                .filter(|_| self.has_position(now_s)),
+            ground_speed_ms: velocity.map(|velocity| velocity.speed_ms),
+            course_deg: velocity.map(|velocity| velocity.course_deg),
+            glide_ratio: self.glide_ratio().filter(|_| self.has_position(now_s)),
             wind: self.wind.wind(),
             wind_measured_s: self.wind_measured_s,
             winds: self.winds.iter().map(WindBand::wind).collect(),
@@ -636,6 +647,12 @@ impl FlightComputer {
             .and(self.pressure_filter.altitude_m())
     }
 
+    /// Whether a position has arrived lately enough to speak for now.
+    fn has_position(&self, now_s: f64) -> bool {
+        self.last_position
+            .is_some_and(|sample| now_s - sample.time_s <= POSITION_STALE_S)
+    }
+
     /// The best altitude above sea level.
     fn altitude(&self, now_s: f64) -> Option<f64> {
         match (self.fresh_pressure_altitude(now_s), self.pressure_offset_m) {
@@ -643,7 +660,8 @@ impl FlightComputer {
             _ => self
                 .satellite_filter
                 .altitude_m()
-                .or(self.satellite_altitude_m),
+                .or(self.satellite_altitude_m)
+                .filter(|_| self.has_position(now_s)),
         }
     }
 
@@ -662,6 +680,7 @@ impl FlightComputer {
         }
         self.satellite_filter
             .climb_ms()
+            .filter(|_| self.has_position(now_s))
             .map(|climb| (climb, VarioSource::Satellite))
     }
 
@@ -1292,6 +1311,32 @@ mod tests {
             ground_speed_ms: None,
             course_deg: None,
         });
+    }
+
+    #[test]
+    fn what_positions_gave_is_not_reported_once_they_stop() {
+        let mut computer = FlightComputer::new(Config::default());
+        // A glide without a pressure sensor, then the fix is lost.
+        for second in 0..60 {
+            let flown = f64::from(second);
+            step(&mut computer, second, 10.0 * flown, 1600.0 - flown);
+        }
+        let state = computer.state(60.0);
+        assert!(state.ground_speed_ms.is_some());
+        assert!(state.glide_ratio.is_some());
+        assert!(state.climb_ms.is_some());
+        assert!(state.altitude_m.is_some());
+
+        let state = computer.state(70.0);
+        assert_eq!(state.ground_speed_ms, None);
+        assert_eq!(state.course_deg, None);
+        assert_eq!(state.glide_ratio, None);
+        assert_eq!(state.climb_ms, None);
+        assert_eq!(state.average_climb_ms, None);
+        assert_eq!(state.altitude_m, None);
+        // Where the glider last was, and that it flies, stay known.
+        assert!(state.position.is_some());
+        assert_eq!(state.phase, Phase::Flying);
     }
 
     #[test]

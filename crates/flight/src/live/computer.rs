@@ -46,6 +46,14 @@ pub struct Config {
     pub landing_speed_ms: f64,
     /// See `landing_speed_ms`.
     pub landing_hold_s: f64,
+    /// A landing is taken back when the glider flies again, by the rule
+    /// for a take-off, within this many seconds of it. A glider parked in
+    /// the wind on a ridge or a dune stands still in the air, at one
+    /// height, for half a minute and more, and a pilot who touches down
+    /// on a dune is off again in a minute: neither has ended the flight.
+    /// After this long the landing stands, so that the drive home in a
+    /// recorder left running is not flown.
+    pub landing_confirm_s: f64,
     /// Circling starts when the direction of travel has turned at least this
     /// many degrees within `turn_window_s` seconds while the average climb
     /// is no worse than `circling_min_climb_ms`. The direction of travel is
@@ -75,6 +83,7 @@ impl Default for Config {
             takeoff_height_s: 30.0,
             landing_speed_ms: 2.0,
             landing_hold_s: 20.0,
+            landing_confirm_s: 120.0,
             circling_start_deg: 90.0,
             circling_end_deg: 30.0,
             turn_window_s: 30.0,
@@ -916,40 +925,8 @@ impl FlightComputer {
         self.previous = Some(here);
         match self.phase {
             Phase::Ground => {
-                let fast = speed >= self.config.takeoff_speed_ms;
-                if !fast {
-                    self.condition_since = None;
-                }
-                // Against the height of a short while ago, in thirds of
-                // that while: the newest altitude that is at least so old.
-                let third = self.config.takeoff_height_s / 3.0;
-                let ago = |thirds: f64| {
-                    self.altitudes
-                        .iter()
-                        .rev()
-                        .find(|&&(time, _)| time <= now - thirds * third)
-                        .map(|&(_, altitude)| altitude)
-                };
-                let left_the_ground = match (altitude, ago(1.0), ago(2.0), ago(3.0)) {
-                    (Some(here), Some(one), Some(two), Some(three)) => {
-                        let steps = [two - three, one - two, here - one];
-                        let steady = steps.iter().all(|step| {
-                            step * steps[0] > 0.0
-                                && step.abs() >= self.config.takeoff_height_m / 5.0
-                        });
-                        steady && (here - three).abs() >= self.config.takeoff_height_m
-                    }
-                    _ => false,
-                };
-                let run_start = fast.then(|| *self.condition_since.get_or_insert(run_origin));
-                let held =
-                    run_start.is_some_and(|start| now - start.time_s >= self.config.takeoff_hold_s);
-                if held || left_the_ground {
+                if let Some(takeoff) = self.takes_off(now, speed, here, run_origin, altitude) {
                     self.phase = Phase::Flying;
-                    self.condition_since = None;
-                    // The glider took off when and where its run began, not
-                    // where the run was long enough to be believed.
-                    let takeoff = run_start.unwrap_or(here);
                     self.takeoff = Some((takeoff.time_s, takeoff.position, takeoff.altitude_m));
                 }
             }
@@ -963,12 +940,84 @@ impl FlightComputer {
                     if now - since.time_s >= self.config.landing_hold_s {
                         self.phase = Phase::Landed;
                         self.landing_time_s = Some(since.time_s);
+                        self.condition_since = None;
                     }
                 } else {
                     self.condition_since = None;
                 }
             }
-            Phase::Landed => {}
+            Phase::Landed => {
+                // Flying again soon after: the glider had not landed, or
+                // not for good. The flight goes on from its one take-off.
+                let recent = self
+                    .landing_time_s
+                    .is_some_and(|landed| now - landed <= self.config.landing_confirm_s);
+                if recent
+                    && self
+                        .takes_off(now, speed, here, run_origin, altitude)
+                        .is_some()
+                {
+                    self.phase = Phase::Flying;
+                    self.landing_time_s = None;
+                }
+            }
+        }
+    }
+
+    /// Whether the glider has just left the ground, by the rule for a
+    /// take-off, and if so the moment and place its run began.
+    fn takes_off(
+        &mut self,
+        now: f64,
+        speed: f64,
+        here: Mark,
+        run_origin: Mark,
+        altitude: Option<f64>,
+    ) -> Option<Mark> {
+        let fast = speed >= self.config.takeoff_speed_ms;
+        if !fast {
+            self.condition_since = None;
+        }
+        // Against the height of a short while ago, in thirds of that
+        // while: the newest altitude that is at least so old.
+        let third = self.config.takeoff_height_s / 3.0;
+        let ago = |thirds: f64| {
+            self.altitudes
+                .iter()
+                .rev()
+                .find(|&&(time, _)| time <= now - thirds * third)
+                .map(|&(_, altitude)| altitude)
+        };
+        let left_the_ground = match (altitude, ago(1.0), ago(2.0), ago(3.0)) {
+            (Some(here), Some(one), Some(two), Some(three)) => {
+                let steps = [two - three, one - two, here - one];
+                let steady = steps.iter().all(|step| {
+                    step * steps[0] > 0.0 && step.abs() >= self.config.takeoff_height_m / 5.0
+                });
+                steady && (here - three).abs() >= self.config.takeoff_height_m
+            }
+            _ => false,
+        };
+        let run_start = fast.then(|| *self.condition_since.get_or_insert(run_origin));
+        let held = run_start.is_some_and(|start| now - start.time_s >= self.config.takeoff_hold_s);
+        if held || left_the_ground {
+            self.condition_since = None;
+            // The glider took off when and where its run began, not where
+            // the run was long enough to be believed.
+            Some(run_start.unwrap_or(here))
+        } else {
+            None
+        }
+    }
+
+    /// Since when the glider, in flight, has been as still as a landed one:
+    /// slow over the ground and at one height. `None` on the ground, once
+    /// landed, and while it moves. A recording that ends in such a moment
+    /// ends with a landing the recorder did not wait to see through.
+    pub fn at_rest_since(&self) -> Option<f64> {
+        match self.phase {
+            Phase::Flying => self.condition_since.map(|since| since.time_s),
+            Phase::Ground | Phase::Landed => None,
         }
     }
 }
@@ -1346,6 +1395,72 @@ mod tests {
             (state.landing_time_s.unwrap() - 302.0).abs() <= 12.0,
             "{state:?}"
         );
+    }
+
+    #[test]
+    fn a_glider_parked_in_the_wind_has_landed_only_if_it_stays_down() {
+        let fly =
+            |computer: &mut FlightComputer, seconds: std::ops::Range<i32>, north: &mut f64| {
+                for second in seconds {
+                    *north += 9.0;
+                    step(computer, second, *north, 300.0);
+                }
+            };
+        let stand = |computer: &mut FlightComputer, seconds: std::ops::Range<i32>, north: f64| {
+            for second in seconds {
+                step(computer, second, north, 300.0);
+            }
+        };
+
+        // Soaring a dune at one height, then standing in the wind for
+        // forty seconds: by the rule for a landing, landed.
+        let mut computer = FlightComputer::new(Config::default());
+        let mut north = 0.0;
+        fly(&mut computer, 0..120, &mut north);
+        stand(&mut computer, 120..160, north);
+        let parked = computer.state(160.0);
+        assert_eq!(parked.phase, Phase::Landed);
+        assert!(
+            (parked.landing_time_s.unwrap() - 121.0).abs() <= 3.0,
+            "{parked:?}"
+        );
+
+        // It flies on: the landing is taken back, and the flight is the
+        // one that began at its take-off.
+        fly(&mut computer, 160..200, &mut north);
+        let on = computer.state(200.0);
+        assert_eq!(on.phase, Phase::Flying);
+        assert_eq!(on.landing_time_s, None);
+        assert_eq!(on.takeoff_time_s, parked.takeoff_time_s);
+
+        // Down for good: once two minutes have passed, moving off fast is
+        // no flight, whatever it is.
+        stand(&mut computer, 200..360, north);
+        let landed = computer.state(360.0);
+        assert_eq!(landed.phase, Phase::Landed);
+        fly(&mut computer, 360..420, &mut north);
+        let driven = computer.state(420.0);
+        assert_eq!(driven.phase, Phase::Landed);
+        assert_eq!(driven.landing_time_s, landed.landing_time_s);
+    }
+
+    #[test]
+    fn a_flying_glider_says_since_when_it_has_been_at_rest() {
+        let mut computer = FlightComputer::new(Config::default());
+        let mut north = 0.0;
+        for second in 0..60 {
+            north += 9.0;
+            step(&mut computer, second, north, 300.0);
+        }
+        assert_eq!(computer.at_rest_since(), None);
+        for second in 60..70 {
+            step(&mut computer, second, north, 300.0);
+        }
+        // Not yet landed by the cockpit's rule, and at rest for some
+        // seconds: what the end of a recording looks like.
+        assert_eq!(computer.state(70.0).phase, Phase::Flying);
+        let since = computer.at_rest_since().unwrap();
+        assert!((60.0..=64.0).contains(&since), "{since}");
     }
 
     /// Feeds a second of standing, walking or flying straight north.

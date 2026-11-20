@@ -131,9 +131,8 @@ pub struct Analysis {
 /// on this part only. A recording in which the glider never flies is
 /// returned whole, so that it still shows as what it is.
 ///
-/// Only the first flight of a recording counts. To verify with real files:
-/// how common recordings with several flights are, and whether to split
-/// them.
+/// A recording that holds several flights counts as its longest; see
+/// `takeoff_and_landing`. Whether to split such recordings is open.
 pub fn flown_part(fixes: &[Fix]) -> &[Fix] {
     match takeoff_and_landing(fixes) {
         (Some(takeoff), landing) => {
@@ -254,12 +253,70 @@ pub fn analyse(recording: &[Fix]) -> Analysis {
     }
 }
 
+/// How long a glider must have been at rest when its recording ends for
+/// the end to be its landing, seconds. A recorder that ends a flight by
+/// itself does so some ten seconds after the glider has stopped, which is
+/// sooner than the cockpit's own rule would call a landing.
+const AT_REST_AT_THE_END_S: f64 = 3.0;
+
+/// A stretch of a recording whose faster tenth is faster than this over
+/// the ground, metres per second (80 km/h), was driven and not flown: a
+/// recorder left running on the way home. A paraglider reaches that speed
+/// with a strong wind behind it and does not hold it for a tenth of a
+/// flight. To verify with real recordings of drives.
+const DRIVEN_SPEED_MS: f64 = 22.0;
+
 /// The fixes at which the glider took off and landed, by the cockpit's own
 /// rules: the track is played through the flight computer.
+///
+/// A recording can hold more than one flight: a hop before the flight, a
+/// second flight after a walk up, the drive home. The flight is the
+/// longest of them that was flown. Splitting a recording into its flights
+/// is not built.
 fn takeoff_and_landing(fixes: &[Fix]) -> (Option<usize>, Option<usize>) {
-    let mut computer = FlightComputer::new(Config::default());
+    let mut flights: Vec<(usize, Option<usize>)> = Vec::new();
+    let mut from = 0;
+    while from < fixes.len() {
+        let (Some(takeoff), landing, looked_at) = first_flight(&fixes[from..]) else {
+            break;
+        };
+        flights.push((from + takeoff, landing.map(|landing| from + landing)));
+        if landing.is_none() {
+            break;
+        }
+        from += looked_at.max(1);
+    }
+    let seconds = |&(takeoff, landing): &(usize, Option<usize>)| {
+        let last = landing.unwrap_or(fixes.len() - 1).max(takeoff);
+        (fixes[last].time - fixes[takeoff].time).num_seconds()
+    };
+    let flown = |&&(takeoff, landing): &&(usize, Option<usize>)| {
+        !was_driven(&fixes[takeoff..=landing.unwrap_or(fixes.len() - 1).max(takeoff)])
+    };
+    flights
+        .iter()
+        .filter(flown)
+        .max_by_key(|flight| seconds(flight))
+        // Nothing but what looks driven: the first of it, as it was read
+        // before recordings were looked through to their end.
+        .or(flights.first())
+        .map_or((None, None), |&(takeoff, landing)| (Some(takeoff), landing))
+}
+
+/// The first flight in a stretch of a recording: where the glider took off
+/// and landed, and how many fixes were looked at to say so.
+///
+/// A landing the computer takes back, because the glider flew on, is not
+/// one: the flight ends at the landing that stood. A recording that ends
+/// with the glider at rest, before the computer has called it landed, ends
+/// with a landing too.
+fn first_flight(fixes: &[Fix]) -> (Option<usize>, Option<usize>, usize) {
+    let config = Config::default();
+    let confirm_s = config.landing_confirm_s;
+    let mut computer = FlightComputer::new(config);
     let (mut takeoff_s, mut landing_s) = (None, None);
-    for fix in fixes {
+    let mut looked_at = fixes.len();
+    for (index, fix) in fixes.iter().enumerate() {
         let time = fix.time.timestamp() as f64;
         computer.position(PositionSample {
             time_s: time,
@@ -271,16 +328,47 @@ fn takeoff_and_landing(fixes: &[Fix]) -> (Option<usize>, Option<usize>) {
         let state = computer.state(time);
         takeoff_s = state.takeoff_time_s;
         landing_s = state.landing_time_s;
-        if landing_s.is_some() {
+        // A landing stands once the time in which it can be taken back is
+        // over: what follows is another flight, or none.
+        if landing_s.is_some_and(|landed| time > landed + confirm_s) {
+            looked_at = index;
             break;
         }
+    }
+    if landing_s.is_none()
+        && let (Some(since), Some(last)) = (computer.at_rest_since(), fixes.last())
+        && last.time.timestamp() as f64 - since >= AT_REST_AT_THE_END_S
+    {
+        landing_s = Some(since);
     }
     let index_at = |time_s: f64| {
         fixes
             .iter()
             .position(|fix| fix.time.timestamp() as f64 >= time_s)
     };
-    (takeoff_s.and_then(index_at), landing_s.and_then(index_at))
+    (
+        takeoff_s.and_then(index_at),
+        landing_s.and_then(index_at),
+        looked_at,
+    )
+}
+
+/// Whether a stretch of a recording was driven: see [`DRIVEN_SPEED_MS`].
+fn was_driven(fixes: &[Fix]) -> bool {
+    // Speeds over about ten seconds, so that one wild fix says nothing.
+    let mut speeds: Vec<f64> = fixes
+        .chunks(10)
+        .filter_map(|chunk| {
+            let (first, last) = (chunk.first()?, chunk.last()?);
+            let seconds = (last.time - first.time).num_seconds();
+            (seconds > 0).then(|| first.position.distance_m(last.position) / seconds as f64)
+        })
+        .collect();
+    if speeds.len() < 10 {
+        return false;
+    }
+    speeds.sort_by(f64::total_cmp);
+    speeds[speeds.len() * 9 / 10] > DRIVEN_SPEED_MS
 }
 
 /// Ground velocity at each fix as east and north parts in metres per
@@ -445,6 +533,114 @@ mod tests {
         assert_eq!(analysis.airtime_s, landing.seconds);
         assert_eq!(analysis.thermals.len(), 2);
         assert!((analysis.thermals[0].entry.seconds - 90).abs() <= 12);
+    }
+
+    /// Fixes of standing still where `at` is, one a second, after it.
+    fn standing(at: Fix, seconds: i64) -> Vec<Fix> {
+        (1..=seconds)
+            .map(|second| Fix {
+                time: at.time + chrono::Duration::seconds(second),
+                ..at
+            })
+            .collect()
+    }
+
+    /// The same fixes, beginning one second after `after`.
+    fn later(fixes: &[Fix], after: Fix) -> Vec<Fix> {
+        let shift = after.time + chrono::Duration::seconds(1) - fixes[0].time;
+        fixes
+            .iter()
+            .map(|fix| Fix {
+                time: fix.time + shift,
+                ..*fix
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_recording_that_stops_as_the_glider_stops_ends_with_a_landing() {
+        // A recorder that ends the flight by itself writes some ten
+        // seconds of standing and no more: sooner than the cockpit would
+        // call a landing, and a landing all the same.
+        let flight = synthetic_flight();
+        let mut fixes = flight.fixes.clone();
+        fixes.extend(standing(*flight.fixes.last().unwrap(), 12));
+
+        let analysis = analyse(&fixes);
+
+        let landing = analysis
+            .landing
+            .expect("the glider stood when the recording ended");
+        assert!((landing.seconds - 1744).abs() <= 12, "{landing:?}");
+        assert_eq!(analysis.airtime_s, landing.seconds);
+    }
+
+    #[test]
+    fn a_glider_that_stands_in_the_wind_and_flies_on_has_not_landed() {
+        // Parked in the wind on a ridge, or down on a dune and off again:
+        // forty seconds at one place and one height, then on. One flight.
+        let flight = synthetic_flight();
+        let mut fixes = flight.fixes.clone();
+        fixes.extend(standing(*fixes.last().unwrap(), 40));
+        fixes.extend(later(&flight.fixes, *fixes.last().unwrap()));
+        fixes.extend(standing(*fixes.last().unwrap(), 12));
+
+        let analysis = analyse(&fixes);
+
+        assert_eq!(analysis.takeoff.unwrap().index, 0);
+        let whole = 1744 + 40 + 1 + 1744;
+        assert!(
+            (analysis.airtime_s - whole).abs() <= 15,
+            "{}",
+            analysis.airtime_s
+        );
+        assert_eq!(analysis.thermals.len(), 4);
+    }
+
+    #[test]
+    fn the_flight_of_a_recording_is_its_longest_and_not_the_hop_before_it() {
+        // A minute in the air, five on the ground, then the flight: what
+        // a recorder writes that was started for a first try.
+        let flight = synthetic_flight();
+        let mut fixes: Vec<Fix> = flight.fixes[..60].to_vec();
+        fixes.extend(standing(*fixes.last().unwrap(), 300));
+        let begins = fixes.len();
+        fixes.extend(later(&flight.fixes, *fixes.last().unwrap()));
+        fixes.extend(standing(*fixes.last().unwrap(), 12));
+
+        let flown = flown_part(&fixes);
+
+        assert_eq!(flown[0].time, fixes[begins].time);
+        let seconds = (flown.last().unwrap().time - flown[0].time).num_seconds();
+        assert!((seconds - 1744).abs() <= 15, "{seconds}");
+        assert_eq!(analyse(&fixes).thermals.len(), 2);
+    }
+
+    #[test]
+    fn the_drive_home_in_a_recorder_left_running_is_not_the_flight() {
+        // The flight, five minutes of packing, then forty minutes on the
+        // road at 90 km/h: longer than the flight, and not flown.
+        let flight = synthetic_flight();
+        let mut fixes = flight.fixes.clone();
+        fixes.extend(standing(*fixes.last().unwrap(), 300));
+        let parked = *fixes.last().unwrap();
+        fixes.extend((1..=2400_i32).map(|second| {
+            Fix {
+                time: parked.time + chrono::Duration::seconds(i64::from(second)),
+                position: GeoPoint::new(
+                    parked.position.lat() + f64::from(second) * 25.0 / M_PER_DEG_LAT,
+                    parked.position.lon(),
+                )
+                .unwrap(),
+                ..parked
+            }
+        }));
+
+        let analysis = analyse(&fixes);
+
+        assert_eq!(analysis.takeoff.unwrap().index, 0);
+        let landing = analysis.landing.unwrap();
+        assert!((landing.seconds - 1744).abs() <= 12, "{landing:?}");
     }
 
     #[test]

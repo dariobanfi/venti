@@ -1,0 +1,36 @@
+The six .jpeg files in this folder are tiles of basemap.at's orthophoto,
+"Datenquelle: basemap.at" (https://basemap.at), under the Creative Commons
+licence CC BY 4.0, https://creativecommons.org/licenses/by/4.0/. They are
+not covered by the licence of the code around them.
+
+Each was recorded on 2026-11-20 between 21:55 and 21:58 UTC with one GET
+of
+
+    https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg
+
+with a generic User-Agent, and is kept as it came. The file name is
+<where>_<z>_<x>_<y>.jpeg:
+
+    inside_innsbruck_15_17420_11489     Innsbruck, wholly inside Austria
+    outside_munich_10_544_355           Munich and its surroundings: all
+                                        white, 2419 bytes, byte for byte
+                                        the tile over Bolzano at zoom 10
+    border_achenpass_12_2181_1430       the Bavarian border at the Achenpass
+    border_achenpass_15_17448_11446     the same, finer
+    border_achenpass_19_279183_183141   the same, at the finest zoom: all
+                                        photograph, inside Austria but
+                                        within 50 m of the border
+    border_brenner_15_17431_11524       the Italian border at the Brenner
+
+What the service answered on the same evening, beside these: the tile over
+Munich at zoom 12 (12/2179/1421) was a 404 of 146 bytes, not a white
+tile, although it lies inside the service's box; so was the one at zoom
+14. White tiles beyond the border are there at some zooms and places and
+missing at others. And at the Achenpass and the Brenner the photograph
+itself reaches beyond the border, up to about a kilometre at zoom 12: the
+white begins further out. tests/golden/summary.txt counts what the cut
+removes of it.
+
+To record them again: fetch the addresses above (z, then y, then x),
+then run the tests with VENTI_UPDATE_GOLDEN=1 and look at the PNGs in
+tests/golden before accepting them.

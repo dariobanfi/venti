@@ -112,6 +112,12 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             Kind::Airspace => self.collect_airspace(job).await,
             Kind::Sites => self.collect_sites(job).await,
             Kind::Forecasts => self.look_at_forecasts(job).await,
+            // No plan has such a job: imagery is fetched when a client
+            // asks for a tile, never on a schedule.
+            Kind::Imagery => {
+                tracing::error!(source = %job.source, "imagery is not collected");
+                false
+            }
         }
     }
 

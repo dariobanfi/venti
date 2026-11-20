@@ -3,9 +3,12 @@
 //! This module is the only place in the workspace that names a provider
 //! crate. Adding a provider means adding its crate and two lines here.
 
+use std::sync::Arc;
+
 use venti_domain::{GeoPoint, Timestamp};
 use venti_sources::testing::FixtureFetch;
-use venti_sources::{ForecastSource, Registry};
+use venti_sources::{ForecastSource, ImagerySource, Registry};
+use venti_sources_basemapat::BasemapAt;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_openaip::OpenAip;
@@ -147,6 +150,26 @@ pub fn recorded_payloads() -> FixtureFetch {
         .with_all(venti_sources_openmeteo::fixtures::recorded())
 }
 
+/// The sources of map imagery the server passes on. They are not in the
+/// registry: nothing collects them, and a client asks for a tile.
+///
+/// The first call reads Austria's outline for basemap.at, which takes a
+/// moment.
+pub fn imagery_sources() -> Vec<Arc<dyn ImagerySource>> {
+    vec![Arc::new(BasemapAt::new())]
+}
+
+/// The tiles recorded from the providers of imagery, as a fetcher that
+/// answers from them and with "not found" for every other.
+pub fn recorded_imagery() -> FixtureFetch {
+    let basemap_at = BasemapAt::new();
+    venti_sources_basemapat::fixtures::recorded()
+        .into_iter()
+        .fold(FixtureFetch::new(), |fetch, recorded| {
+            fetch.with(basemap_at.url(recorded.tile), recorded.jpeg)
+        })
+}
+
 /// The places the recorded forecasts are for. The development mode has a
 /// forecast for these and no others.
 pub fn recorded_forecast_places() -> Vec<GeoPoint> {
@@ -207,6 +230,8 @@ mod tests {
                     Kind::Airspace => registry.airspace(&manifest.id).is_some(),
                     Kind::Forecasts => registry.forecasts(&manifest.id).is_some(),
                     Kind::Sites => registry.sites(&manifest.id).is_some(),
+                    // Imagery sources are not in the registry.
+                    Kind::Imagery => false,
                 };
                 assert!(registered, "{} is not registered for {kind:?}", manifest.id);
             }

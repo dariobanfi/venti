@@ -35,6 +35,30 @@ pub struct Manifest {
     pub auth: Auth,
     /// Licence terms, as verified on the provider's own pages.
     pub licence: Licence,
+    /// Data of someone else's that the adapter is built with and that is
+    /// not fetched: an outline compiled into the crate, for example. Each
+    /// names its own source and licence, which must be of the source's
+    /// licence family: an asset is merged with the source's data.
+    #[serde(default, rename = "asset", skip_serializing_if = "Vec::is_empty")]
+    pub assets: Vec<Asset>,
+}
+
+/// Data an adapter is built with that is not its provider's: what it is,
+/// where it comes from, and under what licence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Asset {
+    /// What the asset is, in a few words.
+    pub name: String,
+    /// The file in the adapter's crate that holds it.
+    pub file: String,
+    /// Who publishes the data it was made from.
+    pub provider: String,
+    /// Where it was taken from, and what was done to it, in plain words.
+    pub made_from: String,
+    /// Its licence, read on the publisher's own pages (or where the
+    /// manifest's constraints say it was read).
+    pub licence: Licence,
 }
 
 /// The largest answer taken from a provider whose manifest names no size
@@ -54,6 +78,10 @@ pub enum Kind {
     Forecasts,
     /// Flying sites: take-offs and landings.
     Sites,
+    /// Map imagery: raster tiles that the server passes on, or cuts and
+    /// passes on, when a client asks for them. Not records, and not
+    /// collected by the pipeline; see `ImagerySource`.
+    Imagery,
 }
 
 /// What credential a provider requires.
@@ -139,6 +167,29 @@ impl Licence {
     }
 }
 
+/// What is wrong with a licence, if anything. `what` names it in the
+/// answer: `licence`, or the licence of an asset.
+fn check_licence(licence: &Licence, what: &str) -> Result<(), String> {
+    if licence.name.trim().is_empty() || licence.attribution.trim().is_empty() {
+        return Err(format!("{what} name and attribution are required"));
+    }
+    if licence
+        .notice
+        .as_ref()
+        .is_some_and(|notice| notice.trim().is_empty())
+    {
+        return Err(format!("{what}.notice is empty; leave it out instead"));
+    }
+    let is_https = |url: &String| url.starts_with("https://");
+    if !is_https(&licence.link) {
+        return Err(format!("{what}.link must be an https URL"));
+    }
+    if licence.verified_from.is_empty() || !licence.verified_from.iter().all(is_https) {
+        return Err(format!("{what}.verified_from needs at least one https URL"));
+    }
+    Ok(())
+}
+
 /// Why a manifest was rejected.
 #[derive(Debug, thiserror::Error)]
 pub enum ManifestError {
@@ -184,26 +235,26 @@ impl Manifest {
         if self.max_response_kb == Some(0) {
             return Err(invalid("max_response_kb is zero; leave it out instead"));
         }
-        if self.licence.name.trim().is_empty() || self.licence.attribution.trim().is_empty() {
-            return Err(invalid("licence name and attribution are required"));
-        }
-        if self
-            .licence
-            .notice
-            .as_ref()
-            .is_some_and(|notice| notice.trim().is_empty())
-        {
-            return Err(invalid("licence.notice is empty; leave it out instead"));
-        }
-        let is_https = |url: &String| url.starts_with("https://");
-        if !is_https(&self.licence.link) {
-            return Err(invalid("licence.link must be an https URL"));
-        }
-        if self.licence.verified_from.is_empty() || !self.licence.verified_from.iter().all(is_https)
-        {
-            return Err(invalid(
-                "licence.verified_from needs at least one https URL",
-            ));
+        check_licence(&self.licence, "licence").map_err(|problem| invalid(&problem))?;
+        for asset in &self.assets {
+            if asset.name.trim().is_empty()
+                || asset.file.trim().is_empty()
+                || asset.provider.trim().is_empty()
+                || asset.made_from.trim().is_empty()
+            {
+                return Err(invalid(
+                    "an asset needs a name, a file, a provider and what it was made from",
+                ));
+            }
+            check_licence(&asset.licence, &format!("asset {:?}: licence", asset.name))
+                .map_err(|problem| invalid(&problem))?;
+            if asset.licence.family() != self.licence.family() {
+                return Err(invalid(&format!(
+                    "asset {:?} is under a licence of another family than the source's; \
+                     data of different licence families is never merged",
+                    asset.name
+                )));
+            }
         }
         Ok(())
     }
@@ -325,6 +376,59 @@ mod tests {
             Manifest::from_toml(&empty),
             Err(ManifestError::Invalid { .. })
         ));
+    }
+
+    const ASSET: &str = r#"
+        [[asset]]
+        name = "An outline"
+        file = "assets/outline.geojson"
+        provider = "Example Survey Office"
+        made_from = "Its boundaries of 2022, joined into one outline."
+
+        [asset.licence]
+        name = "CC BY 4.0"
+        commercial = true
+        redistribution = true
+        share_alike = false
+        attribution = "Data source: Example Survey Office"
+        link = "https://example.org/boundaries"
+        verified_on = "2026-11-20"
+        verified_from = ["https://example.org/boundaries/licence"]
+    "#;
+
+    #[test]
+    fn an_asset_names_its_own_source_and_licence() {
+        assert!(Manifest::from_toml(GOOD).unwrap().assets.is_empty());
+        let manifest = Manifest::from_toml(&format!("{GOOD}{ASSET}")).unwrap();
+        assert_eq!(manifest.assets.len(), 1);
+        assert_eq!(manifest.assets[0].provider, "Example Survey Office");
+        // It is written back under the name it is read by.
+        let written = toml::to_string(&manifest).unwrap();
+        assert_eq!(Manifest::from_toml(&written).unwrap(), manifest);
+
+        let unverified = ASSET.replace("https://example.org/boundaries/licence", "nowhere");
+        assert!(matches!(
+            Manifest::from_toml(&format!("{GOOD}{unverified}")),
+            Err(ManifestError::Invalid { .. })
+        ));
+        let nameless = ASSET.replace("An outline", " ");
+        assert!(matches!(
+            Manifest::from_toml(&format!("{GOOD}{nameless}")),
+            Err(ManifestError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn an_asset_of_another_licence_family_is_refused() {
+        // A share-alike outline under an attribution-only source would
+        // merge two families.
+        let share_alike = ASSET.replace("share_alike = false", "share_alike = true");
+        let Err(ManifestError::Invalid { problem, .. }) =
+            Manifest::from_toml(&format!("{GOOD}{share_alike}"))
+        else {
+            panic!("an asset of another family was accepted");
+        };
+        assert!(problem.contains("family"), "{problem}");
     }
 
     #[test]

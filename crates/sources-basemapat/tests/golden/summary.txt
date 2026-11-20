@@ -1,0 +1,32 @@
+Six tiles of basemap.at recorded on 2026-11-20, against Austria's outline with a margin of 50 m. White is every channel at least 245.
+
+inside_innsbruck 15/17420/11489: 23602 bytes, inside
+  kept 65536, removed outside the margin 0, removed as white in the band 0
+  white pixels kept 10, pixels that are not white removed 0
+  goes out as: the provider's JPEG
+
+outside_munich 10/544/355: 2419 bytes, outside
+  kept 0, removed outside the margin 65536, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 0
+  goes out as: nothing (204)
+
+border_achenpass 12/2181/1430: 7062 bytes, on the edge
+  kept 14083, removed outside the margin 51453, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 10203
+  goes out as: a PNG of 30328 bytes
+
+border_achenpass 15/17448/11446: 17401 bytes, on the edge
+  kept 39046, removed outside the margin 26490, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 26490
+  goes out as: a PNG of 98338 bytes
+
+border_achenpass 19/279183/183141: 9593 bytes, on the edge
+  kept 65536, removed outside the margin 0, removed as white in the band 0
+  white pixels kept 0, pixels that are not white removed 0
+  goes out as: the provider's JPEG
+
+border_brenner 15/17431/11524: 17029 bytes, on the edge
+  kept 45263, removed outside the margin 20273, removed as white in the band 0
+  white pixels kept 12, pixels that are not white removed 20272
+  goes out as: a PNG of 109135 bytes
+

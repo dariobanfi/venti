@@ -1,0 +1,20 @@
+austria.geojson in this folder is Austria's outline, made from data of the
+Bundesamt für Eich- und Vermessungswesen (BEV), "Verwaltungsgrenzen (VGD) -
+Stichtagsdaten 1:50 000", release VGD_Oesterreich_gen_50_20221002.zip (key
+date 2022-10-01), under the Creative Commons licence CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/. It is not covered by the
+licence of the code around it.
+
+Credit, in our own words until BEV's own wording is found (to verify):
+"Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV),
+Verwaltungsgrenzen 1:50 000, Stichtag 01.10.2022, CC BY 4.0;
+zusammengefasst, nach WGS 84 umgerechnet und vereinfacht".
+
+What was done to it: the 7,850 cadastral municipalities were joined into
+one outline, taken from MGI / Austria Lambert (EPSG:31287) to WGS 84 with
+PROJ's "MGI to WGS 84 (8)", simplified by Douglas-Peucker at 5 m in the
+metric projection and rounded to six decimals. Two parts, the main body
+and Jungholz, which touches it at one point; no holes; 20,163 positions;
+437,509 bytes. ../tools/build_outline.py makes it again. The licence was
+read on 2026-11-20 from the data.gv.at catalogue record,
+https://www.data.gv.at/katalog/dataset/6d731e6e-7dcf-4bde-8061-d0e195f62f6c

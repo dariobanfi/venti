@@ -18,6 +18,7 @@ venti-sources-dwd.workspace = true
 venti-sources-geosphere.workspace = true
 venti-sources-openaip.workspace = true
 venti-sources-osm.workspace = true
+venti-sources-basemapat.workspace = true
 venti-sources-openmeteo.workspace = true
 venti-store.workspace = true
 venti-tools.workspace = true

@@ -1,0 +1,66 @@
+id = "basemap-at"
+provider = "basemap.at (Stadt Wien for the Austrian provinces)"
+kinds = ["imagery"]
+countries = ["AT"]
+# The orthophoto is renewed province by province, a few times a year; the
+# tiles' Last-Modified on 2026-11-20 were of August 2024 and July 2026. The
+# service tells caches to keep a tile for 14 days (max-age=1209600), and
+# this is that.
+cadence_seconds = 1209600
+auth = "none"
+# A tile is a JPEG of 256 by 256 pixels. The largest of the six recorded on
+# 2026-11-20 was 24 kB; a tile over 1 MB is refused.
+max_response_kb = 1024
+
+# No rate limit is stated: the fact sheet of 2017 says the service needs
+# no registration and names none. The server asks for a tile once and
+# keeps it, and asks at most a few at a time.
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+attribution = "Datenquelle: basemap.at"
+link = "https://basemap.at/"
+constraints = [
+    "Credit \"Datenquelle: basemap.at\" wherever the photographs are shown, with basemap.at as a link to https://basemap.at.",
+    "The photographs are free for private and commercial use under the Open Government Data Österreich licence, CC BY 4.0.",
+    "The tile addresses stand until the end of 2027 by basemap.at's changelog (\"voraussichtlich bis Ende 2027\"). After that the address in this crate must be read again from the service's capabilities.",
+    "Requests reach Stadt Wien's servers; basemap.at asks for a privacy notice that says so. When the server fetches the tiles, it is the server that is seen, not the pilot.",
+    "The tiles are white beyond Austria's border, and the cut that removes that white rests on the outline below. Tiles wholly outside Austria are never asked for.",
+]
+verified_on = "2026-11-20"
+verified_from = [
+    "https://basemap.at/",
+    "https://basemap.at/orthofoto/",
+    "https://basemap.at/changelog/",
+    "https://cdn.basemap.at/basemapat-fact-sheet.pdf",
+    "https://cdn.basemap.at/basemapat_Copyright.pdf",
+    "https://mapsneu.wien.gv.at/basemapneu/1.0.0/WMTSCapabilities.xml",
+]
+
+[[asset]]
+name = "Austria's outline"
+file = "assets/austria.geojson"
+provider = "Bundesamt für Eich- und Vermessungswesen (BEV)"
+made_from = "Verwaltungsgrenzen (VGD) - Stichtagsdaten 1:50 000, release VGD_Oesterreich_gen_50_20221002.zip (key date 2022-10-01), https://data.bev.gv.at/download/Verwaltungsgrenzen/shp/20221001/VGD_Oesterreich_gen_50_20221002.zip. Its 7,850 cadastral municipalities joined into one outline, taken from MGI / Austria Lambert (EPSG:31287) to WGS 84 with PROJ's \"MGI to WGS 84 (8)\" (stated accuracy 0.5 m), simplified by Douglas-Peucker at 5 m and rounded to 6 decimals: two parts (the main body and Jungholz), 20,163 points. tools/build_outline.py makes it again."
+
+[asset.licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# Ours, until BEV's own wording is found (to verify).
+attribution = "Datenquelle: Bundesamt für Eich- und Vermessungswesen (BEV), Verwaltungsgrenzen 1:50 000, Stichtag 01.10.2022, CC BY 4.0; zusammengefasst, nach WGS 84 umgerechnet und vereinfacht"
+link = "https://www.data.gv.at/katalog/dataset/6d731e6e-7dcf-4bde-8061-d0e195f62f6c"
+constraints = [
+    "To verify: the licence was read from the data.gv.at catalogue record (dct:license https://creativecommons.org/licenses/by/4.0/ for the dataset and its distributions), not from a page of BEV's; BEV's own pages answered 404 on 2026-11-20.",
+    "To verify: no BEV page with a prescribed credit was found; the credit above is ours.",
+    "To verify: BEV states no accuracy in metres for this generalised product, and whether a release newer than 2022-10 exists. The outline is drawn for 1:50 000 and may be 10 to 25 m off in places; the cut keeps a margin of 50 m for that.",
+]
+verified_on = "2026-11-20"
+verified_from = [
+    "https://www.data.gv.at/katalog/dataset/6d731e6e-7dcf-4bde-8061-d0e195f62f6c",
+    "https://www.data.gv.at/api/hub/repo/datasets/6d731e6e-7dcf-4bde-8061-d0e195f62f6c.jsonld",
+]

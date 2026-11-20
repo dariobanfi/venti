@@ -115,6 +115,9 @@ impl Registry {
             Kind::Airspace => self.airspace(id).map(AirspaceSource::manifest),
             Kind::Forecasts => self.forecasts(id).map(ForecastSource::manifest),
             Kind::Sites => self.sites(id).map(SiteSource::manifest),
+            // Imagery is not collected, and its sources are not in the
+            // registry: the server asks for a tile when a client does.
+            Kind::Imagery => None,
         }
     }
 

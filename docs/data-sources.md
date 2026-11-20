@@ -1,6 +1,6 @@
 # Data sources
 
-Last revised: 2026-11-19
+Last revised: 2026-11-20
 
 The app depends on dozens of external data providers, and the set differs by country. This document defines how they plug in, and lists what is available for the first region.
 
@@ -46,6 +46,7 @@ Each kind has one trait in the `sources` crate. An adapter implements the traits
 | Webcams | `WebcamSource` | `Webcam` |
 | Live positions | `LiveSource` | `LivePosition` |
 | Transit routing | `TransitRouter` | `Itinerary` |
+| Map imagery | `ImagerySource` | tiles: `TileAddress`, `Coverage`, `CutTile` |
 | Map layers | declared in the region pack only | |
 
 Adapters are pure. They do no I/O and read no clock. An adapter says which URLs it needs and turns the bytes that come back into canonical records; where a provider needs several steps, a response can ask for further requests. The pipeline does the fetching, archiving, merging and validation, the same way for every source.
@@ -90,6 +91,8 @@ pub trait ForecastSource: Send + Sync {
 
 Everything else is the framework as it is: the adapter is pure, and `run_forecast` fetches through the same fetcher, archives every payload, keeps to the request budget and validates. A run delivers one `ForecastSeries` per weather model. Each series names its model, the run of the model, the grid cell its values are for and the height of the model's ground there, and holds one record per hour with the values at the ground and the wind at levels above it. A series whose run the source does not tell is not delivered: nobody could say how old it is. Validation removes single values that cannot be weather, levels that do not say where they are, and pressure surfaces that the model puts under its own ground. How often a forecast may be asked for, and for how long an answer is reused, is the server's business: see [architecture.md](architecture.md#forecasts).
 
+`ImagerySource` is not collected either, and holds no records. A client's map asks the server for one tile, and the adapter says whether the provider has it, where it lies against what may be shown (inside, outside, or on the edge), the address to fetch it at, and, for a tile on the edge, what of it may go out: it cuts the tile. The server fetches, keeps the answer on its disk and answers ([architecture.md](architecture.md#the-aerial-view-through-the-server)). The adapter does no I/O, like every other. Imagery sources are not in the registry: nothing schedules them and no region pack names them.
+
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
 
 ### Manifest
@@ -122,6 +125,8 @@ verified_from = [
     "https://data.hub.geosphere.at/en/legal",
 ]
 ```
+
+An adapter that is built with someone else's data that it does not fetch, such as the outline `sources-basemapat` cuts its tiles along, names it in an `[[asset]]` section: what it is, the file, the provider, what was done to it, and its own `[asset.licence]` with the same fields as the source's. A manifest whose asset is of another licence family than the source is refused, since the asset is merged with the source's data.
 
 Each adapter crate has its manifest in `manifest.toml`, compiled into the crate. Unknown fields are rejected, so a typo cannot silently drop a licence term.
 
@@ -261,7 +266,10 @@ As of 2026-11-19:
 | The `[sites]` and `[forecasts]` sections of a region pack (`venti-regions`); what the store keeps about forecast models | Built |
 | Adapter: `open-meteo` | Built, with answers recorded 2026-11-19 for five places from an Open-Meteo instance run for the purpose, and golden files |
 | Forecasts in the server: fetched from the operator's Open-Meteo instance when a place is asked for and kept for half an hour, served at `GET /v1/forecast`, a look every ten minutes for the health report, the development mode over the recorded answers, `ingest` | Built; run against no instance on a schedule yet, and installed on no machine |
-| Every kind other than observations, airspace, sites and point forecasts | Designed, not built |
+| `ImagerySource` and the `Imagery` kind; `[[asset]]` in a manifest (`venti-sources`) | Built 2026-11-20 |
+| Adapter: `basemap-at` (`venti-sources-basemapat`): Austria's orthophoto, its tile addresses, and the cut along Austria's outline | Built 2026-11-20, with six tiles recorded that day and golden files of the cut |
+| Map imagery in the server: `GET /v1/imagery/{source}/{z}/{x}/{y}`, kept on the disk under a cap, the development mode over the recorded tiles | Built 2026-11-20; installed on no machine yet, and no app asks for it yet |
+| Every kind other than observations, airspace, sites, point forecasts and map imagery | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
 
@@ -532,7 +540,7 @@ Geometry is available from Bavarian and Austrian state geoportals and OpenStreet
 |---|---|---|---|
 | Mapterhorn | Elevation tiles combining Bavarian 1 m, Austrian 1 m, Swiss and South Tyrolean data | Source licences, all CC BY-like or freer | Open |
 | OpenStreetMap | Vector base map | ODbL | Open |
-| basemap.at | Austrian official map, terrain and orthophoto | CC BY 4.0 | Open; the orthophoto is read and waits for a step that cuts it at the border (below) |
+| basemap.at | Austrian official map, terrain and orthophoto | CC BY 4.0 | Built for the orthophoto: the server cuts it at the border (below); no app uses it yet |
 | Bavarian survey office open data | DTK25 topographic map, DOP20 orthophoto, DGM1 | CC BY 4.0 | Open; the orthophoto is in use for the aerial view |
 | basemap.de | German official vector map | CC BY 4.0 | Open |
 | swisstopo | Swiss maps and imagery | Free with credit | Open (for later) |
@@ -541,13 +549,13 @@ Geometry is available from Bavarian and Austrian state geoportals and OpenStreet
 
 #### The aerial view's photographs
 
-The apps fetch these themselves, from the provider, as they fetch the base map: nothing of them passes through Venti, and nothing is fetched until a pilot switches the view on. Their addresses stand in `map/style.json`, the same for every app. Each provider's terms were read on its own pages on 2026-11-20; what "measured" says was seen in single requests on that day.
+The apps fetch EOX's and Bavaria's tiles themselves, from the provider, as they fetch the base map: nothing of them passes through Venti, and nothing is fetched until a pilot switches the view on. basemap.at's tiles go through the Venti server, which cuts them at Austria's border. Their addresses stand in `map/style.json`, the same for every app. Each provider's terms were read on its own pages on 2026-11-20; what "measured" says was seen in single requests on that day.
 
 | Provider | What, and where from | Licence and where it was read | Credit, as the provider words it | Limits and notes |
 |---|---|---|---|---|
 | EOX IT Services | EOxCloudless (Sentinel-2 cloudless) **2016**, the whole world at about 10 m. `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg`, JPEG, 256 px, asked to zoom 13 and enlarged beyond | CC BY 4.0, for 2016 only: "For the year 2016, EOxCloudless is licensed under the Creative Commons Attribution 4.0 International License." The years 2018 to 2025 are CC BY-NC-SA 4.0 and are not used. [cloudless.eox.at/license-non-commercial](https://cloudless.eox.at/license-non-commercial) | "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)". "In compact mobile UI designs, displaying the attribution in an on-click pop-up or in the app information is allowed." ([FAQ](https://cloudless.eox.at/documentation/faq)) | "Commercial apps may access the free 2016 endpoint under CC BY 4.0, provided traffic is reasonable", no uptime promise, a fair use policy applies, and the servers slow down or block spikes: "cache tiles on your own CDN or device" (FAQ). *To verify:* the text of the fair use policy, which is not published; the 2017 layer, whose service description says CC BY 4.0 while the licence pages name only 2016 |
 | Bayerische Vermessungsverwaltung (LDBV) | The layer "Luftbild Bayern" (`by_dop`) of the "WMTS Geobasisdaten Bayern": Bavaria's orthophoto at 20 cm, and satellite images at small scales. `https://wmtsod1.bayernwolke.de/wmts/by_dop/smerc/{z}/{x}/{y}`, 256 px, zoom 0 to 19; the app shows it from zoom 11 | CC BY 4.0. [Nutzungsbedingungen](https://www.geodaten.bayern.de/odd/m/3/html/nutzungsbedingungen.html). The service's notes allow it in apps by name: "Er kann z. B. in Apps und Internetanwendungen eingebunden werden." ([WMTS-Nutzungshinweise](https://www.geodaten.bayern.de/odd/m/3/pdf/WMTS_Nutzungshinweise.pdf), 27.10.2023) | "© Datenquellen: Bayerische Vermessungsverwaltung, Europäische Union, enthält Copernicus Sentinel-2 Daten 2018, verarbeitet durch das Bundesamt für Kartographie und Geodäsie (BKG)" (the same notes) | No key and no stated limit; no promise that the service or a layer stays. "Bei jeder Bildschirmdarstellung ist eine Quellenangabe anzugeben." *To verify with the LDBV before a public release:* whether credits one tap away, as a phone's map has them, meet that sentence. Measured: outside Bavaria the tiles are empty and transparent, so the layer ends cleanly at the border |
-| basemap.at (Stadt Wien for the Austrian provinces) | Orthofoto, Austria at 29 cm and finer. `https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg`, JPEG, 256 px, to zoom 19 | CC BY 4.0: "gemäß der Open Government Data Österreich Lizenz CC-BY 4.0 sowohl für private als auch kommerzielle Zwecke frei sowie entgeltfrei nutzbar" ([basemap.at](https://basemap.at/)) | "Datenquelle: basemap.at", with basemap.at as a link to it | **Read, not in use yet.** Measured: its tiles are JPEG, and white wherever they reach beyond Austria (all of a tile over Munich or Bolzano, half of one on the border). Laid on the map as they are they would paint white over Bavaria, South Tyrol and the Engadin. They need a step that cuts them at the border, which a map style cannot do. No registration and no limit by a fact sheet of 2017; the addresses stand "voraussichtlich bis Ende 2027" ([changelog](https://basemap.at/changelog/)); basemap.at asks for a privacy notice, since requests reach Stadt Wien |
+| basemap.at (Stadt Wien for the Austrian provinces) | Orthofoto, Austria at 29 cm and finer. `https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg`, JPEG, 256 px, to zoom 19 | CC BY 4.0: "gemäß der Open Government Data Österreich Lizenz CC-BY 4.0 sowohl für private als auch kommerzielle Zwecke frei sowie entgeltfrei nutzbar" ([basemap.at](https://basemap.at/)) | "Datenquelle: basemap.at", with basemap.at as a link to it | **The server can cut it; the apps do not ask for it yet** (that is the next step: a layer in `map/style.json` at the server's `/v1/imagery/basemap-at/{z}/{x}/{y}`). Measured: its tiles are JPEG, and white wherever they reach beyond Austria (all of a tile over Munich or Bolzano, half of one on the border). Laid on the map as they are they would paint white over Bavaria, South Tyrol and the Engadin, and a map style cannot cut them. So the server does, along an outline of Austria from the BEV's administrative boundaries at 1:50 000 (CC BY 4.0, read in the data.gv.at catalogue; the BEV's own credit wording *to verify*), with a band of 50 m on each side in which the provider's white decides, and keeps the result; it never asks for a tile beyond the border ([architecture.md](architecture.md#the-aerial-view-through-the-server)). The adapter is `crates/sources-basemapat`. Measured on 2026-11-20 as well: at the Achenpass and the Brenner the photograph itself reaches beyond the border before the white begins, and the service answers some tiles inside its box with a 404 (Munich at zoom 12 and 14) where others are white (zoom 10). No registration and no limit by a fact sheet of 2017; the addresses stand "voraussichtlich bis Ende 2027" ([changelog](https://basemap.at/changelog/)); basemap.at asks for a privacy notice, since requests reach Stadt Wien |
 | swisstopo, South Tyrol | SWISSIMAGE; the province's orthophoto of 2023 | swisstopo's own open terms; CC BY 4.0 in the province's catalogue | | Next. swisstopo's terms and limits were read (20,000 users a day is fair use); South Tyrol's credit wording and service terms are *to verify* |
 
 Bavaria's and EOX's servers see the IP address and the map areas of whoever looks at the aerial view, as the base map's servers do for the drawn one. That is said where the app says what it sends to whom, before a public release.

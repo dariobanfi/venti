@@ -222,6 +222,56 @@ class MapStyleTest {
         assertEquals(listOf("land", "water"), layerNames(Json.parseToJsonElement(without).jsonObject))
     }
 
+    /** A style of its own whose one source asks for the app's domain, and another that asks for both. */
+    private val askingTheDomain = """
+        {"version": 8, "sources": {
+          "basemap": {"type": "vector", "url": "pmtiles://__BASEMAP__"},
+          "terrain": {"type": "raster-dem", "url": "pmtiles://__TERRAIN__", "encoding": "terrarium", "tileSize": 512},
+          "thermals": {"type": "raster", "scheme": "tms", "tiles": ["https://thermals.example/{z}/{x}/{y}.png?src=__APP_DOMAIN__"]},
+          "both": {"type": "raster", "tiles": ["__VENTI_SERVER__/tiles/{z}/{x}/{y}?src=__APP_DOMAIN__"]}
+        }, "layers": [
+          {"id": "land", "type": "background"},
+          {"id": "thermals", "type": "raster", "source": "thermals", "metadata": {"venti:layer": "thermals"}, "layout": {"visibility": "none"}},
+          {"id": "both", "type": "raster", "source": "both"},
+          {"id": "water", "type": "fill", "source": "basemap", "source-layer": "water"}
+        ]}
+    """.trimIndent()
+
+    @Test
+    fun aPlaceholderWithoutAValueLeavesItsSourceAndItsLayersOut() {
+        // No domain: nothing that asks for one, whatever else it has.
+        val none = MapStyle.json(MapStyle.Source.Online, askingTheDomain, region, server = "https://venti.example", appDomain = null)
+        assertFalse(none, none.contains("__"))
+        val without = Json.parseToJsonElement(none).jsonObject
+        assertEquals(setOf("basemap", "terrain"), without.getValue("sources").jsonObject.keys)
+        assertEquals(listOf("land", "water"), layerNames(without))
+
+        // A domain and no server: the source that asks only for the domain.
+        val domain = MapStyle.json(MapStyle.Source.Online, askingTheDomain, region, server = null, appDomain = "venti.example")
+        assertFalse(domain, domain.contains("__"))
+        val withDomain = Json.parseToJsonElement(domain).jsonObject
+        assertEquals(
+            listOf("https://thermals.example/{z}/{x}/{y}.png?src=venti.example"),
+            withDomain.getValue("sources").jsonObject.getValue("thermals").jsonObject.getValue("tiles").jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals(listOf("land", "thermals", "water"), layerNames(withDomain))
+
+        // Both: every placeholder of an address is filled in.
+        val both = Json.parseToJsonElement(
+            MapStyle.json(MapStyle.Source.Online, askingTheDomain, region, server = "https://venti.example", appDomain = "venti.example"),
+        ).jsonObject
+        assertEquals(
+            listOf("https://venti.example/tiles/{z}/{x}/{y}?src=venti.example"),
+            both.getValue("sources").jsonObject.getValue("both").jsonObject.getValue("tiles").jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals(listOf("land", "thermals", "both", "water"), layerNames(both))
+    }
+
+    @Test
+    fun theAppHasNoDomainYet() {
+        assertEquals(null, MapStyle.APP_DOMAIN)
+    }
+
     @Test
     fun aStyleWithoutItsSourcesIsRefused() {
         assertThrows(MapStyle.StyleError::class.java) { MapStyle.json(MapStyle.Source.Online, "{}", region) }

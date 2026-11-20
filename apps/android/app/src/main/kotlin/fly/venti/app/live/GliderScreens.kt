@@ -27,6 +27,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,6 +46,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.account.AccountModel
+import fly.venti.app.community.ReportSheet
+import fly.venti.app.community.Reported
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
 import fly.venti.app.design.LinkRow
@@ -50,6 +57,7 @@ import fly.venti.app.design.ValueRow
 import fly.venti.app.design.numbers
 import fly.venti.core.LiveFollowView
 import fly.venti.core.LiveGlider
+import kotlinx.coroutines.CoroutineScope
 
 /** What the list and a glider's page say apart from their numbers. */
 object GliderWords {
@@ -194,14 +202,19 @@ fun GliderSheet(
     /** The track's identifier. The page shows the glider as the newest answer has it. */
     id: String,
     live: LiveModel,
+    /** The pilot's own account, which a report is sent from. */
+    account: AccountModel,
     /** The address of the server the gliders come from, for the link to its page. */
     server: String?,
+    /** Where a report is sent from, so that it goes on when its form is closed. */
+    requests: CoroutineScope,
     onDismiss: () -> Unit,
 ) {
     // The flight's track is asked for while its page is open, and no longer.
     LaunchedEffect(id) {
         live.follow(id)
     }
+    var reporting by remember { mutableStateOf<Reported?>(null) }
     val glider = live.glider(id)
     val flight = live.followed?.takeIf { it.glider.id == id }
 
@@ -234,7 +247,13 @@ fun GliderSheet(
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
                 ) {
                     if (glider != null) {
-                        GliderPage(glider, age = live.ageInWords(glider), flight, server)
+                        GliderPage(
+                            glider,
+                            age = live.ageInWords(glider),
+                            flight,
+                            server,
+                            onReport = { reporting = Reported.liveTrack(glider.id) },
+                        )
                     } else {
                         Text(
                             live.followProblem ?: GliderWords.GONE,
@@ -247,10 +266,14 @@ fun GliderSheet(
             }
         }
     }
+
+    reporting?.let { reported ->
+        ReportSheet(reported, account, server, requests, onDismiss = { reporting = null })
+    }
 }
 
 @Composable
-private fun GliderPage(glider: LiveGlider, age: String, flight: LiveFollowView?, server: String?) {
+private fun GliderPage(glider: LiveGlider, age: String, flight: LiveFollowView?, server: String?, onReport: () -> Unit) {
     val links = LocalUriHandler.current
     Group {
         row { ValueRow("Pilot", glider.name) }
@@ -284,5 +307,12 @@ private fun GliderPage(glider: LiveGlider, age: String, flight: LiveFollowView?,
             }
         }
         SectionFooter("The server's page shows the whole track and keeps itself up to date.")
+    }
+    // For a track that should not be here: to whoever runs the server,
+    // and to nobody else.
+    Group(Modifier.padding(top = 16.dp)) {
+        row {
+            LinkRow("Report this track", R.drawable.ic_flag, Modifier.testTag("report-track"), onClick = onReport)
+        }
     }
 }

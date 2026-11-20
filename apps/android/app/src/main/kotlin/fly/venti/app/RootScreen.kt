@@ -221,6 +221,8 @@ private fun Sections(
                     session.sites,
                     session.live,
                     session.waypoints,
+                    session.account,
+                    requests = session.scope,
                     bars,
                 )
             }
@@ -284,7 +286,9 @@ private fun Sections(
                                 flight,
                                 session.community,
                                 session.airspace,
+                                session.account,
                                 server = (session.wind.server as? WindServer.Usable)?.url,
+                                requests = session.scope,
                                 // Everything else this pilot shares with everyone.
                                 onPilot = { navigation.open(LogbookRoute.Pilot(flight.handle, flight.pilot)) },
                                 onBack = { navigation.back() },
@@ -297,6 +301,9 @@ private fun Sections(
                         route.handle,
                         route.name,
                         session.community,
+                        session.account,
+                        server = (session.wind.server as? WindServer.Usable)?.url,
+                        requests = session.scope,
                         onOpen = { navigation.open(LogbookRoute.PublicFlight(it.id)) },
                         onBack = { navigation.back() },
                     )

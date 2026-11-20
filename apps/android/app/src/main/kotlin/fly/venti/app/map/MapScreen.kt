@@ -51,6 +51,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import fly.venti.app.R
+import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.forecast.ForecastSheet
 import fly.venti.app.live.GliderListSheet
@@ -67,6 +68,7 @@ import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.SiteView
 import fly.venti.core.WindStation
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
@@ -82,6 +84,10 @@ fun MapScreen(
     sites: SitesModel,
     live: LiveModel,
     waypoints: WaypointsModel,
+    /** The pilot's own account, which a report of a glider's track is sent from. */
+    account: AccountModel,
+    /** Where a report is sent from, so that it goes on when its form is closed. */
+    requests: CoroutineScope,
     bars: PaddingValues,
 ) {
     val context = LocalContext.current
@@ -272,7 +278,9 @@ fun MapScreen(
         GliderSheet(
             id,
             live,
+            account,
             server = (wind.server as? WindServer.Usable)?.url,
+            requests = requests,
             onDismiss = { chosenGlider = null },
         )
     }

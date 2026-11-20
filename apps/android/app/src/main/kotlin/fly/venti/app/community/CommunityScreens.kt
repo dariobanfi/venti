@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
+import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Format
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
@@ -57,6 +60,7 @@ import fly.venti.app.logbook.groupedShape
 import fly.venti.core.PublicFlight
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /** What the list of everyone's flights says, in words. */
@@ -190,12 +194,20 @@ fun PilotFlightsScreen(
     /** The pilot's name as the flight it was opened from had it. */
     name: String,
     community: CommunityModel,
+    /** The pilot's own account, which a report is sent from. */
+    account: AccountModel,
+    /** The address of the server this pilot's page is on. */
+    server: String?,
+    /** Where a report is sent from, so that it goes on when its form is closed. */
+    requests: CoroutineScope,
     onOpen: (PublicFlight) -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(handle) {
         community.showPilot(handle)
     }
+    var isShowingMenu by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf<Reported?>(null) }
     val pilot = community.pilot?.takeIf { it.handle == handle }
     val flights = pilot?.flights.orEmpty()
 
@@ -206,6 +218,24 @@ fun PilotFlightsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { isShowingMenu = true }) {
+                            Icon(painterResource(R.drawable.ic_more_vert), contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = isShowingMenu, onDismissRequest = { isShowingMenu = false }) {
+                            val report = Reported.pilot(handle)
+                            DropdownMenuItem(
+                                text = { Text(report.title) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_flag), contentDescription = null) },
+                                onClick = {
+                                    isShowingMenu = false
+                                    reporting = report
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -249,6 +279,10 @@ fun PilotFlightsScreen(
                 }
             }
         }
+    }
+
+    reporting?.let { reported ->
+        ReportSheet(reported, account, server, requests, onDismiss = { reporting = null })
     }
 }
 

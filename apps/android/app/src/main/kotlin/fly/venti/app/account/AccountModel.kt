@@ -11,9 +11,13 @@ import fly.venti.core.Core
 import fly.venti.core.CoreException
 import fly.venti.core.FlightSharing
 import fly.venti.core.FlightVisibility
+import fly.venti.core.ReportReason
+import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
 import fly.venti.core.SyncStep
 import fly.venti.core.SyncSummary
+import fly.venti.core.reportRequest
+import fly.venti.core.reportSent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -299,6 +303,28 @@ class AccountModel(
         }
     }
 
+    // Reports
+
+    /** What became of a report: `sent` says it in a line, or `problem` says why it did not go. */
+    data class ReportOutcome(val sent: String? = null, val problem: String? = null)
+
+    /**
+     * Tells whoever runs the pilot's server that a flight, a pilot's page
+     * or a live track should not be there. The request and the words for
+     * the answer are the core's; what the core refuses is not sent.
+     * Nothing of a report is kept on this phone.
+     */
+    suspend fun report(subject: ReportSubject, reason: ReportReason, text: String): ReportOutcome = try {
+        val server = account?.server?.takeIf { isSignedIn } ?: throw NotSignedIn()
+        val request = withContext(background) { reportRequest(subject, reason, text) }
+        val answer = ask(request, server, answerWithinMilliseconds = REPORT_WITHIN_MILLISECONDS)
+        ReportOutcome(sent = withContext(background) { reportSent(answer.status16, answer.body) })
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        ReportOutcome(problem = words(error))
+    }
+
     // Requests
 
     /**
@@ -349,6 +375,9 @@ class AccountModel(
 
         /** How long a request of the cockpit's may take. */
         const val CARRY_WITHIN_MILLISECONDS = 20_000
+
+        /** How long a report may take. */
+        const val REPORT_WITHIN_MILLISECONDS = 30_000
 
         /** How long after a sync the next one that nobody asked for waits. */
         const val PAUSE_MILLISECONDS = 60_000L

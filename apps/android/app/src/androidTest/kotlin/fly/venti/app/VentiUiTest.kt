@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -917,6 +918,52 @@ class VentiUiTest {
         tap(described("Back"))
         waitFor(hasTestTag("logbook-row"))
 
+        // Something another pilot shares that should not be there is
+        // reported to whoever runs the server, from the account signed in
+        // above: from the flight's menu, with a reason. The server's
+        // development mode keeps a report until it is stopped, and a
+        // second report about the same flight is not a new one, so the two
+        // appearances report two pilots' flights.
+        tap(hasTestTag("logbook-everyone"))
+        val theirs = hasTestTag("public-flight-row") and described(if (dark) "Mara Muster" else "Jonas Beispiel")
+        waitFor(theirs)
+        screen.onAllNodes(theirs).onFirst().performClick()
+        waitFor(described("Flight details"))
+        tap(described("More"))
+        waitFor(hasText("Report this flight"))
+        tap(hasText("Report this flight"))
+        val reason = hasTestTag("report-reason") and hasText("Not a real flight")
+        waitFor(reason)
+        // Nothing can be sent before a reason is chosen.
+        assertTrue(exists(hasTestTag("report-send") and isNotEnabled()))
+        assertFalse(exists(hasTestTag("report-obstacle")))
+        tap(reason)
+        waitFor(reason and isSelected())
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-6-report")
+        // Under the field for the pilot's own words stands what happens
+        // to a report, and under that the button that sends it.
+        screen.onNode(hasTestTag("report-send")).performScrollTo()
+        assertTrue(exists(hasTestTag("report-notice") and hasText("sees that it came from you", substring = true)))
+        waitFor(hasTestTag("report-send") and isEnabled())
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-7-report-notice")
+        tap(hasTestTag("report-send"))
+        waitFor(hasTestTag("report-outcome"))
+        assertTrue(
+            exists(hasText("Whoever runs this server will read it", substring = true)) ||
+                exists(hasText("You reported this before", substring = true)),
+        )
+        assertFalse(exists(hasTestTag("report-send")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-account-8-reported")
+        tap(hasTestTag("report-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-outcome")) }
+        tap(described("Back"))
+        waitFor(hasTestTag("public-flight-row"))
+        tap(hasTestTag("logbook-mine"))
+        waitFor(hasTestTag("logbook-row"))
+
         // Signing out leaves the flights on the phone.
         tap(tab("Settings"))
         waitFor(hasTestTag("account-link"))
@@ -1164,6 +1211,18 @@ class VentiUiTest {
         waitFor(hasTestTag("live-duration"))
         letTheMapDraw(3)
         keepScreenshot("$prefix-air-4-landed")
+        // At the foot of the page: the way to report a track that should
+        // not be there. Its form opens over the page, and without an
+        // account it has nothing to fill in.
+        screen.onNode(hasTestTag("live-glider")).performTouchInput { swipeUp() }
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching { screen.onNode(hasTestTag("report-track")).performScrollTo() }.isSuccess
+        }
+        tap(hasTestTag("report-track"))
+        waitFor(hasTestTag("report-obstacle"))
+        assertFalse(exists(hasTestTag("report-send")))
+        tap(hasTestTag("report-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-obstacle")) }
         tap(hasText("Done"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("live-age")) }
     }
@@ -1226,6 +1285,7 @@ class VentiUiTest {
         tap(described("More"))
         waitFor(hasText("Flights of $pilot"))
         assertTrue(exists(hasText("Share the flight's page")))
+        assertTrue(exists(hasText("Report this flight")))
         assertFalse(exists(hasText("Delete flight")))
         assertFalse(exists(hasText("Replay in the cockpit")))
         tap(hasText("Flights of $pilot"))
@@ -1237,6 +1297,21 @@ class VentiUiTest {
         })
         letTheMapDraw(1)
         keepScreenshot("$prefix-everyone-4-pilot")
+        // The pilot's page has the way to tell whoever runs the server
+        // that it should not be there. A report is sent from an account,
+        // and nobody is signed in here: the form says so and offers
+        // nothing to fill in.
+        tap(described("More"))
+        waitFor(hasText("Report this pilot"))
+        tap(hasText("Report this pilot"))
+        waitFor(hasTestTag("report-obstacle") and hasText("Sign in under Settings, Account.", substring = true))
+        assertFalse(exists(hasTestTag("report-reason")))
+        assertFalse(exists(hasTestTag("report-text")))
+        assertFalse(exists(hasTestTag("report-send")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-everyone-5-report-needs-account")
+        tap(hasTestTag("report-close"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-obstacle")) }
         // One of them opens like the first, and the way back leads through
         // the pilot's page.
         screen.onAllNodes(theirs).onFirst().performClick()

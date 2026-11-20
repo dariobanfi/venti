@@ -36,11 +36,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fly.venti.app.R
 import fly.venti.app.SharedFiles
+import fly.venti.app.account.AccountModel
 import fly.venti.app.airspace.AirspaceModel
 import fly.venti.app.community.CommunityModel
+import fly.venti.app.community.ReportSheet
+import fly.venti.app.community.Reported
 import fly.venti.app.wind.grown
 import fly.venti.core.PublicFlight
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * Another pilot's flight, fetched from the server and shown like one of
@@ -49,22 +53,28 @@ import kotlinx.coroutines.CancellationException
  *
  * Its menu is not a flight's of the logbook: there is no file of the
  * pilot's to share or delete, and nothing to replay. It leads to everything
- * else that pilot shares with everyone, and hands on the flight's page on
- * the server.
+ * else that pilot shares with everyone, hands on the flight's page on the
+ * server, and has the form for telling whoever runs the server that the
+ * flight should not be there.
  */
 @Composable
 fun PublicFlightScreen(
     flight: PublicFlight,
     community: CommunityModel,
     airspace: AirspaceModel,
+    /** The pilot's own account, which a report is sent from. */
+    account: AccountModel,
     /** The address of the server the flight is on, for the link to its page. */
     server: String?,
+    /** Where a report is sent from, so that it goes on when its form is closed. */
+    requests: CoroutineScope,
     /** Called to list everything else this pilot shares with everyone. */
     onPilot: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     var isShowingMenu by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf<Reported?>(null) }
     var opened by remember(flight.id) { mutableStateOf<CommunityModel.Opened?>(null) }
     var problem by remember(flight.id) { mutableStateOf<String?>(null) }
 
@@ -147,8 +157,23 @@ fun PublicFlightScreen(
                             },
                         )
                     }
+                    // For what should not be here: to whoever runs the
+                    // server, and to nobody else.
+                    val report = Reported.flight(flight.id)
+                    DropdownMenuItem(
+                        text = { Text(report.title) },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_flag), contentDescription = null) },
+                        onClick = {
+                            isShowingMenu = false
+                            reporting = report
+                        },
+                    )
                 }
             }
         }
+    }
+
+    reporting?.let { reported ->
+        ReportSheet(reported, account, server, requests, onDismiss = { reporting = null })
     }
 }

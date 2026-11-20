@@ -5,6 +5,8 @@ import fly.venti.app.Session
 import fly.venti.app.TestSupport
 import fly.venti.app.logbook.LogbookModel
 import fly.venti.core.FlightVisibility
+import fly.venti.core.ReportReason
+import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
 import fly.venti.core.syncSummaryInWords
 import kotlinx.coroutines.runBlocking
@@ -412,6 +414,99 @@ class AccountModelTest {
         val refused = checkNotNull(account.carry(positions))
         assertEquals(401, refused.status)
         assertTrue(server.sent.isEmpty())
+    }
+
+    @Test
+    fun whatWhoeverRunsTheServerTookDownOrStoppedIsSaidWhenThePilotShares() = runBlocking {
+        val logbook = logbook()
+        val flight = logbook.addSample().added.single()
+        val server = Server()
+        val account = model(logbook, server)
+        account.signIn(SERVER, "demo", "a password of the test")
+        assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
+
+        // A flight the operator took down cannot be shared again, and the
+        // refusal is said in the core's words where the pilot asked.
+        server.instead = { request -> if (request.method == "PATCH") refusal(403, "flight_taken_down") else null }
+        assertNull(account.share(flight, FlightVisibility.PUBLIC))
+        assertEquals(
+            "Whoever runs this server has taken this flight down. " +
+                "It stays in your logbook, and cannot be shared from this server.",
+            account.problem,
+        )
+        assertEquals(FlightVisibility.PRIVATE, account.sharing(flight)?.visibility)
+
+        // So for an account that was stopped from sharing with everyone.
+        account.problem = null
+        server.instead = { request -> if (request.method == "PATCH") refusal(403, "publishing_suspended") else null }
+        assertNull(account.share(flight, FlightVisibility.PUBLIC))
+        assertTrue(checkNotNull(account.problem).endsWith("A flight can still be shared with a link."))
+    }
+
+    @Test
+    fun aReportGoesToTheServerFromTheAccountAndSaysWhatBecameOfIt() = runBlocking {
+        val (server, session) = Server() to MemorySessionStore()
+        val account = model(logbook(), server, session)
+        var isNew = true
+        server.instead = { request ->
+            when {
+                request.path != "/v1/reports" -> null
+                isNew -> HttpAnswer(201, """{"created": true}""".toByteArray())
+                else -> HttpAnswer(200, """{"created": false}""".toByteArray())
+            }
+        }
+        fun reports() = server.sent.filter { it.path == "/v1/reports" }
+
+        // Without an account nothing is sent.
+        val unsigned = account.report(ReportSubject.Pilot("mara"), ReportReason.SPAM, "")
+        assertNull(unsigned.sent)
+        assertEquals("This phone is no longer signed in. Sign in again.", unsigned.problem)
+        assertTrue(server.sent.isEmpty())
+
+        account.signIn(SERVER, "demo", "a password of the test")
+        val flight = ReportSubject.Flight("fbyw03atd9qdt5bfe177ra1k94")
+        val outcome = account.report(flight, ReportReason.NOT_A_FLIGHT, " This is my track. ")
+        assertEquals("Sent. Whoever runs this server will read it.", outcome.sent)
+        assertNull(outcome.problem)
+
+        val report = reports().single()
+        assertEquals("POST", report.method)
+        assertEquals("$SERVER/v1/reports", report.url)
+        assertEquals("Bearer $TOKEN", report.headers["Authorization"])
+        assertEquals("application/json", report.headers["Content-Type"])
+        assertEquals(30_000, report.answerWithinMilliseconds)
+        val said = Json.parseToJsonElement(checkNotNull(report.body).decodeToString()).jsonObject
+        assertEquals("not_a_flight", said.getValue("reason").jsonPrimitive.content)
+        // Cleaned as the server would clean it.
+        assertEquals("This is my track.", said.getValue("text").jsonPrimitive.content)
+        assertEquals(
+            "fbyw03atd9qdt5bfe177ra1k94",
+            said.getValue("subject").jsonObject.getValue("flight").jsonPrimitive.content,
+        )
+
+        // Reported once more while the first report waits: said as that.
+        isNew = false
+        val again = account.report(flight, ReportReason.SPAM, "")
+        assertEquals("You reported this before. Your report is still waiting to be read.", again.sent)
+        assertEquals(2, reports().size)
+
+        // A report that has to say what is wrong, and does not, is refused
+        // before anything is sent.
+        val wordless = account.report(ReportSubject.Pilot("mara"), ReportReason.OTHER, " ")
+        assertNull(wordless.sent)
+        assertEquals("Say in a few words what is wrong.", wordless.problem)
+        assertEquals(2, reports().size)
+
+        // What is gone cannot be reported, and a server out of reach is
+        // said as that. Neither is a problem of the account's to show
+        // anywhere but on the form.
+        server.instead = { request -> if (request.path == "/v1/reports") refusal(404, "live_track_not_found") else null }
+        val gone = account.report(ReportSubject.LiveTrack("11111111111111111111111111"), ReportReason.PRIVACY, "")
+        assertEquals("This track is no longer there.", gone.problem)
+        server.instead = { throw IOException("no route to host") }
+        val unreached = account.report(ReportSubject.Pilot("mara"), ReportReason.SPAM, "")
+        assertTrue(checkNotNull(unreached.problem).startsWith("The server could not be reached."))
+        assertNull(account.problem)
     }
 
     @Test

@@ -402,10 +402,10 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("fly-6-airspace")
 
         // What lies on the line ahead, from the side: the zone as a block
-        // from the ground up, and the glide running into it. The replay
-        // is held meanwhile, so that the picture is of one moment.
-        choose("Paused", from: element("replay-speed", in: app), in: app)
-        XCTAssertTrue(labelled(containing: "Replay paused", in: app).waitForExistence(timeout: 10))
+        // from the ground up, the ground under it, and the glide running
+        // into the one or the other. Looked at while the glider still
+        // glides towards the zone: holding the replay first took until it
+        // circled again.
         app.buttons["Ahead, from the side"].tap()
         XCTAssertTrue(element("ahead-words", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "SAMPLE ZONE", in: app).exists)

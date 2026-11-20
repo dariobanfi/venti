@@ -877,7 +877,8 @@ struct GroundWindBanner: View {
 /// The landing to think of first: its name and the height the glider is
 /// expected to arrive above it, or that none of the pilot's landings is
 /// within reach. By the glider's own numbers and the wind last measured,
-/// in a straight line: the ground in between is not looked at.
+/// in a straight line; where the iPhone has the ground, a landing behind
+/// a ridge is not within reach.
 struct LandingBadge: View {
     let landing: LandingOption
 

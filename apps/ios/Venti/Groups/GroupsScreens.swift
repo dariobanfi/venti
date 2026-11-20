@@ -171,10 +171,21 @@ struct GroupScreen: View {
     @State private var asking: Asking?
 
     /// Something that is asked about before it is done.
-    private enum Asking: String, Identifiable {
+    /// What the pilot is asked about before it is done.
+    private enum Asking: Identifiable {
         case newCode, leave, delete
+        case remove(GroupMember)
+        case handOver(GroupMember)
 
-        var id: String { rawValue }
+        var id: String {
+            switch self {
+            case .newCode: "new-code"
+            case .leave: "leave"
+            case .delete: "delete"
+            case .remove(let member): "remove-\(member.handle)"
+            case .handOver(let member): "hand-over-\(member.handle)"
+            }
+        }
     }
 
     var body: some View {
@@ -184,12 +195,16 @@ struct GroupScreen: View {
                     ForEach(detail.members, id: \.handle) { member in
                         MemberRow(member: member)
                             .swipeActions(edge: .trailing) {
+                                // Both are asked about first: a swipe
+                                // is quickly made, and neither is undone
+                                // by the keeper alone.
                                 if detail.group.isKeptByMe, !member.isMe {
-                                    Button("Remove", role: .destructive) {
-                                        act { self.detail = nil; try await groups.remove(member.handle, from: id) }
+                                    Button("Remove") {
+                                        asking = .remove(member)
                                     }
+                                    .tint(.red)
                                     Button("Make keeper") {
-                                        act { self.detail = try await groups.handOver(id, to: member.handle) }
+                                        asking = .handOver(member)
                                     }
                                     .tint(Palette.accent)
                                 }
@@ -269,6 +284,14 @@ struct GroupScreen: View {
                 Button("Delete the group", role: .destructive) {
                     act(thenLeave: true) { try await groups.delete(group: id) }
                 }
+            case .remove(let member):
+                Button("Remove \(member.name)", role: .destructive) {
+                    act { self.detail = nil; try await groups.remove(member.handle, from: id) }
+                }
+            case .handOver(let member):
+                Button("Make \(member.name) the keeper") {
+                    act { self.detail = try await groups.handOver(id, to: member.handle) }
+                }
             }
         } message: { asking in
             Text(Self.consequence(asking))
@@ -283,6 +306,8 @@ struct GroupScreen: View {
         case .newCode: "Make a new invite code?"
         case .leave: "Leave this group?"
         case .delete: "Delete this group?"
+        case .remove(let member): "Remove \(member.name) from the group?"
+        case .handOver(let member): "Make \(member.name) the keeper?"
         }
     }
 
@@ -291,6 +316,8 @@ struct GroupScreen: View {
         case .newCode: "The code handed out before stops working. Members stay in the group."
         case .leave: "You will no longer see its plans, and yours are removed."
         case .delete: "The group goes for every member, with all its plans."
+        case .remove: "They no longer see the group's plans, and their own are removed. The invite code stops working, since they know it."
+        case .handOver: "Only the keeper renames the group, makes invite codes and removes members. You stay a member."
         }
     }
 

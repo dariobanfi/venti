@@ -198,7 +198,7 @@ struct TargetPicker: View {
                     Text("Waypoints")
                 } footer: {
                     if !waypoints.all.isEmpty {
-                        Text("The height beside a place is what the glider is expected to arrive with, by its trim speed and glide ratio from the settings and the wind last measured, in a straight line. The ground in between is not looked at.")
+                        Text("The height beside a place is what the glider is expected to arrive with, by its trim speed and glide ratio from the settings and the wind last measured, in a straight line. Where the iPhone has the ground, a place with a ridge in the way says “Ground in the way” and counts as out of reach; where it has none, the ground in between is not looked at.")
                     }
                 }
             }

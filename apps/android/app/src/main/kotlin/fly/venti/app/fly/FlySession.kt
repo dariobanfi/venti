@@ -314,11 +314,15 @@ class FlySession(
                 val request = session.liveRequest(now)
                 if (request != null) {
                     hand(session, request)
-                } else if (session.liveShare(now)?.state == LiveShareState.WAITING) {
-                    delay(LANDED_AGAIN_MILLISECONDS)
-                } else {
-                    break
+                    continue
                 }
+                // Asked to wait, or positions from a gap in the network are
+                // still to go out, a batch every quarter of a minute.
+                val share = session.liveShare(now) ?: break
+                val isWaiting = share.state == LiveShareState.WAITING ||
+                    (share.state == LiveShareState.SHARING && share.waiting > 0u)
+                if (!isWaiting) break
+                delay(LANDED_AGAIN_MILLISECONDS)
             }
         }
     }

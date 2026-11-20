@@ -234,6 +234,39 @@ class LiveSharingTest {
     }
 
     @Test
+    fun whatWaitedForTheNetworkStillGoesOutAfterTheFlightHasEnded() {
+        val made = make(audience = "link")
+        val (fly, flown, server) = Triple(made.fly, made.flown, made.server)
+        fly.startFlight()
+        flown.fly(30)
+        waitFor("positions to be taken") { (fly.live?.taken ?: 0u) > 0u }
+        fun sent(from: Int) = server.positions().drop(from).sumOf { body(it).getValue("fixes").jsonArray.size }
+
+        // A hundred seconds without a network: more positions wait than one request takes.
+        server.answer = { null }
+        flown.fly(100)
+        waitFor("the positions to wait") { (fly.live?.waiting ?: 0u) >= 100u }
+        val waiting = checkNotNull(fly.live).waiting.toInt()
+
+        // The network is back as the pilot ends the flight. The landing
+        // goes out with the newest positions once the wait after the
+        // failure is over.
+        server.answer = { HttpAnswer(201, "{}".toByteArray()) }
+        val before = server.positions().size
+        fly.finish()
+        flown.now += 10.0
+        waitFor("the landing to be said") {
+            server.positions().drop(before).any { body(it).getValue("landed").jsonPrimitive.boolean }
+        }
+        assertTrue(sent(before) < waiting)
+
+        // The rest of the gap is due a quarter of a minute later, and is
+        // sent though the cockpit has closed.
+        flown.now += 20.0
+        waitFor("the rest of the gap to be sent") { sent(before) >= waiting }
+    }
+
+    @Test
     fun nothingIsSharedWithoutAChoiceWithoutAnAccountOrInAReplay() {
         // Nobody is the choice until the pilot makes another.
         val quiet = make(audience = "")

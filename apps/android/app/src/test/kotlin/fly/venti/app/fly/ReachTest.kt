@@ -42,7 +42,10 @@ class ReachTest {
     }
 
     private fun reach(kind: Reach, arrivalM: Double?) =
-        ReachView(distanceM = 3_000.0, bearingDeg = 300.0, arrivalHeightM = arrivalM, reach = kind)
+        ReachView(
+            distanceM = 3_000.0, bearingDeg = 300.0, arrivalHeightM = arrivalM, reach = kind,
+            groundInTheWayM = null,
+        )
 
     private fun landing(kind: Reach, arrivalM: Double?) = LandingOption(
         index = 0u,

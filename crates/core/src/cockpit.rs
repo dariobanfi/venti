@@ -426,7 +426,9 @@ pub enum Reach {
 
 /// How one place lies within the glider's reach, by the glider's trim
 /// speed and glide ratio and the wind last measured, in a straight line.
-/// The ground in between is not looked at: a ridge in the way is not seen.
+/// Where the session has terrain, the ground under that line is looked
+/// at, and a ridge the line would meet puts the place out of reach.
+/// Where it has none, a ridge in the way is not seen.
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct ReachView {
     /// How far it is, metres.
@@ -439,6 +441,12 @@ pub struct ReachView {
     pub arrival_height_m: Option<f64>,
     /// Whether that is within reach.
     pub reach: Reach,
+    /// Where the straight glide to the place meets the ground before it
+    /// gets there, metres from the glider: a ridge in the way. The place
+    /// is then `Beyond`, whatever the arrival height says. `None` when
+    /// the line is clear as far as the ground is known, and without
+    /// terrain.
+    pub ground_in_the_way_m: Option<f64>,
 }
 
 /// The best of the landings the glider could go to, for one line in the
@@ -490,6 +498,11 @@ pub struct WayToTarget {
     /// Whether a wind was known for the prediction. Without one, still air
     /// is assumed, and the screen should say so.
     pub wind_known: bool,
+    /// Where the straight glide to the place meets the ground before it
+    /// gets there, metres from the glider: a ridge in the way, whatever
+    /// the arrival height says. `None` when the line is clear as far as
+    /// the ground is known, and without terrain.
+    pub ground_in_the_way_m: Option<f64>,
 }
 
 /// A recording that was not imported into the logbook, found at launch.
@@ -968,7 +981,15 @@ impl FlightSession {
         };
         places
             .iter()
-            .map(|place| reach_of(place, position, &state, &inner.glider))
+            .map(|place| {
+                reach_of(
+                    place,
+                    position,
+                    &state,
+                    &inner.glider,
+                    inner.terrain.as_deref(),
+                )
+            })
             .collect()
     }
 
@@ -988,17 +1009,31 @@ impl FlightSession {
         let position = state.position?;
         let reaches: Vec<ReachView> = landings
             .iter()
-            .map(|place| reach_of(place, position, &state, &inner.glider))
+            .map(|place| {
+                reach_of(
+                    place,
+                    position,
+                    &state,
+                    &inner.glider,
+                    inner.terrain.as_deref(),
+                )
+            })
             .collect();
-        let (index, best) = reaches
-            .iter()
-            .enumerate()
-            .filter(|(_, reach)| reach.arrival_height_m.is_some())
-            .max_by(|a, b| {
-                a.1.arrival_height_m
-                    .unwrap_or(f64::MIN)
-                    .total_cmp(&b.1.arrival_height_m.unwrap_or(f64::MIN))
-            })?;
+        // The highest arrival among the places with nothing in the way;
+        // only when every one has a ridge before it, the highest of those.
+        let highest = |clear_only: bool| {
+            reaches
+                .iter()
+                .enumerate()
+                .filter(|(_, reach)| reach.arrival_height_m.is_some())
+                .filter(|(_, reach)| !clear_only || reach.ground_in_the_way_m.is_none())
+                .max_by(|a, b| {
+                    a.1.arrival_height_m
+                        .unwrap_or(f64::MIN)
+                        .total_cmp(&b.1.arrival_height_m.unwrap_or(f64::MIN))
+                })
+        };
+        let (index, best) = highest(true).or_else(|| highest(false))?;
         Some(LandingOption {
             index: u32::try_from(index).ok()?,
             name: landings[index].name.clone(),
@@ -1080,6 +1115,13 @@ impl FlightSession {
             &target,
             &inner.glider,
         );
+        let ground_in_the_way_m = ground_in_the_way(
+            inner.terrain.as_deref(),
+            position,
+            state.altitude_m,
+            &way,
+            target.elevation_m,
+        );
         Some(WayToTarget {
             name: way.name,
             is_takeoff,
@@ -1095,6 +1137,7 @@ impl FlightSession {
             arrival_height_m: way.arrival_height_m,
             time_to_go_s: way.time_to_go_s,
             wind_known: way.wind_known,
+            ground_in_the_way_m,
         })
     }
 
@@ -1745,17 +1788,31 @@ const AHEAD_GLIDE: std::ops::RangeInclusive<f64> = 1.0..=15.0;
 /// prediction being a little wrong. To verify in the air.
 const REACH_RESERVE_M: f64 = 100.0;
 
+/// The ground under a glide to a place is read this far apart, metres.
+const REACH_GROUND_STEP_M: f64 = 100.0;
+
+/// The last stretch before a place is not held against the ground,
+/// metres: there the line comes down to the place by design, and a
+/// waypoint's height and the terrain's differ by a few metres.
+const REACH_FINAL_M: f64 = 500.0;
+
+/// Places further than this are not checked against the ground, metres:
+/// the terrain held reaches some thirteen kilometres from the glider.
+const REACH_GROUND_AT_MOST_M: f64 = 30_000.0;
+
 fn reach_of(
     place: &TargetPlace,
     position: GeoPoint,
     state: &live::LiveState,
     glider: &Glider,
+    terrain: Option<&Terrain>,
 ) -> ReachView {
     let unknown = ReachView {
         distance_m: 0.0,
         bearing_deg: 0.0,
         arrival_height_m: None,
         reach: Reach::Unknown,
+        ground_in_the_way_m: None,
     };
     let Ok(there) = GeoPoint::new(place.position.lat, place.position.lon) else {
         return unknown;
@@ -1771,12 +1828,61 @@ fn reach_of(
         },
         glider,
     );
+    let ground_in_the_way_m =
+        ground_in_the_way(terrain, position, state.altitude_m, &way, place.elevation_m);
     ReachView {
         distance_m: way.distance_m,
         bearing_deg: way.bearing_deg,
         arrival_height_m: way.arrival_height_m,
-        reach: reach_in_words(way.height_above_m, way.arrival_height_m),
+        reach: if ground_in_the_way_m.is_some() {
+            Reach::Beyond
+        } else {
+            reach_in_words(way.height_above_m, way.arrival_height_m)
+        },
+        ground_in_the_way_m,
     }
+}
+
+/// Where the straight line from the glider to where it is expected to be
+/// over a place meets the ground before it gets there, metres from the
+/// glider: a ridge in the way. `None` when the line is clear as far as the
+/// ground is known, when the glide does not get there anyway, and without
+/// terrain.
+fn ground_in_the_way(
+    terrain: Option<&Terrain>,
+    position: GeoPoint,
+    altitude_m: Option<f64>,
+    way: &navigation::Navigation,
+    elevation_m: Option<f64>,
+) -> Option<f64> {
+    let (terrain, altitude) = terrain.zip(altitude_m)?;
+    let arrival = way.arrival_height_m.filter(|arrival| *arrival >= 0.0)?;
+    let elevation = elevation_m.filter(|elevation| elevation.is_finite())?;
+    if way.distance_m > REACH_GROUND_AT_MOST_M {
+        return None;
+    }
+    let places = ((way.distance_m - REACH_FINAL_M) / REACH_GROUND_STEP_M).floor();
+    if places < 1.0 {
+        return None;
+    }
+    let fall = altitude - (elevation + arrival);
+    terrain
+        .profile(
+            position,
+            way.bearing_deg,
+            REACH_GROUND_STEP_M,
+            places as usize + 1,
+        )
+        .into_iter()
+        .enumerate()
+        // The glider's own place says nothing: on a slope its height
+        // over the ground is the pilot's business.
+        .skip(1)
+        .find_map(|(index, ground)| {
+            let along = index as f64 * REACH_GROUND_STEP_M;
+            let line = altitude - fall * along / way.distance_m;
+            ground.filter(|ground| line < *ground).map(|_| along)
+        })
 }
 
 /// Whether a place is within reach, from how far the glider is above it
@@ -2190,6 +2296,80 @@ mod tests {
         assert_eq!(view.tone, None);
         assert_eq!(view.instrument, None);
         assert!(view.trail.is_empty());
+    }
+
+    #[test]
+    fn a_ridge_in_the_way_puts_a_landing_out_of_reach() {
+        let folder = TempFolder::new();
+        // Five minutes in: over the Wallberg at 2,016 m, 570 m over its
+        // north side.
+        let (session, replay) = fly(&folder, 300.0, false);
+        let place = |name: &str, lat: f64, lon: f64, elevation_m: f64| TargetPlace {
+            name: name.to_owned(),
+            position: Coordinate { lat, lon },
+            elevation_m: Some(elevation_m),
+        };
+        // A field in the valley to the north, down the open slope, and a
+        // meadow in the valley south of the mountain, behind its ridge.
+        let landings = vec![
+            place("Behind the ridge", 47.63, 11.83, 1176.0),
+            place("Down the slope", 47.6833, 11.755, 744.0),
+        ];
+
+        // Without terrain the straight glide reaches both, the far one
+        // with 260 m to spare.
+        let reaches = session.reach(landings.clone(), replay.now());
+        assert_eq!(reaches[0].reach, Reach::Within);
+        assert!((reaches[0].arrival_height_m.unwrap() - 259.0).abs() < 30.0);
+        assert_eq!(reaches[0].ground_in_the_way_m, None);
+        assert_eq!(reaches[1].reach, Reach::Within);
+
+        // With the ground the app has for the region, the line to the
+        // meadow meets the ridge four kilometres out. The arrival height
+        // still says what a straight glide would give; the place is out
+        // of reach.
+        let terrain = Terrain::new();
+        terrain
+            .add_archive(
+                std::fs::read(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../apps/ios/Venti/Resources/MapDemo/terrain.pmtiles"
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+        session.use_terrain(Some(terrain));
+        let reaches = session.reach(landings.clone(), replay.now());
+        assert_eq!(reaches[0].reach, Reach::Beyond);
+        let meets = reaches[0].ground_in_the_way_m.unwrap();
+        assert!((3500.0..4500.0).contains(&meets), "{meets}");
+        assert!(reaches[0].arrival_height_m.unwrap() > 200.0);
+        assert_eq!(reaches[1].reach, Reach::Within);
+        assert_eq!(reaches[1].ground_in_the_way_m, None);
+
+        // The landing to think of first is one with nothing in the way,
+        // and only one of the two counts as within reach.
+        let option = session.landing_option(landings, replay.now()).unwrap();
+        assert_eq!(option.name, "Down the slope");
+        assert_eq!(option.in_reach, 1);
+
+        // With only the blocked one to choose from, that is the one
+        // named, as beyond reach.
+        let only = vec![place("Behind the ridge", 47.63, 11.83, 1176.0)];
+        let option = session.landing_option(only, replay.now()).unwrap();
+        assert_eq!(option.reach.reach, Reach::Beyond);
+        assert!(option.reach.ground_in_the_way_m.is_some());
+        assert_eq!(option.in_reach, 0);
+
+        // Chosen as the place to fly to, the way to it says the same;
+        // the way to the field down the slope is clear.
+        session.go_to(Some(place("Behind the ridge", 47.63, 11.83, 1176.0)));
+        let way = session.navigation(replay.now()).unwrap();
+        assert!(way.arrival_height_m.unwrap() > 200.0);
+        assert_eq!(way.ground_in_the_way_m, Some(meets));
+        session.go_to(Some(place("Down the slope", 47.6833, 11.755, 744.0)));
+        let way = session.navigation(replay.now()).unwrap();
+        assert_eq!(way.ground_in_the_way_m, None);
     }
 
     #[test]

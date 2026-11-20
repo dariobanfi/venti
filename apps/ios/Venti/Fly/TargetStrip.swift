@@ -65,7 +65,17 @@ struct TargetStrip: View {
     @ViewBuilder
     private func arrival(_ way: WayToTarget) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            if let height = way.arrivalHeightM {
+            if let meets = way.groundInTheWayM {
+                // The straight glide would arrive with height to spare,
+                // and meets a ridge on the way: that is what counts.
+                Text("Ground in the way")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text("in \(Format.kilometres(metres: meets)) km")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            } else if let height = way.arrivalHeightM {
                 Text("\(Text(Format.signedMetres(height)).font(.system(.title3, design: .rounded, weight: .semibold)))\(Text(" m").font(.system(.footnote, design: .rounded, weight: .medium)).foregroundStyle(.secondary))")
                     .monospacedDigit()
                     // Falling short is the one thing here worth a warning colour.
@@ -88,7 +98,9 @@ struct TargetStrip: View {
     private var spoken: String {
         guard let way else { return "Nothing chosen" }
         var parts = ["\(way.name), \(Format.kilometres(metres: way.distanceM)) kilometres"]
-        if let height = way.arrivalHeightM {
+        if let meets = way.groundInTheWayM {
+            parts.append("the ground is in the way in \(Format.kilometres(metres: meets)) kilometres")
+        } else if let height = way.arrivalHeightM {
             parts.append(
                 height < 0
                     ? "expected to fall short by \(Format.metres(-height)) metres"

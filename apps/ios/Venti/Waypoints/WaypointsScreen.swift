@@ -108,7 +108,9 @@ extension WaypointRow {
             parts.append("Chosen.")
         }
         parts.append(waypoint.detail)
-        if let reach, let arrival = reach.arrivalHeightM {
+        if reach?.groundInTheWayM != nil {
+            parts.append("Out of reach: the ground is in the way.")
+        } else if let reach, let arrival = reach.arrivalHeightM {
             switch reach.reach {
             case .within, .just:
                 parts.append("Arriving \(Format.signedMetres((arrival / 10).rounded() * 10)) metres above it.")
@@ -150,7 +152,14 @@ struct WaypointRow: View {
             Spacer(minLength: 8)
             // The height the glider would arrive with: plain with height
             // to spare, amber with little, red when it comes down before.
-            if let reach, let arrival = reach.arrivalHeightM, reach.reach != .unknown {
+            if reach?.groundInTheWayM != nil {
+                // A straight glide would get there, and a ridge is in
+                // its way: the height it would arrive with says nothing.
+                Label("Ground in the way", systemImage: "mountain.2.fill")
+                    .labelStyle(.iconOnly)
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+            } else if let reach, let arrival = reach.arrivalHeightM, reach.reach != .unknown {
                 Text("\(Format.signedMetres((arrival / 10).rounded() * 10)) m")
                     .font(.system(.subheadline, design: .rounded, weight: .medium))
                     .monospacedDigit()

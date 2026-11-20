@@ -71,6 +71,16 @@
 	const times = $derived(
 		`${text.time(flight.startUnixS)} – ${text.time(flight.startUnixS + flight.durationS)}`
 	);
+	/**
+	 * The time of day at the marked moment, with a region's "AM" or "PM" apart
+	 * from it. Set small, as a unit is, it leaves the time as narrow as the
+	 * three readings beside it: "10:52 AM" in one size runs into the next one.
+	 */
+	const clock = $derived.by(() => {
+		if (!moment) return undefined;
+		const [value = '', period] = text.time(flight.startUnixS + moment.seconds).split(/\s/u);
+		return { value, period };
+	});
 </script>
 
 <div class="panel">
@@ -135,8 +145,8 @@
 		aria-live={playing ? 'off' : 'polite'}
 		aria-label={moment ? 'At the marked moment' : 'The whole flight'}
 	>
-		{#if moment}
-			<Metric caption="Time" value={text.time(flight.startUnixS + moment.seconds)} />
+		{#if moment && clock}
+			<Metric caption="Time" value={clock.value} unit={clock.period} />
 			<!-- How high over the ground the glider was, where the ground is
 			     known; else how long it had been in the air. -->
 			{#if above !== undefined}

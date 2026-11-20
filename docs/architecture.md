@@ -164,7 +164,7 @@ One suite of tests runs against both implementations (`crates/core/src/storage.r
 
 ### Android
 
-Built 2026-11-19 with the same sections as the iPhone app; `apps/android/README.md` says how to build it and what has not been verified. It has run on an emulator in CI and on no phone.
+Built 2026-11-19 with the same sections as the iPhone app; `apps/android/README.md` says how to build it, and `apps/android/AGENTS.md` what has not been tried. It has run on an emulator in CI and on no phone.
 
 - Kotlin and Jetpack Compose with Material 3, one module, minimum Android 8 (API 26), built against Android 17 (API 37). The Gradle wrapper pins Gradle and checks its download; library versions and their licences are in `apps/android/gradle/libs.versions.toml`. How the app looks and why is in [design.md](design.md#android).
 - The shell holds no flying logic, as on iOS. What it holds for the life of the process (the logbook's model, the flying session, the vario link) belongs to the application object, not to a screen: Android rebuilds screens whenever it likes, and a recording has to carry on through that. Screens draw what these models hold as Compose state.

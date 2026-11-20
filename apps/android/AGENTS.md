@@ -1,6 +1,6 @@
 # Notes for AI sessions working on the Android app
 
-Working notes: what to know before changing the app or its tests. What the app does and what is not built is in [docs/plan.md](../../docs/plan.md) and [docs/design.md](../../docs/design.md), how it is built in [docs/architecture.md](../../docs/architecture.md). The `README.md` beside this file is for people.
+Working notes: what to know before changing the app or its tests. What the app does and what is not built is in [docs/plan.md](../../docs/plan.md) and [docs/design.md](../../docs/design.md), how it is built and what is still to verify on a phone in [docs/architecture.md](../../docs/architecture.md#android). The `README.md` beside this file is for people.
 
 ## Checks before a push
 
@@ -22,9 +22,83 @@ Working notes: what to know before changing the app or its tests. What the app d
 - A bottom sheet stops at half height only if its content is taller than half the screen when it opens: wrap the content in `Box(Modifier.fillMaxHeight())`.
 - With a sheet open over a sheet there are two "Done" buttons: give the upper one a test tag (`report-close`).
 - Now and then the emulator's renderer cuts off part of the status bar. That is not the app.
+- The emulator in the workflow is plain Android 16 without Google's services, which is also the check that the app needs none. It draws with the `swangle_indirect` software renderer: the usual `swiftshader_indirect` draws none of the map's symbols (no place names, no wind arrows, no dashed lines), so its screenshots say nothing about a map. One test asks the map itself which place names it has placed, so missing fonts are found whatever the renderer draws.
+- For the wind map the workflow starts `venti-server dev` and names it to the tests. To run that test yourself, start the server and add `-Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080` to `connectedDebugAndroidTest`; without the argument the test is skipped.
+- Download the screenshots with `gh run download --name android-screenshots --dir /tmp/venti-screens`.
 
 ## Conventions in the code
 
 - Words that are not the core's stand in an object beside the screen (`PlanWords`, `GroupWords`, `ReportWords`, `AheadWords`, `ReachWords`), so that a unit test can hold them.
 - Talking to the pilot's server is one way round: the core puts the request together, `AccountModel.answer` sends it with the session's token, the core reads the answer. Nothing of groups, plans or reports is kept on the phone.
 - Icons are Material Symbols, outlined, 24 px, taken as Android vector drawables from `google/material-design-icons` (`symbols/android/<name>/materialsymbolsoutlined/<name>_24px.xml`), with the tint removed and the fill set to `#FF000000`, named `ic_<name>.xml`.
+
+## How the build makes the core
+
+Three tasks in `app/build.gradle.kts` run again only when something under `crates/` has changed:
+
+| Task | What it does |
+|---|---|
+| `coreForAndroid` | `cargo ndk` builds `libventi_core.so` for each ABI in `venti.abis` (`gradle.properties`): `arm64-v8a` and `x86_64`. |
+| `coreBindings` | Builds the core for the build machine and runs UniFFI's generator (the `uniffi-bindgen` program in `tools/uniffi-bindgen-swift`) on it to generate the Kotlin interface, package `fly.venti.core`. Settings in `uniffi.toml`. |
+| `sharedAssets` | Gathers the sample flight, the map style and the bundled map region from where the repository keeps them. |
+
+Nothing they produce is committed: no generated Kotlin, no compiled core, no second copy of a shared file.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `app/build.gradle.kts` | The app's build: Android settings, libraries, the three tasks above. Library versions and their licences are in `gradle/libs.versions.toml`. |
+| `uniffi.toml` | How the Kotlin interface of the core is generated. |
+| `app/src/main/AndroidManifest.xml` | Permissions, the one activity and the files it opens, the recording service. |
+| `app/src/main/kotlin/fly/venti/app/` | The entry point (`MainActivity`), what the app holds while it runs (`Session`), its tabs and where the pilot is in them (`RootScreen`, `AppNavigation`), the one place requests to servers leave from (`Http`), and how a secret is kept (`SealedStore`). |
+| `.../design/` | Colours, the Material theme, number formatting, the metric component, the pieces of list-like screens, chart axes. |
+| `.../logbook/` | The logbook screen, its model over the core, import, the statistics. |
+| `.../flight/` | One flight: map, panel, altitude chart, details sheet; another pilot's flight (`PublicFlightScreen.kt`). |
+| `.../fly/` | The cockpit: the Fly tab, the cockpit screen and its map, the sensors (position, pressure, Bluetooth vario, vario sound, the recording service), live tracking (`LiveScreen.kt`; the sending is `FlySession.kt`'s), the task's line (`TaskStrip.kt`). |
+| `.../map/` | The map tab, the shared map setup and the style preparation. |
+| `.../airspace/` | The pilot's airspace from files and from the server, how airspace is drawn, and the cockpit's warnings: banner, sheet, voice. |
+| `.../waypoints/` | The pilot's waypoints: the list in the settings and its model. |
+| `.../wind/` | Live wind: asking the server, the map's symbols, a station's page with its charts, the list. |
+| `.../sites/` | Flying sites: asking the server, the map's signs, a site's page, the list. |
+| `.../forecast/` | The forecast of a place: one day of one model as a table, and the words around it. |
+| `.../community/` | Everyone's public flights page by page, the list on the Logbook tab, opening one from its file, and the report form. |
+| `.../groups/` | Groups and their plans: the board, a plan, its form, the groups and what keeper and members can do. Asked for and not kept. |
+| `.../terrain/` | The ground: elevation tiles around the glider, fetched, kept and handed to the core. |
+| `.../live/` | Who is in the air: asking the server, the gliders' pictures, the list, a glider's page, following its flight. |
+| `.../account/` | Signing in, the sync, sharing a flight with a link, the session token in Android's keystore. |
+| `.../task/` | Bringing a task in, its screen with the sketch and the turnpoints, planning a route from waypoints. |
+| `.../assistant/` | The chat screen, sending requests, where the key is kept. |
+| `.../settings/` | The settings tab and the credits. |
+| `app/src/main/res/` | The app icon and the interface's icons as vector drawables, the window theme, backup rules, the note on requests without encryption. |
+| `app/src/test/` | Unit tests. They run on the build machine and call the real core through the generated interface. |
+| `app/src/androidTest/` | UI tests that use the app like a pilot and keep a screenshot of every screen. |
+
+The map style is `map/style.json` at the repository's root; the sample flight, the label fonts and the demo map region are read from `apps/ios/Venti/Resources`.
+
+## What has never been tried
+
+The app has run on an emulator in CI, driven by the UI tests, and on no phone. One test records a flight from made-up positions handed to Android as if its satellite receiver had found them, so the permission, the location manager, the recording service with its notification, the altitude conversion of Android 14 and later, and saving to the logbook all run there. What an emulator cannot show (recording with the screen off and battery savers, the altitude conversion against a known height, the pressure sensor as a vario, Bluetooth, the tone, "Open with" from real apps) is listed in [docs/architecture.md](../../docs/architecture.md#android). Besides that:
+
+- **Flying.** The cockpit has only seen replayed flights.
+- **The landing within reach.** Seen in the replay of the sample flight, with one made-up landing among the waypoints. Nobody has compared it in the air with what a glider did.
+- **How far it glides.** The green line is drawn from what the core works out, which the unit tests hold against the region that comes with the app; in the screenshots it shows only where the map is wide enough. Whether its reserve of a hundred metres is right, and whether it helps or clutters, is for the air to say.
+- **Ahead, from the side.** Seen in replays over the bundled region, with the glide ending on the ground. An airspace block has been drawn in a test only when the made-up zone lay on the line when the test looked; several airspaces one over another, one whose height could not be placed, and a long name in a narrow block are untried.
+- **The height over the ground.** Seen in replays over the bundled region, whose heights the core reads as 725 m for the Tegernsee and 1,620 m for the sample flight's take-off. Tiles fetched on a phone, a flight that leaves the tiles it started with, a day without a network and what the store of tiles weighs after a season are untried; nothing removes a kept tile. The number is a model's of the bare ground in pixels 13 m wide, held against no landing and no known height.
+- **The line about a strong wind.** Seen in a replay with a made-up glider trimmed at 18 km/h, slower than the settings allow, in the sample flight's wind of 11 km/h.
+- **The thermal's picture.** Seen in the replay of the sample flight, whose one thermal lifts evenly all round, so the badge has said little but "Centred". A real thermal with a stronger side and a wind that changes with height is untried.
+- **Navigating to a waypoint.** Seen in replays only; waypoint files have been read from made-up text, not from real instruments' files.
+- **Airspace warnings.** Seen in replays against one made-up zone. Airspace from a server has only come from the development mode's recorded sample of openAIP's data; a country's whole airspace, a slow connection and a day without a network are untried. A phone without a speech engine shows the banner and stays silent; no warning has been heard.
+- **The assistant.** Only ever against a scripted stand-in. Its airspace, forecast and site look-ups came with the shared core and have not been tried on Android, as the scripted provider of its tests only asks for wind.
+- **Servers on the internet.** Wind, sites, forecasts, everyone's flights, who is in the air, the account and reports have only talked to the development mode on the build machine, without encryption. HTTPS, a slow connection and a server that stops answering are untried.
+- **Everyone's flights.** Seen with the development mode's five flights of three made-up pilots; a second page only against canned answers. A flight of many hours and a pilot who takes a flight back while the list is open are untried.
+- **Flying plans and groups.** The board, a plan posted for today, a plan's page and a group's page have been seen against the development mode's one made-up group. Changing and deleting a plan, "I am in" and "I am out", making and joining a group, renaming, a new code, removing a member, handing the keeping on, leaving and deleting were tried only against answers the server's own tests keep. The day and time pickers, a board of many days and two phones in one group are untried.
+- **Reporting.** Reports have gone to the development mode only, which forgets them when it stops. The form with the keyboard open has not been looked at on a phone.
+- **Replaying one's own flights.** Only the sample flight has been replayed from a logbook; a flight from a real instrument, with gaps, and one of many hours are untried.
+- **Who is in the air.** Only the development mode's two made-up pilots, with a clock that stands still. A track that grows while watched, many gliders in one valley and a glider that goes quiet are untried.
+- **A live forecast.** Only recorded forecasts of two November days. A server that takes half a minute to fetch a place's first forecast, a summer day of sixteen hours of daylight and a model the app does not know are untried.
+- **The account.** A logbook of hundreds of flights, a connection that drops in a sync, a sync while recording, an invite code and a password manager filling the form are untried. The token's key has only lived in the emulator's keystore.
+- **Live tracking.** No position has gone from a phone to a server. On the emulator a flight is shared and its track deleted before take-off, when nothing is sent yet; the sending is tested against the core with a made-up server. A server that asks to wait is untried.
+- **Flying a task.** One made-up task, in a replay of the sample flight. A real competition task, a start with several gates, an end of speed section before goal, a goal line and the voice over the vario's tone are untried. The tests cannot press Android's file picker or fill its clipboard.
+- **Importing a folder.** The tests cannot press the folder picker's buttons; what follows (finding the flight files, counting, the summary) is tested with files shared to the app instead. A folder on an SD card, in a cloud drive or with a thousand files is untried.
+- **Moving the logbook to a new phone**, which the backup rules allow from Android 12.

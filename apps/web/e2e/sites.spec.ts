@@ -5,7 +5,15 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, metric, showTheValley, test } from './helpers';
+import {
+	BETWEEN_THE_MOUNTAINS,
+	expect,
+	mapTabDrawn,
+	metric,
+	showMyPosition,
+	showTheValley,
+	test
+} from './helpers';
 
 /** Where OpenStreetMap has the take-off of the Jägerkamp. */
 const JAEGERKAMP = { latitude: 47.6791413, longitude: 11.9051032 };
@@ -139,8 +147,7 @@ test('a site is opened by its sign, and a station still by its arrow', async ({
 	await context.setGeolocation(JAEGERKAMP);
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Show my position' }).click();
-	await mapDrawn();
+	await showMyPosition(page, mapDrawn);
 	await expect(shown(page)).toHaveText(/^Flying sites on this part of the map: [1-9]\d*\.$/);
 	await page.waitForTimeout(800);
 

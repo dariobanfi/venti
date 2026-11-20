@@ -5,7 +5,7 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, test } from './helpers';
+import { expect, mapTabDrawn, metric, showMyPosition, test } from './helpers';
 
 /** Where the weather station of Garmisch-Partenkirchen stands. */
 const GARMISCH = { latitude: 47.483, longitude: 11.0621 };
@@ -135,8 +135,7 @@ test('a station is opened by its arrow, also one that gave way to a windier neig
 	await context.setGeolocation(GARMISCH);
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Show my position' }).click();
-	await mapDrawn();
+	await showMyPosition(page, mapDrawn);
 	await page.waitForTimeout(800);
 
 	// The station is in the middle of what the navigation leaves of the map.

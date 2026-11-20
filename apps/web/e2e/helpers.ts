@@ -183,6 +183,28 @@ export async function mapTabDrawn(page: Page, mapDrawn: () => Promise<void>): Pr
 export const BETWEEN_THE_MOUNTAINS = { latitude: 47.679, longitude: 11.85 };
 
 /**
+ * Goes to where the pilot stands, from the map of the northern Alps the
+ * app starts with: presses the position button and waits until the map has
+ * arrived there and drawn the place.
+ *
+ * Waiting for the map's tiles alone is not enough. On a busy machine the
+ * position arrives a moment after the click, and until then no tile is on
+ * its way: a test that went on would press its keys or click the map's
+ * middle while the map was still where it started. The button zooms in on
+ * a hillside, which shows in what the map asks for: tiles of zoom 12.
+ */
+export async function showMyPosition(page: Page, mapDrawn: () => Promise<void>): Promise<void> {
+	const arriving = page.waitForRequest(
+		(request) =>
+			/^https:\/\/tiles\.openfreemap\.org\/.*\/1[2-9]\/\d+\/\d+\.pbf$/.test(request.url()),
+		{ timeout: 30_000 }
+	);
+	await page.getByRole('button', { name: 'Show my position' }).click();
+	await arriving;
+	await mapDrawn();
+}
+
+/**
  * Goes to where the pilot stands and then further out, with the keyboard:
  * the position button zooms in to a hillside, and sites are spread over a
  * valley.
@@ -192,8 +214,7 @@ export async function showTheValley(
 	mapDrawn: () => Promise<void>,
 	steps: number
 ): Promise<void> {
-	await page.getByRole('button', { name: 'Show my position' }).click();
-	await mapDrawn();
+	await showMyPosition(page, mapDrawn);
 	const map = page.locator('canvas.maplibregl-canvas');
 	await map.focus();
 	for (let step = 0; step < steps; step += 1) {

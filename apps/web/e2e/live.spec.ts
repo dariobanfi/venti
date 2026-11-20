@@ -6,7 +6,7 @@
  */
 
 import type { BrowserContext, Locator, Page } from '@playwright/test';
-import { expect, mapTabDrawn, metric, test } from './helpers';
+import { expect, mapTabDrawn, metric, showMyPosition, test } from './helpers';
 
 /** The tracks of the two gliders, and where each was last heard of. */
 const FLYING = { id: '11111111111111111111111111', latitude: 47.6637733, longitude: 11.7431677 };
@@ -41,8 +41,7 @@ async function mapAt(
 	await context.setGeolocation(place);
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
-	await page.getByRole('button', { name: 'Show my position' }).click();
-	await mapDrawn();
+	await showMyPosition(page, mapDrawn);
 	await expect(shown(page)).toHaveText(`In the air on this part of the map: ${inView}.`);
 	// The map places the wings over a few frames and fades their names in.
 	await page.waitForTimeout(1500);

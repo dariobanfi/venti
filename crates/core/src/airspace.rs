@@ -740,7 +740,7 @@ pub(crate) fn compass(degrees: f64) -> &'static str {
 
 /// A distance in the cockpit: metres rounded to tens under a kilometre,
 /// kilometres with one decimal beyond.
-fn distance_in_words(metres: f64) -> String {
+pub(crate) fn distance_in_words(metres: f64) -> String {
     if metres < 995.0 {
         format!("{:.0} m", (metres / 10.0).round() * 10.0)
     } else {
@@ -868,6 +868,11 @@ impl AirspaceWatch {
 
     pub(crate) fn warnings(&self) -> Vec<AirspaceWarning> {
         self.warnings.clone()
+    }
+
+    /// The airspace the watch warns from.
+    pub(crate) fn set(&self) -> &AirspaceSet {
+        &self.set
     }
 
     pub(crate) fn take_alert(&mut self) -> Option<AirspaceLevel> {
@@ -1202,6 +1207,73 @@ AH FL 100
             (danger.lower.as_str(), danger.upper.as_str()),
             ("1000 ft AGL", "FL 95")
         );
+    }
+
+    #[test]
+    fn the_cockpit_shows_from_the_side_what_lies_ahead() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        core.import_airspace("zones.txt".to_owned(), FILE.as_bytes().to_vec(), NOW)
+            .unwrap();
+        let session = FlightSession::new(folder.path().to_str().unwrap().to_owned());
+        let replay = Replay::new(igc::write(&synthetic_flight())).unwrap();
+
+        // Without airspace there is no side view to show.
+        replay.advance(session.clone(), 150.0);
+        assert_eq!(session.airspace_ahead(replay.now()), None);
+        session.use_airspace(Some(core.airspace().unwrap()));
+
+        // Circling in the first thermal a course says nothing: the view
+        // looks to where the cockpit navigates, back to the take-off, with
+        // the glider's own glide in the wind it has worked out.
+        replay.advance(session.clone(), 60.0);
+        let view = session.airspace_ahead(replay.now()).unwrap();
+        assert_eq!(view.toward, "Towards Take-off");
+        assert!(
+            view.line_words
+                .starts_with("The glider's own glide in this wind, "),
+            "{}",
+            view.line_words
+        );
+        assert!(view.spans.is_empty());
+        assert_eq!(view.words, "No airspace to avoid on this line for 10 km");
+
+        // Nine minutes in, on the glide to the north-west: the zone lies
+        // two kilometres ahead from the ground to 9,000 ft, and the glide
+        // of the last seconds runs into it.
+        replay.advance(session.clone(), 330.0);
+        let view = session.airspace_ahead(replay.now()).unwrap();
+        assert_eq!(view.toward, "On course NW");
+        assert!(
+            (view.bearing_deg - 302.0).abs() < 5.0,
+            "{}",
+            view.bearing_deg
+        );
+        assert!(
+            view.line_words
+                .starts_with("Your glide of the last seconds, 9."),
+            "{}",
+            view.line_words
+        );
+        assert_eq!(view.spans.len(), 1);
+        let zone = &view.spans[0];
+        assert_eq!(zone.name, "CTR TEST");
+        assert_eq!(zone.kind, "Class D control zone");
+        assert!((zone.from_m - 1855.0).abs() < 150.0, "{}", zone.from_m);
+        assert!(zone.to_m > zone.from_m + 3000.0);
+        assert!((zone.ceiling_m.unwrap() - 2743.2).abs() < 0.5);
+        assert!(zone.in_the_way && !zone.uncertain);
+        assert_eq!(zone.policy, AirspacePolicy::Avoid);
+        assert_eq!(view.words, "CTR TEST in 1.9 km, on your line");
+        // The glider, its line's end and the zone's ceiling all fit.
+        assert!(view.bottom_m < view.line_end_m && view.line_end_m < view.altitude_m);
+        assert!(view.top_m >= 2800.0);
+
+        // Three minutes on the glider is in it.
+        replay.advance(session.clone(), 180.0);
+        let view = session.airspace_ahead(replay.now()).unwrap();
+        assert_eq!(view.spans[0].from_m, 0.0);
+        assert_eq!(view.words, "In CTR TEST now");
     }
 
     #[test]

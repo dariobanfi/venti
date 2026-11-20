@@ -263,6 +263,14 @@ final class FlySession {
         begin(FlightSession(dataFolder: dataFolder.path), mode: .replay(speed: speed))
     }
 
+    /// The airspace on the line ahead, seen from the side: on the glider's
+    /// course on a glide, towards the place the cockpit navigates to while
+    /// circling. `nil` without airspace, and without a position and a
+    /// height.
+    func airspaceAhead() -> AirspaceAhead? {
+        session?.airspaceAhead(nowUnixS: replay?.now() ?? Date().timeIntervalSince1970)
+    }
+
     /// Changes how fast a replay runs: 1 is the flight's own speed, and 0
     /// holds it where it is. Does nothing while a flight is recorded.
     func setReplaySpeed(_ speed: Double) {

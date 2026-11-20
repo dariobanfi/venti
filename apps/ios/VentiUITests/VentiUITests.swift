@@ -378,6 +378,20 @@ final class VentiUITests: XCTestCase {
         sleep(2)
         keepScreenshot("fly-6-airspace")
 
+        // What lies on the line ahead, from the side: the zone as a block
+        // from the ground up, and the glide running into it. The replay
+        // is held meanwhile, so that the picture is of one moment.
+        element("replay-speed", in: app).tap()
+        let paused = app.buttons["Paused"]
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        paused.tap()
+        app.buttons["Airspace ahead"].tap()
+        XCTAssertTrue(element("ahead-words", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "SAMPLE ZONE", in: app).exists)
+        sleep(1)
+        keepScreenshot("fly-6b-airspace-ahead")
+        app.buttons["Done"].tap()
+
         banner.tap()
         XCTAssertTrue(app.buttons["Seen: quiet for 10 minutes"].waitForExistence(timeout: 10))
         XCTAssertTrue(labelled(containing: "Class D control zone", in: app).exists)

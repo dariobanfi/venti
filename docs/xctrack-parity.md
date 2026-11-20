@@ -64,7 +64,7 @@ Thermalling detection in XCTrack *(official)*: start when heading has changed at
 | Wind | Speed, direction, combined compass and wind, wind and climb by altitude band | v1 |
 | Thermal | Thermal assistant: drift-corrected trail coloured by climb, previous thermals, optional airspace and navigation overlays | v1 |
 | Navigation | Next turnpoint name, distance, arrival height, required glide, arrival time; distance and course to takeoff; bearing; coordinates; nearest airfield | v1 |
-| Side view | Terrain and airspace cross-section along bearing or route, with glide lines | v1 |
+| Side view | Terrain and airspace cross-section along bearing or route, with glide lines | Built on the iPhone on 2026-11-20 for airspace, along the course or towards the target, ten kilometres, with one glide line; no terrain, so limits above ground are drawn as far as they may reach, and not along a task's route. Tried against a replayed flight, not flown |
 | XC | Map with live XContest optimisation, FAI sectors, closing circle, leg distances; flown distance; unfinished-triangle estimate; FAI triangle potential | v1 |
 | Competition | Task map, distance, altitude and glide to goal and to end of speed section, time to start, predicted time at start, speed to start, percent of speed section, task summary | Built on the iPhone as one line and a sheet, not as separate widgets: time to start, distance to the start's edge and speed to it, the time to the edge at the present speed, distance and glide to goal, distance to the end of the speed section, the task on the map and its summary. Percent of the speed section is worked out and not shown |
 | Airspace | Proximity widget with nearest airspace, distance and direction | v1 |

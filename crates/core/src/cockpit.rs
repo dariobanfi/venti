@@ -34,6 +34,7 @@ use venti_flight::scoring;
 use venti_flight::sun;
 use venti_sensors::{Battery, SentenceReader};
 
+use crate::ahead::{self, AirspaceAhead};
 use crate::airspace::{AirspaceWatch, compass};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
@@ -783,6 +784,94 @@ impl FlightSession {
             .unwrap_or_default()
     }
 
+    /// The airspace on the line ahead, seen from the side, for planning
+    /// a glide: on the glider's course while it glides, towards the place
+    /// the cockpit navigates to while it circles or stands. The line drawn
+    /// is the glide of the last seconds on a glide, and otherwise the
+    /// glider's own glide in the wind as last worked out. `None` without
+    /// airspace, without a position and a height, and when there is no
+    /// way to look.
+    pub fn airspace_ahead(&self, now_unix_s: f64) -> Option<AirspaceAhead> {
+        let inner = self.lock();
+        let watch = inner.watch.as_ref()?;
+        let state = inner.computer.state(now_unix_s);
+        let (position, altitude_m) = (state.position?, state.altitude_m?);
+
+        let on_course = state.course_deg.filter(|_| !state.circling).filter(|_| {
+            state
+                .ground_speed_ms
+                .is_some_and(|speed| speed >= AHEAD_MOVING_MS)
+        });
+        let (bearing_deg, toward) = match on_course {
+            Some(course) => (course, format!("On course {}", compass(course))),
+            None => {
+                let (target, _) = aim_of(&inner, &state)?;
+                if position.distance_m(target.position) < 50.0 {
+                    return None;
+                }
+                (
+                    venti_airspace::bearing_deg(position, target.position),
+                    format!("Towards {}", target.name),
+                )
+            }
+        };
+
+        // The line: what the glider is doing on a glide, what it can do
+        // otherwise.
+        let measured = on_course
+            .and(state.glide_ratio)
+            .filter(|glide| AHEAD_GLIDE.contains(glide));
+        let (glide, line_words) = match measured {
+            Some(glide) => (
+                Some(glide),
+                format!("Your glide of the last seconds, {glide:.1}"),
+            ),
+            None => {
+                let there = venti_airspace::destination(position, bearing_deg, ahead::AHEAD_M)?;
+                let expected = navigation::navigate(
+                    position,
+                    Some(altitude_m),
+                    state.wind,
+                    &Target {
+                        name: String::new(),
+                        position: there,
+                        elevation_m: None,
+                    },
+                    &inner.glider,
+                )
+                .expected_glide
+                .filter(|glide| glide.is_finite() && *glide > 0.0);
+                match (expected, state.wind) {
+                    (Some(glide), Some(_)) => (
+                        Some(glide),
+                        format!("The glider's own glide in this wind, {glide:.1}"),
+                    ),
+                    (Some(glide), None) => (
+                        Some(glide),
+                        format!("The glider's own glide in still air, {glide:.1}"),
+                    ),
+                    (None, _) => (
+                        None,
+                        "The wind lets the glider make no way on this line".to_owned(),
+                    ),
+                }
+            }
+        };
+
+        ahead::ahead(
+            watch.set(),
+            &ahead::Look {
+                position,
+                altitude_m,
+                pressure_altitude_m: state.pressure_altitude_m,
+                bearing_deg,
+                toward,
+                glide,
+                line_words,
+            },
+        )
+    }
+
     /// The level to sound a warning for, once: the most urgent warning
     /// that appeared, became more urgent or came out of a silence since
     /// this was last asked, and that the pilot has not silenced.
@@ -944,27 +1033,7 @@ impl FlightSession {
         let inner = self.lock();
         let state = inner.computer.state(now_unix_s);
         let position = state.position?;
-        // The place the pilot chose comes first, then the task, then the
-        // way back to the take-off.
-        let chosen = inner
-            .target
-            .clone()
-            .or_else(|| inner.task.as_ref().and_then(TaskFlown::aim));
-        let (target, is_takeoff) = match chosen {
-            Some(target) => (target, false),
-            None => (
-                Target {
-                    name: "Take-off".to_owned(),
-                    position: state.takeoff?,
-                    // The height the glider left the ground at.
-                    elevation_m: state
-                        .altitude_m
-                        .zip(state.height_above_takeoff_m)
-                        .map(|(altitude, above)| altitude - above),
-                },
-                true,
-            ),
-        };
+        let (target, is_takeoff) = aim_of(&inner, &state)?;
         let way = navigation::navigate(
             position,
             state.altitude_m,
@@ -1586,6 +1655,40 @@ impl Replay {
             .now_s
     }
 }
+
+/// The place the cockpit navigates to, and whether it is the take-off:
+/// the place the pilot chose comes first, then the task, then the way
+/// back to the take-off.
+fn aim_of(inner: &Inner, state: &live::LiveState) -> Option<(Target, bool)> {
+    let chosen = inner
+        .target
+        .clone()
+        .or_else(|| inner.task.as_ref().and_then(TaskFlown::aim));
+    Some(match chosen {
+        Some(target) => (target, false),
+        None => (
+            Target {
+                name: "Take-off".to_owned(),
+                position: state.takeoff?,
+                // The height the glider left the ground at.
+                elevation_m: state
+                    .altitude_m
+                    .zip(state.height_above_takeoff_m)
+                    .map(|(altitude, above)| altitude - above),
+            },
+            true,
+        ),
+    })
+}
+
+/// Below this speed over the ground a course says nothing, metres per
+/// second.
+const AHEAD_MOVING_MS: f64 = 2.0;
+
+/// A glide of the last seconds is taken for the line ahead only within
+/// these bounds: flatter, and the glider is in lift that will not last
+/// ten kilometres.
+const AHEAD_GLIDE: std::ops::RangeInclusive<f64> = 1.0..=15.0;
 
 /// A place counts as within reach when the glider is expected to arrive
 /// at least this far above it, metres: room for a circuit and for the

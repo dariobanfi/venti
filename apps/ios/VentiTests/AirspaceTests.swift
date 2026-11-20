@@ -118,6 +118,44 @@ final class AirspaceTests: XCTestCase {
         XCTAssertTrue(fly.airspaceWarnings.isEmpty)
     }
 
+    func testTheSideViewShowsTheZoneOnTheLineAhead() throws {
+        let folder = try makeFolder()
+        let core = try Core(dataFolder: folder.path)
+        _ = try core.importAirspace(
+            fileName: "zones.txt", bytes: Data(LaunchOptions.sampleAirspace.utf8), nowUnixS: 1_795_000_000
+        )
+        let session = FlightSession(dataFolder: folder.path)
+        let sample = try XCTUnwrap(Bundle.main.url(forResource: "sample", withExtension: "igc"))
+        let replay = try Replay(igcText: try String(contentsOf: sample, encoding: .utf8))
+
+        // Nine minutes in, on the glide towards the zone. Without airspace
+        // there is nothing to show.
+        _ = replay.advance(session: session, seconds: 540)
+        XCTAssertNil(session.airspaceAhead(nowUnixS: replay.now()))
+
+        session.useAirspace(airspace: try core.airspace())
+        let ahead = try XCTUnwrap(session.airspaceAhead(nowUnixS: replay.now()))
+        XCTAssertEqual(ahead.toward, "On course NW")
+        XCTAssertEqual(ahead.distanceM, 10_000)
+        XCTAssertTrue(ahead.lineWords.hasPrefix("Your glide of the last seconds, "), ahead.lineWords)
+        let zone = try XCTUnwrap(ahead.spans.first)
+        XCTAssertEqual(zone.name, "SAMPLE ZONE (NOT REAL)")
+        XCTAssertEqual(zone.kind, "Class D control zone")
+        XCTAssertTrue(zone.inTheWay)
+        XCTAssertFalse(zone.uncertain)
+        XCTAssertEqual(zone.policy, .avoid)
+        XCTAssertTrue(ahead.words.hasPrefix("SAMPLE ZONE (NOT REAL) in 1."), ahead.words)
+        XCTAssertTrue(ahead.words.hasSuffix("on your line"), ahead.words)
+        // The glider, the end of its line and the zone's ceiling fit in
+        // the picture.
+        XCTAssertLessThan(ahead.lineEndM, ahead.altitudeM)
+        XCTAssertLessThan(ahead.bottomM, ahead.lineEndM)
+        XCTAssertGreaterThan(ahead.topM, try XCTUnwrap(zone.ceilingM))
+
+        // A session that is not running has no side view.
+        XCTAssertNil(FlySession(dataFolder: folder).airspaceAhead())
+    }
+
     func testAirspaceIsFetchedFromTheServerOnceKeptAndUsed() async throws {
         let folder = try makeFolder()
         let asked = Requests()

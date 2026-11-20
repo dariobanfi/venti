@@ -19,6 +19,7 @@ struct CockpitScreen: View {
     @State private var isChoosingTarget = false
     @State private var isShowingAirspace = false
     @State private var isShowingWinds = false
+    @State private var isShowingAhead = false
     @State private var isShowingLive = false
     /// Whether the screen takes no touches: against a glove, a line or
     /// rain pressing a button in flight.
@@ -79,20 +80,41 @@ struct CockpitScreen: View {
                         .padding(10)
                     }
                     .overlay(alignment: .leading) {
-                        // The whole flight at a glance, with the scored
-                        // route and where to go for an FAI triangle; again
-                        // for the close view that follows the glider.
-                        Button {
-                            showsWholeFlight.toggle()
-                        } label: {
-                            Image(systemName: showsWholeFlight ? "location.fill" : "arrow.up.left.and.arrow.down.right")
+                        VStack(spacing: 10) {
+                            // The whole flight at a glance, with the scored
+                            // route and where to go for an FAI triangle;
+                            // again for the close view that follows the
+                            // glider.
+                            Button {
+                                showsWholeFlight.toggle()
+                            } label: {
+                                Image(
+                                    systemName: showsWholeFlight
+                                        ? "location.fill" : "arrow.up.left.and.arrow.down.right"
+                                )
                                 .font(.headline)
                                 .frame(width: 44, height: 44)
                                 .contentShape(.circle)
+                            }
+                            .buttonStyle(.plain)
+                            .glassEffect(.regular, in: .circle)
+                            .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
+                            // With airspace to warn from: what lies on the
+                            // line ahead, seen from the side.
+                            if fly.airspaceCheck != .noAirspace {
+                                Button {
+                                    isShowingAhead = true
+                                } label: {
+                                    Image(systemName: "chart.line.downtrend.xyaxis")
+                                        .font(.headline)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(.circle)
+                                }
+                                .buttonStyle(.plain)
+                                .glassEffect(.regular, in: .circle)
+                                .accessibilityLabel("Airspace ahead")
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular, in: .circle)
-                        .accessibilityLabel(showsWholeFlight ? "Follow the glider" : "Show the whole flight")
                         .padding(10)
                     }
                     .overlay(alignment: .topLeading) {
@@ -255,6 +277,10 @@ struct CockpitScreen: View {
             .sheet(isPresented: $isShowingWinds) {
                 WindByHeightSheet()
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $isShowingAhead) {
+                AirspaceAheadSheet()
+                    .presentationDetents([.large])
             }
             .sheet(isPresented: $isShowingTask) {
                 TaskProgressSheet()

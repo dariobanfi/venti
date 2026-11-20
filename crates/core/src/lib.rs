@@ -24,6 +24,7 @@ use chrono::{DateTime, Datelike};
 use venti_flight::{igc, summarise, track};
 
 mod account;
+mod ahead;
 mod airspace;
 mod analysis;
 mod assistant;
@@ -47,6 +48,7 @@ mod waypoints;
 mod wind;
 
 pub use account::*;
+pub use ahead::{AirspaceAhead, AirspaceAheadSpan};
 pub use airspace::*;
 pub use analysis::*;
 pub use assistant::*;

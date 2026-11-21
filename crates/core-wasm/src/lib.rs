@@ -1638,6 +1638,21 @@ pub fn site_confirmations_of(
     to_js(&venti_core::site_confirmations_of(from_js(&site)?, status, body).map_err(thrown)?)
 }
 
+/// A route drawn on the map before the flight: each leg's length, the
+/// whole, and what it would score if flown as drawn. The points come as
+/// one flat list, latitude then longitude of each in turn.
+#[wasm_bindgen(js_name = planRoute)]
+pub fn plan_route(lat_lon: Vec<f64>) -> Result<Ts<venti_core::RoutePlan>, JsValue> {
+    let points = lat_lon
+        .chunks_exact(2)
+        .map(|pair| Coordinate {
+            lat: pair[0],
+            lon: pair[1],
+        })
+        .collect();
+    to_js(&venti_core::plan_route(points))
+}
+
 /// The path to `GET` for what the public flights that began at a site
 /// say about it. A site of any layer.
 #[wasm_bindgen(js_name = siteFlightsPath)]

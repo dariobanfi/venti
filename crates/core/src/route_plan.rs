@@ -27,6 +27,8 @@ const STEPS_AT_MOST: usize = 4000;
 
 /// One leg of a drawn route.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct RouteLegView {
     /// Its length, metres.
     pub distance_m: f64,
@@ -38,6 +40,8 @@ pub struct RouteLegView {
 
 /// What a drawn route would score, flown exactly as drawn.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct PlannedScore {
     /// What it would be scored as.
     pub kind: RouteKind,
@@ -61,6 +65,8 @@ pub struct PlannedScore {
 
 /// A drawn route in numbers.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct RoutePlan {
     /// The legs, in order: one fewer than there are places.
     pub legs: Vec<RouteLegView>,

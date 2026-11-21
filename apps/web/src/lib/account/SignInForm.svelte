@@ -16,6 +16,7 @@
 <script lang="ts">
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { goToGoogle } from './google';
+	import GoogleButton from './GoogleButton.svelte';
 	import GoogleHandleStep from './GoogleHandleStep.svelte';
 	import type { AccountModel } from './model.svelte';
 
@@ -110,14 +111,11 @@
 
 	{#if offersGoogle && account.googleWords}
 		<section class="group google" aria-label={account.googleWords.continueWithGoogle}>
-			<button
-				class="button-prominent"
-				type="button"
+			<GoogleButton
+				label={account.googleWords.continueWithGoogle}
 				disabled={account.working}
 				onclick={() => goToGoogle('signIn')}
-			>
-				{account.googleWords.continueWithGoogle}
-			</button>
+			/>
 			{#if googleRefusal}
 				<p class="group-note refusal" role="alert">{googleRefusal}</p>
 			{/if}
@@ -261,10 +259,6 @@
 	@media (min-width: 56rem) {
 		.google {
 			align-items: flex-start;
-		}
-
-		.google .button-prominent {
-			min-width: 12rem;
 		}
 
 		.with-password {

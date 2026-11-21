@@ -59,8 +59,9 @@ export function contentSecurityPolicy(inlineStyles: readonly `sha256-${string}`[
 		// writes. Styles the app sets from its scripts are not attributes
 		// and need no leave.
 		'style-src-attr': ['unsafe-hashes', ...inlineStyles],
-		// The app icon; and the map engine's style sheet draws the icons of
-		// its own controls from `data:` addresses.
+		// The app icon and the Google "G" of "Continue with Google"; and the
+		// map engine's style sheet draws the icons of its own controls from
+		// `data:` addresses.
 		'img-src': ['self', 'data:'],
 		// The app's own files that a page fetches: the font files for the
 		// map's labels and the sample flight. The small font files the build

@@ -23,6 +23,7 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { goToGoogle } from './google';
+	import GoogleButton from './GoogleButton.svelte';
 	import type { AccountModel } from './model.svelte';
 
 	interface Props {
@@ -284,14 +285,13 @@
 			{#if signedIn.googleEmail && deleting}
 				<p class="with-google">An account linked to Google may confirm with Google instead.</p>
 				{#if account.googleWords}
-					<button
-						class="button-prominent with-google-button"
-						type="button"
-						disabled={account.working}
-						onclick={() => goToGoogle('delete')}
-					>
-						{account.googleWords.continueWithGoogle}
-					</button>
+					<div class="with-google-button">
+						<GoogleButton
+							label={account.googleWords.continueWithGoogle}
+							disabled={account.working}
+							onclick={() => goToGoogle('delete')}
+						/>
+					</div>
 				{/if}
 			{/if}
 			{#if refusal}
@@ -359,8 +359,10 @@
 		overflow-wrap: anywhere;
 	}
 
+	/* Google's button, as wide as the dialog. */
 	.with-google-button {
-		width: 100%;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.with-google {

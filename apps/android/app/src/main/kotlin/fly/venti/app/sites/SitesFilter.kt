@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -278,15 +279,25 @@ private fun Title(words: String) {
     )
 }
 
-/** One choice of a row, as the pack's chip of which one is on: the forecast card's layers are drawn the same. */
+/**
+ * One choice of a row, as the pack's chip of which one is on: the forecast
+ * card's layers are drawn the same. With `ticks` it is one of several that
+ * can be on together, as the uses and the winds of a site's form are.
+ */
 @Composable
-private fun Choice(words: String, isOn: Boolean, tag: String, onChoose: () -> Unit) {
+internal fun Choice(words: String, isOn: Boolean, tag: String, ticks: Boolean = false, onChoose: () -> Unit) {
     val colours = Venti.colours
     Box(
         modifier = Modifier
             .heightIn(min = VentiSize.touch)
             .testTag(tag)
-            .selectable(selected = isOn, role = Role.Tab, onClick = onChoose),
+            .then(
+                if (ticks) {
+                    Modifier.toggleable(value = isOn, role = Role.Checkbox, onValueChange = { onChoose() })
+                } else {
+                    Modifier.selectable(selected = isOn, role = Role.Tab, onClick = onChoose)
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Surface(

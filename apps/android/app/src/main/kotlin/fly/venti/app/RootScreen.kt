@@ -389,6 +389,8 @@ private fun Sections(
                     siteActions = siteActions,
                     thermalMap = session.thermalMap,
                     radar = session.radar,
+                    siteEdit = session.siteEdit,
+                    onSignIn = { navigation.showAccount() },
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

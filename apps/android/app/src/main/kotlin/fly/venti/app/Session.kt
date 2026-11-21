@@ -37,6 +37,7 @@ import fly.venti.app.settings.MemoryPreferences
 import fly.venti.app.settings.Preferences
 import fly.venti.app.settings.StoredPreferences
 import fly.venti.app.sites.KeptSitesModel
+import fly.venti.app.sites.SiteEditModel
 import fly.venti.app.sites.SitesModel
 import fly.venti.app.forecast.ThermalMapModel
 import fly.venti.app.radar.RadarModel
@@ -78,6 +79,8 @@ sealed interface Session {
         val community: CommunityModel,
         val account: AccountModel,
         val groups: GroupsModel,
+        /** Adding and correcting the sites that pilots make. */
+        val siteEdit: SiteEditModel,
         val tasks: TaskModel,
         /** Sending a flight to a league, from this phone. */
         val leagues: Leagues,
@@ -248,6 +251,11 @@ sealed interface Session {
             // The pilot's groups and their plans for a flying day, asked
             // of the account's server and kept nowhere.
             val groups = logbook.makeGroups(account)
+            // The sites that pilots make are sent to the app's Venti, where
+            // that server takes them.
+            val siteEdit = SiteEditModel(account)
+            siteEdit.server = { (wind.server as? WindServer.Usable)?.url }
+            siteEdit.takesSites = { wind.takesSitesFromPilots }
             // The cockpit names the landing within reach among the
             // pilot's own waypoints.
             fly.landings = { waypoints.all.filter { it.kind == WaypointKind.LANDING } }
@@ -311,7 +319,7 @@ sealed interface Session {
                 if (isUnderTest) MemoryUploadPasswordStore() else KeystoreUploadPasswordStore(app),
             )
             return Ready(
-                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, tasks,
+                logbook, fly, vario, chat, wind, waypoints, airspace, sites, live, community, account, groups, siteEdit, tasks,
                 leagues, maps, ground, today, keptSites, thermalMap, radar, WatchedFolder(app, preferences, logbook), preferences, files, scope,
             )
         }

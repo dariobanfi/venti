@@ -164,6 +164,12 @@ class AppNavigation {
         settingsRoute = null
     }
 
+    /** Opens the pilot's account, from a screen that needs the pilot signed in. */
+    fun showAccount() {
+        showSettings()
+        settingsRoute = SettingsRoute.Account
+    }
+
     fun show(flight: String) {
         tab = AppTab.Logbook
         logbookPath.clear()

@@ -126,6 +126,10 @@ class WindModel(
     var lateProviders: List<String> by mutableStateOf(emptyList())
         private set
 
+    /** Whether the server takes sites from pilots, as its health answer says: no until it has said so. */
+    var takesSitesFromPilots: Boolean by mutableStateOf(false)
+        private set
+
     /** Venti's address. Empty only in a test that names no server. */
     val address: String = address
 
@@ -179,6 +183,7 @@ class WindModel(
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
                 serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+                takesSitesFromPilots = state.takesSitesFromPilots
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -232,6 +237,7 @@ class WindModel(
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
                 serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+                takesSitesFromPilots = state.takesSitesFromPilots
                 lateProviders = state.lateProviders
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
@@ -285,6 +291,7 @@ class WindModel(
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
                 serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+                takesSitesFromPilots = state.takesSitesFromPilots
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
             withContext(background) { windMap(answer.status.asStatus(), answer.body, now) }

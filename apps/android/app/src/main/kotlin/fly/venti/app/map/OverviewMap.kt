@@ -30,6 +30,7 @@ import fly.venti.core.ThermalMapShapes
 import fly.venti.core.TrailPointView
 import fly.venti.core.WindStation
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.OnCameraTrackingChangedListener
@@ -72,7 +73,7 @@ class OverviewMap : MapContent {
     var onGlider: (String) -> Unit = {}
 
     /** Told the place under the finger after a long press on the map. */
-    var onPlace: (Coordinate) -> Unit = {}
+    var onPlace: (Coordinate, Boolean) -> Unit = { _, _ -> }
 
     /** Called with the identifier of a plan whose mark was tapped. */
     var onPlan: (String) -> Unit = {}
@@ -162,10 +163,29 @@ class OverviewMap : MapContent {
         // A long press asks about the place under the finger.
         map.addOnMapLongClickListener { place ->
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            onPlace(Coordinate(lat = place.latitude, lon = place.longitude))
+            onPlace(Coordinate(lat = place.latitude, lon = place.longitude), !hasSite(place, map, view))
             true
         }
     }
+
+    /** Whether a flying site is drawn under a finger at a place: a tap there would open it. */
+    private fun hasSite(place: LatLng, map: MapLibreMap, view: MapView): Boolean {
+        val style = style ?: return false
+        if (style.getLayer(SITES) == null) return false
+        val point = map.projection.toScreenLocation(place)
+        val reach = REACH_DP * view.resources.displayMetrics.density
+        return map.queryRenderedFeatures(RectF(point.x - reach, point.y - reach, point.x + reach, point.y + reach), SITES).isNotEmpty()
+    }
+
+    /** Turns the map to a place, close enough to mark a site on it: where a site's place is chosen. */
+    fun lookAt(place: Coordinate) {
+        val map = map ?: return
+        val zoom = maxOf(map.cameraPosition.zoom, PLACING_ZOOM)
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(place.lat, place.lon), zoom))
+    }
+
+    /** The place in the middle of the map, where the mark for a site's place stands. */
+    fun middle(): Coordinate? = map?.cameraPosition?.target?.let { Coordinate(lat = it.latitude, lon = it.longitude) }
 
     override fun styleLoaded(map: MapLibreMap, style: Style, view: MapView) {
         this.map = map
@@ -712,6 +732,9 @@ class OverviewMap : MapContent {
 
         /** The zoom from which the sites' signs are drawn, as on the iPhone and the web. */
         private const val SITES_FROM_ZOOM = 9f
+
+        /** How close the map shows a site's place while it is chosen: a path and a clearing can be told apart. */
+        private const val PLACING_ZOOM = 15.0
         private const val FOLLOWING_ZOOM = 13.0
 
         /** Half the width of a finger, in the screen's own units. */

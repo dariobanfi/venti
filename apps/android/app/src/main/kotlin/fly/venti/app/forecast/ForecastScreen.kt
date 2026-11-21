@@ -84,7 +84,13 @@ data class ForecastPlace(val name: String, val position: Coordinate)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ForecastSheet(place: Coordinate, wind: WindModel, onDismiss: () -> Unit) {
+fun ForecastSheet(
+    place: Coordinate,
+    wind: WindModel,
+    onDismiss: () -> Unit,
+    /** What else the place offers, over the forecast: adding a site there. */
+    head: (@Composable () -> Unit)? = null,
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
@@ -100,6 +106,7 @@ fun ForecastSheet(place: Coordinate, wind: WindModel, onDismiss: () -> Unit) {
                 wind,
                 onBack = null,
                 onDone = onDismiss,
+                head = head,
             )
         }
     }
@@ -136,6 +143,8 @@ fun ForecastPage(
      * after that the pilot's own choice stands.
      */
     opensOn: ForecastOpening? = null,
+    /** What stands between the title and the forecast, if anything. */
+    head: (@Composable () -> Unit)? = null,
 ) {
     var phase by remember(place) { mutableStateOf<Phase>(Phase.Loading) }
     var attempt by remember(place) { mutableIntStateOf(0) }
@@ -190,6 +199,7 @@ fun ForecastPage(
             )
             TextButton(onClick = onDone) { Text("Done") }
         }
+        head?.invoke()
         when (val current = phase) {
             Phase.Loading -> Box(Modifier.fillMaxWidth().padding(vertical = 96.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()

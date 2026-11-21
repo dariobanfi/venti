@@ -60,6 +60,13 @@ data class Reported(
         fun group(id: String) = Reported(ReportSubject.Group(id), "Report this group")
 
         fun plan(groupId: String, id: String) = Reported(ReportSubject.Plan(groupId, id), "Report this plan")
+
+        /** A site that pilots made. */
+        fun site(id: String) = Reported(ReportSubject.Site(id), "Report this site")
+
+        /** One revision of such a site: what one pilot wrote into it. */
+        fun siteRevision(id: String, revision: UInt) =
+            Reported(ReportSubject.SiteRevision(id, revision), "Report this revision")
     }
 }
 

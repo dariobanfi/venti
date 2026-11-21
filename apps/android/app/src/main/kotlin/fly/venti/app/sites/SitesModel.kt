@@ -173,6 +173,12 @@ class SitesModel(
         }
     }
 
+    /** Asks again for the area at hand: a pilot has added or changed a site there. */
+    suspend fun again() {
+        val answered = answered ?: return
+        load(answered.area, answered.server)
+    }
+
     private fun forget() {
         waiting?.cancel()
         sites = emptyList()

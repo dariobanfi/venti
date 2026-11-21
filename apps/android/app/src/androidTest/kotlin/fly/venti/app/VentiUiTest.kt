@@ -3752,4 +3752,309 @@ class VentiUiTest {
         letTheMapDraw(12)
         keepScreenshot("online-2-flight")
     }
+
+    /**
+     * The map over the development server's made-up sites that pilots
+     * added, near Garmisch, with the wind and the gliders off so that the
+     * sites are what is seen. The region that comes with the app ends
+     * before it: the ground is empty there, and the sites are not.
+     */
+    private fun lookAtTheMadeUpSites(scenario: ActivityScenario<MainActivity>) {
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.285, lon = 10.9, zoom = 12.0))
+        waitFor(described("Flying sites"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) >= 3
+        }
+        letTheMapDraw(2)
+    }
+
+    /** Makes a new account from the form that is open, and goes back to the map. */
+    private fun makeAnAccountAndGoBackToTheMap(handle: String) {
+        waitFor(hasTestTag("account-handle"))
+        tap(hasTestTag("account-new"))
+        waitFor(hasTestTag("account-invite"))
+        screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
+        screen.onNode(hasTestTag("account-name")).performTextInput("Test Pilot (not real)")
+        screen.onNode(hasTestTag("account-password")).performTextInput("a password for this test")
+        screen.onNode(hasTestTag("account-submit")).performScrollTo()
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@$handle"))
+        waitFor(hasText("Sync now"))
+        // The account's page has no tab bar: back to the settings, which have it.
+        tap(described("Back"))
+        waitFor(tab("Map"))
+        tap(tab("Map"))
+    }
+
+    /** A long press on the map where no site lies, and the entry it offers over the forecast. */
+    private fun pressWhereNoSiteLies(scenario: ActivityScenario<MainActivity>, lat: Double, lon: Double) {
+        TestDevice.longPress(checkNotNull(TestDevice.onScreen(scenario, lat = lat, lon = lon)))
+        waitFor(hasTestTag("site-add-here"))
+    }
+
+    /**
+     * A pilot adds a take-off, corrects it, looks at its history, undoes
+     * the correction and removes the site; and is told when a site stands
+     * at the place already. Against the development server's made-up
+     * sites near Garmisch, with an account the test makes: signed out, the
+     * entry leads to the account. Everything said about the rule, the
+     * licence and a refusal is the core's. Skipped without a server.
+     */
+    @Test
+    fun aPilotAddsAndCorrectsASite() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        val page = hasTestTag("site-page")
+        val form = hasTestTag("site-form")
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        lookAtTheMadeUpSites(scenario)
+
+        // Signed out: the entry is there with a line why, and leads to the account.
+        pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+        assertTrue(exists(hasTestTag("site-add-needs-account")))
+        tap(hasTestTag("site-add-here"))
+        val handle = "s${System.currentTimeMillis() % 1_000_000_000}"
+        makeAnAccountAndGoBackToTheMap(handle)
+
+        // Signed in: the entry over the forecast of the place pressed.
+        lookAtTheMadeUpSites(scenario)
+        val before = TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0
+        pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+        assertFalse(exists(hasTestTag("site-add-needs-account")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-1-entry")
+        tap(hasTestTag("site-add-here"))
+
+        // The form, empty: the core's title, fields and helps.
+        waitFor(form)
+        assertTrue(exists(hasText("Add a site")))
+        assertTrue(exists(hasText("What pilots call the place.")))
+        assertTrue(exists(hasTestTag("site-field-place") and hasText("° N, ", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-2-form-empty")
+
+        // Sent with nothing in it: the faults at their fields, in the core's words.
+        screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+        waitFor(hasText("Give the site a name.", substring = true))
+        assertTrue(exists(hasTestTag("site-fault-uses")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-3-form-fault")
+
+        screen.onNode(hasTestTag("site-field-name")).performTextInput("Testkogel (not real)")
+        screen.onNode(hasTestTag("site-use-takeoff")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("site-field-height")).performScrollTo().performTextInput("1500")
+        screen.onNode(hasTestTag("site-wind-SW")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("site-wind-WSW")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("site-wind-W")).performScrollTo().performClick()
+        waitFor(hasTestTag("site-wind-words") and hasText("SW to W"))
+        assertFalse(exists(hasTestTag("site-fault-uses")))
+        assertFalse(exists(hasText("Give the site a name.", substring = true)))
+
+        // What giving a site means, with the licence, over the button.
+        screen.onNode(hasTestTag("site-send")).performScrollTo()
+        assertTrue(exists(hasTestTag("site-giving") and hasText("You give this site to everyone under CC0 1.0", substring = true)))
+        assertTrue(exists(hasTestTag("site-licence") and hasText("CC0 1.0")))
+        assertTrue(exists(hasTestTag("site-send") and hasText("Add for everyone")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-4-giving")
+        tap(hasTestTag("site-send"))
+
+        // Its page, with the core's line; and its sign on the map.
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(form) }
+        waitFor(page)
+        waitFor(hasTestTag("site-said") and hasText("Added. The site is on the map for everyone now."))
+        assertTrue(exists(hasText("Testkogel (not real)")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > before
+        }
+        letTheMapDraw(2)
+        keepScreenshot("site-edit-5-new-site")
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-by-pilots"))
+        assertTrue(exists(hasText("Added by Test Pilot (not real) (@$handle)")))
+        assertTrue(exists(hasTestTag("site-by-pilots-note") and hasText("not verified", substring = true)))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-edits"))
+        waitFor(hasTestTag("site-correct") and hasText("Correct this site"))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-5b-site-page")
+
+        // Corrected: another height, and why.
+        tap(hasTestTag("site-correct"))
+        waitFor(form)
+        assertTrue(exists(hasTestTag("site-send") and hasText("Save for everyone")))
+        screen.onNode(hasTestTag("site-field-height")).performScrollTo().performTextClearance()
+        screen.onNode(hasTestTag("site-field-height")).performTextInput("1520")
+        screen.onNode(hasTestTag("site-field-comment")).performScrollTo().performTextInput("measured again")
+        screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(form) }
+        screen.onNode(page).performScrollToNode(hasTestTag("site-said"))
+        waitFor(hasTestTag("site-said") and hasText("Saved for everyone, as revision 2 of this site."))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-in-a-line"))
+        waitFor(hasTestTag("site-in-a-line") and hasText("1520 m", substring = true))
+
+        // The history: two revisions, the newest first, with the change in words.
+        screen.onNode(page).performScrollToNode(hasTestTag("site-edits"))
+        tap(hasTestTag("site-history-open"))
+        waitFor(hasTestTag("site-history"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            screen.onAllNodes(hasTestTag("site-revision-words")).fetchSemanticsNodes().size == 2
+        }
+        assertTrue(exists(hasTestTag("site-revision-change") and hasText("Height: 1500 m → 1520 m")))
+        assertTrue(exists(hasTestTag("site-revision-words") and hasText("measured again", substring = true)))
+        assertTrue(exists(hasTestTag("site-undo") and hasText("Undo the last change")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-6-history")
+
+        // Undone: the site stands as it was added, at a third revision.
+        tap(hasTestTag("site-undo"))
+        waitFor(hasTestTag("site-why"))
+        screen.onNode(hasTestTag("site-why")).performTextInput("the first height was right")
+        tap(hasTestTag("site-why-send"))
+        waitFor(page)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-said"))
+        waitFor(hasTestTag("site-said") and hasText("revision 3", substring = true))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-in-a-line"))
+        waitFor(hasTestTag("site-in-a-line") and hasText("1500 m", substring = true))
+
+        // Removed: the core's line, and the history, which brings it back.
+        screen.onNode(page).performScrollToNode(hasTestTag("site-edits"))
+        tap(hasTestTag("site-remove"))
+        waitFor(hasTestTag("site-why"))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-7-remove")
+        tap(hasTestTag("site-why-send"))
+        waitFor(hasTestTag("site-said") and hasText("Removed from the map. Its history stays, and any pilot can bring it back."))
+        waitFor(hasTestTag("site-history"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            screen.onAllNodes(hasTestTag("site-revision-words")).fetchSemanticsNodes().size == 4
+        }
+        assertTrue(exists(hasTestTag("site-put-back")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-8-removed")
+        tap(hasText("Done"))
+        waitFor(described("Show my position"))
+
+        // On top of a site that stands: moved there on the map, refused in
+        // the core's words, with the offer to open that one.
+        lookAtTheMadeUpSites(scenario)
+        pressWhereNoSiteLies(scenario, lat = 47.275, lon = 10.92)
+        tap(hasTestTag("site-add-here"))
+        waitFor(form)
+        screen.onNode(hasTestTag("site-field-name")).performTextInput("Musterkogel again (not real)")
+        screen.onNode(hasTestTag("site-use-takeoff")).performScrollTo().performClick()
+        screen.onNode(hasTestTag("site-move")).performScrollTo().performClick()
+        waitFor(hasTestTag("site-place-card"))
+        assertTrue(exists(hasText("Move the map until the mark is where pilots stand or touch down.")))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.3, lon = 10.9, zoom = 15.0))
+        letTheMapDraw(2)
+        keepScreenshot("site-edit-9-place")
+        tap(hasTestTag("site-place-use"))
+        waitFor(form)
+        // What was entered is still there, at the new place.
+        assertTrue(exists(hasTestTag("site-field-name") and hasText("Musterkogel again (not real)")))
+        assertTrue(exists(hasTestTag("site-field-place") and hasText("47.3000° N, 10.9000° E")))
+        screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+        waitFor(hasTestTag("site-problem"))
+        screen.onNode(hasTestTag("site-in-the-way")).performScrollTo()
+        assertTrue(
+            exists(
+                hasTestTag("site-problem") and
+                    hasText("A site that pilots added stands at this place already: Musterkogel West.", substring = true),
+            ),
+        )
+        assertTrue(exists(hasTestTag("site-in-the-way") and hasText("Open Musterkogel West")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-10-too-close")
+        tap(hasTestTag("site-in-the-way"))
+        waitFor(page)
+        waitFor(hasText("Musterkogel West"))
+        assertFalse(exists(form))
+
+        // Reporting it: the app's report form, with a site's reasons. Nothing is sent.
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-edits"))
+        waitFor(hasTestTag("site-report"))
+        tap(hasTestTag("site-report"))
+        waitFor(hasTestTag("report-notice"))
+        assertTrue(exists(hasText("Report this site")))
+        assertTrue(exists(hasText("Wrong place or dangerous")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-11-report")
+        tap(hasTestTag("report-close"))
+    }
+
+    /**
+     * The form for a site on a screen 360 dp wide with the text at 130 %:
+     * the fields, the sixteen winds and what giving means over the button.
+     * Skipped without a server.
+     */
+    @Test
+    fun theFormForASiteOnANarrowScreenWithLargeText() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        TestDevice.narrowWithLargeText()
+        try {
+            launch { putExtra(LaunchOptions.SERVER, server) }
+            val scenario = checkNotNull(app)
+            tapChip("layer-wind")
+            tapChip("layer-pilots")
+            lookAtTheMadeUpSites(scenario)
+            pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-edit-1-entry-signed-out")
+            tap(hasTestTag("site-add-here"))
+            makeAnAccountAndGoBackToTheMap("n${System.currentTimeMillis() % 1_000_000_000}")
+            lookAtTheMadeUpSites(scenario)
+            pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+            tap(hasTestTag("site-add-here"))
+            waitFor(hasTestTag("site-form"))
+            screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+            waitFor(hasText("Give the site a name.", substring = true))
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-edit-2-form-fault")
+            screen.onNode(hasTestTag("site-wind-NNW")).performScrollTo().performClick()
+            screen.onNode(hasTestTag("site-field-description")).performScrollTo()
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-edit-3-winds")
+            screen.onNode(hasTestTag("site-send")).performScrollTo()
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-edit-4-giving")
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /** The form for a new site in the dark appearance, with a fault at its field. Skipped without a server. */
+    @Test
+    fun theFormForASiteInDarkAppearance() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        lookAtTheMadeUpSites(scenario)
+        pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+        tap(hasTestTag("site-add-here"))
+        makeAnAccountAndGoBackToTheMap("d${System.currentTimeMillis() % 1_000_000_000}")
+        lookAtTheMadeUpSites(scenario)
+        pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+        letTheMapDraw(1)
+        keepScreenshot("dark-site-edit-1-entry")
+        tap(hasTestTag("site-add-here"))
+        waitFor(hasTestTag("site-form"))
+        screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+        waitFor(hasText("Give the site a name.", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("dark-site-edit-2-form-fault")
+        screen.onNode(hasTestTag("site-send")).performScrollTo()
+        letTheMapDraw(1)
+        keepScreenshot("dark-site-edit-3-giving")
+    }
 }

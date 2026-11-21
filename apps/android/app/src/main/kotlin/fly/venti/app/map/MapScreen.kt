@@ -87,7 +87,15 @@ import fly.venti.app.radar.RadarCard
 import fly.venti.app.radar.RadarModel
 import fly.venti.app.radar.RadarWords
 import kotlinx.coroutines.Job
+import fly.venti.app.sites.AddSiteEntry
+import fly.venti.app.sites.SiteEditModel
+import fly.venti.app.sites.SiteEditing
+import fly.venti.app.sites.SiteFormDraft
+import fly.venti.app.sites.SiteFormSheet
+import fly.venti.app.sites.SitePlaceCard
 import fly.venti.app.sites.SiteSheet
+import fly.venti.app.design.Palette
+import fly.venti.core.SiteWritten
 import fly.venti.app.sites.SitesFilterCard
 import fly.venti.app.sites.SitesFilterSheet
 import fly.venti.app.sites.SitesFilterWords
@@ -140,6 +148,10 @@ fun MapScreen(
     thermalMap: ThermalMapModel? = null,
     /** The rain radar, for the "Radar" layer. */
     radar: RadarModel? = null,
+    /** Adding and correcting the sites that pilots make; `null` where the map offers neither. */
+    siteEdit: SiteEditModel? = null,
+    /** Leads to the account, for a pilot who must sign in to add a site. */
+    onSignIn: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -180,6 +192,24 @@ fun MapScreen(
     var chosenGlider by remember { mutableStateOf<String?>(null) }
     // A place the pilot pressed on, to show its forecast.
     var pressed by remember { mutableStateOf<Coordinate?>(null) }
+    // Whether no flying site lay under the finger there: then a site can be added at the place.
+    var pressedIsFree by remember { mutableStateOf(false) }
+    // The site being added or corrected, with its form open; its entries
+    // stay while the place is moved on the map.
+    var siteForm by remember { mutableStateOf<SiteFormDraft?>(null) }
+    // Whether the place of that site is being chosen on the map, with the form out of the way.
+    var isPlacing by remember { mutableStateOf(false) }
+    // The core's line about what was just done to the site whose page shows.
+    var siteSaid by remember { mutableStateOf<String?>(null) }
+    // A site was added or changed: its page with the core's line, and the
+    // sites on the map asked for again.
+    val showWritten = { written: SiteWritten ->
+        siteForm = null
+        siteSaid = written.words
+        chosenSite = written.site
+        asking.launch { sites.again() }
+        Unit
+    }
     // What lies over a place tapped where airspace is drawn.
     var airspaceOver by remember { mutableStateOf<AirspaceOverPlace?>(null) }
     // The height the maps draw airspace up to: one choice for the maps.
@@ -220,9 +250,10 @@ fun MapScreen(
     }
     // A long press: the forecast for the place under the finger, where
     // there is a server to ask.
-    map.onPlace = { place ->
+    map.onPlace = { place, isFree ->
         if (wind.server is WindServer.Usable) {
             pressed = place
+            pressedIsFree = isFree
         }
     }
 
@@ -360,10 +391,32 @@ fun MapScreen(
         )
         StatusBarScrim()
 
+        val placed = siteForm
+        if (isPlacing && placed != null && siteEdit != null) {
+            // The mark in the middle of the map, in the map's own ink: the
+            // place under it is the site's when the pilot says so.
+            Icon(
+                painterResource(R.drawable.ic_add),
+                contentDescription = null,
+                tint = Palette.inkOnMap,
+                modifier = Modifier.align(Alignment.Center).size(VentiSize.touch).testTag("site-place-mark"),
+            )
+        }
         Column(Modifier.align(Alignment.TopCenter).statusBarsPadding()) {
+            if (isPlacing && placed != null && siteEdit != null) {
+                SitePlaceCard(
+                    siteEdit.form.placeWords,
+                    onUse = {
+                        map.middle()?.let(placed::moved)
+                        isPlacing = false
+                    },
+                    onCancel = { isPlacing = false },
+                    modifier = Modifier.padding(horizontal = VentiSpace.s4),
+                )
+            }
             // The chips that switch the map's layers: what Venti gives the
             // map, each only where there is something to switch.
-            Row(
+            if (!isPlacing) Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = VentiSpace.s4),
                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
             ) {
@@ -547,7 +600,7 @@ fun MapScreen(
         )
     }
 
-    if (showsSites || chosenSite != null) {
+    if ((showsSites || chosenSite != null) && !isPlacing) {
         SiteSheet(
             sites = sites,
             waypoints = waypoints,
@@ -559,8 +612,31 @@ fun MapScreen(
             onDismiss = {
                 chosenSite = null
                 showsSites = false
+                siteSaid = null
             },
             onFilter = { showsSitesFilter = true },
+            editing = siteEdit?.let { edit ->
+                SiteEditing(
+                    model = edit,
+                    account = account,
+                    requests = requests,
+                    said = siteSaid,
+                    onCorrect = { site ->
+                        // The core refuses a site of another source: nothing opens then.
+                        siteForm = runCatching { SiteFormDraft.of(site) }.getOrNull()
+                    },
+                    onSignIn = {
+                        chosenSite = null
+                        showsSites = false
+                        onSignIn()
+                    },
+                    onWritten = showWritten,
+                    onRemoved = { words ->
+                        siteSaid = words
+                        asking.launch { sites.again() }
+                    },
+                )
+            },
             community = community,
             onOpenFlight = { flight ->
                 chosenSite = null
@@ -633,7 +709,52 @@ fun MapScreen(
     }
 
     pressed?.let { place ->
-        ForecastSheet(place, wind, onDismiss = { pressed = null })
+        // Where nothing of the sites lies and the server takes sites from
+        // pilots, the place can become one: the entry stands over its forecast.
+        val adds = siteEdit?.takeIf { pressedIsFree && wind.takesSitesFromPilots }
+        ForecastSheet(
+            place,
+            wind,
+            onDismiss = { pressed = null },
+            head = adds?.let { edit ->
+                {
+                    AddSiteEntry(
+                        isSignedIn = edit.isSignedIn,
+                        onAdd = {
+                            pressed = null
+                            siteForm = SiteFormDraft.new(place)
+                        },
+                        onSignIn = {
+                            pressed = null
+                            onSignIn()
+                        },
+                    )
+                }
+            },
+        )
+    }
+
+    val formed = siteForm
+    if (formed != null && siteEdit != null && !isPlacing) {
+        SiteFormSheet(
+            entry = formed,
+            edit = siteEdit,
+            requests = requests,
+            onMove = {
+                isPlacing = true
+                map.lookAt(formed.draft.position)
+            },
+            onWritten = showWritten,
+            onOpen = { id ->
+                // The site that stands in the way, on its own page.
+                siteForm = null
+                asking.launch {
+                    runCatching { siteEdit.page(id) }.getOrNull()?.let { chosenSite = it.site }
+                }
+            },
+            onStands = { now -> if (chosenSite?.id == now.id) chosenSite = now },
+            onDismiss = { siteForm = null },
+        )
     }
 
     val shownSquare = square

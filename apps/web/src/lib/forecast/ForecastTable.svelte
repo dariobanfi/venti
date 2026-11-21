@@ -75,7 +75,7 @@
 									{Math.round(cell.percent)}
 								</span>
 							{:else if cell.is === 'number'}
-								{cell.text}
+								{cell.text}{#if cell.under}<small class="under">{cell.under}</small>{/if}
 							{:else}
 								<span class="nothing" aria-hidden="true">–</span>
 							{/if}
@@ -157,6 +157,13 @@
 	.wind :global(svg) {
 		width: 1.375rem;
 		height: 1.375rem;
+	}
+
+	.under {
+		display: block;
+		font-size: var(--caption);
+		font-weight: 400;
+		color: var(--text-secondary);
 	}
 
 	.cloud {

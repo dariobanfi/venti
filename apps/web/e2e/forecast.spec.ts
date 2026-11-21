@@ -209,11 +209,7 @@ test('a take-off’s page names the kind of day under the forecast’s line', as
 	const names = table(forecast).getByRole('rowheader');
 	await expect(names.filter({ hasText: 'Thermals, climb' })).toBeVisible();
 	await expect(names.filter({ hasText: 'Thermals, top' })).toBeVisible();
-	await expect(
-		table(forecast)
-			.getByText(/^base \d+$/)
-			.first()
-	).toBeAttached();
+	await expect(table(forecast).getByText('base', { exact: true }).first()).toBeAttached();
 	await expect(forecast).toContainText('not a value of the model');
 	await table(forecast).scrollIntoViewIfNeeded();
 	await keep('109-forecast-thermals');

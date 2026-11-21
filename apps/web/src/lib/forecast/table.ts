@@ -25,7 +25,8 @@ export interface Writing {
 /** What one hour of one row holds. */
 export type Cell =
 	| { is: 'wind'; wind: ForecastWind }
-	| { is: 'number'; text: string }
+	/** A figure, with a word in small print under it: "base" under a top that is the cloud base. */
+	| { is: 'number'; text: string; under?: string }
 	| { is: 'cloud'; percent: number }
 	/** The model has nothing for the hour. */
 	| { is: 'empty' };
@@ -177,10 +178,12 @@ export function rows(
 			id: 'thermal-top',
 			name: 'Thermals, top',
 			detail: 'm',
-			cells: hours.map((hour) =>
-				number(hour.thermalTopM, (top) =>
-					hour.thermalCloud ? `base ${text.metres(top)}` : text.metres(top)
-				)
+			cells: hours.map((hour): Cell =>
+				hour.thermalTopM === undefined
+					? EMPTY
+					: hour.thermalCloud
+						? { is: 'number', text: text.metres(hour.thermalTopM), under: 'base' }
+						: { is: 'number', text: text.metres(hour.thermalTopM) }
 			)
 		}
 	];
@@ -190,7 +193,7 @@ export function rows(
 
 /** What the thermals' rows are, under the table, where it has them. */
 export const THERMALS_NOTE =
-	'The two rows of thermals are an estimate Venti works out from the model’s heat and temperatures, not a value of the model: the climb a paraglider can expect, and how high the thermals go, at the cloud base where it says “base”. They say nothing of whether the day can be flown.';
+	'The two rows of thermals are an estimate Venti works out from the model’s heat and temperatures, not a value of the model: the climb a paraglider can expect, and how high the thermals go, at the cloud base where “base” stands under it. They say nothing of whether the day can be flown.';
 
 /** What the numbers are, and what they are not. */
 export function caveat(model: ModelForecast, text: Pick<Writing, 'metres'>): string {

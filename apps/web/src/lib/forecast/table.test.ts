@@ -167,7 +167,7 @@ describe('the rows of a forecast table', () => {
 			{ is: 'number', text: '1.2' }
 		]);
 		expect(table.find((row) => row.id === 'thermal-top')?.cells).toEqual([
-			{ is: 'number', text: 'base 2900' },
+			{ is: 'number', text: '2900', under: 'base' },
 			{ is: 'empty' },
 			{ is: 'number', text: '2450' }
 		]);

@@ -26,6 +26,7 @@ use crate::{
     SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
     VisibilityChange,
 };
+use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -266,6 +267,33 @@ impl Store for TroubledStore {
     }
 
     async fn password_hash(&self, _: &str) -> Result<Option<(Account, String)>, StoreError> {
+        self.fail().await
+    }
+
+    async fn create_google_account(
+        &self,
+        _: &NewGoogleAccount,
+    ) -> Result<AccountCreation, StoreError> {
+        self.fail().await
+    }
+
+    async fn google_account(&self, _: &str) -> Result<Option<Account>, StoreError> {
+        self.fail().await
+    }
+
+    async fn google_link(&self, _: &str) -> Result<Option<GoogleLink>, StoreError> {
+        self.fail().await
+    }
+
+    async fn link_google(&self, _: &str, _: &GoogleLink) -> Result<GoogleLinking, StoreError> {
+        self.fail().await
+    }
+
+    async fn unlink_google(&self, _: &str) -> Result<bool, StoreError> {
+        self.fail().await
+    }
+
+    async fn has_password(&self, _: &str) -> Result<bool, StoreError> {
         self.fail().await
     }
 

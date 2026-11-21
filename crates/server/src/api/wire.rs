@@ -3,7 +3,7 @@
 use chrono::Timelike;
 use venti_api_types::v1;
 use venti_store::{
-    AccessToken, Account, Flight, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack,
+    AccessToken, Account, Flight, GoogleLink, Group, GroupMembers, GroupPilot, LiveFix, LiveTrack,
     LiveVisibility, Place, Plan, ScoreKind, Session, Visibility,
 };
 
@@ -23,8 +23,14 @@ fn handle(handle: &str) -> Result<v1::Handle, ApiError> {
     v1::Handle::new(handle).map_err(|e| damaged("handle", e))
 }
 
-pub(crate) fn account(account: &Account) -> Result<v1::Account, ApiError> {
+/// An account as its owner sees it, with the email of the Google account
+/// it is linked to, if it is: for the account itself and nobody else.
+pub(crate) fn account(
+    account: &Account,
+    google: Option<&GoogleLink>,
+) -> Result<v1::Account, ApiError> {
     Ok(v1::Account {
+        google_email: google.map(|google| google.email.clone()),
         handle: handle(&account.handle)?,
         display_name: account.display_name.clone(),
         created_at: account.created_at,

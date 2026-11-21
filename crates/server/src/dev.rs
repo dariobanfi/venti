@@ -1398,7 +1398,11 @@ pub async fn recorded_with_its_store(
         .with_forecasts(forecasts.clone())
         .with_thermal_map(Arc::new(map))
         .with_radar(radar.clone())
-        .with_networks(networks);
+        .with_networks(networks)
+        // Its own made-up "Google": the apps' UI tests sign in with it.
+        .with_google(Arc::new(
+            crate::accounts::google::GoogleSignIn::development()?,
+        ));
 
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(

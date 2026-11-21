@@ -60,8 +60,8 @@ use venti_domain::{
 };
 
 pub use account::{
-    AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
-    SecretHash, Session, Suspension,
+    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
+    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, Suspension,
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use alert::{
@@ -590,6 +590,50 @@ pub trait Store: Send + Sync + 'static {
         &self,
         handle: &str,
     ) -> impl Future<Output = Result<Option<(Account, String)>, StoreError>> + Send;
+
+    /// Creates an account that is signed in to with Google and has no
+    /// password, all or nothing. The invite is checked first and used up
+    /// as by [`create_account`](Self::create_account); then the handle;
+    /// then whether another account is linked to the Google account
+    /// ([`AccountCreation::GoogleTaken`]).
+    fn create_google_account(
+        &self,
+        new: &NewGoogleAccount,
+    ) -> impl Future<Output = Result<AccountCreation, StoreError>> + Send;
+
+    /// The account linked to the Google account with this subject, if one
+    /// is.
+    fn google_account(
+        &self,
+        subject: &str,
+    ) -> impl Future<Output = Result<Option<Account>, StoreError>> + Send;
+
+    /// The Google account an account is linked to, if it is.
+    fn google_link(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<GoogleLink>, StoreError>> + Send;
+
+    /// Links an account to a Google account, in place of one it was linked
+    /// to before. Linking it again to the one it has keeps the first
+    /// moment and takes the new email.
+    fn link_google(
+        &self,
+        account_id: &str,
+        google: &GoogleLink,
+    ) -> impl Future<Output = Result<GoogleLinking, StoreError>> + Send;
+
+    /// Unlinks an account from its Google account. Whether it was linked.
+    fn unlink_google(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
+
+    /// Whether an account has a password. One made with Google has none.
+    fn has_password(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<bool, StoreError>> + Send;
 
     /// Gives an account a new password hash and signs out every device
     /// except the one with session `keep_session`, all or nothing: whoever

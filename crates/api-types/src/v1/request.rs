@@ -219,6 +219,20 @@ pub fn account_token_path(id: &str) -> String {
     format!("{ACCOUNT_TOKENS_PATH}/{}", encode(id))
 }
 
+/// Path that signs a device in with a Google ID token.
+pub const AUTH_GOOGLE_PATH: &str = "/v1/auth/google";
+
+/// Path that creates an account after a first sign-in with Google.
+pub const AUTH_GOOGLE_ACCOUNT_PATH: &str = "/v1/auth/google/account";
+
+/// Path of the Google account the account a request is signed in to is
+/// linked to: linking one and unlinking it.
+pub const ACCOUNT_GOOGLE_PATH: &str = "/v1/account/google";
+
+/// Path that hands out a made-up Google ID token, in the development mode
+/// and nowhere else: `?email=…&name=…`.
+pub const DEV_GOOGLE_ID_TOKEN_PATH: &str = "/v1/dev/google-id-token";
+
 /// Path of an account's sessions: signing in, listing them, and signing out
 /// everywhere.
 pub const SESSIONS_PATH: &str = "/v1/sessions";

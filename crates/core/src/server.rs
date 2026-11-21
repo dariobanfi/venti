@@ -56,6 +56,29 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
         }
         (_, Some("registration_closed")) => "This server takes no new accounts.".to_owned(),
         (_, Some("handle_taken")) => "This handle is taken. Choose another.".to_owned(),
+        (_, Some("google_not_configured")) => {
+            "This server does not offer signing in with Google. Sign in with a handle and password."
+                .to_owned()
+        }
+        (_, Some("invalid_google_token")) => {
+            "Google's sign-in did not work for Venti. Try Continue with Google again.".to_owned()
+        }
+        (_, Some("google_unavailable")) => {
+            "The server could not check the sign-in with Google. Try again in a moment.".to_owned()
+        }
+        (_, Some("invalid_signup")) => {
+            "Choosing a handle took too long. Continue with Google again.".to_owned()
+        }
+        (_, Some("google_taken")) => {
+            "This Google account belongs to another Venti account already. Continue with Google to sign in to it."
+                .to_owned()
+        }
+        (_, Some("google_not_linked")) => {
+            "Your account is not linked to a Google account.".to_owned()
+        }
+        (_, Some("google_only_sign_in")) => {
+            "Google is the only way into your account, so it stays linked.".to_owned()
+        }
         (_, Some("invalid_handle")) => "The server does not accept this handle.".to_owned(),
         (_, Some("invalid_display_name")) => "The server does not accept this name.".to_owned(),
         (_, Some("invalid_password")) => {

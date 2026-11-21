@@ -40,6 +40,7 @@ fn wanted(name: &str, scopes: &[Scope], password: &str) -> CreateAccessTokenRequ
             .collect(),
         expires_at: None,
         password: Password::new(password),
+        google_id_token: None,
     }
 }
 

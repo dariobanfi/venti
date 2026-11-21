@@ -1310,6 +1310,7 @@ async fn delete_account(router: &Router, token: &str, password: &str) -> Answer 
         .token(token)
         .json(&DeleteAccountRequest {
             password: Password::new(password),
+            google_id_token: None,
         })
         .send(router)
         .await
@@ -1424,6 +1425,7 @@ async fn a_deleted_account_is_gone_with_everything_it_had() {
     let delete = |token: &str, password: &str| {
         let request = DeleteAccountRequest {
             password: Password::new(password),
+            google_id_token: None,
         };
         let (router, token) = (router.clone(), token.to_owned());
         async move {

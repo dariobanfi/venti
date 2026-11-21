@@ -3,8 +3,9 @@
 use chrono::Duration;
 use venti_domain::Timestamp;
 use venti_store::{
-    AccessToken, Account, AccountCreation, GroupJoining, GroupRoom, Listing, NewAccount, NewInvite,
-    ReportListing, SESSION_TOUCH_MINUTES, SecretHash, Session, Store,
+    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, GroupJoining, GroupRoom,
+    Listing, NewAccount, NewGoogleAccount, NewInvite, ReportListing, SESSION_TOUCH_MINUTES,
+    SecretHash, Session, Store,
 };
 
 use super::at;
@@ -457,6 +458,169 @@ pub(crate) async fn a_new_password_signs_out_the_other_devices(store: &impl Stor
         .set_password(&id("nobody"), "$argon2id$x", &id("phone"))
         .await
         .unwrap();
+}
+
+fn google(subject: &str, email: &str) -> GoogleLink {
+    GoogleLink {
+        subject: subject.to_owned(),
+        email: email.to_owned(),
+        linked_at: at(9, 30),
+    }
+}
+
+pub(crate) async fn a_google_account_is_found_by_its_subject(store: &impl Store) {
+    let new = NewGoogleAccount {
+        account: account("anna"),
+        google: google("1001", "anna@example.com"),
+        invite: None,
+    };
+    assert_eq!(
+        store.create_google_account(&new).await.unwrap(),
+        AccountCreation::Created
+    );
+    assert_eq!(
+        store.google_account("1001").await.unwrap(),
+        Some(new.account.clone())
+    );
+    assert_eq!(store.google_account("1002").await.unwrap(), None);
+    assert_eq!(store.google_account("10\u{0}01").await.unwrap(), None);
+    assert_eq!(
+        store.google_link(&new.account.id).await.unwrap(),
+        Some(new.google.clone())
+    );
+    assert!(store.account("anna").await.unwrap().is_some());
+    // No password: signing in with one finds nothing to check.
+    assert!(!store.has_password(&new.account.id).await.unwrap());
+    assert_eq!(store.password_hash("anna").await.unwrap(), None);
+
+    // The same Google account cannot make a second one, and nothing of
+    // the second is stored.
+    let again = NewGoogleAccount {
+        account: account("bernd"),
+        google: google("1001", "anna@example.com"),
+        invite: None,
+    };
+    assert_eq!(
+        store.create_google_account(&again).await.unwrap(),
+        AccountCreation::GoogleTaken
+    );
+    assert_eq!(store.account("bernd").await.unwrap(), None);
+    // A handle that is taken is said before that.
+    let taken = NewGoogleAccount {
+        account: Account {
+            id: id("other"),
+            ..account("anna")
+        },
+        google: google("1003", "x@example.com"),
+        invite: None,
+    };
+    assert_eq!(
+        store.create_google_account(&taken).await.unwrap(),
+        AccountCreation::HandleTaken
+    );
+    // An invite is used up as by a password account.
+    store
+        .create_invite(&NewInvite {
+            code: secret(40),
+            created_at: at(8, 0),
+            expires_at: None,
+        })
+        .await
+        .unwrap();
+    let invited = NewGoogleAccount {
+        account: account("carla"),
+        google: google("1004", "carla@example.com"),
+        invite: Some(secret(40)),
+    };
+    assert_eq!(
+        store.create_google_account(&invited).await.unwrap(),
+        AccountCreation::Created
+    );
+    let twice = NewGoogleAccount {
+        account: account("dora"),
+        google: google("1005", "dora@example.com"),
+        invite: Some(secret(40)),
+    };
+    assert_eq!(
+        store.create_google_account(&twice).await.unwrap(),
+        AccountCreation::InviteRefused
+    );
+
+    // Deleting the account frees the Google account.
+    store.delete_account(&new.account.id).await.unwrap();
+    assert_eq!(store.google_account("1001").await.unwrap(), None);
+    assert_eq!(
+        store.create_google_account(&again).await.unwrap(),
+        AccountCreation::Created
+    );
+}
+
+pub(crate) async fn a_google_account_is_linked_to_one_account_at_a_time(store: &impl Store) {
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    assert!(store.has_password(&anna.id).await.unwrap());
+    assert_eq!(store.google_link(&anna.id).await.unwrap(), None);
+
+    let first = google("2001", "anna@example.com");
+    assert_eq!(
+        store.link_google(&anna.id, &first).await.unwrap(),
+        GoogleLinking::Linked
+    );
+    assert_eq!(
+        store.google_account("2001").await.unwrap(),
+        Some(anna.clone())
+    );
+    // The password stays.
+    assert!(store.password_hash("anna").await.unwrap().is_some());
+    // Another account cannot have it.
+    assert_eq!(
+        store.link_google(&bernd.id, &first).await.unwrap(),
+        GoogleLinking::TakenByAnother
+    );
+    assert_eq!(store.google_link(&bernd.id).await.unwrap(), None);
+    assert_eq!(
+        store
+            .link_google(&id("nobody"), &google("2009", "x@example.com"))
+            .await
+            .unwrap(),
+        GoogleLinking::NoSuchAccount
+    );
+    // Linked again, it keeps its moment and takes the new email.
+    let renamed = GoogleLink {
+        email: "anna@new.example".to_owned(),
+        linked_at: at(11, 0),
+        ..first.clone()
+    };
+    assert_eq!(
+        store.link_google(&anna.id, &renamed).await.unwrap(),
+        GoogleLinking::Linked
+    );
+    assert_eq!(
+        store.google_link(&anna.id).await.unwrap(),
+        Some(GoogleLink {
+            email: "anna@new.example".to_owned(),
+            ..first.clone()
+        })
+    );
+    // Another Google account takes the place of the first.
+    let second = google("2002", "anna@other.example");
+    assert_eq!(
+        store.link_google(&anna.id, &second).await.unwrap(),
+        GoogleLinking::Linked
+    );
+    assert_eq!(store.google_account("2001").await.unwrap(), None);
+    assert_eq!(store.google_link(&anna.id).await.unwrap(), Some(second));
+    // The first is free for another account now.
+    assert_eq!(
+        store.link_google(&bernd.id, &first).await.unwrap(),
+        GoogleLinking::Linked
+    );
+
+    assert!(store.unlink_google(&anna.id).await.unwrap());
+    assert!(!store.unlink_google(&anna.id).await.unwrap());
+    assert_eq!(store.google_account("2002").await.unwrap(), None);
+    assert_eq!(store.google_link(&anna.id).await.unwrap(), None);
+    assert_eq!(store.google_account("2001").await.unwrap(), Some(bernd));
 }
 
 pub(crate) async fn a_deleted_account_leaves_nothing_behind(store: &impl Store) {

@@ -55,6 +55,10 @@ p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "ecds
 js-sys = "=0.3.106"
 png = "0.18.1"
 reqwest = "0.13.5"
+# Sign in with Google: checking the RS256 signature of Google's ID tokens.
+# A release candidate: 0.10 is the first of sha2's generation, and the
+# registry mirror has no final release yet (2026-11-21).
+rsa = { version = "0.10.0-rc.19", default-features = false, features = ["std", "sha2"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

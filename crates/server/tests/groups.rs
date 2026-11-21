@@ -1064,6 +1064,7 @@ async fn a_deleted_account_takes_what_it_put_into_its_groups() {
         .token(&dario)
         .json(&DeleteAccountRequest {
             password: Password::new(PASSWORD),
+            google_id_token: None,
         })
         .send(&router)
         .await;

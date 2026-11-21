@@ -68,6 +68,10 @@
       "edits_sites": {
         "type": "boolean",
         "description": "True for an account whoever runs the server named as one of Venti's partners for flying sites; left out for every other."
+      },
+      "google_email": {
+        "type": "string",
+        "description": "The email of the Google account the account is signed in to with, if it is linked to one. Only in the account's own answers."
       }
     },
     "required": [
@@ -655,12 +659,15 @@
       },
       "password": {
         "type": "string"
+      },
+      "google_id_token": {
+        "type": "string",
+        "description": "A fresh Google ID token of the linked Google account, in place of the password."
       }
     },
     "required": [
       "name",
-      "scopes",
-      "password"
+      "scopes"
     ]
   },
   "CreateAccessTokenResponse": {
@@ -701,6 +708,31 @@
       "handle",
       "display_name",
       "password"
+    ]
+  },
+  "CreateGoogleAccountRequest": {
+    "type": "object",
+    "properties": {
+      "signup": {
+        "type": "string"
+      },
+      "handle": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "invite": {
+        "type": "string"
+      },
+      "device": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "signup",
+      "handle",
+      "display_name"
     ]
   },
   "CreateGroupRequest": {
@@ -777,11 +809,12 @@
     "properties": {
       "password": {
         "type": "string"
+      },
+      "google_id_token": {
+        "type": "string",
+        "description": "A fresh Google ID token of the linked Google account, in place of the password: what an account made with Google sends."
       }
-    },
-    "required": [
-      "password"
-    ]
+    }
   },
   "DeletedFlight": {
     "type": "object",
@@ -796,6 +829,17 @@
     "required": [
       "id",
       "identity"
+    ]
+  },
+  "DevGoogleIdTokenResponse": {
+    "type": "object",
+    "properties": {
+      "id_token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id_token"
     ]
   },
   "DumpContent": {
@@ -976,6 +1020,13 @@
       "registration_closed",
       "invalid_invite",
       "handle_taken",
+      "google_not_configured",
+      "invalid_google_token",
+      "google_unavailable",
+      "invalid_signup",
+      "google_taken",
+      "google_not_linked",
+      "google_only_sign_in",
       "session_not_found",
       "invalid_token_name",
       "invalid_scopes",
@@ -1647,6 +1698,55 @@
       "primary"
     ]
   },
+  "GoogleSignInAnswer": {
+    "description": "201 with SignInResponse for a Google account linked to an account; 200 with GoogleSignUpResponse for one that is not.",
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/SignInResponse"
+      },
+      {
+        "$ref": "#/components/schemas/GoogleSignUpResponse"
+      }
+    ]
+  },
+  "GoogleSignInRequest": {
+    "type": "object",
+    "properties": {
+      "id_token": {
+        "type": "string",
+        "description": "The ID token Google gave the app, for one of the server's client IDs."
+      },
+      "device": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id_token"
+    ]
+  },
+  "GoogleSignUpResponse": {
+    "type": "object",
+    "description": "A first sign-in with Google: the pilot chooses a handle and the app sends it with `signup` to POST /v1/auth/google/account.",
+    "properties": {
+      "needs_handle": {
+        "type": "boolean"
+      },
+      "signup": {
+        "type": "string",
+        "description": "Good for a quarter of an hour, on this server only."
+      },
+      "suggested_handle": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "needs_handle",
+      "signup"
+    ]
+  },
   "Group": {
     "type": "object",
     "properties": {
@@ -1768,6 +1868,10 @@
         "items": {
           "$ref": "#/components/schemas/SourceHealth"
         }
+      },
+      "google_sign_in": {
+        "type": "boolean",
+        "description": "Whether the server offers signing in with Google."
       }
     },
     "required": [
@@ -1914,6 +2018,17 @@
     },
     "required": [
       "kept"
+    ]
+  },
+  "LinkGoogleRequest": {
+    "type": "object",
+    "properties": {
+      "id_token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id_token"
     ]
   },
   "LiveFix": {

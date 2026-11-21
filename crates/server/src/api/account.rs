@@ -31,7 +31,7 @@ use crate::accounts::{Registration, device_label, is_reserved, password};
 
 impl<S: Store> Api<S> {
     /// Signs a device in to an account: makes a session and its token.
-    async fn open_session(
+    pub(super) async fn open_session(
         &self,
         account: &Account,
         device: Option<&str>,
@@ -48,8 +48,9 @@ impl<S: Store> Api<S> {
         self.store
             .create_session(&session, &token.hash(), self.limits.sessions_per_account)
             .await?;
+        let google = self.store.google_link(&account.id).await?;
         Ok(SignInResponse {
-            account: wire::account(account)?,
+            account: wire::account(account, google.as_ref())?,
             session: wire::session(&session, &session.id),
             token: token.expose().to_owned(),
         })
@@ -181,6 +182,38 @@ impl<S: Store> Api<S> {
         }
     }
 
+    /// Whether the owner of the account a request is signed in to is
+    /// asking: with the password, or, where `google_id_token` is sent, with
+    /// a fresh ID token of the Google account the account is linked to.
+    /// What an account made with Google confirms with, which has no
+    /// password.
+    pub(super) async fn confirm_owner(
+        &self,
+        signed: &OwnSession,
+        password: &Password,
+        google_id_token: Option<&str>,
+        client: IpAddr,
+    ) -> Result<(), ApiError> {
+        let Some(id_token) = google_id_token else {
+            return self.confirm_password(signed, password, client).await;
+        };
+        let identity = self.google_identity(id_token).await?;
+        let linked = self.store.google_link(&signed.account.id).await?;
+        if linked.is_some_and(|linked| linked.subject == identity.subject) {
+            Ok(())
+        } else {
+            tracing::warn!(
+                client = %client,
+                account = %signed.account.handle,
+                "a Google account that is not the account's was sent to confirm a change"
+            );
+            Err(ApiError::forbidden(
+                ErrorCode::InvalidGoogleToken,
+                "this Google account is not the one the account is linked to",
+            ))
+        }
+    }
+
     /// Looks a password up and checks it, counting nothing. An account
     /// that does not exist takes as long as one that does.
     async fn is_password_of(
@@ -296,6 +329,9 @@ pub(crate) async fn create<S: Store>(
         AccountCreation::Created => {}
         AccountCreation::InviteRefused => return Err(invalid_invite()),
         AccountCreation::HandleTaken => return Err(taken()),
+        // An account with a password links no Google account as it is
+        // made.
+        AccountCreation::GoogleTaken => return Err(ApiError::internal()),
     }
     tracing::info!(account = %account.handle, "account created");
 
@@ -305,7 +341,7 @@ pub(crate) async fn create<S: Store>(
     Ok(cache::private_json(StatusCode::CREATED, &signed_in))
 }
 
-fn invalid_invite() -> ApiError {
+pub(super) fn invalid_invite() -> ApiError {
     ApiError::forbidden(
         ErrorCode::InvalidInvite,
         "this server takes new accounts by invite, and the invite code is missing, \
@@ -391,8 +427,12 @@ pub(crate) async fn sign_out_everywhere<S: Store>(
 }
 
 /// `GET /v1/account`: the account the request is signed in to.
-pub(crate) async fn show(May(signed, ..): May<ReadAccount>) -> Result<Response, ApiError> {
-    let account = wire::account(&signed.account)?;
+pub(crate) async fn show<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    May(signed, ..): May<ReadAccount>,
+) -> Result<Response, ApiError> {
+    let google = api.store.google_link(&signed.account.id).await?;
+    let account = wire::account(&signed.account, google.as_ref())?;
     Ok(cache::private_json(
         StatusCode::OK,
         &AccountResponse { account },
@@ -436,8 +476,13 @@ pub(crate) async fn delete<S: Store>(
     let request: DeleteAccountRequest = body::json(&headers, &body)?;
     // A token alone is not enough: whoever picks up an unlocked phone can
     // do much, but not this.
-    api.confirm_password(&signed, &request.password, client)
-        .await?;
+    api.confirm_owner(
+        &signed,
+        &request.password,
+        request.google_id_token.as_deref(),
+        client,
+    )
+    .await?;
 
     api.store.delete_account(&signed.account.id).await?;
     tracing::info!(account = %signed.account.handle, "account deleted");
@@ -469,8 +514,13 @@ pub(crate) async fn create_token<S: Store>(
     // could otherwise leave with a token that outlives signing the phone
     // out. It is checked last, so that a request with a mistake in it
     // costs no hashing and no guess.
-    api.confirm_password(&signed, &request.password, client)
-        .await?;
+    api.confirm_owner(
+        &signed,
+        &request.password,
+        request.google_id_token.as_deref(),
+        client,
+    )
+    .await?;
 
     let secret = AccessSecret::new()?;
     let token = AccessToken {

@@ -127,6 +127,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "the browsers an account subscribed to Web Push, and the server's key for it",
         sql: include_str!("../../migrations/0021_push.sql"),
     },
+    Migration {
+        version: 22,
+        name: "accounts signed in to with Google",
+        sql: include_str!("../../migrations/0022_google_sign_in.sql"),
+    },
 ];
 
 /// Applies every migration the database has not seen yet.

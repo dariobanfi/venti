@@ -1098,6 +1098,7 @@ async fn deleting_the_account_deletes_its_live_tracks() {
         .token(&token)
         .json(&DeleteAccountRequest {
             password: Password::new(PASSWORD),
+            google_id_token: None,
         })
         .send(&router)
         .await;

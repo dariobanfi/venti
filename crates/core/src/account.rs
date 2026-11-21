@@ -110,6 +110,86 @@ pub struct AccountView {
     #[uniffi(default = false)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub may_edit_partner_sites: bool,
+    /// The email of the Google account the account signs in with, if it
+    /// is linked to one, as the server said it last. A shell offers "Link
+    /// Google" where it is `None` and the server offers Google.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub google_email: Option<String>,
+}
+
+/// What a sign-in with Google came to: signed in, or a first sign-in
+/// that goes on to choosing a handle. Exactly one of the two is there.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct GoogleSignIn {
+    /// Signed in, as with the password: the account is stored as
+    /// [`Core::signed_in`] stores it.
+    pub signed_in: Option<SignedIn>,
+    /// A Google account no Venti account is linked to yet: show the
+    /// handle step, then send [`Core::google_account_request`].
+    pub needs_handle: Option<GoogleSignUp>,
+}
+
+/// What the handle step after a first sign-in with Google needs.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct GoogleSignUp {
+    /// What carries the Google account on: pass it to
+    /// [`Core::google_account_request`]. Good for a quarter of an hour.
+    pub signup: String,
+    /// A free handle to put in the field, if the server could make one.
+    pub suggested_handle: Option<String>,
+    /// The line under the field that says where the suggestion is from,
+    /// when there is a suggestion.
+    pub suggestion_line: Option<String>,
+    /// The name the Google account gives, to put in the display name's
+    /// field.
+    pub name: Option<String>,
+}
+
+/// The words of signing in with Google, the same on every platform.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct GoogleWords {
+    /// The account screen's first button.
+    pub continue_with_google: String,
+    /// What opens the handle and password form behind it.
+    pub with_password: String,
+    /// The title of the handle step after a first sign-in with Google.
+    pub choose_handle: String,
+    /// The line under the title of that step.
+    pub choose_handle_line: String,
+    /// The button that creates the account.
+    pub create_account: String,
+    /// The button of a signed-in password account that links Google.
+    pub link_google: String,
+    /// The button that unlinks it.
+    pub unlink_google: String,
+}
+
+/// The words of signing in with Google.
+#[uniffi::export]
+pub fn google_words() -> GoogleWords {
+    GoogleWords {
+        continue_with_google: "Continue with Google".to_owned(),
+        with_password: "Sign in with a handle and password".to_owned(),
+        choose_handle: "Choose your handle".to_owned(),
+        choose_handle_line:
+            "Your handle is how other pilots find you and stands on every flight you share. Your Google email stays private."
+                .to_owned(),
+        create_account: "Create account".to_owned(),
+        link_google: "Link Google".to_owned(),
+        unlink_google: "Unlink Google".to_owned(),
+    }
+}
+
+/// The line under the handle's field for a suggestion the server made.
+fn suggestion_line(handle: &str) -> String {
+    format!("@{handle} is free. It was made from your Google account; change it if you like.")
 }
 
 /// The result of signing in or creating an account.
@@ -248,6 +328,10 @@ struct Stored {
     /// it said last.
     #[serde(default)]
     publishing_suspended: bool,
+    /// The email of the Google account the account is linked to, as the
+    /// server said it last.
+    #[serde(default)]
+    google_email: Option<String>,
 }
 
 /// A flight on the server.
@@ -347,12 +431,157 @@ impl Core {
         stored.display_name = response.account.display_name;
         stored.edits_sites = response.account.edits_sites;
         stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
+        stored.google_email = response.account.google_email;
         stored.session_id = response.session.id;
         self.store_account(&stored)?;
         Ok(SignedIn {
             account: self.account_view(&stored),
             token: response.token,
         })
+    }
+
+    /// The request that signs this device in with a Google ID token, which
+    /// the shell got from Google for one of the server's client IDs. Its
+    /// answer goes to [`Core::google_sign_in`].
+    pub fn google_sign_in_request(
+        &self,
+        id_token: String,
+        device: Option<String>,
+    ) -> Result<ServerRequest, CoreError> {
+        if id_token.trim().is_empty() {
+            return Err(invalid("Google gave no sign-in. Try again."));
+        }
+        json_request(
+            "POST",
+            api::AUTH_GOOGLE_PATH,
+            &api::GoogleSignInRequest {
+                id_token: id_token.trim().to_owned(),
+                device,
+            },
+            false,
+        )
+    }
+
+    /// Reads the server's answer to [`Core::google_sign_in_request`]. A
+    /// sign-in is stored as [`Core::signed_in`] stores one; a first
+    /// sign-in with a Google account goes on to the handle step.
+    pub fn google_sign_in(
+        &self,
+        server: String,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<GoogleSignIn, CoreError> {
+        if status == 200 {
+            let response: api::GoogleSignUpResponse = answer(status, &body)?;
+            if response.needs_handle {
+                return Ok(GoogleSignIn {
+                    signed_in: None,
+                    needs_handle: Some(GoogleSignUp {
+                        suggestion_line: response.suggested_handle.as_deref().map(suggestion_line),
+                        signup: response.signup,
+                        suggested_handle: response.suggested_handle,
+                        name: response.name,
+                    }),
+                });
+            }
+        }
+        Ok(GoogleSignIn {
+            signed_in: Some(self.signed_in(server, status, body)?),
+            needs_handle: None,
+        })
+    }
+
+    /// The request that creates an account after a first sign-in with
+    /// Google, with the handle the pilot chose. Its answer goes to
+    /// [`Core::signed_in`], as that of creating an account with a
+    /// password. What the server would refuse anyway is refused here, in
+    /// words.
+    pub fn google_account_request(
+        &self,
+        signup: String,
+        handle: String,
+        display_name: String,
+        invite: Option<String>,
+        device: Option<String>,
+    ) -> Result<ServerRequest, CoreError> {
+        let handle =
+            Handle::new(&handle).map_err(|error| invalid(&sentence(&error.to_string())))?;
+        let display_name = api::parse_display_name(&display_name)
+            .map_err(|error| invalid(&sentence(&error.to_string())))?;
+        json_request(
+            "POST",
+            api::AUTH_GOOGLE_ACCOUNT_PATH,
+            &api::CreateGoogleAccountRequest {
+                signup,
+                handle: handle.as_str().to_owned(),
+                display_name,
+                invite: invite
+                    .map(|invite| invite.trim().to_owned())
+                    .filter(|invite| !invite.is_empty()),
+                device,
+            },
+            false,
+        )
+    }
+
+    /// The request that links the account this device is signed in to
+    /// to the Google account of an ID token. Its answer goes to
+    /// [`Core::google_linked`].
+    pub fn link_google_request(&self, id_token: String) -> Result<ServerRequest, CoreError> {
+        if id_token.trim().is_empty() {
+            return Err(invalid("Google gave no sign-in. Try again."));
+        }
+        json_request(
+            "POST",
+            api::ACCOUNT_GOOGLE_PATH,
+            &api::LinkGoogleRequest {
+                id_token: id_token.trim().to_owned(),
+            },
+            true,
+        )
+    }
+
+    /// Reads the server's answer to [`Core::link_google_request`]: the
+    /// account as it is known now, with the Google account's email.
+    pub fn google_linked(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<AccountView>, CoreError> {
+        if !(200..300).contains(&status) {
+            return Err(refusal(status, &body));
+        }
+        self.account_read(status, body)
+    }
+
+    /// The request that unlinks the account from its Google account. Its
+    /// answer goes to [`Core::google_unlinked`].
+    pub fn unlink_google_request(&self) -> ServerRequest {
+        ServerRequest {
+            method: "DELETE".to_owned(),
+            path: api::ACCOUNT_GOOGLE_PATH.to_owned(),
+            body: None,
+            content_type: None,
+            needs_token: true,
+        }
+    }
+
+    /// Reads the server's answer to [`Core::unlink_google_request`]: the
+    /// account as it is known now, without the Google account.
+    pub fn google_unlinked(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<AccountView>, CoreError> {
+        if !(200..300).contains(&status) {
+            return Err(refusal(status, &body));
+        }
+        let Some(mut stored) = self.stored_account()? else {
+            return Ok(None);
+        };
+        stored.google_email = None;
+        self.store_account(&stored)?;
+        Ok(Some(self.account_view(&stored)))
     }
 
     /// The request that reads the account from the server, if this
@@ -404,6 +633,7 @@ impl Core {
             stored.display_name = response.account.display_name;
             stored.edits_sites = response.account.edits_sites;
             stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
+            stored.google_email = response.account.google_email;
             self.store_account(&stored)?;
         }
         Ok(Some(self.account_view(&stored)))
@@ -445,6 +675,26 @@ impl Core {
             api::ACCOUNT_PATH,
             &DeleteAccountRequest {
                 password: Password::new(password),
+                google_id_token: None,
+            },
+            true,
+        )
+    }
+
+    /// The request that deletes the account on the server for an account
+    /// that signs in with Google: a fresh ID token of its Google account
+    /// in place of the password. Its answer goes to
+    /// [`Core::account_deleted`].
+    pub fn delete_account_with_google_request(
+        &self,
+        id_token: String,
+    ) -> Result<ServerRequest, CoreError> {
+        json_request(
+            "DELETE",
+            api::ACCOUNT_PATH,
+            &DeleteAccountRequest {
+                password: Password::default(),
+                google_id_token: Some(id_token.trim().to_owned()),
             },
             true,
         )
@@ -602,6 +852,7 @@ impl Core {
             flights_to_send: u32::try_from(to_send).unwrap_or(u32::MAX),
             last_sync_unix_s: stored.last_sync_unix_s,
             may_edit_partner_sites: stored.edits_sites,
+            google_email: stored.google_email.clone(),
         }
     }
 
@@ -1226,6 +1477,81 @@ mod tests {
         json!({"flights": [], "deleted": [], "cursor": "the-end", "more": false, "reset": false})
             .to_string()
             .into_bytes()
+    }
+
+    #[test]
+    fn a_google_sign_in_signs_in_or_goes_on_to_the_handle() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        let asked = core
+            .google_sign_in_request(" eyJ.a.b ".to_owned(), Some("Pixel".to_owned()))
+            .unwrap();
+        assert_eq!(
+            (asked.method.as_str(), asked.path.as_str()),
+            ("POST", "/v1/auth/google")
+        );
+        assert!(!asked.needs_token);
+        let body: serde_json::Value = serde_json::from_slice(&asked.body.unwrap()).unwrap();
+        assert_eq!(body, json!({"id_token": "eyJ.a.b", "device": "Pixel"}));
+        assert!(core.google_sign_in_request(" ".to_owned(), None).is_err());
+
+        // A first sign-in: the handle step, nothing stored.
+        let first = core
+            .google_sign_in(SERVER.to_owned(), 200, golden("google_sign_up.json"))
+            .unwrap();
+        let step = first.needs_handle.unwrap();
+        assert!(first.signed_in.is_none());
+        assert_eq!(step.suggested_handle.as_deref(), Some("ui_test"));
+        assert_eq!(
+            step.suggestion_line.as_deref(),
+            Some("@ui_test is free. It was made from your Google account; change it if you like.")
+        );
+        assert_eq!(core.account().unwrap(), None);
+        let create = core
+            .google_account_request(
+                step.signup.clone(),
+                "UI_Test".to_owned(),
+                "UI Test".to_owned(),
+                Some(" ".to_owned()),
+                None,
+            )
+            .unwrap();
+        assert_eq!(create.path, "/v1/auth/google/account");
+        let body: serde_json::Value = serde_json::from_slice(&create.body.unwrap()).unwrap();
+        assert_eq!(body["handle"], "ui_test");
+        assert!(body.get("invite").is_none());
+        assert!(
+            core.google_account_request(step.signup, "x".to_owned(), "X".to_owned(), None, None)
+                .is_err()
+        );
+
+        // A sign-in: stored as with the password.
+        let signed = core
+            .google_sign_in(SERVER.to_owned(), 201, golden("sign_in.json"))
+            .unwrap();
+        assert!(signed.needs_handle.is_none());
+        assert_eq!(signed.signed_in.unwrap().account.handle, "demo");
+        assert!(core.account().unwrap().is_some());
+        // A refusal in words.
+        let refused = core
+            .google_sign_in(
+                SERVER.to_owned(),
+                501,
+                br#"{"error":{"code":"google_not_configured","message":"no"}}"#.to_vec(),
+            )
+            .unwrap_err();
+        assert!(
+            refused
+                .to_string()
+                .contains("does not offer signing in with Google"),
+            "{refused}"
+        );
+        assert_eq!(google_words().continue_with_google, "Continue with Google");
+        let unlink = core.unlink_google_request();
+        assert_eq!(
+            (unlink.method.as_str(), unlink.needs_token),
+            ("DELETE", true)
+        );
     }
 
     #[test]

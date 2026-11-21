@@ -301,6 +301,12 @@ pub struct ServerStatus {
     #[uniffi(default = false)]
     #[cfg_attr(feature = "wasm", tsify(optional))]
     pub takes_sites_from_pilots: bool,
+    /// Whether the server offers signing in with Google: whether to show
+    /// "Continue with Google". `false` when it does not, and when it does
+    /// not say, as one older than the question.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub google_sign_in: bool,
 }
 
 /// The path to `GET` to learn how the server is doing.
@@ -314,6 +320,7 @@ pub fn server_status_path() -> String {
 pub fn server_status(status: u16, body: Vec<u8>) -> Result<ServerStatus, CoreError> {
     let response: HealthResponse = answer(status, &body)?;
     Ok(ServerStatus {
+        google_sign_in: response.google_sign_in,
         version: response.version,
         time_unix_s: response.time.timestamp(),
         late_providers: response

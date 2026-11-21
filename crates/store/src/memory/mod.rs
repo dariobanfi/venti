@@ -33,6 +33,7 @@ use crate::{
 };
 use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
 /// A store that lives in the process and forgets everything when it ends.
 ///
@@ -634,6 +635,37 @@ impl Store for MemoryStore {
 
     async fn password_hash(&self, handle: &str) -> Result<Option<(Account, String)>, StoreError> {
         Ok(self.lock().accounts.password_hash(handle))
+    }
+
+    async fn create_google_account(
+        &self,
+        new: &NewGoogleAccount,
+    ) -> Result<AccountCreation, StoreError> {
+        Ok(self.lock().accounts.create_google(new))
+    }
+
+    async fn google_account(&self, subject: &str) -> Result<Option<Account>, StoreError> {
+        Ok(self.lock().accounts.by_google(subject))
+    }
+
+    async fn google_link(&self, account_id: &str) -> Result<Option<GoogleLink>, StoreError> {
+        Ok(self.lock().accounts.google_link(account_id))
+    }
+
+    async fn link_google(
+        &self,
+        account_id: &str,
+        google: &GoogleLink,
+    ) -> Result<GoogleLinking, StoreError> {
+        Ok(self.lock().accounts.link_google(account_id, google))
+    }
+
+    async fn unlink_google(&self, account_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.unlink_google(account_id))
+    }
+
+    async fn has_password(&self, account_id: &str) -> Result<bool, StoreError> {
+        Ok(self.lock().accounts.has_password(account_id))
     }
 
     async fn set_password(

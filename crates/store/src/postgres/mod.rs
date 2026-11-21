@@ -45,6 +45,7 @@ use crate::{
 };
 use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
+use crate::{GoogleLink, GoogleLinking, NewGoogleAccount};
 
 /// Connections kept to the database. The API's queries take milliseconds,
 /// so a few connections serve many requests.
@@ -699,6 +700,37 @@ impl Store for PgStore {
 
     async fn password_hash(&self, handle: &str) -> Result<Option<(Account, String)>, StoreError> {
         accounts::password_hash(&self.client().await?, handle).await
+    }
+
+    async fn create_google_account(
+        &self,
+        new: &NewGoogleAccount,
+    ) -> Result<AccountCreation, StoreError> {
+        accounts::create_google(&mut self.client().await?, new).await
+    }
+
+    async fn google_account(&self, subject: &str) -> Result<Option<Account>, StoreError> {
+        accounts::by_google(&self.client().await?, subject).await
+    }
+
+    async fn google_link(&self, account_id: &str) -> Result<Option<GoogleLink>, StoreError> {
+        accounts::google_link(&self.client().await?, account_id).await
+    }
+
+    async fn link_google(
+        &self,
+        account_id: &str,
+        google: &GoogleLink,
+    ) -> Result<GoogleLinking, StoreError> {
+        accounts::link_google(&mut self.client().await?, account_id, google).await
+    }
+
+    async fn unlink_google(&self, account_id: &str) -> Result<bool, StoreError> {
+        accounts::unlink_google(&self.client().await?, account_id).await
+    }
+
+    async fn has_password(&self, account_id: &str) -> Result<bool, StoreError> {
+        accounts::has_password(&self.client().await?, account_id).await
     }
 
     async fn set_password(

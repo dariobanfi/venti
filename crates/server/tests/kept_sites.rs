@@ -329,6 +329,7 @@ async fn a_kept_site_is_nobody_elses_and_goes_with_the_account() {
         .token(&dario.token)
         .json(&DeleteAccountRequest {
             password: Password::new(PASSWORD),
+            google_id_token: None,
         })
         .send(&router)
         .await;

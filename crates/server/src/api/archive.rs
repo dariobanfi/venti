@@ -252,13 +252,16 @@ impl<S: Store> Api<S> {
         let store = &self.store;
         let mut files = Vec::new();
 
+        // The pilot's own archive: the email of the Google account is
+        // theirs to have.
+        let google = store.google_link(account_id).await?;
         let account = AccountResponse {
-            account: wire::account(&own.account)?,
+            account: wire::account(&own.account, google.as_ref())?,
         };
         files.push(ready(
             "account.json",
             "AccountResponse",
-            "The account: handle, name, and since when.",
+            "The account: handle, name, since when, and the email of its Google account if it has one.",
             1,
             &account,
         )?);

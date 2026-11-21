@@ -87,6 +87,14 @@ log_level = "info"
 #   "closed"  nobody; existing accounts keep working
 registration = "invite"
 
+# The OAuth client IDs of Venti's apps at Google, for     VENTI_GOOGLE_CLIENT_IDS
+# "Continue with Google": the web app's, the Android app's and the iPhone
+# app's, each made in Google Cloud Console (deploy/README.md, "Sign in
+# with Google"). A token for any other client is refused. Client IDs are
+# no secret, and no client secret is needed. Empty: the server does not
+# offer signing in with Google. In the environment, separated by commas.
+google_client_ids = []
+
 # Whether the server takes flying sites from pilots.     VENTI_SITES_FROM_PILOTS
 # It opens the crowdsourced layer (`venti-pilots`) to every signed-in
 # pilot, and lets pilots confirm a site ("I took off here and it was

@@ -76,6 +76,7 @@ mod error;
 mod feed;
 mod flights;
 mod forecast;
+mod google;
 mod groups;
 mod health;
 mod imagery;
@@ -116,10 +117,11 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
-    ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
-    AIRSPACE_PATH, Attribution, CABLES_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
-    FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
-    LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
+    ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
+    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH,
+    Attribution, CABLES_PATH, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH,
+    FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH,
+    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
     PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
     ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
     STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
@@ -129,6 +131,7 @@ use venti_sources::{Kind, Manifest};
 use venti_store::{Room, Store};
 
 use crate::accounts::client::TrustedProxies;
+use crate::accounts::google::GoogleSignIn;
 use crate::accounts::password::{Cost, Hasher};
 use crate::accounts::throttle::Throttle;
 use crate::accounts::{Limits, Registration};
@@ -318,6 +321,8 @@ pub struct Api<S> {
     /// The public half of the server's key for Web Push, base64url, for
     /// `GET /v1/push/key`.
     push_key: Option<String>,
+    /// Signing in with Google, on a server that was given client IDs.
+    google: Option<Arc<GoogleSignIn>>,
 }
 
 impl<S: Store> Api<S> {
@@ -420,7 +425,19 @@ impl<S: Store> Api<S> {
             push_key: crate::push::ServerKey::generate()
                 .ok()
                 .map(|key| key.public_text()),
+            google: None,
         }
+    }
+
+    /// The same API, signing in with Google through `google`.
+    ///
+    /// Without this the Google requests answer `501`
+    /// `google_not_configured`, and the health answer says
+    /// `"google_sign_in": false`.
+    #[must_use]
+    pub fn with_google(mut self, google: Arc<GoogleSignIn>) -> Self {
+        self.google = Some(google);
+        self
     }
 
     /// The same API, handing out the public half of `key` for Web Push.
@@ -602,7 +619,7 @@ impl<S: Store> Api<S> {
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,
-                get(account::show).delete(account::delete::<S>),
+                get(account::show::<S>).delete(account::delete::<S>),
             )
             .route(ACCOUNT_PASSWORD_PATH, put(account::change_password::<S>))
             .route(
@@ -645,6 +662,13 @@ impl<S: Store> Api<S> {
                     .delete(account::sign_out_everywhere::<S>),
             )
             .route("/v1/sessions/{id}", delete(account::sign_out::<S>))
+            .route(AUTH_GOOGLE_PATH, post(google::sign_in::<S>))
+            .route(AUTH_GOOGLE_ACCOUNT_PATH, post(google::create::<S>))
+            .route(
+                ACCOUNT_GOOGLE_PATH,
+                post(google::link::<S>).delete(google::unlink::<S>),
+            )
+            .route(DEV_GOOGLE_ID_TOKEN_PATH, get(google::dev_id_token::<S>))
             .route(FLIGHTS_PATH, get(flights::list::<S>))
             .route(FLIGHT_CHANGES_PATH, get(flights::changes::<S>))
             .route(PUBLIC_FLIGHTS_PATH, get(feed::list::<S>))

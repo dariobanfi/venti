@@ -126,6 +126,8 @@ macro_rules! store_suite {
             an_account_keeps_only_its_most_recent_sessions,
             sessions_unused_for_too_long_are_pruned,
             a_new_password_signs_out_the_other_devices,
+            a_google_account_is_found_by_its_subject,
+            a_google_account_is_linked_to_one_account_at_a_time,
             a_deleted_account_leaves_nothing_behind,
             a_flight_is_stored_private_and_read_back_exactly,
             storing_the_same_flight_again_changes_nothing,

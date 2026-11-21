@@ -176,7 +176,7 @@ pub(crate) fn unwanted_in_a_name(c: char) -> bool {
 ///
 /// It does not print itself: a request that holds one can be logged or shown
 /// in a debugger without giving it away.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Password(String);
 
@@ -260,6 +260,117 @@ pub struct Account {
     /// to an account that says so and to no other.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub edits_sites: bool,
+    /// The email of the Google account the account is signed in to with,
+    /// if it is linked to one. Only the pilot sees it: it is in this
+    /// answer, which goes to the account itself, and in no answer that
+    /// anyone else reads. Left out for an account without Google, and by
+    /// an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_email: Option<String>,
+}
+
+/// The body of `POST /v1/auth/google`: signs this device in with a Google
+/// ID token.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleSignInRequest {
+    /// The ID token that Google gave the app, for one of the server's
+    /// client IDs.
+    pub id_token: String,
+    /// What to call this device in the list of sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+}
+
+impl fmt::Debug for GoogleSignInRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleSignInRequest")
+            .field("id_token", &"<hidden>")
+            .field("device", &self.device)
+            .finish()
+    }
+}
+
+/// The answer to `POST /v1/auth/google` for a Google account that no Venti
+/// account is linked to yet, with `200 OK`: the pilot chooses a handle,
+/// and the app sends it with `signup` to `POST /v1/auth/google/account`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoogleSignUpResponse {
+    /// Always `true`: what tells this answer from a sign-in.
+    pub needs_handle: bool,
+    /// What carries the Google account on to creating the account. Good
+    /// for a quarter of an hour, and only on this server.
+    pub signup: String,
+    /// A handle that is free and follows the rules, made from the
+    /// Google account's email or name, if one could be made.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_handle: Option<String>,
+    /// The name the Google account gives, for the display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl fmt::Debug for GoogleSignUpResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleSignUpResponse")
+            .field("signup", &"<hidden>")
+            .field("suggested_handle", &self.suggested_handle)
+            .field("name", &self.name)
+            .finish()
+    }
+}
+
+/// The body of `POST /v1/auth/google/account`: creates an account linked
+/// to the Google account of a first sign-in, and signs this device in.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateGoogleAccountRequest {
+    /// The `signup` of [`GoogleSignUpResponse`].
+    pub signup: String,
+    /// The handle wanted; see [`Handle`].
+    pub handle: String,
+    /// The name to be shown by; see [`parse_display_name`].
+    pub display_name: String,
+    /// An invite code, on a server that asks for one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite: Option<String>,
+    /// What to call this device in the list of sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+}
+
+impl fmt::Debug for CreateGoogleAccountRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CreateGoogleAccountRequest")
+            .field("signup", &"<hidden>")
+            .field("handle", &self.handle)
+            .field("display_name", &self.display_name)
+            .field("device", &self.device)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The body of `POST /v1/account/google`: links the account a request is
+/// signed in to to a Google account.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkGoogleRequest {
+    /// An ID token of the Google account, for one of the server's client
+    /// IDs.
+    pub id_token: String,
+}
+
+impl fmt::Debug for LinkGoogleRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("LinkGoogleRequest(<hidden>)")
+    }
+}
+
+/// The answer of `GET /v1/dev/google-id-token`, which only the development
+/// mode answers: an ID token of its own made-up "Google" for the made-up
+/// Google account with the email asked for, which the development mode
+/// takes at `POST /v1/auth/google`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevGoogleIdTokenResponse {
+    /// The ID token, good for an hour of the development mode's clock.
+    pub id_token: String,
 }
 
 /// The body of `POST /v1/accounts`: creates an account and signs this
@@ -359,8 +470,15 @@ pub struct ChangePasswordRequest {
 /// The body of `DELETE /v1/account`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeleteAccountRequest {
-    /// The account's password, as proof that its owner is asking.
+    /// The account's password, as proof that its owner is asking. Left out
+    /// by an account that is signed in to with Google, which sends
+    /// `google_id_token` instead.
+    #[serde(default)]
     pub password: Password,
+    /// A fresh ID token of the Google account the account is linked to,
+    /// in place of the password.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_id_token: Option<String>,
 }
 
 #[cfg(test)]
@@ -476,6 +594,7 @@ mod tests {
                 created_at: now,
                 publishing_suspended_at: None,
                 edits_sites: false,
+                google_email: None,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -499,6 +618,7 @@ mod tests {
             created_at: now,
             publishing_suspended_at: None,
             edits_sites: false,
+            google_email: None,
         };
         let json = serde_json::to_value(&account).unwrap();
         assert!(

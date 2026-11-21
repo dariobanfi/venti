@@ -11,6 +11,11 @@
 //! | [`FORECAST_PATH`] | GET | [`ForecastRequest`] | [`ForecastResponse`] |
 //! | [`ACCOUNTS_PATH`] | POST | [`CreateAccountRequest`] | [`SignInResponse`] |
 //! | [`SESSIONS_PATH`] | POST | [`SignInRequest`] | [`SignInResponse`] |
+//! | [`AUTH_GOOGLE_PATH`] | POST | [`GoogleSignInRequest`] | [`SignInResponse`] (201) or [`GoogleSignUpResponse`] (200) |
+//! | [`AUTH_GOOGLE_ACCOUNT_PATH`] | POST | [`CreateGoogleAccountRequest`] | [`SignInResponse`] |
+//! | [`ACCOUNT_GOOGLE_PATH`] | POST | [`LinkGoogleRequest`] | [`AccountResponse`] |
+//! | [`ACCOUNT_GOOGLE_PATH`] | DELETE | | nothing |
+//! | [`DEV_GOOGLE_ID_TOKEN_PATH`] | GET | `email`, `name` | [`DevGoogleIdTokenResponse`] (development mode only) |
 //! | [`SESSIONS_PATH`] | GET, DELETE | | [`SessionsResponse`], nothing |
 //! | [`session_path`] | DELETE | | nothing |
 //! | [`ACCOUNT_PATH`] | GET | | [`AccountResponse`] |
@@ -108,9 +113,11 @@ mod thermals;
 mod token;
 
 pub use account::{
-    Account, AccountResponse, ChangePasswordRequest, CreateAccountRequest, DeleteAccountRequest,
-    DisplayNameError, Handle, HandleError, MAX_DISPLAY_NAME_LENGTH, Password, PasswordError,
-    Session, SessionsResponse, SignInRequest, SignInResponse, parse_display_name,
+    Account, AccountResponse, ChangePasswordRequest, CreateAccountRequest,
+    CreateGoogleAccountRequest, DeleteAccountRequest, DevGoogleIdTokenResponse, DisplayNameError,
+    GoogleSignInRequest, GoogleSignUpResponse, Handle, HandleError, LinkGoogleRequest,
+    MAX_DISPLAY_NAME_LENGTH, Password, PasswordError, Session, SessionsResponse, SignInRequest,
+    SignInResponse, parse_display_name,
 };
 pub use airspace::{AirspaceLayer, AirspaceResponse};
 pub use alerts::{
@@ -185,8 +192,9 @@ pub use report::{
     ReportTextError, ReportedPlan, ReportedSite, parse_report_text,
 };
 pub use request::{
-    ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH,
-    AirspaceRequest, BboxError, DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
+    ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
+    AIRSPACE_PATH, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, AirspaceRequest, BboxError,
+    DEV_GOOGLE_ID_TOKEN_PATH, DayError, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
     FlightChangesRequest, FlightSort, FlightSortError, FlightsRequest, ForecastRequest,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH,
     LiveOthersRequest, LiveTrackRequest, LiveTracksRequest, ObservationsRequest, PLAN_BOARD_PATH,

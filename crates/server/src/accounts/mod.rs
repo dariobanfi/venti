@@ -6,12 +6,14 @@
 //! - [`throttle`] counts attempts; [`client`] finds the address to count
 //!   them under.
 //! - [`invite`] is the `invite` subcommand.
+//! - [`google`] checks Google's ID tokens, for signing in with Google.
 //!
 //! What is not here: any way back into an account whose password is
 //! forgotten. That needs email or a second credential, and neither exists
 //! yet.
 
 pub mod client;
+pub mod google;
 pub mod invite;
 pub mod password;
 pub mod secret;

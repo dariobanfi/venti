@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "account.json",
-      "holds": "The account: handle, name, and since when.",
+      "holds": "The account: handle, name, since when, and the email of its Google account if it has one.",
       "record": "AccountResponse",
       "entries": 1
     },

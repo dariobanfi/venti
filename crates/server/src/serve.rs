@@ -180,6 +180,19 @@ pub async fn serve(config: Config) -> Result<(), String> {
     if let Some(radar) = &radar {
         api = api.with_radar(radar.clone());
     }
+    if config.google_client_ids.is_empty() {
+        tracing::info!("no sign-in with Google: no Google client ID is configured");
+    } else {
+        let google = crate::accounts::google::GoogleSignIn::google(
+            config.google_client_ids.clone(),
+            &config.user_agent,
+        )?;
+        tracing::info!(
+            "sign-in with Google for {} client IDs",
+            config.google_client_ids.len()
+        );
+        api = api.with_google(Arc::new(google));
+    }
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
     }

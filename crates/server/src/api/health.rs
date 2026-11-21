@@ -106,6 +106,7 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
             Registration::Invite => RegistrationMode::Invite,
             Registration::Closed => RegistrationMode::Closed,
         }),
+        google_sign_in: api.google.is_some(),
         sites_from_pilots: Some(if api.pilot_sites.accepts() {
             SitesFromPilots::Open
         } else {

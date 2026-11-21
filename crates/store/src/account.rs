@@ -72,6 +72,50 @@ pub enum AccountCreation {
     /// Another account has the handle. Nothing was stored and the invite is
     /// still good.
     HandleTaken,
+    /// Another account is linked to the Google account already: two
+    /// requests raced to create one for it. Nothing was stored and the
+    /// invite is still good. Only creating an account with Google
+    /// ([`crate::Store::create_google_account`]) answers this.
+    GoogleTaken,
+}
+
+/// A Google account that a Venti account can be signed in to with.
+///
+/// The email is for the pilot and for whoever runs the server: it is in the
+/// pilot's own account and archive and in no answer that anyone else reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GoogleLink {
+    /// Google's identifier of the Google account (the ID token's `sub`):
+    /// it never changes, whatever becomes of the email.
+    pub subject: String,
+    /// The Google account's email as Google said it at the linking.
+    pub email: String,
+    /// When it was linked.
+    pub linked_at: Timestamp,
+}
+
+/// An account to create that is signed in to with Google and has no
+/// password.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewGoogleAccount {
+    /// The account. Its handle must be in lower case.
+    pub account: Account,
+    /// The Google account it is signed in to with.
+    pub google: GoogleLink,
+    /// The invite the account is created with, as for [`NewAccount`].
+    pub invite: Option<SecretHash>,
+}
+
+/// What became of linking a Google account to a Venti account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GoogleLinking {
+    /// The account is linked to it now. A Google account it was linked to
+    /// before is no longer.
+    Linked,
+    /// Another account is linked to that Google account. Nothing changed.
+    TakenByAnother,
+    /// There is no such account.
+    NoSuchAccount,
 }
 
 /// The SHA-256 hash of a secret the store has to recognise and must not

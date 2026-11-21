@@ -95,6 +95,10 @@
             "description": "True for an account whoever runs the server named as one of Venti's partners for flying sites; left out for every other.",
             "type": "boolean"
           },
+          "google_email": {
+            "description": "The email of the Google account the account is signed in to with, if it is linked to one. Only in the account's own answers.",
+            "type": "string"
+          },
           "handle": {
             "type": "string"
           },
@@ -677,6 +681,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "google_id_token": {
+            "description": "A fresh Google ID token of the linked Google account, in place of the password.",
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -692,8 +700,7 @@
         },
         "required": [
           "name",
-          "scopes",
-          "password"
+          "scopes"
         ],
         "type": "object"
       },
@@ -734,6 +741,31 @@
           "handle",
           "display_name",
           "password"
+        ],
+        "type": "object"
+      },
+      "CreateGoogleAccountRequest": {
+        "properties": {
+          "device": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "invite": {
+            "type": "string"
+          },
+          "signup": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "signup",
+          "handle",
+          "display_name"
         ],
         "type": "object"
       },
@@ -808,13 +840,14 @@
       "DayTime": {},
       "DeleteAccountRequest": {
         "properties": {
+          "google_id_token": {
+            "description": "A fresh Google ID token of the linked Google account, in place of the password: what an account made with Google sends.",
+            "type": "string"
+          },
           "password": {
             "type": "string"
           }
         },
-        "required": [
-          "password"
-        ],
         "type": "object"
       },
       "DeletedFlight": {
@@ -829,6 +862,17 @@
         "required": [
           "id",
           "identity"
+        ],
+        "type": "object"
+      },
+      "DevGoogleIdTokenResponse": {
+        "properties": {
+          "id_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token"
         ],
         "type": "object"
       },
@@ -1010,6 +1054,13 @@
           "registration_closed",
           "invalid_invite",
           "handle_taken",
+          "google_not_configured",
+          "invalid_google_token",
+          "google_unavailable",
+          "invalid_signup",
+          "google_taken",
+          "google_not_linked",
+          "google_only_sign_in",
           "session_not_found",
           "invalid_token_name",
           "invalid_scopes",
@@ -1681,6 +1732,55 @@
         ],
         "type": "object"
       },
+      "GoogleSignInAnswer": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SignInResponse"
+          },
+          {
+            "$ref": "#/components/schemas/GoogleSignUpResponse"
+          }
+        ],
+        "description": "201 with SignInResponse for a Google account linked to an account; 200 with GoogleSignUpResponse for one that is not."
+      },
+      "GoogleSignInRequest": {
+        "properties": {
+          "device": {
+            "type": "string"
+          },
+          "id_token": {
+            "description": "The ID token Google gave the app, for one of the server's client IDs.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token"
+        ],
+        "type": "object"
+      },
+      "GoogleSignUpResponse": {
+        "description": "A first sign-in with Google: the pilot chooses a handle and the app sends it with `signup` to POST /v1/auth/google/account.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "needs_handle": {
+            "type": "boolean"
+          },
+          "signup": {
+            "description": "Good for a quarter of an hour, on this server only.",
+            "type": "string"
+          },
+          "suggested_handle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "needs_handle",
+          "signup"
+        ],
+        "type": "object"
+      },
       "Group": {
         "properties": {
           "created_at": {
@@ -1770,6 +1870,10 @@
           },
           "forecasts": {
             "$ref": "#/components/schemas/ForecastsHealth"
+          },
+          "google_sign_in": {
+            "description": "Whether the server offers signing in with Google.",
+            "type": "boolean"
           },
           "radar": {
             "items": {
@@ -1947,6 +2051,17 @@
         },
         "required": [
           "kept"
+        ],
+        "type": "object"
+      },
+      "LinkGoogleRequest": {
+        "properties": {
+          "id_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token"
         ],
         "type": "object"
       },
@@ -5414,6 +5529,75 @@
         "x-venti-docs": "GET /v1/account/archive"
       }
     },
+    "/v1/account/google": {
+      "delete": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "delete_account_google",
+        "responses": {
+          "204": {
+            "description": "Done; no body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Unlink the account from its Google account",
+        "x-venti-docs": "POST and DELETE /v1/account/google"
+      },
+      "post": {
+        "description": "The pilot's own sign-in only: a session's token. No token for a program.",
+        "operationId": "post_account_google",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkGoogleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Link the account to a Google account",
+        "x-venti-docs": "POST and DELETE /v1/account/google"
+      }
+    },
     "/v1/account/kept-sites/changes": {
       "get": {
         "description": "The pilot: a session's token, or a token for a program with the scope `kept-sites:read`.",
@@ -5878,6 +6062,84 @@
         "x-venti-docs": "GET /v1/airspace?bbox=west,south,east,north"
       }
     },
+    "/v1/auth/google": {
+      "post": {
+        "description": "Anyone; no token.",
+        "operationId": "post_auth_google",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleSignInAnswer"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleSignInAnswer"
+                }
+              }
+            },
+            "description": "The answer, where the summary says so."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Sign in with a Google ID token",
+        "x-venti-docs": "POST /v1/auth/google"
+      }
+    },
+    "/v1/auth/google/account": {
+      "post": {
+        "description": "Anyone; no token.",
+        "operationId": "post_auth_google_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGoogleAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Create an account after a first sign-in with Google, and sign in",
+        "x-venti-docs": "POST /v1/auth/google/account"
+      }
+    },
     "/v1/cables": {
       "get": {
         "description": "Anyone; no token.",
@@ -5911,6 +6173,46 @@
         "security": [],
         "summary": "The cables of a box, in layers by source",
         "x-venti-docs": "GET /v1/cables?bbox=west,south,east,north"
+      }
+    },
+    "/v1/dev/google-id-token": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_dev_google_id_token",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "email",
+            "required": true,
+            "schema": {}
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevGoogleIdTokenResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "A made-up Google ID token, in the development mode only",
+        "x-venti-docs": "GET /v1/dev/google-id-token?email=&name="
       }
     },
     "/v1/dumps": {

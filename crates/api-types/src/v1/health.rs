@@ -22,6 +22,11 @@ pub struct HealthResponse {
     /// the field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registration: Option<RegistrationMode>,
+    /// Whether the server offers signing in with Google. An app shows
+    /// "Continue with Google" only where this is `true`. Left out by an
+    /// older server, which does not.
+    #[serde(default)]
+    pub google_sign_in: bool,
     /// Whether the server takes flying sites from pilots: whether a
     /// signed-in pilot can add a site and correct one. An app offers
     /// neither where this is not `open`. Left out by a server older than

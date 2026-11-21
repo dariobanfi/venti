@@ -256,6 +256,11 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `site_too_close`, `site_changed` | A [site](#sites-that-ventis-partners-and-pilots-add) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
+| 501 | `google_not_configured` | The server does not offer [signing in with Google](#sign-in-with-google) |
+| 401 | `invalid_google_token`, `invalid_signup` | A Google ID token that is not good for this server; a sign-up of a first sign-in with Google that has expired. Sign in with Google again |
+| 503 | `google_unavailable` | The server could not fetch Google's keys to check a Google ID token |
+| 409 | `google_taken`, `google_only_sign_in` | Another account is linked to this Google account; an account made with Google cannot be unlinked from it |
+| 404 | `google_not_linked` | The account is not linked to a Google account |
 | 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
 | 409 | `too_many_alerts` | The account has as many [alarms](#alarms) as it may |
 | 409 | `too_many_push_subscriptions` | The account has as many [browsers subscribed to Web Push](#web-push) as it may |
@@ -316,6 +321,7 @@ How the server and each of its data sources are doing.
   "time": "2026-11-18T19:05:00Z",
   "forecasts": "available",
   "registration": "open",
+  "google_sign_in": true,
   "sites_from_pilots": "open",
   "thermal_map": {
     "source": "open-meteo",
@@ -4480,6 +4486,91 @@ The answer is `201`. This is the development mode's, with the token and the sess
 
 A wrong password and a handle nobody has get the same answer after the same time: `401` with `invalid_credentials`. The server does not say which of the two was wrong.
 
+### Sign in with Google
+
+Where `google_sign_in` in [`GET /v1/health`](#get-v1health) is `true`, a pilot signs in with their Google account. The app gets an **ID token** from Google (the web app with Google Identity Services, the Android app with Credential Manager, the iPhone app with Google's authorization code flow; [design.md](design.md) says which) for one of the server's client IDs, and sends it here. The server checks it as Google says to: signed by one of Google's keys, issued by Google, for one of this server's client IDs, not expired (with a minute's grace), for a Google account whose email Google has verified. It needs no client secret, and the app keeps the ID token no longer than this request.
+
+A first sign-in with a Google account makes no account yet: the pilot chooses a handle first. The account then keeps Google's identifier of the Google account and its email; the email is shown to the pilot (`google_email` in `GET /v1/account` and in [the archive](#get-v1accountarchive)) and to nobody else. An account made with Google has no password: where a request asks for the password (deleting the account, making a token for a program) it sends `google_id_token`, a fresh ID token of the same Google account, in its place. Changing the password is not for it.
+
+These requests are for the pilot's own sign-in: no token for a program makes them.
+
+### `POST /v1/auth/google`
+
+Signs this device in with a Google ID token.
+
+```json
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij…",
+  "device": "Pixel 9"
+}
+```
+
+For a Google account an account is linked to, the answer is `201` with the same body as [signing in](#post-v1sessions). For one that no account is linked to it is `200`:
+
+```json
+{
+  "needs_handle": true,
+  "signup": "venti_signup_…",
+  "suggested_handle": "anna_alpin",
+  "name": "Anna Alpin"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `needs_handle` | Always `true`: what tells this answer from a sign-in |
+| `signup` | What carries the Google account on to [`POST /v1/auth/google/account`](#post-v1authgoogleaccount). Sealed: it can be neither read nor changed. Good for 15 minutes, on this server only, until it restarts |
+| `suggested_handle` | A handle that follows the rules and is free, made from the email's part before the `@`, or else from the name. Left out when none can be made |
+| `name` | The name the Google account gives, for the display name. Left out when it gives none |
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `invalid_google_token` | The token is not good for this server: not Google's, for another app, expired, or of a Google account whose email is not verified. `message` says which |
+| 503 | `google_unavailable` | The server could not fetch Google's keys. Try again later |
+| 501 | `google_not_configured` | The server does not offer signing in with Google |
+
+### `POST /v1/auth/google/account`
+
+Creates an account linked to the Google account of a first sign-in, and signs this device in.
+
+```json
+{
+  "signup": "venti_signup_…",
+  "handle": "anna_alpin",
+  "display_name": "Anna Alpin",
+  "invite": "7k3m-9q2x-4r8t-1v6w",
+  "device": "Pixel 9"
+}
+```
+
+`handle`, `display_name`, `invite` and `device` are as for [`POST /v1/accounts`](#post-v1accounts), and so is who may make an account: `closed` takes nobody, `invite` asks for a code, and attempts are counted against the address as there. The answer is `201` with the same body as signing in.
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `invalid_signup` | The sign-up has expired or is not this server's. Sign in with Google again |
+| 400 | `invalid_handle`, `invalid_display_name` | As for `POST /v1/accounts` |
+| 403 | `registration_closed`, `invalid_invite` | As for `POST /v1/accounts` |
+| 409 | `handle_taken` | As for `POST /v1/accounts` |
+| 409 | `google_taken` | Another account was made for the Google account meanwhile. Sign in with Google to reach it |
+| 429 | `rate_limited` | Too many attempts from this address |
+
+### `POST and DELETE /v1/account/google`
+
+Need a session's token. `POST` links the account to the Google account of an ID token, so that the pilot signs in with Google from then on; the password stays. It takes `{"id_token": "…"}` and answers `200` with the account, as `GET /v1/account` does, `google_email` included. An account linked to another Google account is linked to this one in its place. Another account linked to this Google account gives `409` with `google_taken`; a token that is not good, as for `POST /v1/auth/google`.
+
+`DELETE` unlinks it and answers `204`. An account that is linked to none gives `404` with `google_not_linked`. An account made with Google has no password and cannot be unlinked: `409` with `google_only_sign_in`.
+
+### `GET /v1/dev/google-id-token?email=&name=`
+
+**The development mode only**; every other server answers `404` with `not_found`. It is the development mode's own made-up "Google": an ID token, good for an hour of the development mode's clock, for the made-up Google account with this email (the same email is always the same Google account), which the development mode takes at `POST /v1/auth/google`. This is how the apps' UI tests sign in "with Google" without Google:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/dev/google-id-token?email=ui.test@example.com&name=UI%20Test'
+# {"id_token":"eyJ…"}
+```
+
+The key it signs with is a test-only key that is published in the source; a server that is not in the development mode never takes it. `email` is needed; `name` may be left out.
+
 ### `GET /v1/sessions`
 
 Needs a token. The devices signed in to the account, most recently used first.
@@ -4532,6 +4623,7 @@ Needs a token. The account the token belongs to.
 | `handle`, `display_name` | As the account was created with |
 | `created_at` | When it was created |
 | `publishing_suspended_at` | Since when the account may publish nothing, because whoever runs the server [suspended its publishing](#what-whoever-runs-the-server-can-do). Left out for every account that may, which is nearly every account |
+| `google_email` | The email of the Google account the account [signs in with](#sign-in-with-google), if it is linked to one. Only the account itself sees it. Left out otherwise |
 | `edits_sites` | `true` for an account whoever runs the server named as a [partner for flying sites](#sites-that-ventis-partners-and-pilots-add): it adds to the partners' layer `venti` and corrects sites of both layers. Left out for every other account, which is nearly every account. A token with `account:read` reads it too. The demo account of the development mode is one |
 
 The answers to creating an account and to signing in carry the same `account`. This is the demo account after its publishing was suspended:
@@ -4587,7 +4679,7 @@ This is `index.json` of the demo account's archive:
   "files": [
     {
       "path": "account.json",
-      "holds": "The account: handle, name, and since when.",
+      "holds": "The account: handle, name, since when, and the email of its Google account if it has one.",
       "record": "AccountResponse",
       "entries": 1
     },
@@ -4719,6 +4811,8 @@ Needs a token, and the password in the body: a token alone is not enough for thi
 }
 ```
 
+An account made with Google sends `{"google_id_token": "…"}`, a fresh ID token of its Google account, in place of the password; another Google account's gives `403` with `invalid_google_token`.
+
 Deletes the account with everything that belongs to it: its sessions, its tokens for programs, [the sites it keeps as its own](#the-sites-a-pilot-keeps), [its alarms](#alarms) and what they fired, its flights and their files, its live tracks with their positions, and what it put into [groups](#groups): the plans it posted and its "I am in" on the plans of others. It leaves every group it is in. A group it kept is kept by the member who has been in it longest, under the name it had; a group it was alone in is deleted. The answer is `204` with no body. It happens at once and cannot be undone; the handle is free again afterwards. A wrong password gives `403` with `wrong_password`, counted as for changing the password.
 
 To take everything along first, ask for [the archive](#get-v1accountarchive).
@@ -4830,6 +4924,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `POST /v1/account/tokens` | the session only |
 | `GET /v1/account/tokens` | the session only |
 | `DELETE /v1/account/tokens/{id}` | the session only |
+| `POST /v1/account/google` | the session only |
+| `DELETE /v1/account/google` | the session only |
 
 "The session only" is what no token may do, whatever its scopes: see or end the pilot's sessions, change the password, delete the account, take [the archive of everything the account gave](#get-v1accountarchive), and make, list or withdraw tokens. A token therefore cannot widen itself or outlive its withdrawal.
 
@@ -4859,7 +4955,7 @@ A token that lacks a scope is told so:
 
 ### `POST /v1/account/tokens`
 
-Needs a session's token, and the password in the body: whoever picks up an unlocked phone cannot leave with a token that outlives signing the phone out. Makes a token.
+Needs a session's token, and the password in the body: whoever picks up an unlocked phone cannot leave with a token that outlives signing the phone out. Makes a token. An account made with Google sends `google_id_token`, a fresh ID token of its Google account, in place of `password` ([Sign in with Google](#sign-in-with-google)).
 
 ```json
 {

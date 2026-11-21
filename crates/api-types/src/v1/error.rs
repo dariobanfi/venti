@@ -105,6 +105,27 @@ pub enum ErrorCode {
     InvalidInvite,
     /// The handle belongs to another account or is not available.
     HandleTaken,
+    /// The server does not offer signing in with Google: whoever runs it
+    /// configured no Google client ID. `google_sign_in` in the health
+    /// answer says the same.
+    GoogleNotConfigured,
+    /// The Google ID token is not good for this server: not Google's, for
+    /// another app, expired, or of a Google account whose email Google
+    /// has not verified. Sign in with Google again.
+    InvalidGoogleToken,
+    /// The server could not fetch Google's keys to check the ID token.
+    /// Try again later.
+    GoogleUnavailable,
+    /// The sign-up token of a first sign-in with Google has expired or is
+    /// not this server's. Sign in with Google again.
+    InvalidSignup,
+    /// Another Venti account is linked to this Google account already.
+    GoogleTaken,
+    /// The account is not linked to a Google account.
+    GoogleNotLinked,
+    /// Google is the only way into this account: it has no password, so
+    /// it cannot be unlinked.
+    GoogleOnlySignIn,
     /// The account has no session with this identifier.
     SessionNotFound,
     /// The name of a token is empty, too long, or holds characters that

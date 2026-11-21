@@ -195,8 +195,15 @@ pub struct CreateAccessTokenRequest {
     /// token that never ends.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Timestamp>,
-    /// The account's password, as proof that its owner is asking.
+    /// The account's password, as proof that its owner is asking. Left out
+    /// by an account that is signed in to with Google, which sends
+    /// `google_id_token` instead.
+    #[serde(default)]
     pub password: Password,
+    /// A fresh ID token of the Google account the account is linked to,
+    /// in place of the password.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_id_token: Option<String>,
 }
 
 /// The answer of `POST /v1/account/tokens`.

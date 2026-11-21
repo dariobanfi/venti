@@ -314,6 +314,7 @@ pub fn token_create_request(
                 .collect(),
             expires_at,
             password: Password::new(password),
+            google_id_token: None,
         },
         true,
     )

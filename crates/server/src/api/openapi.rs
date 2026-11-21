@@ -31,9 +31,10 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
-    ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
-    ARCHIVE_MEDIA_TYPE, CABLES_PATH, CSV_MEDIA_TYPE, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
+    ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH,
+    ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ALERTS_FIRED_PATH,
+    ALERTS_PATH, ARCHIVE_MEDIA_TYPE, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH, CABLES_PATH,
+    CSV_MEDIA_TYPE, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH,
     FORECAST_PATH, GEOJSON_MEDIA_TYPE, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH, LIVE_OTHERS_PATH, LIVE_PATH,
     LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
@@ -421,6 +422,36 @@ fn operations() -> Vec<Op> {
             .takes("SignInRequest")
             .statuses(&[201])
             .json("SignInResponse"),
+        post(AUTH_GOOGLE_PATH, "Sign in with a Google ID token")
+            .takes("GoogleSignInRequest")
+            .statuses(&[200, 201])
+            .json("GoogleSignInAnswer"),
+        post(
+            AUTH_GOOGLE_ACCOUNT_PATH,
+            "Create an account after a first sign-in with Google, and sign in",
+        )
+        .takes("CreateGoogleAccountRequest")
+        .statuses(&[201])
+        .json("SignInResponse"),
+        post(ACCOUNT_GOOGLE_PATH, "Link the account to a Google account")
+            .docs("POST and DELETE /v1/account/google")
+            .session()
+            .takes("LinkGoogleRequest")
+            .json("AccountResponse"),
+        delete(
+            ACCOUNT_GOOGLE_PATH,
+            "Unlink the account from its Google account",
+        )
+        .docs("POST and DELETE /v1/account/google")
+        .session()
+        .nothing(),
+        get(
+            DEV_GOOGLE_ID_TOKEN_PATH,
+            "A made-up Google ID token, in the development mode only",
+        )
+        .docs("GET /v1/dev/google-id-token?email=&name=")
+        .query(&["email!", "name"])
+        .json("DevGoogleIdTokenResponse"),
         get(SESSIONS_PATH, "The account's sessions")
             .session()
             .json("SessionsResponse"),

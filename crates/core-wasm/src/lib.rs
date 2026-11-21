@@ -60,6 +60,7 @@ use venti_core::{
 };
 use venti_core::{AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
+use venti_core::{GoogleSignIn, GoogleWords};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
     SiteDraftRebased, SiteHistoryOffers, SiteOffers, SiteRevisionView, SiteWords, SitesRemoved,
@@ -317,6 +318,120 @@ impl Core {
             .call(|core| core.signed_in(server, status, body))
             .map_err(thrown)?;
         to_js(&signed_in)
+    }
+
+    /// The request that signs this browser in with a Google ID token from
+    /// Google Identity Services. Its answer goes to `googleSignIn`.
+    #[wasm_bindgen(js_name = googleSignInRequest)]
+    pub fn google_sign_in_request(
+        &self,
+        id_token: String,
+        device: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .google_sign_in_request(id_token, device)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to `googleSignInRequest`: signed in, and
+    /// the account remembered, or the handle step of a first sign-in.
+    #[wasm_bindgen(js_name = googleSignIn)]
+    pub fn google_sign_in(
+        &self,
+        server: String,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Ts<GoogleSignIn>, JsValue> {
+        let answer = self
+            .session
+            .call(|core| core.google_sign_in(server, status, body))
+            .map_err(thrown)?;
+        to_js(&answer)
+    }
+
+    /// The request that creates an account after a first sign-in with
+    /// Google. Its answer goes to `signedIn`.
+    #[wasm_bindgen(js_name = googleAccountRequest)]
+    pub fn google_account_request(
+        &self,
+        signup: String,
+        handle: String,
+        display_name: String,
+        invite: Option<String>,
+        device: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .google_account_request(signup, handle, display_name, invite, device)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// The request that links the signed-in account to a Google account.
+    /// Its answer goes to `googleLinked`.
+    #[wasm_bindgen(js_name = linkGoogleRequest)]
+    pub fn link_google_request(&self, id_token: String) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .link_google_request(id_token)
+            .map_err(thrown)?;
+        to_js(&request)
+    }
+
+    /// Reads the server's answer to `linkGoogleRequest`.
+    #[wasm_bindgen(js_name = googleLinked)]
+    pub fn google_linked(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<Ts<AccountView>>, JsValue> {
+        let account = self
+            .session
+            .call(|core| core.google_linked(status, body))
+            .map_err(thrown)?;
+        account.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that unlinks the account from its Google account. Its
+    /// answer goes to `googleUnlinked`.
+    #[wasm_bindgen(js_name = unlinkGoogleRequest)]
+    pub fn unlink_google_request(&self) -> Result<Ts<ServerRequest>, JsValue> {
+        to_js(&self.session.core.unlink_google_request())
+    }
+
+    /// Reads the server's answer to `unlinkGoogleRequest`.
+    #[wasm_bindgen(js_name = googleUnlinked)]
+    pub fn google_unlinked(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<Ts<AccountView>>, JsValue> {
+        let account = self
+            .session
+            .call(|core| core.google_unlinked(status, body))
+            .map_err(thrown)?;
+        account.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that deletes an account that signs in with Google: a
+    /// fresh ID token in place of the password. Its answer goes to
+    /// `accountDeleted`.
+    #[wasm_bindgen(js_name = deleteAccountWithGoogleRequest)]
+    pub fn delete_account_with_google_request(
+        &self,
+        id_token: String,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        let request = self
+            .session
+            .core
+            .delete_account_with_google_request(id_token)
+            .map_err(thrown)?;
+        to_js(&request)
     }
 
     /// The request that signs this browser out on the server, if it is
@@ -1415,6 +1530,12 @@ pub fn token_withdraw_request(id: String) -> Result<Ts<ServerRequest>, JsValue> 
 #[wasm_bindgen(js_name = tokenWithdrawn)]
 pub fn token_withdrawn(status: u16, body: Vec<u8>) -> Result<(), JsValue> {
     venti_core::token_withdrawn(status, body).map_err(thrown)
+}
+
+/// The words of signing in with Google.
+#[wasm_bindgen(js_name = googleWords)]
+pub fn google_words() -> Result<Ts<GoogleWords>, JsValue> {
+    to_js(&venti_core::google_words())
 }
 
 /// What a sync did, in a line for the pilot: "3 sent, 1 fetched".

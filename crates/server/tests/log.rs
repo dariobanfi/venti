@@ -113,6 +113,7 @@ async fn no_password_and_no_token_reaches_the_log() {
         .token(&token)
         .json(&DeleteAccountRequest {
             password: Password::new(second),
+            google_id_token: None,
         })
         .send(&router)
         .await;

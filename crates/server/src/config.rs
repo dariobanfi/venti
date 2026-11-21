@@ -67,6 +67,10 @@ pub struct Config {
     /// a pilot gives a site are not written yet, and until they are only
     /// a server whose pilots are its owner's own turns this on.
     pub sites_from_pilots: bool,
+    /// The OAuth client IDs of Venti's apps at Google (web, Android,
+    /// iPhone), for signing in with Google. Empty: the server does not
+    /// offer it. Client IDs are no secret.
+    pub google_client_ids: Vec<String>,
 }
 
 /// The most flights an account may keep unless the configuration says
@@ -174,6 +178,7 @@ struct File {
     log_level: Option<String>,
     registration: Option<String>,
     sites_from_pilots: Option<bool>,
+    google_client_ids: Option<Vec<String>>,
     public_url: Option<String>,
     trusted_proxies: Option<Vec<String>>,
     overpass_url: Option<String>,
@@ -264,6 +269,10 @@ const REGISTRATION: Setting = Setting {
 const SITES_FROM_PILOTS: Setting = Setting {
     key: "sites_from_pilots",
     variable: "VENTI_SITES_FROM_PILOTS",
+};
+const GOOGLE_CLIENT_IDS: Setting = Setting {
+    key: "google_client_ids",
+    variable: "VENTI_GOOGLE_CLIENT_IDS",
 };
 const PUBLIC_URL: Setting = Setting {
     key: "public_url",
@@ -443,6 +452,17 @@ impl Config {
             Some(_) => return Err(SITES_FROM_PILOTS.invalid("say true or false")),
         };
 
+        let google_client_ids: Vec<String> = env(&GOOGLE_CLIENT_IDS)
+            .map(list)
+            .or(file.google_client_ids)
+            .unwrap_or_default();
+        if google_client_ids
+            .iter()
+            .any(|id| id.trim().is_empty() || id.chars().any(char::is_whitespace))
+        {
+            return Err(GOOGLE_CLIENT_IDS.invalid("a client ID is one word, with no spaces"));
+        }
+
         let public_url = env(&PUBLIC_URL)
             .or(file.public_url)
             .map(|url| PublicUrl::new(&url).map_err(|problem| PUBLIC_URL.invalid(problem)))
@@ -522,6 +542,7 @@ impl Config {
             providers,
             room,
             sites_from_pilots,
+            google_client_ids,
         })
     }
 }

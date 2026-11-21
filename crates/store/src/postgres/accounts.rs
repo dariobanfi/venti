@@ -8,8 +8,8 @@ use venti_domain::Timestamp;
 use super::{db_error, flights, groups};
 use crate::flight::next_change;
 use crate::{
-    AccessToken, Account, AccountCreation, NewAccount, NewInvite, SESSION_TOUCH_MINUTES,
-    SecretHash, Session, StoreError, Suspension,
+    AccessToken, Account, AccountCreation, GoogleLink, GoogleLinking, NewAccount, NewGoogleAccount,
+    NewInvite, SESSION_TOUCH_MINUTES, SecretHash, Session, StoreError, Suspension,
 };
 
 fn account_from(row: &Row) -> Account {
@@ -41,14 +41,47 @@ pub(super) async fn create(
     client: &mut Client,
     new: &NewAccount,
 ) -> Result<AccountCreation, StoreError> {
-    let account = &new.account;
+    create_with(
+        client,
+        &new.account,
+        &Credential::Password(&new.password_hash),
+        new.invite.as_ref(),
+    )
+    .await
+}
+
+pub(super) async fn create_google(
+    client: &mut Client,
+    new: &NewGoogleAccount,
+) -> Result<AccountCreation, StoreError> {
+    create_with(
+        client,
+        &new.account,
+        &Credential::Google(&new.google),
+        new.invite.as_ref(),
+    )
+    .await
+}
+
+/// What an account is created with.
+enum Credential<'a> {
+    Password(&'a str),
+    Google(&'a GoogleLink),
+}
+
+async fn create_with(
+    client: &mut Client,
+    account: &Account,
+    credential: &Credential<'_>,
+    invite: Option<&SecretHash>,
+) -> Result<AccountCreation, StoreError> {
     // Dropping the transaction without a commit undoes what was done in it.
     let tx = client.transaction().await.map_err(db_error)?;
 
     // The invite first: without a good one, nothing is said about handles.
     // Marking it used locks its row, so of two requests that race for one
     // invite the second waits here and then finds it used.
-    if let Some(code) = &new.invite {
+    if let Some(code) = invite {
         let claimed = tx
             .execute(
                 "UPDATE invites SET used_at = $2
@@ -81,14 +114,39 @@ pub(super) async fn create(
         return Ok(AccountCreation::HandleTaken);
     }
 
-    tx.execute(
-        "INSERT INTO credentials (account_id, kind, secret, created_at)
-         VALUES ($1, 'password', $2, $3)",
-        &[&account.id, &new.password_hash, &account.created_at],
-    )
-    .await
-    .map_err(db_error)?;
-    if let Some(code) = &new.invite {
+    match credential {
+        Credential::Password(hash) => {
+            tx.execute(
+                "INSERT INTO credentials (account_id, kind, secret, created_at)
+                 VALUES ($1, 'password', $2, $3)",
+                &[&account.id, hash, &account.created_at],
+            )
+            .await
+            .map_err(db_error)?;
+        }
+        Credential::Google(google) => {
+            // Of two requests that race for one Google account, the second
+            // waits here for the first and then finds it taken.
+            let inserted = tx
+                .execute(
+                    "INSERT INTO credentials (account_id, kind, secret, email, created_at)
+                     VALUES ($1, 'google', $2, $3, $4)
+                     ON CONFLICT (secret) WHERE kind = 'google' DO NOTHING",
+                    &[
+                        &account.id,
+                        &google.subject,
+                        &google.email,
+                        &google.linked_at,
+                    ],
+                )
+                .await
+                .map_err(db_error)?;
+            if inserted == 0 {
+                return Ok(AccountCreation::GoogleTaken);
+            }
+        }
+    }
+    if let Some(code) = invite {
         tx.execute(
             "UPDATE invites SET used_by = $2 WHERE code_hash = $1",
             &[&code.0.as_slice(), &account.id],
@@ -131,6 +189,141 @@ pub(super) async fn password_hash(
     Ok(row
         .as_ref()
         .map(|row| (account_from(row), row.get("secret"))))
+}
+
+pub(super) async fn by_google(
+    client: &Client,
+    subject: &str,
+) -> Result<Option<Account>, StoreError> {
+    if subject.contains('\0') {
+        return Ok(None);
+    }
+    let query = format!(
+        "SELECT {ACCOUNT_COLUMNS}
+         FROM credentials c JOIN accounts a ON a.id = c.account_id
+         WHERE c.kind = 'google' AND c.secret = $1"
+    );
+    let statement = client.prepare_cached(&query).await.map_err(db_error)?;
+    let row = client
+        .query_opt(&statement, &[&subject])
+        .await
+        .map_err(db_error)?;
+    Ok(row.as_ref().map(account_from))
+}
+
+pub(super) async fn google_link(
+    client: &Client,
+    account_id: &str,
+) -> Result<Option<GoogleLink>, StoreError> {
+    let statement = client
+        .prepare_cached(
+            "SELECT secret, email, created_at FROM credentials
+             WHERE account_id = $1 AND kind = 'google'",
+        )
+        .await
+        .map_err(db_error)?;
+    let row = client
+        .query_opt(&statement, &[&account_id])
+        .await
+        .map_err(db_error)?;
+    Ok(row.map(|row| GoogleLink {
+        subject: row.get(0),
+        email: row.get::<_, Option<String>>(1).unwrap_or_default(),
+        linked_at: row.get(2),
+    }))
+}
+
+pub(super) async fn link_google(
+    client: &mut Client,
+    account_id: &str,
+    google: &GoogleLink,
+) -> Result<GoogleLinking, StoreError> {
+    if google.subject.contains('\0') || google.email.contains('\0') {
+        return Ok(GoogleLinking::TakenByAnother);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    // The account's row is locked, so that two links of one account wait
+    // for each other.
+    let account = tx
+        .query_opt(
+            "SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    if account.is_none() {
+        return Ok(GoogleLinking::NoSuchAccount);
+    }
+    let holder = tx
+        .query_opt(
+            "SELECT account_id FROM credentials WHERE kind = 'google' AND secret = $1",
+            &[&google.subject],
+        )
+        .await
+        .map_err(db_error)?
+        .map(|row| row.get::<_, String>(0));
+    match holder {
+        Some(holder) if holder != account_id => return Ok(GoogleLinking::TakenByAnother),
+        Some(_) => {
+            tx.execute(
+                "UPDATE credentials SET email = $2 WHERE kind = 'google' AND secret = $1",
+                &[&google.subject, &google.email],
+            )
+            .await
+            .map_err(db_error)?;
+        }
+        None => {
+            tx.execute(
+                "DELETE FROM credentials WHERE account_id = $1 AND kind = 'google'",
+                &[&account_id],
+            )
+            .await
+            .map_err(db_error)?;
+            // Another account can take the Google account between the look
+            // and this: the index then refuses, and nothing changes.
+            let inserted = tx
+                .execute(
+                    "INSERT INTO credentials (account_id, kind, secret, email, created_at)
+                     VALUES ($1, 'google', $2, $3, $4)
+                     ON CONFLICT (secret) WHERE kind = 'google' DO NOTHING",
+                    &[
+                        &account_id,
+                        &google.subject,
+                        &google.email,
+                        &google.linked_at,
+                    ],
+                )
+                .await
+                .map_err(db_error)?;
+            if inserted == 0 {
+                return Ok(GoogleLinking::TakenByAnother);
+            }
+        }
+    }
+    tx.commit().await.map_err(db_error)?;
+    Ok(GoogleLinking::Linked)
+}
+
+pub(super) async fn unlink_google(client: &Client, account_id: &str) -> Result<bool, StoreError> {
+    let deleted = client
+        .execute(
+            "DELETE FROM credentials WHERE account_id = $1 AND kind = 'google'",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(deleted > 0)
+}
+
+pub(super) async fn has_password(client: &Client, account_id: &str) -> Result<bool, StoreError> {
+    let row = client
+        .query_opt(
+            "SELECT 1 FROM credentials WHERE account_id = $1 AND kind = 'password'",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(row.is_some())
 }
 
 pub(super) async fn set_password(

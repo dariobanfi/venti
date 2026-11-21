@@ -28,6 +28,7 @@ async fn token(router: &axum::Router, session: &str, scopes: &[Scope]) -> String
             .collect(),
         expires_at: None,
         password: Password::new(PASSWORD),
+        google_id_token: None,
     };
     ask(Method::POST, ACCOUNT_TOKENS_PATH)
         .token(session)

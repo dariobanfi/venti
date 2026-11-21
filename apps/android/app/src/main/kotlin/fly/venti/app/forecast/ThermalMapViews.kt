@@ -25,6 +25,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import fly.venti.app.R
+import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
+import fly.venti.app.wind.WindModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -207,17 +216,35 @@ private fun Swatch(fill: Int) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThermalSquareSheet(map: ThermalMap, day: ThermalMapDay, square: ThermalMapCell, onDismiss: () -> Unit) {
+fun ThermalSquareSheet(
+    map: ThermalMap,
+    day: ThermalMapDay,
+    square: ThermalMapCell,
+    /** Where the forecast for the square's place is asked for. */
+    wind: WindModel,
+    onDismiss: () -> Unit,
+) {
     val colours = Venti.colours
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    // The forecast for the square's place, opened in the same sheet with an arrow back.
+    var showsForecast by remember(square) { mutableStateOf(false) }
+    // A forecast is a table of a whole day: it takes all the room there is.
+    LaunchedEffect(showsForecast) {
+        if (showsForecast) sheet.expand()
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.semantics { paneTitle = "Forecast for this square" },
     ) {
         // Taller than half the screen, so that the sheet opens at half
         // height with the square still in view above it.
         Box(Modifier.fillMaxHeight()) {
+            if (showsForecast) {
+                ForecastPage(ThermalMapWords.place(square), wind, onBack = { showsForecast = false }, onDone = onDismiss)
+                return@Box
+            }
             Column(Modifier.testTag("forecast-square")) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = VentiSpace.s5, end = VentiSpace.s2),
@@ -269,6 +296,18 @@ fun ThermalSquareSheet(map: ThermalMap, day: ThermalMapDay, square: ThermalMapCe
                             color = colours.text,
                             modifier = Modifier.testTag("square-ground"),
                         )
+                    }
+                    // The forecast for the middle of the square, as a site's page has it.
+                    Group {
+                        row {
+                            LinkRow(
+                                "Forecast for this place",
+                                R.drawable.ic_chevron_right,
+                                Modifier.testTag("forecast-square-forecast"),
+                                leading = R.drawable.venti_forecast,
+                                onClick = { showsForecast = true },
+                            )
+                        }
                     }
                     if (!day.whole && day.note.isNotEmpty()) {
                         Text(day.note, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)

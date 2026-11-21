@@ -468,7 +468,7 @@ fun MapScreen(
     val forecastMap = thermalMap?.map
     val forecastDay = thermalMap?.day
     if (shownSquare != null && forecastMap != null && forecastDay != null && showsForecast) {
-        ThermalSquareSheet(forecastMap, forecastDay, shownSquare, onDismiss = { square = null })
+        ThermalSquareSheet(forecastMap, forecastDay, shownSquare, wind, onDismiss = { square = null })
     }
 
     if (showsPlans) {

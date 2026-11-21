@@ -240,6 +240,11 @@ class ThermalMapModelTest {
         assertEquals("Cross-country day", square.thermalWords)
         assertEquals("1.8 m/s to a cloud base of 3250 m", square.thermalLine)
         assertEquals("Judged at the model's ground, 612 m", ThermalMapWords.judgedAt(checkNotNull(square.groundM)))
+        // It leads to the forecast for its middle, named by where that is.
+        val place = ThermalMapWords.place(square)
+        assertEquals(47.0, place.position.lat, 1e-9)
+        assertEquals(11.0, place.position.lon, 1e-9)
+        assertEquals("47.0000° N, 11.0000° E", place.name)
         assertTrue(checkNotNull(forecast.map).note.isNotEmpty())
         // Today was not judged with all of its daylight hours, and says so.
         val today = checkNotNull(forecast.day)

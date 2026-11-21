@@ -8,6 +8,7 @@ import fly.venti.app.design.Format
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
 import fly.venti.core.Bounds
+import fly.venti.core.Coordinate
 import fly.venti.core.CoreException
 import fly.venti.core.ThermalMap
 import fly.venti.core.ThermalMapCell
@@ -225,6 +226,12 @@ object ThermalMapWords {
     /** A square's status as TalkBack reads it, with what speaks against the day: "Marginal, Gusts". */
     fun status(square: ThermalMapCell): String =
         if (square.why.isEmpty()) square.status else "${square.status}, ${square.why}"
+
+    /** The place whose forecast a square leads to: its middle, named by where it is. */
+    fun place(square: ThermalMapCell): ForecastPlace {
+        val middle = Coordinate(lat = (square.south + square.north) / 2, lon = (square.west + square.east) / 2)
+        return ForecastPlace(Format.place(middle.lat, middle.lon), middle)
+    }
 
     /** "Judged at the model's ground, 1240 m" */
     fun judgedAt(groundM: Double): String = "Judged at the model's ground, ${Format.metres(groundM)} m"

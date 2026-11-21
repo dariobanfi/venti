@@ -1935,8 +1935,15 @@ class VentiUiTest {
         }
         letTheMapDraw(2)
         keepScreenshot("map-forecast-3-square")
-        tap(hasText("Done") and hasAnyAncestor(sheet))
-        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(sheet) }
+
+        // The square leads to the forecast for its middle, in the same sheet.
+        screen.onNode(hasTestTag("forecast-square-forecast")).performScrollTo()
+        tap(hasTestTag("forecast-square-forecast"))
+        waitFor(hasTestTag("forecast-table"))
+        letTheMapDraw(1)
+        keepScreenshot("map-forecast-4-forecast")
+        tap(hasText("Done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("forecast-table")) }
 
         // Switched off, the card goes and the squares with it.
         tap(chip)

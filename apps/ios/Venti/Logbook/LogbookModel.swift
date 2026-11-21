@@ -256,6 +256,11 @@ final class LogbookModel {
         core.statistics()
     }
 
+    /// The places flights began at, the one flown from most often first.
+    func siteStatistics() -> [SiteStatistics] {
+        core.siteStatistics()
+    }
+
     /// Removes a flight for good.
     func delete(id: String) throws {
         defer { view = core.logbook() }

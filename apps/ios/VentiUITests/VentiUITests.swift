@@ -262,6 +262,14 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["A typical flight"].waitForExistence(timeout: 10))
         sleep(1)
         keepScreenshot("light-6c-statistics-typical")
+        // The places flown from: the sample's one, without a name. Kept
+        // as a screenshot when it comes into view; not a condition.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+        if element("statistics-by-take-off", in: app).waitForExistence(timeout: 5) {
+            sleep(1)
+            keepScreenshot("light-6e-statistics-by-take-off")
+        }
         app.swipeUp()
         XCTAssertTrue(app.staticTexts["Your bests"].waitForExistence(timeout: 10))
         sleep(1)

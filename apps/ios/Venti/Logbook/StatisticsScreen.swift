@@ -4,7 +4,8 @@ import VentiCore
 
 /// The logbook as a whole: the last twelve months, one year beside
 /// another, when in the year the pilot flies, what a flight is usually
-/// like, the kinds of flight, the gliders flown and the pilot's bests.
+/// like, the kinds of flight, the places flown from, the gliders flown
+/// and the pilot's bests.
 /// Every figure is the core's.
 struct StatisticsScreen: View {
     @Environment(LogbookModel.self) private var logbook
@@ -26,10 +27,16 @@ struct StatisticsScreen: View {
     }
 
     @State private var measure = Measure.airtime
+    /// Whether every place flown from is listed, not only the first ones.
+    @State private var showsAllPlaces = false
+
+    /// How many places are listed until the pilot asks for all.
+    static let placesShown = 8
 
     var body: some View {
         // Worked out by the core from the logbook as it is now.
         let statistics = logbook.statistics()
+        let places = logbook.siteStatistics()
         VentiList {
             Section {
                 VentiSegmented(
@@ -133,6 +140,21 @@ struct StatisticsScreen: View {
                 }
             }
 
+            if !places.isEmpty {
+                Section("By take-off") {
+                    let shown = showsAllPlaces ? places : Array(places.prefix(Self.placesShown))
+                    ForEach(Array(shown.enumerated()), id: \.offset) { index, place in
+                        placeRow(place)
+                            .accessibilityIdentifier(index == 0 ? "statistics-by-take-off" : "")
+                    }
+                    if !showsAllPlaces, places.count > Self.placesShown {
+                        Button("All \(places.count) take-offs") {
+                            showsAllPlaces = true
+                        }
+                    }
+                }
+            }
+
             if !statistics.gliders.isEmpty {
                 Section("Gliders") {
                     ForEach(statistics.gliders, id: \.glider) { glider in
@@ -156,6 +178,21 @@ struct StatisticsScreen: View {
         .monospacedDigit()
         .navigationTitle("Statistics")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// One place flown from: its name or where it is, how many flights,
+    /// and leading to the farthest flight from it where one was scored.
+    @ViewBuilder
+    private func placeRow(_ place: SiteStatistics) -> some View {
+        let title = place.name ?? Format.place(lat: place.lat, lon: place.lon)
+        let value = Format.flights(place.flights)
+        if let farthest = place.farthest {
+            NavigationLink(value: FlightRoute(id: farthest.flightId)) {
+                row(title, value: value, words: Self.words(of: place))
+            }
+        } else {
+            row(title, value: value, words: Self.words(of: place))
+        }
     }
 
     /// One best, leading to its flight.
@@ -219,6 +256,16 @@ struct StatisticsScreen: View {
             parts.append("\(route.closed) closed")
         }
         parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS))")
+        return parts.joined(separator: " · ")
+    }
+
+    /// "5:48 h · farthest 44.3 km on Sun, Aug 31, 2025": the airtime from
+    /// a place, and its farthest flight where one was scored.
+    static func words(of place: SiteStatistics) -> String {
+        var parts = ["\(Format.hoursMinutes(seconds: place.airtimeS)) h"]
+        if let farthest = place.farthest {
+            parts.append("farthest \(Format.kilometres(metres: farthest.value)) km on \(Format.day(unixSeconds: farthest.startUnixS))")
+        }
         return parts.joined(separator: " · ")
     }
 

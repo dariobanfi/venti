@@ -33,6 +33,27 @@ final class LogbookModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(flight.profile.count, 400)
     }
 
+    func testTheStatisticsByTakeoffHaveThePlaceOfTheSampleFlight() async throws {
+        let logbook = try makeLogbook()
+        XCTAssertTrue(logbook.siteStatistics().isEmpty)
+
+        _ = await logbook.addSample()
+
+        // One flight from one place, which the pilot has no waypoint for.
+        let places = logbook.siteStatistics()
+        XCTAssertEqual(places.count, 1)
+        let place = try XCTUnwrap(places.first)
+        XCTAssertNil(place.name)
+        XCTAssertEqual(place.flights, 1)
+        XCTAssertEqual(place.airtimeS, logbook.view.totals.airtimeS)
+        XCTAssertEqual(place.firstUnixS, place.lastUnixS)
+        // The row's words: the airtime first, then the farthest flight
+        // where one was scored.
+        let words = StatisticsScreen.words(of: place)
+        XCTAssertTrue(words.hasPrefix("\(Format.hoursMinutes(seconds: place.airtimeS)) h"), words)
+        XCTAssertEqual(words.contains("farthest"), place.farthest != nil, words)
+    }
+
     func testImportingTheSameFlightAgainSaysSoAndAddsNothing() async throws {
         let logbook = try makeLogbook()
         _ = await logbook.addSample()

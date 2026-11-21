@@ -230,6 +230,7 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "sites.json",
         "forecast.json",
         "thermals.json",
+        "thermal_hours_wind.json",
         "error_missing_bbox.json",
         "sign_in.json",
         "sessions.json",

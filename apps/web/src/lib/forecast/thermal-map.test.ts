@@ -106,6 +106,8 @@ describe('the map', () => {
 	const map: ThermalMap = {
 		days: [DAY, { ...DAY, date: '2026-07-13', name: 'Tomorrow' }],
 		legend: [],
+		layers: [],
+		levels: [],
 		model: 'ICON-D2',
 		runUnixS: Date.UTC(2026, 6, 12, 4) / 1000,
 		computedUnixS: 0,

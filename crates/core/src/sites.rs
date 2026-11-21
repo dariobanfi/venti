@@ -469,7 +469,7 @@ pub(crate) fn wind_spans_in_words(spans: &[WindSpan]) -> String {
 }
 
 /// One of sixteen compass points: sites are tagged that finely.
-fn compass(degrees: f64) -> &'static str {
+pub(crate) fn compass(degrees: f64) -> &'static str {
     const POINTS: [&str; 16] = [
         "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW",
         "NW", "NNW",

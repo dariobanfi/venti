@@ -112,7 +112,8 @@ pub enum ErrorCode {
     /// A plan's day lies outside the days the server takes plans for, its
     /// place is empty or too long, or its note is too long.
     InvalidPlan,
-    /// `from` or `to` is not a date written `YYYY-MM-DD`.
+    /// `from`, `to` or `date` is missing where it is needed, or is not a
+    /// date written `YYYY-MM-DD`.
     InvalidDay,
     /// The group has no plan with this identifier, or none any more.
     PlanNotFound,

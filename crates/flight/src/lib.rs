@@ -9,9 +9,10 @@
 //! the same flight, summarises and analyses a track, prepares it for
 //! drawing, counts how it was flown, runs the live flight computer, reads,
 //! measures and follows competition tasks, works out the thermals of an
-//! hour of a weather model, and says what a forecast's hours make of a day
-//! for flying.
+//! hour of a weather model, reads its wind at a height between the model's
+//! levels, and says what a forecast's hours make of a day for flying.
 
+pub mod aloft;
 pub mod analysis;
 pub mod convection;
 pub mod day;

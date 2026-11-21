@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use axum::http::{StatusCode, header};
 use venti_api_types::v1::{
-    ErrorCode, THERMALS_PATH, ThermalKind, ThermalMapResponse, ThermalVerdict,
+    ErrorCode, THERMAL_HOURS_PATH, THERMALS_PATH, ThermalHoursRequest, ThermalHoursResponse,
+    ThermalKind, ThermalLayer, ThermalMapResponse, ThermalReason, ThermalVerdict,
 };
 use venti_domain::Timestamp;
 use venti_regions::RegionPack;
@@ -58,6 +59,8 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
     );
     assert_eq!(map.attributions.len(), 1);
     assert!(map.attributions[0].text.contains("Open-Meteo.com"));
+    // The heights the hours of its days have the wind at.
+    assert_eq!(map.heights_m, [1000, 1500, 2000, 2500, 3000, 4000]);
 
     // The runs of 06 UTC of both models hold four days between them.
     // ICON-D2's reaches 48 hours, to 06 UTC of the 23rd: today and
@@ -114,6 +117,242 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
 }
 
 #[tokio::test]
+async fn the_development_mode_serves_the_hours_of_each_recorded_day_layer_by_layer() {
+    let router = recorded().await;
+    let map: ThermalMapResponse = get(&router, THERMALS_PATH).await.ok(StatusCode::OK);
+    let path = |date, layer, height_m| {
+        ThermalHoursRequest {
+            date,
+            layer,
+            height_m,
+        }
+        .path_and_query()
+    };
+
+    // Tomorrow, the 22nd, from ICON-D2, and of it the wind at 1000 m
+    // above the sea: the answer shown in the documentation.
+    let tomorrow = map.days[1].date;
+    let asked = path(tomorrow, ThermalLayer::Wind, Some(1000));
+    assert_eq!(
+        asked,
+        "/v1/thermals/hours?date=2026-11-22&layer=wind&height=1000"
+    );
+    let answer = get(&router, &asked).await;
+    let wind: ThermalHoursResponse = answer.ok(StatusCode::OK);
+
+    // Cacheable, validated and compressed as the map of the days is.
+    assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
+    let etag = answer.header(header::ETAG).to_owned();
+    let again = get_with(&router, &asked, &[(header::IF_NONE_MATCH, &etag)]).await;
+    assert_eq!(again.status, StatusCode::NOT_MODIFIED);
+    let packed = get_with(&router, &asked, &[(header::ACCEPT_ENCODING, "gzip")]).await;
+    assert_eq!(packed.header(header::CONTENT_ENCODING), "gzip");
+
+    assert_eq!(wind.source.as_str(), "open-meteo");
+    assert_eq!(wind.attributions.len(), 1);
+    assert!(wind.attributions[0].text.contains("Open-Meteo.com"));
+    assert_eq!(
+        (wind.layer, wind.height_m),
+        (ThermalLayer::Wind, Some(1000))
+    );
+    assert_eq!(wind.heights_m, [1000, 1500, 2000, 2500, 3000, 4000]);
+    assert_eq!(wind.grid, map.grid);
+    assert_eq!(wind.computed_at, map.computed_at);
+    // The ground of the day's model, which here is the map's finest. Of
+    // the four cells one lies under 1000 m: it alone has a wind there.
+    assert_eq!(wind.ground_m, map.ground_m);
+    assert_eq!(
+        wind.ground_m,
+        [Some(1118), Some(1046), Some(1069), Some(947)]
+    );
+    for hour in &wind.hours {
+        assert_eq!(hour.wind_kmh[..3], [None; 3]);
+        assert_eq!(hour.wind_from_deg[..3], [None; 3]);
+        assert!(hour.wind_kmh[3].is_some() && hour.wind_from_deg[3].is_some());
+        // No gusts at a height, and no list of another layer.
+        assert!(hour.gust_kmh.is_empty() && hour.verdict.is_empty());
+    }
+
+    // Late November at 47.6° N: the sun rises about 06:25 UTC and sets
+    // about 15:30, so the hours from an hour after sunrise to an hour
+    // before sunset are those of 08 to 14 UTC.
+    let clock: Vec<String> = wind
+        .hours
+        .iter()
+        .map(|hour| hour.time.format("%d %H:%M").to_string())
+        .collect();
+    assert_eq!(
+        clock,
+        [
+            "22 08:00", "22 09:00", "22 10:00", "22 11:00", "22 12:00", "22 13:00", "22 14:00"
+        ]
+    );
+    assert_golden(&golden("thermal_hours_wind.json"), &wind);
+
+    // Without a layer the answer is the hours' verdicts and thermals,
+    // which make the day of the map: kept as a golden file too.
+    let judged: ThermalHoursResponse = get(&router, "/v1/thermals/hours?date=2026-11-22")
+        .await
+        .ok(StatusCode::OK);
+    assert_eq!(
+        (judged.layer, judged.height_m),
+        (ThermalLayer::Thermals, None)
+    );
+    assert_golden(&golden("thermal_hours.json"), &judged);
+
+    // Every day of the map has its hours, of the day's model and run, in
+    // every layer, and every list of every hour is as long as the grid.
+    let heights = wind.heights_m.clone();
+    for day in &map.days {
+        let layer = |layer: ThermalLayer, height_m: Option<i32>| {
+            let router = &router;
+            let asked = path(day.date, layer, height_m);
+            async move {
+                let hours: ThermalHoursResponse = get(router, &asked).await.ok(StatusCode::OK);
+                assert_eq!((hours.layer, hours.height_m), (layer, height_m));
+                assert_eq!(hours.date, day.date);
+                assert_eq!(Some(&hours.model), day.model.as_ref());
+                assert_eq!(Some(hours.run), day.run);
+                assert_eq!(hours.whole, day.whole);
+                assert!(!hours.hours.is_empty(), "{}", day.date);
+                hours
+            }
+        };
+        let judged = layer(ThermalLayer::Thermals, None).await;
+        let ground = layer(ThermalLayer::Wind, None).await;
+        let cloud = layer(ThermalLayer::Cloud, None).await;
+        let rain = layer(ThermalLayer::Rain, None).await;
+        for (at, hour) in judged.hours.iter().enumerate() {
+            let lengths = [
+                hour.verdict.len(),
+                hour.why.len(),
+                hour.thermals.len(),
+                hour.climb_ms.len(),
+                hour.top_m.len(),
+                hour.cloud.len(),
+                ground.hours[at].wind_kmh.len(),
+                ground.hours[at].wind_from_deg.len(),
+                ground.hours[at].gust_kmh.len(),
+                cloud.hours[at].cloud_cover_pct.len(),
+                rain.hours[at].precipitation_mm.len(),
+            ];
+            assert_eq!(lengths, [4; 11]);
+            // The layers of a day have the same hours.
+            let time = hour.time;
+            assert_eq!(
+                [
+                    ground.hours[at].time,
+                    cloud.hours[at].time,
+                    rain.hours[at].time
+                ],
+                [time; 3]
+            );
+            for cell in 0..4 {
+                // Every cell has every hour here, with the model's wind,
+                // gusts, cloud and rain; rain rules an hour out, and the
+                // hour says so.
+                assert!(hour.verdict[cell].is_some());
+                let wind = &ground.hours[at];
+                assert!(wind.wind_kmh[cell].is_some() && wind.gust_kmh[cell].is_some());
+                assert!(wind.wind_from_deg[cell].is_some_and(|from| from % 10 == 0 && from < 360));
+                assert!(cloud.hours[at].cloud_cover_pct[cell].is_some_and(|cloud| cloud <= 100));
+                let fell = rain.hours[at].precipitation_mm[cell].expect("rain");
+                assert_eq!(fell, (fell * 10.0).round() / 10.0);
+                if fell >= 0.2 {
+                    assert_eq!(hour.verdict[cell], Some(ThermalVerdict::NotFlyable));
+                    assert_eq!(hour.why[cell], Some(ThermalReason::Rain));
+                }
+                // An hour that is not flyable says nothing of thermals.
+                if hour.verdict[cell] == Some(ThermalVerdict::NotFlyable) {
+                    assert_eq!(hour.thermals[cell], None);
+                    assert_eq!(hour.climb_ms[cell], None);
+                }
+            }
+        }
+        for height in &heights {
+            let wind = layer(ThermalLayer::Wind, Some(*height)).await;
+            assert_eq!(wind.hours.len(), judged.hours.len());
+            for hour in &wind.hours {
+                assert_eq!((hour.wind_kmh.len(), hour.wind_from_deg.len()), (4, 4));
+                assert!(hour.gust_kmh.is_empty());
+                for cell in 0..4 {
+                    // No wind at a height under the model's ground, and
+                    // one at every height above it: the models' levels
+                    // reach above 4000 m.
+                    let under = wind.ground_m[cell].is_some_and(|ground| ground > *height);
+                    assert_eq!(
+                        hour.wind_kmh[cell].is_none(),
+                        under,
+                        "{height} m, cell {cell}"
+                    );
+                    assert_eq!(hour.wind_from_deg[cell].is_none(), under);
+                }
+            }
+        }
+    }
+    // The 24th is ICON-EU's and ends with its run, at noon UTC.
+    let last: ThermalHoursResponse =
+        get(&router, &path(map.days[3].date, ThermalLayer::Rain, None))
+            .await
+            .ok(StatusCode::OK);
+    assert_eq!(last.model.as_str(), "icon-eu");
+    assert!(!last.whole);
+    assert_eq!(last.hours.len(), 5);
+}
+
+#[tokio::test]
+async fn the_hours_are_asked_for_by_a_day_the_map_has_and_a_layer_it_keeps() {
+    let router = recorded().await;
+
+    // Without a day, and with something that is none.
+    let answer = get(&router, THERMAL_HOURS_PATH).await;
+    let message = answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidDay);
+    assert!(message.contains("date=YYYY-MM-DD"), "{message}");
+    let answer = get(&router, "/v1/thermals/hours?date=tomorrow").await;
+    let message = answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidDay);
+    assert!(message.contains("\"tomorrow\""), "{message}");
+
+    // A day the map does not have: the answer says which it has.
+    let answer = get(&router, "/v1/thermals/hours?date=2026-12-24&layer=cloud").await;
+    let message = answer.error(StatusCode::NOT_FOUND, ErrorCode::NotFound);
+    assert!(
+        message.contains("2026-11-21, 2026-11-22, 2026-11-23, 2026-11-24"),
+        "{message}"
+    );
+
+    // A layer there is none of, a height the map does not keep, and a
+    // height asked of a layer that has none.
+    let refused = |path: &'static str, says: &'static str| {
+        let router = &router;
+        async move {
+            let answer = get(router, path).await;
+            let message = answer.error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest);
+            assert!(message.contains(says), "{message}");
+        }
+    };
+    refused(
+        "/v1/thermals/hours?date=2026-11-22&layer=snow",
+        "thermals, wind, cloud, rain",
+    )
+    .await;
+    refused(
+        "/v1/thermals/hours?date=2026-11-22&layer=wind&height=1800",
+        "1000, 1500, 2000, 2500, 3000, 4000",
+    )
+    .await;
+    refused(
+        "/v1/thermals/hours?date=2026-11-22&layer=wind&height=high",
+        "metres above mean sea level",
+    )
+    .await;
+    refused(
+        "/v1/thermals/hours?date=2026-11-22&layer=rain&height=2000",
+        "height goes with layer=wind",
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn a_server_without_forecasts_has_no_thermal_map() {
     let (router, _) = server(settings(), &TestClock::new());
 
@@ -121,6 +360,10 @@ async fn a_server_without_forecasts_has_no_thermal_map() {
     let message = answer.error(StatusCode::NOT_IMPLEMENTED, ErrorCode::NoForecasts);
     assert!(message.contains("no thermal map"), "{message}");
     assert_eq!(answer.header(header::CACHE_CONTROL), "no-store");
+
+    // Nor the hours of any day of it.
+    let answer = get(&router, "/v1/thermals/hours?date=2026-11-21").await;
+    answer.error(StatusCode::NOT_IMPLEMENTED, ErrorCode::NoForecasts);
 }
 
 #[tokio::test]
@@ -144,11 +387,13 @@ async fn a_server_with_forecasts_and_no_map_yet_says_when_to_ask_again() {
         .with_forecasts(forecasts)
         .router(&Cors::Origins(Vec::new()));
 
-    let answer = get(&router, THERMALS_PATH).await;
-    let message = answer.error(StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Unavailable);
-    assert!(message.contains("not made yet"), "{message}");
-    assert_eq!(answer.header(header::RETRY_AFTER), "60");
-    assert_eq!(answer.header(header::CACHE_CONTROL), "no-store");
+    for path in [THERMALS_PATH, "/v1/thermals/hours?date=2026-11-21"] {
+        let answer = get(&router, path).await;
+        let message = answer.error(StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Unavailable);
+        assert!(message.contains("not made yet"), "{message}");
+        assert_eq!(answer.header(header::RETRY_AFTER), "60");
+        assert_eq!(answer.header(header::CACHE_CONTROL), "no-store");
+    }
 }
 
 #[tokio::test]

@@ -94,7 +94,7 @@ use venti_api_types::v1::{
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
     PUBLIC_FLIGHTS_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
-    THERMALS_PATH,
+    THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -344,7 +344,8 @@ impl<S: Store> Api<S> {
         self
     }
 
-    /// The same API, answering `/v1/thermals` from `map`.
+    /// The same API, answering `/v1/thermals` and `/v1/thermals/hours`
+    /// from `map`.
     ///
     /// Without this, a server with forecasts says that its thermal map is
     /// not there yet, and one without says that it has no forecasts.
@@ -441,6 +442,7 @@ impl<S: Store> Api<S> {
             .route(SITES_PATH, get(sites::sites::<S>))
             .route(FORECAST_PATH, get(forecast::forecast::<S>))
             .route(THERMALS_PATH, get(thermals::thermals::<S>))
+            .route(THERMAL_HOURS_PATH, get(thermals::thermal_hours::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

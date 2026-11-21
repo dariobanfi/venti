@@ -45,16 +45,38 @@ one recorded has four, too few for six patches); the source, model and
 credit are the development server's where it has a map. Every value of
 the map is made up, deterministically: the same on every start.
 
+And it answers `GET /v1/thermals/hours` with the hours of each day of
+that map, a layer at a time as a server does (`date`, `layer`, and for the
+wind a `height`), so that the line of hours and the layers of wind, gusts,
+cloud and rain can be seen with something in them: eleven hours a day,
+from 06 to 16 UTC, in which the thermals come up through the morning and
+fade in the late afternoon; what speaks against a square does so from 10
+to 15 UTC, rain in the corner that is not flyable and gusts of 32 km/h and
+more in the marginal band; a south wind at the ground that strengthens and
+veers with height, and has no value at a height under a square's ground
+(the made-up ground lies between 700 and 1300 m, so 1000 m is under some
+of it); cloud that thickens from west to east. The fourth day, which is
+not whole, has its first hour alone. The map names the heights
+(`heights_m`), as a server's does, which is what tells an app that there
+are hours to ask for.
+
 None of it is a forecast. The answer says so in the name of its model's
 run only by being impossible for the season; whoever shows a screenshot
 made with it says that the day is made up.
 
     serve.py --behind http://127.0.0.1:8080 --port 8081
+
+To look at the made-up map and its hours without a server, or to check
+them against the apps' core (`VENTI_MADE_UP_DAY=<folder> cargo test -p
+venti-core made_up -- --ignored`):
+
+    serve.py --write <folder>
 """
 
 import argparse
 import datetime
 import json
+import pathlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -231,9 +253,167 @@ def made_up_map(real, today=None):
         "computed_at": f"{today.isoformat()}T03:25:00Z",
         "grid": grid,
         "ground_m": ground,
+        # The heights its hours have the wind at: with them an app knows
+        # that there are hours to ask for.
+        "heights_m": HEIGHTS_M,
         "days": days,
         "attributions": real.get("attributions", []),
     }
+
+
+# The heights above the sea the made-up map names for the wind of its
+# hours, as a server's map does, and the layers its hours come in.
+HEIGHTS_M = [1000, 1500, 2000, 2500, 3000, 4000]
+LAYERS = ("thermals", "wind", "cloud", "rain")
+# The hours (UTC) a made-up day has, and those in which what speaks
+# against a square does so.
+DAY_HOURS = range(6, 17)
+BAD_HOURS = range(10, 16)
+
+
+class Refused(Exception):
+    """A request for hours the made-up map refuses, as a server would."""
+
+    def __init__(self, status, code, message):
+        super().__init__(message)
+        self.status, self.code = status, code
+
+
+def made_up_hours(made, date, layer="thermals", height=None):
+    """One layer of the hours of one day of a made-up map (`made_up_map`),
+    in the wire format of `GET /v1/thermals/hours`."""
+    if layer not in LAYERS:
+        raise Refused(400, "invalid_request", "layer is one of " + ", ".join(LAYERS))
+    if height is not None and layer != "wind":
+        raise Refused(400, "invalid_request", "height goes with layer=wind")
+    if height is not None and height not in HEIGHTS_M:
+        raise Refused(400, "invalid_request",
+                      "height is one of " + ", ".join(str(one) for one in HEIGHTS_M))
+    day = next((one for one in made["days"] if one["date"] == date), None)
+    if day is None:
+        raise Refused(404, "not_found", "the thermal map has no hours for " + date + "; it has "
+                      + ", ".join(one["date"] for one in made["days"]))
+    grid, ground = made["grid"], made["ground_m"]
+    rows, columns = grid["rows"], grid["columns"]
+    cells = [(row, column) for row in range(rows) for column in range(columns)]
+    # A day that is not whole ends with its model's run, early in it.
+    clock = list(DAY_HOURS) if day["whole"] else list(DAY_HOURS)[:1]
+    hours = []
+    for at in clock:
+        bad = at in BAD_HOURS
+        # Thermals come up through the morning and fade late in the day.
+        weaker = 2 if at <= 7 or at >= 16 else 1 if at <= 9 or at == 15 else 0
+        lists = {name: [] for name in (
+            "verdict", "why", "thermals", "climb_ms", "top_m", "cloud",
+            "wind_kmh", "wind_from_deg", "gust_kmh", "cloud_cover_pct", "precipitation_mm")}
+        for cell, (row, column) in enumerate(cells):
+            of_day = day["verdict"][cell]
+            verdict = of_day if bad else "flyable"
+            kind = None
+            if verdict != "not_flyable":
+                kind = day["thermals"][cell] or "weak"
+                for _ in range(weaker):
+                    kind = WEAKER[kind]
+            climb, top, cloud = KINDS[kind] if kind else (None, None, False)
+            lists["verdict"].append(verdict)
+            lists["why"].append({"not_flyable": "rain", "marginal": "gusts"}.get(verdict))
+            lists["thermals"].append(kind)
+            lists["climb_ms"].append(climb)
+            lists["top_m"].append(top)
+            lists["cloud"].append(cloud)
+
+            across = column / max(columns - 1, 1)
+            if height is None:
+                # A south wind at the ground, lighter in the west, with
+                # gusts that pass 30 km/h where they speak against the hour.
+                speed = 3 + (row * 3 + column * 5 + at) % 9 + (4 if across >= 0.35 else 0)
+                gust = speed + 5 + (row + at) % 5
+                if verdict == "marginal":
+                    gust = 32 + (row + column) % 7
+                if verdict == "not_flyable":
+                    speed, gust = 22 + (row + column) % 5, 41 + (row + column) % 4
+                lists["wind_kmh"].append(speed)
+                lists["wind_from_deg"].append((180 + 10 * ((column + at) % 7 - 3)) % 360)
+                lists["gust_kmh"].append(gust)
+            elif ground[cell] is not None and ground[cell] > height:
+                # Under the ground there is no wind.
+                lists["wind_kmh"].append(None)
+                lists["wind_from_deg"].append(None)
+            else:
+                # Stronger and further round to the west with height.
+                speed = 4 + height // 250 + (row * 2 + column + at) % 8
+                lists["wind_kmh"].append(speed + (6 if across >= 0.35 else 0))
+                lists["wind_from_deg"].append(
+                    (200 + height // 100 + 10 * ((row + at) % 5)) // 10 * 10 % 360)
+
+            cover = 10 + 10 * ((row + column + at) % 4)
+            cover += 60 if across >= 0.7 else 30 if across >= 0.35 else 0
+            rain = 0.0
+            if verdict == "not_flyable":
+                cover, rain = 100, (0.4, 1.6, 5.2)[(row + column + at) % 3]
+            elif verdict == "marginal" and (row + at) % 4 == 0:
+                rain = 0.1
+            lists["cloud_cover_pct"].append(min(cover, 100))
+            lists["precipitation_mm"].append(rain)
+        keep = {
+            "thermals": ("verdict", "why", "thermals", "climb_ms", "top_m", "cloud"),
+            "wind": ("wind_kmh", "wind_from_deg") + (("gust_kmh",) if height is None else ()),
+            "cloud": ("cloud_cover_pct",),
+            "rain": ("precipitation_mm",),
+        }[layer]
+        hours.append({"time": f"{date}T{at:02d}:00:00Z", **{name: lists[name] for name in keep}})
+    answer = {
+        "source": made["source"],
+        "date": date,
+        "layer": layer,
+        "heights_m": HEIGHTS_M,
+        "model": day["model"],
+        "run": day["run"],
+        "whole": day["whole"],
+        "computed_at": made["computed_at"],
+        "grid": grid,
+        "ground_m": ground,
+        "hours": hours,
+        "attributions": made["attributions"],
+    }
+    if height is not None:
+        answer["height_m"] = height
+    return answer
+
+
+def hours_asked(made, query):
+    """The answer to a query for hours, as (status, body)."""
+    try:
+        date = (query.get("date") or [""])[0]
+        try:
+            datetime.date.fromisoformat(date)
+        except ValueError:
+            raise Refused(400, "invalid_day", "give the day as date=YYYY-MM-DD") from None
+        height = (query.get("height") or [None])[0]
+        if height is not None:
+            try:
+                height = int(height)
+            except ValueError:
+                raise Refused(400, "invalid_request", "height is a number of metres") from None
+        layer = (query.get("layer") or ["thermals"])[0]
+        return 200, made_up_hours(made, date, layer, height)
+    except Refused as refused:
+        return refused.status, {"error": {"code": refused.code, "message": str(refused)}}
+
+
+def write(folder):
+    """Writes the made-up map and every layer of each of its days to a
+    folder, as files named after what was asked for."""
+    folder = pathlib.Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    made = made_up_map(None)
+    (folder / "thermals.json").write_text(json.dumps(made))
+    for day in made["days"]:
+        for layer in LAYERS:
+            for height in [None] + (HEIGHTS_M if layer == "wind" else []):
+                name = f"hours_{day['date']}_{layer}" + (f"_{height}" if height else "")
+                answer = made_up_hours(made, day["date"], layer, height)
+                (folder / f"{name}.json").write_text(json.dumps(answer))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -275,6 +455,13 @@ class Handler(BaseHTTPRequestHandler):
             status = 200
             answer = json.dumps(made_up_map(real, self.today())).encode()
             handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+        if self.command in ("GET", "HEAD") and url.path == "/v1/thermals/hours":
+            # The hours of the made-up map's days, whatever the server
+            # behind said of its own.
+            status, made = hours_asked(
+                made_up_map(self.real_map(), self.today()), urllib.parse.parse_qs(url.query))
+            answer = json.dumps(made).encode()
+            handed_back = {"Content-Type": "application/json", "Cache-Control": "no-store"}
         self.send_response(status)
         for name, value in handed_back.items():
             self.send_header(name, value)
@@ -282,6 +469,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(answer)
+
+    def real_map(self):
+        """The thermal map of the server behind, or None if it has none."""
+        try:
+            with urllib.request.urlopen(self.behind + "/v1/thermals", timeout=20) as response:
+                return json.loads(response.read())
+        except (OSError, ValueError):
+            return None
 
     def today(self):
         """The day by the clock of the server behind, or None if it does
@@ -300,10 +495,17 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--behind", required=True, help="the development server to stand in front of")
-    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--behind", help="the development server to stand in front of")
+    parser.add_argument("--port", type=int)
     parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument("--write", metavar="FOLDER",
+                        help="write the made-up map and its hours to a folder, and serve nothing")
     arguments = parser.parse_args()
+    if arguments.write:
+        write(arguments.write)
+        return
+    if not arguments.behind or arguments.port is None:
+        parser.error("--behind and --port are needed to serve")
     Handler.behind = arguments.behind.rstrip("/")
     server = ThreadingHTTPServer((arguments.bind, arguments.port), Handler)
     print(f"a made-up day on http://{arguments.bind}:{arguments.port}, in front of {Handler.behind}", flush=True)

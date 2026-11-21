@@ -6,7 +6,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals) and [the hours of its days](#get-v1thermalshoursdatelayerheight), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights), [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -159,9 +159,9 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from`, `to` or `after` is not an RFC 3339 time |
 | 400 | `invalid_range` | `from` lies after `to`, or the window of observations is longer than seven days. For the list of public flights: `from` is not earlier than `to` |
-| 400 | `invalid_day` | For a list of plans: `from` or `to` is not a date written `YYYY-MM-DD` |
+| 400 | `invalid_day` | For a list of plans: `from` or `to` is not a date written `YYYY-MM-DD`. For the hours of the thermal map: `date` is missing or is not one |
 | 400 | `invalid_sort` | `sort` is not an order the list of public flights has: `newest` or `score` |
-| 400 | `invalid_request` | The request could not be read at all: a path that is not valid UTF-8, a body that is not the JSON the endpoint expects. For a body, `message` says where it stops making sense and never repeats what stands there |
+| 400 | `invalid_request` | The request could not be read at all: a path that is not valid UTF-8, a body that is not the JSON the endpoint expects. For a body, `message` says where it stops making sense and never repeats what stands there. For the hours of the thermal map: `layer` or `height` is none the map has, and `message` lists those it has |
 | 400 | `invalid_handle`, `invalid_display_name`, `invalid_password` | A new account's handle, name or password is not as [described](#accounts-and-sessions) |
 | 400 | `invalid_visibility` | `visibility` is not `private`, `unlisted` or `public`; for a live track, not `link` or `public` |
 | 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
@@ -189,7 +189,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 404 | `group_member_not_found`, `plan_not_found` | Said to members of a group only: no member of it has this handle; it has no plan with this identifier, or none any more |
 | 404 | `map_not_found` | The server hands out no [map file](#get-and-head-v1mapsregionversionname) under this path: no region with this identifier, not in this version, or no file of this name. The three cannot be told apart |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
-| 404 | `not_found` | The path is not part of the API |
+| 404 | `not_found` | The path is not part of the API. For the hours of the thermal map: the map has no such day, and `message` lists the days it has |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
@@ -1183,6 +1183,14 @@ The answer of the development mode, whole:
     1069,
     947
   ],
+  "heights_m": [
+    1000,
+    1500,
+    2000,
+    2500,
+    3000,
+    4000
+  ],
   "days": [
     {
       "date": "2026-11-21",
@@ -1372,6 +1380,7 @@ The answer of the development mode, whole:
 | `computed_at` | When the server worked the map out |
 | `grid` | Where the cells are: see below |
 | `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing, and where the model's cell is water: such a cell is judged by the wind at the ground, the gusts and the rain alone, and has no thermals |
+| `heights_m` | The heights above mean sea level at which the hours of the map's days have the wind ([`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight)), whole metres, the lowest first. Since 2026-11-21; a server older than that leaves it out and has no hours to ask for, which is how a client tells |
 | `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow and, once a run of ICON-EU of 00, 06, 12 or 18 UTC has reached into its daylight, the day after that, which is ICON-EU's |
 
 **The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.
@@ -1409,6 +1418,240 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 | `503` | `unavailable` | The server has a forecast service and no map yet: after its first start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
 
 **In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 09:25 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 09:30 UTC. The runs are those of the mode's forecasts for a place: ICON-D2's and ICON-EU's of 06:00 UTC of that day. The map has four days. The 21st and the 22nd are ICON-D2's, whose run reaches 06:00 UTC on the 23rd, and both are whole. The 23rd and the 24th are ICON-EU's, whose run is a main run and reaches 12:00 UTC on the 24th: the 23rd is whole, and the 24th has the hours until noon and is not (`"whole": false`). They are days of late November: not flyable for rain on the 21st, weak thermals on the 22nd, on the 23rd weak thermals in the two southern cells and rain in the two northern, and weak thermals on the 24th. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
+
+## `GET /v1/thermals/hours?date=&layer=&height=`
+
+One day of the thermal map hour by hour, a layer at a time: for every daylight hour of the day and every cell of the map's grid, the hour's verdict and what its thermals count as, or what the model has in that hour of wind, of cloud or of rain. The day's verdict in [`GET /v1/thermals`](#get-v1thermals) is made of these hours; the wind, the cloud and the rain are the model's own values for the same hours, which the server keeps beside its verdicts since 2026-11-21 ([architecture.md](architecture.md#the-thermal-map)).
+
+| Parameter | Meaning |
+|---|---|
+| `date` | The day, written `YYYY-MM-DD`: one of `days[].date` of `GET /v1/thermals`. Needed |
+| `layer` | What of the hours to answer with: `thermals` (the hours' verdicts and thermals), `wind`, `cloud` or `rain`. Left out: `thermals` |
+| `height` | With `layer=wind` only: the height above mean sea level to read the wind at, whole metres, one of the map's `heights_m` (1000, 1500, 2000, 2500, 3000 and 4000; the set is ours). Left out: the wind 10 m above the model's ground, with its gusts |
+
+**The hours are daylight hours, and no others.** The map judges, and keeps, the hours from an hour after sunrise to an hour before sunset, by the sun at each cell (`venti_flight::day::daylight_hours`): the first and the last hour of the sun are left to no judgement by wind and cloud alone. Seven hours in late November at 47° N, fourteen in July. The wind at night, a morning's first hour and an evening's last are not in the answer; `GET /v1/forecast` has every hour for one place.
+
+**It is one cell of the model for a square of 11 by 7.5 km.** The map asks the model at one point per square, and the model answers from its own cell nearest it: one of some twenty cells of ICON-D2 that lie in the square, and for the days ICON-EU is read for, a cell about as wide as the square. A valley's own wind, a pass, a lee: none of it is in a square. Read it as where the model has wind, cloud and rain over a region, and read a take-off's own forecast before going.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/thermals/hours?date=2026-11-22&layer=wind&height=1000'
+```
+
+The answer of the development mode, whole: the wind at 1000 m above the sea on the 22nd. Three of its four cells have their ground above 1000 m and no wind there.
+
+```json
+{
+  "source": "open-meteo",
+  "date": "2026-11-22",
+  "layer": "wind",
+  "height_m": 1000,
+  "heights_m": [
+    1000,
+    1500,
+    2000,
+    2500,
+    3000,
+    4000
+  ],
+  "model": "icon-d2",
+  "run": "2026-11-21T06:00:00Z",
+  "whole": true,
+  "computed_at": "2026-11-21T09:30:00Z",
+  "grid": {
+    "south": 47.6,
+    "west": 11.8,
+    "step_deg": 0.1,
+    "rows": 2,
+    "columns": 2
+  },
+  "ground_m": [
+    1118,
+    1046,
+    1069,
+    947
+  ],
+  "hours": [
+    {
+      "time": "2026-11-22T08:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        2
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        70
+      ]
+    },
+    {
+      "time": "2026-11-22T09:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        2
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        70
+      ]
+    },
+    {
+      "time": "2026-11-22T10:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        3
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        50
+      ]
+    },
+    {
+      "time": "2026-11-22T11:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        4
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        40
+      ]
+    },
+    {
+      "time": "2026-11-22T12:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        3
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        40
+      ]
+    },
+    {
+      "time": "2026-11-22T13:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        2
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        20
+      ]
+    },
+    {
+      "time": "2026-11-22T14:00:00Z",
+      "wind_kmh": [
+        null,
+        null,
+        null,
+        3
+      ],
+      "wind_from_deg": [
+        null,
+        null,
+        null,
+        350
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `source` | Where the values are from. The credit is the entry of `attributions` with the same `source` |
+| `date` | The day, by the sun at the cells |
+| `layer` | The layer the hours hold: `thermals`, `wind`, `cloud` or `rain` |
+| `height_m` | For the wind at a height above mean sea level: that height. Left out for the wind 10 m above the model's ground, and for the other layers |
+| `heights_m` | The heights the wind can be asked for at, the lowest first: the same in every answer, and in `GET /v1/thermals` |
+| `model`, `run` | The model the day is read from, which is the one the day of `GET /v1/thermals` names, and when the newest run of it began that the day holds hours of. Every hour of the answer is that model's, and an earlier hour of the day can be an earlier run's. **Show the pilot both** |
+| `whole` | Whether every cell has all of the day's daylight hours, as `days[].whole` of `GET /v1/thermals`. On a day that is not whole the answer ends where the model's run does, or begins where it began |
+| `computed_at` | When the server worked the map out: the same moment as the map of the days it belongs to |
+| `grid` | Where the cells are, as in [`GET /v1/thermals`](#get-v1thermals) |
+| `ground_m` | The height of this model's ground at each cell, whole metres above mean sea level: the height the cell's hours are judged at, 10 m under its wind at the ground, and what a height has to lie above to have a wind. On a day that is ICON-EU's it is ICON-EU's ground, which is not the `ground_m` of `GET /v1/thermals` (that is the finest model's). `null` where the model's cell is water |
+| `hours` | The day's daylight hours that any cell has, oldest first. Daylight differs by some minutes across a region, so an hour at the day's edge can be one cell's and not another's |
+
+An hour has its `time` and the lists of the layer that was asked for, each as long as the grid has cells and in the grid's order. The lists of the other layers are left out. A cell has `null` (in `cloud`, `false`) in an hour that is none of its own daylight hours or that the model's runs at hand do not hold for it.
+
+| Layer | Field | Meaning |
+|---|---|---|
+| all | `time` | The moment the hour's values are for. Rain and gusts are those of the hour before it, as the model gives them |
+| `thermals` | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone, for this hour |
+| `thermals` | `why` | Per cell the worst thing the air has against the hour, with the names of `GET /v1/thermals`; of two equally bad the first of wind, gusts, wind higher up, cloud base, storms. `null` in a flyable hour |
+| `thermals` | `thermals` | Per cell what the hour's thermals count as: `weak`, `local`, `cross_country` or `big`, by their climb, how far above the ground they reach and the wind in them. Never more than `local` in a marginal hour. `null` in an hour that is not flyable, and where there is no estimate |
+| `thermals` | `climb_ms`, `top_m`, `cloud` | Per cell the climb to expect in the hour's thermals, m/s to a tenth; how high they go, metres above mean sea level to the nearest fifty; and whether that height is a base of cumulus. As in a day of `GET /v1/thermals`, of the one hour |
+| `wind` | `wind_kmh` | Per cell the wind's mean speed, **whole km/h**: 10 m above the model's ground, or at `height_m` |
+| `wind` | `wind_from_deg` | Per cell the direction it comes from, degrees **to the nearest ten**, 0 to 350 |
+| `wind` | `gust_kmh` | Per cell the strongest gust of the hour 10 m above the model's ground, whole km/h. Left out at a height: the model has gusts at the ground alone |
+| `cloud` | `cloud_cover_pct` | Per cell the share of the sky covered by cloud at any height, whole percent. A thin high veil counts as much as a low layer; the cover by height is in `GET /v1/forecast` |
+| `rain` | `precipitation_mm` | Per cell the rain, showers and snow of the hour, millimetres of water to a tenth. The hour's verdict is `not_flyable` from 0.2 mm, weighed before the rounding |
+
+**The wind at a height is read between the model's levels.** The model has its wind 10 m above its ground, at 80, 120 and 180 m above it, and on the surfaces of 950, 850, 700, 600 and 500 hPa, whose heights above the sea it gives hour by hour (some 500, 1,500, 3,000, 4,200 and 5,600 m). For a height the server takes the level below and the level above and reads between them: the speed in a straight line by height, the direction along the shorter way round the compass (`venti_flight::aloft`; [architecture.md](architecture.md#the-thermal-map) says why so). Between 850 and 700 hPa that is a reading across some 1,500 m, in which a shear or an inversion's own wind is not seen. Nothing is read beyond the levels: the value is `null` where the height lies under the model's ground (`ground_m` says how high that is), where it lies above the model's highest level, and where the model gives no height of its ground. A surface of pressure that lies under the model's ground is no level. From the ground up to 10 m above it the wind is the one at 10 m.
+
+**Units.** Whole km/h, tens of degrees, whole percent and tenths of a millimetre, where `GET /v1/forecast` has metres per second and the model's own figures: a layer of a region's day is some 25,000 values for each of its lists, and a map shows no more of them than whole numbers.
+
+A client expects values of `layer`, `verdict` and `thermals` it does not know, and fields it does not know.
+
+**Credit.** Show the credit of the source next to the layer, with its link.
+
+**Caching.** `Cache-Control: public, max-age=60` and an `ETag`, as the map of the days. A layer of a day changes when the map does, with a run of the day's model.
+
+**Size, and why a layer at a time.** Not measured on an instance: the development mode has four cells. Measured instead over the first region's grid of 1,817 cells with made-up weather of a July day of fourteen daylight hours, made twice: as fields that change slowly from cell to cell, and with every value drawn by itself from its range, which packs worst (`a_regions_hours_weighed` in `crates/server/src/thermals.rs`). What a model has lies between the two, the wind at the ground nearer the second. *To verify* on the owner's installation.
+
+| Answer | Plain | With gzip, smooth fields | With gzip, every value by itself |
+|---|---|---|---|
+| `layer=thermals` | 1.0 MB | 42 kB | 86 kB |
+| `layer=wind` (the ground, with gusts) | 250 kB | 42 kB | 74 kB |
+| `layer=wind&height=` one height | 180 to 230 kB | 26 to 34 kB | 33 to 57 kB |
+| `layer=cloud` | 86 kB | 17 kB | 30 kB |
+| `layer=rain` | 112 kB | 13 kB | 12 kB |
+| everything in one answer for the day (not served) | 2.6 MB | 278 kB | 484 kB |
+
+A day in late November has half the hours and half the size. One answer with every layer of a day was the other choice, and is five to ten times what a pilot looks at in one go; so a client asks for the layer it shows, and for another when the pilot switches. Directions in tens of degrees (0 to 35) in place of degrees would save a twentieth, and were left as degrees.
+
+**When there is no answer.**
+
+| Status | `error.code` | When |
+|---|---|---|
+| `400` | `invalid_day` | `date` is missing or is not a date written `YYYY-MM-DD` |
+| `400` | `invalid_request` | `layer` is none of the four; `height` is none of the map's heights; or `height` is given with a layer other than `wind` |
+| `404` | `not_found` | The map has no hours for this day. `message` lists the days it has |
+| `501` | `no_forecasts` | The server has no forecast service, and no map |
+| `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
+
+**In the development mode** the hours are those of the recorded map's four days, by the code a real server runs: seven hours a day, from 08:00 to 14:00 UTC, on the 21st to the 23rd, and five on the 24th, which ends with ICON-EU's run at noon. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint for each day of its made-up map, with eleven hours a day and something in every layer.
 
 ## Maps
 

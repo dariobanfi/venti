@@ -14,18 +14,27 @@
 //! take-off's own page ([`crate::site_outlook`]) judges at the take-off's
 //! height and knows the directions it works in. The map is where to look;
 //! the page is what to read before going.
+//!
+//! The map of the days is one answer. A day's hours, with the model's
+//! wind, cloud and rain in each, are asked for a layer at a time
+//! ([`crate::thermal_hours_path`], [`crate::ThermalMapHours`]); what
+//! layers and heights there are to choose from, the map of the days says
+//! ([`ThermalMap::layers`], [`ThermalMap::levels`]). And a square's days
+//! side by side, for the sheet of a tapped square, are read from the same
+//! answer ([`thermal_map_strip`]).
 
 use chrono::{DateTime, Duration, NaiveDate};
 use venti_api_types::v1;
 
 use crate::forecast::model_name;
 use crate::server::answer;
+use crate::thermal_hours::{ThermalMapLayerChoice, ThermalMapLevel, layers, levels};
 use crate::wind::credit;
 use crate::{CoreError, Credit, Flyability, Thermals};
 
 /// The most cells a map may have and still be read. The first region has
 /// some 1,800; a hundred times that is a server that is not ours.
-const MAX_CELLS: usize = 200_000;
+pub(crate) const MAX_CELLS: usize = 200_000;
 
 /// The steps of the design language's thermal scale the kinds of day are
 /// drawn in, from weak thermals to a big day. The scale has six steps and
@@ -138,8 +147,37 @@ pub struct ThermalMap {
     pub computed_unix_s: i64,
     /// What the map is and is not, for the foot of the screen.
     pub note: String,
+    /// What a day's hours can be asked for and drawn as, in the order a
+    /// shell offers them: thermals, wind, gusts, cloud, rain, each with
+    /// its name and its key. Empty for a server that has no hours to ask
+    /// for: the map is then the days alone.
+    pub layers: Vec<ThermalMapLayerChoice>,
+    /// The levels the wind can be asked for at: 10 m above the model's
+    /// ground first, then the heights above the sea the server keeps, the
+    /// lowest first. Empty where `layers` is.
+    pub levels: Vec<ThermalMapLevel>,
     /// The credits to show wherever the map is.
     pub credits: Vec<Credit>,
+}
+
+/// One day of a square of the map, for a strip of its days side by side.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct ThermalStripDay {
+    /// The day as a date: "2026-07-12". The date of a [`ThermalMapDay`].
+    pub date: String,
+    /// What to call it: "Today", "Tomorrow", else the day of the week.
+    pub name: String,
+    /// The weather model the day is read from: "ICON-D2".
+    pub model: String,
+    /// Whether the square was judged with all of the day's daylight
+    /// hours, as the day of the map says of all its squares.
+    pub whole: bool,
+    /// The square on that day: its verdict, its kind of day with the step
+    /// of the scale for a mark, and the words. None where the day has no
+    /// verdict for the square: show the day with nothing under it.
+    pub square: Option<ThermalMapCell>,
 }
 
 /// The path to `GET` from the server for the thermal map.
@@ -159,14 +197,9 @@ pub fn thermal_map(
     utc_offset_s: i32,
     now_unix_s: i64,
 ) -> Result<ThermalMap, CoreError> {
-    let response: v1::ThermalMapResponse = answer(status, &body)?;
+    let response = read(status, &body)?;
     let grid = response.grid;
     let cells = grid.cells();
-    let unreadable = || CoreError::Server {
-        message:
-            "The server's thermal map could not be read. The app may be older than the server."
-                .to_owned(),
-    };
     // Every list is as long as the grid has cells, or the map is not one.
     let fits = |day: &v1::ThermalMapDay| {
         [
@@ -185,18 +218,11 @@ pub fn thermal_map(
         .iter()
         .all(|length| *length == cells)
     };
-    if cells > MAX_CELLS
-        || !grid.step_deg.is_finite()
-        || grid.step_deg <= 0.0
-        || response.ground_m.len() != cells
-        || !response.days.iter().all(fits)
-    {
+    if !response.days.iter().all(fits) {
         return Err(unreadable());
     }
 
-    let today = (DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default()
-        + Duration::seconds(i64::from(utc_offset_s)))
-    .date_naive();
+    let today = today(utc_offset_s, now_unix_s);
     let name = model_name(response.model.as_str());
     let days = response
         .days
@@ -217,7 +243,9 @@ pub fn thermal_map(
                     &name,
                 ),
                 cells: (0..cells)
-                    .filter_map(|cell| square(&grid, day, &response.ground_m, cell))
+                    .filter_map(|cell| {
+                        square(&grid, &Judged::of_day(day), &response.ground_m, cell)
+                    })
                     .collect(),
             }
         })
@@ -234,13 +262,115 @@ pub fn thermal_map(
         model: name,
         run_unix_s: response.run.timestamp(),
         computed_unix_s: response.computed_at.timestamp(),
+        // A server that names no heights has no hours to ask for.
+        layers: if response.heights_m.is_empty() {
+            Vec::new()
+        } else {
+            layers()
+        },
+        levels: if response.heights_m.is_empty() {
+            Vec::new()
+        } else {
+            levels(&response.heights_m)
+        },
         credits: response.attributions.iter().map(credit).collect(),
     })
 }
 
+/// A square's days side by side: every day from today on that the map
+/// has, with what it says of the square a place lies in. For the sheet of
+/// a tapped square, which shows them as a strip: which day, at a glance.
+///
+/// `status` and `body` are the server's answer to [`thermal_map_path`],
+/// the same that [`thermal_map`] read: the shell keeps it. `utc_offset_s`
+/// and `now_unix_s` are as there. Empty for a place outside the map.
+#[uniffi::export]
+pub fn thermal_map_strip(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+    now_unix_s: i64,
+    lat: f64,
+    lon: f64,
+) -> Result<Vec<ThermalStripDay>, CoreError> {
+    let response = read(status, &body)?;
+    let Some(cell) = cell_at(&response.grid, lat, lon) else {
+        return Ok(Vec::new());
+    };
+    let today = today(utc_offset_s, now_unix_s);
+    Ok(response
+        .days
+        .iter()
+        .filter(|day| day.date >= today)
+        .map(|day| ThermalStripDay {
+            date: day.date.format("%Y-%m-%d").to_string(),
+            name: day_name(day.date, today),
+            model: model_name(day.model.as_ref().unwrap_or(&response.model).as_str()),
+            whole: day.whole,
+            square: square(
+                &response.grid,
+                &Judged::of_day(day),
+                &response.ground_m,
+                cell,
+            ),
+        })
+        .collect())
+}
+
+/// The server's map, if it is one whose grid can be drawn.
+fn read(status: u16, body: &[u8]) -> Result<v1::ThermalMapResponse, CoreError> {
+    let response: v1::ThermalMapResponse = answer(status, body)?;
+    if !grid_is_sound(&response.grid) || response.ground_m.len() != response.grid.cells() {
+        return Err(unreadable());
+    }
+    Ok(response)
+}
+
+fn unreadable() -> CoreError {
+    CoreError::Server {
+        message:
+            "The server's thermal map could not be read. The app may be older than the server."
+                .to_owned(),
+    }
+}
+
+/// Whether a grid is one the core draws: a step, and no more cells than
+/// a server of ours has.
+pub(crate) fn grid_is_sound(grid: &v1::ThermalGrid) -> bool {
+    grid.cells() <= MAX_CELLS && grid.step_deg.is_finite() && grid.step_deg > 0.0
+}
+
+/// The number of the square a place lies in. None outside the grid, and
+/// for a place that is none.
+pub(crate) fn cell_at(grid: &v1::ThermalGrid, lat: f64, lon: f64) -> Option<usize> {
+    venti_domain::GeoPoint::new(lat, lon)
+        .ok()
+        .and_then(|place| grid.cell_at(place))
+}
+
+/// The edges of a square: south, west, north, east. None for a number the
+/// grid does not have.
+pub(crate) fn edges(grid: &v1::ThermalGrid, cell: usize) -> Option<(f64, f64, f64, f64)> {
+    let middle = grid.point(cell)?;
+    let half = grid.step_deg / 2.0;
+    Some((
+        (middle.lat() - half).max(-90.0),
+        middle.lon() - half,
+        (middle.lat() + half).min(90.0),
+        middle.lon() + half,
+    ))
+}
+
+/// The day it is by the pilot's clock.
+pub(crate) fn today(utc_offset_s: i32, now_unix_s: i64) -> NaiveDate {
+    (DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default()
+        + Duration::seconds(i64::from(utc_offset_s)))
+    .date_naive()
+}
+
 /// What to say under a day: whether it is whole, and the coarser model it
 /// is read from, if it is not the map's finest, `finest`.
-fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
+pub(crate) fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
     let mut note = Vec::new();
     if let Some(coarser) = coarser {
         note.push(format!(
@@ -259,7 +389,7 @@ fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
 }
 
 /// What to call a day that is `date`, when today is `today`.
-fn day_name(date: NaiveDate, today: NaiveDate) -> String {
+pub(crate) fn day_name(date: NaiveDate, today: NaiveDate) -> String {
     match (date - today).num_days() {
         0 => "Today".to_owned(),
         1 => "Tomorrow".to_owned(),
@@ -268,7 +398,7 @@ fn day_name(date: NaiveDate, today: NaiveDate) -> String {
 }
 
 /// The key of the map.
-fn legend() -> Vec<ThermalLegendEntry> {
+pub(crate) fn legend() -> Vec<ThermalLegendEntry> {
     [
         Thermals::Big,
         Thermals::CrossCountry,
@@ -288,7 +418,7 @@ fn legend() -> Vec<ThermalLegendEntry> {
 }
 
 /// The step of the thermal scale a kind of day is drawn in.
-fn scale_step(kind: Thermals) -> u8 {
+pub(crate) fn scale_step(kind: Thermals) -> u8 {
     match kind {
         Thermals::Weak => SCALE_STEPS[0],
         Thermals::Local => SCALE_STEPS[1],
@@ -297,11 +427,51 @@ fn scale_step(kind: Thermals) -> u8 {
     }
 }
 
-/// One square of a day, if the day has a verdict for it and the square
-/// lies on the globe.
-fn square(
+/// What the server judged of every square, for a day or for one hour of
+/// it: the lists a square is read from.
+pub(crate) struct Judged<'a> {
+    verdict: &'a [Option<v1::ThermalVerdict>],
+    why: &'a [Option<v1::ThermalReason>],
+    thermals: &'a [Option<v1::ThermalKind>],
+    climb_ms: &'a [Option<f64>],
+    top_m: &'a [Option<i32>],
+    cloud: &'a [bool],
+    /// Whether the lists are an hour's: its thermals are then its own,
+    /// where a day of weak thermals names the best of its hours.
+    an_hour: bool,
+}
+
+impl<'a> Judged<'a> {
+    pub(crate) fn of_day(day: &'a v1::ThermalMapDay) -> Self {
+        Self {
+            verdict: &day.verdict,
+            why: &day.why,
+            thermals: &day.thermals,
+            climb_ms: &day.climb_ms,
+            top_m: &day.top_m,
+            cloud: &day.cloud,
+            an_hour: false,
+        }
+    }
+
+    pub(crate) fn of_hour(hour: &'a v1::ThermalMapHour) -> Self {
+        Self {
+            verdict: &hour.verdict,
+            why: &hour.why,
+            thermals: &hour.thermals,
+            climb_ms: &hour.climb_ms,
+            top_m: &hour.top_m,
+            cloud: &hour.cloud,
+            an_hour: true,
+        }
+    }
+}
+
+/// One square of a day or of an hour, if there is a verdict for it and
+/// the square lies on the globe.
+pub(crate) fn square(
     grid: &v1::ThermalGrid,
-    day: &v1::ThermalMapDay,
+    day: &Judged<'_>,
     ground_m: &[Option<i32>],
     cell: usize,
 ) -> Option<ThermalMapCell> {
@@ -310,8 +480,7 @@ fn square(
         v1::ThermalVerdict::Marginal => Flyability::Marginal,
         v1::ThermalVerdict::NotFlyable => Flyability::NotFlyable,
     };
-    let middle = grid.point(cell)?;
-    let half = grid.step_deg / 2.0;
+    let (south, west, north, east) = edges(grid, cell)?;
     // A day that is not flyable says nothing of thermals, whatever the
     // answer holds.
     let thermals = day
@@ -330,10 +499,10 @@ fn square(
     let top_m = day.top_m.get(cell).copied().flatten();
     let cloud = day.cloud.get(cell).copied().unwrap_or(false);
     Some(ThermalMapCell {
-        south: (middle.lat() - half).max(-90.0),
-        west: middle.lon() - half,
-        north: (middle.lat() + half).min(90.0),
-        east: middle.lon() + half,
+        south,
+        west,
+        north,
+        east,
         verdict,
         thermals,
         scale_step: thermals.map(scale_step),
@@ -346,13 +515,15 @@ fn square(
             .filter(|_| verdict != Flyability::Flyable)
             .map_or_else(String::new, |reason| words_of(reason).to_owned()),
         thermal_words: thermals.map_or_else(String::new, |kind| kind.words().to_owned()),
-        thermal_line: thermals.map_or_else(String::new, |kind| line(kind, climb_ms, top_m, cloud)),
+        thermal_line: thermals.map_or_else(String::new, |kind| {
+            line(kind, climb_ms, top_m, cloud, day.an_hour)
+        }),
         ground_m: ground_m.get(cell).copied().flatten().map(f64::from),
     })
 }
 
-/// What speaks against a day, in words.
-fn words_of(reason: v1::ThermalReason) -> &'static str {
+/// What speaks against a day or an hour, in words.
+pub(crate) fn words_of(reason: v1::ThermalReason) -> &'static str {
     match reason {
         v1::ThermalReason::Rain => "Rain",
         v1::ThermalReason::Wind => "Wind",
@@ -363,9 +534,19 @@ fn words_of(reason: v1::ThermalReason) -> &'static str {
     }
 }
 
-/// A square's thermals in a line.
-fn line(kind: Thermals, climb_ms: Option<f64>, top_m: Option<i32>, cloud: bool) -> String {
+/// A square's thermals in a line. Weak thermals are the best hour's for
+/// a day, and say so; an hour's are its own.
+fn line(
+    kind: Thermals,
+    climb_ms: Option<f64>,
+    top_m: Option<i32>,
+    cloud: bool,
+    an_hour: bool,
+) -> String {
     match (kind, climb_ms, top_m) {
+        (Thermals::Weak, Some(climb), Some(top)) if climb > 0.0 && an_hour => {
+            format!("{climb:.1} m/s to {top} m")
+        }
         (Thermals::Weak, Some(climb), Some(top)) if climb > 0.0 => {
             format!("{climb:.1} m/s to {top} m at best")
         }
@@ -636,6 +817,95 @@ mod tests {
                 ("Not flyable", None),
             ]
         );
+    }
+
+    #[test]
+    fn a_squares_days_stand_side_by_side() {
+        let strip = |lat: f64, lon: f64| thermal_map_strip(200, body(), 7200, NOON, lat, lon);
+
+        // The first square, by a place in it: today, tomorrow and Tuesday,
+        // each with its verdict, its kind of day and the step for a mark.
+        let days = strip(47.03, 10.97).unwrap();
+        let read: Vec<(&str, &str, &str, bool)> = days
+            .iter()
+            .map(|day| {
+                (
+                    day.date.as_str(),
+                    day.name.as_str(),
+                    day.model.as_str(),
+                    day.whole,
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                ("2026-07-12", "Today", "ICON-D2", false),
+                ("2026-07-13", "Tomorrow", "ICON-D2", true),
+                ("2026-07-14", "Tue", "ICON-EU", true),
+            ]
+        );
+        let squares: Vec<(Flyability, Option<Thermals>, Option<u8>, &str)> = days
+            .iter()
+            .map(|day| {
+                let square = day.square.as_ref().unwrap();
+                (
+                    square.verdict,
+                    square.thermals,
+                    square.scale_step,
+                    square.thermal_line.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            squares,
+            [
+                (
+                    Flyability::Flyable,
+                    Some(Thermals::CrossCountry),
+                    Some(5),
+                    "1.8 m/s to a cloud base of 3250 m"
+                ),
+                (
+                    Flyability::Marginal,
+                    Some(Thermals::Weak),
+                    Some(2),
+                    "0.3 m/s to 1800 m at best"
+                ),
+                (
+                    Flyability::Flyable,
+                    Some(Thermals::Big),
+                    Some(6),
+                    "2.2 m/s to a cloud base of 3400 m"
+                ),
+            ]
+        );
+        // They are the squares the map of each day has.
+        let map = map();
+        assert_eq!(days[0].square.as_ref(), Some(&map.days[0].cells[0]));
+        assert_eq!(
+            days[1].square.as_ref().unwrap().why,
+            "Showers or thunderstorms can grow"
+        );
+
+        // The third square has no verdict today: the day is in the strip
+        // with nothing under it.
+        let days = strip(47.0, 11.2).unwrap();
+        assert_eq!(days.len(), 3);
+        assert_eq!(days[0].square, None);
+        assert_eq!(days[2].square.as_ref().unwrap().thermal_words, "Big day");
+
+        // By the pilot's clock, as the map: late in the evening today is
+        // the next day.
+        let late = thermal_map_strip(200, body(), 7200, NOON + 11 * 3600, 47.0, 11.0).unwrap();
+        assert_eq!(late[0].name, "Today");
+        assert_eq!(late[0].date, "2026-07-13");
+
+        // Outside the map there is no square, and what is no place has
+        // none; a refusal of the server is passed on.
+        assert_eq!(strip(48.0, 11.0).unwrap(), []);
+        assert_eq!(strip(f64::NAN, 11.0).unwrap(), []);
+        assert!(thermal_map_strip(503, b"{}".to_vec(), 0, NOON, 47.0, 11.0).is_err());
     }
 
     #[test]

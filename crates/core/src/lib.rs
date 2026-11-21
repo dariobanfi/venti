@@ -55,6 +55,7 @@ mod tendencies;
 mod terrain;
 #[cfg(test)]
 mod testing;
+mod thermal_hours;
 mod thermal_map;
 mod today;
 mod waypoints;
@@ -86,6 +87,7 @@ pub use statistics::*;
 pub use task::*;
 pub use tendencies::*;
 pub use terrain::*;
+pub use thermal_hours::*;
 pub use thermal_map::*;
 pub use today::*;
 pub use waypoints::*;

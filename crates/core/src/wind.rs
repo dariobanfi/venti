@@ -60,7 +60,13 @@ pub enum WindBand {
 /// The band a mean wind speed falls in.
 #[uniffi::export]
 pub fn wind_band(speed_ms: f64) -> WindBand {
-    match speed_ms * 3.6 {
+    band_of_kmh(speed_ms * 3.6)
+}
+
+/// The band a speed in km/h falls in: for a speed that is held in km/h,
+/// which a detour through m/s could push across a limit.
+pub(crate) fn band_of_kmh(speed_kmh: f64) -> WindBand {
+    match speed_kmh {
         speed if speed < 10.0 => WindBand::Light,
         speed if speed < 20.0 => WindBand::Moderate,
         speed if speed < 30.0 => WindBand::Fresh,

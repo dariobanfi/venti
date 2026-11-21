@@ -52,7 +52,8 @@ use venti_core::{
     Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject, ServerRequest, ServerStatus,
     SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap, StagedStorage, StationAir,
     StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
-    TerrainTile, ThermalMap, TrackPoint, WindMap, WindSpan, WindStation,
+    TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare, ThermalMapHoursView,
+    ThermalMapShapes, ThermalStripDay, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -994,6 +995,121 @@ pub fn thermal_map(
         &venti_core::thermal_map(status, body, utc_offset_s, whole_seconds(now_unix_s))
             .map_err(thrown)?,
     )
+}
+
+/// A square's days side by side: every day from today on that the map
+/// has, with what it says of the square a place lies in, for the sheet of
+/// a square the pilot chose. `status` and `body` are the answer
+/// `thermalMap` read, which the page keeps. Empty for a place outside the
+/// map.
+#[wasm_bindgen(js_name = thermalMapStrip)]
+pub fn thermal_map_strip(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+    now_unix_s: f64,
+    lat: f64,
+    lon: f64,
+) -> Result<Vec<Ts<ThermalStripDay>>, JsValue> {
+    venti_core::thermal_map_strip(
+        status,
+        body,
+        utc_offset_s,
+        whole_seconds(now_unix_s),
+        lat,
+        lon,
+    )
+    .map_err(thrown)?
+    .iter()
+    .map(to_js)
+    .collect()
+}
+
+/// The path and query to `GET` for one layer of the hours of a day of the
+/// thermal map. `date` is the day as the map names it, `height_m` the
+/// level the wind is wanted at: left out for the wind at the ground, and
+/// of no account to the other layers. The wind at the ground and the gusts
+/// are one answer, asked for by the same path.
+#[wasm_bindgen(js_name = thermalHoursPath)]
+pub fn thermal_hours_path(
+    date: String,
+    layer: Ts<ThermalHoursLayer>,
+    height_m: Option<i32>,
+) -> Result<String, JsValue> {
+    venti_core::thermal_hours_path(date, from_js(&layer)?, height_m).map_err(thrown)
+}
+
+/// One layer of the hours of a day of the thermal map: the server's
+/// answer, read once and asked hour by hour as the pilot moves along the
+/// line of hours. It holds the answer, some hundreds of kilobytes for a
+/// region, so the page frees it when it shows another.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct ThermalMapHours {
+    hours: Arc<venti_core::ThermalMapHours>,
+}
+
+#[wasm_bindgen]
+impl ThermalMapHours {
+    /// Reads the server's answer to `thermalHoursPath` for `layer`.
+    /// `utc_offset_s` is how far the pilot's clock is ahead of UTC, which
+    /// labels the hours, and `now_unix_s` the moment by Venti's clock,
+    /// which decides the hour to show first. Throws, in words for the
+    /// pilot, when the answer is a refusal or cannot be read.
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        status: u16,
+        body: Vec<u8>,
+        layer: Ts<ThermalHoursLayer>,
+        utc_offset_s: i32,
+        now_unix_s: f64,
+    ) -> Result<ThermalMapHours, JsValue> {
+        Ok(Self {
+            hours: venti_core::ThermalMapHours::read(
+                status,
+                body,
+                from_js(&layer)?,
+                utc_offset_s,
+                whole_seconds(now_unix_s),
+            )
+            .map_err(thrown)?,
+        })
+    }
+
+    /// What a card says of the hours: the stops of the line of hours, the
+    /// hour to show first, the model and its run.
+    pub fn view(&self) -> Result<Ts<ThermalMapHoursView>, JsValue> {
+        to_js(&self.hours.view())
+    }
+
+    /// What the map draws of one hour, by the hour's number in the view's
+    /// `hours`: two GeoJSON texts, the squares and the arrows. A map's
+    /// source takes an object, so the page parses each.
+    pub fn shapes(&self, hour: u32) -> Result<Ts<ThermalMapShapes>, JsValue> {
+        to_js(&self.hours.shapes(hour))
+    }
+
+    /// The number of the square a place lies in: what a click on the map
+    /// is turned into, also where no square is drawn. Nothing outside the
+    /// map.
+    #[wasm_bindgen(js_name = cellAt)]
+    pub fn cell_at(&self, lat: f64, lon: f64) -> Option<u32> {
+        self.hours.cell_at(lat, lon)
+    }
+
+    /// A square in one hour, in words. Nothing for a square or an hour
+    /// there is none of.
+    pub fn square(
+        &self,
+        cell: u32,
+        hour: u32,
+    ) -> Result<Option<Ts<ThermalMapHourSquare>>, JsValue> {
+        self.hours
+            .square(cell, hour)
+            .as_ref()
+            .map(to_js)
+            .transpose()
+    }
 }
 
 // The forecast for a place, from the Venti server: what its weather models

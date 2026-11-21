@@ -1,0 +1,314 @@
+{
+  "source": "open-meteo",
+  "date": "2026-11-22",
+  "layer": "thermals",
+  "heights_m": [
+    1000,
+    1500,
+    2000,
+    2500,
+    3000,
+    4000
+  ],
+  "model": "icon-d2",
+  "run": "2026-11-21T06:00:00Z",
+  "whole": true,
+  "computed_at": "2026-11-21T09:30:00Z",
+  "grid": {
+    "south": 47.6,
+    "west": 11.8,
+    "step_deg": 0.1,
+    "rows": 2,
+    "columns": 2
+  },
+  "ground_m": [
+    1118,
+    1046,
+    1069,
+    947
+  ],
+  "hours": [
+    {
+      "time": "2026-11-22T08:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "time": "2026-11-22T09:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "time": "2026-11-22T10:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        1050
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "time": "2026-11-22T11:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        1150,
+        null,
+        1000
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        true
+      ]
+    },
+    {
+      "time": "2026-11-22T12:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        1150,
+        1200,
+        950
+      ],
+      "cloud": [
+        false,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "time": "2026-11-22T13:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        950
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        true
+      ]
+    },
+    {
+      "time": "2026-11-22T14:00:00Z",
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        null,
+        null,
+        null,
+        950
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        true
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}

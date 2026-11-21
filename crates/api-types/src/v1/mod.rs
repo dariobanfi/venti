@@ -136,8 +136,9 @@ pub use request::{
 pub use sites::{SiteLayer, SitesResponse};
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use thermals::{
-    THERMAL_GRID_DEG, THERMALS_PATH, ThermalGrid, ThermalKind, ThermalMapDay, ThermalMapResponse,
-    ThermalReason, ThermalVerdict,
+    THERMAL_GRID_DEG, THERMAL_HOURS_PATH, THERMALS_PATH, ThermalGrid, ThermalHoursRequest,
+    ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,
+    ThermalMapResponse, ThermalReason, ThermalVerdict,
 };
 
 /// The window of observations returned when a request names no start, in hours.

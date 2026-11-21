@@ -14,12 +14,23 @@
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
 	import LogbookList from '#lib/logbook/LogbookList.svelte';
 	import { reasonFor } from '#lib/logbook/model.svelte.ts';
+	import LogbookTable from '#lib/logbook/LogbookTable.svelte';
+	import { saveFile } from '#lib/logbook/flight-file.ts';
+	import { format } from '#lib/design/format.ts';
+	import { statisticsHref } from '#lib/app/routes.ts';
+	import { MediaQuery } from 'svelte/reactivity';
+
+	const text = format();
 
 	const app = getApp();
 	const logbook = $derived(app.logbook);
 
 	let picker: HTMLInputElement;
-	let flightToDelete = $state.raw<LogbookEntry>();
+	/** The flights the pilot asked to delete, while the question is open. */
+	let toDelete = $state.raw<LogbookEntry[]>([]);
+
+	/** On a wide screen the logbook is a table, with its own way to choose several flights. */
+	const wide = new MediaQuery('min-width: 56rem', false);
 
 	/** The files the pilot chose. The core says which of them are flights. */
 	function picked() {
@@ -29,12 +40,29 @@
 		void app.importFiles(files);
 	}
 
-	async function deleteFlight(entry: LogbookEntry) {
-		flightToDelete = undefined;
-		try {
-			await app.deleteFlight(entry.id);
-		} catch (error) {
-			app.notice = { title: 'The flight could not be deleted', lines: [reasonFor(error)] };
+	async function deleteFlights(entries: LogbookEntry[]) {
+		toDelete = [];
+		for (const entry of entries) {
+			try {
+				await app.deleteFlight(entry.id);
+			} catch (error) {
+				app.notice = { title: 'The flight could not be deleted', lines: [reasonFor(error)] };
+				return;
+			}
+		}
+	}
+
+	/** Saves the chosen flights' files, as they were imported, where the browser keeps downloads. */
+	async function downloadFlights(entries: LogbookEntry[]) {
+		if (!logbook) return;
+		for (const entry of entries) {
+			try {
+				const file = await logbook.flightFile(entry.id);
+				saveFile(file.name, file.igcText);
+			} catch (error) {
+				app.notice = { title: 'The flight file could not be saved', lines: [reasonFor(error)] };
+				return;
+			}
 		}
 	}
 
@@ -112,7 +140,33 @@
 				you import are gone when you close this page.
 			</p>
 		{/if}
-		<LogbookList view={logbook.view} ondelete={(entry) => (flightToDelete = entry)} />
+		{#if wide.current}
+			<!-- The totals in a line over the table, and the way to the statistics. -->
+			<div class="totals">
+				<dl class="numeric" aria-label="All flights">
+					<div>
+						<dt>{logbook.view.totals.flights === 1 ? 'Flight' : 'Flights'}</dt>
+						<dd>{text.count(logbook.view.totals.flights)}</dd>
+					</div>
+					<div>
+						<dt>Airtime</dt>
+						<dd>{text.hoursMinutes(logbook.view.totals.airtimeS)} h</dd>
+					</div>
+					<div>
+						<dt>Distance</dt>
+						<dd>{text.wholeKilometres(logbook.view.totals.distanceM)} km</dd>
+					</div>
+				</dl>
+				<a href={statisticsHref()}>Statistics</a>
+			</div>
+			<LogbookTable
+				view={logbook.view}
+				ondelete={(entries) => (toDelete = entries)}
+				ondownload={(entries) => void downloadFlights(entries)}
+			/>
+		{:else}
+			<LogbookList view={logbook.view} ondelete={(entry) => (toDelete = [entry])} />
+		{/if}
 	{/if}
 </div>
 
@@ -128,12 +182,12 @@
 />
 
 <ConfirmDialog
-	open={flightToDelete !== undefined}
-	title="Delete this flight?"
-	message={deletionWarning(app.account?.signedIn ?? false)}
-	confirm="Delete flight"
-	onconfirm={() => flightToDelete && deleteFlight(flightToDelete)}
-	oncancel={() => (flightToDelete = undefined)}
+	open={toDelete.length > 0}
+	title={toDelete.length === 1 ? 'Delete this flight?' : `Delete ${toDelete.length} flights?`}
+	message={deletionWarning(app.account?.signedIn ?? false, toDelete.length)}
+	confirm={toDelete.length === 1 ? 'Delete flight' : `Delete ${toDelete.length} flights`}
+	onconfirm={() => deleteFlights(toDelete)}
+	oncancel={() => (toDelete = [])}
 />
 
 <style>
@@ -252,17 +306,59 @@
 	}
 
 	/* Wide: the button has room to say what it does. */
+	.totals {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-5);
+		margin-bottom: var(--space-3);
+	}
+
+	.totals dl {
+		display: flex;
+		gap: var(--space-5);
+	}
+
+	/* A figure with its caption before it, in a line. */
+	.totals dl div {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+	}
+
+	.totals dt {
+		color: var(--text-secondary);
+	}
+
+	.totals dd {
+		font-weight: 600;
+	}
+
+	.totals a {
+		color: var(--link);
+	}
+
 	@media (min-width: 56rem) {
 		.page {
-			padding-top: 2rem;
+			max-width: 80rem;
+			padding-top: var(--space-4);
+		}
+
+		header {
+			min-height: 0;
+			margin-bottom: var(--space-2);
+		}
+
+		.whose {
+			margin-bottom: var(--space-3);
 		}
 
 		.import {
 			display: inline-flex;
 			gap: 0.375rem;
 			width: auto;
-			padding: 0 1.125rem 0 0.875rem;
-			border-radius: 999px;
+			height: var(--target);
+			padding: 0 var(--space-3) 0 var(--space-2);
+			border-radius: var(--radius-s);
 			background: var(--accent);
 			color: var(--on-accent);
 			font-weight: 600;

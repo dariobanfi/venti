@@ -39,7 +39,8 @@
 		flex: 1;
 		display: grid;
 		place-items: center;
-		min-height: 2.375rem;
+		/* 32 px in all on a wide screen, as its other controls. */
+		min-height: calc(var(--target) - 0.625rem);
 		border-radius: var(--radius-pill);
 		font-size: var(--subheadline);
 		font-weight: 500;

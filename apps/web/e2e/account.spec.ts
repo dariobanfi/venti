@@ -86,7 +86,9 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	// They are in the logbook, and the settings say whose it is.
 	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
 	await expect(metric(page.getByLabel('All flights'), 'Flights')).toHaveText('3');
-	await expect(page.getByRole('main').getByRole('listitem').getByRole('link')).toHaveCount(3);
+	await expect(
+		page.getByRole('main').getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
+	).toHaveCount(3);
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page.getByRole('link', { name: /^Account/ })).toContainText('@demo');
 
@@ -147,7 +149,10 @@ test('a new account sends its flights, shares one with a link, and is deleted ag
 
 	// The flight is shared from its own screen. Nothing is shared by default.
 	await sections(page).getByRole('link', { name: 'Logbook', exact: true }).click();
-	await page.getByRole('main').getByRole('listitem').getByRole('link').click();
+	await page
+		.getByRole('main')
+		.getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
+		.click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
 	await more.click();
 	await page.getByRole('menuitem', { name: 'Share with a link' }).click();

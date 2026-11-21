@@ -190,14 +190,26 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await page.getByRole('link', { name: 'Logbook', exact: true }).first().click();
 	const row = page.getByRole('link', { name: /Sat, 4 Jul/ });
 	await expect(row).toBeVisible();
-	await expect(row).toContainText('12:30 · Sample Wing');
-	await expect(row).toContainText('0:29 h');
-	await expect(row).toContainText('12.0 km');
+	if (wide) {
+		// A wide screen lists the flights as a table, its totals in a line over it.
+		const line = page
+			.getByRole('table', { name: 'Flights' })
+			.getByRole('row')
+			.filter({ hasText: 'Sat, 4 Jul' });
+		await expect(line).toContainText('12:30');
+		await expect(line).toContainText('Sample Wing');
+		await expect(line).toContainText('0:29');
+		await expect(line).toContainText('12.0 km');
+	} else {
+		await expect(row).toContainText('12:30 · Sample Wing');
+		await expect(row).toContainText('0:29 h');
+		await expect(row).toContainText('12.0 km');
+		await expect(page.getByRole('heading', { name: '2026' })).toBeVisible();
+		await expect(page.getByText('1 flight · 0:29 h')).toBeVisible();
+	}
 	await expect(metric(logbookTotals, 'Flight')).toHaveText('1');
 	await expect(metric(logbookTotals, 'Airtime')).toHaveText('0:29 h');
 	await expect(metric(logbookTotals, 'Distance')).toHaveText('12 km');
-	await expect(page.getByRole('heading', { name: '2026' })).toBeVisible();
-	await expect(page.getByText('1 flight · 0:29 h')).toBeVisible();
 	await page.reload();
 	await expect(row).toBeVisible();
 	await keep('08-logbook');
@@ -216,9 +228,9 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	await expect(longest).toContainText('0:29 h');
 	await expect(page.getByRole('link', { name: /Highest/ })).toContainText('2117 m');
 	await keep('09-statistics');
-	await page.getByText('Distance', { exact: true }).click();
+	await page.getByRole('radiogroup', { name: 'Shown' }).getByText('Distance').click();
 	await expect(page.getByRole('radio', { name: 'Distance' })).toBeChecked();
-	await expect(page.getByText('In kilometres.')).toBeVisible();
+	await expect(page.getByText('In kilometres.', { exact: true })).toBeVisible();
 	// Each best leads to its flight.
 	await longest.click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();

@@ -71,10 +71,11 @@ export function importNotice(report: ImportReport): Notice | undefined {
  * account the flight also goes from the server, and from there from the
  * pilot's other devices.
  */
-export function deletionWarning(signedIn: boolean): string {
+export function deletionWarning(signedIn: boolean, count = 1): string {
+	const files = count === 1 ? 'Its file is' : 'Their files are';
 	return signedIn
-		? 'Its file is removed from this browser and, with the next sync, from Venti and your other devices. This cannot be undone.'
-		: 'Its file is removed from this browser. This cannot be undone.';
+		? `${files} removed from this browser and, with the next sync, from Venti and your other devices. This cannot be undone.`
+		: `${files} removed from this browser. This cannot be undone.`;
 }
 
 /**

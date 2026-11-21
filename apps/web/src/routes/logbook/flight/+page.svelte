@@ -23,12 +23,19 @@
 	import { saveFile } from '#lib/logbook/flight-file.ts';
 	import { deletionWarning } from '#lib/logbook/import-report.ts';
 	import LeagueSheet from '#lib/logbook/LeagueSheet.svelte';
+	import LogbookTable from '#lib/logbook/LogbookTable.svelte';
 	import { reasonFor } from '#lib/logbook/model.svelte.ts';
 
 	const app = getApp();
 
 	/** Wide enough for the panel to stand beside the map: the width at which the navigation moves to the side. */
 	const wide = new MediaQuery('min-width: 56rem', false);
+	/**
+	 * Wide enough for the logbook to stay beside the flight as well: the
+	 * list, the map and the flight's column side by side. Narrower, the
+	 * list is the logbook's own page.
+	 */
+	const listed = new MediaQuery('min-width: 80rem', false);
 
 	/** The flight asked for. The address is not known while the pages are written out at build time. */
 	const id = $derived(browser ? page.url.searchParams.get('id') : null);
@@ -178,44 +185,59 @@
 	<title>{title}</title>
 </svelte:head>
 
-{#if phase.is === 'loaded'}
-	{#key phase.flight.id}
-		<FlightScreen
-			flight={phase.flight}
-			{analysis}
-			wide={wide.current}
-			back={{ href: logbookHref(), label: 'Logbook' }}
-			{actions}
-			inLogbook
-			{beside}
-			onendbeside={() => layBeside(undefined)}
-			onleague={() => void sendToALeague()}
-		/>
-		<CompareChooser
-			open={choosing}
-			flight={phase.flight}
-			onchoose={layBeside}
-			onclose={() => (choosing = false)}
-		/>
-		<ShareFlightSheet open={sharing} flight={phase.flight.id} onclose={() => (sharing = false)} />
-		<LeagueSheet
-			open={Boolean(league)}
-			handover={league?.handover}
-			problem={league?.problem}
-			ondownload={() => void downloadFlight()}
-			onclose={() => (league = undefined)}
-		/>
-	{/key}
-{:else if phase.is === 'failed'}
-	<div class="unavailable">
-		<span class="symbol"><Icon name="warning" /></span>
-		<h1>This flight could not be opened</h1>
-		<p>{phase.message}</p>
-		<a class="button-plain" href={logbookHref()}>Back to the logbook</a>
+<div class="together" class:listed={listed.current && app.logbook !== undefined}>
+	{#if listed.current && app.logbook}
+		<!-- On a large screen the logbook stays beside the flight, as a list
+	     to go from one flight to the next. -->
+		<aside class="list" aria-label="Logbook">
+			<LogbookTable view={app.logbook.view} current={id ?? undefined} compact />
+		</aside>
+	{/if}
+	<div class="flight">
+		{#if phase.is === 'loaded'}
+			{#key phase.flight.id}
+				<FlightScreen
+					flight={phase.flight}
+					{analysis}
+					wide={wide.current}
+					back={{ href: logbookHref(), label: 'Logbook' }}
+					{actions}
+					inLogbook
+					{beside}
+					onendbeside={() => layBeside(undefined)}
+					onleague={() => void sendToALeague()}
+				/>
+				<CompareChooser
+					open={choosing}
+					flight={phase.flight}
+					onchoose={layBeside}
+					onclose={() => (choosing = false)}
+				/>
+				<ShareFlightSheet
+					open={sharing}
+					flight={phase.flight.id}
+					onclose={() => (sharing = false)}
+				/>
+				<LeagueSheet
+					open={Boolean(league)}
+					handover={league?.handover}
+					problem={league?.problem}
+					ondownload={() => void downloadFlight()}
+					onclose={() => (league = undefined)}
+				/>
+			{/key}
+		{:else if phase.is === 'failed'}
+			<div class="unavailable">
+				<span class="symbol"><Icon name="warning" /></span>
+				<h1>This flight could not be opened</h1>
+				<p>{phase.message}</p>
+				<a class="button-plain" href={logbookHref()}>Back to the logbook</a>
+			</div>
+		{:else}
+			<p class="visually-hidden" role="status">Opening the flight…</p>
+		{/if}
 	</div>
-{:else}
-	<p class="visually-hidden" role="status">Opening the flight…</p>
-{/if}
+</div>
 
 <ConfirmDialog
 	open={confirmingDelete}
@@ -227,6 +249,28 @@
 />
 
 <style>
+	.listed {
+		display: grid;
+		grid-template-columns: 22rem minmax(0, 1fr);
+	}
+
+	.list {
+		display: flex;
+		flex-direction: column;
+		height: 100dvh;
+		padding: var(--space-3);
+		border-right: 1px solid var(--separator);
+		background: var(--background);
+	}
+
+	.list :global(.table) {
+		flex: 1;
+	}
+
+	.flight {
+		min-width: 0;
+	}
+
 	.unavailable {
 		display: flex;
 		flex-direction: column;

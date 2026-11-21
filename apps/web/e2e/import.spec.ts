@@ -29,7 +29,7 @@ const asUploads = (files: { name: string; text: string }[]) =>
 		buffer: Buffer.from(file.text)
 	}));
 
-test('flights are imported with the file picker, several at once', async ({ page, keep }) => {
+test('flights are imported with the file picker, several at once', async ({ page, keep, wide }) => {
 	const totals = page.getByLabel('All flights');
 	await page.goto('/logbook/');
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
@@ -52,7 +52,10 @@ test('flights are imported with the file picker, several at once', async ({ page
 	await expect(notice).toBeHidden();
 
 	// The three flights are listed newest first, with their totals.
-	const rows = page.getByRole('main').getByRole('listitem').getByRole('link');
+	// A row of the list on a phone, of the table on a wide screen.
+	const rows = page
+		.getByRole('main')
+		.getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / });
 	await expect(rows).toHaveCount(3);
 	await expect(rows.nth(0)).toContainText('Sun, 5 Jul');
 	await expect(rows.nth(1)).toContainText('Fri, 3 Jul');
@@ -60,7 +63,7 @@ test('flights are imported with the file picker, several at once', async ({ page
 	await expect(metric(totals, 'Flights')).toHaveText('3');
 	await expect(metric(totals, 'Airtime')).toHaveText('1:27 h');
 	await expect(metric(totals, 'Distance')).toHaveText('36 km');
-	await expect(page.getByText('3 flights · 1:27 h')).toBeVisible();
+	if (!wide) await expect(page.getByText('3 flights · 1:27 h')).toBeVisible();
 
 	// A flight that is already there is recognised, whatever its file is called.
 	await page
@@ -98,7 +101,9 @@ test('flights are imported by dropping files on the page', async ({ page, keep, 
 	// Several flights dropped at once stay on the screen they were dropped on.
 	await dropFiles(page, [mixed[0], mixed[1]]);
 	await page.getByRole('link', { name: 'Logbook', exact: true }).click();
-	await expect(page.getByRole('main').getByRole('listitem').getByRole('link')).toHaveCount(2);
+	await expect(
+		page.getByRole('main').getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
+	).toHaveCount(2);
 
 	// A single new flight opens straight away, as it does from the picker.
 	await dropFiles(page, [mixed[3]]);
@@ -111,30 +116,69 @@ test('flights are imported by dropping files on the page', async ({ page, keep, 
 	await notice.getByRole('button', { name: 'OK' }).click();
 });
 
-test('a flight is deleted from its row on a wide screen', async ({ page, wide }) => {
-	test.skip(!wide, 'A narrow screen deletes from the flight’s own screen.');
+test('the wide logbook is a table to sort, search and choose several flights in', async ({
+	page,
+	wide,
+	keep,
+	mapDrawn
+}) => {
+	test.skip(!wide, 'A narrow screen lists the flights, and deletes from the flight’s own screen.');
 
 	await page.goto('/logbook/');
 	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
-	await page.locator('input[type=file]').setInputFiles(SAMPLE_FLIGHT);
-	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();
+	await page
+		.locator('input[type=file]')
+		.setInputFiles(asUploads(mixed.filter((file) => file.name.endsWith('.igc'))));
 	await page.getByRole('link', { name: 'Logbook', exact: true }).first().click();
+	const table = page.getByRole('table', { name: 'Flights' });
+	const rows = table.getByRole('row');
+	// A heading and three flights, newest first, with room for more figures.
+	await expect(rows).toHaveCount(4);
+	await expect(rows.nth(1)).toContainText('Sun, 5 Jul');
+	await expect(rows.nth(1)).toContainText('2117 m');
+	await expect(rows.nth(1)).toContainText('+2.4 m/s');
 
-	// The wide list has room for two more numbers.
-	const row = page.getByRole('link', { name: /Sat, 4 Jul/ });
-	await expect(row).toContainText('2117 m');
-	await expect(row).toContainText('+2.4 m/s');
+	// A heading sorts, and a second click turns the order round.
+	const date = table.getByRole('columnheader', { name: 'Date' });
+	await expect(date).toHaveAttribute('aria-sort', 'descending');
+	await date.getByRole('button').click();
+	await expect(date).toHaveAttribute('aria-sort', 'ascending');
+	await expect(rows.nth(1)).toContainText('Thu, 2 Jul');
 
-	// The button appears with the mouse over the row, and asks first.
-	await row.hover();
-	await page.getByRole('button', { name: 'Delete the flight of Sat, 4 Jul 2026' }).click();
-	const confirmation = page.getByRole('alertdialog', { name: 'Delete this flight?' });
+	// A search that finds nothing says so.
+	await page.getByRole('searchbox', { name: 'Search flights' }).fill('Nowhere');
+	await expect(table).toContainText('No flight answers this search.');
+	await page.getByRole('searchbox', { name: 'Search flights' }).fill('');
+
+	// Two chosen: downloading and deleting them at once, deleting asked first.
+	await page.getByRole('checkbox', { name: 'Choose the flight of Thu, 2 Jul 2026' }).check();
+	await page.getByRole('checkbox', { name: 'Choose the flight of Fri, 3 Jul 2026' }).check();
+	await expect(page.getByText('2 of 3 flights chosen')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Download 2 files' })).toBeVisible();
+	await keep('110-logbook-table');
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	const confirmation = page.getByRole('alertdialog', { name: 'Delete 2 flights?' });
+	await expect(confirmation).toContainText('Their files are removed');
 	await confirmation.getByRole('button', { name: 'Cancel' }).click();
-	await expect(row).toBeVisible();
+	await expect(rows).toHaveCount(4);
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await confirmation.getByRole('button', { name: 'Delete 2 flights' }).click();
+	await expect(rows).toHaveCount(2);
 
-	await page.getByRole('button', { name: 'Delete the flight of Sat, 4 Jul 2026' }).click();
-	await confirmation.getByRole('button', { name: 'Delete flight' }).click();
-	await expect(page.getByRole('heading', { name: 'No flights yet' })).toBeVisible();
+	// A row opens its flight; on a large screen the logbook stays beside it.
+	await rows.nth(1).getByRole('cell').nth(2).click();
+	await expect(page.getByRole('heading', { name: 'Sun, 5 Jul 2026' })).toBeVisible();
+	const beside = page.getByRole('complementary', { name: 'Logbook' });
+	if ((page.viewportSize()?.width ?? 0) >= 1280) {
+		await expect(beside.getByRole('link', { name: /5 Jul/ })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
+		await mapDrawn();
+		await keep('111-flight-beside-logbook');
+	} else {
+		await expect(beside).toHaveCount(0);
+	}
 });
 
 test('two tabs share one logbook', async ({ context, page }) => {

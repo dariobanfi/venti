@@ -1,4 +1,4 @@
-import { TodaySource } from './today-source';
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
@@ -11,10 +11,12 @@ import { LiveSource } from './live-source';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
+import { sitesMap } from './pkg/venti_core_wasm.js';
 import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
+import { TodaySource } from './today-source';
 import { WindSource } from './wind-source';
 
 beforeAll(startCore);
@@ -55,7 +57,7 @@ class SameProcess implements Channel {
 						groups: new GroupsSource(session, unreachable),
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable),
-						today: new TodaySource(async () => false),
+						today: new TodaySource(session, async () => false),
 						thermals: new ThermalMapSource(async () => false)
 					},
 					call,
@@ -218,6 +220,44 @@ describe('the core as the page calls it', () => {
 		// No tile could be fetched: the profile stays as it was.
 		expect(ground).toEqual([]);
 		await core.forgetFlightGround(1);
+	});
+
+	it('keeps a site as the pilot’s own, lists it, and forgets it', async () => {
+		const { core } = await open();
+		const map = sitesMap(
+			47,
+			11,
+			48,
+			12.5,
+			200,
+			readFileSync(new URL('../../../../../crates/server/tests/golden/sites.json', import.meta.url))
+		);
+		const site = map.sites.find((one) => one.id === 'osm-free-flying:way/1080986173')!;
+
+		expect(await core.isSiteKept(site.id)).toBe(false);
+		await core.keepSite(site, map.credits, map.asOfUnixS);
+		expect(await core.isSiteKept(site.id)).toBe(true);
+		// From a place the list says how far each is; without one it does not.
+		expect((await core.keptSites()).sites.map((one) => one.distanceM)).toEqual([undefined]);
+		const from = await core.keptSites({ lat: 47.6642, lon: 11.7967 });
+		expect(from.sites[0].site.name).toBe('Fluggelände Jägerkamp/Nagelspitz');
+		expect(from.sites[0].distanceM!).toBeGreaterThan(5000);
+		expect(from.credits).toHaveLength(1);
+
+		await core.forgetSite(site.id);
+		expect(await core.isSiteKept(site.id)).toBe(false);
+		expect((await core.keptSites()).sites).toEqual([]);
+	});
+
+	it('asks the core for the order of Today’s take-offs, a day at a time', async () => {
+		const { core } = await open();
+		const orders = await core.todayOrders([
+			[
+				{ id: 'a', isKept: false, distanceM: 1, verdict: 'marginal', thermals: undefined },
+				{ id: 'b', isKept: false, distanceM: 2, verdict: 'flyable', thermals: 'local' }
+			]
+		]);
+		expect(orders).toEqual([{ ids: ['b', 'a'], best: 'b' }]);
 	});
 
 	it('passes on that another tab changed the logbook', async () => {

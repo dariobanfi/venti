@@ -1,58 +1,61 @@
 /**
- * The order of Today's take-offs, and the day the screen opens on: what
- * the core says of each take-off, put in order. The iPhone's
- * `TodayScreen` sorts the same way.
+ * Today's take-offs between the screen and the core: how each stands on a
+ * day, handed to the core, and the core's order laid over the take-offs.
+ * Which take-off comes first and which is the best is the core's
+ * (`today_order`); nothing here ranks. The day the screen opens on is
+ * still decided here ({@link firstDay}), as on the iPhone's `TodayScreen`.
  */
 
-import type { OutlookDay } from '#lib/core/index.ts';
+import type { OutlookDay, TodayOrder, TodayStanding } from '#lib/core/index.ts';
 import type { TodayPlace } from './model.svelte.ts';
 
 /**
- * Where a take-off stands on a day, the best first: a flyable day by its
- * thermals (a big day, a cross-country day, local thermals, then weak or
- * none), then a marginal day, a day that is not flyable, and last one the
- * server has not answered for. The kind of day is the core's; this only
- * puts the kinds in order, as the iPhone's `TodayScreen` does.
+ * How every take-off stands on each day the screen can show, for the core
+ * to put in order: one list for a day, of as many days as the longest
+ * forecast has, and of one while none has arrived.
  */
-export function rank(day: OutlookDay | undefined): number {
-	if (!day) return 6;
-	if (day.verdict === 'marginal') return 4;
-	if (day.verdict === 'notFlyable') return 5;
-	switch (day.thermals) {
-		case 'big':
-			return 0;
-		case 'crossCountry':
-			return 1;
-		case 'local':
-			return 2;
-		default:
-			return 3;
-	}
-}
-
-/**
- * The take-offs in the order the screen lists them on a day: by
- * {@link rank}, and among equals the nearer first.
- */
-export function inOrder(places: readonly TodayPlace[], day: number): TodayPlace[] {
-	return places.toSorted(
-		(one, other) =>
-			rank(one.outlook?.days[day]) - rank(other.outlook?.days[day]) ||
-			one.distanceM - other.distanceM
+export function standings(places: readonly TodayPlace[]): TodayStanding[][] {
+	const days = Math.max(1, ...places.map((place) => place.outlook?.days.length ?? 0));
+	return Array.from({ length: days }, (_, day) =>
+		places.map((place) => {
+			const found = place.outlook?.days[day];
+			return {
+				id: place.site.id,
+				isKept: place.isKept,
+				distanceM: place.distanceM,
+				verdict: found?.verdict,
+				thermals: found?.thermals
+			};
+		})
 	);
 }
 
+/** Today's take-offs as the core ordered them on a day. */
+export interface Arranged {
+	/** Every take-off, in the core's order. */
+	listed: TodayPlace[];
+	/** The take-off the core calls the best of the day, once it has a forecast for it. */
+	best: { place: TodayPlace; day: OutlookDay } | undefined;
+}
+
 /**
- * The take-off that looks best on a day: the first in {@link inOrder}.
- * Nothing until one has a forecast for that day.
+ * The take-offs in the order the core gave for a day, and its best. Until
+ * the core has answered they stand as it listed them. A take-off the order
+ * does not name, because it was asked for a moment before the take-off
+ * came, stands after the others.
  */
-export function bestOn(
+export function arranged(
 	places: readonly TodayPlace[],
+	order: TodayOrder | undefined,
 	day: number
-): { place: TodayPlace; day: OutlookDay } | undefined {
-	const place = inOrder(places, day)[0];
+): Arranged {
+	if (!order) return { listed: [...places], best: undefined };
+	const byId = new Map(places.map((place) => [place.site.id, place]));
+	const named = order.ids.flatMap((id) => byId.get(id) ?? []);
+	const listed = [...named, ...places.filter((place) => !named.includes(place))];
+	const place = order.best === undefined ? undefined : byId.get(order.best);
 	const found = place?.outlook?.days[day];
-	return found ? { place, day: found } : undefined;
+	return { listed, best: place && found ? { place, day: found } : undefined };
 }
 
 /**

@@ -56,6 +56,42 @@ export function marks(site: SiteView): Mark[] {
 	return marks;
 }
 
+/**
+ * What a site's source says about using it, a sentence each: a fee, rules
+ * for guests, a time without flying. The sentences are the core's and
+ * stand as they are; one the source says nothing for is left out.
+ */
+export function said(
+	site: Pick<SiteView, 'feeInWords' | 'guestsInWords' | 'noFlightInWords'>
+): string[] {
+	return [site.feeInWords, site.guestsInWords, site.noFlightInWords].filter(
+		(sentence) => sentence !== ''
+	);
+}
+
+/** A web page somebody else keeps, to open outside the app. */
+export interface WebPage {
+	href: string;
+	/** Whose page it is, by its host: "www.dhv.de". */
+	host: string;
+}
+
+/**
+ * A site's web page as a link. The core hands on `http` and `https`
+ * addresses only; an address of any other kind is no link here either,
+ * since a link runs what its address says.
+ */
+export function webPage(address: string | undefined): WebPage | undefined {
+	if (!address) return undefined;
+	try {
+		const url = new URL(address);
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+		return { href: url.href, host: url.host };
+	} catch {
+		return undefined;
+	}
+}
+
 /** Whose sites are on the map, in the line that stands on the map. */
 export function creditLine(credits: readonly Credit[], text: Pick<Writing, 'list'>): string {
 	if (credits.length === 0) return '';

@@ -75,6 +75,12 @@ export type {
 	GroupView,
 	ImportedFlight,
 	KeptAirspace,
+	KeptSite,
+	KeptSites,
+	TodayOrder,
+	TodayStanding,
+	TodayTakeoff,
+	TodayTakeoffs,
 	LeagueHandover,
 	LiveFollowView,
 	LiveGlider,
@@ -157,7 +163,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export { CoreClient } from './client';
-export type { TodayTakeoff, TodayTakeoffs } from './today-source';
+export type { TodayAnswer } from './today-source';
 export type {
 	Compared,
 	FlightRef,

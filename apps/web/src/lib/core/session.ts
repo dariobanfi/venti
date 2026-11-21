@@ -26,6 +26,9 @@ import type {
 	LeagueHandover,
 	FlightView,
 	ImportedFlight,
+	Credit,
+	KeptSites,
+	SiteView,
 	LogbookStatistics,
 	SiteStatistics,
 	Tendencies,
@@ -215,6 +218,30 @@ export class CoreSession {
 	 */
 	flightAirspace(id: string): Promise<FlightAirspace> {
 		return this.ask((core) => core.flightAirspace(id));
+	}
+
+	/**
+	 * Marks a site as one of the pilot's own and keeps its record in the
+	 * browser, with its source's credit from `credits` and the date of the
+	 * source's data.
+	 */
+	keepSite(site: SiteView, credits: Credit[], asOfUnixS: number | undefined): Promise<void> {
+		return this.change((core) => core.keepSite(site, credits, asOfUnixS));
+	}
+
+	/** Unmarks a site, by its identifier. */
+	forgetSite(id: string): Promise<void> {
+		return this.change((core) => core.forgetSite(id));
+	}
+
+	/** Whether a site is one of the pilot's own. */
+	isSiteKept(id: string): Promise<boolean> {
+		return this.ask((core) => core.isSiteKept(id));
+	}
+
+	/** The pilot's own sites: from a place the nearest first, without one by name. */
+	keptSites(from: Coordinate | undefined): Promise<KeptSites> {
+		return this.ask((core) => core.keptSites(from));
 	}
 
 	/**

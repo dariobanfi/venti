@@ -1,13 +1,15 @@
 /**
- * Today, as the worker fetches it: the take-offs around a place, and what
+ * Today, as the worker fetches it: the take-offs the core lists, and what
  * the forecast says about flying from each.
  *
- * Where the take-offs are and what a forecast says of one are the core's
- * (`sitesMap`, `siteOutlook`); this file asks for the sites around the
- * place, keeps the nearest take-offs, and asks for the forecast of each,
- * again while the server answers that it is still fetching it, as the
- * iPhone's `TodayModel` does. Nothing is kept beyond the take-offs last
- * listed, by identifier, so that the page can ask for each one's forecast.
+ * Which take-offs Today lists, in which order, and what a forecast says of
+ * one are the core's (`todayArea`, `Core.todayTakeoffs`, `todayOrder`,
+ * `siteOutlook`): the pilot's own first, then those around the place. This
+ * file sends the request for the sites around the place in between, and
+ * asks for the forecast of each take-off, again while the server answers
+ * that it is still fetching it, as the iPhone's `TodayModel` does. Nothing
+ * is kept here beyond the take-offs last listed, by identifier, so that the
+ * page can ask for each one's forecast.
  */
 
 import {
@@ -16,61 +18,41 @@ import {
 	siteOutlook,
 	type SiteOutlook,
 	sitesMap,
+	type SitesMap,
 	sitesPath,
-	type SiteView
+	type SiteView,
+	todayArea,
+	todayOrder,
+	type TodayOrder,
+	type TodayStanding,
+	type TodayTakeoffs
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
+import type { CoreSession } from './session';
 import { type Get, getFromThisOrigin } from './wind-source';
 
-/** How many take-offs are shown: the nearest ones. */
-export const TAKEOFFS_SHOWN = 6;
-/** How far from the place a take-off may lie, metres. */
-export const REACH_M = 30_000;
 /** How often a forecast the server is still fetching is asked for. */
 const FORECAST_TRIES = 7;
 
-/** A take-off near the place asked about. */
-export interface TodayTakeoff {
-	site: SiteView;
-	/** How far it is from the place asked about, metres. */
-	distanceM: number;
-}
-
-/** The take-offs around a place, and the moment by Venti's clock they are seen at. */
-export interface TodayTakeoffs {
-	takeoffs: TodayTakeoff[];
+/** Today's take-offs as the core lists them, and the moment by Venti's clock they are seen at. */
+export interface TodayAnswer {
+	/** The take-offs, their two headings and their credits: the core's. */
+	listed: TodayTakeoffs;
 	/** Now, by Venti's clock, seconds since 1970-01-01 UTC. */
 	nowUnixS: number;
-}
-
-/** Metres between two places along the earth's surface. */
-export function metresBetween(one: Coordinate, other: Coordinate): number {
-	const radians = Math.PI / 180;
-	const [lat1, lat2] = [one.lat * radians, other.lat * radians];
-	const a =
-		Math.sin((lat2 - lat1) / 2) ** 2 +
-		Math.cos(lat1) * Math.cos(lat2) * Math.sin(((other.lon - one.lon) * radians) / 2) ** 2;
-	return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(a)));
+	/**
+	 * Why Venti gave no take-offs around the place, in words, when the
+	 * pilot's own are listed all the same.
+	 */
+	nearProblem: string | undefined;
 }
 
 /**
- * The take-offs to show of those a map holds: within reach of the place,
- * not marked as discouraged, those with a name of their own first ("Take-
- * off" tells a pilot nothing), and among them and the rest the nearest.
+ * The take-offs in order on each of several days: the core's order, asked
+ * for once for every day the screen can show.
  */
-export function nearestTakeoffs(sites: readonly SiteView[], place: Coordinate): TodayTakeoff[] {
-	return sites
-		.filter((site) => site.uses.includes('takeoff') && !site.discouraged)
-		.map((site) => ({ site, distanceM: metresBetween(place, site.position) }))
-		.filter((takeoff) => takeoff.distanceM <= REACH_M)
-		.toSorted((one, other) =>
-			one.site.isNamed !== other.site.isNamed
-				? one.site.isNamed
-					? -1
-					: 1
-				: one.distanceM - other.distanceM
-		)
-		.slice(0, TAKEOFFS_SHOWN);
+export function todayOrders(days: readonly TodayStanding[][]): TodayOrder[] {
+	return days.map((standings) => todayOrder(standings));
 }
 
 const getToday: Get = async (path) => {
@@ -82,6 +64,7 @@ const getToday: Get = async (path) => {
 };
 
 export class TodaySource {
+	#session: CoreSession;
 	#present: () => Promise<boolean>;
 	#now: () => Promise<number>;
 	#get: Get;
@@ -90,34 +73,52 @@ export class TodaySource {
 	#sites = new Map<string, SiteView>();
 
 	constructor(
+		session: CoreSession,
 		present: () => Promise<boolean> = async () => true,
 		now: () => Promise<number> = async () => Date.now() / 1000,
 		get: Get = getToday,
 		pauseMs = 4000
 	) {
+		this.#session = session;
 		this.#present = present;
 		this.#now = now;
 		this.#get = get;
 		this.#pauseMs = pauseMs;
 	}
 
-	/** The take-offs around a place. Nothing if this site has no server. */
-	async takeoffs(place: Coordinate): Promise<TodayTakeoffs | undefined> {
+	/**
+	 * The take-offs Today lists for a place: the pilot's own, then those
+	 * around it. Nothing if this site has no server.
+	 *
+	 * When Venti gives no answer about the sites around, the pilot's own are
+	 * listed alone, with why; with none of their own, that is the failure.
+	 * The core brings a kept site up to date from the answer, which is a
+	 * change to what is stored.
+	 */
+	async takeoffs(place: Coordinate): Promise<TodayAnswer | undefined> {
 		if (!(await this.#present())) return undefined;
-		// A box that holds the circle of the reach.
-		const north = REACH_M / 111_195;
-		const east = north / Math.max(Math.cos((place.lat * Math.PI) / 180), 0.2);
-		const [south, west, top, right] = [
-			place.lat - north,
-			place.lon - east,
-			place.lat + north,
-			place.lon + east
-		];
-		const answer = await this.#get(sitesPath(south, west, top, right));
-		const map = sitesMap(south, west, top, right, answer.status, answer.body);
-		const takeoffs = nearestTakeoffs(map.sites, place);
-		this.#sites = new Map(takeoffs.map((takeoff) => [takeoff.site.id, takeoff.site]));
-		return { takeoffs, nowUnixS: await this.#now() };
+		const { south, west, north, east } = todayArea(place.lat, place.lon);
+		let near: SitesMap | undefined;
+		let failure: unknown;
+		try {
+			const answer = await this.#get(sitesPath(south, west, north, east));
+			near = sitesMap(south, west, north, east, answer.status, answer.body);
+		} catch (error) {
+			failure = error;
+		}
+		const listed = await this.#session.change((core) => core.todayTakeoffs(place, near));
+		if (failure !== undefined && listed.takeoffs.length === 0) throw failure;
+		this.#sites = new Map(listed.takeoffs.map((takeoff) => [takeoff.site.id, takeoff.site]));
+		return {
+			listed,
+			nowUnixS: await this.#now(),
+			nearProblem:
+				failure === undefined
+					? undefined
+					: failure instanceof Error
+						? failure.message
+						: String(failure)
+		};
 	}
 
 	/**

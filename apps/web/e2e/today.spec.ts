@@ -145,3 +145,93 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	await keep('105-today-thermals');
 	expect(problems).toEqual([]);
 });
+
+test('a take-off the pilot keeps leads Today under its heading, is listed in the settings and is forgotten there', async ({
+	page,
+	keep,
+	wide,
+	problems
+}) => {
+	const NAME = 'Fluggelände Jägerkamp/Nagelspitz';
+	const sections = page.getByRole('navigation', { name: 'Sections' });
+	const forecasts = () =>
+		expect(page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible({
+			timeout: 30_000
+		});
+
+	// With none kept, Today has one group and names none.
+	await page.goto('/today/');
+	await forecasts();
+	await expect(page.getByText('Your take-offs')).toHaveCount(0);
+	await expect(page.getByText('Within 30 km')).toHaveCount(0);
+
+	// The take-off's page, as Today leads to it, has the row that keeps it.
+	if (wide) {
+		await rowsOf(page, 'Take-offs').filter({ hasText: NAME }).getByRole('button').click();
+		await page.locator('.best h2').getByRole('link', { name: NAME }).click();
+	} else {
+		await page
+			.getByRole('link', { name: new RegExp(NAME) })
+			.first()
+			.click();
+	}
+	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
+	await page.getByRole('button', { name: 'Keep as my take-off' }).click();
+	await expect(page.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
+	// What its source says of a fee, and its web page.
+	const more = page.getByRole('region', { name: 'What its source says about it' });
+	await expect(more).toContainText('A fee is asked for using this site.');
+	await expect(more.getByRole('link', { name: /^Web page/ })).toHaveAttribute(
+		'href',
+		'https://www.dhv.de/'
+	);
+	await keep('132-site-kept');
+
+	// Today, drawn again, has it first under the core's heading, and the
+	// others under theirs. The same after a reload: the browser kept it.
+	await sections.getByRole('link', { name: 'Today' }).click();
+	for (const reloaded of [false, true]) {
+		if (reloaded) await page.reload();
+		await forecasts();
+		if (wide) {
+			const rows = rowsOf(page, 'Take-offs');
+			await expect(rows.nth(0)).toHaveText('Your take-offs');
+			await expect(rows.nth(1)).toContainText(NAME);
+			await expect(rows.nth(2)).toHaveText('Within 30 km');
+		} else {
+			// The best of the day stands apart as the card, and says which group it is of.
+			const first = page
+				.locator('.best')
+				.or(page.getByRole('list', { name: 'Your take-offs' }))
+				.first();
+			await expect(first).toContainText(NAME);
+			await expect(page.getByText('Your take-offs')).toBeVisible();
+			await expect(page.getByRole('heading', { name: 'Within 30 km' })).toBeVisible();
+			await expect(
+				page.getByRole('list', { name: 'Within 30 km' }).getByRole('listitem').first()
+			).toBeVisible();
+			await expect(page.getByRole('list', { name: 'Within 30 km' })).not.toContainText(NAME);
+		}
+	}
+	// Whose the take-offs are.
+	await expect(page.getByRole('link', { name: '© OpenStreetMap contributors' })).toBeVisible();
+	await keep('133-today-kept');
+
+	// The list of the pilot's own, with the core's sentence about where it is kept.
+	await sections.getByRole('link', { name: 'Settings' }).click();
+	const own = page.getByRole('list', { name: 'Your take-offs' });
+	await expect(own.getByRole('listitem')).toHaveCount(1);
+	await expect(own.getByRole('link', { name: new RegExp(NAME) })).toContainText('1560');
+	await expect(own).toContainText('As of Wed, 18 Nov 2026.');
+	await expect(page.getByText(/^Kept on this device only: not sent to Venti/)).toBeVisible();
+	await keep('134-settings-your-take-offs');
+
+	// Forgotten there, it no longer leads Today.
+	await own.getByRole('button', { name: `Forget ${NAME}` }).click();
+	await expect(own).toHaveText('None kept');
+	await sections.getByRole('link', { name: 'Today' }).click();
+	await forecasts();
+	await expect(page.getByText('Your take-offs')).toHaveCount(0);
+	await expect(page.getByText('Within 30 km')).toHaveCount(0);
+	expect(problems).toEqual([]);
+});

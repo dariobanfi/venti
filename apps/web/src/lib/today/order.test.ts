@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { OutlookDay, SiteOutlook, SiteView, Thermals } from '#lib/core/index.ts';
 import { thermalStep } from '#lib/design/palette.ts';
 import type { TodayPlace } from './model.svelte.ts';
-import { bestOn, inOrder, rank } from './order.ts';
+import { arranged, firstDay, standings } from './order.ts';
 
 /** A day as the core gives it, with only what the order looks at filled in. */
 function day(verdict: OutlookDay['verdict'], thermals?: Thermals): OutlookDay {
@@ -30,51 +30,77 @@ function day(verdict: OutlookDay['verdict'], thermals?: Thermals): OutlookDay {
 	};
 }
 
-function place(name: string, distanceM: number, today?: OutlookDay): TodayPlace {
-	const outlook = today
-		? ({
-				days: [today],
-				model: '',
-				runUnixS: 0,
-				fetchedUnixS: 0,
-				note: '',
-				credits: []
-			} as SiteOutlook)
-		: undefined;
-	return { site: { id: name, name } as SiteView, distanceM, outlook, problem: undefined };
+function place(name: string, distanceM: number, isKept = false, ...days: OutlookDay[]): TodayPlace {
+	const outlook =
+		days.length > 0
+			? ({
+					days,
+					model: '',
+					runUnixS: 0,
+					fetchedUnixS: 0,
+					note: '',
+					credits: []
+				} as SiteOutlook)
+			: undefined;
+	return { site: { id: name, name } as SiteView, isKept, distanceM, outlook, problem: undefined };
 }
 
-describe('the order of the take-offs', () => {
-	it('puts flyable days by their thermals first, then marginal, not flyable and none', () => {
+describe('how the take-offs stand, for the core to order', () => {
+	it('says of each take-off on each day what the core’s order asks for', () => {
 		const places = [
-			place('none yet', 100),
-			place('not flyable', 200, day('notFlyable')),
-			place('marginal', 300, day('marginal', 'local')),
-			place('weak', 400, day('flyable', 'weak')),
-			place('no estimate', 450, day('flyable')),
-			place('local', 500, day('flyable', 'local')),
-			place('cross-country', 600, day('flyable', 'crossCountry')),
-			place('big', 700, day('flyable', 'big'))
+			place('own', 40_000, true, day('notFlyable')),
+			place('near', 900, false, day('flyable', 'big'), day('marginal', 'local')),
+			place('none yet', 100)
 		];
-		expect(inOrder(places, 0).map((one) => one.site.name)).toEqual([
-			'big',
-			'cross-country',
-			'local',
-			'weak',
-			'no estimate',
-			'marginal',
-			'not flyable',
-			'none yet'
+		expect(standings(places)).toEqual([
+			[
+				{ id: 'own', isKept: true, distanceM: 40_000, verdict: 'notFlyable', thermals: undefined },
+				{ id: 'near', isKept: false, distanceM: 900, verdict: 'flyable', thermals: 'big' },
+				{ id: 'none yet', isKept: false, distanceM: 100, verdict: undefined, thermals: undefined }
+			],
+			[
+				// A day a forecast does not reach has no verdict.
+				{ id: 'own', isKept: true, distanceM: 40_000, verdict: undefined, thermals: undefined },
+				{ id: 'near', isKept: false, distanceM: 900, verdict: 'marginal', thermals: 'local' },
+				{ id: 'none yet', isKept: false, distanceM: 100, verdict: undefined, thermals: undefined }
+			]
 		]);
-		expect(bestOn(places, 0)?.place.site.name).toBe('big');
 	});
 
-	it('takes the nearer of two equals, and a day the forecast does not reach as none', () => {
-		const far = place('far', 900, day('flyable', 'crossCountry'));
-		const near = place('near', 100, day('flyable', 'crossCountry'));
-		expect(inOrder([far, near], 0).map((one) => one.site.name)).toEqual(['near', 'far']);
-		expect(rank(undefined)).toBe(6);
-		expect(bestOn([far, near], 1)).toBeUndefined();
+	it('asks about one day while no forecast has arrived', () => {
+		expect(standings([place('a', 1), place('b', 2)])).toHaveLength(1);
+	});
+});
+
+describe('the core’s order laid over the take-offs', () => {
+	const own = place('own', 40_000, true, day('notFlyable'));
+	const near = place('near', 900, false, day('flyable', 'big'));
+	const late = place('late', 100);
+
+	it('lists them as the core says and names its best with the day', () => {
+		const found = arranged([near, own], { ids: ['own', 'near'], best: 'near' }, 0);
+		expect(found.listed).toEqual([own, near]);
+		expect(found.best).toEqual({ place: near, day: near.outlook!.days[0] });
+	});
+
+	it('keeps them as listed until the core has answered, with no best', () => {
+		expect(arranged([own, near], undefined, 0)).toEqual({ listed: [own, near], best: undefined });
+	});
+
+	it('puts a take-off the order does not name last, and has no best without its day', () => {
+		const found = arranged([late, near, own], { ids: ['own', 'near'], best: 'near' }, 1);
+		expect(found.listed).toEqual([own, near, late]);
+		expect(found.best).toBeUndefined();
+	});
+});
+
+describe('the day the screen opens on', () => {
+	it('is the first with flying hours left at any take-off', () => {
+		const hour = {} as OutlookDay['hours'][number];
+		const over = day('notFlyable');
+		const tomorrow = { ...day('flyable'), hours: [hour] };
+		expect(firstDay([place('a', 1, false, over, tomorrow), place('b', 2)])).toBe(1);
+		expect(firstDay([place('a', 1, false, over)])).toBe(0);
 	});
 });
 

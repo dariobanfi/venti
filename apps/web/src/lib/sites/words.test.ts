@@ -9,7 +9,9 @@ import {
 	forecastLine,
 	marks,
 	nothingListed,
+	said,
 	siteLine,
+	webPage,
 	withLinks
 } from './words';
 
@@ -135,5 +137,34 @@ describe('the site sheet’s lines', () => {
 		expect(forecastLine({ name: 'Today', headline: 'Good from noon', why: '' })).toBe(
 			'Today: Good from noon.'
 		);
+	});
+});
+
+describe('what a site’s source says beyond the site itself', () => {
+	it('gives the core’s sentences that say something, in their order', () => {
+		expect(said(site())).toEqual([]);
+		expect(
+			said(
+				site({
+					feeInWords: 'A fee is asked for using this site.',
+					noFlightInWords: 'Not to be used in this time, as its source writes it: 01.04-30.09'
+				})
+			)
+		).toEqual([
+			'A fee is asked for using this site.',
+			'Not to be used in this time, as its source writes it: 01.04-30.09'
+		]);
+	});
+
+	it('makes a link of a web address and of nothing else', () => {
+		expect(webPage('https://www.dhv.de/')).toEqual({
+			href: 'https://www.dhv.de/',
+			host: 'www.dhv.de'
+		});
+		expect(webPage('http://club.example/startplatz')?.host).toBe('club.example');
+		expect(webPage(undefined)).toBeUndefined();
+		expect(webPage('')).toBeUndefined();
+		expect(webPage('javascript:alert(1)')).toBeUndefined();
+		expect(webPage('not an address')).toBeUndefined();
 	});
 });

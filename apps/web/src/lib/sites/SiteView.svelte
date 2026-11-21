@@ -2,15 +2,27 @@
 	One flying site: what its source says about it, and what that is worth.
 	The words are those of the iPhone app's `SiteScreens.swift`. The iPhone
 	can also keep a site as a waypoint for its cockpit; a browser has neither.
+
+	Under what the page says of the site itself stands what its source says
+	beyond that, where it says anything: a description in its mapper's
+	words, a sentence each about a fee, rules for guests and a time without
+	flying (the core's sentences), and the site's web page. All of it is
+	set as text, and the web page is a link that opens outside the app.
+
+	The first row of its actions marks the site as one of the pilot's own,
+	and unmarks it: "Keep as my take-off", and "Kept" with a tick once it
+	is, in the manner of a plan's "I am in". The core keeps the site in this
+	browser and says whether it is kept; Today lists the kept take-offs first.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import type { Credit, SiteOutlook, SiteView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import AirChart from '#lib/today/AirChart.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
-	import { asOf, CAUTION, forecastLine, marks, siteLine, withLinks } from './words';
+	import { asOf, CAUTION, forecastLine, marks, said, siteLine, webPage, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
 
 	interface Props {
@@ -40,6 +52,46 @@
 
 	const text = format();
 	const marked = $derived(marks(site));
+	const sentences = $derived(said(site));
+	const web = $derived(webPage(site.website));
+
+	const own = $derived(getApp().kept);
+	/** Whether the site is one of the pilot's own, by the core. Unknown until it has answered. */
+	let kept = $state<boolean>();
+	let keeping = $state(false);
+	let keepProblem = $state<string>();
+
+	$effect(() => {
+		const id = site.id;
+		// Asked again after every change, in this tab or another.
+		void own?.revision;
+		let current = true;
+		own?.isKept(id).then(
+			(is) => {
+				if (current) kept = is;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** Keeps the site, with the credit and the date of the answer it came from, or forgets it. */
+	async function keepOrForget() {
+		if (!own || kept === undefined) return;
+		keeping = true;
+		keepProblem = undefined;
+		try {
+			if (kept) await own.forget(site.id);
+			else
+				await own.keep($state.snapshot(site), credit ? [$state.snapshot(credit)] : [], asOfUnixS);
+		} catch (error) {
+			keepProblem = error instanceof Error ? error.message : String(error);
+		} finally {
+			keeping = false;
+		}
+	}
 </script>
 
 <div class="site">
@@ -99,11 +151,41 @@
 	{/if}
 
 	<div class="card">
+		<button
+			class="row link"
+			type="button"
+			aria-pressed={kept ?? false}
+			disabled={keeping || kept === undefined}
+			onclick={keepOrForget}
+		>
+			{kept ? 'Kept' : 'Keep as my take-off'}
+			{#if kept}<Icon name="check" />{/if}
+		</button>
+		{#if keepProblem}
+			<p class="row said" role="alert">{keepProblem}</p>
+		{/if}
 		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
 		{#if flightsHref}
 			<a class="row link" href={flightsHref}>Flights from here</a>
 		{/if}
 	</div>
+
+	{#if site.description || sentences.length > 0 || web}
+		<section class="card" aria-label="What its source says about it">
+			{#if site.description}
+				<p class="row said description">{site.description}</p>
+			{/if}
+			{#each sentences as sentence (sentence)}
+				<p class="row said">{sentence}</p>
+			{/each}
+			{#if web}
+				<a class="row link" href={web.href} target="_blank" rel="noopener noreferrer">
+					Web page
+					<span class="host">{web.host}</span>
+				</a>
+			{/if}
+		</section>
+	{/if}
 
 	<section>
 		{#if site.url}
@@ -211,6 +293,22 @@
 	.warns,
 	.warns :global(svg) {
 		color: var(--danger);
+	}
+
+	/* The source's own words: text that may run over lines, never markup. */
+	.said {
+		justify-content: flex-start;
+		overflow-wrap: anywhere;
+	}
+
+	.description {
+		white-space: pre-line;
+	}
+
+	.host {
+		color: var(--text-secondary);
+		text-align: right;
+		overflow-wrap: anywhere;
 	}
 
 	.link {

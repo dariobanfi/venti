@@ -26,6 +26,7 @@ import {
 import { format } from '#lib/design/format.ts';
 import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
+import { KeptSitesModel } from '#lib/sites/kept.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
 import {
 	flightToShow,
@@ -57,6 +58,9 @@ export class App {
 
 	/** The take-offs around a place, and what the forecast says of each. */
 	today = $state.raw<TodayModel>();
+
+	/** The sites the pilot marks as their own, kept in this browser. */
+	kept = $state.raw<KeptSitesModel>();
 
 	/** The kind of day, square by square, for the map's "Forecast" layer. */
 	thermals = $state.raw<ThermalMapModel>();
@@ -95,6 +99,8 @@ export class App {
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
 				this.today = new TodayModel(core);
+				const kept = new KeptSitesModel(core);
+				this.kept = kept;
 				this.thermals = new ThermalMapModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
@@ -106,6 +112,7 @@ export class App {
 					void logbook.refresh();
 					void account.refresh();
 					void airspace.reload();
+					kept.changedElsewhere();
 				};
 				this.logbook = logbook;
 				this.account = account;

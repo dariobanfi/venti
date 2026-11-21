@@ -115,7 +115,24 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 		'https://www.openstreetmap.org/copyright'
 	);
 	await expect(site).toContainText('As of Wed, 18 Nov 2026.');
+	// What its source says beyond that, in the core's sentence, and its web
+	// page, which is somebody else's and opens outside the app.
+	const more = site.getByRole('region', { name: 'What its source says about it' });
+	await expect(more).toContainText('A fee is asked for using this site.');
+	const webPage = more.getByRole('link', { name: /^Web page/ });
+	await expect(webPage).toContainText('www.dhv.de');
+	await expect(webPage).toHaveAttribute('href', 'https://www.dhv.de/');
+	await expect(webPage).toHaveAttribute('target', '_blank');
+	await expect(webPage).toHaveAttribute('rel', 'noopener noreferrer');
+	// Kept as the pilot's own, and forgotten again, by the same row.
+	await site.getByRole('button', { name: 'Keep as my take-off' }).click();
+	await expect(site.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
 	await keep('42-site');
+	await site.getByRole('button', { name: 'Kept' }).click();
+	await expect(site.getByRole('button', { name: 'Keep as my take-off' })).toHaveAttribute(
+		'aria-pressed',
+		'false'
+	);
 	await closeButton(site, wide).click();
 	await expect(site).toBeHidden();
 
@@ -224,4 +241,18 @@ test('a server that cannot be asked for sites is named in the list, and the map 
 	await expect(list).toContainText('No flying sites here');
 	await expect(list).toContainText('Venti could not be reached for flying sites.');
 	await keep('44-sites-unreachable');
+});
+
+test('a site’s page shows its mapper’s description as text', async ({ page, keep, problems }) => {
+	// One of the Wallberg's two ramps, which OpenStreetMap describes.
+	await page.goto(
+		`/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent('osm-free-flying:node/5964676196')}`
+	);
+	const more = page.getByRole('region', { name: 'What its source says about it' });
+	await expect(more).toHaveText('Startrampe (vermutlich für Drachenflieger)');
+	// Nothing is said of a fee, of guests or of a time without flying, and it has no web page.
+	await expect(more.getByRole('link')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Keep as my take-off' })).toBeEnabled();
+	await keep('131-site-description');
+	expect(problems).toEqual([]);
 });

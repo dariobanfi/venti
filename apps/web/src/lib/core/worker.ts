@@ -54,6 +54,7 @@ const starting: Promise<Answering> = (async () => {
 		groups: new GroupsSource(session),
 		terrain: new TerrainSource(),
 		today: new TodaySource(
+			session,
 			() => wind.present(),
 			() => wind.now()
 		),

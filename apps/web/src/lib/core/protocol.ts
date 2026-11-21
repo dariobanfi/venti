@@ -28,6 +28,7 @@ import type {
 	AirspaceShape,
 	Bounds,
 	Coordinate,
+	Credit,
 	FlightAirspace,
 	FlightAnalysis,
 	FlightFile,
@@ -41,6 +42,7 @@ import type {
 	GroupMade,
 	ImportedFlight,
 	KeptAirspace,
+	KeptSites,
 	LeagueHandover,
 	LogbookStatistics,
 	SiteStatistics,
@@ -68,6 +70,8 @@ import type {
 	ThermalStripDay,
 	StationDays,
 	StationHistory,
+	TodayOrder,
+	TodayStanding,
 	WindStation
 } from './pkg/venti_core_wasm.js';
 import type { ForecastSource } from './forecast-source';
@@ -76,7 +80,7 @@ import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
-import type { TodaySource, TodayTakeoffs } from './today-source';
+import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
@@ -181,8 +185,34 @@ export interface Calls {
 	 * the other flight, and how the two lie to each other. Nothing is kept.
 	 */
 	compareFlights: { given: { first: FlightRef; other: FlightRef }; answer: Compared };
-	/** The take-offs around a place, for Today. Nothing if this site has no server. */
-	todayTakeoffs: { given: Coordinate; answer: TodayTakeoffs | undefined };
+	/**
+	 * The take-offs Today lists for a place, as the core chooses them: the
+	 * pilot's own, then those around. Nothing if this site has no server.
+	 */
+	todayTakeoffs: { given: Coordinate; answer: TodayAnswer | undefined };
+	/**
+	 * The core's order of Today's take-offs on each of several days: given
+	 * how each take-off stands on each day, one list for a day.
+	 */
+	todayOrders: { given: TodayStanding[][]; answer: TodayOrder[] };
+	/**
+	 * Marks a site as one of the pilot's own. Given the site as the core
+	 * gave it, the credits of the answer it came from, and the date of the
+	 * source's data by that answer.
+	 */
+	keepSite: {
+		given: { site: SiteView; credits: Credit[]; asOfUnixS: number | undefined };
+		answer: undefined;
+	};
+	/** Given a site's identifier: it is no longer one of the pilot's own. */
+	forgetSite: { given: string; answer: undefined };
+	/** Given a site's identifier: whether it is one of the pilot's own. */
+	isSiteKept: { given: string; answer: boolean };
+	/**
+	 * The pilot's own sites, from the browser alone: given a place, the
+	 * nearest first with their distances; given none, by name.
+	 */
+	keptSites: { given: Coordinate | undefined; answer: KeptSites };
 	/** What the forecast says about flying from one of them, from a moment on. */
 	todayOutlook: { given: { id: string; nowUnixS: number }; answer: SiteOutlook };
 	/** What the forecast says about flying from a site, by Venti's clock now. */
@@ -374,6 +404,11 @@ export async function answer<Name extends CallName>(
 		siteAt: ({ place, id }) => sites.siteAt(place, id),
 		openPublicFlight: (id) => community.open(id),
 		todayTakeoffs: (place) => today.takeoffs(place),
+		todayOrders: (days) => todayOrders(days),
+		keepSite: ({ site, credits, asOfUnixS }) => session.keepSite(site, credits, asOfUnixS),
+		forgetSite: (id) => session.forgetSite(id),
+		isSiteKept: (id) => session.isSiteKept(id),
+		keptSites: (from) => session.keptSites(from),
 		todayOutlook: ({ id, nowUnixS }) => today.outlook(id, nowUnixS),
 		siteOutlook: (site) => today.outlookFor(site),
 		thermalMap: () => thermals.map(),

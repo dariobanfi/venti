@@ -11,11 +11,13 @@ import type { HoursAsked } from './thermal-map-source';
 import type {
 	Bounds,
 	Coordinate,
+	Credit,
 	FlightVisibility,
 	PlanDraft,
 	ReportReason,
 	ReportSubject,
 	SiteView,
+	TodayStanding,
 	WindStation
 } from './pkg/venti_core_wasm.js';
 import {
@@ -231,12 +233,40 @@ export class CoreClient {
 	}
 
 	/**
-	 * Lays the flight `other` beside `first`, the one on screen: the other
-	 * flight and how the two lie to each other. Nothing is kept.
+	 * The take-offs Today lists for a place, as the core chooses them: the
+	 * pilot's own, then those around. Nothing if this site has no server.
 	 */
-	/** The take-offs around a place, for Today. Nothing if this site has no server. */
 	todayTakeoffs(place: Coordinate) {
 		return this.#call('todayTakeoffs', place);
+	}
+
+	/** The core's order of Today's take-offs on each of several days. */
+	todayOrders(days: TodayStanding[][]) {
+		return this.#call('todayOrders', days);
+	}
+
+	/**
+	 * Marks a site as one of the pilot's own and keeps it in the browser:
+	 * the site as the core gave it, the credits of the answer it came from
+	 * and the date of the source's data by that answer.
+	 */
+	keepSite(site: SiteView, credits: Credit[], asOfUnixS: number | undefined) {
+		return this.#call('keepSite', { site, credits, asOfUnixS });
+	}
+
+	/** A site is no longer one of the pilot's own. */
+	forgetSite(id: string) {
+		return this.#call('forgetSite', id);
+	}
+
+	/** Whether a site is one of the pilot's own. */
+	isSiteKept(id: string) {
+		return this.#call('isSiteKept', id);
+	}
+
+	/** The pilot's own sites: from a place the nearest first, without one by name. */
+	keptSites(from?: Coordinate) {
+		return this.#call('keptSites', from);
 	}
 
 	/** What the forecast says about flying from a site, by Venti's clock now. */
@@ -283,6 +313,10 @@ export class CoreClient {
 		return this.#call('todayOutlook', { id, nowUnixS });
 	}
 
+	/**
+	 * Lays the flight `other` beside `first`, the one on screen: the other
+	 * flight and how the two lie to each other. Nothing is kept.
+	 */
 	compareFlights(first: FlightRef, other: FlightRef) {
 		return this.#call('compareFlights', { first, other });
 	}

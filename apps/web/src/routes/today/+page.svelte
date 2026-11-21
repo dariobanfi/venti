@@ -8,6 +8,12 @@
 	page. The three words are what the forecast says by fixed limits; the
 	core decides them (`site_outlook`), and the screen says that they are
 	not advice to fly.
+
+	Which take-offs are listed, their order on a day and which is the best
+	are the core's too (`Core.todayTakeoffs`, `todayOrder`): the pilot's own
+	first, then those around the place. Where there are both, each group
+	stands under the core's name for it: two lists on a phone, two groups
+	of rows in the table of a wide screen.
 -->
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
@@ -22,8 +28,8 @@
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import ThermalMark from '#lib/today/ThermalMark.svelte';
 	import { thermalStep } from '#lib/design/palette.ts';
-	import { FIRST_REGION, NOTHING_YET } from '#lib/today/model.svelte.ts';
-	import { bestOn, firstDay, inOrder } from '#lib/today/order.ts';
+	import { FIRST_REGION, NOTHING_YET, type TodayPlace } from '#lib/today/model.svelte.ts';
+	import { arranged, firstDay } from '#lib/today/order.ts';
 
 	const app = getApp();
 	const text = format();
@@ -38,7 +44,8 @@
 	let locating = $state(false);
 
 	$effect(() => {
-		today?.show(position ?? FIRST_REGION, position !== undefined);
+		// Asked anew after the pilot kept or forgot a take-off.
+		today?.show(position ?? FIRST_REGION, position !== undefined, app.kept?.revision ?? 0);
 	});
 
 	function usePosition() {
@@ -68,9 +75,11 @@
 	);
 	/** As the core names them by the calendar: "Today", "Tomorrow", "Sat". */
 	const dayNames = $derived(days.map((day) => day.name));
-	const best = $derived(bestOn(shown.places, dayIndex));
-	/** Every take-off in the order the forecast puts them, for the table of a wide screen. */
-	const listed = $derived(inOrder(shown.places, dayIndex));
+	/** The take-offs as the core orders them on the day, and the one it calls the best. */
+	const order = $derived(arranged(shown.places, shown.orders[dayIndex], dayIndex));
+	const best = $derived(order.best);
+	/** Every take-off in the core's order, for the table of a wide screen. */
+	const listed = $derived(order.listed);
 	/** The take-off chosen in that table, by its identifier; the best until one is. */
 	let chosenSite = $state<string>();
 	/** The take-off whose hours the card shows: the one chosen on a wide screen, else the best. */
@@ -79,8 +88,21 @@
 		const day = place?.outlook?.days[dayIndex];
 		return place && day ? { place, day } : best;
 	});
-	/** The others in the order the forecast puts them: the better first, among equals the nearer. */
-	const others = $derived(inOrder(shown.places, dayIndex).filter((place) => place !== best?.place));
+	/** The others, in the core's order. */
+	const others = $derived(listed.filter((place) => place !== best?.place));
+	/** Whether the two groups are named: where the pilot's own and the others both have a take-off. */
+	const grouped = $derived(
+		shown.places.some((place) => place.isKept) && shown.places.some((place) => !place.isKept)
+	);
+
+	/** Take-offs under the core's name for their group; one group without a name where there is one kind only. */
+	function groups(places: TodayPlace[]): { title: string | undefined; places: TodayPlace[] }[] {
+		if (!grouped) return [{ title: undefined, places }];
+		return [
+			{ title: shown.keptTitle, places: places.filter((place) => place.isKept) },
+			{ title: shown.nearTitle, places: places.filter((place) => !place.isKept) }
+		].filter((group) => group.places.length > 0);
+	}
 	/**
 	 * Whether the best take-off's hours show their climbs: only where one of
 	 * them has something to climb in. A day with none says so in its line.
@@ -189,9 +211,8 @@
 				<Icon name="pin" />
 				<h2>No take-offs near</h2>
 				<p>
-					The flying sites’ source knows no take-off within 30 km of {shown.nearYou
-						? 'your position'
-						: 'this place'}.
+					{shown.nearTitle} of {shown.nearYou ? 'your position' : 'this place'} the flying sites’ source
+					knows no take-off, and none is kept as yours.
 				</p>
 			</div>
 		{:else if shown.phase !== 'loaded'}
@@ -223,46 +244,57 @@
 									<th scope="col" class="number">Away</th>
 								</tr>
 							</thead>
-							<tbody>
-								{#each listed as place (place.site.id)}
-									{@const day = place.outlook?.days[dayIndex]}
-									{@const current = card?.place === place}
-									<tr class:current onclick={() => (chosenSite = place.site.id)}>
-										<th scope="row">
-											<button
-												type="button"
-												aria-pressed={current}
-												onclick={() => (chosenSite = place.site.id)}
-											>
-												{place.site.name}
-											</button>
-										</th>
-										<td>
-											{#if day?.thermalWords}
-												<span class="kind-of-day">
-													<ThermalMark climbMs={day.climbMs ?? 0} />
-													{day.thermalWords}
-												</span>
-											{/if}
-										</td>
-										<td class="status">
-											{#if day}
-												<StatusChip verdict={day.verdict} status={day.status} />
-												{#if day.why}<span class="lesser">{day.why}</span>{/if}
-											{:else}
-												<span class="lesser">
-													{place.problem ??
-														(place.outlook ? 'No forecast for this day' : 'Fetching the forecast…')}
-												</span>
-											{/if}
-										</td>
-										<td class="numeric">
-											{#if day?.windKmh}{day.windKmh} km/h{#if day.windFrom}{' '}from {day.windFrom}{/if}{/if}
-										</td>
-										<td class="number numeric">{text.kilometres(place.distanceM)} km</td>
-									</tr>
-								{/each}
-							</tbody>
+							{#each groups(listed) as group (group.title)}
+								<tbody>
+									{#if group.title}
+										<tr class="group-head">
+											<th scope="rowgroup" colspan="5">{group.title}</th>
+										</tr>
+									{/if}
+									{#each group.places as place (place.site.id)}
+										{@const day = place.outlook?.days[dayIndex]}
+										{@const current = card?.place === place}
+										<tr class:current onclick={() => (chosenSite = place.site.id)}>
+											<th scope="row">
+												<button
+													type="button"
+													aria-pressed={current}
+													onclick={() => (chosenSite = place.site.id)}
+												>
+													{place.site.name}
+												</button>
+											</th>
+											<td>
+												{#if day?.thermalWords}
+													<span class="kind-of-day">
+														<ThermalMark climbMs={day.climbMs ?? 0} />
+														{day.thermalWords}
+													</span>
+												{/if}
+											</td>
+											<td class="status">
+												{#if day}
+													<StatusChip verdict={day.verdict} status={day.status} />
+													{#if day.why}<span class="lesser">{day.why}</span>{/if}
+												{:else}
+													<span class="lesser">
+														{place.problem ??
+															(place.outlook
+																? 'No forecast for this day'
+																: 'Fetching the forecast…')}
+													</span>
+												{/if}
+											</td>
+											<td class="numeric">
+												{#if day?.windKmh}{day.windKmh} km/h{#if day.windFrom}{' '}from {day.windFrom}{/if}{/if}
+											</td>
+											<td class="number numeric">
+												{#if place.distanceM !== undefined}{text.kilometres(place.distanceM)} km{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							{/each}
 						</table>
 					</div>
 				{/if}
@@ -276,6 +308,10 @@
 						href={wide.current ? undefined : href}
 						aria-label="{card.place.site.name}: {day.status}"
 					>
+						{#if grouped && !wide.current}
+							<!-- Which of the two groups the best take-off is of: it stands apart from their lists. -->
+							<p class="of-group">{card.place.isKept ? shown.keptTitle : shown.nearTitle}</p>
+						{/if}
 						<div class="title">
 							<h2>
 								{#if wide.current}
@@ -350,42 +386,58 @@
 				{/if}
 
 				{#if !wide.current}
-					<ul class="card others" aria-label="Other take-offs">
-						{#each others as place (place.site.id)}
-							{@const day = place.outlook?.days[dayIndex]}
-							<li>
-								<a href={placeHref(place.site.position, place.site.id)}>
-									<span class="sign"><Icon name="takeoff" /></span>
-									<span class="text">
-										<span class="name">{place.site.name}</span>
-										{#if day?.thermalWords}
-											<span class="kind-of-day">
-												<ThermalMark climbMs={day.climbMs ?? 0} />
-												{day.thermalWords}
+					{#each groups(others) as group (group.title)}
+						<section>
+							{#if group.title}
+								<h2 class="group-title">{group.title}</h2>
+							{/if}
+							<ul class="card others" aria-label={group.title ?? 'Other take-offs'}>
+								{#each group.places as place (place.site.id)}
+									{@const day = place.outlook?.days[dayIndex]}
+									<li>
+										<a href={placeHref(place.site.position, place.site.id)}>
+											<span class="sign"><Icon name="takeoff" /></span>
+											<span class="text">
+												<span class="name">{place.site.name}</span>
+												{#if day?.thermalWords}
+													<span class="kind-of-day">
+														<ThermalMark climbMs={day.climbMs ?? 0} />
+														{day.thermalWords}
+													</span>
+												{/if}
+												<span class="lesser">
+													{#if day}
+														{day.why || day.headline}
+													{:else if place.problem}
+														{place.problem}
+													{:else if place.outlook}
+														No forecast for this day
+													{:else}
+														Fetching the forecast…
+													{/if}
+													{#if place.distanceM !== undefined}
+														· {text.kilometres(place.distanceM)} km away
+													{/if}
+												</span>
 											</span>
-										{/if}
-										<span class="lesser">
 											{#if day}
-												{day.why || day.headline}
-											{:else if place.problem}
-												{place.problem}
-											{:else if place.outlook}
-												No forecast for this day
-											{:else}
-												Fetching the forecast…
+												<StatusChip verdict={day.verdict} status={day.status} />
 											{/if}
-											· {text.kilometres(place.distanceM)} km away
-										</span>
-									</span>
-									{#if day}
-										<StatusChip verdict={day.verdict} status={day.status} />
-									{/if}
-								</a>
-							</li>
-						{/each}
-					</ul>
+										</a>
+									</li>
+								{/each}
+							</ul>
+						</section>
+					{/each}
 				{/if}
 			</div>
+
+			{#if shown.keptMore}
+				<p class="note">{shown.keptMore}</p>
+			{/if}
+			{#if shown.nearProblem}
+				<p class="note" role="status">{shown.nearProblem}</p>
+			{/if}
 
 			{#if !shown.nearYou}
 				<div class="locate">
@@ -412,6 +464,10 @@
 						<p><a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a></p>
 					{/each}
 				{/if}
+				<!-- Whose the take-offs are, as their licences ask wherever they are shown. -->
+				{#each shown.credits as credit (credit.source)}
+					<p><a href={credit.url} target="_blank" rel="noopener noreferrer">{credit.text}</a></p>
+				{/each}
 				<p>
 					Flyable, marginal and not flyable are what the forecast says by fixed limits of wind,
 					gusts, rain and cloud, and the wind directions the take-off’s source gives. The kind of
@@ -522,12 +578,20 @@
 		box-shadow: inset 0 -1px 0 var(--color-border);
 	}
 
-	tbody tr {
+	tbody tr:not(.group-head) {
 		cursor: pointer;
 	}
 
-	tbody tr + tr > * {
+	tbody tr + tr > *,
+	tbody + tbody tr:first-child > * {
 		box-shadow: inset 0 1px 0 var(--separator);
+	}
+
+	/* The name of a group of rows: the pilot's own, and those around. */
+	.group-head th {
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
 	}
 
 	tbody th button {
@@ -585,6 +649,21 @@
 
 	h2 a {
 		color: var(--link);
+	}
+
+	/* The name of a group over its list, as over a group of settings. */
+	h2.group-title,
+	.of-group {
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
+
+	.note {
+		margin-top: var(--space-4);
+		padding: 0 var(--space-4);
+		font-size: var(--footnote);
+		color: var(--text-secondary);
 	}
 
 	.why,

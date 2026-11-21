@@ -217,3 +217,85 @@ test('a take-off’s page names the kind of day under the forecast’s line', as
 	await table(forecast).scrollIntoViewIfNeeded();
 	await keep('109-forecast-thermals');
 });
+
+test('a take-off’s page says what is much stronger near by, and marks the layers in the air through the day', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	// The development server's clock stands still on the 18th, and a
+	// take-off's page is about the first day with flying hours left. The
+	// forecast is the server's own recorded one; only the moment it is read
+	// at is moved, to the evening before the day the test wants.
+	let now = '2026-11-22T17:00:00Z';
+	await context.route('**/v1/health', async (route) => {
+		const response = await route.fetch();
+		await route.fulfill({ response, json: { ...(await response.json()), time: now } });
+	});
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+
+	// Monday: in one hour the gusts near by are much stronger than at the
+	// take-off. The day says so under its line, as a note and not a status.
+	let site = await openTheTakeOff(page, mapDrawn, wide);
+	const line = site.getByTestId('nearby-line').first();
+	await expect(line).toHaveText(
+		/^Much stronger near by at \d+:00: .+ \d+ km\/h .+ \d+ km\/h at the place$/,
+		{
+			timeout: 30_000
+		}
+	);
+	await expect(site.locator('.status')).toHaveText(/^\s*(Flyable|Marginal|Not flyable)\s*$/);
+	await keep('147-site-nearby');
+
+	// The picture marks where thermals stop, and says what the marks are.
+	let air = site.getByRole('img', { name: /^The air through the day: / });
+	await air.scrollIntoViewIfNeeded();
+	await expect(air.locator('.layer').first()).toBeAttached();
+	await expect(site).toContainText(
+		'A hatched band is a stable layer and a solid band an inversion.'
+	);
+	await expect(site).toContainText(/Layers are read between the model.s levels/);
+	await expect(site).toContainText(/Near by is the strongest wind and gust/);
+
+	// The hour with the stronger wind, chosen: its line, its layers in the
+	// core's words, and the strongest wind and gust near by with where.
+	const hour = site.getByRole('button', { name: /^\d+:00: .+ km\/h at the place\. / });
+	await hour.click();
+	await expect(hour).toHaveAttribute('aria-pressed', 'true');
+	const detail = site.getByTestId('air-hour');
+	await expect(detail.getByTestId('nearby-line')).toHaveText(
+		/ \d+ km\/h .+ \d+ km\/h at the place$/
+	);
+	await expect(detail.getByRole('listitem').first()).toHaveText(
+		/^\s*(Stable layer|Inversion) between \d+ and \d+ m: \d\.\d °C (warmer )?per 100 m\s*$/
+	);
+	const where =
+		'(in the square around the place|\\d+ km to the [a-z-]+)( over ground at [\\d,]+ m)?';
+	await expect(detail).toContainText(new RegExp(`Wind near by\\s*\\d+ km/h ${where}`));
+	await expect(detail).toContainText(new RegExp(`Gusts near by\\s*\\d+ km/h ${where}`));
+	await detail.scrollIntoViewIfNeeded();
+	await keep('148-site-air-hour');
+
+	// Sunday: a quiet day near by, with an inversion over the ground in the
+	// morning and a stable layer above it. No line, and both kinds of band.
+	now = '2026-11-21T17:00:00Z';
+	site = await openTheTakeOff(page, mapDrawn, wide);
+	air = site.getByRole('img', { name: /^The air through the day: / });
+	await air.scrollIntoViewIfNeeded();
+	await expect(air.locator('.layer.inversion').first()).toBeAttached();
+	await expect(air.locator('.layer:not(.inversion)').first()).toBeAttached();
+	await expect(site.getByTestId('nearby-line')).toHaveCount(0);
+	await keep('149-site-air-layers');
+	await site
+		.getByRole('button', { name: /^\d+:00: Inversion between / })
+		.first()
+		.click();
+	await expect(site.getByTestId('air-hour')).toContainText(
+		/Inversion between \d+ and \d+ m: \d\.\d °C warmer per 100 m/
+	);
+	expect(problems).toEqual([]);
+});

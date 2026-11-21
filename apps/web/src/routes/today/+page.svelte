@@ -24,6 +24,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import { type Fix, problemText, watchPosition } from '#lib/map/position.ts';
+	import NearbyLine from '#lib/today/NearbyLine.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import ThermalMark from '#lib/today/ThermalMark.svelte';
@@ -123,6 +124,15 @@
 			runUnixS: day?.model ? day.runUnixS : (outlook?.runUnixS ?? 0)
 		};
 	});
+	/**
+	 * What the wind near by is and is not, where a take-off's day has the
+	 * line: the core's sentence, of the take-off in the card if it has the
+	 * line, else of the first that has.
+	 */
+	const nearbyNote = $derived(
+		[card?.place, ...shown.places].find((place) => place?.outlook?.days[dayIndex]?.nearby)?.outlook
+			?.nearbyNote ?? ''
+	);
 	const waiting = $derived(
 		shown.phase === 'loaded' && shown.places.some((place) => !place.outlook && !place.problem)
 	);
@@ -276,6 +286,7 @@
 												{#if day}
 													<StatusChip verdict={day.verdict} status={day.status} />
 													{#if day.why}<span class="lesser">{day.why}</span>{/if}
+													<NearbyLine words={day.nearby} small />
 												{:else}
 													<span class="lesser">
 														{place.problem ??
@@ -325,6 +336,8 @@
 						{#if day.why}
 							<p class="why">{day.why}</p>
 						{/if}
+						<!-- Much stronger wind near by: a note under the day's reason, and no verdict. -->
+						<NearbyLine words={day.nearby} />
 						{#if day.thermals}
 							<ThermalLine {day} />
 						{/if}
@@ -419,6 +432,9 @@
 														· {text.kilometres(place.distanceM)} km away
 													{/if}
 												</span>
+												{#if day}
+													<NearbyLine words={day.nearby} small />
+												{/if}
 											</span>
 											{#if day}
 												<StatusChip verdict={day.verdict} status={day.status} />
@@ -454,6 +470,9 @@
 			<footer>
 				{#if outlook}
 					<p>{reading.note}</p>
+					{#if nearbyNote}
+						<p>{nearbyNote}</p>
+					{/if}
 					<p class="numeric">
 						{reading.model}, run of {text.day(reading.runUnixS)}
 						{text.time(reading.runUnixS)}. Venti last looked for a newer run at {text.time(

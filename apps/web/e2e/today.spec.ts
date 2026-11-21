@@ -235,3 +235,45 @@ test('a take-off the pilot keeps leads Today under its heading, is listed in the
 	await expect(page.getByText('Within 30 km')).toHaveCount(0);
 	expect(problems).toEqual([]);
 });
+
+test('a day on which the wind near by is much stronger says so under what limits the day', async ({
+	page,
+	keep,
+	wide,
+	problems
+}) => {
+	await page.goto('/today/');
+	await expect(page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible({
+		timeout: 30_000
+	});
+	// The recorded forecast has it on its Monday, at one take-off at least.
+	const days = page.getByRole('radiogroup', { name: 'Day' });
+	await days.getByText('Mon', { exact: true }).click();
+	await expect(days.getByRole('radio', { name: 'Mon' })).toBeChecked();
+	const line = page.getByTestId('nearby-line').first();
+	await expect(line).toHaveText(
+		/^Much stronger near by at \d+:00: .+ \d+ km\/h .+ \d+ km\/h at the place$/,
+		{
+			timeout: 30_000
+		}
+	);
+	if (wide) {
+		// In the table it stands under the status and its reason; the row
+		// chosen has it in the card beside the table too.
+		const row = rowsOf(page, 'Take-offs')
+			.filter({ has: page.getByTestId('nearby-line') })
+			.first();
+		await expect(row.locator('td.status span.status')).toHaveText(
+			/^\s*(Flyable|Marginal|Not flyable)\s*$/
+		);
+		await row.getByRole('button').click();
+		await expect(page.locator('.best').getByTestId('nearby-line')).toBeVisible();
+	}
+	// It is a note, not a status: the day keeps the one status it had.
+	await expect(page.locator('.best .status')).toHaveText(/^\s*(Flyable|Marginal|Not flyable)\s*$/);
+	// What "near by" is and is not, at the foot.
+	await expect(page.getByText(/^Near by is the strongest wind and gust/)).toBeVisible();
+	await line.scrollIntoViewIfNeeded();
+	await keep('150-today-nearby');
+	expect(problems).toEqual([]);
+});

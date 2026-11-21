@@ -21,6 +21,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import AirChart from '#lib/today/AirChart.svelte';
+	import NearbyLine from '#lib/today/NearbyLine.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import { asOf, CAUTION, forecastLine, marks, said, siteLine, webPage, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
@@ -103,6 +104,8 @@
 		<p>{siteLine(site, text)}</p>
 		{#if day}
 			<p class="lesser">{forecastLine(day)}</p>
+			<!-- Much stronger wind near by: a note under the day's reason, and no verdict. -->
+			<NearbyLine words={day.nearby} />
 			{#if day.thermals}
 				<ThermalLine {day} />
 			{/if}
@@ -111,7 +114,12 @@
 	{#if day && day.hours.length > 0 && day.groundM !== undefined}
 		<section class="card chart" aria-label="The air through the day">
 			<h3>The air through the day</h3>
-			<AirChart {day} takeoffM={site.elevationM} />
+			<AirChart
+				{day}
+				takeoffM={site.elevationM}
+				nearbyNote={outlook?.nearbyNote}
+				layersNote={outlook?.layersNote}
+			/>
 		</section>
 	{/if}
 

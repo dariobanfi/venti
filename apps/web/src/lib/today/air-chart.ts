@@ -5,7 +5,7 @@
  * places them, by the iPhone's rules (`AirChart.swift`).
  */
 
-import type { ForecastWind, OutlookDay } from '#lib/core/index.ts';
+import type { ForecastWind, OutlookDay, OutlookLayer } from '#lib/core/index.ts';
 import { thermalStep } from '#lib/design/palette.ts';
 
 /** From a floor under the model's ground and the take-off to a ceiling over the thermals, both round. */
@@ -63,6 +63,30 @@ export function yOf(scale: AirScale, metres: number, height: number): number {
 	return height * (1 - (metres - scale.floorM) / (scale.ceilingM - scale.floorM));
 }
 
+/** A layer as the picture marks it: the stretch of it that lies inside the picture. */
+export interface AirBand {
+	bottomM: number;
+	topM: number;
+	/** An inversion is a solid band, a stable layer a hatched one. */
+	inversion: boolean;
+	/** The core's words for the whole layer, also where the picture cuts it. */
+	words: string;
+}
+
+/**
+ * An hour's layers as bands of the picture: each cut at the picture's
+ * floor and ceiling, and left out where none of it lies between them.
+ */
+export function layerBands(layers: readonly OutlookLayer[], scale: AirScale): AirBand[] {
+	return layers.flatMap((layer) => {
+		const bottomM = Math.max(layer.bottomM, scale.floorM);
+		const topM = Math.min(layer.topM, scale.ceilingM);
+		return topM > bottomM
+			? [{ bottomM, topM, inversion: layer.inversion, words: layer.words }]
+			: [];
+	});
+}
+
 /** What stands in one hour's slot. */
 export interface AirHour {
 	hour: string;
@@ -72,6 +96,8 @@ export interface AirHour {
 	climbMs: number | undefined;
 	/** The winds drawn: at 10 m above the model's ground and every level more than 300 m above it, inside the picture. */
 	winds: { altitudeM: number; wind: ForecastWind }[];
+	/** Where thermals stop in the hour, as far as the picture reaches. */
+	bands: AirBand[];
 }
 
 export function airHours(day: OutlookDay, scale: AirScale): AirHour[] {
@@ -91,7 +117,8 @@ export function airHours(day: OutlookDay, scale: AirScale): AirHour[] {
 				(wind) =>
 					(wind.altitudeM === lowest || wind.altitudeM > (lowest ?? 0) + 300) &&
 					wind.altitudeM <= scale.ceilingM
-			)
+			),
+			bands: layerBands(hour.layers, scale)
 		};
 	});
 }

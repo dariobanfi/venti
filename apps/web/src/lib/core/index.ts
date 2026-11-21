@@ -125,6 +125,8 @@ export type {
 	SiteOutlook,
 	OutlookDay,
 	OutlookHour,
+	OutlookNearby,
+	OutlookLayer,
 	Flyability,
 	Thermals,
 	ThermalLegendEntry,

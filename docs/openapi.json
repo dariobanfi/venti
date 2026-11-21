@@ -540,6 +540,132 @@
         ],
         "type": "object"
       },
+      "DumpContent": {
+        "description": "What a file of a dump holds: the sites of a layer as they stand, or every site the layer ever had with every revision.",
+        "type": "string",
+        "x-venti-values": [
+          "sites",
+          "history"
+        ]
+      },
+      "DumpFile": {
+        "description": "One file of a layer's dump. `bytes` and `sha256` are of the file before any compression on the way.",
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "content": {
+            "$ref": "#/components/schemas/DumpContent"
+          },
+          "format": {
+            "$ref": "#/components/schemas/DumpFormat"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "format",
+          "path",
+          "media_type",
+          "bytes",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "DumpFormat": {
+        "description": "The format of a file of a dump: GeoJSON, CSV, or JSON Lines.",
+        "type": "string",
+        "x-venti-values": [
+          "geojson",
+          "csv",
+          "jsonl"
+        ]
+      },
+      "DumpLayer": {
+        "description": "The dump of one layer of Venti's own sites: the licence its records are given under, when its files were made, the layer's change number they stand at (`cursor`, to go on from with `GET /v1/sites/changes`), how much they hold, and the files.",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DumpFile"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "licence": {
+            "type": "string"
+          },
+          "licence_url": {
+            "type": "string"
+          },
+          "notice": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          },
+          "revisions": {
+            "type": "integer"
+          },
+          "sites": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "layer",
+          "provider",
+          "licence",
+          "licence_url",
+          "notice",
+          "generated_at",
+          "cursor",
+          "sites",
+          "removed",
+          "revisions",
+          "files"
+        ],
+        "type": "object"
+      },
+      "DumpsResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/DumpLayer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "layers",
+          "attributions"
+        ],
+        "type": "object"
+      },
       "ErrorBody": {
         "description": "`code` is stable and for programs; `message` is for the person writing the client and may change. `scope` comes with `insufficient_scope`, `site` with `site_too_close`.",
         "properties": {
@@ -4481,6 +4607,141 @@
         "security": [],
         "summary": "The airspace of a box, in layers by source",
         "x-venti-docs": "GET /v1/airspace?bbox=west,south,east,north"
+      }
+    },
+    "/v1/dumps": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_dumps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DumpsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The dumps of Venti's own two layers of sites: every file with its licence",
+        "x-venti-docs": "GET /v1/dumps"
+      }
+    },
+    "/v1/dumps/sites/{layer}.csv": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_dumps_sites_layer_csv",
+        "parameters": [
+          {
+            "description": "One of Venti's own two layers of sites: `venti` or `venti-pilots`.",
+            "in": "path",
+            "name": "layer",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv; charset=utf-8; header=present": {
+                "schema": {
+                  "description": "A line of column names and a line for every site",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The sites of one of Venti's own layers as they stand, as CSV",
+        "x-venti-docs": "GET /v1/dumps/sites/{layer}.csv"
+      }
+    },
+    "/v1/dumps/sites/{layer}.geojson": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_dumps_sites_layer_geojson",
+        "parameters": [
+          {
+            "description": "One of Venti's own two layers of sites: `venti` or `venti-pilots`.",
+            "in": "path",
+            "name": "layer",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/geo+json": {
+                "schema": {
+                  "description": "A FeatureCollection that names its licence, its layer and its cursor",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The sites of one of Venti's own layers as they stand, as GeoJSON",
+        "x-venti-docs": "GET /v1/dumps/sites/{layer}.geojson"
+      }
+    },
+    "/v1/dumps/sites/{layer}.history.jsonl": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_dumps_sites_layer_history_jsonl",
+        "parameters": [
+          {
+            "description": "One of Venti's own two layers of sites: `venti` or `venti-pilots`.",
+            "in": "path",
+            "name": "layer",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "description": "A first line that names the licence, the layer and the cursor, and a line for every site",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Every site of one of Venti's own layers with every revision, as JSON Lines",
+        "x-venti-docs": "GET /v1/dumps/sites/{layer}.history.jsonl"
       }
     },
     "/v1/flights": {

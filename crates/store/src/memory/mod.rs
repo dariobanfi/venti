@@ -437,6 +437,11 @@ impl Store for MemoryStore {
             .revisions(id, after, limit, &inner.accounts))
     }
 
+    async fn pilot_sites_revisions(&self, ids: &[SiteId]) -> Result<Vec<SiteRevision>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.pilot_sites.revisions_of(ids, &inner.accounts))
+    }
+
     async fn pilot_site_changes(
         &self,
         layer: &SourceId,

@@ -32,8 +32,9 @@ use axum::response::Response;
 use serde_json::{Map, Value, json};
 use venti_api_types::v1::{
     ACCESS_TOKEN_PREFIX, ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
-    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ARCHIVE_MEDIA_TYPE, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, KEPT_SITE_CHANGES_PATH,
+    ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, ARCHIVE_MEDIA_TYPE, CSV_MEDIA_TYPE,
+    DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE,
+    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
     PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
     SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
@@ -320,6 +321,36 @@ fn operations() -> Vec<Op> {
             "Who says they took off at a site, the newest day first",
         )
         .json("SiteConfirmationsResponse"),
+        get(
+            DUMPS_PATH,
+            "The dumps of Venti's own two layers of sites: every file with its licence",
+        )
+        .json("DumpsResponse"),
+        get(
+            "/v1/dumps/sites/{layer}.geojson",
+            "The sites of one of Venti's own layers as they stand, as GeoJSON",
+        )
+        .bytes(
+            GEOJSON_MEDIA_TYPE,
+            "A FeatureCollection that names its licence, its layer and its cursor",
+        ),
+        get(
+            "/v1/dumps/sites/{layer}.csv",
+            "The sites of one of Venti's own layers as they stand, as CSV",
+        )
+        .bytes(
+            CSV_MEDIA_TYPE,
+            "A line of column names and a line for every site",
+        ),
+        get(
+            "/v1/dumps/sites/{layer}.history.jsonl",
+            "Every site of one of Venti's own layers with every revision, as JSON Lines",
+        )
+        .bytes(
+            JSON_LINES_MEDIA_TYPE,
+            "A first line that names the licence, the layer and the cursor, and a line for \
+             every site",
+        ),
         get(FORECAST_PATH, "The forecast of a place, in layers by model")
             .docs("GET /v1/forecast?lat=&lon=")
             .query(&["lat!", "lon!"])
@@ -711,6 +742,7 @@ fn path_parameters(path: &str) -> Vec<Value> {
             let description = match name {
                 "id" => "The identifier, as an answer of the server gave it.",
                 "handle" => "A pilot's handle.",
+                "layer" => "One of Venti's own two layers of sites: `venti` or `venti-pilots`.",
                 "plan" => "The plan's identifier.",
                 "source" => "The source's identifier, as the list names it.",
                 "time" => "The frame's time, as the list of frames writes it.",

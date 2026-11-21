@@ -52,6 +52,8 @@
 //! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
 //! | [`RADAR_PATH`] | GET | | [`RadarResponse`] |
 //! | [`radar_frame_path`] | GET | | the frame's picture, a PNG |
+//! | [`DUMPS_PATH`] | GET | | [`DumpsResponse`] |
+//! | [`sites_dump_path`] | GET | | a layer of Venti's own sites as a file |
 //! | [`MAPS_PATH`] | GET | | [`MapsResponse`] |
 //! | [`map_file_path`] | GET | | the file, or the range of it asked for |
 //!
@@ -74,6 +76,7 @@ mod account;
 mod airspace;
 mod archive;
 mod attribution;
+mod dumps;
 mod error;
 mod flights;
 mod forecast;
@@ -104,6 +107,11 @@ pub use archive::{
     ArchiveSiteConfirmation, ArchiveSites, MAX_ARCHIVE_FILE_BYTES,
 };
 pub use attribution::Attribution;
+pub use dumps::{
+    CSV_MEDIA_TYPE, DUMPS_PATH, DumpContent, DumpFile, DumpFormat, DumpLayer, DumpStamp,
+    DumpsResponse, GEOJSON_MEDIA_TYPE, JSON_LINES_MEDIA_TYPE, SITES_CSV_COLUMNS, SiteHistoryHead,
+    SiteHistoryLine, sites_dump_path,
+};
 pub use error::{ErrorBody, ErrorCode, ErrorResponse, ErrorSite};
 pub use flights::{
     DEFAULT_PAGE_SIZE, DeletedFlight, FLIGHT_TERMS_UNDECIDED, Flight, FlightChangesResponse,

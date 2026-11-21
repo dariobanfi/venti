@@ -416,6 +416,18 @@ pub trait Store: Send + Sync + 'static {
         limit: usize,
     ) -> impl Future<Output = Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError>> + Send;
 
+    /// Every revision of the sites named, whichever layer each is of: by
+    /// site as identifiers are ordered, then by number. An identifier no
+    /// site ever had adds nothing. It is for whoever writes a whole layer
+    /// out (the dumps): one question for a page of sites, where
+    /// [`Store::pilot_site_revisions`] is one per site. It asks about
+    /// nobody's standing: what of a site may be shown is the caller's to
+    /// decide from the site itself.
+    fn pilot_sites_revisions(
+        &self,
+        ids: &[SiteId],
+    ) -> impl Future<Output = Result<Vec<SiteRevision>, StoreError>> + Send;
+
     /// What changed among the sites of one layer of the server's own after
     /// the change number `since`: every site that took a later number, by
     /// that number, `limit` at most. A site takes a number with every

@@ -506,6 +506,132 @@
       "identity"
     ]
   },
+  "DumpContent": {
+    "description": "What a file of a dump holds: the sites of a layer as they stand, or every site the layer ever had with every revision.",
+    "type": "string",
+    "x-venti-values": [
+      "sites",
+      "history"
+    ]
+  },
+  "DumpFile": {
+    "description": "One file of a layer's dump. `bytes` and `sha256` are of the file before any compression on the way.",
+    "type": "object",
+    "properties": {
+      "content": {
+        "$ref": "#/components/schemas/DumpContent"
+      },
+      "format": {
+        "$ref": "#/components/schemas/DumpFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "media_type": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "integer"
+      },
+      "sha256": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "content",
+      "format",
+      "path",
+      "media_type",
+      "bytes",
+      "sha256"
+    ]
+  },
+  "DumpFormat": {
+    "description": "The format of a file of a dump: GeoJSON, CSV, or JSON Lines.",
+    "type": "string",
+    "x-venti-values": [
+      "geojson",
+      "csv",
+      "jsonl"
+    ]
+  },
+  "DumpLayer": {
+    "description": "The dump of one layer of Venti's own sites: the licence its records are given under, when its files were made, the layer's change number they stand at (`cursor`, to go on from with `GET /v1/sites/changes`), how much they hold, and the files.",
+    "type": "object",
+    "properties": {
+      "layer": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "licence": {
+        "type": "string"
+      },
+      "licence_url": {
+        "type": "string"
+      },
+      "notice": {
+        "type": "string"
+      },
+      "generated_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "cursor": {
+        "type": "string"
+      },
+      "sites": {
+        "type": "integer"
+      },
+      "removed": {
+        "type": "integer"
+      },
+      "revisions": {
+        "type": "integer"
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DumpFile"
+        }
+      }
+    },
+    "required": [
+      "layer",
+      "provider",
+      "licence",
+      "licence_url",
+      "notice",
+      "generated_at",
+      "cursor",
+      "sites",
+      "removed",
+      "revisions",
+      "files"
+    ]
+  },
+  "DumpsResponse": {
+    "type": "object",
+    "properties": {
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DumpLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "layers",
+      "attributions"
+    ]
+  },
   "ErrorBody": {
     "description": "`code` is stable and for programs; `message` is for the person writing the client and may change. `scope` comes with `insufficient_scope`, `site` with `site_too_close`.",
     "type": "object",

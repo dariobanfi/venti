@@ -542,6 +542,42 @@ pub(super) async fn revisions(
     Ok(Some((site, revisions)))
 }
 
+/// Every revision of the sites named, by site and number.
+pub(super) async fn revisions_of(
+    client: &Client,
+    ids: &[SiteId],
+) -> Result<Vec<SiteRevision>, StoreError> {
+    // An identifier with a zero byte in it is the identifier of no site.
+    let ids: Vec<String> = ids
+        .iter()
+        .filter(|id| can_name(id))
+        .map(ToString::to_string)
+        .collect();
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let statement = client
+        .prepare_cached(
+            "SELECT r.number, r.at, r.via, r.via_token, r.kind, r.restores, r.comment, r.record,
+                    a.id AS author_id, a.handle AS author_handle,
+                    a.display_name AS author_name
+             FROM pilot_site_revisions r
+             LEFT JOIN accounts a ON a.id = r.author_id
+             WHERE r.site_id = ANY($1)",
+        )
+        .await
+        .map_err(db_error)?;
+    let rows = client.query(&statement, &[&ids]).await.map_err(db_error)?;
+    let mut revisions = rows
+        .iter()
+        .map(revision_from)
+        .collect::<Result<Vec<_>, _>>()?;
+    // By site as identifiers are ordered, layer first, which is not the
+    // order of their text: the order the in-memory store gives.
+    revisions.sort_by(|a, b| (&a.record.id, a.number).cmp(&(&b.record.id, b.number)));
+    Ok(revisions)
+}
+
 pub(super) async fn changes(
     client: &Client,
     layer: &SourceId,

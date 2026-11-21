@@ -171,6 +171,15 @@ pub struct Limits {
     /// Tokens for other programs that one account can hold. None makes
     /// room for a new one: the pilot withdraws one first.
     pub tokens_per_account: usize,
+    /// How long the dump of a layer of Venti's own sites is handed out
+    /// before the server looks whether the layer has changed, and makes
+    /// the dump anew if it has (`GET /v1/dumps`). Making one reads the
+    /// whole layer with its history: this is what bounds how often that
+    /// happens, whoever asks and however often. It is also the longest a
+    /// site that whoever runs the server took down stays in a file that
+    /// is handed out. Five minutes is an estimate, and the owner's to
+    /// set.
+    pub dump_remake_after: Duration,
 }
 
 impl Default for Limits {
@@ -204,6 +213,7 @@ impl Default for Limits {
             // password cannot be recovered yet.
             session_idle: Duration::days(400),
             tokens_per_account: 20,
+            dump_remake_after: Duration::minutes(5),
         }
     }
 }
@@ -229,6 +239,9 @@ impl Limits {
             forecast_fetches_per_network: u32::MAX,
             public_flight_reads_per_address: u32::MAX,
             public_flight_reads_per_network: u32::MAX,
+            // A dump is as the layer is at every request: the clock
+            // never gets as far as a remake would be due.
+            dump_remake_after: Duration::zero(),
             ..Self::default()
         }
     }

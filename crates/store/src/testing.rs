@@ -173,6 +173,10 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
+    async fn pilot_sites_revisions(&self, _: &[SiteId]) -> Result<Vec<SiteRevision>, StoreError> {
+        self.fail().await
+    }
+
     async fn pilot_site_changes(
         &self,
         _: &SourceId,

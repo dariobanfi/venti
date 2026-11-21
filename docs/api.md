@@ -28,7 +28,7 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 - `attributions`, in every answer that carries the data of a source: one entry for each source the answer draws on, with the licence's name, the credit line as the provider asks for it, the link, and a notice where the provider wants one said. Whoever shows or passes on the data shows the credit of its source beside it. The sources' licences are not all alike: some ask for the credit only, OpenStreetMap's sites are share-alike, openAIP's airspace is not for commercial use. Read `licence` per source and keep the records of two sources apart, as the answers do ([Sources and credit](#rules-that-hold-for-every-endpoint)). The sites Venti holds itself are two sources of their own, the partners' layer `venti` and the crowdsourced `venti-pilots`, both under CC0 1.0, which asks for no credit; each has a `notice` that is to be shown wherever its sites are ([Sites that Venti's partners and pilots add](#sites-that-ventis-partners-and-pilots-add)).
 - `terms`, in every answer that holds flights of pilots: under what terms they may be used. They are **not decided** (`"decided": false`): until they are, the flights are their pilots', shown for reading, and reuse needs the pilot's leave. Read `terms` from each answer; do not keep your own copy of the wording.
 
-**Following changes.** Two kinds of record can be kept as a copy that stays true, by asking what changed since a cursor, removals included: the sites Venti holds itself, with [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) for each of its two layers, `venti` and `venti-pilots`, with a cursor of its own, and public flights, with [`GET /v1/flights/public/changes`](#get-v1flightspublicchangessincepilotlimit), for which [Following Venti's public flights](#following-ventis-public-flights) has the steps. Both work alike: keep `cursor`, ask again with `since=`, at once while `more` is true; `reset` says to begin again. A flight its pilot withdrew is removed from every copy. There are no webhooks; a program asks.
+**Following changes.** Two kinds of record can be kept as a copy that stays true, by asking what changed since a cursor, removals included: the sites Venti holds itself, with [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) for each of its two layers, `venti` and `venti-pilots`, with a cursor of its own, and public flights, with [`GET /v1/flights/public/changes`](#get-v1flightspublicchangessincepilotlimit), for which [Following Venti's public flights](#following-ventis-public-flights) has the steps. Both work alike: keep `cursor`, ask again with `since=`, at once while `more` is true; `reset` says to begin again. A flight its pilot withdrew is removed from every copy. A copy of the sites need not begin with the first page: each layer is there whole as a file ([Dumps of Venti's own sites](#dumps-of-ventis-own-sites)), which names the cursor to go on from. There are no webhooks; a program asks.
 
 **What is promised, and what is not.** This is `/v1`. Promised within it: a path stays, a field keeps its name, its type and its meaning, and an error keeps its `code`; an identifier is never used for another record. Not promised: that an answer has no more fields tomorrow, that a list of known values (error codes, scopes, kinds) has no more entries, the wording of any `message`, the numbers of the bounds, and how long an answer may be cached. So a client ignores fields it does not know and expects values it does not know. A change that would break the first list needs a `/v2` beside `/v1`; nothing says yet for how long `/v1` would then stay. What the server holds depends on who runs it: `GET /v1/health` says which sources a server has, whether it has forecasts and radar, and whether it takes sites from pilots. The description is held to the server by tests, and it is new (2026-11-21): no client of another maker has been generated from it yet.
 
@@ -171,7 +171,7 @@ Because its clock stands still, this mode takes live fixes of **any time**, wher
 
 A client that shows the data shows the credit of its source next to it, and the notice if there is one. The licences require that; it is not decoration.
 
-**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and the flying sites of sources change once a day at most and carry `max-age=3600`; an answer of flying sites that was asked for a layer of Venti's own, as every answer without `layers` is, carries `max-age=60` ([there](#get-v1sitesbboxwestsoutheastnorth)). A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. The list of map regions carries `max-age=60`; a file of a region never changes under its path and may be kept for good, see [Maps](#maps). A tile of map imagery, and the answer that there is none, carry `max-age=604800`, a week; see [Map imagery](#map-imagery). Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
+**Caching.** Answers with station data carry `Cache-Control: public, max-age=60` and an `ETag`. A client that asks again with `If-None-Match` gets `304 Not Modified` without a body when nothing changed. Observations arrive every ten minutes, so most repeated requests end that way. Airspace and the flying sites of sources change once a day at most and carry `max-age=3600`; an answer of flying sites that was asked for a layer of Venti's own, as every answer without `layers` is, carries `max-age=60` ([there](#get-v1sitesbboxwestsoutheastnorth)). A forecast carries `max-age=60` like the stations; the server itself keeps one for up to half an hour. The list of [dumps](#dumps-of-ventis-own-sites) and their files carry `public, no-cache`: a copy is checked before every reuse. The list of map regions carries `max-age=60`; a file of a region never changes under its path and may be kept for good, see [Maps](#maps). A tile of map imagery, and the answer that there is none, carry `max-age=604800`, a week; see [Map imagery](#map-imagery). Health answers and errors carry `Cache-Control: no-store`. So does every answer to a request that carried a session token: it was made for one account, and nothing may keep it. What applies to shared flights is said [there](#flights), and what applies to live tracks, which are asked for every few seconds, [there](#live-tracks).
 
 **Compression.** Answers are gzip-compressed when the request says `Accept-Encoding: gzip`. The station list of the whole first region is about 106 kB plain and 15 kB compressed, its airspace about 1,240 kB and 290 kB, its flying sites 110 kB and 17 kB. The forecast of one place is 85 kB and 9 kB. A live track of twenty minutes at a fix a second is 204 kB and 28 kB. The one answer that is never compressed is a file of a map region: [Maps](#maps) says why.
 
@@ -1959,6 +1959,401 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001/confirmati
 `confirmed` is the count and the newest day, as the site's `standing` has it: enough for "2 pilots took off here, last on 16 November". `with_flight` is there, and `true`, where the server found a flight of the pilot's that took off at the site; which flight is not said. `410` with `site_gone` for a site that is removed or taken down, `404` for one that never was.
 
 Confirmations cannot be reported by themselves yet (to do): a pilot reports the site, or the pilot's page.
+
+## Dumps of Venti's own sites
+
+Each of Venti's own two layers of sites ([above](#sites-that-ventis-partners-and-pilots-add)) whole, as files: for whoever wants all of it at once and not page by page. No token, no account, and no sign-up of any kind. The addresses stay as they are.
+
+| Address | What it is |
+|---|---|
+| [`/v1/dumps`](#get-v1dumps) | The list: every file with its licence, when it was made, where the layer stood, its size and its checksum |
+| [`/v1/dumps/sites/{layer}.geojson`](#get-v1dumpssiteslayergeojson) | The sites of the layer that stand, as GeoJSON |
+| [`/v1/dumps/sites/{layer}.csv`](#get-v1dumpssiteslayercsv) | The same sites as CSV |
+| [`/v1/dumps/sites/{layer}.history.jsonl`](#get-v1dumpssiteslayerhistoryjsonl) | Every site the layer ever had, removed ones too, with every revision, as JSON Lines |
+
+`{layer}` is `venti` or `venti-pilots`. Any other name, and any other ending, is `404` with `not_found`.
+
+- **A layer to a file, and nothing else in it.** A file holds the sites of one layer. The two layers are never in one file, and no file holds a record of another source: OpenStreetMap's sites are under another licence and are in no dump.
+- **The licence is in the file.** Both layers are given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The GeoJSON file and the history file say so in themselves, with the layer, its `notice` (the crowdsourced layer's: "not official and not checked by anyone"), when the file was made and the `cursor` it stands at. A CSV file holds its lines and nothing else, so that every CSV reader takes it: its licence, time and cursor are in the list, in the entry of its layer, and its last column names the layer in every line.
+- **From a dump on with the changes.** `cursor` is the layer's change number the files stand at: everything that happened to the layer up to it is in them. A program that has read a dump asks [`GET /v1/sites/changes?layer=…&since=`](#get-v1siteschangeslayersincelimit) with it and gets what happened since, removals included, and never needs the dump again.
+- **What is in a dump is what anyone may read through the API**, and no more. A removed site is in the history file with its revisions and in neither of the other two. Of a site that whoever runs the server took down, the history file says that it is removed and when, and nothing of what it said. Who confirmed a site ("I took off here and it was good") is not in a dump: each site's record has the count and the newest day, as everywhere, and the confirmations themselves are read at [the site](#get-v1sitesidconfirmations). Whether they belong in a file is the owner's to decide. Flights are in no dump: they are their pilots' own.
+- **Made when asked for.** The server makes a layer's files from its database when they are first asked for and keeps them. After five minutes the next request makes it look whether the layer has changed, and only then are the files made anew: so a file is at most five minutes behind the layer, and `generated_at` and `cursor` say exactly where it stands. The three files of a layer are made together and agree with each other. The same five minutes are the longest a site that was taken down stays in a file. The development mode looks at every request.
+- **Caching and compression.** The list and the files carry `Cache-Control: public, no-cache` and an `ETag`: a copy may be kept and is checked before every reuse, and `If-None-Match` is answered `304` while the file is the same. They are gzip-compressed for a request that says `Accept-Encoding: gzip`. `bytes` and `sha256` in the list are of the file as it is after unpacking.
+- **How large a layer may be.** A dump is made of a layer of up to 50,000 sites, standing and removed, with up to 150,000 revisions. Beyond that the list and the files answer `503` with `unavailable`, and the changes read the layer page by page; nothing is ever handed out that is silently short. Both layers together hold four sites in the development mode and none on a new server.
+
+### `GET /v1/dumps`
+
+```bash
+curl http://127.0.0.1:8080/v1/dumps
+```
+
+```json
+{
+  "layers": [
+    {
+      "layer": "venti",
+      "provider": "Venti partners",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there.",
+      "generated_at": "2026-11-18T19:05:00Z",
+      "cursor": "10",
+      "sites": 2,
+      "removed": 0,
+      "revisions": 3,
+      "files": [
+        {
+          "content": "sites",
+          "format": "geojson",
+          "path": "/v1/dumps/sites/venti.geojson",
+          "media_type": "application/geo+json",
+          "bytes": 1705,
+          "sha256": "b9c079eb7d8defce4a629ce8842b8c65373f3700d3f6e6d29930ee1135dd3040"
+        },
+        {
+          "content": "sites",
+          "format": "csv",
+          "path": "/v1/dumps/sites/venti.csv",
+          "media_type": "text/csv; charset=utf-8; header=present",
+          "bytes": 711,
+          "sha256": "957acbcb32dc427f04b5b9c1535c26d6ceecdc39e635fb2e07a2292529b859d3"
+        },
+        {
+          "content": "history",
+          "format": "jsonl",
+          "path": "/v1/dumps/sites/venti.history.jsonl",
+          "media_type": "application/x-ndjson",
+          "bytes": 1790,
+          "sha256": "ab5f2392279c5d15d6b1fa2169d1428ab01cd65b6972951fba5b0fa97cb7fa09"
+        }
+      ]
+    },
+    {
+      "layer": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there.",
+      "generated_at": "2026-11-18T19:05:00Z",
+      "cursor": "11",
+      "sites": 1,
+      "removed": 1,
+      "revisions": 5,
+      "files": [
+        {
+          "content": "sites",
+          "format": "geojson",
+          "path": "/v1/dumps/sites/venti-pilots.geojson",
+          "media_type": "application/geo+json",
+          "bytes": 1061,
+          "sha256": "7a724bbab97cafa1cd74dc95be894a1d9344831e97032688192ce5b554a4379b"
+        },
+        {
+          "content": "sites",
+          "format": "csv",
+          "path": "/v1/dumps/sites/venti-pilots.csv",
+          "media_type": "text/csv; charset=utf-8; header=present",
+          "bytes": 496,
+          "sha256": "466e315480156d854361152e0c2afd8eab7e6ed0ac5e79c8fd85f806e239e750"
+        },
+        {
+          "content": "history",
+          "format": "jsonl",
+          "path": "/v1/dumps/sites/venti-pilots.history.jsonl",
+          "media_type": "application/x-ndjson",
+          "bytes": 2831,
+          "sha256": "516ddcd7575207ae93f86b90223233f4e8e4f3b75c9f1f7f1c358ba7ad1e76dc"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti partners",
+      "licence": "CC0 1.0",
+      "text": "Venti partners",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
+    },
+    {
+      "source": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `layers` | One entry per layer, `venti` first |
+| `layer`, `provider`, `licence`, `licence_url`, `notice` | Whose records the layer's files hold and under which licence; the same as the layer's entry in `attributions` |
+| `generated_at` | When the layer's files were made |
+| `cursor` | The layer's change number they stand at; `since` for [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) |
+| `sites`, `removed` | How many sites of the layer stand, and how many are removed |
+| `revisions` | How many revisions the history file holds |
+| `files` | The three files: `content` (`sites` or `history`), `format` (`geojson`, `csv`, `jsonl`), `path`, `media_type`, and `bytes` and `sha256` (lowercase hexadecimal) of the file before any compression on the way |
+
+A newer server may list a `content` or a `format` that is not in this table; a client leaves such a file alone.
+
+### `GET /v1/dumps/sites/{layer}.geojson`
+
+The sites of the layer that stand, sorted by identifier, as one GeoJSON `FeatureCollection` ([RFC 7946](https://www.rfc-editor.org/rfc/rfc7946)), `application/geo+json`. The collection's members beyond GeoJSON's own are the licence and the rest of what the list says of the layer. A feature's `id` is the site's identifier, its geometry is the site's position as a `Point` (longitude first, as GeoJSON has it, and no height: a site's `elevation_m` is above the sea, which is not what GeoJSON's third number means), and its `properties` are the site as [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) lists it: `site`, the record, and `standing`. A site with an outline has it in `site.outline`; the geometry stays the point.
+
+```bash
+curl http://127.0.0.1:8080/v1/dumps/sites/venti.geojson
+```
+
+The file is one line; here it is set out to be read:
+
+```json
+{
+  "type": "FeatureCollection",
+  "layer": "venti",
+  "provider": "Venti partners",
+  "licence": "CC0 1.0",
+  "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there.",
+  "generated_at": "2026-11-18T19:05:00Z",
+  "cursor": "10",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "venti:0000000000000000000000s001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          10.9,
+          47.3
+        ]
+      },
+      "properties": {
+        "site": {
+          "id": "venti:0000000000000000000000s001",
+          "name": "Musterkogel West",
+          "position": {
+            "lat": 47.3,
+            "lon": 10.9
+          },
+          "elevation_m": 1862.0,
+          "uses": [
+            "takeoff"
+          ],
+          "wind_directions": [
+            {
+              "from_deg": 225.0,
+              "to_deg": 315.0
+            }
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        },
+        "standing": {
+          "id": "venti:0000000000000000000000s001",
+          "revision": 2,
+          "created_at": "2026-10-29T19:05:00Z",
+          "created_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "changed_at": "2026-10-31T19:05:00Z",
+          "changed_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "confirmed": {
+            "pilots": 2,
+            "latest_day": "2026-11-16"
+          }
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "venti:0000000000000000000000s003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          10.89,
+          47.28
+        ]
+      },
+      "properties": {
+        "site": {
+          "id": "venti:0000000000000000000000s003",
+          "name": "Musterwiese",
+          "position": {
+            "lat": 47.28,
+            "lon": 10.89
+          },
+          "elevation_m": 1010.0,
+          "uses": [
+            "landing"
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        },
+        "standing": {
+          "id": "venti:0000000000000000000000s003",
+          "revision": 1,
+          "created_at": "2026-11-14T19:05:00Z",
+          "created_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "changed_at": "2026-11-14T19:05:00Z",
+          "changed_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+### `GET /v1/dumps/sites/{layer}.csv`
+
+The same sites, a line each, sorted by identifier, as CSV ([RFC 4180](https://www.rfc-editor.org/rfc/rfc4180)): `text/csv; charset=utf-8; header=present`. The first line names the columns; lines end with a carriage return and a line feed; a field that holds a comma, a quotation mark or a line break is between quotation marks, and a quotation mark in it is written twice.
+
+```bash
+curl http://127.0.0.1:8080/v1/dumps/sites/venti.csv
+```
+
+```csv
+id,name,lat,lon,elevation_m,uses,wind_directions,paragliding,hang_gliding,official,discouraged,url,website,description,fee,guest_guidelines,no_flight_time,revision,created_at,created_by,changed_at,changed_by,confirmed_pilots,confirmed_latest_day,layer
+venti:0000000000000000000000s001,Musterkogel West,47.3,10.9,1862.0,takeoff,225.0-315.0,true,,,false,,,A made-up site of the development mode. No such place exists.,,,,2,2026-10-29T19:05:00Z,demo,2026-10-31T19:05:00Z,demo,2,2026-11-16,venti
+venti:0000000000000000000000s003,Musterwiese,47.28,10.89,1010.0,landing,,true,,,false,,,A made-up site of the development mode. No such place exists.,,,,1,2026-11-14T19:05:00Z,demo,2026-11-14T19:05:00Z,demo,0,,venti
+```
+
+| Column | What it holds |
+|---|---|
+| `id` | The site's identifier |
+| `name` | Its name |
+| `lat`, `lon` | Its position, WGS84 degrees |
+| `elevation_m` | Its height above the sea |
+| `uses` | Its uses, separated by a space: `takeoff landing` |
+| `wind_directions` | The directions the wind may come from, each as `from-to` in degrees, separated by a space: `225.0-315.0` |
+| `paragliding`, `hang_gliding`, `official`, `guest_guidelines` | `true`, `false`, or nothing where the record does not say |
+| `discouraged` | `true` or `false` |
+| `url`, `website`, `description`, `fee`, `no_flight_time` | The record's texts, as they were written |
+| `revision` | The number of the site's latest revision |
+| `created_at`, `changed_at` | When the site was added and last changed |
+| `created_by`, `changed_by` | The handles of who did; nothing where the account is gone or whoever runs the server did |
+| `confirmed_pilots`, `confirmed_latest_day` | How many pilots say they took off there, and the newest day one names |
+| `layer` | The layer, the same in every line of a file |
+
+A column that is added later is added at the end. A value that the record does not have is an empty field. A site's outline is not in the CSV file. A text is as its author wrote it: nothing is put before a text that begins with `=`, `+`, `-` or `@`, which some spreadsheets take for a formula. Whoever opens the crowdsourced layer's file in a spreadsheet reads the columns as text.
+
+### `GET /v1/dumps/sites/{layer}.history.jsonl`
+
+Every site the layer ever had with every revision, as JSON Lines: `application/x-ndjson`, one JSON value on every line, each line ended by a line feed. The first line says what the file is; every further line is one site, sorted by identifier.
+
+```bash
+curl http://127.0.0.1:8080/v1/dumps/sites/venti-pilots.history.jsonl
+```
+
+The first line of the development mode's file, set out to be read:
+
+```json
+{
+  "layer": "venti-pilots",
+  "provider": "Venti contributors",
+  "licence": "CC0 1.0",
+  "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there.",
+  "generated_at": "2026-11-18T19:05:00Z",
+  "cursor": "11",
+  "sites": 2,
+  "revisions": 5
+}
+```
+
+`sites` is how many lines follow and `revisions` how many revisions they hold. And the line of the site that was removed:
+
+```json
+{
+  "id": "venti-pilots:0000000000000000000000s004",
+  "revision": 2,
+  "removed": true,
+  "removal": {
+    "id": "venti-pilots:0000000000000000000000s004",
+    "name": "Musterkogel",
+    "at": "2026-11-15T19:15:00Z",
+    "by": {
+      "handle": "jonas",
+      "display_name": "Jonas Beispiel"
+    }
+  },
+  "revisions": [
+    {
+      "number": 1,
+      "at": "2026-11-15T19:05:00Z",
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "via": "session",
+      "kind": "created",
+      "comment": "Made up, for the development mode.",
+      "site": {
+        "id": "venti-pilots:0000000000000000000000s004",
+        "name": "Musterkogel",
+        "position": {
+          "lat": 47.305,
+          "lon": 10.905
+        },
+        "elevation_m": 1870.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    },
+    {
+      "number": 2,
+      "at": "2026-11-15T19:15:00Z",
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "via": "session",
+      "kind": "removed",
+      "comment": "Added twice: the same take-off as Musterkogel West.",
+      "site": {
+        "id": "venti-pilots:0000000000000000000000s004",
+        "name": "Musterkogel",
+        "position": {
+          "lat": 47.305,
+          "lon": 10.905
+        },
+        "elevation_m": 1870.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | The site |
+| `revision` | The number of its latest revision |
+| `removed` | Whether it is removed |
+| `removal` | For a removed site: when it was removed and by whom, as [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) says it in `removals` |
+| `revisions` | Every revision by number, each as [the site's history](#get-v1sitesidhistoryafterlimit) has it. Empty for a site that whoever runs the server took down, whose `removal` has no `name` either |
+
+A line can be long: a site with many revisions holds its whole record once for each.
 
 ## `GET /v1/forecast?lat=&lon=`
 

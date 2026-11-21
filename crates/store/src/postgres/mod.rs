@@ -588,6 +588,10 @@ impl Store for PgStore {
         pilot_sites::revisions(&self.client().await?, id, after, limit).await
     }
 
+    async fn pilot_sites_revisions(&self, ids: &[SiteId]) -> Result<Vec<SiteRevision>, StoreError> {
+        pilot_sites::revisions_of(&self.client().await?, ids).await
+    }
+
     async fn pilot_site_changes(
         &self,
         layer: &SourceId,

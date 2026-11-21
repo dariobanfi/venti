@@ -44,6 +44,11 @@
 //! are files that whoever runs the server put in a folder, open data with
 //! the credits their descriptions name. Anyone may list and fetch them.
 //!
+//! **The dumps** ([`dumps`]) are the sites that Venti holds itself, each
+//! of its two layers whole and apart, as files under the layer's own
+//! licence: made from the store when asked for, kept in memory, and open
+//! to anyone.
+//!
 //! **Rain radar** ([`radar`]) goes out as a list of the frames the server
 //! holds, in layers by source, and each frame as a picture: read from the
 //! server's memory, where the collector put it.
@@ -63,6 +68,7 @@ mod auth;
 mod body;
 mod cache;
 mod clients;
+mod dumps;
 mod error;
 mod feed;
 mod flights;
@@ -106,11 +112,11 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use venti_api_types::v1::{
     ACCOUNT_ARCHIVE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH,
-    AIRSPACE_PATH, Attribution, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH,
-    GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES,
-    PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH,
-    REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
-    THERMALS_PATH,
+    AIRSPACE_PATH, Attribution, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
+    GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
+    MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH,
+    RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH,
+    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -286,6 +292,9 @@ pub struct Api<S> {
     /// The sites that pilots make: the settings, and what each account
     /// has used of what is counted.
     pilot_sites: sites::PilotSites,
+    /// The dumps of the server's own two layers of sites, as they were
+    /// made last.
+    dumps: dumps::Dumps,
     /// The map regions the server hands out. None, unless it was given
     /// some.
     maps: Maps,
@@ -380,6 +389,7 @@ impl<S: Store> Api<S> {
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
             pilot_sites: sites::PilotSites::new(settings.sites, limits.watched_keys),
+            dumps: dumps::Dumps::new(limits.dump_remake_after),
             maps: Maps::default(),
             imagery: None,
             station_priority: Vec::new(),
@@ -596,6 +606,8 @@ impl<S: Store> Api<S> {
             )
             .route(GROUP_JOIN_PATH, post(groups::join::<S>))
             .route(PLAN_BOARD_PATH, get(groups::board::<S>))
+            .route(DUMPS_PATH, get(dumps::list::<S>))
+            .route(dumps::FILE_ROUTE, get(dumps::file::<S>))
             .route(MAPS_PATH, get(maps::list::<S>))
             .route(imagery::ROUTE, get(imagery::tile::<S>))
             .route(

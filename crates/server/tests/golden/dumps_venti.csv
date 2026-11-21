@@ -1,0 +1,3 @@
+id,name,lat,lon,elevation_m,uses,wind_directions,paragliding,hang_gliding,official,discouraged,url,website,description,fee,guest_guidelines,no_flight_time,revision,created_at,created_by,changed_at,changed_by,confirmed_pilots,confirmed_latest_day,layer
+venti:0000000000000000000000s001,Musterkogel West,47.3,10.9,1862.0,takeoff,225.0-315.0,true,,,false,,,A made-up site of the development mode. No such place exists.,,,,2,2026-10-29T19:05:00Z,demo,2026-10-31T19:05:00Z,demo,2,2026-11-16,venti
+venti:0000000000000000000000s003,Musterwiese,47.28,10.89,1010.0,landing,,true,,,false,,,A made-up site of the development mode. No such place exists.,,,,1,2026-11-14T19:05:00Z,demo,2026-11-14T19:05:00Z,demo,0,,venti

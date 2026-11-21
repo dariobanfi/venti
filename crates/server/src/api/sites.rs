@@ -416,7 +416,8 @@ fn invalid(message: impl Into<String>) -> ApiError {
     ApiError::bad_request(ErrorCode::InvalidSite, message)
 }
 
-fn pilot(pilot: Option<&venti_store::SitePilot>) -> Result<Option<SitePilot>, ApiError> {
+/// A pilot as an answer names them, the dumps' too.
+pub(super) fn pilot(pilot: Option<&venti_store::SitePilot>) -> Result<Option<SitePilot>, ApiError> {
     pilot
         .map(|pilot| {
             Ok(SitePilot {
@@ -453,7 +454,9 @@ pub(super) fn revision(revision: venti_store::SiteRevision) -> Result<SiteRevisi
     })
 }
 
-fn standing(site: &PilotSite) -> Result<SiteStanding, ApiError> {
+/// Where a site stands, as every answer that carries it says, the
+/// dumps' too.
+pub(super) fn standing(site: &PilotSite) -> Result<SiteStanding, ApiError> {
     Ok(SiteStanding {
         id: site.site.id.clone(),
         revision: site.revision,

@@ -685,6 +685,65 @@ pub(crate) async fn the_history_of_a_site_is_read_page_by_page(store: &impl Stor
     assert_eq!(page(0, 0).await, []);
 }
 
+pub(crate) async fn the_revisions_of_several_sites_are_read_at_once(store: &impl Store) {
+    let anna = create(store, "anna").await;
+    let first = record("a", 47.0, 11.0);
+    add(store, first.clone(), &anna, at(10, 0)).await;
+    let higher = Site {
+        elevation_m: Some(1501.0),
+        ..first
+    };
+    written(store, &by(&anna, "a", at(10, 1), change(higher))).await;
+    add(store, record("b", 47.1, 11.0), &anna, at(10, 2)).await;
+    add(store, record("c", 47.2, 11.0), &anna, at(10, 3)).await;
+    // A removed site keeps its revisions, the removal among them.
+    let remove = SiteAct::Remove { take_down: false };
+    written(store, &by(&anna, "c", at(10, 4), remove)).await;
+
+    let of = |names: &'static [&'static str]| async move {
+        let ids: Vec<SiteId> = names.iter().map(|name| site_id(name)).collect();
+        store
+            .pilot_sites_revisions(&ids)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|revision| (short(&revision.record.id), revision.number))
+            .collect::<Vec<_>>()
+    };
+    let (a, b, c) = (
+        short(&site_id("a")),
+        short(&site_id("b")),
+        short(&site_id("c")),
+    );
+    // By site and number, whatever the order asked in, each site once.
+    assert_eq!(
+        of(&["c", "a", "a"]).await,
+        [(a.clone(), 1), (a.clone(), 2), (c.clone(), 1), (c, 2)]
+    );
+    assert_eq!(of(&["b"]).await, [(b, 1)]);
+    // The same as the site's own history tells.
+    let whole = store.pilot_sites_revisions(&[site_id("a")]).await.unwrap();
+    assert_eq!(whole, history(store, "a").await);
+    // No site, and a site that never was, add nothing.
+    assert_eq!(of(&[]).await, []);
+    assert_eq!(of(&["nosuch"]).await, []);
+    // An identifier with a zero byte in it is the identifier of no site,
+    // and is in the way of no other.
+    let odd: SiteId = "venti:a\0".parse().unwrap();
+    assert_eq!(
+        store
+            .pilot_sites_revisions(std::slice::from_ref(&odd))
+            .await
+            .unwrap(),
+        []
+    );
+    let beside = store
+        .pilot_sites_revisions(&[odd, site_id("b")])
+        .await
+        .unwrap();
+    assert_eq!(beside, history(store, "b").await);
+}
+
 pub(crate) async fn what_changed_among_the_sites_is_listed_once_per_site(store: &impl Store) {
     // Before anything was written there is nothing, from any number.
     assert_eq!(changes(store, 0, 10).await, (Vec::new(), false, 0));

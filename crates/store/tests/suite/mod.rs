@@ -78,6 +78,7 @@ macro_rules! store_suite {
             standing_sites_keep_their_distance_from_each_other,
             adds_racing_for_one_place_put_one_site_there,
             the_history_of_a_site_is_read_page_by_page,
+            the_revisions_of_several_sites_are_read_at_once,
             what_changed_among_the_sites_is_listed_once_per_site,
             the_identifier_of_a_site_is_never_used_again,
             an_account_is_trusted_with_the_sites_until_it_is_not,

@@ -170,7 +170,9 @@ pub(crate) fn tagged_json(tag: &str, keeper: Keeper, value: &impl Serialize) -> 
     }
 }
 
-fn validators(response: &mut Response, tag: &str, keeper: Keeper) {
+/// Marks an answer as one whose validator is `tag`: kept by `keeper`,
+/// checked before every reuse.
+pub(crate) fn validators(response: &mut Response, tag: &str, keeper: Keeper) {
     let headers = response.headers_mut();
     headers.insert(
         header::CACHE_CONTROL,

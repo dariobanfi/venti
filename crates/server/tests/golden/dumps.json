@@ -1,0 +1,98 @@
+{
+  "layers": [
+    {
+      "layer": "venti",
+      "provider": "Venti partners",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there.",
+      "generated_at": "2026-11-18T19:05:00Z",
+      "cursor": "10",
+      "sites": 2,
+      "removed": 0,
+      "revisions": 3,
+      "files": [
+        {
+          "content": "sites",
+          "format": "geojson",
+          "path": "/v1/dumps/sites/venti.geojson",
+          "media_type": "application/geo+json",
+          "bytes": 1705,
+          "sha256": "b9c079eb7d8defce4a629ce8842b8c65373f3700d3f6e6d29930ee1135dd3040"
+        },
+        {
+          "content": "sites",
+          "format": "csv",
+          "path": "/v1/dumps/sites/venti.csv",
+          "media_type": "text/csv; charset=utf-8; header=present",
+          "bytes": 711,
+          "sha256": "957acbcb32dc427f04b5b9c1535c26d6ceecdc39e635fb2e07a2292529b859d3"
+        },
+        {
+          "content": "history",
+          "format": "jsonl",
+          "path": "/v1/dumps/sites/venti.history.jsonl",
+          "media_type": "application/x-ndjson",
+          "bytes": 1790,
+          "sha256": "ab5f2392279c5d15d6b1fa2169d1428ab01cd65b6972951fba5b0fa97cb7fa09"
+        }
+      ]
+    },
+    {
+      "layer": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there.",
+      "generated_at": "2026-11-18T19:05:00Z",
+      "cursor": "11",
+      "sites": 1,
+      "removed": 1,
+      "revisions": 5,
+      "files": [
+        {
+          "content": "sites",
+          "format": "geojson",
+          "path": "/v1/dumps/sites/venti-pilots.geojson",
+          "media_type": "application/geo+json",
+          "bytes": 1061,
+          "sha256": "7a724bbab97cafa1cd74dc95be894a1d9344831e97032688192ce5b554a4379b"
+        },
+        {
+          "content": "sites",
+          "format": "csv",
+          "path": "/v1/dumps/sites/venti-pilots.csv",
+          "media_type": "text/csv; charset=utf-8; header=present",
+          "bytes": 496,
+          "sha256": "466e315480156d854361152e0c2afd8eab7e6ed0ac5e79c8fd85f806e239e750"
+        },
+        {
+          "content": "history",
+          "format": "jsonl",
+          "path": "/v1/dumps/sites/venti-pilots.history.jsonl",
+          "media_type": "application/x-ndjson",
+          "bytes": 2831,
+          "sha256": "516ddcd7575207ae93f86b90223233f4e8e4f3b75c9f1f7f1c358ba7ad1e76dc"
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti partners",
+      "licence": "CC0 1.0",
+      "text": "Venti partners",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
+    },
+    {
+      "source": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+    }
+  ]
+}

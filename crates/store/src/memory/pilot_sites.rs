@@ -255,6 +255,29 @@ impl PilotSites {
         Some((entry.read(accounts)?, revisions))
     }
 
+    /// Every revision of the sites named, by site and number.
+    pub(super) fn revisions_of(&self, ids: &[SiteId], accounts: &Accounts) -> Vec<SiteRevision> {
+        let ids: std::collections::BTreeSet<&SiteId> = ids.iter().collect();
+        let mut all = Vec::new();
+        for id in ids {
+            let Some(entry) = self.sites.get(id) else {
+                continue;
+            };
+            for (index, stored) in entry.revisions.iter().enumerate() {
+                all.push(SiteRevision {
+                    number: number(index),
+                    at: stored.at,
+                    author: pilot(stored.author_id.as_ref(), accounts),
+                    via: stored.via.clone(),
+                    kind: stored.kind,
+                    comment: stored.comment.clone(),
+                    record: stored.record.clone(),
+                });
+            }
+        }
+        all
+    }
+
     pub(super) fn changes(
         &self,
         layer: &SourceId,

@@ -78,19 +78,11 @@ private struct SignInForm: View {
                 }
             } else if let address = server.server, server.offersGoogle, !withPassword {
                 Section {
-                    Button {
+                    // Google's own button, to Google's guidelines: not the
+                    // pack's (see `GoogleButton`).
+                    GoogleButton(title: words.continueWithGoogle, isWorking: account.isWorking) {
                         Task { await continueWithGoogle(on: address) }
-                    } label: {
-                        Group {
-                            if account.isWorking {
-                                ProgressView()
-                            } else {
-                                Text(words.continueWithGoogle)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.venti(.primary))
                     .disabled(account.isWorking)
                     .accessibilityIdentifier("account-google")
                     .listRowBackground(Color.clear)

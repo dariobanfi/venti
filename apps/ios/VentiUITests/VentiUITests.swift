@@ -768,11 +768,18 @@ final class VentiUITests: XCTestCase {
         card.tap()
         XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(element("thermals", in: app).waitForExistence(timeout: 15))
-        // And draws the day's air: the thermals hour by hour and the
-        // wind at heights.
-        XCTAssertTrue(element("air-chart", in: app).waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("today-7-site-on-a-big-day")
+
+        // Further down it draws the day's air: the thermals hour by hour
+        // and the wind at heights.
+        let chart = element("air-chart", in: app)
+        for _ in 0..<4 where !chart.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(chart.waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("today-8-the-air")
     }
 
     /// The app's icon on the home screen: the design language's, which
@@ -1133,7 +1140,9 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("sites-2-list")
         row.tap()
-        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
+        // The page is known by the button at its head: what is further
+        // down depends on how much the forecast has to show of the day.
+        XCTAssertTrue(app.buttons["Plan route"].waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("sites-3-site")
 
@@ -1147,20 +1156,25 @@ final class VentiUITests: XCTestCase {
         sleep(3)
         keepScreenshot("sites-3a-plan-route")
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Plan route"].waitForExistence(timeout: 15))
 
         // The same server's forecast for the place: the wind at each
         // height through the day, and the sky.
         // The route's map may still be on its way out over the page: the
         // row is tapped once it holds still and can be touched.
+        // The row stands under the picture of the day's air, where the
+        // forecast has one: the page is moved up until it is there.
         let forecast = element("site-forecast", in: app)
+        for _ in 0..<4 where !forecast.exists {
+            app.swipeUp()
+        }
         tapWhenStill(forecast, timeout: 15)
         XCTAssertTrue(element("forecast-table", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(labelled(containing: "hPa", in: app).exists)
         sleep(1)
         keepScreenshot("sites-4-forecast")
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Add to my waypoints"].waitForExistence(timeout: 10))
+        XCTAssertTrue(forecast.waitForExistence(timeout: 10))
 
         // Further down the site's page: what was flown from here, where
         // the server has public flights that took off at this site, and

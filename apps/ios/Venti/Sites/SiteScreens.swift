@@ -234,16 +234,6 @@ struct SiteScreen: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
-            // The day's air as a picture: the thermals hour by hour and
-            // the wind at heights, where the forecast knows the model's
-            // ground to stand them on.
-            if let day, !day.hours.isEmpty, day.groundM != nil {
-                Section {
-                    AirChart(day: day, takeoffM: site.elevationM)
-                } header: {
-                    Text("The air · \(day.name)")
-                }
-            }
             Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
                 LabeledContent("Wind it works in") {
@@ -292,6 +282,17 @@ struct SiteScreen: View {
                     Text("Wind measured nearby")
                 } footer: {
                     Text("A station near a site is not the site: it may stand on a summit, in the valley or behind a ridge. A direction that fits says nothing about the wind's strength or its gusts.")
+                }
+            }
+            // The day's air as a picture: the thermals hour by hour and
+            // the wind at heights, where the forecast knows the model's
+            // ground to stand them on. Under what the site is and the wind
+            // measured around it, and over the way to the whole forecast.
+            if let day, !day.hours.isEmpty, day.groundM != nil {
+                Section {
+                    AirChart(day: day, takeoffM: site.elevationM)
+                } header: {
+                    Text("The air · \(day.name)")
                 }
             }
             if wind.server != nil {

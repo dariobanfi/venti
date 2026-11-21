@@ -164,8 +164,33 @@ export function rows(
 		}
 	];
 
-	return [...winds, ground, ...sky.filter(some)];
+	// The thermals: the core's estimate from the model's heat and
+	// temperatures, shown only where some hour has one.
+	const thermals: Row[] = [
+		{
+			id: 'thermal-climb',
+			name: 'Thermals, climb',
+			detail: 'm/s',
+			cells: hours.map((hour) => number(hour.thermalClimbMs, (climb) => climb.toFixed(1)))
+		},
+		{
+			id: 'thermal-top',
+			name: 'Thermals, top',
+			detail: 'm',
+			cells: hours.map((hour) =>
+				number(hour.thermalTopM, (top) =>
+					hour.thermalCloud ? `base ${text.metres(top)}` : text.metres(top)
+				)
+			)
+		}
+	];
+
+	return [...winds, ground, ...sky.filter(some), ...thermals.filter(some)];
 }
+
+/** What the thermals' rows are, under the table, where it has them. */
+export const THERMALS_NOTE =
+	'The two rows of thermals are an estimate Venti works out from the model’s heat and temperatures, not a value of the model: the climb a paraglider can expect, and how high the thermals go, at the cloud base where it says “base”. They say nothing of whether the day can be flown.';
 
 /** What the numbers are, and what they are not. */
 export function caveat(model: ModelForecast, text: Pick<Writing, 'metres'>): string {

@@ -153,6 +153,26 @@ describe('the rows of a forecast table', () => {
 			{ id: 'ground', name: '10 m', detail: 'with gusts', cells: [{ is: 'empty' }] }
 		]);
 	});
+
+	it('add the estimate of the thermals where some hour has one, the cloud base said', () => {
+		const warm = [
+			hour(FRIDAY + 12 * HOUR, { thermalClimbMs: 1.8, thermalTopM: 2900, thermalCloud: true }),
+			hour(FRIDAY + 13 * HOUR, { thermalClimbMs: 0, thermalTopM: undefined }),
+			hour(FRIDAY + 14 * HOUR, { thermalClimbMs: 1.2, thermalTopM: 2450, thermalCloud: false })
+		];
+		const table = rows(model(), warm, text);
+		expect(table.find((row) => row.id === 'thermal-climb')?.cells).toEqual([
+			{ is: 'number', text: '1.8' },
+			{ is: 'number', text: '0.0' },
+			{ is: 'number', text: '1.2' }
+		]);
+		expect(table.find((row) => row.id === 'thermal-top')?.cells).toEqual([
+			{ is: 'number', text: 'base 2900' },
+			{ is: 'empty' },
+			{ is: 'number', text: '2450' }
+		]);
+		expect(table.at(-1)?.id).toBe('thermal-top');
+	});
 });
 
 describe('what stands under a forecast table', () => {

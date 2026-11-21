@@ -202,4 +202,19 @@ test('a take-off’s page names the kind of day under the forecast’s line', as
 	await expect(air.locator('.cloud').first()).toBeAttached();
 	await expect(air.getByText('Take-off')).toBeAttached();
 	await keep('108-site-air-thermals');
+
+	// The forecast's table has the estimate as two rows of its own, and says what they are.
+	await site.getByRole('button', { name: 'Forecast for this place' }).click();
+	const forecast = forecastOf(page);
+	const names = table(forecast).getByRole('rowheader');
+	await expect(names.filter({ hasText: 'Thermals, climb' })).toBeVisible();
+	await expect(names.filter({ hasText: 'Thermals, top' })).toBeVisible();
+	await expect(
+		table(forecast)
+			.getByText(/^base \d+$/)
+			.first()
+	).toBeAttached();
+	await expect(forecast).toContainText('not a value of the model');
+	await table(forecast).scrollIntoViewIfNeeded();
+	await keep('109-forecast-thermals');
 });

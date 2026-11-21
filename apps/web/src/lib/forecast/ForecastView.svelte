@@ -13,7 +13,7 @@
 	import { format } from '#lib/design/format.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import ForecastTable from './ForecastTable.svelte';
-	import { caveat, dayName, daysWithLight, today } from './table';
+	import { caveat, dayName, daysWithLight, THERMALS_NOTE, today } from './table';
 
 	interface Props {
 		/** The place, and what it is called. */
@@ -107,6 +107,9 @@
 					<ForecastTable {model} {day} />
 				</div>
 				<p class="footnote">{caveat(model, text)}</p>
+				{#if day.hours.some((hour) => hour.thermalClimbMs !== undefined)}
+					<p class="footnote">{THERMALS_NOTE}</p>
+				{/if}
 			</section>
 		{/if}
 

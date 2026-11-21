@@ -12,6 +12,7 @@
 
 import type {
 	DataDrivenPropertyValueSpecification,
+	ExpressionSpecification,
 	FillLayerSpecification,
 	SymbolLayerSpecification
 } from 'maplibre-gl';
@@ -42,6 +43,15 @@ const ARROW_SIZE = 0.7;
  */
 const UNDER = ['aerial-aerialway-casing', 'aerialway', 'boundary'];
 
+/**
+ * How much of the map shows through the squares, by the zoom: half over a
+ * region, fading to 30 % in a valley. `strength` draws them fainter; the
+ * rain radar's picture takes the same.
+ */
+export function squareOpacity(strength = 1): ExpressionSpecification {
+	return ['interpolate', ['linear'], ['zoom'], 8, 0.5 * strength, 12, 0.3 * strength];
+}
+
 /** The fill layer of the squares. */
 export function thermalLayer(): FillLayerSpecification {
 	return {
@@ -50,7 +60,7 @@ export function thermalLayer(): FillLayerSpecification {
 		source: THERMAL_SOURCE,
 		paint: {
 			'fill-color': dayFill(),
-			'fill-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 0.3],
+			'fill-opacity': squareOpacity(),
 			'fill-antialias': false
 		}
 	};

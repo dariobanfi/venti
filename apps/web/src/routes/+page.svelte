@@ -46,11 +46,14 @@
 		keepAerial,
 		keepForecast,
 		keepLayersOff,
+		keepRadar,
 		type MapLayer,
 		MAP_LAYERS,
-		layersOff
+		layersOff,
+		radarOn
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
+	import RadarCard from '#lib/radar/RadarCard.svelte';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteList from '#lib/sites/SiteList.svelte';
 	import SitePage from '#lib/sites/SiteView.svelte';
@@ -150,6 +153,22 @@
 	);
 	/** Whose forecast the squares are. */
 	const forecastCredit = $derived(showForecast ? forecastCreditLine(thermals?.map, text) : '');
+
+	/** Whether the map shows the rain radar: off until the pilot asks. */
+	let radarChosen = $state(radarOn(globalThis.localStorage));
+	const radar = $derived(app.radar);
+	const showRadar = $derived(radarChosen && Boolean(app.account?.hasServer) && Boolean(radar));
+	// Asked for when the layer is switched on, again every five minutes
+	// while the map is on screen, and when the tab comes back to the front.
+	$effect(() => {
+		if (showRadar) return radar?.keepCurrent();
+	});
+	// The picture of the frame the strip marks.
+	$effect(() => {
+		if (showRadar) void radar?.showFrame();
+	});
+	/** Whose radar pictures are on the map: the credit as the provider words it, at the data. */
+	const radarCredit = $derived(showRadar && radar?.onMap ? (radar.layer?.credit?.text ?? '') : '');
 
 	const CHIP_ICONS = {
 		wind: 'wind',
@@ -407,6 +426,7 @@
 		{aerial}
 		{thermalDay}
 		{thermalHour}
+		radar={showRadar ? radar?.onMap : undefined}
 		onsquare={openSquare}
 		onhourat={openHourSquare}
 		onairspaceat={openAirspace}
@@ -427,6 +447,19 @@
 			>
 				<Icon name="forecast" />
 				Forecast
+			</button>
+			<!-- What the radars saw of the rain in the last two hours. -->
+			<button
+				class="chip"
+				type="button"
+				aria-pressed={radarChosen}
+				onclick={() => {
+					radarChosen = !radarChosen;
+					keepRadar(globalThis.localStorage, radarChosen);
+				}}
+			>
+				<Icon name="rain" />
+				Radar
 			</button>
 			{#each MAP_LAYERS as { layer, name } (layer)}
 				<button
@@ -538,12 +571,22 @@
 	{/snippet}
 
 	<div class="over">
-		<!-- On a wide screen the forecast map's card is a pane at the map's
-		     side, and a square chosen on the map is shown in it. -->
-		{#if showForecast && wide.current}
-			<aside class="forecast-pane" aria-label="Forecast map">
-				{@render thermalCard(true)}
-			</aside>
+		<!-- On a wide screen the cards of the radar and of the forecast map are
+		     panes at the map's side, the radar's first, and a square chosen on
+		     the map is shown in the forecast's. -->
+		{#if (showRadar || showForecast) && wide.current}
+			<div class="panes">
+				{#if showRadar && radar}
+					<aside class="forecast-pane" aria-label="Rain radar">
+						<RadarCard {radar} />
+					</aside>
+				{/if}
+				{#if showForecast}
+					<aside class="forecast-pane" aria-label="Forecast map">
+						{@render thermalCard(true)}
+					</aside>
+				{/if}
+			</div>
 		{/if}
 		{#if wind}
 			<MapPanel
@@ -660,19 +703,26 @@
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
 	<div class="foot">
-		<!-- On a narrow screen the forecast map's card stands over the credits. -->
+		<!-- On a narrow screen the radar's card and the forecast map's stand
+		     over the credits. -->
+		{#if showRadar && radar && !wide.current}
+			<div class="forecast-card">
+				<RadarCard {radar} compact />
+			</div>
+		{/if}
 		{#if showForecast && !wide.current}
 			<div class="forecast-card">
 				{@render thermalCard(false)}
 			</div>
 		{/if}
-		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit}
+		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredit}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
 				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
+				{#if radarCredit}<span>{radarCredit}</span>{/if}
 			</p>
 		{/if}
 	</div>
@@ -897,11 +947,22 @@
 		pointer-events: auto;
 	}
 
-	/* A pane at the map's side on a wide screen, as dense as the rest of it. */
-	.forecast-pane {
+	/* The panes at the map's side on a wide screen, one under the other;
+	   each scrolls inside itself where the two are higher than the map. */
+	.panes {
 		flex: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
 		width: 18rem;
 		max-height: 100%;
+		min-height: 0;
+	}
+
+	/* A pane at the map's side on a wide screen, as dense as the rest of it. */
+	.forecast-pane {
+		flex: 0 1 auto;
+		min-height: 0;
 		overflow-y: auto;
 		padding: var(--space-3);
 		border-radius: var(--radius-card);

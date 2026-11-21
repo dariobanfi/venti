@@ -17,6 +17,7 @@ export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 const KEY = 'venti.map-layers-off';
 const AERIAL_KEY = 'venti.map-aerial';
 const FORECAST_KEY = 'venti.map-forecast';
+const RADAR_KEY = 'venti.map-radar';
 const FORECAST_LAYER_KEY = 'venti.map-forecast-layer';
 const FORECAST_HEIGHT_KEY = 'venti.map-forecast-height';
 
@@ -57,6 +58,27 @@ export function forecastOn(storage: Pick<Storage, 'getItem'> | undefined): boole
 export function keepForecast(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
 	try {
 		storage?.setItem(FORECAST_KEY, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * Whether the map shows the rain radar (the "Radar" chip), as this browser
+ * remembers it. Off until the pilot switches it on.
+ */
+export function radarOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+	try {
+		return storage?.getItem(RADAR_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether the "Radar" layer is on. Nothing happens where the browser keeps nothing. */
+export function keepRadar(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+	try {
+		storage?.setItem(RADAR_KEY, on ? 'on' : 'off');
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

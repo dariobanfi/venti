@@ -27,6 +27,7 @@
  * - `groups-source.ts` talks to it about the pilot's groups and their plans
  *   for a flying day, from the pilot's account.
  * - `thermal-map-source.ts` asks it for the kind of day, square by square.
+ * - `radar-source.ts` asks it for the rain radar's frames and their pictures.
  * - `terrain-source.ts` fetches the map's elevation tiles under a flight,
  *   from the map's tile server, for the core to read the ground from.
  */
@@ -106,6 +107,10 @@ export type {
 	PublicFlight,
 	PublicFlights,
 	PublicFlightsOrder,
+	RadarFrameView,
+	RadarKey,
+	RadarLayerView,
+	RadarView,
 	RankedPilot,
 	Ranking,
 	RankingSeason,
@@ -174,6 +179,7 @@ export type {
 export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
 export type { HoursAsked } from './thermal-map-source';
+export type { RadarColours } from './radar-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */
 const CORE_ERRORS: CoreErrorKind[] = [

@@ -53,6 +53,7 @@ import type {
 	PlanDraft,
 	PlanView,
 	PublicFlights,
+	RadarView,
 	Registration,
 	ReportForm,
 	ReportReason,
@@ -79,6 +80,7 @@ import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
+import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
 import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
@@ -242,6 +244,15 @@ export interface Calls {
 	};
 	/** Every day of the map at the square of a place, side by side. */
 	thermalStrip: { given: Coordinate; answer: ThermalStripDay[] };
+	/**
+	 * The rain radar's layers and their frames, as the server has them now.
+	 * Nothing if this site has no server.
+	 */
+	radar: { given: undefined; answer: RadarView | undefined };
+	/** The list last fetched, read again at this moment; nothing before one was fetched. */
+	radarAgain: { given: undefined; answer: RadarView | undefined };
+	/** A frame's picture, by the frame's path, in the app's colours: a PNG. */
+	radarPicture: { given: { path: string; colours: RadarColours }; answer: Uint8Array };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -352,6 +363,7 @@ export interface Answering {
 	terrain: TerrainSource;
 	today: TodaySource;
 	thermals: ThermalMapSource;
+	radar: RadarSource;
 }
 
 /** Does what a call asks of the core. */
@@ -368,7 +380,8 @@ export async function answer<Name extends CallName>(
 		groups,
 		terrain,
 		today,
-		thermals
+		thermals,
+		radar
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -417,6 +430,9 @@ export async function answer<Name extends CallName>(
 		thermalHourSquare: ({ asked, cell, hour }) => thermals.square(asked, cell, hour),
 		thermalCellAt: ({ asked, lat, lon }) => thermals.cellAt(asked, lat, lon),
 		thermalStrip: (place) => thermals.strip(place.lat, place.lon),
+		radar: () => radar.radar(),
+		radarAgain: () => radar.again(),
+		radarPicture: ({ path, colours }) => radar.picture(path, colours),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

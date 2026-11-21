@@ -14,6 +14,7 @@ import { SitesSource } from './sites-source';
 import { sitesMap } from './pkg/venti_core_wasm.js';
 import { MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
+import { RadarSource } from './radar-source';
 import { ThermalMapSource } from './thermal-map-source';
 import { sampleFlight, startCore } from './testing';
 import { TodaySource } from './today-source';
@@ -58,7 +59,8 @@ class SameProcess implements Channel {
 						// A browser that is offline: no elevation tile is to be had.
 						terrain: new TerrainSource(unreachable),
 						today: new TodaySource(session, async () => false),
-						thermals: new ThermalMapSource(async () => false)
+						thermals: new ThermalMapSource(async () => false),
+						radar: new RadarSource(async () => false)
 					},
 					call,
 					given

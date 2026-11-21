@@ -7,6 +7,7 @@
 	import { type AerialMaker, aerialMakers, photosCredit } from './aerial-credit';
 	import { addLine } from './casing';
 	import type { MapLayer } from './layers';
+	import type { ImageSource } from 'maplibre-gl';
 	import { onMount } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
@@ -37,6 +38,8 @@
 		thermalLayer
 	} from '#lib/forecast/thermal-layer.ts';
 	import { squareAt, squareFeatures } from '#lib/forecast/thermal-map.ts';
+	import { RADAR, radarLayer, radarOpacity } from '#lib/radar/radar-layer.ts';
+	import type { Corners } from '#lib/radar/radar.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
@@ -107,6 +110,12 @@
 			arrows: GeoJSON.FeatureCollection;
 			legend: readonly ThermalMapKey[];
 		};
+		/**
+		 * The rain radar's picture, while the "Radar" layer is on and has one:
+		 * an address the map loads it from, the corners it is pinned by, and
+		 * whether it is too old to be the rain of now and drawn fainter.
+		 */
+		radar?: { url: string; corners: Corners; faded: boolean };
 		/** Called with a place clicked while an hour is drawn, where nothing else is under the pointer. */
 		onhourat?: (at: { lat: number; lon: number }) => void;
 		/**
@@ -143,6 +152,7 @@
 		aerial = false,
 		thermalDay,
 		thermalHour,
+		radar,
 		onhourat,
 		onsquare,
 		onairspaceat
@@ -400,6 +410,27 @@
 			map.setPaintProperty(THERMAL_SOURCE, 'fill-color', dayFill());
 			setup.shapes(map, THERMAL_SOURCE)?.setData(squareFeatures(thermalDay));
 			setup.shapes(map, THERMAL_ARROWS)?.setData(NOTHING);
+		}
+	});
+
+	// Draws the radar's picture, another one when the frame changes, and
+	// none while the layer is off. An image source cannot be without a
+	// picture, so it comes and goes with the layer.
+	$effect(() => {
+		if (!map) return;
+		const source = map.getSource<ImageSource>(RADAR);
+		if (!radar) {
+			if (map.getLayer(RADAR)) map.removeLayer(RADAR);
+			if (source) map.removeSource(RADAR);
+			return;
+		}
+		if (source) {
+			source.updateImage({ url: radar.url, coordinates: radar.corners });
+			map.setPaintProperty(RADAR, 'raster-opacity', radarOpacity(radar.faded));
+		} else {
+			map.addSource(RADAR, { type: 'image', url: radar.url, coordinates: radar.corners });
+			// Over the forecast's squares, under what they lie under.
+			map.addLayer(radarLayer(radar.faded), layerAbove(map.getStyle().layers ?? []));
 		}
 	});
 

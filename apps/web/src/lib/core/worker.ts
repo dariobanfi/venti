@@ -14,6 +14,7 @@ import { LiveSource } from './live-source';
 import init from './pkg/venti_core_wasm.js';
 import wasmUrl from './pkg/venti_core_wasm_bg.wasm?url';
 import { type Answering, answer, describeFailure, type Reply, type Request } from './protocol';
+import { RadarSource } from './radar-source';
 import { CoreSession } from './session';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
@@ -59,6 +60,10 @@ const starting: Promise<Answering> = (async () => {
 			() => wind.now()
 		),
 		thermals: new ThermalMapSource(
+			() => wind.present(),
+			() => wind.now()
+		),
+		radar: new RadarSource(
 			() => wind.present(),
 			() => wind.now()
 		)

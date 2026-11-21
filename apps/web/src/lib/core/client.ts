@@ -7,6 +7,7 @@
 import type { NewAccount } from './account-source';
 import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
+import type { RadarColours } from './radar-source';
 import type { HoursAsked } from './thermal-map-source';
 import type {
 	Bounds,
@@ -306,6 +307,21 @@ export class CoreClient {
 	/** Every day of the map at the square of a place, side by side. */
 	thermalStrip(place: Coordinate) {
 		return this.#call('thermalStrip', place);
+	}
+
+	/** The rain radar's layers and their frames. Nothing if this site has no server. */
+	radar() {
+		return this.#call('radar', undefined);
+	}
+
+	/** The list of frames last fetched, read again at this moment: each frame as old as it is now. */
+	radarAgain() {
+		return this.#call('radarAgain', undefined);
+	}
+
+	/** A frame's picture in the colours given, as the bytes of a PNG. */
+	radarPicture(path: string, colours: RadarColours) {
+		return this.#call('radarPicture', { path, colours });
 	}
 
 	/** What the forecast says about flying from one of the take-offs last listed. */

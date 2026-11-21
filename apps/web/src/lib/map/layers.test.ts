@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { aerialOn, forecastOn, keepAerial, keepForecast, keepLayersOff, layersOff } from './layers';
+import {
+	aerialOn,
+	forecastOn,
+	keepAerial,
+	keepForecast,
+	keepLayersOff,
+	keepRadar,
+	layersOff,
+	radarOn
+} from './layers';
 
 function memory() {
 	const kept = new Map<string, string>();
@@ -71,5 +80,31 @@ describe('the layers switched off on the map', () => {
 		};
 		expect(layersOff(refusing)).toEqual([]);
 		expect(() => keepLayersOff(refusing, ['wind'])).not.toThrow();
+	});
+});
+
+describe('the radar layer', () => {
+	it('is off until the pilot switches it on, and remembered by the browser apart from the forecast', () => {
+		const storage = memory();
+		expect(radarOn(storage)).toBe(false);
+		keepRadar(storage, true);
+		expect(radarOn(storage)).toBe(true);
+		expect(forecastOn(storage)).toBe(false);
+		keepRadar(storage, false);
+		expect(radarOn(storage)).toBe(false);
+	});
+
+	it('is off where nothing can be read', () => {
+		expect(radarOn(undefined)).toBe(false);
+		const refusing = {
+			getItem: () => {
+				throw new Error('denied');
+			},
+			setItem: () => {
+				throw new Error('denied');
+			}
+		};
+		expect(radarOn(refusing)).toBe(false);
+		expect(() => keepRadar(refusing, true)).not.toThrow();
 	});
 });

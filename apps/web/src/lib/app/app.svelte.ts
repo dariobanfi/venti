@@ -25,6 +25,7 @@ import {
 } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
 import { ThermalMapModel } from '#lib/forecast/thermal-map.svelte.ts';
+import { RadarModel } from '#lib/radar/radar.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import { KeptSitesModel } from '#lib/sites/kept.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
@@ -65,6 +66,9 @@ export class App {
 	/** The kind of day, square by square, for the map's "Forecast" layer. */
 	thermals = $state.raw<ThermalMapModel>();
 
+	/** The rain radar, for the map's "Radar" layer. */
+	radar = $state.raw<RadarModel>();
+
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
 
@@ -102,6 +106,7 @@ export class App {
 				const kept = new KeptSitesModel(core);
 				this.kept = kept;
 				this.thermals = new ThermalMapModel(core);
+				this.radar = new RadarModel(core);
 				const logbook = await LogbookModel.open(core);
 				// A sync may have fetched or removed flights.
 				const account = await AccountModel.open(core, () => logbook.refresh());

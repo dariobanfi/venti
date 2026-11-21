@@ -452,9 +452,11 @@
 		display: none;
 	}
 
+	/* Compact on a wide screen: the 3D tools and the zoom close together. */
 	.wide .controls {
 		top: 1rem;
 		right: 1rem;
+		gap: var(--space-2);
 	}
 
 	.wide .zoom {

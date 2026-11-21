@@ -41,8 +41,8 @@
 	.button {
 		display: grid;
 		place-items: center;
-		width: 3rem;
-		height: 3rem;
+		width: var(--map-button, 3rem);
+		height: var(--map-button, 3rem);
 		border-radius: 50%;
 		color: var(--text);
 		/* Clicks go to the button, not through the row it sits in. */
@@ -51,6 +51,19 @@
 
 	.pressed {
 		color: var(--link);
+	}
+
+	/* A wide screen's controls are compact, about 32 px: a mouse needs no
+	   finger's target. */
+	@media (min-width: 56rem) {
+		.button {
+			--map-button: 2.25rem;
+		}
+
+		.button :global(svg) {
+			width: 1.125rem;
+			height: 1.125rem;
+		}
 	}
 
 	@media (hover: hover) {

@@ -798,6 +798,30 @@
 
 	/* Fingers pinch to zoom. A mouse gets buttons, which the keyboard reaches too. */
 	@media (min-width: 56rem) {
+		/* Compact on a wide screen: chips and buttons about 32 px. */
+		.chip {
+			height: 2rem;
+			margin: 0;
+			padding: 0 0.75rem 0 0.5rem;
+		}
+
+		.chip :global(svg) {
+			width: 1rem;
+			height: 1rem;
+		}
+
+		.chips {
+			padding: var(--space-1) 0;
+		}
+
+		.over {
+			top: calc(var(--space-3) + 2.75rem + var(--safe-top));
+		}
+
+		.controls {
+			gap: var(--space-2);
+		}
+
 		.zoom {
 			display: flex;
 		}

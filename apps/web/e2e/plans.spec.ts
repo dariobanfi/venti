@@ -63,7 +63,10 @@ function dayByTheBrowser(page: Page, daysOn = 0): Promise<string> {
 
 /** The plans listed under a day of the board, by what the day is called. */
 const plansOf = (page: Page, day: string): Locator =>
-	page.getByRole('list', { name: day, exact: true }).getByRole('listitem');
+	page
+		.getByRole('list', { name: day, exact: true })
+		.getByRole('listitem')
+		.or(page.getByRole('table', { name: day, exact: true }).locator('tbody > tr'));
 
 /** Fills the form for a plan and saves it. */
 async function savePlan(

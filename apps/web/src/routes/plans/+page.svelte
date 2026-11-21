@@ -9,8 +9,10 @@
 	every change, and when the tab comes back to the front.
 -->
 <script lang="ts">
+	import { MediaQuery } from 'svelte/reactivity';
+	import { goto } from '$app/navigation';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { groupsHref } from '#lib/app/routes.ts';
+	import { groupsHref, planHref } from '#lib/app/routes.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import { dayTitle } from '#lib/groups/days.ts';
@@ -22,6 +24,8 @@
 	const app = getApp();
 	const text = format();
 	const groups = $derived(app.groups);
+	/** A wide screen has each day's plans as a table; a phone, as rows. */
+	const wide = new MediaQuery('min-width: 56rem', false);
 
 	$effect(() => groups?.keepCurrent());
 
@@ -37,7 +41,7 @@
 	<title>Flying plans · Venti</title>
 </svelte:head>
 
-<div class="settings-page">
+<div class="settings-page" class:wide={wide.current}>
 	<header></header>
 	<div class="title">
 		<h1>Flying plans</h1>
@@ -68,11 +72,48 @@
 						<h2 class="group-title" id="plans-{day.day}">
 							{dayTitle(day.day, groups.today, text)}
 						</h2>
-						<ul class="group-card" aria-labelledby="plans-{day.day}">
-							{#each day.plans as plan (plan.id)}
-								<li><PlanRow {plan} /></li>
-							{/each}
-						</ul>
+						{#if wide.current}
+							<div class="group-card">
+								<table aria-labelledby="plans-{day.day}">
+									<thead>
+										<tr>
+											<th scope="col">Place</th>
+											<th scope="col">Who is in</th>
+											<th scope="col">Group</th>
+											<th scope="col" class="number">Meet at</th>
+											<th scope="col"><span class="visually-hidden">You</span></th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each day.plans as plan (plan.id)}
+											<tr
+												onclick={(event) => {
+													if (!(event.target as Element).closest('a')) void goto(planHref(plan.id));
+												}}
+											>
+												<th scope="row"><a href={planHref(plan.id)}>{plan.place}</a></th>
+												<td class="lesser">{plan.inWords}</td>
+												<td class="lesser">{plan.groupName ?? ''}</td>
+												<td class="number numeric">{plan.meetAt ?? ''}</td>
+												<td class="you">
+													{#if plan.amIn}
+														<span class="tick" role="img" aria-label="You are in">
+															<Icon name="verified" />
+														</span>
+													{/if}
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<ul class="group-card" aria-labelledby="plans-{day.day}">
+								{#each day.plans as plan (plan.id)}
+									<li><PlanRow {plan} /></li>
+								{/each}
+							</ul>
+						{/if}
 					</section>
 				{/each}
 				{#if board.isCutShort}
@@ -159,6 +200,88 @@
 	.chevron {
 		color: var(--icon-quiet);
 		font-size: 0.75rem;
+	}
+
+	/* Wide: each day's plans as a table, rows 32 px high, on a wider page. */
+	.wide {
+		max-width: 64rem;
+	}
+
+	/* The same columns under every day. */
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+	}
+
+	thead th:nth-child(1) {
+		width: 34%;
+	}
+
+	thead th:nth-child(2),
+	thead th:nth-child(3) {
+		width: 26%;
+	}
+
+	thead th:nth-child(5) {
+		width: 2.5rem;
+	}
+
+	tbody th {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	th,
+	td {
+		height: 2rem;
+		padding: 0 var(--space-3);
+		text-align: left;
+		white-space: nowrap;
+	}
+
+	thead th {
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
+		box-shadow: inset 0 -1px 0 var(--separator);
+	}
+
+	tbody tr {
+		cursor: pointer;
+	}
+
+	tbody tr + tr > * {
+		box-shadow: inset 0 1px 0 var(--separator);
+	}
+
+	tbody th a {
+		color: inherit;
+		font-weight: 600;
+	}
+
+	td.lesser {
+		color: var(--text-secondary);
+		white-space: normal;
+	}
+
+	.number {
+		text-align: right;
+	}
+
+	.you {
+		width: 2rem;
+		color: var(--link);
+	}
+
+	.tick {
+		display: inline-flex;
+	}
+
+	@media (hover: hover) {
+		tbody tr:hover {
+			background: var(--fill);
+		}
 	}
 
 	/* Wide: the button has room to say what it does. */

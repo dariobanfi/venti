@@ -27,7 +27,11 @@ import type {
 	AirspaceOverPlace,
 	AirspaceShape,
 	Bounds,
+	CandidateOffer,
 	Coordinate,
+	SiteCandidates,
+	SiteFlights,
+	SiteFlightsWords,
 	Credit,
 	FlightAirspace,
 	FlightAnalysis,
@@ -102,6 +106,7 @@ import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SiteDraftChecked, SiteEditSource, SiteSent } from './site-edit-source';
 import type { SitesSource } from './sites-source';
+import type { Box, TakeoffsSource } from './takeoffs-source';
 import type { RadarColours, RadarSource } from './radar-source';
 import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
 import type { AccessWanted, ProgramView, TokensSource } from './tokens-source';
@@ -231,6 +236,22 @@ export interface Calls {
 	sitePage: { given: string; answer: SitePage };
 	/** Given the identifier of a site that pilots made: all of its history. */
 	siteHistory: { given: string; answer: SiteHistory };
+	/** The words around what public flights say about a site, the core's. */
+	siteFlightsWords: { given: undefined; answer: SiteFlightsWords };
+	/** Given a site's identifier: what the public flights that began there say about it. */
+	siteFlights: { given: string; answer: SiteFlights };
+	/**
+	 * The places in a part of the map where pilots take off and no site
+	 * stands. A part too large is refused in the core's words.
+	 */
+	siteCandidates: { given: Box; answer: SiteCandidates };
+	/** The candidates of an answer this pilot took off at, each with the core's offer. */
+	candidateOffers: {
+		given: { candidates: SiteCandidates; utcOffsetS: number };
+		answer: CandidateOffer[];
+	};
+	/** Given a candidate's place: "Not this one", kept in this browser. */
+	setCandidateAside: { given: Coordinate; answer: undefined };
 	/** The choices the filter of sites offers, with the core's words for them. */
 	sitesFilterChoices: { given: undefined; answer: SitesFilterChoices };
 	/**
@@ -481,6 +502,7 @@ export interface Answering {
 	airspace: AirspaceSource;
 	sites: SitesSource;
 	siteEdits: SiteEditSource;
+	takeoffs: TakeoffsSource;
 	forecast: ForecastSource;
 	live: LiveSource;
 	community: CommunitySource;
@@ -501,6 +523,7 @@ export async function answer<Name extends CallName>(
 		airspace,
 		sites,
 		siteEdits,
+		takeoffs,
 		forecast,
 		live,
 		community,
@@ -561,6 +584,11 @@ export async function answer<Name extends CallName>(
 		siteDraftRebased: ({ base, edited, now }) => siteEdits.rebased(base, edited, now),
 		sitePage: (id) => siteEdits.page(id),
 		siteHistory: (id) => siteEdits.history(id),
+		siteFlightsWords: () => takeoffs.words(),
+		siteFlights: (id) => takeoffs.site(id),
+		siteCandidates: (box) => takeoffs.candidates(box),
+		candidateOffers: ({ candidates, utcOffsetS }) => takeoffs.offers(candidates, utcOffsetS),
+		setCandidateAside: (position) => takeoffs.setAside(position),
 		sitesFilterChoices: () => sites.filterChoices(),
 		filterSites: ({ sites: held, filter }) => sites.filter(held, filter),
 		forecast: (place) => forecast.forecast(place),

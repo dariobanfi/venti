@@ -48,6 +48,14 @@ export type {
 	AirspaceShape,
 	BestFlight,
 	Bounds,
+	CandidateOffer,
+	FlownMonth,
+	PublicFlightTerms,
+	SiteBestFlightLine,
+	SiteCandidates,
+	SiteCandidateView,
+	SiteFlights,
+	SiteFlightsWords,
 	Coordinate,
 	CoreErrorKind,
 	Credit,
@@ -211,6 +219,7 @@ export type { AccessWanted, ProgramView } from './tokens-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
 export type { SiteDraftChecked, SiteSent } from './site-edit-source';
+export type { Box } from './takeoffs-source';
 export type {
 	Compared,
 	FlightRef,

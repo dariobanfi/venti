@@ -7,8 +7,9 @@
  */
 
 import type { LayerSpecification } from 'maplibre-gl';
-import type { Bounds, SiteView } from '#lib/core/index.ts';
+import type { Bounds, SiteCandidateView, SiteView } from '#lib/core/index.ts';
 import { INK_ON_MAP, MUTED_INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
+import { DOT_RADIUS } from '#lib/wind/symbols.ts';
 import { pictureName } from './symbols';
 import { SITES_MIN_ZOOM } from './watch';
 import { fromPilots } from './words';
@@ -183,6 +184,56 @@ export function siteFeatures(
 	return {
 		type: 'FeatureCollection',
 		features: [...apart.map(sign(true)), ...sites.map(sign(false))]
+	};
+}
+
+/**
+ * The map's source of the take-offs without a site, and its layer. Its
+ * name begins as the signs' layer does, so that the map's "Sites" chip
+ * switches it with them.
+ */
+export const CANDIDATES_SOURCE = 'flying-sites-candidates';
+
+/**
+ * How a take-off without a site is drawn: a small ring, no pin and no
+ * picture of the pack's, so that it is not taken for a site. As large as
+ * the map's smallest mark (a station's dot), in the muted colour of a
+ * sign that stands apart, with the outline of an area on the map.
+ */
+export function candidatesLayer(): LayerSpecification {
+	return {
+		id: CANDIDATES_SOURCE,
+		type: 'circle',
+		source: CANDIDATES_SOURCE,
+		minzoom: SITES_MIN_ZOOM,
+		paint: {
+			'circle-radius': DOT_RADIUS,
+			'circle-opacity': 0,
+			'circle-stroke-color': MUTED_INK_ON_MAP,
+			'circle-stroke-width': OUTLINE_WIDTH
+		}
+	};
+}
+
+/** What names a candidate on the map: its rounded place, which is all it has. */
+export function candidateKey(candidate: Pick<SiteCandidateView, 'position'>): string {
+	return `${candidate.position.lat},${candidate.position.lon}`;
+}
+
+/** The candidates as the map's circle layer reads them. */
+export function candidateFeatures(
+	candidates: readonly Pick<SiteCandidateView, 'position'>[]
+): GeoJSON.FeatureCollection {
+	return {
+		type: 'FeatureCollection',
+		features: candidates.map((candidate) => ({
+			type: 'Feature' as const,
+			geometry: {
+				type: 'Point' as const,
+				coordinates: [candidate.position.lon, candidate.position.lat]
+			},
+			properties: { id: candidateKey(candidate) }
+		}))
 	};
 }
 

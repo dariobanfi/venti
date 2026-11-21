@@ -11,6 +11,7 @@ import { LiveSource } from './live-source';
 import { answer, describeFailure, type Reply, type Request } from './protocol';
 import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
+import { TakeoffsSource } from './takeoffs-source';
 import { SitesSource } from './sites-source';
 import { sitesMap } from './pkg/venti_core_wasm.js';
 import { MemoryStore } from './store';
@@ -56,6 +57,7 @@ class SameProcess implements Channel {
 						// Flying sites from a site that has no server.
 						sites: new SitesSource(async () => false),
 						siteEdits: new SiteEditSource(session, () => {}, unreachable),
+						takeoffs: new TakeoffsSource(session, async () => false, unreachable),
 						forecast: new ForecastSource(async () => false),
 						live: new LiveSource(async () => false),
 						community: new CommunitySource(async () => false),

@@ -144,6 +144,20 @@ export class SiteEditsModel {
 		return new SiteDraft(this.#core, await this.#core.siteDraftNew(place), undefined, undefined);
 	}
 
+	/**
+	 * A draft the core made elsewhere, for the form of a new site: the
+	 * offer of a place pilots take off from, at the pilot's own take-off.
+	 */
+	draftFrom(draft: SiteDraftView): SiteDraft {
+		return new SiteDraft(this.#core, draft, undefined, undefined);
+	}
+
+	/**
+	 * A draft waiting for the map's form, handed over from another screen
+	 * (Today's offer of a place); the map takes it when it opens.
+	 */
+	waiting = $state.raw<SiteDraftView>();
+
 	/** The draft that corrects a site. Throws, in the core's words, for a site of another source. */
 	async draftOf(site: SiteView): Promise<SiteDraft> {
 		const draft = await this.#core.siteDraftOf(site);

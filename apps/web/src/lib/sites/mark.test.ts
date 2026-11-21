@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	candidateFeatures,
+	candidateKey,
+	candidatesLayer,
+	CANDIDATES_SOURCE,
 	countIn,
 	flownFrom,
 	listed,
@@ -261,5 +265,27 @@ describe('the flights from a site', () => {
 		// The source does not say what it is: it may be a take-off.
 		expect(flownFrom({ uses: [] })).toBe(true);
 		expect(flownFrom({ uses: ['landing'] })).toBe(false);
+	});
+});
+
+describe('the take-offs without a site', () => {
+	const candidate = { position: { lat: 47.2612, lon: 10.9312 } };
+
+	it('are rings named by their place, in a layer the "Sites" chip switches', () => {
+		const features = candidateFeatures([candidate]);
+		expect(features.features).toHaveLength(1);
+		expect(features.features[0].geometry).toEqual({
+			type: 'Point',
+			coordinates: [10.9312, 47.2612]
+		});
+		expect(features.features[0].properties?.id).toBe(candidateKey(candidate));
+		expect(CANDIDATES_SOURCE.startsWith(SITES_SOURCE)).toBe(true);
+	});
+
+	it('are drawn as a ring and never a picture, from the zoom sites are', () => {
+		const layer = candidatesLayer();
+		expect(layer.type).toBe('circle');
+		expect(layer.minzoom).toBe(SITES_MIN_ZOOM);
+		expect((layer.paint as Record<string, unknown>)['circle-opacity']).toBe(0);
 	});
 });

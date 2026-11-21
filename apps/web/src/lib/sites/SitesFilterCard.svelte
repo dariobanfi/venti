@@ -18,6 +18,10 @@
 	the core chooses what the server is asked for and says that a filter is
 	on.
 
+	Beside it the switch of the map's take-offs without a site, with the
+	core's sentence (`siteFlightsWords`: `layer`, `layerAbout`): off until
+	the pilot switches it on, and kept in this browser.
+
 	Under it, where the page offers it (`onremoved`), a quiet entry in the
 	core's words, "Removed lately", opens the removed sites of Venti's tiers.
 
@@ -45,6 +49,8 @@
 	const choices = $derived(sites.choices);
 	/** The words of a site's page, the core's: "Removed lately". */
 	const words = $derived(getApp().siteEdits?.words);
+	/** The layer of take-offs without a site, with the core's words for its switch. */
+	const takeoffs = $derived(getApp().takeoffs);
 	const choice = $derived(sites.choice);
 	/** Whether the wind and the height are asked under what is shown. */
 	const asksTakeoffs = $derived(
@@ -157,6 +163,22 @@
 			</label>
 		</div>
 		<p class="caption" id="{id}-pilots">{choices.withPilotsAbout}</p>
+		{#if takeoffs?.words}
+			<!-- The places where pilots take off and no site stands: the core's switch and sentence. -->
+			<div class="group-card layer">
+				<label class="group-row toggle">
+					<span>{takeoffs.words.layer}</span>
+					<input
+						type="checkbox"
+						role="switch"
+						aria-describedby="{id}-candidates"
+						checked={takeoffs.layerOn}
+						onchange={(event) => takeoffs.switchLayer(event.currentTarget.checked)}
+					/>
+				</label>
+			</div>
+			<p class="caption" id="{id}-candidates">{takeoffs.words.layerAbout}</p>
+		{/if}
 	{/if}
 	{#if onremoved && words?.removedTitle}
 		<div class="group-card layer">

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	aerialOn,
+	candidatesOn,
+	keepCandidates,
 	forecastOn,
 	keepAerial,
 	keepForecast,
@@ -106,5 +108,18 @@ describe('the radar layer', () => {
 		};
 		expect(radarOn(refusing)).toBe(false);
 		expect(() => keepRadar(refusing, true)).not.toThrow();
+	});
+});
+
+describe('the layer of take-offs without a site', () => {
+	it('is off until the pilot switches it on, and remembered apart from the radar', () => {
+		const storage = memory();
+		expect(candidatesOn(storage)).toBe(false);
+		keepCandidates(storage, true);
+		expect(candidatesOn(storage)).toBe(true);
+		expect(radarOn(storage)).toBe(false);
+		keepCandidates(storage, false);
+		expect(candidatesOn(storage)).toBe(false);
+		expect(candidatesOn(undefined)).toBe(false);
 	});
 });

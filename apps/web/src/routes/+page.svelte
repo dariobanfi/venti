@@ -10,6 +10,7 @@
 	import { accountHref, placeHref } from '#lib/app/routes.ts';
 	import type {
 		Bounds,
+		CandidateOffer,
 		Coordinate,
 		Credit,
 		SiteOutlook,
@@ -71,6 +72,9 @@
 	import SitesRemovedView from '#lib/sites/SitesRemovedView.svelte';
 	import SitesFilterLine from '#lib/sites/SitesFilterLine.svelte';
 	import SitePage from '#lib/sites/SiteView.svelte';
+	import CandidateView from '#lib/sites/CandidateView.svelte';
+	import { candidateKey } from '#lib/sites/mark.ts';
+	import { offerFor } from '#lib/sites/takeoffs.svelte.ts';
 	import { NO_SITES } from '#lib/sites/watch.ts';
 	import { creditLine as sitesCreditLine } from '#lib/sites/words.ts';
 	import StationList from '#lib/wind/StationList.svelte';
@@ -244,6 +248,23 @@
 		void [sites.state.sites, sites.filter];
 		void sites.refilter();
 	});
+	// The take-offs without a site of what the pilot is looking at, while their layer is on.
+	const takeoffs = $derived(app.takeoffs);
+	$effect(() => {
+		if (view && takeoffs?.layerOn) takeoffs.show(view.region);
+	});
+	/** The candidate whose sheet is open, by its place (`candidateKey`). */
+	let chosenCandidate = $state.raw<string>();
+	const candidate = $derived(
+		chosenCandidate === undefined
+			? undefined
+			: takeoffs?.candidates.find((one) => candidateKey(one) === chosenCandidate)
+	);
+	/** What the core says over the map about the layer: zoom in, or more than one answer lists. */
+	const candidatesSaid = $derived(
+		takeoffs?.layerOn && !off.includes('sites') ? takeoffs.over || takeoffs.more : ''
+	);
+
 	// Who is in the air over what the pilot is looking at.
 	$effect(() => {
 		if (view) live?.show(view.region);
@@ -350,6 +371,7 @@
 
 	/** Opens what airspace lies over a place, if any does: a click elsewhere on the map does nothing. */
 	function openAirspace(place: Coordinate) {
+		chosenCandidate = undefined;
 		const model = app.airspace;
 		if (!model || model.isEmpty) return;
 		const mine = ++airspaceAsked;
@@ -368,6 +390,7 @@
 
 	/** One thing is open beside the map at a time: a station, a site, a glider, a square or airspace. */
 	function openStation(picked: WindStation | undefined) {
+		chosenCandidate = undefined;
 		if (!picked) return;
 		chosenAirspace = undefined;
 		chosenSquare = undefined;
@@ -377,6 +400,7 @@
 	}
 
 	function openGlider(id: string) {
+		chosenCandidate = undefined;
 		chosenAirspace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
@@ -385,6 +409,7 @@
 	}
 
 	function openSite(picked: SiteView | undefined) {
+		chosenCandidate = undefined;
 		if (!picked) return;
 		chosenAirspace = undefined;
 		chosenSquare = undefined;
@@ -501,6 +526,7 @@
 	});
 
 	function closeOthers() {
+		chosenCandidate = undefined;
 		chosenAirspace = undefined;
 		chosenSquare = undefined;
 		chosenHourSquare = undefined;
@@ -529,6 +555,32 @@
 			app.notice = { title: adding.title, lines: [whyNot(error)] };
 		}
 	}
+
+	/**
+	 * "Add this place": the form of a new site on the core's draft, at the
+	 * pilot's own take-off.
+	 */
+	function addOffered(offer: CandidateOffer) {
+		if (!edits || !adding?.mayAdd) return;
+		closeOthers();
+		placing = false;
+		editing = edits.draftFrom(offer.draft);
+	}
+
+	/** "Not this one": set aside in this browser, and the sheet closes. */
+	async function dismissOffered(offer: CandidateOffer) {
+		chosenCandidate = undefined;
+		await takeoffs?.setAside(offer).catch(() => {});
+	}
+
+	// An offer taken from Today: its form opens here, where the map is.
+	$effect(() => {
+		const waiting = edits?.waiting;
+		if (!waiting || !edits || !adding?.mayAdd) return;
+		edits.waiting = undefined;
+		closeOthers();
+		editing = edits.draftFrom(waiting);
+	});
 
 	/** "Use this place": the middle of the map is where the site is. */
 	async function usePlace() {
@@ -688,6 +740,11 @@
 		stations={current.stations}
 		sites={sitesFitting}
 		{sitesApart}
+		candidates={takeoffs?.layerOn ? takeoffs.candidates : []}
+		oncandidate={(key) => {
+			closeOthers();
+			chosenCandidate = key;
+		}}
 		gliders={inTheAir.gliders}
 		followed={followedTrack}
 		{coveredByPage}
@@ -1055,11 +1112,34 @@
 				{/if}
 			</MapPanel>
 		{/if}
+		{#if takeoffs?.words}
+			<!-- A place where pilots take off and no site stands: a small sheet. -->
+			<MapPanel
+				shown={candidate ? chosenCandidate : undefined}
+				title={takeoffs.words.candidateTitle}
+				wide={wide.current}
+				half
+				onclose={() => (chosenCandidate = undefined)}
+			>
+				{#if candidate}
+					<CandidateView
+						{candidate}
+						offer={adding?.mayAdd ? offerFor(takeoffs.offers, candidate) : undefined}
+						terms={takeoffs.answer?.terms.text}
+						onadd={addOffered}
+						ondismiss={(offer) => void dismissOffered(offer)}
+					/>
+				{/if}
+			</MapPanel>
+		{/if}
 		{#if said}
 			<p class="notice" role="status">
 				<Icon name="warning" />
 				{said}
 			</p>
+		{/if}
+		{#if candidatesSaid}
+			<p class="notice" role="status">{candidatesSaid}</p>
 		{/if}
 	</div>
 

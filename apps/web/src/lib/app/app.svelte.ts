@@ -39,6 +39,7 @@ import { LiveModel } from '#lib/live/model.svelte.ts';
 import { LogbookModel } from '#lib/logbook/model.svelte.ts';
 import { SiteEditsModel } from '#lib/sites/edit.svelte.ts';
 import { SitesModel } from '#lib/sites/model.svelte.ts';
+import { TakeoffsModel } from '#lib/sites/takeoffs.svelte.ts';
 import { WindModel } from '#lib/wind/model.svelte.ts';
 import { flightHref } from './routes';
 
@@ -63,6 +64,11 @@ export class App {
 
 	/** Adding and correcting a site of Venti's own layer. Nothing until the core has started. */
 	siteEdits = $state.raw<SiteEditsModel>();
+	/**
+	 * What public flights say about where pilots take off: a site's flights,
+	 * the map's take-offs without a site and the offer to add one.
+	 */
+	takeoffs = $state.raw<TakeoffsModel>();
 	/** The sites the pilot marks as their own, kept in this browser and, signed in, on the account. */
 	kept = $state.raw<KeptSitesModel>();
 
@@ -104,6 +110,7 @@ export class App {
 				this.wind = new WindModel(core);
 				this.sites = new SitesModel(core);
 				this.siteEdits = new SiteEditsModel(core);
+				this.takeoffs = new TakeoffsModel(core);
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
 				this.today = new TodayModel(core);

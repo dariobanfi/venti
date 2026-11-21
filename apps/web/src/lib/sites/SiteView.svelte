@@ -30,6 +30,9 @@
 	one for this kind of site; and once this pilot has, the core's sentence
 	in the button's place, with changing the day and taking it back. What the server
 	answered to the pilot's last change stands at the top, in the core's line.
+
+	Under the confirmations, for a take-off of any layer, what the public
+	flights that began there say about it (`SiteFlights.svelte`).
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -52,6 +55,8 @@
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
 	import { said as whyNot, type SiteEditsModel } from './edit.svelte';
 	import SiteConfirmSheet from './SiteConfirmSheet.svelte';
+	import SiteFlights from './SiteFlights.svelte';
+	import { flownFrom } from './mark';
 	import { asOf, CAUTION, forecastLine, marks, said, siteLine, webPage, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
 
@@ -331,6 +336,11 @@
 				<p class="row said" role="alert">{withdrawProblem}</p>
 			{/if}
 		</section>
+	{/if}
+
+	{#if flownFrom(site)}
+		<!-- What the public flights that began here say about it: the core's, for a take-off. -->
+		<SiteFlights id={site.id} />
 	{/if}
 
 	{#if marked.length > 0}

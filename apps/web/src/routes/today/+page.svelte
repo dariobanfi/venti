@@ -18,8 +18,8 @@
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { placeHref } from '#lib/app/routes.ts';
-	import type { OutlookDay, OutlookHour } from '#lib/core/index.ts';
+	import { mapHref, placeHref } from '#lib/app/routes.ts';
+	import type { CandidateOffer, OutlookDay, OutlookHour } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
@@ -31,6 +31,9 @@
 	import { thermalStep } from '#lib/design/palette.ts';
 	import { FIRST_REGION, NOTHING_YET, type TodayPlace } from '#lib/today/model.svelte.ts';
 	import { arranged, firstDay } from '#lib/today/order.ts';
+	import { goto } from '$app/navigation';
+	import CandidateOfferCard from '#lib/sites/CandidateOfferCard.svelte';
+	import { todayBox } from '#lib/sites/takeoffs.svelte.ts';
 
 	const app = getApp();
 	const text = format();
@@ -136,6 +139,52 @@
 	const waiting = $derived(
 		shown.phase === 'loaded' && shown.places.some((place) => !place.outlook && !place.problem)
 	);
+
+	/**
+	 * At most one place where this pilot took off and no site stands, from
+	 * the candidates around Today's take-offs: the core's offer.
+	 */
+	let offer = $state.raw<CandidateOffer>();
+	/** The part of the map asked about, as a key: asked again only when it changes. */
+	const offerBox = $derived(
+		shown.phase === 'loaded' && shown.places.length > 0
+			? JSON.stringify(
+					todayBox(
+						shown.places.map((place) => place.site.position),
+						shown.place
+					)
+				)
+			: ''
+	);
+	$effect(() => {
+		const takeoffs = app.takeoffs;
+		offer = undefined;
+		if (!takeoffs || !offerBox) return;
+		const box = JSON.parse(offerBox);
+		let current = true;
+		takeoffs.offersIn(box).then(
+			(offers) => {
+				if (current) offer = offers[0];
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** "Add this place": the map, with the form of adding a site on the core's draft. */
+	function addOffered(chosen: CandidateOffer) {
+		if (!app.siteEdits) return;
+		app.siteEdits.waiting = chosen.draft;
+		void goto(mapHref());
+	}
+
+	/** "Not this one": set aside in this browser, and the offer goes. */
+	async function dismissOffered(chosen: CandidateOffer) {
+		offer = undefined;
+		await app.takeoffs?.setAside(chosen).catch(() => {});
+	}
 
 	/** The day in the head: "Saturday, near you". */
 	const dayLine = $derived.by(() => {
@@ -448,6 +497,16 @@
 				{/if}
 			</div>
 
+			{#if offer}
+				<!-- A place this pilot took off from and no site names: the core's offer. -->
+				<div class="offer">
+					<CandidateOfferCard
+						{offer}
+						onadd={addOffered}
+						ondismiss={(chosen) => void dismissOffered(chosen)}
+					/>
+				</div>
+			{/if}
 			{#if shown.keptMore}
 				<p class="note">{shown.keptMore}</p>
 			{/if}
@@ -676,6 +735,10 @@
 		font-size: var(--subheadline);
 		font-weight: 600;
 		color: var(--text-secondary);
+	}
+
+	.offer {
+		margin-top: var(--space-4);
 	}
 
 	.note {

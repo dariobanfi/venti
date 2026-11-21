@@ -15,6 +15,7 @@
 		Bounds,
 		Coordinate,
 		LiveGlider,
+		SiteCandidateView,
 		SiteView,
 		ThermalMapDay,
 		ThermalMapKey,
@@ -49,6 +50,9 @@
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import {
+		candidateFeatures,
+		CANDIDATES_SOURCE,
+		candidatesLayer,
 		SITE_OUTLINES_SOURCE,
 		siteFeatures,
 		siteOutlineLayers,
@@ -75,6 +79,13 @@
 		 * apart from the others, as muted signs.
 		 */
 		sitesApart?: readonly SiteView[];
+		/**
+		 * The places where pilots take off and no site stands, while their
+		 * layer is on: drawn as small rings under the sites' signs.
+		 */
+		candidates?: readonly SiteCandidateView[];
+		/** Called with a candidate's key (`candidateKey`) when the pilot chooses its ring. */
+		oncandidate?: (key: string) => void;
 		/** The gliders of other pilots to draw. */
 		gliders: LiveGlider[];
 		/**
@@ -161,6 +172,8 @@
 		stations,
 		sites,
 		sitesApart = [],
+		candidates = [],
+		oncandidate,
 		gliders,
 		followed,
 		coveredByPage,
@@ -277,6 +290,9 @@
 		// A site mapped as an area has its outline under its sign.
 		map.addSource(SITE_OUTLINES_SOURCE, { type: 'geojson', data: NOTHING });
 		for (const layer of siteOutlineLayers()) map.addLayer(layer);
+		// The take-offs without a site, rings under the signs.
+		map.addSource(CANDIDATES_SOURCE, { type: 'geojson', data: NOTHING });
+		map.addLayer(candidatesLayer());
 		map.addSource(SITES_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(sitesLayer(module.LABEL_FONT));
 
@@ -324,7 +340,7 @@
 		map.addLayer(liveLayer(module.LABEL_FONT));
 
 		map.on('click', (event) => choose(map, event.point));
-		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE, THERMAL_SOURCE]) {
+		for (const layer of [LIVE_SOURCE, WIND, SITES_SOURCE, CANDIDATES_SOURCE, THERMAL_SOURCE]) {
 			map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
 			map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 		}
@@ -363,7 +379,8 @@
 		for (const [layer, open] of [
 			[LIVE_SOURCE, onglider],
 			[WIND, onstation],
-			[SITES_SOURCE, onsite]
+			[SITES_SOURCE, onsite],
+			[CANDIDATES_SOURCE, (key: string) => oncandidate?.(key)]
 		] as const) {
 			const hits = map.queryRenderedFeatures(
 				[
@@ -499,6 +516,17 @@
 			apart: sitesApart.map((site) => site.id),
 			areas: areas.features.map((area) => area.properties?.id)
 		};
+	});
+
+	// Draws the take-offs without a site when they change.
+	$effect(() => {
+		if (!map || !setup) return;
+		const features = candidateFeatures(candidates);
+		setup.shapes(map, CANDIDATES_SOURCE)?.setData(features);
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiCandidates?: unknown }).ventiCandidates = features.features.map(
+			(feature) => feature.properties?.id
+		);
 	});
 
 	// Draws the stations when they change.

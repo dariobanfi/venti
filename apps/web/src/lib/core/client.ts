@@ -10,6 +10,7 @@ import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
 import type { HoursAsked } from './thermal-map-source';
 import type { AccessWanted } from './tokens-source';
+import type { Box } from './takeoffs-source';
 import type {
 	Bounds,
 	Coordinate,
@@ -22,6 +23,7 @@ import type {
 	SiteConfirmations,
 	SiteDraftView,
 	SiteHistory,
+	SiteCandidates,
 	SiteView,
 	TodayStanding,
 	WindStation
@@ -286,6 +288,34 @@ export class CoreClient {
 	/** All of the history of a site that pilots made, the first revision first. */
 	siteHistory(id: string) {
 		return this.#call('siteHistory', id);
+	}
+
+	/** The words around what public flights say about a site, the core's. */
+	siteFlightsWords() {
+		return this.#call('siteFlightsWords', undefined);
+	}
+
+	/** What the public flights that began at a site say about it. Throws in the core's words. */
+	siteFlights(id: string) {
+		return this.#call('siteFlights', id);
+	}
+
+	/**
+	 * The places in a part of the map where pilots take off and no site
+	 * stands. A part too large is refused in the core's words.
+	 */
+	siteCandidates(box: Box) {
+		return this.#call('siteCandidates', box);
+	}
+
+	/** The candidates of an answer this pilot took off at, each with the core's offer. */
+	candidateOffers(candidates: SiteCandidates, utcOffsetS: number) {
+		return this.#call('candidateOffers', { candidates, utcOffsetS });
+	}
+
+	/** "Not this one": the candidate is not offered again in this browser. */
+	setCandidateAside(position: Coordinate) {
+		return this.#call('setCandidateAside', position);
 	}
 
 	/** The choices the filter of sites offers, with the core's words. */

@@ -17,6 +17,7 @@ import { type Answering, answer, describeFailure, type Reply, type Request } fro
 import { RadarSource } from './radar-source';
 import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
+import { TakeoffsSource } from './takeoffs-source';
 import { SitesSource } from './sites-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
@@ -54,6 +55,7 @@ const starting: Promise<Answering> = (async () => {
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites,
 		siteEdits: new SiteEditSource(session, () => sites.wrote()),
+		takeoffs: new TakeoffsSource(session, () => wind.takesSitesFromPilots()),
 		forecast: new ForecastSource(() => wind.present()),
 		live: new LiveSource(() => wind.present()),
 		community: new CommunitySource(() => wind.present()),

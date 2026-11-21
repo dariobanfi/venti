@@ -258,6 +258,9 @@ private fun Loaded(
                 row { ForecastTable(shown, chosen, Modifier.padding(start = 12.dp, top = 10.dp, bottom = 10.dp)) }
             }
             SectionFooter(ForecastRows.caveat(shown))
+            if (ForecastRows.hasThermals(ForecastRows.hours(chosen))) {
+                SectionFooter(ForecastRows.THERMALS_NOTE, Modifier.testTag("forecast-thermals-note"))
+            }
         }
         Spacer(Modifier.height(24.dp))
         Group {
@@ -405,12 +408,24 @@ private val CLOUD_SIDE = 24.sp
 private fun Cell(cell: ForecastCell) {
     when (cell) {
         is ForecastCell.Wind -> WindCell(cell.wind)
-        is ForecastCell.Number -> Text(
-            cell.text,
-            style = MaterialTheme.typography.labelMedium.numbers,
-            maxLines = 1,
-            softWrap = false,
-        )
+        is ForecastCell.Number -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                cell.text,
+                style = MaterialTheme.typography.labelMedium.numbers,
+                maxLines = 1,
+                softWrap = false,
+            )
+            // "base" in small print under a top of the thermals that is the cloud base.
+            cell.under?.let { word ->
+                Text(
+                    word,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
         is ForecastCell.Cloud -> {
             // More sky covered, more of the square filled in.
             val share = (cell.percent.coerceIn(0.0, 100.0) / 100).toFloat()

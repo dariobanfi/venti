@@ -1834,6 +1834,17 @@ class VentiUiTest {
         waitFor(hasTestTag("air-chart") and saying("m/s to a cloud base of"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("today-8-air-through-the-day")
+
+        // The forecast for the take-off has the thermals' two rows under
+        // the sky, and says under the table what they are.
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-forecast"))
+        tap(hasTestTag("site-forecast"))
+        waitFor(hasTestTag("forecast-table"))
+        waitForAll(described("Thermals, climb, m/s"), described("Thermals, top, m"))
+        screen.onNode(hasTestTag("forecast-thermals-note")).performScrollTo()
+        assertTrue(exists(hasText("not a value of the model", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("forecast-thermals")
         tap(hasText("Done"))
         waitFor(hasTestTag("today-card"))
     }

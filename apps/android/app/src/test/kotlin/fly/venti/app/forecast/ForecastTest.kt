@@ -165,6 +165,37 @@ class ForecastTest {
     }
 
     @Test
+    fun theThermalsHaveTwoRowsLastWhereSomeHourHasAnEstimate() {
+        val model = fetched().models[0]
+        val recorded = model.days.flatMap { it.hours }
+        // The recorded November hours have nothing to climb in: no rows, no note.
+        assertFalse(ForecastRows.hasThermals(recorded))
+        assertFalse(ForecastRows.of(model, recorded).any { it.id.startsWith("thermal") })
+
+        // The core's estimate for the hours: a climb under cumulus, one in the blue, none.
+        val hours = listOf(
+            recorded[0].copy(thermalClimbMs = 1.8, thermalTopM = 3250.0, thermalCloud = true),
+            recorded[1].copy(thermalClimbMs = 0.4, thermalTopM = 1800.0, thermalCloud = false),
+            recorded[2].copy(thermalClimbMs = null, thermalTopM = null, thermalCloud = false),
+        )
+        assertTrue(ForecastRows.hasThermals(hours))
+        val rows = ForecastRows.of(model, hours)
+        assertEquals(listOf("thermal-climb", "thermal-top"), rows.takeLast(2).map { it.id })
+        val (climb, top) = rows.takeLast(2)
+        assertEquals("Thermals, climb", climb.name)
+        assertEquals("m/s", climb.detail)
+        assertEquals(listOf(ForecastCell.Number("1.8"), ForecastCell.Number("0.4"), ForecastCell.Empty), climb.cells)
+        assertEquals("Thermals, top", top.name)
+        // "base" under a top that is the cloud base.
+        assertEquals(
+            listOf(ForecastCell.Number("3250", under = "base"), ForecastCell.Number("1800"), ForecastCell.Empty),
+            top.cells,
+        )
+        assertTrue(ForecastRows.spoken(top, hours, java.time.ZoneOffset.UTC).contains("3250, base"))
+        assertTrue(ForecastRows.THERMALS_NOTE.contains("not a value of the model"))
+    }
+
+    @Test
     fun aModelWithOnlyAGroundWindHasOnlyThatRow() {
         val coarse = fetched().models[1]
         assertEquals(listOf("ground"), ForecastRows.of(coarse, coarse.days.flatMap { it.hours }).map { it.id })

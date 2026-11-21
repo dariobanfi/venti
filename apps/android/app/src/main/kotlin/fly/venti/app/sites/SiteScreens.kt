@@ -73,6 +73,7 @@ import fly.venti.app.design.status
 import fly.venti.core.OutlookDay
 import fly.venti.core.SiteOutlook
 import fly.venti.app.R
+import fly.venti.app.today.AirChart
 import fly.venti.app.today.ThermalLine
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
@@ -450,6 +451,13 @@ private fun SitePage(
         ) {
             item {
                 SiteHead(site, day, isForTakingOff, actions)
+            }
+            // The air over the take-off through that day, where the model's
+            // ground is known.
+            if (day != null && day.groundM != null) {
+                item {
+                    AirChart(day, site.elevationM)
+                }
             }
             item {
                 Group {

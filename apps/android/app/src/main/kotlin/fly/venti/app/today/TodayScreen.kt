@@ -227,7 +227,7 @@ fun TodayScreen(
                                 Text("Use my position")
                             }
                         }
-                        Foot(today)
+                        Foot(today, shown.firstOrNull()?.let { outlookDay(it, chosen) })
                     }
                 }
             }
@@ -594,14 +594,21 @@ private fun spoken(hour: OutlookHour): String {
  * language asks a forecast for its update time and its source.
  */
 @Composable
-private fun Foot(today: TodayModel) {
+private fun Foot(
+    today: TodayModel,
+    /** The day shown, the best take-off's: it is read from the model that has the most of it. */
+    day: OutlookDay?,
+) {
     val outlook = today.places.firstNotNullOfOrNull { it.outlook }
     val style = MaterialTheme.typography.bodySmall
     val colour = Venti.colours.textSecondary
     Column(modifier = Modifier.fillMaxWidth().testTag("today-foot"), verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
-        if (outlook != null && outlook.note.isNotEmpty()) {
+        // The note and the run of the day shown, else the outlook's own.
+        val note = day?.note?.takeIf { it.isNotEmpty() } ?: outlook?.note.orEmpty()
+        val run = day?.runUnixS?.takeIf { day.note.isNotEmpty() } ?: outlook?.runUnixS
+        if (outlook != null && note.isNotEmpty() && run != null) {
             Text(
-                "${outlook.note} Run of ${Format.time(outlook.runUnixS)}, looked up at ${Format.time(outlook.fetchedUnixS)}.",
+                "$note Run of ${Format.time(run)}, looked up at ${Format.time(outlook.fetchedUnixS)}.",
                 style = style,
                 color = colour,
             )

@@ -1826,6 +1826,11 @@ class VentiUiTest {
         waitFor(hasTestTag("thermal-line"))
         TestDevice.letTheAppRun(screen, 1)
         keepScreenshot("today-7-site-on-a-big-day")
+        // The air over the take-off through the day, as a picture.
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("air-chart"))
+        waitFor(hasTestTag("air-chart") and saying("m/s to a cloud base of"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("today-8-air-through-the-day")
         tap(hasText("Done"))
         waitFor(hasTestTag("today-card"))
     }

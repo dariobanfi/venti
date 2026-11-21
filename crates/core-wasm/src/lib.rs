@@ -64,6 +64,7 @@ use venti_core::{
     CheerList, CheerState, CommentDraft, CommentList, CommentPosted, CommentsSwitch, Feed,
     FollowList, FollowState, Notifications,
 };
+use venti_core::{FlownThermals, LiveClimbs, SitesAir};
 use venti_core::{GoogleSignIn, GoogleWords};
 use venti_core::{PilotStatistics, PilotsFound};
 use venti_core::{
@@ -2383,6 +2384,87 @@ pub fn live_layer(
     let venti = venti_core::live_map(venti_status, venti_body).map_err(thrown)?;
     let others = venti_core::live_others(others_status, others_body).map_err(thrown)?;
     to_js(&venti_core::live_layer(venti, others))
+}
+
+// What many gliders say together: where pilots climb now, how many are
+// in the air at a site, and where the public flights' thermals have been.
+// Places in the air and numbers; no pilot is named.
+
+/// The path and query to `GET` for the climbs of the last minutes in a
+/// box, or nothing for a box wider than the server answers for.
+#[wasm_bindgen(js_name = liveClimbsPath)]
+pub fn live_climbs_path(south: f64, west: f64, north: f64, east: f64) -> Option<String> {
+    venti_core::live_climbs_path(south, west, north, east)
+}
+
+/// Reads the server's answer to `liveClimbsPath`: each climb with its
+/// words, and the credits of the networks it is derived from.
+#[wasm_bindgen(js_name = liveClimbs)]
+pub fn live_climbs(status: u16, body: Vec<u8>) -> Result<Ts<LiveClimbs>, JsValue> {
+    to_js(&venti_core::live_climbs(status, body).map_err(thrown)?)
+}
+
+/// What the map says where the climbs are switched on and there are none.
+#[wasm_bindgen(js_name = liveClimbsEmptyWords)]
+pub fn live_climbs_empty_words() -> String {
+    venti_core::live_climbs_empty_words()
+}
+
+/// The path and query to `GET` for the sites of a box with pilots in the
+/// air, or nothing for a box wider than the server answers for.
+#[wasm_bindgen(js_name = liveSitesPath)]
+pub fn live_sites_path(south: f64, west: f64, north: f64, east: f64) -> Option<String> {
+    venti_core::live_sites_path(south, west, north, east)
+}
+
+/// Reads the server's answer to `liveSitesPath`: the pilots in the air
+/// at each site, the sources of live positions not added up.
+#[wasm_bindgen(js_name = liveSites)]
+pub fn live_sites(status: u16, body: Vec<u8>) -> Result<Ts<SitesAir>, JsValue> {
+    to_js(&venti_core::live_sites(status, body).map_err(thrown)?)
+}
+
+/// The line a site's page says of who flies there now, from the answer
+/// to `liveSitesPath`: "5 pilots in the air at Wallberg, 2 took off in
+/// the last hour". Empty when nobody does.
+#[wasm_bindgen(js_name = siteAirWords)]
+pub fn site_air_words(
+    status: u16,
+    body: Vec<u8>,
+    site_id: String,
+    site_name: String,
+) -> Result<String, JsValue> {
+    let air = venti_core::live_sites(status, body).map_err(thrown)?;
+    Ok(venti_core::site_air_words(air, site_id, site_name))
+}
+
+/// The path and query to `GET` for where thermals have been in a box, in
+/// a month of the year and between two hours by the sun, if given; or
+/// nothing for a box wider than a degree.
+#[wasm_bindgen(js_name = flownThermalsPath)]
+pub fn flown_thermals_path(
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+    month: Option<u8>,
+    from_hour: Option<u8>,
+    to_hour: Option<u8>,
+) -> Option<String> {
+    venti_core::flown_thermals_path(south, west, north, east, month, from_hour, to_hour)
+}
+
+/// What a map says where it shows too much to ask for the thermals.
+#[wasm_bindgen(js_name = flownTooWideWords)]
+pub fn flown_too_wide_words() -> String {
+    venti_core::flown_too_wide_words()
+}
+
+/// Reads the server's answer to `flownThermalsPath`: each cell with its
+/// words, and what the layer is.
+#[wasm_bindgen(js_name = flownThermals)]
+pub fn flown_thermals(status: u16, body: Vec<u8>) -> Result<Ts<FlownThermals>, JsValue> {
+    to_js(&venti_core::flown_thermals(status, body).map_err(thrown)?)
 }
 
 /// Follows one live track: says what to ask the server for, and puts the

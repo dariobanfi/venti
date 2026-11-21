@@ -62,6 +62,7 @@
 //! assistant, over the Model Context Protocol. It is not part of `/v1`.
 
 mod account;
+mod air;
 mod airspace;
 mod alerts;
 mod archive;
@@ -121,11 +122,12 @@ use venti_api_types::v1::{
     ACCOUNT_ARCHIVE_PATH, ACCOUNT_GOOGLE_PATH, ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH,
     ACCOUNT_TOKENS_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, AUTH_GOOGLE_ACCOUNT_PATH, AUTH_GOOGLE_PATH,
     Attribution, CABLES_PATH, DEV_GOOGLE_ID_TOKEN_PATH, DUMPS_PATH, FLIGHT_CHANGES_PATH,
-    FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_OTHERS_PATH,
-    LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PILOTS_PATH, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH,
-    ROUTE_WEATHER_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH,
-    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    FLIGHTS_PATH, FLOWN_THERMALS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
+    LIVE_CLIMBS_PATH, LIVE_OTHERS_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, LIVE_SITES_PATH, MAPS_PATH,
+    MAX_LIVE_BODY_BYTES, PILOTS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH,
+    THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -138,9 +140,11 @@ use crate::accounts::throttle::Throttle;
 use crate::accounts::{Limits, Registration};
 use crate::clock::Clock;
 use crate::flights::analyser::Analyser;
+use crate::flights::flown::FlownThermals;
 use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
 use crate::imagery::Imagery;
+use crate::live::air::Trails;
 use crate::live::network::Network;
 use crate::maps::Maps;
 use crate::radar::Radar;
@@ -320,6 +324,12 @@ pub struct Api<S> {
     /// The networks of live positions the server listens to, sorted by
     /// source.
     networks: Vec<Arc<Network>>,
+    /// The last minutes of the live tracks their pilots show to everyone,
+    /// for what is derived from many gliders ([`crate::live::air`]).
+    live_air: Arc<Trails>,
+    /// The climbs of the public flights, by cell. Empty until something
+    /// follows the public flights ([`crate::flights::flown`]).
+    flown: Arc<FlownThermals>,
     /// The sources of observations in the order they are preferred where
     /// two of them have a station at the same place.
     station_priority: Vec<SourceId>,
@@ -433,6 +443,8 @@ impl<S: Store> Api<S> {
             maps: Maps::default(),
             imagery: None,
             networks: Vec::new(),
+            live_air: Arc::new(Trails::default()),
+            flown: Arc::new(FlownThermals::default()),
             station_priority: Vec::new(),
             // A key of this process's own, until the server names the
             // one it keeps: a browser can subscribe in the development
@@ -519,6 +531,23 @@ impl<S: Store> Api<S> {
     pub fn with_networks(mut self, mut networks: Vec<Arc<Network>>) -> Self {
         networks.sort_by(|a, b| a.source().cmp(b.source()));
         self.networks = networks;
+        self
+    }
+
+    /// The last minutes of the live tracks their pilots show to everyone,
+    /// which the handlers fill as fixes arrive: for whatever else reads
+    /// them, as the check of the alarms about pilots in the air does.
+    pub fn live_air(&self) -> Arc<Trails> {
+        self.live_air.clone()
+    }
+
+    /// The same API, answering `/v1/thermals/flown` from `flown`, which
+    /// something else keeps up with the public flights.
+    ///
+    /// Without this the answer there has no cell.
+    #[must_use]
+    pub fn with_flown_thermals(mut self, flown: Arc<FlownThermals>) -> Self {
+        self.flown = flown;
         self
     }
 
@@ -738,6 +767,9 @@ impl<S: Store> Api<S> {
             )
             .route(LIVE_PATH, get(live::list::<S>))
             .route(LIVE_OTHERS_PATH, get(live::others::<S>))
+            .route(LIVE_CLIMBS_PATH, get(air::climbs::<S>))
+            .route(LIVE_SITES_PATH, get(air::sites::<S>))
+            .route(FLOWN_THERMALS_PATH, get(air::flown::<S>))
             .route(REPORTS_PATH, post(reports::create::<S>))
             .route(
                 "/v1/live/{id}",

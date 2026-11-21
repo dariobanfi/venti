@@ -684,6 +684,26 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
     ),
     ("live.json", "get", "/v1/live", Answer(200)),
     ("live_others.json", "get", "/v1/live/others", Answer(200)),
+    ("live_climbs.json", "get", "/v1/live/climbs", Answer(200)),
+    ("live_sites.json", "get", "/v1/live/sites", Answer(200)),
+    (
+        "thermals_flown.json",
+        "get",
+        "/v1/thermals/flown",
+        Answer(200),
+    ),
+    (
+        "alert_pilots_request.json",
+        "post",
+        "/v1/account/alerts",
+        Request,
+    ),
+    (
+        "alerts_fired_pilots.json",
+        "get",
+        "/v1/account/alerts/fired",
+        Answer(200),
+    ),
     ("live_track.json", "get", "/v1/live/{id}", Answer(200)),
     (
         "live_positions_request.json",

@@ -101,7 +101,7 @@ fn takeoff_site(takeoff: GeoPoint, near: &[Site]) -> Option<FlightSite> {
 /// Whether a site is one to take off from, by its own record: on foot or
 /// on a tow line, or it names no use at all. A landing field and a
 /// training slope are not.
-fn is_a_takeoff(site: &Site) -> bool {
+pub(super) fn is_a_takeoff(site: &Site) -> bool {
     site.uses.is_empty()
         || site
             .uses

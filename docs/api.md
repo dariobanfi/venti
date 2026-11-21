@@ -3485,6 +3485,77 @@ A day in late November has half the hours and half the size. One answer with eve
 
 **In the development mode** the hours are those of the recorded map's four days, by the code a real server runs: seven hours a day, from 08:00 to 14:00 UTC, on the 21st to the 23rd, and five on the 24th, which ends with ICON-EU's run at noon. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint for each day of its made-up map, with eleven hours a day and something in every layer.
 
+## `GET /v1/thermals/flown?bbox=&month=&hours=`
+
+Where thermals have been: the cells of a box in which the public flights of several pilots climbed. This is Venti's own map, made from the public flights the server holds and under their terms (`terms`, as in [the public flights](#public-flights)); it is not the forecast of [`GET /v1/thermals`](#get-v1thermals), and it is nobody else's thermal map. Anyone may ask. Since 2026-11-22.
+
+- **A cell needs three pilots.** A cell of the grid of 0.005° (about 560 m by 370 m at 47° north) is handed out only when the climbs of at least `min_pilots`, 3, different pilots lie in it, counted after `month` and `hours` are applied: one pilot's climbs say where that pilot flies. The rule is the one of the [take-off candidates](#get-v1sitescandidatesbboxwestsoutheastnorth). A cell carries no pilot, no flight and no day; its place is the cell's middle and its heights are rounded to 50 m.
+- **A climb** is a thermal as the flight analysis finds it (circling for 40 seconds or more) that gained at least 50 m at 0.5 m/s or more on average. It lies in the cell half-way between where the circling began and where it ended.
+- **The month and the hour are by the sun** at the place: UTC and four minutes for each degree east, so that noon is when the sun is highest, with no table of time zones. `month=7` is July of any year; `hours=11-15` the climbs that began from 11:00 to before 15:00.
+- **Public flights only.** A flight that is made private, taken down or deleted leaves the map with the server's next look at the public flights, five minutes later at most.
+- **Kept in memory**, not in the database: after a start the server reads the public flights again, a few at a time, and `flights` says how many it has read; until it has read them all, the map is still filling.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `bbox` | Required; at most 1 degree each way (`invalid_bbox`) | |
+| `month` | A month of the year, 1 to 12 (`invalid_time` otherwise) | The whole year |
+| `hours` | From an hour of 0 to 23 to a later one, at most 24, by the sun (`invalid_time` otherwise) | The whole day |
+
+**The bound.** It counts as a read of public flights for the address that asks: [600 an hour](#how-often-an-address-may-read). The answer may be kept for a minute.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/thermals/flown?bbox=11.6,47.55,12.0,47.85'
+```
+
+The development mode's eleven public flights are the sample flight, flown by six made-up pilots; around the Tegernsee three of them climbed in the same two cells:
+
+```json
+{
+  "cells": [
+    {
+      "position": {
+        "lat": 47.6725,
+        "lon": 11.7925
+      },
+      "climbs": 5,
+      "pilots": 3,
+      "climb_ms": 2.4,
+      "best_climb_ms": 2.4,
+      "from_m": 1500,
+      "to_m": 2100
+    },
+    {
+      "position": {
+        "lat": 47.6875,
+        "lon": 11.7525
+      },
+      "climbs": 5,
+      "pilots": 3,
+      "climb_ms": 1.5,
+      "best_climb_ms": 1.5,
+      "from_m": 1700,
+      "to_m": 1950
+    }
+  ],
+  "more": false,
+  "cell_deg": 0.005,
+  "min_pilots": 3,
+  "flights": 11,
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `cells[]` | The most pilots first. `climbs` and `pilots`: how many climbs of how many pilots. `climb_ms` and `best_climb_ms`: their average and the best, to a tenth. `from_m`, `to_m`: the heights a climb began and ended at, on average |
+| `more` | `true` when the box holds more than 2,000 cells |
+| `month`, `hours` | What was asked for; left out for the whole year and the whole day |
+| `flights` | How many public flights the server has read for the map |
+| `terms` | What the flights it is made from are given under; not decided yet, as for every answer made from public flights |
+
 ## `GET /v1/route/weather?date=&points=`
 
 The forecast along a route: for each point of a route and each daylight hour of one day, what the thermal map holds for the cell the point lies in, every layer of [`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight) at once: the hour's verdict and thermals, the wind 10 m above the model's ground with its gusts, the wind at each height the map keeps, cloud and rain. It is read from the hours the map serves, so it says what the map says and costs no request to the forecast's source, however many routes are asked for. What a pilot meets on the way, when, and at which height, the client works out from it: the core does it for the apps (`crates/core/src/route_weather.rs`, [design.md](design.md#plan)).
@@ -5309,14 +5380,16 @@ Needs a token. Forgets a site. The answer is `204` with no body, also when the a
 
 ## Alarms
 
-A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals). What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). A browser the pilot subscribed is also told at once, by [Web Push](#web-push); the phone apps fetch. No mail.
+A pilot sets alarms on the account: "tell me when the wind at the Patscherkofel station is from the north at 10 to 20 km/h", "tell me when a day of the next three is a cross-country day at the Nordkette". An alarm is a fixed rule over data the server has, and the server checks it where the data arrives: a wind alarm against every reading of its station, a day alarm against every run of the [thermal map](#get-v1thermals), a pilots alarm once a minute against the live positions. What fired is kept on the account, and the pilot's apps fetch it ([`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit)). A browser the pilot subscribed is also told at once, by [Web Push](#web-push); the phone apps fetch. No mail.
 
 - **It is private.** Every request here acts for the account of its token. [Deleting the account](#delete-v1account) removes its alarms and what they fired.
-- **Two kinds**, told apart by `rule.kind`, and more to come: a client keeps a kind it does not know as it is.
+- **Three kinds**, told apart by `rule.kind`, and more to come: a client keeps a kind it does not know as it is.
   - `wind`: a station (`station`, as [`GET /v1/stations`](#get-v1stationsbboxwestsoutheastnorth) names it, and its `station_name` for the words), and any of: `directions`, the directions the wind comes from, clockwise from `from_deg` to `to_deg`, both included (349 to 56 is north to north-east, half a point either side); `min_kmh` and `max_kmh`, the mean wind, both included; `gusts_max_kmh`, the strongest gust there may be; `hours`, from `from_hour` o'clock to `to_hour` o'clock, both included. At least the directions or one of the two speeds. A reading fits when it fits every part that is set; a reading that lacks what a part asks about (a gust, a direction) does not fit.
   - `day`: a place (`place`, a site's `site` if it is one, and its `place_name` for the words), the days to look at, `days_ahead`, 0 for today to 3, and the least the day is to be, `at_least`: `flyable` (the day's verdict in the thermal map is `flyable`), `local`, `cross_country` or `big` (flyable, with thermals at least of that kind).
+  - `pilots` (since 2026-11-22): "a lot of people fly, let me know". A place (`place`, a site's `site` if it is one, and its `place_name` for the words), the fewest pilots in the air, `min_pilots`, 1 to 100 (left out: 3), and for how many hours it rests after it fired, `rest_hours`, 1 to 24 (left out: 6).
 - **When a wind alarm fires.** After each run of stations the server takes of each station its newest reading, if it is no older than 60 minutes, and checks the alarms that watch it. An alarm that fired rests: it fires again only for a reading at least 3 hours after the one that fired it. A change to the alarm ends the rest.
 - **When a day alarm fires.** After each run of the thermal map, for each day the alarm looks at, in the cell its place lies in: when the day is at least what the alarm asks and no run said so since the last that said otherwise. A run that says less forgets it; a later one that says so again fires again. A cell without a verdict for the day changes nothing. One run can fire one alarm for several days.
+- **When a pilots alarm fires.** Once a minute the server counts, for each source of live positions by itself (a network it listens to, Venti's own public live tracks), the paragliders and hang gliders in the air within 5 km of the place, as [`GET /v1/live/sites`](#get-v1livesitesbboxwestsoutheastnorth) counts them. The alarm fires when one source has at least `min_pilots`; the sources are not added up, since a pilot may be in two. Then it rests `rest_hours` hours. Nothing in what fired says who flies.
 - **The clock.** The hours of a wind alarm and the "today" of a day alarm are Central European Time, with summer time as the European Union keeps it: Venti's regions lie in it. *To verify* when a region lies beyond it.
 - **Bounds.** At most 20 alarms per account. A name has 1 to 60 characters, a station's or place's name 1 to 80. Speeds are at most 250 km/h. What fired is kept 30 days.
 - **A token for a program** needs `alerts:read` to read and `alerts:write` to set, change and remove ([tokens](#tokens-for-other-programs)).
@@ -5382,8 +5455,27 @@ Needs a token. Sets an alarm. The body is `name`, `enabled` (left out: `true`) a
 
 | Status | `code` | When |
 |---|---|---|
-| 400 | `invalid_alert` | A name that is empty, too long or does not print; a sector from and to the same direction; a least wind above the most; no directions and no speeds; hours that do not run forward; no day, a day beyond 3 or one twice; a kind the server does not know. `message` names the field |
+| 400 | `invalid_alert` | A name that is empty, too long or does not print; a sector from and to the same direction; a least wind above the most; no directions and no speeds; hours that do not run forward; no day, a day beyond 3 or one twice; pilots or hours of rest outside their bounds; a kind the server does not know. `message` names the field |
 | 409 | `too_many_alerts` | The account has 20 alarms already |
+
+A pilots alarm:
+
+```json
+{
+  "name": "Wallberg is on",
+  "enabled": true,
+  "rule": {
+    "kind": "pilots",
+    "place": {
+      "lat": 47.664,
+      "lon": 11.748
+    },
+    "place_name": "Wallberg",
+    "min_pilots": 3,
+    "rest_hours": 6
+  }
+}
+```
 
 ### `PUT /v1/account/alerts/{id}`
 
@@ -5457,7 +5549,7 @@ Needs a token. What the account's alarms fired since the device last asked, the 
 | `since` | The `cursor` of the answer before | Everything kept |
 | `limit` | How many to return, 1 to 100 | 50 |
 
-Each entry has the alarm (`alert_id`, its `alert_name` and its `rule` as they were), `fired_at`, and `because`: for a wind alarm the reading (`time`, `speed_kmh`, `gust_kmh`, `direction_deg`, whole numbers), for a day alarm the day (`date`, `verdict`, `thermals`, and the `model` and `run` it is read from). The words a pilot reads are the app's: Venti's apps take them from the core. `reset` is `true` when `since` was not a cursor of this server's; the answer then starts from the oldest kept, and a device shows again what it shows. The demo account's one:
+Each entry has the alarm (`alert_id`, its `alert_name` and its `rule` as they were), `fired_at`, and `because`: for a wind alarm the reading (`time`, `speed_kmh`, `gust_kmh`, `direction_deg`, whole numbers), for a day alarm the day (`date`, `verdict`, `thermals`, and the `model` and `run` it is read from), for a pilots alarm the count (`time`, `pilots`, the most one source of live positions had in the air near the place, and `took_off`, how many of them took off there in the last hour). The words a pilot reads are the app's: Venti's apps take them from the core. `reset` is `true` when `since` was not a cursor of this server's; the answer then starts from the oldest kept, and a device shows again what it shows. The demo account's one:
 
 ```json
 {
@@ -5492,6 +5584,39 @@ Each entry has the alarm (`alert_id`, its `alert_name` and its `rule` as they we
     }
   ],
   "cursor": "1794997380000000",
+  "more": false,
+  "reset": false
+}
+```
+
+What a pilots alarm fired, as a test of the server keeps it:
+
+```json
+{
+  "fired": [
+    {
+      "alert_id": "0000000000000000000000a003",
+      "alert_name": "Wallberg is on",
+      "fired_at": "2026-11-18T19:05:00Z",
+      "rule": {
+        "kind": "pilots",
+        "place": {
+          "lat": 47.664,
+          "lon": 11.748
+        },
+        "place_name": "Wallberg",
+        "min_pilots": 3,
+        "rest_hours": 6
+      },
+      "because": {
+        "kind": "pilots",
+        "time": "2026-11-18T19:05:00Z",
+        "pilots": 3,
+        "took_off": 1
+      }
+    }
+  ],
+  "cursor": "1795028700000000",
   "more": false,
   "reset": false
 }
@@ -7678,6 +7803,141 @@ The development mode answers from lines in the network's form made up over the T
 | `attributions` | The credit of every network in `layers`, with the notice the map shows beside it |
 
 A map asks again every ten to fifteen seconds for the part in view.
+
+### `GET /v1/live/climbs?bbox=west,south,east,north`
+
+Where pilots climb at this moment: the places where paragliders and hang gliders circled and climbed in the last ten minutes. An instrument sees one glider; the server sees all that are heard, and a glider that circles and climbs marks a thermal for everyone. Anyone may ask, and the answer is the same for everyone. Since 2026-11-22.
+
+- **A climb is a place in the air, not a person.** `position` is the middle of a cell of a fixed grid of 0.005° (about 560 m by 370 m at 47° north), the heights are rounded to 50 m, and nothing in the answer names a glider, a pilot, a device or a track. A climb that one pilot works is listed: a glider's position is in [`GET /v1/live`](#get-v1livebboxwestsoutheastnorth) or [`GET /v1/live/others`](#get-v1liveothersbboxwestsoutheastnorth) already, by its pilot's or owner's choice, and exactly.
+- **Layers by where the positions come from, never one record.** One layer for each network the server listens to, under that network's credit in `attributions` (the Open Glider Network's positions are under the ODbL, and what is derived from them is credited as they are: [data-sources.md](data-sources.md#open-glider-network)), and one named `venti` from Venti's own live tracks. A thermal that gliders of both work is in both layers.
+- **Whose positions.** Of a network: the devices that may be shown, by the rules of [`GET /v1/live/others`](#get-v1liveothersbboxwestsoutheastnorth); nothing is derived from a device whose owner chose not to be tracked, and nothing at all while the server holds no device database it trusts. Of Venti: the live tracks their pilots show to everyone (`public`); a track for those with the link marks nothing, and a track that is deleted or no longer public is out of the answer at once.
+- **The rule**, the same for every glider and fixed: positions no more than 12 seconds apart follow one another; the glider is circling where its course over the ground turned at least 120° one way within 20 seconds; circling with no more than 20 seconds between is one climb; it counts when the glider turned a full circle in all, gained at least 30 m and climbed at least 0.5 m/s on average from its first circle to its last. A device heard less often than every 12 seconds marks no climb. The limits are *to verify* against real days.
+- **What is kept:** the positions of the last twelve minutes of each glider, one every two seconds at most, in memory only; gone seventy minutes after its newest. Nothing of it is stored, logged or handed out.
+
+`bbox` is required and may be at most 10 degrees each way (`invalid_bbox`). The answer may be kept for five seconds; a map asks again every half minute. An answer reads the gliders in and near its box from memory, and nothing from the database.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live/climbs?bbox=11.6,47.55,12.0,47.85'
+```
+
+The development mode has six made-up gliders over the Tegernsee: three circled in one thermal east of the Wallberg until four minutes before its clock, two circle south of the lake now:
+
+```json
+{
+  "time": "2026-11-21T19:09:10Z",
+  "listed_minutes": 10,
+  "cell_deg": 0.005,
+  "layers": [
+    {
+      "source": "ogn",
+      "climbs": [
+        {
+          "position": {
+            "lat": 47.6275,
+            "lon": 11.7425
+          },
+          "climb_ms": 1.3,
+          "from_m": 1350,
+          "to_m": 1550,
+          "pilots": 2,
+          "age_s": 2
+        },
+        {
+          "position": {
+            "lat": 47.6675,
+            "lon": 11.8025
+          },
+          "climb_ms": 2.4,
+          "from_m": 1600,
+          "to_m": 2100,
+          "pilots": 3,
+          "age_s": 240
+        }
+      ],
+      "truncated": false
+    },
+    {
+      "source": "venti",
+      "climbs": [],
+      "truncated": false
+    }
+  ],
+  "attributions": [
+    {
+      "source": "ogn",
+      "provider": "Open Glider Network",
+      "licence": "ODbL 1.0",
+      "text": "Positions: Open Glider Network, glidernet.org (ODbL)",
+      "url": "https://www.glidernet.org/ogn-data-usage/",
+      "notice": "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision."
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's clock when it wrote the answer |
+| `listed_minutes`, `cell_deg` | For how long a climb is listed, 10, and the side of a cell, 0.005 |
+| `layers[].source` | A network's source, whose credit is in `attributions`, or `venti` |
+| `climbs[]` | The newest first. `climb_ms`: the height gained by every pilot who worked it over the time they circled, to a tenth. `from_m`, `to_m`: the lowest height a pilot began to circle at and the greatest one circled to. `pilots`: how many circled in the cell. `age_s`: how long before `time` the last of them was heard circling |
+| `layers[].truncated` | `true` when the box holds more than 500 cells with a climb; the newest are listed |
+
+### `GET /v1/live/sites?bbox=west,south,east,north`
+
+How many pilots are in the air at the flying sites of a box, and how many took off there in the last hour. Numbers only. Anyone may ask. Since 2026-11-22.
+
+- **A site is named by its identifier**, as [`GET /v1/sites`](#get-v1sitesbboxwestsoutheastnorth) names it, and by nothing else: the site's record stays in its own layer under its own licence. Every take-off of every layer of sites the server has is looked at; a site that is not listed has nobody.
+- **In the air**: a paraglider or hang glider heard in the last 5 minutes within `within_m`, 5 km, of the site, and moving at 3 m/s or more along its path of the last half minute (by the speed it reports where the path is too short to say). One whose sender says it landed is not. A tracker carried up the mountain in a car counts while the car drives: *to verify*.
+- **Took off there**: first heard, after at least twenty minutes of silence, within 500 m of the site in the last `took_off_minutes`, no more than 150 m above it where the site has a height, and in the air now or since heard farther away than that.
+- **Layers are not added up.** One layer per source of live positions, as for the climbs. A pilot whom a network hears and who sends Venti a live track is in both; a client that wants one number takes the larger, as Venti's apps do.
+
+`bbox` is required, at most 10 degrees each way (`invalid_bbox`), and a box with more than 5,000 sites is refused as [`GET /v1/sites`](#get-v1sitesbboxwestsoutheastnorth) refuses it (`box_too_large`). The answer may be kept for five seconds.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/live/sites?bbox=11.6,47.55,12.0,47.85'
+```
+
+```json
+{
+  "time": "2026-11-21T19:09:10Z",
+  "within_m": 5000.0,
+  "took_off_minutes": 60,
+  "layers": [
+    {
+      "source": "ogn",
+      "sites": [
+        {
+          "site": "osm-free-flying:node/5964676196",
+          "airborne": 8,
+          "took_off": 2
+        },
+        {
+          "site": "osm-free-flying:node/5964676197",
+          "airborne": 8,
+          "took_off": 2
+        }
+      ],
+      "truncated": false
+    },
+    {
+      "source": "venti",
+      "sites": [],
+      "truncated": false
+    }
+  ],
+  "attributions": [
+    {
+      "source": "ogn",
+      "provider": "Open Glider Network",
+      "licence": "ODbL 1.0",
+      "text": "Positions: Open Glider Network, glidernet.org (ODbL)",
+      "url": "https://www.glidernet.org/ogn-data-usage/",
+      "notice": "Positions of the Open Glider Network, available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Not every aircraft sends its position, and a position may be late or wrong: never use it to avoid a collision."
+    }
+  ]
+}
+```
 
 ### `GET /v1/live/{id}?since=&after=&limit=`
 

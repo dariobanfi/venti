@@ -1,0 +1,14 @@
+{
+  "name": "Wallberg is on",
+  "enabled": true,
+  "rule": {
+    "kind": "pilots",
+    "place": {
+      "lat": 47.664,
+      "lon": 11.748
+    },
+    "place_name": "Wallberg",
+    "min_pilots": 3,
+    "rest_hours": 6
+  }
+}

@@ -178,6 +178,28 @@ pub fn fired_words(fired: &FiredAlert, utc_offset_s: i32) -> String {
             rule.place_name,
             clock(*run)
         ),
+        (
+            FiredBecause::Pilots {
+                time,
+                pilots,
+                took_off,
+            },
+            AlertRule::Pilots(rule),
+        ) => {
+            let in_the_air = match pilots {
+                1 => "1 pilot is".to_owned(),
+                n => format!("{n} pilots are"),
+            };
+            let took_off = match took_off {
+                0 => String::new(),
+                n => format!(", {n} took off in the last hour"),
+            };
+            format!(
+                "{in_the_air} in the air at {} at {}{took_off}",
+                rule.place_name,
+                clock(*time)
+            )
+        }
         _ => format!(
             "Your alarm '{}' fired for something this version of the app does not know",
             fired.alert_name

@@ -11,11 +11,14 @@
 //! - [`page`] is what a link to a live track shows.
 //! - [`network`] holds the aircraft that another network sees, apart from
 //!   Venti's own live tracks: a source of another licence.
+//! - [`air`] is what many gliders say together: where pilots climb now,
+//!   and how many are in the air at a site.
 //!
 //! **A position is where a person is.** Nothing here or in the handlers
 //! writes a position, or the identifier of a track, into a log line or an
 //! error message: whoever has a track's identifier can see the track.
 
+pub mod air;
 pub mod network;
 pub mod page;
 

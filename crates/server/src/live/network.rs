@@ -31,6 +31,14 @@
 //! **A position is where a person is.** Nothing here writes a position or
 //! an address to the log.
 //!
+//! **The last minutes of paragliders and hang gliders** are kept beside
+//! the newest positions ([`super::air`]), for what the server derives
+//! from many of them: where pilots climb, how many are in the air at a
+//! site. Those are read through [`Network::flyers`], which applies the
+//! owners' choices as [`Network::layer`] does: nothing is derived from a
+//! device that must not be shown, and nothing while the directory is not
+//! known.
+//!
 //! A request never waits for the network: the connection is a task of its
 //! own, and the API reads what the task left in memory.
 
@@ -53,6 +61,7 @@ use venti_sources::{
     Aircraft, DeviceDirectory, Fetch, LiveLine, LivePosition, LiveSource, Manifest, Shown,
 };
 
+use super::air::{Flyer, Sample, Trails};
 use crate::api::ServedSource;
 use crate::clock::Clock;
 
@@ -95,6 +104,8 @@ pub struct Network {
     /// with.
     salt: u64,
     state: Mutex<State>,
+    /// The last minutes of each paraglider and hang glider.
+    trails: Trails,
 }
 
 #[derive(Default)]
@@ -127,6 +138,7 @@ impl Network {
             kept,
             salt: RandomState::new().hash_one(0_u64),
             state: Mutex::new(State::default()),
+            trails: Trails::default(),
         }
     }
 
@@ -169,6 +181,17 @@ impl Network {
         if position.time < self.now() - self.kept {
             return;
         }
+        if let (Aircraft::Paraglider | Aircraft::HangGlider, Some(altitude_m)) =
+            (position.aircraft, position.altitude_m)
+        {
+            let sample = Sample {
+                time: position.time,
+                position: position.position,
+                altitude_m,
+            };
+            self.trails
+                .take(&position.device, sample, position.ground_speed_ms);
+        }
         let mut state = self.state();
         let newer = state
             .positions
@@ -195,6 +218,47 @@ impl Network {
         self.state()
             .positions
             .retain(|_, position| position.time >= oldest);
+        self.trails.forget_old(self.now());
+    }
+
+    /// Takes the positions of one made-up paraglider into the last
+    /// minutes only, and into no list of aircraft: for the development
+    /// mode and the tests, whose climbs and counts need gliders with a
+    /// way behind them.
+    pub fn take_trail(&self, device: &str, samples: &[Sample]) {
+        for sample in samples {
+            self.trails.take(device, *sample, None);
+        }
+    }
+
+    /// The paragliders and hang gliders heard lately, each as its last
+    /// minutes without a name, for what is derived from many of them.
+    /// None of a device whose owner chose not to be tracked, and none at
+    /// all while the server holds no directory it trusts.
+    pub fn flyers(&self, now: Timestamp) -> Vec<Flyer> {
+        self.flyers_where(now, None)
+    }
+
+    /// The same, of those whose newest position lies in or near `area`
+    /// ([`Trails::flyers_near`]).
+    pub fn flyers_near(&self, now: Timestamp, area: &BoundingBox) -> Vec<Flyer> {
+        self.flyers_where(now, Some(area))
+    }
+
+    fn flyers_where(&self, now: Timestamp, area: Option<&BoundingBox>) -> Vec<Flyer> {
+        let state = self.state();
+        let Some((directory, _)) = state
+            .directory
+            .as_ref()
+            .filter(|(_, at)| now - *at <= DIRECTORY_STALE)
+        else {
+            return Vec::new();
+        };
+        let may = |device: &str| !matches!(directory.shown(device), Shown::Not);
+        match area {
+            Some(area) => self.trails.flyers_near(now, area, may),
+            None => self.trails.flyers(now, may),
+        }
     }
 
     /// How many devices' positions are held.
@@ -551,6 +615,36 @@ mod tests {
             LiveLine::Position(position) => position,
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn nothing_is_derived_from_a_device_that_must_not_be_shown() {
+        let now = fixtures::feed_at();
+        let (network, ogn) = network(now);
+        feed(&network, ogn.as_ref(), fixtures::made_up(), now);
+        let heard = network.trails.held();
+        assert!(heard > 0);
+        // Without the owners' choices nothing is derived either.
+        assert!(network.flyers(now).is_empty());
+        let mut directory = ogn.parse_directory(fixtures::directory()).unwrap();
+        network.take_directory(directory.clone(), now);
+        let all = network.flyers(now).len();
+        assert!(all > 0 && all <= heard);
+        // Only paragliders and hang gliders have their last minutes kept.
+        assert!(heard < network.held());
+        // The made-up paraglider E00002 opts out: one fewer.
+        directory.devices.insert(
+            "E00002".to_owned(),
+            DeviceChoice {
+                tracked: false,
+                ..DeviceChoice::default()
+            },
+        );
+        network.take_directory(directory.clone(), now);
+        assert_eq!(network.flyers(now).len(), all - 1);
+        // A directory too old to trust: nothing.
+        network.take_directory(directory, now - Duration::days(4));
+        assert!(network.flyers(now).is_empty());
     }
 
     #[test]

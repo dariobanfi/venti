@@ -32,6 +32,7 @@ use super::cache::Keeper;
 use super::error::ApiError;
 use super::{Api, body, cache, wire};
 use crate::accounts::throttle::{Counted, Throttle};
+use crate::live::air::Sample;
 use crate::live::page::{self as live_page, TRAIL_FIXES};
 use crate::live::{self, Limits};
 
@@ -207,6 +208,21 @@ pub(crate) async fn send<S: Store>(
     };
     if kept.created {
         api.live.tracks.count(&by_day, 1, now);
+    }
+    // What many gliders say together ([`crate::live::air`]) is read from
+    // the tracks their pilots show to everyone, and from no other.
+    if kept.track.visibility == LiveVisibility::Public {
+        for fix in &batch.fixes {
+            let sample = Sample {
+                time: fix.time,
+                position: fix.position,
+                altitude_m: f64::from(fix.altitude_m),
+            };
+            api.live_air.take(&batch.id, sample, fix.ground_speed_ms);
+        }
+        api.live_air.set_landed(&batch.id, kept.track.landed);
+    } else {
+        api.live_air.remove(&batch.id);
     }
     if kept.stored == 0 && kept.known == 0 && kept.full > 0 {
         return Err(ApiError::forbidden(
@@ -468,8 +484,11 @@ pub(crate) async fn delete<S: Store>(
         .delete_live_track(account_id, id.as_str(), now, may_retire.is_ok())
         .await?;
     match removal {
-        LiveRemoval::Removed | LiveRemoval::AlreadyRemoved => {}
-        LiveRemoval::Retired => api.live.tracks.count(&by_day, 1, now),
+        LiveRemoval::Removed | LiveRemoval::AlreadyRemoved => api.live_air.remove(id.as_str()),
+        LiveRemoval::Retired => {
+            api.live_air.remove(id.as_str());
+            api.live.tracks.count(&by_day, 1, now);
+        }
         LiveRemoval::NotRetired => {
             return Err(match may_retire {
                 Err(refused) => ApiError::rate_limited(

@@ -43,6 +43,7 @@ use venti_api_types::v1::{
     SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope,
     THERMAL_HOURS_PATH, THERMALS_PATH,
 };
+use venti_api_types::v1::{FLOWN_THERMALS_PATH, LIVE_CLIMBS_PATH, LIVE_SITES_PATH};
 
 use super::cache;
 
@@ -384,6 +385,13 @@ fn operations() -> Vec<Op> {
         .docs("GET /v1/thermals/hours?date=&layer=&height=")
         .query(&["date!", "layer", "height"])
         .json("ThermalHoursResponse"),
+        get(
+            FLOWN_THERMALS_PATH,
+            "Where thermals have been: the cells in which several pilots' public flights climbed",
+        )
+        .docs("GET /v1/thermals/flown?bbox=&month=&hours=")
+        .query(&["bbox!", "month:of-year", "hours:by-the-sun"])
+        .json("FlownThermalsResponse"),
         get(
             ROUTE_WEATHER_PATH,
             "The thermal map's hours of a day at each point of a route",
@@ -745,6 +753,20 @@ fn operations() -> Vec<Op> {
         .docs("GET /v1/live/others?bbox=west,south,east,north")
         .query(&["bbox!"])
         .json("LiveOthersResponse"),
+        get(
+            LIVE_CLIMBS_PATH,
+            "Where pilots climb now: the thermals gliders circled in during the last minutes",
+        )
+        .docs("GET /v1/live/climbs?bbox=west,south,east,north")
+        .query(&["bbox!"])
+        .json("LiveClimbsResponse"),
+        get(
+            LIVE_SITES_PATH,
+            "How many pilots are in the air at the flying sites of a box",
+        )
+        .docs("GET /v1/live/sites?bbox=west,south,east,north")
+        .query(&["bbox!"])
+        .json("LiveSitesResponse"),
         get("/v1/live/{id}", "One live track and its fixes")
             .docs("GET /v1/live/{id}?since=&after=&limit=")
             .query(&["since:cursor", "after:time", "limit:fixes"])
@@ -917,6 +939,14 @@ fn query_parameter(spec: &str) -> Value {
         "pilot" => ("A pilot's handle.", json!({"type": "string"})),
         "q" => (
             "A part of a pilot's handle or display name, 2 to 60 characters, in any case.",
+            json!({"type": "string"}),
+        ),
+        "month:of-year" => (
+            "A month of any year, a number from 1 to 12: only the climbs of that month.",
+            json!({"type": "integer", "minimum": 1, "maximum": 12}),
+        ),
+        "hours:by-the-sun" => (
+            "Hours of the day by the sun at the place (UTC and four minutes for each degree east), from the first to before the second, for example 11-15: only the climbs that began between them.",
             json!({"type": "string"}),
         ),
         "month" => (

@@ -1,0 +1,28 @@
+{
+  "fired": [
+    {
+      "alert_id": "0000000000000000000000a003",
+      "alert_name": "Wallberg is on",
+      "fired_at": "2026-11-18T19:05:00Z",
+      "rule": {
+        "kind": "pilots",
+        "place": {
+          "lat": 47.664,
+          "lon": 11.748
+        },
+        "place_name": "Wallberg",
+        "min_pilots": 3,
+        "rest_hours": 6
+      },
+      "because": {
+        "kind": "pilots",
+        "time": "2026-11-18T19:05:00Z",
+        "pilots": 3,
+        "took_off": 1
+      }
+    }
+  ],
+  "cursor": "1795028700000000",
+  "more": false,
+  "reset": false
+}

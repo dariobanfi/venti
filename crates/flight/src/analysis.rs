@@ -173,34 +173,7 @@ pub fn analyse(recording: &[Fix]) -> Analysis {
         };
     }
 
-    let velocities = velocities(fixes);
-    let thermals: Vec<Thermal> = circling_stretches(fixes, &velocities, first, last)
-        .into_iter()
-        .filter_map(|(start, end)| {
-            let (entry, exit) = (moment(start), moment(end));
-            let seconds = exit.seconds - entry.seconds;
-            let gain_m = exit.altitude_m - entry.altitude_m;
-            let climb_ms = f64::from(gain_m) / seconds as f64;
-            (seconds >= MIN_THERMAL_S && climb_ms >= MIN_THERMAL_CLIMB_MS).then(|| {
-                let mut estimator = WindEstimator::new();
-                for index in start..=end {
-                    let (east, north) = velocities[index];
-                    estimator.add(
-                        (fixes[index].time - fixes[0].time).num_seconds() as f64,
-                        east,
-                        north,
-                    );
-                }
-                Thermal {
-                    entry,
-                    exit,
-                    gain_m,
-                    climb_ms,
-                    wind: estimator.wind(),
-                }
-            })
-        })
-        .collect();
+    let thermals = thermals_of(fixes, &altitudes);
 
     // The glides are what lies between the thermals.
     let mut glides = Vec::new();
@@ -251,6 +224,66 @@ pub fn analyse(recording: &[Fix]) -> Analysis {
         thermals,
         glides,
     }
+}
+
+/// The thermals of a recording, each with the time it was entered,
+/// without the rest of the analysis: no glides and no score, which is
+/// most of the work. For whoever reads many flights for their thermals
+/// alone. The thermals are those [`analyse`] finds.
+pub fn thermals(recording: &[Fix]) -> Vec<(Thermal, venti_domain::Timestamp)> {
+    if takeoff_and_landing(recording).0.is_none() {
+        return Vec::new();
+    }
+    let fixes = flown_part(recording);
+    let altitudes = track::altitudes(fixes);
+    thermals_of(fixes, &altitudes)
+        .into_iter()
+        .map(|thermal| {
+            let entered = fixes[thermal.entry.index].time;
+            (thermal, entered)
+        })
+        .collect()
+}
+
+/// The thermals of the flown part of a recording.
+fn thermals_of(fixes: &[Fix], altitudes: &[i32]) -> Vec<Thermal> {
+    if fixes.is_empty() {
+        return Vec::new();
+    }
+    let moment = |index: usize| Moment {
+        index,
+        seconds: (fixes[index].time - fixes[0].time).num_seconds(),
+        position: fixes[index].position,
+        altitude_m: altitudes[index],
+    };
+    let velocities = velocities(fixes);
+    circling_stretches(fixes, &velocities, 0, fixes.len() - 1)
+        .into_iter()
+        .filter_map(|(start, end)| {
+            let (entry, exit) = (moment(start), moment(end));
+            let seconds = exit.seconds - entry.seconds;
+            let gain_m = exit.altitude_m - entry.altitude_m;
+            let climb_ms = f64::from(gain_m) / seconds as f64;
+            (seconds >= MIN_THERMAL_S && climb_ms >= MIN_THERMAL_CLIMB_MS).then(|| {
+                let mut estimator = WindEstimator::new();
+                for index in start..=end {
+                    let (east, north) = velocities[index];
+                    estimator.add(
+                        (fixes[index].time - fixes[0].time).num_seconds() as f64,
+                        east,
+                        north,
+                    );
+                }
+                Thermal {
+                    entry,
+                    exit,
+                    gain_m,
+                    climb_ms,
+                    wind: estimator.wind(),
+                }
+            })
+        })
+        .collect()
 }
 
 /// How long a glider must have been at rest when its recording ends for

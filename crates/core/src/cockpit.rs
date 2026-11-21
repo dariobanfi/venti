@@ -53,6 +53,7 @@ use venti_sensors::{Battery, SentenceReader};
 use crate::ahead::{self, AirspaceAhead};
 use crate::airspace::{AirspaceWatch, compass};
 use crate::cables::{CableKind, CableSet};
+use crate::cockpit_climbs::{ClimbsHeard, ClimbsNear};
 use crate::cockpit_others::{OthersHeard, OthersNear};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
 use crate::route_plan::{ClosingCircleView, closing_circle_view};
@@ -917,6 +918,9 @@ struct Inner {
     /// The aircraft other networks hear around the glider, with their
     /// tracks of the last minutes, from the answers the shell handed in.
     others: OthersHeard,
+    /// The climbs of the last minutes around the glider, from the last
+    /// answer the shell handed in.
+    climbs: ClimbsHeard,
     /// Whether a recorded flight was played into this session. What is
     /// replayed is never shared: it would put a glider on other people's
     /// maps that is not there.
@@ -1052,6 +1056,7 @@ impl FlightSession {
                 task: None,
                 live: None,
                 others: OthersHeard::default(),
+                climbs: ClimbsHeard::default(),
                 replayed: false,
             }),
         })
@@ -1600,6 +1605,26 @@ impl FlightSession {
         let state = inner.computer.state(now_unix_s);
         inner
             .others
+            .near(state.position, state.altitude_m, now_unix_s)
+    }
+
+    /// Takes the climbs of the last minutes around the glider: the
+    /// answer [`crate::live_climbs`] read, for the path
+    /// [`crate::cockpit_climbs_path`] gave. `now_unix_s` is when the
+    /// answer came.
+    pub fn on_climbs(&self, climbs: crate::LiveClimbs, now_unix_s: f64) {
+        self.lock().climbs.take(climbs, now_unix_s);
+    }
+
+    /// Where others circle and climb near the glider, for the cockpit's
+    /// map: the nearest first, each with its direction, distance and age.
+    /// Empty until there is a position and an answer. A hint, not an
+    /// instrument: a climb found minutes ago may be gone.
+    pub fn climbs_near(&self, now_unix_s: f64) -> ClimbsNear {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        inner
+            .climbs
             .near(state.position, state.altitude_m, now_unix_s)
     }
 

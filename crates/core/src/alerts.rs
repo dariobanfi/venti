@@ -19,7 +19,8 @@ use serde::{Deserialize, Serialize};
 use venti_api_types::v1::{
     ALERTS_PATH, Alert, AlertHours, AlertRequest, AlertResponse, AlertRule, AlertSector,
     AlertsResponse, DayAlert, DayAtLeast, FiredAlert, FiredAlertsRequest, FiredAlertsResponse,
-    WindAlert, alert_path, fired_words,
+    PILOTS_ALERT_DEFAULT_PILOTS, PILOTS_ALERT_DEFAULT_REST_HOURS, PilotsAlert, WindAlert,
+    alert_path, fired_words,
 };
 use venti_domain::GeoPoint;
 
@@ -51,6 +52,8 @@ pub enum AlertKind {
     Wind,
     /// The kind of day at a place.
     Day,
+    /// Pilots in the air at a place.
+    Pilots,
 }
 
 /// The least a day is to be, for a day alarm.
@@ -134,6 +137,16 @@ pub struct AlertDraft {
     pub days_ahead: Vec<u8>,
     /// Day: the least the day is to be.
     pub at_least: AlertDayKind,
+    /// Pilots: the fewest pilots in the air; `None` for three. The place
+    /// is the day alarm's: `lat`, `lon`, `site_id`, `place_name`.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default))]
+    pub min_pilots: Option<u16>,
+    /// Pilots: for how many hours it rests after it fired; `None` for
+    /// six.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default))]
+    pub rest_hours: Option<u8>,
 }
 
 /// What is wrong with a draft, for the field it is about.
@@ -289,6 +302,13 @@ fn request_of(draft: &AlertDraft) -> Result<AlertRequest, CoreError> {
             days_ahead: draft.days_ahead.clone(),
             at_least: at_least(draft.at_least),
         }),
+        AlertKind::Pilots => AlertRule::Pilots(PilotsAlert {
+            place: GeoPoint::new(draft.lat, draft.lon).map_err(|_| invalid("Choose a place."))?,
+            site: draft.site_id.as_deref().and_then(|id| id.parse().ok()),
+            place_name: draft.place_name.trim().to_owned(),
+            min_pilots: draft.min_pilots.unwrap_or(PILOTS_ALERT_DEFAULT_PILOTS),
+            rest_hours: draft.rest_hours.unwrap_or(PILOTS_ALERT_DEFAULT_REST_HOURS),
+        }),
     };
     Ok(AlertRequest {
         name: draft.name.trim().to_owned(),
@@ -319,6 +339,8 @@ fn draft_of(alert: &Alert) -> Option<AlertDraft> {
         place_name: String::new(),
         days_ahead: Vec::new(),
         at_least: AlertDayKind::CrossCountry,
+        min_pilots: None,
+        rest_hours: None,
     };
     match &alert.rule {
         AlertRule::Wind(wind) => {
@@ -342,6 +364,15 @@ fn draft_of(alert: &Alert) -> Option<AlertDraft> {
             draft.place_name.clone_from(&day.place_name);
             draft.days_ahead.clone_from(&day.days_ahead);
             draft.at_least = day_kind(day.at_least);
+        }
+        AlertRule::Pilots(pilots) => {
+            draft.kind = AlertKind::Pilots;
+            draft.lat = pilots.place.lat();
+            draft.lon = pilots.place.lon();
+            draft.site_id = pilots.site.as_ref().map(ToString::to_string);
+            draft.place_name.clone_from(&pilots.place_name);
+            draft.min_pilots = Some(pilots.min_pilots);
+            draft.rest_hours = Some(pilots.rest_hours);
         }
         AlertRule::Other => return None,
     }
@@ -420,6 +451,18 @@ fn rule_line(rule: &AlertRule) -> String {
             day.place_name,
             day_words(&day.days_ahead)
         ),
+        AlertRule::Pilots(pilots) => format!(
+            "{} in the air at {}, at most once in {}",
+            match pilots.min_pilots {
+                1 => "A pilot".to_owned(),
+                n => format!("{n} pilots or more"),
+            },
+            pilots.place_name,
+            match pilots.rest_hours {
+                1 => "an hour".to_owned(),
+                n => format!("{n} hours"),
+            }
+        ),
         AlertRule::Other => "An alarm this version of the app does not know".to_owned(),
     }
 }
@@ -444,7 +487,7 @@ pub fn alert_check(draft: AlertDraft) -> Vec<AlertFaultView> {
         Err(error) => {
             let field = match draft.kind {
                 AlertKind::Wind => "rule.station",
-                AlertKind::Day => "rule.place",
+                AlertKind::Day | AlertKind::Pilots => "rule.place",
             };
             return vec![AlertFaultView {
                 field: field.to_owned(),
@@ -465,7 +508,7 @@ pub fn alert_check(draft: AlertDraft) -> Vec<AlertFaultView> {
 /// The fields a fault can be about, as the server names them, each with
 /// its name in words, in the form's order. The last is said of a field
 /// this version does not know.
-const FIELDS: [(&str, &str); 13] = [
+const FIELDS: [(&str, &str); 15] = [
     ("name", "The name"),
     ("rule.kind", "The kind of alarm"),
     ("rule.station", "The station"),
@@ -478,6 +521,8 @@ const FIELDS: [(&str, &str); 13] = [
     ("rule.place", "The place"),
     ("rule.place_name", "The place's name"),
     ("rule.days_ahead", "The days"),
+    ("rule.min_pilots", "The number of pilots"),
+    ("rule.rest_hours", "The hours of quiet"),
     ("rule", "The alarm"),
 ];
 
@@ -664,6 +709,20 @@ pub struct AlertFormWords {
     /// The kinds of day, the least first.
     #[uniffi(default = [])]
     pub day_kinds: Vec<AlertDayKindChoice>,
+    /// The choice of the kind of an alarm about pilots in the air, where
+    /// a form offers the kinds: "Pilots in the air".
+    #[uniffi(default = "")]
+    pub pilots_kind: String,
+    /// Over the number of pilots: "Pilots in the air, at least".
+    #[uniffi(default = "")]
+    pub pilots_at_least: String,
+    /// Over the hours it rests: "Then quiet for, hours".
+    #[uniffi(default = "")]
+    pub pilots_rest: String,
+    /// The note under the two: how far from the place a pilot counts and
+    /// whose positions are counted.
+    #[uniffi(default = "")]
+    pub pilots_note: String,
     /// "Save".
     #[uniffi(default = "")]
     pub save: String,
@@ -738,6 +797,13 @@ pub fn alert_form_words() -> AlertFormWords {
             name: text(name),
         })
         .collect(),
+        pilots_kind: text("Pilots in the air"),
+        pilots_at_least: text("Pilots in the air, at least"),
+        pilots_rest: text("Then quiet for, hours"),
+        pilots_note: format!(
+            "Counts paragliders and hang gliders flying within {} km of the place: those the              Open Glider Network hears and Venti’s pilots who show their flight to              everyone. Venti looks once a minute.",
+            venti_api_types::v1::SITE_AIR_WITHIN_M / 1000.0
+        ),
         save: text("Save"),
         delete: text("Delete alarm"),
         delete_question: text("Delete this alarm?"),
@@ -1114,6 +1180,8 @@ mod tests {
             place_name: String::new(),
             days_ahead: Vec::new(),
             at_least: AlertDayKind::CrossCountry,
+            min_pilots: None,
+            rest_hours: None,
         }
     }
 
@@ -1280,5 +1348,51 @@ mod tests {
             fired_line(&fired, 7200).line,
             "Saturday is a cross-country day at Brauneck by the 06:00 run"
         );
+    }
+    #[test]
+    fn a_pilots_alarm_is_set_with_a_place_and_two_numbers() {
+        let alert = Alert {
+            id: "a".to_owned(),
+            name: "Wallberg is on".to_owned(),
+            enabled: true,
+            rule: serde_json::from_str(
+                r#"{"kind":"pilots","place":{"lat":47.664,"lon":11.748},"place_name":"Wallberg"}"#,
+            )
+            .unwrap(),
+            created_at: "2026-11-22T10:00:00Z".parse().unwrap(),
+            changed_at: "2026-11-22T10:00:00Z".parse().unwrap(),
+        };
+        let shown = view(&alert);
+        assert_eq!(
+            shown.line,
+            "3 pilots or more in the air at Wallberg, at most once in 6 hours"
+        );
+        let mut draft = shown.draft.unwrap();
+        assert_eq!(draft.kind, AlertKind::Pilots);
+        assert_eq!((draft.min_pilots, draft.rest_hours), (Some(3), Some(6)));
+        assert_eq!(alert_check(draft.clone()), []);
+        // The draft makes the rule it was read from.
+        assert_eq!(request_of(&draft).unwrap().rule, alert.rule);
+        draft.min_pilots = Some(1);
+        draft.rest_hours = Some(1);
+        assert_eq!(
+            alert_line(draft.clone()),
+            "A pilot in the air at Wallberg, at most once in an hour"
+        );
+        // Nothing chosen: three pilots and six hours.
+        draft.min_pilots = None;
+        draft.rest_hours = None;
+        assert!(alert_line(draft.clone()).starts_with("3 pilots or more"));
+        draft.min_pilots = Some(0);
+        let faults = alert_check(draft);
+        assert_eq!(faults.len(), 1);
+        assert!(
+            faults[0].message.starts_with("The number of pilots: "),
+            "{}",
+            faults[0].message
+        );
+        let words = alert_form_words();
+        assert_eq!(words.pilots_kind, "Pilots in the air");
+        assert!(words.pilots_note.contains("within 5 km"));
     }
 }

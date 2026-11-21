@@ -66,7 +66,8 @@ pub use account::{
 };
 pub use airspace::{AirspaceLayer, AirspaceSet, Coverage};
 pub use alert::{
-    AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlert, FiredAlerts, NewAlert, WIND_ALERT,
+    AddingAlert, Alert, AlertCheck, DAY_ALERT, FiredAlert, FiredAlerts, NewAlert, PILOTS_ALERT,
+    WIND_ALERT,
 };
 pub use cable::{CableLayer, CableSet};
 pub use flight::{

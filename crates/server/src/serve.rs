@@ -117,8 +117,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
 
     // The alarms pilots set, checked where the data arrives: after each
     // run of stations, and after each map made with a new run.
-    let checks: Arc<dyn crate::alerts::Watch> =
+    let air_checks =
         Arc::new(crate::alerts::Checks::new(store.clone(), clock.clone()).with_push(pusher));
+    let checks: Arc<dyn crate::alerts::Watch> = air_checks.clone();
 
     // The thermal map of the forecast source, made with each run of its
     // model that the collector's look sees, and kept in memory.
@@ -231,7 +232,24 @@ pub async fn serve(config: Config) -> Result<(), String> {
         )));
         networks.push(network);
     }
+    // The alarms about pilots in the air are checked once a minute
+    // against what the networks hear and Venti's own live pilots send.
+    let watching_the_air = tokio::spawn(crate::alerts::watch_the_air(
+        air_checks,
+        networks.clone(),
+        api.live_air(),
+        shutdown.clone(),
+    ));
     api = api.with_networks(networks);
+    // Where thermals have been is read from the public flights, a few
+    // at a time, beside everything else.
+    let flown = Arc::new(crate::flights::flown::FlownThermals::default());
+    api = api.with_flown_thermals(flown.clone());
+    let reading_flown = tokio::spawn(crate::flights::flown::run(
+        flown,
+        store.clone(),
+        shutdown.clone(),
+    ));
     // The map regions are listed as their files are read, which the
     // server begins further down, beside everything else. Reading them
     // and handing them out both end when the server is told to stop.
@@ -317,6 +335,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
     let _ = schedule.await;
     let _ = housekeeping.await;
     let _ = refreshing.await;
+    let _ = watching_the_air.await;
+    let _ = reading_flown.await;
     for network in listening {
         let _ = network.await;
     }

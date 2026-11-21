@@ -386,13 +386,16 @@
     ]
   },
   "AlertRule": {
-    "description": "What an alarm waits for, told apart by `kind`: `wind` or `day`. A kind a client does not know is left as it is.",
+    "description": "What an alarm waits for, told apart by `kind`: `wind`, `day` or `pilots`. A kind a client does not know is left as it is.",
     "anyOf": [
       {
         "$ref": "#/components/schemas/WindAlert"
       },
       {
         "$ref": "#/components/schemas/DayAlert"
+      },
+      {
+        "$ref": "#/components/schemas/PilotsAlert"
       }
     ]
   },
@@ -803,6 +806,40 @@
       "at_least"
     ]
   },
+  "PilotsAlert": {
+    "description": "Pilots in the air at a place: fires when at least `min_pilots` paragliders and hang gliders are in the air within 5 km of it by one source of live positions, then rests `rest_hours` hours. The server looks once a minute.",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "pilots"
+        ]
+      },
+      "place": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "site": {
+        "type": "string"
+      },
+      "place_name": {
+        "type": "string"
+      },
+      "min_pilots": {
+        "description": "1 to 100; left out: 3.",
+        "type": "integer"
+      },
+      "rest_hours": {
+        "description": "1 to 24; left out: 6.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "kind",
+      "place",
+      "place_name"
+    ]
+  },
   "DayTime": {},
   "DeleteAccountRequest": {
     "type": "object",
@@ -1179,7 +1216,7 @@
     ]
   },
   "FiredBecause": {
-    "description": "What fired an alarm, told apart by `kind`: a reading of the station, or a run of the thermal map.",
+    "description": "What fired an alarm, told apart by `kind`: a reading of the station, a run of the thermal map, or a count of the pilots in the air.",
     "anyOf": [
       {
         "type": "object",
@@ -1243,6 +1280,32 @@
           "verdict",
           "model",
           "run"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pilots"
+            ]
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pilots": {
+            "type": "integer"
+          },
+          "took_off": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "time",
+          "pilots"
         ]
       }
     ]
@@ -1464,6 +1527,92 @@
     "required": [
       "text",
       "decided"
+    ]
+  },
+  "FlownThermalCell": {
+    "description": "A cell of the grid in which the public flights of at least `min_pilots` pilots climbed. No pilot, no flight, no day.",
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "climbs": {
+        "type": "integer"
+      },
+      "pilots": {
+        "type": "integer"
+      },
+      "climb_ms": {
+        "description": "The climbs' average, m/s, to a tenth.",
+        "type": "number"
+      },
+      "best_climb_ms": {
+        "type": "number"
+      },
+      "from_m": {
+        "description": "The height a climb began at, on average, rounded to 50 m.",
+        "type": "integer"
+      },
+      "to_m": {
+        "description": "The height a climb ended at, on average, rounded to 50 m.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "position",
+      "climbs",
+      "pilots",
+      "climb_ms",
+      "best_climb_ms",
+      "from_m",
+      "to_m"
+    ]
+  },
+  "FlownThermalsResponse": {
+    "description": "Where thermals have been: Venti's own, from the public flights the server holds, under their terms. The cells with the most pilots come first; the least number of pilots is counted after `month` and `hours` are applied.",
+    "type": "object",
+    "properties": {
+      "cells": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlownThermalCell"
+        }
+      },
+      "more": {
+        "type": "boolean"
+      },
+      "month": {
+        "description": "The month asked for, 1 to 12; left out for the whole year.",
+        "type": "integer"
+      },
+      "hours": {
+        "description": "The hours asked for, by the sun at the place: from the first to before the second. Left out for the whole day.",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "cell_deg": {
+        "type": "number"
+      },
+      "min_pilots": {
+        "type": "integer"
+      },
+      "flights": {
+        "description": "How many public flights the server has read for this.",
+        "type": "integer"
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "cells",
+      "more",
+      "cell_deg",
+      "min_pilots",
+      "flights",
+      "terms"
     ]
   },
   "FlightTrack": {
@@ -2137,6 +2286,182 @@
     "required": [
       "time",
       "listed_minutes",
+      "layers",
+      "attributions"
+    ]
+  },
+  "LiveClimb": {
+    "description": "A place where paragliders or hang gliders circled and climbed in the last minutes. It names the air and no glider: `position` is the middle of a cell of the grid, and nothing says who climbed.",
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "climb_ms": {
+        "description": "The climb averaged over the circles of every pilot who worked it, m/s, to a tenth.",
+        "type": "number"
+      },
+      "from_m": {
+        "description": "The lowest height a pilot began to circle at, metres above sea level, rounded to 50 m.",
+        "type": "integer"
+      },
+      "to_m": {
+        "description": "The greatest height a pilot circled to, rounded to 50 m.",
+        "type": "integer"
+      },
+      "pilots": {
+        "description": "How many pilots circled in it in the last `listed_minutes`.",
+        "type": "integer"
+      },
+      "age_s": {
+        "description": "How long before `time` the last of them was last heard circling in it, seconds.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "position",
+      "climb_ms",
+      "from_m",
+      "to_m",
+      "pilots",
+      "age_s"
+    ]
+  },
+  "LiveClimbsLayer": {
+    "description": "The climbs one source of live positions shows: a network, whose credit is the attribution of the same source, or `venti`, Venti's own live pilots who show their flight to everyone.",
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "climbs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveClimb"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "source",
+      "climbs",
+      "truncated"
+    ]
+  },
+  "LiveClimbsResponse": {
+    "description": "Where pilots climb now, in layers by where the positions come from; the layers are never one record. Derived by a fixed rule (circling and climbing) from the positions of the last minutes; nothing of a glider that must not be shown is in it.",
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "listed_minutes": {
+        "type": "integer"
+      },
+      "cell_deg": {
+        "description": "The side of a cell of the grid a climb's place is the middle of, degrees.",
+        "type": "number"
+      },
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveClimbsLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "time",
+      "listed_minutes",
+      "cell_deg",
+      "layers",
+      "attributions"
+    ]
+  },
+  "SiteAir": {
+    "description": "A flying site and the pilots in the air around it: two numbers and the site's identifier, as `GET /v1/sites` names it.",
+    "type": "object",
+    "properties": {
+      "site": {
+        "type": "string"
+      },
+      "airborne": {
+        "description": "Paragliders and hang gliders in the air within `within_m` of the site, heard in the last five minutes.",
+        "type": "integer"
+      },
+      "took_off": {
+        "description": "Those that took off there in the last `took_off_minutes`.",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "site",
+      "airborne",
+      "took_off"
+    ]
+  },
+  "LiveSitesLayer": {
+    "description": "The sites one source of live positions has pilots in the air at, the most pilots first. A site that is not listed has none.",
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "sites": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteAir"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "source",
+      "sites",
+      "truncated"
+    ]
+  },
+  "LiveSitesResponse": {
+    "description": "How many pilots are in the air at the flying sites of a box, in layers by where the positions come from. A pilot whom a network hears and who sends Venti a live track is in both layers: they are not to be added up.",
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "within_m": {
+        "type": "number"
+      },
+      "took_off_minutes": {
+        "type": "integer"
+      },
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveSitesLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "time",
+      "within_m",
+      "took_off_minutes",
       "layers",
       "attributions"
     ]

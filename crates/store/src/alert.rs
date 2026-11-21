@@ -14,6 +14,9 @@ pub const WIND_ALERT: &str = "wind";
 /// The kind of an alarm that watches the thermal map.
 pub const DAY_ALERT: &str = "day";
 
+/// The kind of an alarm that watches the pilots in the air at a place.
+pub const PILOTS_ALERT: &str = "pilots";
+
 /// An alarm an account has.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alert {
@@ -25,7 +28,8 @@ pub struct Alert {
     pub name: String,
     /// Whether it is checked.
     pub enabled: bool,
-    /// [`WIND_ALERT`] or [`DAY_ALERT`], or a kind of a newer server.
+    /// [`WIND_ALERT`], [`DAY_ALERT`] or [`PILOTS_ALERT`], or a kind of a
+    /// newer server.
     pub kind: String,
     /// For a wind alarm, the station it watches.
     pub station_id: Option<String>,

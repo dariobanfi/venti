@@ -2,7 +2,7 @@
 //!
 //! The rules are in `venti-api-types` ([`WindAlert::fits`],
 //! [`DayAtLeast::met_by`]); this is when they are asked and what is
-//! written down. Both checks are deterministic and cheap: a run of
+//! written down. The checks are deterministic and cheap: a run of
 //! stations reads the alarms of its stations by an index, a run of the
 //! thermal map reads the day alarms once and groups them by the cell
 //! their place lies in. Neither runs on a request: the collector and the
@@ -20,6 +20,13 @@
 //!   again fires again. A cell with no verdict for the day changes
 //!   nothing.
 //!
+//! - **Pilots in the air.** Once a minute ([`watch_the_air`]), where the
+//!   live positions are: of each source of them, how many paragliders and
+//!   hang gliders are in the air near the alarm's place
+//!   ([`crate::live::air::in_the_air_at`]). The sources are not added up,
+//!   since a pilot may be in two: the alarm fires when one of them has at
+//!   least as many as it asks, and then rests for the hours it names.
+//!
 //! What fired is written down, and on a server that sends Web Push handed
 //! to [`Pusher::fired`], which does not wait ([`crate::push`]).
 
@@ -35,10 +42,15 @@ use venti_api_types::v1::{
     FiredBecause, ThermalMapResponse, alert_day,
 };
 use venti_domain::{Observation, StationId, Timestamp};
-use venti_store::{Alert, AlertCheck, DAY_ALERT, Store};
+use venti_store::{Alert, AlertCheck, DAY_ALERT, PILOTS_ALERT, Store};
 
 use crate::clock::Clock;
+use crate::live::air::{self, Flyer, Trails};
+use crate::live::network::Network;
 use crate::push::Pusher;
+
+/// How often the alarms about pilots in the air are checked.
+pub const AIR_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What the collector and the thermal map tell of what arrived.
 pub trait Watch: Send + Sync {
@@ -242,6 +254,59 @@ impl<S: Store> Checks<S> {
         fired
     }
 
+    /// Checks the alarms about pilots in the air against the gliders each
+    /// source of live positions has heard lately, each list with the
+    /// clock it is aged by. Returns how many fired.
+    pub async fn after_air(&self, sources: &[(Timestamp, Vec<Flyer>)]) -> usize {
+        // Nobody in the air anywhere: no alarm can fire, and none is read.
+        if sources.iter().all(|(_, flyers)| flyers.is_empty()) {
+            return 0;
+        }
+        let now = self.clock.now();
+        let alerts = match self.store.alerts_of_kind(PILOTS_ALERT).await {
+            Ok(alerts) => alerts,
+            Err(error) => {
+                tracing::warn!("the alarms about pilots in the air could not be read: {error}");
+                return 0;
+            }
+        };
+        let mut fired = 0;
+        for alert in alerts {
+            let Ok(AlertRule::Pilots(rule)) = serde_json::from_str::<AlertRule>(&alert.rule) else {
+                continue;
+            };
+            let mut state = State::of(&alert);
+            if state
+                .last
+                .is_some_and(|last| now < last + Duration::hours(i64::from(rule.rest_hours)))
+            {
+                continue;
+            }
+            // The source with the most: the sources are not added up.
+            let (pilots, took_off) = sources
+                .iter()
+                .map(|(at, flyers)| air::in_the_air_at(flyers, rule.place, None, *at))
+                .max()
+                .unwrap_or((0, 0));
+            if pilots < u32::from(rule.min_pilots) {
+                continue;
+            }
+            let because = FiredBecause::Pilots {
+                time: now,
+                pilots,
+                took_off,
+            };
+            state.last = Some(now);
+            if self
+                .note(&alert, AlertRule::Pilots(rule), &state, vec![because], now)
+                .await
+            {
+                fired += 1;
+            }
+        }
+        fired
+    }
+
     /// Writes down an alarm's new state, and what it fired. Whether it was
     /// written.
     async fn note(
@@ -314,5 +379,33 @@ impl<S: Store + 'static> Watch for Checks<S> {
             }
         }
         .boxed()
+    }
+}
+
+/// Checks the alarms about pilots in the air every [`AIR_CHECK_EVERY`]
+/// until `shutdown`, against what `networks` hear and what `venti` holds
+/// of Venti's own live pilots, and lets `venti` forget what is old.
+pub async fn watch_the_air<S: Store>(
+    checks: Arc<Checks<S>>,
+    networks: Vec<Arc<Network>>,
+    venti: Arc<Trails>,
+    shutdown: tokio_util::sync::CancellationToken,
+) {
+    loop {
+        tokio::select! {
+            () = shutdown.cancelled() => return,
+            () = tokio::time::sleep(AIR_CHECK_EVERY) => {}
+        }
+        let now = checks.clock.now();
+        venti.forget_old(now);
+        let mut sources: Vec<(Timestamp, Vec<Flyer>)> = networks
+            .iter()
+            .map(|network| (network.now(), network.flyers(network.now())))
+            .collect();
+        sources.push((now, venti.flyers(now, |_| true)));
+        let fired = checks.after_air(&sources).await;
+        if fired > 0 {
+            tracing::info!("{fired} alarms about pilots in the air fired");
+        }
     }
 }

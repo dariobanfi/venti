@@ -1571,8 +1571,19 @@ pub async fn recorded_with_its_store(
             .parse_directory(adapters::made_up_live_directory())
             .map_err(|error| format!("the made-up directory of devices: {error}"))?;
         network.take_directory(directory, at);
+        for (device, way) in made_up_climbers(at)? {
+            network.take_trail(device, &way);
+        }
         networks.push(Arc::new(network));
     }
+
+    // Where thermals have been, read from the made-up public flights by
+    // the code a real server runs, once.
+    let flown = Arc::new(crate::flights::flown::FlownThermals::default());
+    flown
+        .update_all(store.as_ref())
+        .await
+        .map_err(|error| format!("the made-up public flights' thermals: {error}"))?;
 
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
@@ -1581,6 +1592,7 @@ pub async fn recorded_with_its_store(
         .with_thermal_map(Arc::new(map))
         .with_radar(radar.clone())
         .with_networks(networks)
+        .with_flown_thermals(flown)
         // Its own made-up "Google": the apps' UI tests sign in with it.
         .with_google(Arc::new(
             crate::accounts::google::GoogleSignIn::development()?,
@@ -1606,6 +1618,66 @@ pub async fn recorded_with_its_store(
         }
     }
     Ok((api, store))
+}
+
+/// Made-up paragliders with a way behind them, under made-up addresses
+/// the made-up directory does not know, for the climbs of the last
+/// minutes and the pilots in the air above the Tegernsee: three that
+/// circled in one thermal east of the Wallberg until four minutes before
+/// `at`, one of them first heard at the take-off; two that circle south
+/// of the lake now; one that glides north. They are in no list of
+/// aircraft: `GET /v1/live/others` is as it was.
+fn made_up_climbers(at: Timestamp) -> Result<Vec<(&'static str, Vec<live::air::Sample>)>, String> {
+    use live::air::made_up::{circling, gliding};
+    let place = |lat: f64, lon: f64| {
+        venti_domain::GeoPoint::new(lat, lon).map_err(|error| error.to_string())
+    };
+    let ago = |seconds: i64| at - Duration::seconds(seconds);
+    let wallberg = place(47.6690, 11.8010)?;
+    let south = place(47.6260, 11.7430)?;
+    // Twelve minutes ago at the sample flight's take-off, then on its
+    // way to the thermal.
+    let mut first = gliding(place(47.6642, 11.7967)?, ago(720), 60, 4, 9.0, 1620.0);
+    first.extend(circling(wallberg, ago(448), 208, 4, 20.0, 1600.0, 2.4));
+    Ok(vec![
+        ("E000C1", first),
+        (
+            "E000C2",
+            circling(
+                place(47.6693, 11.8013)?,
+                ago(408),
+                168,
+                4,
+                22.0,
+                1650.0,
+                2.4,
+            ),
+        ),
+        (
+            "E000C3",
+            circling(
+                place(47.6688, 11.8006)?,
+                ago(368),
+                128,
+                4,
+                18.0,
+                1700.0,
+                2.4,
+            ),
+        ),
+        (
+            "E000C4",
+            circling(south, ago(150), 148, 4, 20.0, 1350.0, 1.3),
+        ),
+        (
+            "E000C5",
+            circling(place(47.6263, 11.7433)?, ago(100), 96, 4, 24.0, 1400.0, 1.3),
+        ),
+        (
+            "E000C6",
+            gliding(place(47.6800, 11.7800)?, ago(200), 196, 4, 10.0, 1900.0),
+        ),
+    ])
 }
 
 /// The development mode's map imagery, and a line for its log that says

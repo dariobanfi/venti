@@ -1,0 +1,36 @@
+{
+  "cells": [
+    {
+      "position": {
+        "lat": 47.6725,
+        "lon": 11.7925
+      },
+      "climbs": 5,
+      "pilots": 3,
+      "climb_ms": 2.4,
+      "best_climb_ms": 2.4,
+      "from_m": 1500,
+      "to_m": 2100
+    },
+    {
+      "position": {
+        "lat": 47.6875,
+        "lon": 11.7525
+      },
+      "climbs": 5,
+      "pilots": 3,
+      "climb_ms": 1.5,
+      "best_climb_ms": 1.5,
+      "from_m": 1700,
+      "to_m": 1950
+    }
+  ],
+  "more": false,
+  "cell_deg": 0.005,
+  "min_pilots": 3,
+  "flights": 11,
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

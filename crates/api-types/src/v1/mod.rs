@@ -47,6 +47,9 @@
 //! | [`LIVE_POSITIONS_PATH`] | POST | [`LivePositionsRequest`] | [`LivePositionsResponse`] |
 //! | [`LIVE_PATH`] | GET | [`LiveTracksRequest`] | [`LiveTracksResponse`] |
 //! | [`LIVE_OTHERS_PATH`] | GET | [`LiveOthersRequest`] | [`LiveOthersResponse`] |
+//! | [`LIVE_CLIMBS_PATH`] | GET | [`LiveClimbsRequest`] | [`LiveClimbsResponse`] |
+//! | [`LIVE_SITES_PATH`] | GET | [`LiveSitesRequest`] | [`LiveSitesResponse`] |
+//! | [`FLOWN_THERMALS_PATH`] | GET | [`FlownThermalsRequest`] | [`FlownThermalsResponse`] |
 //! | [`live_track_path`] | GET | [`LiveTrackRequest`] | [`LiveTrackResponse`] |
 //! | [`live_track_path`] | DELETE | | nothing |
 //! | [`REPORTS_PATH`] | POST | [`ReportRequest`] | [`ReportResponse`] |
@@ -87,6 +90,7 @@
 //! direction the wind comes from.
 
 mod account;
+mod air;
 mod airspace;
 mod alerts;
 mod archive;
@@ -122,14 +126,24 @@ pub use account::{
     MAX_DISPLAY_NAME_LENGTH, Password, PasswordError, Session, SessionsResponse, SignInRequest,
     SignInResponse, parse_display_name,
 };
+pub use air::{
+    FLOWN_CELL_DEG, FLOWN_MIN_PILOTS, FLOWN_THERMALS_PATH, FlownThermalCell, FlownThermalsRequest,
+    FlownThermalsResponse, LIVE_CLIMB_CELL_DEG, LIVE_CLIMB_HEIGHT_STEP_M, LIVE_CLIMB_MINUTES,
+    LIVE_CLIMBS_PATH, LIVE_SITES_PATH, LiveClimb, LiveClimbsLayer, LiveClimbsRequest,
+    LiveClimbsResponse, LiveSitesLayer, LiveSitesRequest, LiveSitesResponse, MAX_FLOWN_BOX_DEG,
+    MAX_FLOWN_CELLS, MAX_LIVE_CLIMBS, MAX_LIVE_SITES, SITE_AIR_HEARD_MINUTES, SITE_AIR_WITHIN_M,
+    SITE_TAKEOFF_MINUTES, SITE_TAKEOFF_WITHIN_M, SiteAir, VENTI_LIVE_SOURCE, cell_middle,
+    parse_flown_hours,
+};
 pub use airspace::{AirspaceLayer, AirspaceResponse};
 pub use alerts::{
     ALERT_READING_FRESH_MINUTES, ALERT_REST_HOURS, ALERTS_FIRED_PATH, ALERTS_PATH, Alert,
     AlertFault, AlertHours, AlertReading, AlertRequest, AlertResponse, AlertRule, AlertSector,
     AlertsResponse, DayAlert, DayAtLeast, FIRED_KEPT_DAYS, FiredAlert, FiredAlertsRequest,
     FiredAlertsResponse, FiredBecause, MAX_ALERT_KMH, MAX_ALERT_NAME_LENGTH,
-    MAX_ALERT_PLACE_LENGTH, MAX_ALERTS, MAX_DAYS_AHEAD, WindAlert, alert_clock, alert_day,
-    alert_path, weekday_name,
+    MAX_ALERT_PLACE_LENGTH, MAX_ALERTS, MAX_DAYS_AHEAD, MAX_PILOTS_ALERT_PILOTS,
+    MAX_PILOTS_REST_HOURS, PILOTS_ALERT_DEFAULT_PILOTS, PILOTS_ALERT_DEFAULT_REST_HOURS,
+    PilotsAlert, WindAlert, alert_clock, alert_day, alert_path, weekday_name,
 };
 pub use archive::{
     ACCOUNT_ARCHIVE_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, ArchiveAlerts,

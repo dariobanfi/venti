@@ -4,7 +4,8 @@
 //!
 //! An alarm is a fixed rule over data the server has. The server checks
 //! it where the data arrives: a wind alarm against every reading of its
-//! station, a day alarm against every run of the thermal map. What fired
+//! station, a day alarm against every run of the thermal map, a pilots
+//! alarm once a minute against the live positions. What fired
 //! is kept on the account for [`FIRED_KEPT_DAYS`] days, and an app fetches
 //! it (`GET /v1/account/alerts/fired`); the server sends nothing by itself
 //! yet.
@@ -114,6 +115,8 @@ pub enum AlertRule {
     Wind(WindAlert),
     /// The kind of day the thermal map says a place has.
     Day(DayAlert),
+    /// Pilots in the air at a place.
+    Pilots(PilotsAlert),
     /// A kind of alarm this version of the code does not know.
     #[serde(other)]
     Other,
@@ -290,6 +293,78 @@ pub struct DayAlert {
     pub at_least: DayAtLeast,
 }
 
+/// How many pilots a pilots alarm waits for when it names no number.
+pub const PILOTS_ALERT_DEFAULT_PILOTS: u16 = 3;
+
+/// The most pilots a pilots alarm may wait for.
+pub const MAX_PILOTS_ALERT_PILOTS: u16 = 100;
+
+/// For how many hours a pilots alarm rests after it fired when it names
+/// no number.
+pub const PILOTS_ALERT_DEFAULT_REST_HOURS: u8 = 6;
+
+/// The longest a pilots alarm may rest, hours.
+pub const MAX_PILOTS_REST_HOURS: u8 = 24;
+
+fn default_pilots() -> u16 {
+    PILOTS_ALERT_DEFAULT_PILOTS
+}
+
+fn default_rest() -> u8 {
+    PILOTS_ALERT_DEFAULT_REST_HOURS
+}
+
+/// Pilots in the air at a place: "a lot of people fly, let me know".
+///
+/// Fires when at least `min_pilots` paragliders and hang gliders are in
+/// the air within [`SITE_AIR_WITHIN_M`](super::SITE_AIR_WITHIN_M) of the
+/// place, by one source of live positions: a network the server listens
+/// to, or Venti's own live pilots. The sources are not added up, since a
+/// pilot may be in both. Then it rests `rest_hours` hours. The server
+/// looks once a minute.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PilotsAlert {
+    /// Where: a flying site's place, or any other.
+    pub place: GeoPoint,
+    /// The site the place is of, if it is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<SiteId>,
+    /// The place's name, for the words.
+    pub place_name: String,
+    /// The fewest pilots in the air, 1 to [`MAX_PILOTS_ALERT_PILOTS`].
+    /// Left out: [`PILOTS_ALERT_DEFAULT_PILOTS`].
+    #[serde(default = "default_pilots")]
+    pub min_pilots: u16,
+    /// For how many hours it rests after it fired, 1 to
+    /// [`MAX_PILOTS_REST_HOURS`]. Left out:
+    /// [`PILOTS_ALERT_DEFAULT_REST_HOURS`].
+    #[serde(default = "default_rest")]
+    pub rest_hours: u8,
+}
+
+impl PilotsAlert {
+    fn check(&self, faults: &mut Vec<AlertFault>) {
+        text_faults(
+            "rule.place_name",
+            &self.place_name,
+            MAX_ALERT_PLACE_LENGTH,
+            faults,
+        );
+        if self.min_pilots == 0 || self.min_pilots > MAX_PILOTS_ALERT_PILOTS {
+            faults.push(fault(
+                "rule.min_pilots",
+                format!("is a number from 1 to {MAX_PILOTS_ALERT_PILOTS}"),
+            ));
+        }
+        if self.rest_hours == 0 || self.rest_hours > MAX_PILOTS_REST_HOURS {
+            faults.push(fault(
+                "rule.rest_hours",
+                format!("is a number from 1 to {MAX_PILOTS_REST_HOURS}"),
+            ));
+        }
+    }
+}
+
 /// What a check of an alarm found against it: the field, and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlertFault {
@@ -330,9 +405,10 @@ impl AlertRequest {
         match &self.rule {
             AlertRule::Wind(wind) => wind.check(&mut faults),
             AlertRule::Day(day) => day.check(&mut faults),
+            AlertRule::Pilots(pilots) => pilots.check(&mut faults),
             AlertRule::Other => faults.push(fault(
                 "rule.kind",
-                "is not a kind of alarm this server knows: wind or day",
+                "is not a kind of alarm this server knows: wind, day or pilots",
             )),
         }
         faults
@@ -462,6 +538,17 @@ pub enum FiredBecause {
         model: ModelId,
         /// When the newest run of that model began that the day holds.
         run: Timestamp,
+    },
+    /// Pilots in the air at the place.
+    Pilots {
+        /// When the server counted.
+        time: Timestamp,
+        /// How many were in the air near the place, by the source of
+        /// live positions that had the most.
+        pilots: u32,
+        /// How many of them took off there in the last hour.
+        #[serde(default)]
+        took_off: u32,
     },
     /// Something this version of the code does not know.
     #[serde(other)]
@@ -708,6 +795,27 @@ mod tests {
         };
         let fields: Vec<&str> = day.check().iter().map(|f| f.field).collect();
         assert_eq!(fields, ["rule.days_ahead", "rule.days_ahead"]);
+    }
+
+    #[test]
+    fn a_pilots_alarm_has_three_pilots_and_six_hours_unless_it_says() {
+        let text = r#"{"kind":"pilots","place":{"lat":47.66,"lon":11.52},"place_name":"Brauneck"}"#;
+        let AlertRule::Pilots(rule) = serde_json::from_str(text).unwrap() else {
+            panic!("not a pilots alarm");
+        };
+        assert_eq!((rule.min_pilots, rule.rest_hours), (3, 6));
+        let request = |min_pilots, rest_hours| AlertRequest {
+            name: "Brauneck is on".to_owned(),
+            enabled: true,
+            rule: AlertRule::Pilots(PilotsAlert {
+                min_pilots,
+                rest_hours,
+                ..rule.clone()
+            }),
+        };
+        assert_eq!(request(3, 6).check(), []);
+        let fields: Vec<&str> = request(0, 25).check().iter().map(|f| f.field).collect();
+        assert_eq!(fields, ["rule.min_pilots", "rule.rest_hours"]);
     }
 
     #[test]

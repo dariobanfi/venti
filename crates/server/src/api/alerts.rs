@@ -18,7 +18,7 @@ use venti_api_types::v1::{
     Alert, AlertRequest, AlertResponse, AlertRule, AlertsResponse, ErrorCode, FIRED_KEPT_DAYS,
     FiredAlertsResponse, MAX_ALERTS,
 };
-use venti_store::{AddingAlert, DAY_ALERT, NewAlert, Store, WIND_ALERT};
+use venti_store::{AddingAlert, DAY_ALERT, NewAlert, PILOTS_ALERT, Store, WIND_ALERT};
 
 use super::auth::{May, ReadAlerts, WriteAlerts};
 use super::error::ApiError;
@@ -51,6 +51,7 @@ fn new_alert(id: String, headers: &HeaderMap, body: &Bytes) -> Result<NewAlert, 
     let (kind, station_id) = match &request.rule {
         AlertRule::Wind(wind) => (WIND_ALERT, Some(wind.station.to_string())),
         AlertRule::Day(_) => (DAY_ALERT, None),
+        AlertRule::Pilots(_) => (PILOTS_ALERT, None),
         // `check` refuses it.
         AlertRule::Other => return Err(ApiError::internal()),
     };

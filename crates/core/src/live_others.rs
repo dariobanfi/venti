@@ -253,7 +253,7 @@ pub fn kind_words(aircraft: AircraftKind) -> &'static str {
 }
 
 /// A whole number with a comma between thousands: "2,140".
-fn thousands(value: f64) -> String {
+pub(crate) fn thousands(value: f64) -> String {
     let whole = value.round() as i64;
     let digits = whole.unsigned_abs().to_string();
     let mut out = String::new();

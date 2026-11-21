@@ -426,9 +426,12 @@
           },
           {
             "$ref": "#/components/schemas/DayAlert"
+          },
+          {
+            "$ref": "#/components/schemas/PilotsAlert"
           }
         ],
-        "description": "What an alarm waits for, told apart by `kind`: `wind` or `day`. A kind a client does not know is left as it is."
+        "description": "What an alarm waits for, told apart by `kind`: `wind`, `day` or `pilots`. A kind a client does not know is left as it is."
       },
       "AlertSector": {
         "properties": {
@@ -1472,9 +1475,35 @@
               "run"
             ],
             "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "pilots"
+                ],
+                "type": "string"
+              },
+              "pilots": {
+                "type": "integer"
+              },
+              "time": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "took_off": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "time",
+              "pilots"
+            ],
+            "type": "object"
           }
         ],
-        "description": "What fired an alarm, told apart by `kind`: a reading of the station, or a run of the thermal map."
+        "description": "What fired an alarm, told apart by `kind`: a reading of the station, a run of the thermal map, or a count of the pilots in the air."
       },
       "Flight": {
         "description": "A flight as worked out by the server from the uploaded file. `id` is its address for good and is never used for another flight.",
@@ -1754,6 +1783,92 @@
         "required": [
           "site",
           "flights"
+        ],
+        "type": "object"
+      },
+      "FlownThermalCell": {
+        "description": "A cell of the grid in which the public flights of at least `min_pilots` pilots climbed. No pilot, no flight, no day.",
+        "properties": {
+          "best_climb_ms": {
+            "type": "number"
+          },
+          "climb_ms": {
+            "description": "The climbs' average, m/s, to a tenth.",
+            "type": "number"
+          },
+          "climbs": {
+            "type": "integer"
+          },
+          "from_m": {
+            "description": "The height a climb began at, on average, rounded to 50 m.",
+            "type": "integer"
+          },
+          "pilots": {
+            "type": "integer"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "to_m": {
+            "description": "The height a climb ended at, on average, rounded to 50 m.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "climbs",
+          "pilots",
+          "climb_ms",
+          "best_climb_ms",
+          "from_m",
+          "to_m"
+        ],
+        "type": "object"
+      },
+      "FlownThermalsResponse": {
+        "description": "Where thermals have been: Venti's own, from the public flights the server holds, under their terms. The cells with the most pilots come first; the least number of pilots is counted after `month` and `hours` are applied.",
+        "properties": {
+          "cell_deg": {
+            "type": "number"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/FlownThermalCell"
+            },
+            "type": "array"
+          },
+          "flights": {
+            "description": "How many public flights the server has read for this.",
+            "type": "integer"
+          },
+          "hours": {
+            "description": "The hours asked for, by the sun at the place: from the first to before the second. Left out for the whole day.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "min_pilots": {
+            "type": "integer"
+          },
+          "month": {
+            "description": "The month asked for, 1 to 12; left out for the whole year.",
+            "type": "integer"
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/FlightTerms"
+          }
+        },
+        "required": [
+          "cells",
+          "more",
+          "cell_deg",
+          "min_pilots",
+          "flights",
+          "terms"
         ],
         "type": "object"
       },
@@ -2395,6 +2510,102 @@
         ],
         "type": "object"
       },
+      "LiveClimb": {
+        "description": "A place where paragliders or hang gliders circled and climbed in the last minutes. It names the air and no glider: `position` is the middle of a cell of the grid, and nothing says who climbed.",
+        "properties": {
+          "age_s": {
+            "description": "How long before `time` the last of them was last heard circling in it, seconds.",
+            "type": "integer"
+          },
+          "climb_ms": {
+            "description": "The climb averaged over the circles of every pilot who worked it, m/s, to a tenth.",
+            "type": "number"
+          },
+          "from_m": {
+            "description": "The lowest height a pilot began to circle at, metres above sea level, rounded to 50 m.",
+            "type": "integer"
+          },
+          "pilots": {
+            "description": "How many pilots circled in it in the last `listed_minutes`.",
+            "type": "integer"
+          },
+          "position": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "to_m": {
+            "description": "The greatest height a pilot circled to, rounded to 50 m.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "climb_ms",
+          "from_m",
+          "to_m",
+          "pilots",
+          "age_s"
+        ],
+        "type": "object"
+      },
+      "LiveClimbsLayer": {
+        "description": "The climbs one source of live positions shows: a network, whose credit is the attribution of the same source, or `venti`, Venti's own live pilots who show their flight to everyone.",
+        "properties": {
+          "climbs": {
+            "items": {
+              "$ref": "#/components/schemas/LiveClimb"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "climbs",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "LiveClimbsResponse": {
+        "description": "Where pilots climb now, in layers by where the positions come from; the layers are never one record. Derived by a fixed rule (circling and climbing) from the positions of the last minutes; nothing of a glider that must not be shown is in it.",
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "cell_deg": {
+            "description": "The side of a cell of the grid a climb's place is the middle of, degrees.",
+            "type": "number"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/LiveClimbsLayer"
+            },
+            "type": "array"
+          },
+          "listed_minutes": {
+            "type": "integer"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "listed_minutes",
+          "cell_deg",
+          "layers",
+          "attributions"
+        ],
+        "type": "object"
+      },
       "LiveFix": {
         "properties": {
           "altitude_m": {
@@ -2541,6 +2752,64 @@
           "refused_future",
           "refused_old",
           "refused_full"
+        ],
+        "type": "object"
+      },
+      "LiveSitesLayer": {
+        "description": "The sites one source of live positions has pilots in the air at, the most pilots first. A site that is not listed has none.",
+        "properties": {
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/SiteAir"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "sites",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "LiveSitesResponse": {
+        "description": "How many pilots are in the air at the flying sites of a box, in layers by where the positions come from. A pilot whom a network hears and who sends Venti a live track is in both layers: they are not to be added up.",
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSitesLayer"
+            },
+            "type": "array"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "took_off_minutes": {
+            "type": "integer"
+          },
+          "within_m": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "time",
+          "within_m",
+          "took_off_minutes",
+          "layers",
+          "attributions"
         ],
         "type": "object"
       },
@@ -3158,6 +3427,40 @@
           "airtime_s",
           "sites",
           "by_month"
+        ],
+        "type": "object"
+      },
+      "PilotsAlert": {
+        "description": "Pilots in the air at a place: fires when at least `min_pilots` paragliders and hang gliders are in the air within 5 km of it by one source of live positions, then rests `rest_hours` hours. The server looks once a minute.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "pilots"
+            ],
+            "type": "string"
+          },
+          "min_pilots": {
+            "description": "1 to 100; left out: 3.",
+            "type": "integer"
+          },
+          "place": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "place_name": {
+            "type": "string"
+          },
+          "rest_hours": {
+            "description": "1 to 24; left out: 6.",
+            "type": "integer"
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "place",
+          "place_name"
         ],
         "type": "object"
       },
@@ -4210,6 +4513,28 @@
           "id",
           "position",
           "uses"
+        ],
+        "type": "object"
+      },
+      "SiteAir": {
+        "description": "A flying site and the pilots in the air around it: two numbers and the site's identifier, as `GET /v1/sites` names it.",
+        "properties": {
+          "airborne": {
+            "description": "Paragliders and hang gliders in the air within `within_m` of the site, heard in the last five minutes.",
+            "type": "integer"
+          },
+          "site": {
+            "type": "string"
+          },
+          "took_off": {
+            "description": "Those that took off there in the last `took_off_minutes`.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "site",
+          "airborne",
+          "took_off"
         ],
         "type": "object"
       },
@@ -9158,6 +9483,41 @@
         "x-venti-docs": "GET /v1/live?bbox=west,south,east,north"
       }
     },
+    "/v1/live/climbs": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_live_climbs",
+        "parameters": [
+          {
+            "description": "A box as west,south,east,north in WGS84 degrees, for example 10.5,47.2,11.9,47.8.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveClimbsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Where pilots climb now: the thermals gliders circled in during the last minutes",
+        "x-venti-docs": "GET /v1/live/climbs?bbox=west,south,east,north"
+      }
+    },
     "/v1/live/others": {
       "get": {
         "description": "Anyone; no token.",
@@ -9250,6 +9610,41 @@
         ],
         "summary": "Send fixes of a live track; 201 where they begin one",
         "x-venti-docs": "POST /v1/live/positions"
+      }
+    },
+    "/v1/live/sites": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_live_sites",
+        "parameters": [
+          {
+            "description": "A box as west,south,east,north in WGS84 degrees, for example 10.5,47.2,11.9,47.8.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSitesResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "How many pilots are in the air at the flying sites of a box",
+        "x-venti-docs": "GET /v1/live/sites?bbox=west,south,east,north"
       }
     },
     "/v1/live/{id}": {
@@ -10948,6 +11343,61 @@
         "security": [],
         "summary": "The thermal map: every cell's days",
         "x-venti-docs": "GET /v1/thermals"
+      }
+    },
+    "/v1/thermals/flown": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_thermals_flown",
+        "parameters": [
+          {
+            "description": "A box as west,south,east,north in WGS84 degrees, for example 10.5,47.2,11.9,47.8.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A month of any year, a number from 1 to 12: only the climbs of that month.",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Hours of the day by the sun at the place (UTC and four minutes for each degree east), from the first to before the second, for example 11-15: only the climbs that began between them.",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlownThermalsResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "Where thermals have been: the cells in which several pilots' public flights climbed",
+        "x-venti-docs": "GET /v1/thermals/flown?bbox=&month=&hours="
       }
     },
     "/v1/thermals/hours": {

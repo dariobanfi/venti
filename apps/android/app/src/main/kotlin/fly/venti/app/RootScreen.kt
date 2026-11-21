@@ -388,6 +388,7 @@ private fun Sections(
                     preferences = session.preferences,
                     siteActions = siteActions,
                     thermalMap = session.thermalMap,
+                    radar = session.radar,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

@@ -42,6 +42,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -156,8 +157,8 @@ class VentiUiTest {
      * Unfolds "Key and notes" on the forecast map's card, which opens with
      * the key, the model's run and the notes folded away.
      */
-    private fun unfoldTheKeyAndNotes() {
-        val fold = hasTestTag("forecast-key-and-notes")
+    private fun unfoldTheKeyAndNotes(tag: String = "forecast-key-and-notes") {
+        val fold = hasTestTag(tag)
         waitFor(fold and saying("Collapsed"))
         screen.onNode(fold).performScrollTo().performClick()
         waitFor(fold and saying("Expanded"))
@@ -2121,10 +2122,7 @@ class VentiUiTest {
     }
 
     /** How many places the forecast map's line of hours has. */
-    private fun placesOfTheHours(): Int {
-        val strip = screen.onNode(hasTestTag("forecast-hours")).fetchSemanticsNode()
-        return strip.config[SemanticsProperties.ProgressBarRangeInfo].range.endInclusive.toInt() + 1
-    }
+    private fun placesOfTheHours(): Int = placesOf("forecast-hours")
 
     /**
      * Steps the forecast map's line of hours to an hour of the pilot's
@@ -2357,6 +2355,154 @@ class VentiUiTest {
             assertTrue(exists(hasTestTag("forecast-hours") and saying("Day")))
             assertFalse(exists(problem))
         }
+    }
+
+    /**
+     * The rain radar on the map, against Venti in development mode, which
+     * has two frames recorded from DWD on 2026-11-21, of 11:35 and 11:40
+     * UTC, a morning with little rain, by a clock that stands at 11:44:
+     * the newest frame is four minutes old. The layer is off until it is
+     * switched on; its card has the two frames with the newest chosen and
+     * the frame's line, the key behind "Key and notes", a step to the
+     * earlier frame, and the frames played through to the newest. The map
+     * is turned far enough out to show the picture's edge and the veil
+     * over what the radar did not see. Skipped without a server.
+     */
+    @Test
+    fun theMapShowsTheRainRadar() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        val chip = hasTestTag("layer-radar")
+        waitFor(chip)
+        // Off until the pilot switches it on.
+        screen.onNode(chip).assertIsOff()
+        assertFalse(TestDevice.showsOnTheMap(scenario, "rain-radar"))
+        lookAtTheWholeRadar(scenario)
+        tapChip("layer-radar")
+        screen.onNode(chip).assertIsOn()
+
+        // The card: two frames, the newest chosen, and its line in the core's words.
+        val strip = hasTestTag("radar-frames")
+        val said = hasTestTag("radar-said")
+        waitFor(strip)
+        assertEquals(2, placesOf("radar-frames"))
+        waitFor(strip and saying(", 4 minutes ago"))
+        waitFor(said and hasText("Rain radar, ", substring = true) and hasText(", 4 minutes ago", substring = true))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { TestDevice.showsOnTheMap(scenario, "rain-radar") }
+        // Whose radar it is, at the data: with the map's other credits.
+        waitFor(hasText("Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben") and hasAnyAncestor(hasTestTag("wind-credits")))
+        assertFalse(exists(hasTestTag("radar-key")))
+        assertFalse(exists(hasTestTag("radar-stale")))
+        letTheMapDraw()
+        keepScreenshot("map-radar-1-newest")
+
+        // "Key and notes": the key from the most rain down, what was not seen, the note and the credit.
+        unfoldTheKeyAndNotes("radar-key-and-notes")
+        waitForAll(
+            hasTestTag("radar-key"),
+            described("Cloudburst, 30 mm an hour and more"),
+            described("A trace, under 0.2 mm an hour"),
+            described("Not seen by the radar"),
+            hasTestTag("radar-note"),
+            hasTestTag("radar-credit"),
+        )
+        letTheMapDraw(1)
+        keepScreenshot("map-radar-2-key")
+        screen.onNode(hasTestTag("radar-key-and-notes")).performScrollTo().performClick()
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("radar-key")) }
+
+        // A step to the earlier frame swaps the picture and the line.
+        screen.onNode(strip).performSemanticsAction(SemanticsActions.SetProgress) { it(0f) }
+        waitFor(said and hasText(", 9 minutes ago", substring = true))
+        assertTrue(TestDevice.showsOnTheMap(scenario, "rain-radar"))
+        letTheMapDraw(1)
+        keepScreenshot("map-radar-3-earlier-frame")
+
+        // Played through, the frames end on the newest, and the button is the one to play again.
+        tap(hasTestTag("radar-play"))
+        waitFor(said and hasText(", 4 minutes ago", substring = true))
+        waitFor(described("Play the radar pictures"))
+
+        // Closer in, over the Tegernsee: a step of rain stays a step, not smoothed.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.7, lon = 11.75, zoom = 8.6))
+        letTheMapDraw()
+        keepScreenshot("map-radar-4-closer")
+
+        // Switched off, the card goes and the picture with it.
+        tapChip("layer-radar")
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("radar-card")) }
+        assertFalse(TestDevice.showsOnTheMap(scenario, "rain-radar"))
+    }
+
+    /** The rain radar's card with its key unfolded, in the dark appearance. Only the screenshot matters here. */
+    @Test
+    fun theRainRadarInDarkAppearance() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(hasTestTag("layer-radar"))
+        lookAtTheWholeRadar(scenario)
+        tapChip("layer-radar")
+        waitFor(hasTestTag("radar-said"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { TestDevice.showsOnTheMap(scenario, "rain-radar") }
+        unfoldTheKeyAndNotes("radar-key-and-notes")
+        waitFor(hasTestTag("radar-key"))
+        letTheMapDraw()
+        keepScreenshot("map-radar-5-dark")
+    }
+
+    /**
+     * A server without a rain radar: the test plays one in front of Venti
+     * in development mode ([HoursHeldBack]) that answers the radar's list
+     * as such a server does, with 501 and `no_radar`. The card says so in
+     * the core's words and nothing is drawn; then the server hands the
+     * list on, and "Try again" brings the frames. Skipped without a server.
+     */
+    @Test
+    fun aServerWithoutARainRadarSaysSo() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        val none = 501 to """{"error":{"code":"no_radar","message":"This server collects no rain radar."}}"""
+        HoursHeldBack(checkNotNull(server), path = "/v1/radar", refusal = none).use { held ->
+            held.hours = HoursHeldBack.Hours.REFUSED
+            launch { putExtra(LaunchOptions.SERVER, held.address) }
+            val scenario = checkNotNull(app)
+            waitFor(hasTestTag("layer-radar"))
+            lookAtTheWholeRadar(scenario)
+            tapChip("layer-radar")
+
+            val problem = hasTestTag("radar-problem")
+            waitFor(problem)
+            assertTrue(exists(hasText("This server has no rain radar.")))
+            assertFalse(exists(hasTestTag("radar-frames")))
+            assertFalse(TestDevice.showsOnTheMap(scenario, "rain-radar"))
+            letTheMapDraw(1)
+            keepScreenshot("map-radar-6-no-radar")
+
+            // "Try again" asks anew, and the frames come.
+            held.hours = HoursHeldBack.Hours.HANDED_ON
+            tap(hasText("Try again") and hasAnyAncestor(problem))
+            waitFor(hasTestTag("radar-frames"))
+            assertFalse(exists(problem))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { TestDevice.showsOnTheMap(scenario, "rain-radar") }
+        }
+    }
+
+    /**
+     * Turns the map to the whole of the radar's pictures, 9.4 to 17.2 E
+     * and 46.3 to 48.5 N, with their edge in view on every side.
+     */
+    private fun lookAtTheWholeRadar(scenario: ActivityScenario<MainActivity>) {
+        assertTrue(TestDevice.lookAt(scenario, lat = 46.6, lon = 13.3, zoom = 5.0))
+    }
+
+    /** How many places a strip has: the forecast map's hours, the rain radar's frames. */
+    private fun placesOf(tag: String): Int {
+        val strip = screen.onNode(hasTestTag(tag)).fetchSemanticsNode()
+        return strip.config[SemanticsProperties.ProgressBarRangeInfo].range.endInclusive.toInt() + 1
     }
 
     /**

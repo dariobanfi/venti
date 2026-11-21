@@ -83,6 +83,10 @@ import fly.venti.app.live.GliderListSheet
 import fly.venti.app.live.GliderSheet
 import fly.venti.app.live.LiveModel
 import fly.venti.app.logbook.LogbookModel
+import fly.venti.app.radar.RadarCard
+import fly.venti.app.radar.RadarModel
+import fly.venti.app.radar.RadarWords
+import kotlinx.coroutines.Job
 import fly.venti.app.sites.SiteSheet
 import fly.venti.app.sites.KeptSitesModel
 import fly.venti.app.sites.SitesModel
@@ -130,6 +134,8 @@ fun MapScreen(
     siteActions: SiteActions? = null,
     /** The kind of day, square by square, for the "Forecast" layer. */
     thermalMap: ThermalMapModel? = null,
+    /** The rain radar, for the "Radar" layer. */
+    radar: RadarModel? = null,
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -146,6 +152,8 @@ fun MapScreen(
     val offersThermals = remember { MapSetup.offersThermals(context) }
     // The forecast map, the kind of day square by square. Off until the pilot switches it on.
     var forecast by remember { mutableStateOf(preferences?.mapShowsForecast == true) }
+    // The rain radar. Off until the pilot switches it on.
+    var rain by remember { mutableStateOf(preferences?.mapShowsRadar == true) }
     // A square of it the pilot tapped: its sheet shows over the map.
     var square by remember { mutableStateOf<ThermalMapCell?>(null) }
     // A square of the forecast map by the hour, tapped.
@@ -238,6 +246,23 @@ fun MapScreen(
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { thermalMap.keepCurrent() }
         }
     }
+    // The rain radar's frames are asked for when its layer is switched on
+    // and when the map comes back to the front, and again every five
+    // minutes while it is there.
+    val showsRadar = rain && hasServer && radar != null
+    LaunchedEffect(showsRadar, wind.address, lifecycle) {
+        if (showsRadar) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { radar.keepCurrent() }
+        }
+    }
+    // The picture of the frame looked at: fetched when the frame changes,
+    // and again when the pilot asks.
+    var pictureAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(showsRadar, radar?.frame?.path, pictureAttempt) {
+        if (showsRadar) radar.showFrame()
+    }
+    // The frames played through, until they end or the pilot stops them.
+    var playing by remember { mutableStateOf<Job?>(null) }
     // Other pilots are asked for again every quarter of a minute while the
     // map is on screen, and not when it is not.
     LaunchedEffect(wind.address, lifecycle) {
@@ -273,6 +298,8 @@ fun MapScreen(
         photos.takeIf { aerial },
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
         thermalMap?.creditLine?.takeIf { showsForecast },
+        // The radar's source asks for its credit directly at the data.
+        radar?.creditLine?.takeIf { showsRadar },
     )
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
@@ -306,6 +333,7 @@ fun MapScreen(
                 map.showThermals(thermals && offersThermals)
                 map.showForecast(squares)
                 map.showHours(hourShapes, hourLegend, byTheHour)
+                map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
                 map.follow(isFollowing)
             },
@@ -325,6 +353,14 @@ fun MapScreen(
                         forecast = on
                         preferences?.mapShowsForecast = on
                     }, Modifier.testTag("layer-forecast"))
+                }
+                // What fell in the last hours, beside what is forecast.
+                if (hasServer && radar != null) {
+                    LayerChip(RadarWords.LAYER, R.drawable.ic_rainy, rain, onChange = { on ->
+                        rain = on
+                        preferences?.mapShowsRadar = on
+                        if (!on) playing?.cancel()
+                    }, Modifier.testTag("layer-radar"))
                 }
                 if (offersThermals) {
                     LayerChip("Thermals", R.drawable.venti_thermal, thermals, onChange = { on ->
@@ -361,6 +397,28 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomStart),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         ) {
+            if (showsRadar) {
+                // The frames and the key of the rain radar, over the
+                // forecast map's card when both layers show.
+                RadarCard(
+                    radar = radar,
+                    onChoose = { place ->
+                        playing?.cancel()
+                        radar.choose(place)
+                    },
+                    onPlay = {
+                        val job = playing
+                        if (job?.isActive == true) {
+                            job.cancel()
+                        } else {
+                            playing = asking.launch { radar.play() }
+                        }
+                    },
+                    onTryAgain = { asking.launch { radar.load() } },
+                    onTryAgainPicture = { pictureAttempt += 1 },
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
+                )
+            }
             if (showsForecast && thermalMap != null) {
                 // The days and the key of the forecast map, beside the
                 // round buttons and over the credits.
@@ -386,7 +444,7 @@ fun MapScreen(
                 // Clear of the map's own credits button on the left and of
                 // the round buttons on the right.
                 Credits(credits, Modifier.padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
-            } else if (showsForecast) {
+            } else if (showsForecast || showsRadar) {
                 // The card stands clear of the map's own credits button.
                 Spacer(Modifier.height(VentiSpace.s6))
             }

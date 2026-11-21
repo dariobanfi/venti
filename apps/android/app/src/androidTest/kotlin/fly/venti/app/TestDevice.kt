@@ -15,6 +15,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.style.layers.Property
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -175,6 +176,29 @@ object TestDevice {
         }
         asked.await(10, TimeUnit.SECONDS)
         return count
+    }
+
+    /**
+     * Whether the map on screen has one of its style's layers and shows
+     * it: for a picture, which is no feature to count. False if no map is
+     * on screen.
+     */
+    fun <A : Activity> showsOnTheMap(app: ActivityScenario<A>, layer: String): Boolean {
+        var shows = false
+        val asked = CountDownLatch(1)
+        app.onActivity { activity ->
+            val view = mapIn(activity.window.decorView)
+            if (view == null) {
+                asked.countDown()
+            } else {
+                view.getMapAsync { map ->
+                    shows = map.style?.getLayer(layer)?.visibility?.getValue() == Property.VISIBLE
+                    asked.countDown()
+                }
+            }
+        }
+        asked.await(10, TimeUnit.SECONDS)
+        return shows
     }
 
     /**

@@ -12,6 +12,8 @@ import fly.venti.app.forecast.ThermalHoursLayers
 import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
+import fly.venti.app.radar.RadarLayer
+import fly.venti.app.radar.RadarPicture
 import fly.venti.app.sites.SiteFeature
 import fly.venti.app.sites.SiteSymbols
 import fly.venti.app.wind.WindFeature
@@ -88,6 +90,10 @@ class OverviewMap : MapContent {
     private var hourLegend: List<ThermalMapKey> = emptyList()
     private var drawnHourShapes: ThermalMapShapes? = null
     private var hoursOn = false
+
+    /** The rain radar's picture to draw, and the one drawn; compared by identity. */
+    private var radar: RadarPicture? = null
+    private var drawnRadar: RadarPicture? = null
 
     /** A tap where airspace is drawn and nothing else of Venti's lies: the place tapped. */
     var onAirspace: (Coordinate) -> Unit = {}
@@ -186,6 +192,9 @@ class OverviewMap : MapContent {
         drawSquares()
         drawnHourShapes = null
         drawHours()
+        // The rain radar's picture over the forecast's squares, under all the rest.
+        drawnRadar = null
+        drawRadar()
         if (isFollowing) {
             startFollowing()
         }
@@ -250,6 +259,23 @@ class OverviewMap : MapContent {
         if (hourShapes === drawnHourShapes) return
         drawnHourShapes = hourShapes
         ThermalHoursLayers.show(hourShapes, hourLegend, style)
+    }
+
+    /**
+     * The rain radar: a frame's picture in the app's colours, pinned by
+     * its four corners, or `null` to take it away. A change of frame hands
+     * another picture, which takes the place of the one before.
+     */
+    fun showRadar(picture: RadarPicture?) {
+        radar = picture
+        drawRadar()
+    }
+
+    private fun drawRadar() {
+        val style = style ?: return
+        if (radar === drawnRadar) return
+        drawnRadar = radar
+        RadarLayer.show(radar, style)
     }
 
     fun showForecast(cells: List<ThermalMapCell>) {

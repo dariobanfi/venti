@@ -16,13 +16,21 @@ import java.util.concurrent.Executors
  * but the hours of the forecast map (`GET /v1/thermals/hours`) it holds
  * back until the test says what becomes of them. A server that answers at once
  * never shows the card waiting, and the stand-in refuses nothing the app
- * asks; this one does both, so that both can be looked at.
+ * asks; this one does both, so that both can be looked at. Named another
+ * path and another refusal, it plays a server that refuses that: the rain
+ * radar's list with `501` and `no_radar`, as a server without a radar.
  *
  * The app under test runs in the test's own process and reaches it at
  * `http://127.0.0.1:<port>`, which it takes for a server on the pilot's
  * own network, as it does the emulator's `10.0.2.2`.
  */
-class HoursHeldBack(private val behind: String) : Closeable {
+class HoursHeldBack(
+    private val behind: String,
+    /** The path whose requests are held back or refused. */
+    private val path: String = "/v1/thermals/hours",
+    /** What a refused request is answered with: the status, and the body. */
+    private val refusal: Pair<Int, String> = 503 to "",
+) : Closeable {
     /** What becomes of a request for the hours. */
     enum class Hours {
         /** It waits, as with a server that is slow to answer. */
@@ -64,13 +72,13 @@ class HoursHeldBack(private val behind: String) : Closeable {
         val target = asked.readLine()?.split(" ")?.getOrNull(1) ?: return
         while (!asked.readLine().isNullOrEmpty()) Unit
 
-        val forHours = target.substringBefore("?") == "/v1/thermals/hours"
+        val forHours = target.substringBefore("?") == path
         if (forHours) {
             while (hours == Hours.HELD && !listening.isClosed) Thread.sleep(50)
         }
-        var status = 503
-        var type: String? = null
-        var body = ByteArray(0)
+        var status = refusal.first
+        var type: String? = "application/json".takeIf { refusal.second.isNotEmpty() }
+        var body = refusal.second.toByteArray()
         if (!forHours || hours == Hours.HANDED_ON) {
             try {
                 val connection = URL(behind + target).openConnection() as HttpURLConnection
@@ -78,6 +86,8 @@ class HoursHeldBack(private val behind: String) : Closeable {
                     connection.connectTimeout = 10_000
                     connection.readTimeout = 30_000
                     connection.setRequestProperty("Accept", "application/json")
+                    type = null
+                    body = ByteArray(0)
                     status = connection.responseCode
                     type = connection.contentType
                     body = (if (status >= 400) connection.errorStream else connection.inputStream)?.use { it.readBytes() } ?: ByteArray(0)
@@ -86,6 +96,8 @@ class HoursHeldBack(private val behind: String) : Closeable {
                 }
             } catch (_: IOException) {
                 status = 502
+                type = null
+                body = ByteArray(0)
             }
         }
         val head = buildString {

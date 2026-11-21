@@ -163,10 +163,13 @@ object ThermalHoursLayers {
     private const val LABELS_FROM_ZOOM = 9f
 
     /** The colour a line of the key names, from the light theme: the map is light in both appearances. */
-    fun colour(key: ThermalMapKey): Color {
-        val step = key.scaleStep.toInt() - 1
+    fun colour(key: ThermalMapKey): Color = colour(key.scale, key.scaleStep.toInt())
+
+    /** A step of one of the pack's scales, from 1: what a line of a key names, the rain radar's too. */
+    fun colour(scale: ThermalMapScale, scaleStep: Int): Color {
+        val step = scaleStep - 1
         fun of(scale: List<Color>) = scale[step.coerceIn(0, scale.lastIndex)]
-        return when (key.scale) {
+        return when (scale) {
             ThermalMapScale.THERMAL -> of(VentiLight.thermal)
             ThermalMapScale.WIND -> of(VentiLight.wind)
             ThermalMapScale.VARIO -> of(VentiLight.vario)

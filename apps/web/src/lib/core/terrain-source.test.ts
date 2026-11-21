@@ -1,57 +1,10 @@
-import { open } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { PMTiles, type RangeResponse, type Source } from 'pmtiles';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ONLINE } from '../map/online';
 import { flightFromFile, type FlightView } from './pkg/venti_core_wasm.js';
 import { type GetTile, PLACES_UNDER_A_FLIGHT, TerrainSource } from './terrain-source';
-import { sampleFlight, startCore } from './testing';
+import { sampleFlight, startCore, tileServer } from './testing';
 
 beforeAll(startCore);
-
-/**
- * Real elevation tiles: Mapterhorn's around the Tegernsee, where the sample
- * flight is, as the repository keeps them for the iPhone app's bundled
- * region. The archive is read here a piece at a time, and a tile cut from
- * it is what the tile server would send.
- */
-const ARCHIVE = fileURLToPath(
-	new URL('../../../../ios/Venti/Resources/MapDemo/terrain.pmtiles', import.meta.url)
-);
-
-class ArchiveFile implements Source {
-	#file = open(ARCHIVE, 'r');
-
-	getKey(): string {
-		return ARCHIVE;
-	}
-
-	async getBytes(offset: number, length: number): Promise<RangeResponse> {
-		const buffer = Buffer.alloc(length);
-		const { bytesRead } = await (await this.#file).read(buffer, 0, length, offset);
-		return { data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + bytesRead) };
-	}
-}
-
-const archive = new PMTiles(new ArchiveFile());
-
-/** A tile server that answers from the archive and notes what it was asked. */
-function tileServer(
-	instead: (address: string) => ReturnType<GetTile> | undefined = () => undefined
-) {
-	const asked: string[] = [];
-	const get: GetTile = async (address) => {
-		asked.push(address);
-		const other = instead(address);
-		if (other) return other;
-		const [z, x, y] = /\/(\d+)\/(\d+)\/(\d+)\.webp$/.exec(address)!.slice(1).map(Number);
-		const tile = await archive.getZxy(z, x, y);
-		return tile
-			? { status: 200, body: new Uint8Array(tile.data) }
-			: { status: 404, body: new Uint8Array() };
-	};
-	return { asked, get };
-}
 
 let flight: FlightView;
 beforeAll(() => {

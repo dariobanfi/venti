@@ -17,6 +17,7 @@ import type {
 	Coordinate,
 	Credit,
 	FlightVisibility,
+	GlideReachSetting,
 	PlanDraft,
 	ReportReason,
 	ReportSubject,
@@ -415,6 +416,16 @@ export class CoreClient {
 	/** A route as the pilot means to fly it, with the weather along it on a day of the thermal map. */
 	routeWeather(asked: RouteWeatherAsked) {
 		return this.#call('routeWeather', asked);
+	}
+
+	/** What a glide reaches from a place on the map, over the ground the worker fetches there. */
+	glideReach(setting: GlideReachSetting) {
+		return this.#call('glideReach', setting);
+	}
+
+	/** Lets go of the ground kept for the glide's reach. */
+	forgetGlideReach() {
+		return this.#call('forgetGlideReach', undefined);
 	}
 
 	/**

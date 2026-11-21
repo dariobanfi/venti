@@ -11,14 +11,15 @@ const line = (id: string, width = 2.5): LineLayerSpecification => ({
 });
 
 describe('the light casing under the app’s dark lines', () => {
-	it('is given to the logbook’s tracks, a followed track, the planned route, the scored route and the other flight', () => {
+	it('is given to the logbook’s tracks, a followed track, the planned route, the scored route, the other flight and a glide’s reach', () => {
 		expect(CASED).toEqual([
 			'logbook-tracks-edge',
 			'live-track-edge',
 			'route-drawn-line',
 			'route-scored-line',
 			'flight-route-line',
-			'other-track-edge'
+			'other-track-edge',
+			'reach-edge-casing'
 		]);
 		const added: LayerSpecification[] = [];
 		const map = { addLayer: (layer: LayerSpecification) => void added.push(layer) };
@@ -37,6 +38,8 @@ describe('the light casing under the app’s dark lines', () => {
 			'flight-route-line',
 			`other-track-edge${CASING}`,
 			'other-track-edge',
+			`reach-edge-casing${CASING}`,
+			'reach-edge-casing',
 			// The flight's own track keeps its dark casing alone.
 			'flight-track-edge',
 			'logbook-tracks-line'

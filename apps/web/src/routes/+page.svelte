@@ -70,6 +70,8 @@
 	import RoutePlanCard from '#lib/route/RoutePlanCard.svelte';
 	import RouteWeather from '#lib/route/RouteWeather.svelte';
 	import { RouteWeatherModel } from '#lib/route/weather.svelte.ts';
+	import GlideReachCard from '#lib/reach/GlideReachCard.svelte';
+	import { GlideReachModel } from '#lib/reach/reach.svelte.ts';
 	import { said as whyNot, type SiteDraft } from '#lib/sites/edit.svelte.ts';
 	import { measuredNow } from '#lib/sites/filter.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
@@ -382,29 +384,37 @@
 	);
 
 	/**
-	 * The place whose airspace is open, with what lies over it, after a
-	 * click where nothing else of the map's lies under the pointer.
+	 * A place clicked where nothing else of the map's lies under the
+	 * pointer: what airspace lies over it, where some does, and what can be
+	 * done from there (what a glide reaches, adding a site).
 	 */
-	let chosenAirspace = $state.raw<{ place: Coordinate; name: string }>();
-	/** Counts the clicks on airspace, so that a slow answer for an older one is dropped. */
-	let airspaceAsked = 0;
+	let chosenPlace = $state.raw<{ place: Coordinate; name: string; airspace: boolean }>();
+	/** Counts the clicks on places, so that a slow answer for an older one is dropped. */
+	let placeAsked = 0;
 
-	/** Opens what airspace lies over a place, if any does: a click elsewhere on the map does nothing. */
-	function openAirspace(place: Coordinate) {
+	/**
+	 * Opens a place's card: with what airspace lies over it where the map
+	 * draws airspace (`withAirspace`) and some does.
+	 */
+	function openPlace(place: Coordinate, withAirspace = true) {
 		chosenCandidate = undefined;
+		const mine = ++placeAsked;
+		const open = (airspace: boolean) => {
+			if (mine !== placeAsked) return;
+			chosenSquare = undefined;
+			chosen = undefined;
+			chosenSite = undefined;
+			chosenGlider = undefined;
+			chosenPlace = { place, name: text.place(place.lat, place.lon), airspace };
+		};
 		const model = app.airspace;
-		if (!model || model.isEmpty) return;
-		const mine = ++airspaceAsked;
+		if (!withAirspace || !model || model.isEmpty) {
+			open(false);
+			return;
+		}
 		model.over(place).then(
-			(over) => {
-				if (mine !== airspaceAsked || over.airspaces.length === 0) return;
-				chosenSquare = undefined;
-				chosen = undefined;
-				chosenSite = undefined;
-				chosenGlider = undefined;
-				chosenAirspace = { place, name: text.place(place.lat, place.lon) };
-			},
-			() => {}
+			(over) => open(over.airspaces.length > 0),
+			() => open(false)
 		);
 	}
 
@@ -412,7 +422,7 @@
 	function openStation(picked: WindStation | undefined) {
 		chosenCandidate = undefined;
 		if (!picked) return;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
@@ -421,7 +431,7 @@
 
 	function openGlider(id: string) {
 		chosenCandidate = undefined;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
@@ -431,7 +441,7 @@
 	function openSite(picked: SiteView | undefined) {
 		chosenCandidate = undefined;
 		if (!picked) return;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
@@ -447,10 +457,10 @@
 	function openHourSquare(place: Coordinate) {
 		void thermals?.cellAt(place).then((cell) => {
 			if (cell === undefined) {
-				openAirspace(place);
+				openPlace(place);
 				return;
 			}
-			chosenAirspace = undefined;
+			chosenPlace = undefined;
 			chosen = undefined;
 			chosenSite = undefined;
 			chosenGlider = undefined;
@@ -462,7 +472,7 @@
 	function openSquare(cell: number) {
 		const picked = thermalDay?.cells[cell];
 		if (!picked) return;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosen = undefined;
 		chosenSite = undefined;
 		chosenGlider = undefined;
@@ -547,7 +557,7 @@
 
 	function closeOthers() {
 		chosenCandidate = undefined;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosenHourSquare = undefined;
 		chosen = undefined;
@@ -641,7 +651,7 @@
 	function showWritten(site: SiteView, words?: string) {
 		sites?.put(site);
 		siteWritten = words ? { id: site.id, words } : undefined;
-		chosenAirspace = undefined;
+		chosenPlace = undefined;
 		chosenSquare = undefined;
 		chosen = undefined;
 		chosenGlider = undefined;
@@ -775,6 +785,7 @@
 	function togglePlanner() {
 		if (!planner.open) {
 			closeOthers();
+			reach.clear();
 			placing = false;
 		}
 		planner.toggle();
@@ -791,6 +802,28 @@
 		planner.startAt({ lat: site.position.lat, lon: site.position.lon, name: site.name });
 		closeOthers();
 		map?.showAround(site.position);
+	}
+
+	// --- What a glide reaches ---
+
+	/** How much of a narrow screen the card of a glide's reach may cover: `--forecast-card-height`. */
+	const REACH_CARD_SHARE = 0.4;
+
+	/** What a glide reaches from a place, while its area is on the map. */
+	const reach = new GlideReachModel(
+		globalThis.localStorage,
+		(setting) => app.glideReach(setting),
+		() => void app.forgetGlideReach()
+	);
+
+	/** "What a glide reaches from here": the area from the place, and its card. */
+	function reachFrom(place: Coordinate) {
+		closeOthers();
+		planner.close();
+		void reach.open(place);
+		// On a narrow screen its card stands over the map's foot, at most two
+		// fifths of the screen: the place goes above it, with the area around.
+		if (!wide.current) map?.showAbove(place, globalThis.innerHeight * REACH_CARD_SHARE);
 	}
 
 	const said = $derived(notice(current, text.list));
@@ -841,7 +874,8 @@
 		radar={showRadar ? radar?.onMap : undefined}
 		onsquare={openSquare}
 		onhourat={openHourSquare}
-		onairspaceat={openAirspace}
+		onplaceat={openPlace}
+		reach={reach.place ? { from: reach.place, reach: reach.reach } : undefined}
 		{placing}
 		{route}
 		{around}
@@ -1005,8 +1039,13 @@
 		<!-- On a wide screen the cards of the radar and of the forecast map are
 		     panes at the map's side, the radar's first, and a square chosen on
 		     the map is shown in the forecast's. -->
-		{#if (planner.open || showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
+		{#if (planner.open || reach.place || showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
 			<div class="panes">
+				{#if reach.place}
+					<aside class="forecast-pane" aria-label="What a glide reaches">
+						<GlideReachCard {reach} />
+					</aside>
+				{/if}
 				{#if planner.open}
 					<aside class="forecast-pane" aria-label="Plan a route">
 						<RoutePlanCard {planner} onclose={() => planner.close()} weather={alongTheRoute} />
@@ -1155,37 +1194,38 @@
 				{/if}
 			</MapPanel>
 		{/if}
-		{#if app.airspace}
-			<!-- What airspace lies over a place clicked on the map. -->
-			<MapPanel
-				shown={chosenAirspace
-					? `${chosenAirspace.place.lat},${chosenAirspace.place.lon}`
-					: undefined}
-				title={chosenAirspace?.name ?? 'Airspace'}
-				wide={wide.current}
-				onclose={() => (chosenAirspace = undefined)}
-			>
-				{#if chosenAirspace}
-					{@const { place } = chosenAirspace}
+		<!-- A place clicked on the map, where nothing of Venti's lay: what
+		     airspace lies over it, and what can be done from there. -->
+		<MapPanel
+			shown={chosenPlace ? `${chosenPlace.place.lat},${chosenPlace.place.lon}` : undefined}
+			title={chosenPlace?.name ?? 'Place'}
+			wide={wide.current}
+			onclose={() => (chosenPlace = undefined)}
+		>
+			{#if chosenPlace}
+				{@const { place } = chosenPlace}
+				{#if chosenPlace.airspace && app.airspace}
 					<AirspaceOver {place} airspace={app.airspace} />
+				{/if}
+				<div class="group-card here">
+					<button class="group-row" type="button" onclick={() => reachFrom(place)}>
+						What a glide reaches from here
+					</button>
 					{#if adding}
-						<!-- The place the pilot clicked, where nothing of Venti's lay:
-						     the core's entry for the tier this pilot adds to; for
+						<!-- The core's entry for the tier this pilot adds to; for
 						     someone who has to sign in first, its sentence about that,
 						     which leads to the account. -->
-						<div class="group-card here">
-							{#if adding.leadsToSignIn}
-								<a class="group-row entry" href={accountHref()}>{adding.entryWords}</a>
-							{:else}
-								<button class="group-row" type="button" onclick={() => void addSiteAt(place)}>
-									{adding.entryWords}
-								</button>
-							{/if}
-						</div>
+						{#if adding.leadsToSignIn}
+							<a class="group-row entry" href={accountHref()}>{adding.entryWords}</a>
+						{:else}
+							<button class="group-row" type="button" onclick={() => void addSiteAt(place)}>
+								{adding.entryWords}
+							</button>
+						{/if}
 					{/if}
-				{/if}
-			</MapPanel>
-		{/if}
+				</div>
+			{/if}
+		</MapPanel>
 		{#if live}
 			<!-- Another pilot's glider. Its flight is on the map while this is
 			     open, so a narrow screen keeps its upper half for the map. -->
@@ -1262,6 +1302,11 @@
 		{#if planner.open && !placing && !wide.current}
 			<div class="forecast-card">
 				<RoutePlanCard {planner} onclose={() => planner.close()} weather={alongTheRoute} />
+			</div>
+		{/if}
+		{#if reach.place && !placing && !wide.current}
+			<div class="forecast-card">
+				<GlideReachCard {reach} />
 			</div>
 		{/if}
 		<!-- On a narrow screen the radar's card and the forecast map's stand

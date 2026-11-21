@@ -20,6 +20,8 @@ import {
 	CoreClient,
 	type FlightView,
 	type ForecastView,
+	type GlideReach,
+	type GlideReachSetting,
 	type GroundUnderFlight,
 	type RoutePlan,
 	type RouteWeatherAnswer,
@@ -191,6 +193,21 @@ export class App {
 		if (!browser) return undefined;
 		await this.start();
 		return this.#core?.routeWeather(asked);
+	}
+
+	/**
+	 * What a glide reaches from a place on the map, over the ground the
+	 * worker fetches around it. Nothing if the core could not start.
+	 */
+	async glideReach(setting: GlideReachSetting): Promise<GlideReach | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.glideReach(setting);
+	}
+
+	/** Lets go of the ground kept for the glide's reach. */
+	async forgetGlideReach(): Promise<void> {
+		await this.#core?.forgetGlideReach();
 	}
 
 	/** Numbers the questions about the ground under a flight. */

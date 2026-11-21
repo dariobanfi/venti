@@ -9,6 +9,7 @@ import { AirspaceSource } from './airspace-source';
 import { CommunitySource } from './community-source';
 import { ForecastSource } from './forecast-source';
 import { GroupsSource } from './groups-source';
+import { GlideReachSource } from './glide-reach-source';
 import { IdbStore } from './idb-store';
 import { LiveSource } from './live-source';
 import init from './pkg/venti_core_wasm.js';
@@ -75,7 +76,8 @@ const starting: Promise<Answering> = (async () => {
 			() => wind.present(),
 			() => wind.now()
 		),
-		routeWeather: new RouteWeatherSource(() => wind.present())
+		routeWeather: new RouteWeatherSource(() => wind.present()),
+		glideReach: new GlideReachSource()
 	};
 })();
 

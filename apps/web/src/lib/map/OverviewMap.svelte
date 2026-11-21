@@ -7,13 +7,14 @@
 	import { type AerialMaker, aerialMakers, photosCredit } from './aerial-credit';
 	import { addLine } from './casing';
 	import type { MapLayer } from './layers';
-	import type { ImageSource } from 'maplibre-gl';
+	import type { ExpressionSpecification, ImageSource } from 'maplibre-gl';
 	import { onMount, untrack } from 'svelte';
 	import { type AirspaceForMaps, type AirspaceOnMap, drawAirspace } from '#lib/airspace/on-map.ts';
 	import { AIRSPACE_MIN_ZOOM } from '#lib/airspace/layers.ts';
 	import type {
 		Bounds,
 		Coordinate,
+		GlideReach,
 		LiveGlider,
 		RoutePlan,
 		SiteCandidateView,
@@ -59,6 +60,15 @@
 		ROUTE_SCORED,
 		scoredLine
 	} from '#lib/route/on-map.ts';
+	import {
+		REACH_AREA,
+		REACH_EDGE,
+		REACH_FILL,
+		REACH_START,
+		reachArea,
+		reachEdge,
+		reachStart
+	} from '#lib/reach/on-map.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import {
@@ -167,10 +177,16 @@
 		onsquare?: (cell: number) => void;
 		/**
 		 * Called with the place the pilot clicked where nothing else the map
-		 * draws is under the pointer, while the airspace layer is shown: for
-		 * what airspace lies over it.
+		 * draws is under the pointer: for what lies there and what can be
+		 * done from there. `airspace` says whether the airspace layer is
+		 * shown, so that what airspace lies over it is said.
 		 */
-		onairspaceat?: (at: { lat: number; lon: number }) => void;
+		onplaceat?: (at: { lat: number; lon: number }, airspace: boolean) => void;
+		/**
+		 * What a glide reaches from a place, while it is shown: the place and
+		 * the core's answer, once it has one.
+		 */
+		reach?: { from: Coordinate; reach: GlideReach | undefined };
 		/**
 		 * Whether the pilot is choosing a place for a site: a mark stands
 		 * over the middle of the map, which is moved under it, and a click
@@ -227,7 +243,8 @@
 		radar,
 		onhourat,
 		onsquare,
-		onairspaceat,
+		onplaceat,
+		reach,
 		placing = false,
 		route,
 		onrouteat,
@@ -314,6 +331,8 @@
 		addLine(map, module.line('logbook-tracks-edge', 'logbook-tracks', INK_ON_MAP, 5));
 		map.addLayer(module.line('logbook-tracks-line', 'logbook-tracks', ACCENT_ON_MAP, 2.5));
 
+		addReach(module, map);
+
 		// The flight of a pilot who is being followed: a line in the colours
 		// of climb, like a flight of the logbook when it is opened, over the
 		// logbook's own lines.
@@ -399,6 +418,39 @@
 			paint: { 'circle-radius': 16, 'circle-color': ACCENT_ON_MAP, 'circle-opacity': 0.2 }
 		});
 		map.addLayer(module.dot('position-dot', 'position', 7, ACCENT_ON_MAP, PAPER_ON_MAP));
+	}
+
+	/**
+	 * What a glide reaches, over the tracks and under the sites: the area
+	 * in the pack's primary at an airspace's low fill, its edge in the same
+	 * colour over the tracks' dark casing (and the light one over
+	 * photographs), dashed and without the casing where the ground loaded
+	 * ends; the place it starts from, the small dot a flight starts at.
+	 */
+	function addReach(module: typeof import('./setup'), map: Map) {
+		map.addSource(REACH_AREA, { type: 'geojson', data: NOTHING });
+		map.addLayer({
+			id: 'reach-area-fill',
+			type: 'fill',
+			source: REACH_AREA,
+			paint: { 'fill-color': ACCENT_ON_MAP, 'fill-opacity': REACH_FILL }
+		});
+		map.addSource(REACH_EDGE, { type: 'geojson', data: NOTHING });
+		const solid: ExpressionSpecification = ['!', ['get', 'dashed']];
+		addLine(map, { ...module.line('reach-edge-casing', REACH_EDGE, INK_ON_MAP, 5), filter: solid });
+		map.addLayer({
+			...module.line('reach-edge-line', REACH_EDGE, ACCENT_ON_MAP, 2),
+			filter: solid
+		});
+		const dashed = module.line('reach-edge-unknown', REACH_EDGE, ACCENT_ON_MAP, 2);
+		map.addLayer({
+			...dashed,
+			layout: { 'line-join': 'round' },
+			filter: ['get', 'dashed'],
+			paint: { ...dashed.paint, 'line-dasharray': [2, 2] }
+		});
+		map.addSource(REACH_START, { type: 'geojson', data: NOTHING });
+		map.addLayer(module.dot('reach-start-dot', REACH_START, 5, PAPER_ON_MAP, INK_ON_MAP));
 	}
 
 	/**
@@ -551,10 +603,12 @@
 			onsquare(thermalDay.cells.indexOf(square));
 			return;
 		}
-		// Else what airspace lies there, where the map draws airspace.
-		if (!hidden.includes('airspace') && map.getZoom() >= AIRSPACE_MIN_ZOOM) {
-			onairspaceat?.({ lat: at.lat, lon: at.lng });
-		}
+		// Else the place itself: what airspace lies there, where the map
+		// draws airspace, and what can be done from there.
+		onplaceat?.(
+			{ lat: at.lat, lon: at.lng },
+			!hidden.includes('airspace') && map.getZoom() >= AIRSPACE_MIN_ZOOM
+		);
 	}
 
 	/**
@@ -592,6 +646,20 @@
 		const at = map.unproject([point.x, point.y]);
 		onrouteat?.({ lat: at.lat, lon: at.lng });
 	}
+
+	// Draws what a glide reaches when it changes, and nothing once cleared.
+	$effect(() => {
+		if (!map || !setup) return;
+		setup.shapes(map, REACH_AREA)?.setData(reachArea(reach?.reach));
+		const edge = reachEdge(reach?.reach);
+		setup.shapes(map, REACH_EDGE)?.setData(edge);
+		setup.shapes(map, REACH_START)?.setData(reachStart(reach?.from));
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiReach?: unknown }).ventiReach = {
+			outline: reach?.reach?.outline.length ?? 0,
+			dashed: edge.features.filter((feature) => feature.properties?.dashed).length
+		};
+	});
 
 	// Draws the route being planned when it changes, and none while the
 	// planner is closed. A double click adds two places, not a zoom.
@@ -832,6 +900,15 @@
 	export function showAround(at: { lat: number; lon: number }) {
 		following = false;
 		map?.easeTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), AROUND_ZOOM) });
+	}
+
+	/**
+	 * Brings a place to the middle of what a card at the map's foot leaves
+	 * of it, `covered` pixels high, at the zoom the map has.
+	 */
+	export function showAbove(at: { lat: number; lon: number }, covered: number) {
+		following = false;
+		map?.easeTo({ center: [at.lon, at.lat], offset: [0, -covered / 2] });
 	}
 
 	/** One step closer or further away, for the buttons of a wide screen. */

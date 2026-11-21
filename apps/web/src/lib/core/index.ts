@@ -32,6 +32,8 @@
  * - `radar-source.ts` asks it for the rain radar's frames and their pictures.
  * - `terrain-source.ts` fetches the map's elevation tiles under a flight,
  *   from the map's tile server, for the core to read the ground from.
+ * - `glide-reach-source.ts` fetches them around a place, for what a glide
+ *   reaches from there.
  */
 
 export type {
@@ -77,6 +79,8 @@ export type {
 	ForecastView,
 	ForecastWind,
 	GliderStatistics,
+	GlideReach,
+	GlideReachSetting,
 	GlideSummary,
 	GroundUnderFlight,
 	GroupDetail,
@@ -134,6 +138,8 @@ export type {
 	RouteKind,
 	RouteLegView,
 	RoutePlan,
+	ReachEnd,
+	ReachRay,
 	RouteAlong,
 	RouteLegWeather,
 	RoutePointWeather,

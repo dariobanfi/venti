@@ -28,6 +28,8 @@ import type {
 	AirspaceShape,
 	Bounds,
 	CandidateOffer,
+	GlideReach,
+	GlideReachSetting,
 	Coordinate,
 	SiteCandidates,
 	SiteFlights,
@@ -119,6 +121,7 @@ import type {
 } from './route-weather-source';
 import { type TodayAnswer, todayOrders, type TodaySource } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
+import type { GlideReachSource } from './glide-reach-source';
 import type { WindAnswer, WindSource } from './wind-source';
 
 /** What the page learns when the core has started. */
@@ -337,6 +340,13 @@ export interface Calls {
 	 */
 	routeWeather: { given: RouteWeatherAsked; answer: RouteWeatherAnswer };
 	/**
+	 * What a glide reaches from a place on the map, over the ground there:
+	 * the area as a ring, each direction's glide, and the core's words.
+	 */
+	glideReach: { given: GlideReachSetting; answer: GlideReach };
+	/** Lets go of the ground kept for the glide's reach: the area was cleared. */
+	forgetGlideReach: { given: undefined; answer: undefined };
+	/**
 	 * Marks a site as one of the pilot's own. Given the site as the core
 	 * gave it, the credits of the answer it came from, and the date of the
 	 * source's data by that answer.
@@ -530,6 +540,7 @@ export interface Answering {
 	thermals: ThermalMapSource;
 	radar: RadarSource;
 	routeWeather: RouteWeatherSource;
+	glideReach: GlideReachSource;
 }
 
 /** Does what a call asks of the core. */
@@ -551,7 +562,8 @@ export async function answer<Name extends CallName>(
 		today,
 		thermals,
 		radar,
-		routeWeather
+		routeWeather,
+		glideReach
 	}: Answering,
 	call: Name,
 	given: Calls[Name]['given']
@@ -625,6 +637,8 @@ export async function answer<Name extends CallName>(
 		todayOrders: (days) => todayOrders(days),
 		planRoute: (places) => routePlan(places),
 		routeWeather: (asked) => routeWeather.along(asked),
+		glideReach: (setting) => glideReach.reach(setting),
+		forgetGlideReach: () => glideReach.forget(),
 		keepSite: ({ site, credits, asOfUnixS }) => session.keepSite(site, credits, asOfUnixS),
 		forgetSite: (id) => session.forgetSite(id),
 		isSiteKept: (id) => session.isSiteKept(id),

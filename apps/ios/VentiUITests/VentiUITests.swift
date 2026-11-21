@@ -903,6 +903,150 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 15))
     }
 
+    /// The pilot's own take-offs, against a Venti server in development
+    /// mode: a take-off of Today is kept on its page, which also says what
+    /// its source says of a fee and names its web page; Today then begins
+    /// with it under "Your take-offs"; the settings list it; and forgotten
+    /// there, Today is as it was.
+    func testTodayBeginsWithThePilotsOwnTakeoffs() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        // The map tab opens over the Wallberg, for the test's last step.
+        app.launchArguments = [
+            "--ui-testing", "--bundled-map", "--server", server, "--map-at", "47.6653,11.7954,14",
+        ]
+        app.launch()
+
+        // Nothing kept: Today names no groups.
+        XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 60))
+        let ownTitle = element("today-kept-title", in: app)
+        XCTAssertFalse(ownTitle.exists)
+        XCTAssertFalse(element("today-near-title", in: app).exists)
+
+        // The Jägerkamp, one of the rows: its source names a fee and a
+        // web page.
+        let row = app.descendants(matching: .any).matching(identifier: "today-row")
+            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        bringUp(row, in: app)
+        row.tap()
+        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+
+        // Further down, the button that keeps it.
+        let keep = element("site-keep", in: app)
+        bringUp(keep, in: app)
+        XCTAssertTrue(keep.waitForExistence(timeout: 10))
+        XCTAssertEqual(keep.label, "Keep as my take-off")
+        keep.tap()
+        let kept = app.buttons["Kept"]
+        XCTAssertTrue(kept.waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "Kept on this device only", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("own-1-site-kept")
+
+        // And what its source says besides: the fee in the core's
+        // sentence, and the web page as a link that leaves the app.
+        let page = element("site-website", in: app)
+        bringUp(page, in: app)
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+        XCTAssertTrue(page.label.contains("www.dhv.de"), page.label)
+        XCTAssertTrue(app.staticTexts["A fee is asked for using this site."].exists)
+        sleep(1)
+        keepScreenshot("own-2-site-more")
+
+        // Back on Today it comes first, under the core's name for the
+        // pilot's own, and the others under theirs.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(ownTitle.waitForExistence(timeout: 30))
+        XCTAssertEqual(ownTitle.label, "Your take-offs")
+        let nearTitle = element("today-near-title", in: app)
+        XCTAssertTrue(nearTitle.waitForExistence(timeout: 10))
+        XCTAssertEqual(nearTitle.label, "Within 30 km")
+        let own = labelled(containing: "Jägerkamp", in: app)
+        XCTAssertTrue(own.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(own.frame.minY, ownTitle.frame.minY)
+        XCTAssertLessThan(own.frame.minY, nearTitle.frame.minY)
+        sleep(2)
+        keepScreenshot("own-3-today")
+        drawUp(in: app)
+        sleep(1)
+        keepScreenshot("own-4-today-the-others")
+
+        // The settings list the pilot's own, with the core's note.
+        app.buttons["Settings"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        let link = element("kept-sites-link", in: app)
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("own-5-settings")
+        link.tap()
+        let listed = app.descendants(matching: .any).matching(identifier: "kept-site-row")
+            .matching(NSPredicate(format: "label CONTAINS %@", "Jägerkamp")).firstMatch
+        XCTAssertTrue(listed.waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Kept on this device only", in: app).exists)
+        XCTAssertTrue(labelled(containing: "OpenStreetMap", in: app).exists)
+        sleep(1)
+        keepScreenshot("own-6-list")
+
+        // Forgotten with a swipe: the list is empty and says what to do.
+        listed.swipeLeft()
+        XCTAssertTrue(app.buttons["Forget"].waitForExistence(timeout: 10))
+        app.buttons["Forget"].tap()
+        XCTAssertTrue(app.staticTexts["No take-offs of your own yet"].waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("own-7-list-empty")
+
+        // And Today is as it was: no groups.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element("today-card", in: app).waitForExistence(timeout: 30))
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: ownTitle)
+        wait(for: [gone], timeout: 30)
+        XCTAssertFalse(element("today-near-title", in: app).exists)
+
+        // One of the Wallberg's two ramps, which have no name but a
+        // description in their mapper's words: from the map's list. Kept
+        // as a screenshot when it is reached; the test does not depend
+        // on it.
+        openTab("Map", in: app)
+        let sites = app.buttons["Flying sites"]
+        guard sites.waitForExistence(timeout: 60) else { return }
+        sites.tap()
+        let ramp = app.descendants(matching: .any).matching(identifier: "site-row")
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Take-off", "47.665"))
+            .firstMatch
+        guard ramp.waitForExistence(timeout: 15) else { return }
+        bringUp(ramp, in: app)
+        ramp.tap()
+        guard app.buttons["Plan route"].waitForExistence(timeout: 15) else { return }
+        let description = element("site-description", in: app)
+        bringUp(description, in: app)
+        if description.exists {
+            sleep(1)
+            keepScreenshot("own-8-site-description")
+        }
+    }
+
+    /// Draws the page up until an element stands clear of the tab bar.
+    private func bringUp(_ element: XCUIElement, in app: XCUIApplication) {
+        let bottom = app.windows.firstMatch.frame.maxY - 110
+        for _ in 0..<8 where !(element.exists && !element.frame.isEmpty && element.frame.maxY < bottom) {
+            drawUp(in: app)
+        }
+    }
+
+    /// Draws the page up by a third of the screen, gently: a swipe flings
+    /// a list past what a test looks for.
+    private func drawUp(in app: XCUIApplication) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+        sleep(1)
+    }
+
     /// Today on a strong summer day, which no recording has: against a
     /// stand-in server that hands on a development server's answers and
     /// makes up the forecast (`tools/made-up-day`). The day is made up;

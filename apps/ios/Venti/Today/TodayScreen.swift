@@ -3,9 +3,11 @@ import VentiCore
 
 /// The Today tab, as the design language's Today screen has it: the day in
 /// a line over the valley, and under it the take-offs around with what the
-/// forecast says about flying from each. The nearest take-off with the
-/// best outlook is a card with its readings, its thermals and its hours;
-/// the others are rows with their status and the kind of day.
+/// forecast says about flying from each. The take-off that looks best is
+/// a card with its readings, its thermals and its hours; the others are
+/// rows with their status and the kind of day, the pilot's own first.
+/// Which take-offs these are, their order and which one looks best are
+/// the core's.
 ///
 /// What a forecast says about a take-off is the core's reading of a weather
 /// model, and the screen says so at its foot: the model, when the server
@@ -13,6 +15,7 @@ import VentiCore
 struct TodayScreen: View {
     @Environment(TodayModel.self) private var today
     @Environment(WindModel.self) private var wind
+    @Environment(KeptSitesModel.self) private var kept
 
     /// Which of the forecast's days is shown: 0 is today.
     @State private var day = 0
@@ -35,9 +38,12 @@ struct TodayScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                // The core's order for the chosen day, asked once for
+                // all that is drawn from it.
+                let shown = arrangement
                 VStack(spacing: 0) {
-                    header
-                    content
+                    header(shown)
+                    content(shown)
                         .padding(.horizontal, VentiSpace.s4)
                         .padding(.vertical, VentiSpace.s4)
                 }
@@ -60,7 +66,7 @@ struct TodayScreen: View {
                 }
             }
             .navigationDestination(for: SiteView.self) { site in
-                SiteScreen(site: site)
+                SiteScreen(site: site, credits: today.listed?.credits, asOfUnixS: today.sitesAsOfUnixS)
             }
             // The settings and the assistant are pages of this tab: the
             // tab bar stays, and they keep their place while the pilot
@@ -73,9 +79,9 @@ struct TodayScreen: View {
             }
         }
         // Asked when the tab is first shown, when the pilot's position
-        // arrives, when the server's address changes, and again after a
-        // while.
-        .task(id: Asked(place: place, server: wind.server)) {
+        // arrives, when the server's address changes, when the pilot has
+        // kept or forgotten a site, and again after a while.
+        .task(id: Asked(place: place, server: wind.server, kept: kept.changes)) {
             position.readIfAllowed()
             if !today.isFresh(for: place) {
                 await today.load(around: place)
@@ -93,32 +99,50 @@ struct TodayScreen: View {
     private struct Asked: Equatable {
         let place: Coordinate
         let server: URL?
+        let kept: Int
     }
 
-    /// The take-offs in the order they are shown: by what the forecast
-    /// says of the chosen day, the better first, among flyable days the
-    /// one with the better thermals, and among equals the nearer. One the
-    /// server has not answered for yet comes last.
-    private var ordered: [TodayModel.Place] {
-        today.places.sorted { one, other in
-            let ranks = (rank(one), rank(other))
-            return ranks.0 == ranks.1 ? one.distanceM < other.distanceM : ranks.0 < ranks.1
-        }
+    /// The take-offs as the screen lays them out on the chosen day.
+    struct Arrangement {
+        /// The take-off that looks best, on the card; before any has a
+        /// forecast for the day, the first of the list.
+        var card: TodayModel.Place?
+        /// The pilot's own take-offs and the others, as rows in the
+        /// core's order, without the one on the card.
+        var kept: [TodayModel.Place] = []
+        var near: [TodayModel.Place] = []
+        /// Whether the two groups are named: where both have take-offs.
+        var namesGroups = false
     }
 
-    private func rank(_ place: TodayModel.Place) -> Int {
-        guard let day = outlookDay(of: place) else { return 6 }
-        switch day.verdict {
-        case .flyable:
-            switch day.thermals {
-            case .big: return 0
-            case .crossCountry: return 1
-            case .local: return 2
-            case .weak, nil: return 3
+    /// The core's order of the take-offs on the chosen day
+    /// (`todayOrder`), laid out: the best on the card, the others in
+    /// their two groups.
+    private var arrangement: Arrangement {
+        Self.arrange(today.places) { outlookDay(of: $0) }
+    }
+
+    static func arrange(
+        _ places: [TodayModel.Place], dayOf: (TodayModel.Place) -> OutlookDay?
+    ) -> Arrangement {
+        let order = todayOrder(
+            takeoffs: places.map { place in
+                let day = dayOf(place)
+                return TodayStanding(
+                    id: place.id, isKept: place.isKept, distanceM: place.distanceM,
+                    verdict: day?.verdict, thermals: day?.thermals
+                )
             }
-        case .marginal: return 4
-        case .notFlyable: return 5
-        }
+        )
+        let ordered = order.ids.compactMap { id in places.first { $0.id == id } }
+        let card = ordered.first { $0.id == order.best } ?? ordered.first
+        let rows = ordered.filter { $0.id != card?.id }
+        return Arrangement(
+            card: card,
+            kept: rows.filter(\.isKept),
+            near: rows.filter { !$0.isKept },
+            namesGroups: places.contains(where: \.isKept) && places.contains { !$0.isKept }
+        )
     }
 
     /// What a take-off's forecast says of the chosen day: the day that
@@ -180,7 +204,7 @@ struct TodayScreen: View {
     /// The valley, with the day and its line. The art is the design
     /// pack's and is light in both appearances, so its words are in the
     /// pack's ink whatever the iPhone is set to.
-    private var header: some View {
+    private func header(_ shown: Arrangement) -> some View {
         // The art fills a frame as wide as the screen and is cut at its
         // edges: laid out by itself it would be as wide as it is drawn,
         // and the page with it.
@@ -198,13 +222,13 @@ struct TodayScreen: View {
                 VStack(spacing: 2) {
                     Text(dayLine)
                         .font(.ventiType(.label))
-                    Text(headline)
+                    Text(headline(shown))
                         .font(.ventiType(.hero))
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.7)
                         .lineLimit(2)
                         .accessibilityIdentifier("today-headline")
-                    if let kind = kindOfDay {
+                    if let kind = kindOfDay(shown) {
                         Text(kind)
                             .font(.ventiType(.label))
                             .accessibilityIdentifier("today-kind-of-day")
@@ -227,7 +251,7 @@ struct TodayScreen: View {
 
     /// The day in a line: the best take-off's. Before there is one, what
     /// the screen is waiting for.
-    private var headline: String {
+    private func headline(_ shown: Arrangement) -> String {
         switch today.state {
         case .failed: return "No forecast"
         case .idle, .loading: return "Reading the forecast"
@@ -235,7 +259,7 @@ struct TodayScreen: View {
             if today.places.isEmpty {
                 return "No take-offs near"
             }
-            guard let best = ordered.first else { return "Reading the forecast" }
+            guard let best = shown.card else { return "Reading the forecast" }
             return outlookDay(of: best)?.headline
                 ?? (today.places.allSatisfy(\.isAsked) ? "No forecast" : "Reading the forecast")
         }
@@ -243,8 +267,8 @@ struct TodayScreen: View {
 
     /// The kind of day the best take-off's thermals make, "Cross-country
     /// day", where the forecast has an estimate.
-    private var kindOfDay: String? {
-        guard case .loaded = today.state, let best = ordered.first,
+    private func kindOfDay(_ shown: Arrangement) -> String? {
+        guard case .loaded = today.state, let best = shown.card,
               let words = outlookDay(of: best)?.thermalWords, !words.isEmpty
         else { return nil }
         return words
@@ -252,7 +276,7 @@ struct TodayScreen: View {
 
     // MARK: The list
 
-    @ViewBuilder private var content: some View {
+    @ViewBuilder private func content(_ shown: Arrangement) -> some View {
         switch today.state {
         case .failed(let message):
             Explained(title: "The forecast could not be read", words: message, action: "Try again") {
@@ -288,26 +312,50 @@ struct TodayScreen: View {
                         }
                         .accessibilityIdentifier("today-days")
                     }
-                    let shown = ordered
-                    if let first = shown.first {
+                    if let problem = today.problem {
+                        // Venti gave no take-offs: the pilot's own are
+                        // listed, from the iPhone.
+                        Text(problem)
+                            .font(.ventiType(.caption))
+                            .foregroundStyle(.venti(.textSecondary))
+                            .accessibilityIdentifier("today-problem")
+                    }
+                    let words = today.listed
+                    let cardIsKept = shown.card?.isKept ?? false
+                    if shown.namesGroups, cardIsKept, let words {
+                        GroupTitle(words: words.keptTitle)
+                            .accessibilityIdentifier("today-kept-title")
+                    }
+                    if let first = shown.card {
                         NavigationLink(value: first.site) {
                             TakeoffCard(place: first, day: outlookDay(of: first))
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("today-card")
                     }
-                    VStack(spacing: 0) {
-                        ForEach(shown.dropFirst()) { place in
-                            NavigationLink(value: place.site) {
-                                TakeoffRow(place: place, day: outlookDay(of: place))
+                    if !shown.kept.isEmpty || !(words?.keptMore ?? "").isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if shown.namesGroups, !cardIsKept, !shown.kept.isEmpty, let words {
+                                GroupTitle(words: words.keptTitle)
+                                    .accessibilityIdentifier("today-kept-title")
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("today-row")
-                            if place.id != shown.last?.id {
-                                Rectangle()
-                                    .fill(.venti(.border))
-                                    .frame(height: 1)
+                            rows(shown.kept)
+                            if let more = words?.keptMore, !more.isEmpty {
+                                Text(more)
+                                    .font(.ventiType(.caption))
+                                    .foregroundStyle(.venti(.textSecondary))
+                                    .padding(.top, VentiSpace.s2)
+                                    .accessibilityIdentifier("today-kept-more")
                             }
+                        }
+                    }
+                    if !shown.near.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if shown.namesGroups, let words {
+                                GroupTitle(words: words.nearTitle)
+                                    .accessibilityIdentifier("today-near-title")
+                            }
+                            rows(shown.near)
                         }
                     }
                     if position.place == nil, !position.isDenied {
@@ -320,7 +368,7 @@ struct TodayScreen: View {
                         .buttonStyle(.venti(.quiet))
                         .accessibilityHint("Shows the take-offs around you")
                     }
-                    foot
+                    foot(shown)
                 }
             }
         }
@@ -328,11 +376,16 @@ struct TodayScreen: View {
 
     /// What the reading is, whose data it is, and how fresh: the design
     /// language asks a forecast for its update time and its source.
-    private var foot: some View {
+    private func foot(_ shown: Arrangement) -> some View {
         let outlook = today.places.compactMap(\.outlook).first
         // The chosen day's own model, where the best take-off has the day:
         // a day after the finest model's run ends is a coarser one's.
-        let read = ordered.first.flatMap { outlookDay(of: $0) }
+        let read = shown.card.flatMap { outlookDay(of: $0) }
+        // Whose data the forecasts are, and whose the take-offs: each
+        // source once.
+        let sources = today.credits + (today.listed?.credits ?? []).filter { site in
+            !today.credits.contains { $0.source == site.source }
+        }
         return VStack(alignment: .leading, spacing: VentiSpace.s2) {
             if let outlook, !outlook.note.isEmpty {
                 let note = read.map(\.note).flatMap { $0.isEmpty ? nil : $0 } ?? outlook.note
@@ -342,7 +395,7 @@ struct TodayScreen: View {
                 )
             }
             Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits, and the kind of day is what its heat and temperatures say of thermals. They are not advice to fly.")
-            ForEach(today.credits, id: \.source) { credit in
+            ForEach(sources, id: \.source) { credit in
                 Text(credit.text)
             }
         }
@@ -350,6 +403,38 @@ struct TodayScreen: View {
         .foregroundStyle(.venti(.textSecondary))
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("today-foot")
+    }
+}
+
+extension TodayScreen {
+    /// Take-offs as rows, with a line between two.
+    @ViewBuilder fileprivate func rows(_ places: [TodayModel.Place]) -> some View {
+        ForEach(places) { place in
+            NavigationLink(value: place.site) {
+                TakeoffRow(place: place, day: outlookDay(of: place))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("today-row")
+            if place.id != places.last?.id {
+                Rectangle()
+                    .fill(.venti(.border))
+                    .frame(height: 1)
+            }
+        }
+    }
+}
+
+/// What a group of take-offs is called, in the core's words: "Your
+/// take-offs", "Within 30 km".
+private struct GroupTitle: View {
+    let words: String
+
+    var body: some View {
+        Text(words)
+            .font(.ventiType(.label))
+            .foregroundStyle(.venti(.textSecondary))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

@@ -315,7 +315,7 @@ struct PlanForm: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            VentiList {
                 if editing == nil, groups.groups.count > 1 {
                     Section {
                         Picker("Group", selection: $group) {

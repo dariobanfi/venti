@@ -49,7 +49,7 @@ private struct SignInForm: View {
     @State private var invite = ""
 
     var body: some View {
-        Form {
+        VentiList {
             Section {
                 Text("With an account, your flights are copied to Venti. They appear on your other devices, and you can share one with a link. A flight stays private until you share it.")
             }
@@ -121,7 +121,7 @@ private struct SignedInView: View {
     @State private var password = ""
 
     var body: some View {
-        Form {
+        VentiList {
             Section {
                 LabeledContent("Handle", value: "@\(signedIn.handle)")
                 LabeledContent("Name", value: signedIn.displayName)
@@ -205,7 +205,7 @@ struct ShareFlightSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            VentiList {
                 if !account.isSignedIn {
                     Section {
                         Text("To share a flight with a link, sign in to Venti under Settings, Account.")

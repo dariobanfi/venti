@@ -3,13 +3,14 @@ import Foundation
 import Observation
 import VentiCore
 
-/// Today: the take-offs around a place, and what the forecast says about
-/// flying from each.
+/// Today: the pilot's own take-offs and those around a place, and what the
+/// forecast says about flying from each.
 ///
-/// What to ask the server, how to read its answers and what a forecast
-/// says about a take-off are the core's. This class asks for the sites
-/// around the place and for the forecast of each of the nearest
-/// take-offs, and keeps what came back.
+/// Which take-offs those are, what to ask the server, how to read its
+/// answers and what a forecast says about a take-off are the core's. This
+/// class asks for the sites of the area the core names, hands the answer
+/// to the core, asks for the forecast of each take-off it gives back, and
+/// keeps what came.
 @MainActor
 @Observable
 final class TodayModel {
@@ -19,8 +20,11 @@ final class TodayModel {
     /// A take-off and what the forecast says of it.
     struct Place: Identifiable, Equatable {
         let site: SiteView
-        /// How far it is from the place asked about, metres.
-        let distanceM: Double
+        /// Whether it is one of the pilot's own.
+        let isKept: Bool
+        /// How far it is from the place asked about, metres, as the core
+        /// says it.
+        let distanceM: Double?
         /// Absent until the server has answered, and when it could not.
         var outlook: SiteOutlook?
         /// Whether the server has been asked and the asking is over,
@@ -38,21 +42,29 @@ final class TodayModel {
         case failed(String)
     }
 
-    /// How many take-offs are shown: the nearest ones.
-    static let takeoffsShown = 6
-    /// How far from the place a take-off may lie, metres.
-    static let reachM = 30_000.0
     /// How long an answer is shown before the server is asked again.
     static let keepFor: TimeInterval = 30 * 60
 
     private(set) var state = State.idle
-    /// The take-offs: those with a name first, and the nearest first.
+    /// The take-offs as the core lists them: the pilot's own first, then
+    /// those around the place. Their order on a day is the core's too
+    /// (`todayOrder`), asked by the screen for the day it shows.
     private(set) var places: [Place] = []
+    /// What the core says with the list: what the two groups are called,
+    /// the line about own take-offs that are not listed, and whose data
+    /// the take-offs are.
+    private(set) var listed: TodayTakeoffs?
+    /// The date of the sites' data in the server's answer, for keeping
+    /// one of them. Absent without an answer.
+    private(set) var sitesAsOfUnixS: Int64?
+    /// Why Venti gave no take-offs while the pilot's own are listed.
+    private(set) var problem: String?
     /// Whose data the forecasts are. The licences ask for this next to
     /// the data.
     private(set) var credits: [Credit] = []
-    /// Where the take-offs were looked for, and when.
-    private(set) var asked: (place: Coordinate, at: Date)?
+    /// Where the take-offs were looked for, when, and how much the pilot
+    /// had kept and forgotten by then.
+    private(set) var asked: (place: Coordinate, at: Date, changes: Int)?
 
     /// The server to ask. The app sets this to the one in the settings.
     @ObservationIgnored var server: () -> URL? = { nil }
@@ -64,11 +76,13 @@ final class TodayModel {
     @ObservationIgnored var forecastPause = Duration.seconds(5)
     static let forecastTries = 7
 
+    @ObservationIgnored private let kept: KeptSitesModel
     @ObservationIgnored private let transport: Transport
     /// What was asked about single sites, for their own pages.
     @ObservationIgnored private var askedSites: [String: (outlook: SiteOutlook, at: Date)] = [:]
 
-    init(transport: @escaping Transport = WindModel.fetch) {
+    init(kept: KeptSitesModel, transport: @escaping Transport = WindModel.fetch) {
+        self.kept = kept
         self.transport = transport
     }
 
@@ -89,97 +103,109 @@ final class TodayModel {
         return outlook
     }
 
-    /// Whether what is shown was asked for this place not long ago.
+    /// Whether what is shown was asked for this place not long ago, and
+    /// the pilot has kept or forgotten no site since.
     func isFresh(for place: Coordinate) -> Bool {
-        guard let asked, state == .loaded else { return false }
+        guard let asked, state == .loaded, asked.changes == kept.changes else { return false }
         let moved = CLLocation(latitude: asked.place.lat, longitude: asked.place.lon)
             .distance(from: CLLocation(latitude: place.lat, longitude: place.lon))
         return moved < 5_000 && Date().timeIntervalSince(asked.at) < Self.keepFor
     }
 
-    /// Asks for the take-offs around a place and the forecast of each.
+    /// Asks for the take-offs around a place, has the core choose Today's
+    /// among them and the pilot's own, and asks for the forecast of each.
     func load(around place: Coordinate) async {
-        guard let server = server() else {
-            places = []
-            credits = []
-            asked = nil
-            state = .failed("Venti could not be reached.")
-            return
-        }
+        let changes = kept.changes
+        let server = server()
         if places.isEmpty {
             state = .loading
         }
-        do {
-            let found = try await takeoffs(around: place, from: server)
-            let nowUnixS = await clock()
-            // The list at once, each forecast as it arrives.
-            places = found
-            asked = (place, Date())
-            state = .loaded
-            await withTaskGroup(of: (String, SiteOutlook?).self) { group in
-                for takeoff in found {
-                    group.addTask { [weak self] in
-                        (takeoff.id, await self?.outlook(for: takeoff.site, from: server, nowUnixS: nowUnixS))
-                    }
-                }
-                for await (id, outlook) in group {
-                    guard let index = places.firstIndex(where: { $0.id == id }) else { continue }
-                    places[index].isAsked = true
-                    guard let outlook else { continue }
-                    places[index].outlook = outlook
-                    if credits.isEmpty {
-                        credits = outlook.credits
-                    }
-                }
-            }
-        } catch is CancellationError {
-            return
-        } catch {
-            if (error as? URLError)?.code == .cancelled {
+        // The sites around, from Venti. Without an answer the core lists
+        // the pilot's own take-offs alone, which need no network.
+        var near: SitesMap?
+        var missing: String?
+        if let server {
+            do {
+                near = try await sites(around: place, from: server)
+            } catch is CancellationError {
                 return
-            }
-            state = .failed(
-                error is CoreError
+            } catch {
+                if (error as? URLError)?.code == .cancelled {
+                    return
+                }
+                missing = error is CoreError
                     ? error.words
                     : "Venti could not be reached for today's forecast. \(error.localizedDescription)"
+            }
+        } else {
+            missing = "Venti could not be reached."
+        }
+        let found: TodayTakeoffs
+        do {
+            found = try await kept.todayTakeoffs(place: place, near: near)
+        } catch {
+            state = .failed(error.words)
+            return
+        }
+        if let missing, found.takeoffs.isEmpty {
+            if server == nil {
+                places = []
+                listed = nil
+                credits = []
+                asked = nil
+            }
+            state = .failed(missing)
+            return
+        }
+        let nowUnixS = await clock()
+        // The list at once, each forecast as it arrives. A take-off that
+        // was listed before keeps what was read of it until then.
+        let before = places
+        places = found.takeoffs.map { takeoff in
+            Place(
+                site: takeoff.site, isKept: takeoff.isKept, distanceM: takeoff.distanceM,
+                outlook: before.first { $0.id == takeoff.site.id }?.outlook
             )
+        }
+        listed = found
+        sitesAsOfUnixS = near?.asOfUnixS
+        problem = missing
+        asked = (place, Date(), changes)
+        state = .loaded
+        guard let server else {
+            for index in places.indices {
+                places[index].isAsked = true
+            }
+            return
+        }
+        await withTaskGroup(of: (String, SiteOutlook?).self) { group in
+            for takeoff in found.takeoffs {
+                group.addTask { [weak self] in
+                    (takeoff.site.id, await self?.outlook(for: takeoff.site, from: server, nowUnixS: nowUnixS))
+                }
+            }
+            for await (id, outlook) in group {
+                guard let index = places.firstIndex(where: { $0.id == id }) else { continue }
+                places[index].isAsked = true
+                guard let outlook else { continue }
+                places[index].outlook = outlook
+                if credits.isEmpty {
+                    credits = outlook.credits
+                }
+            }
         }
     }
 
-    /// The take-offs within reach of a place.
-    private func takeoffs(around place: Coordinate, from server: URL) async throws -> [Place] {
-        // A box that holds the circle of the reach.
-        let north = Self.reachM / 111_195
-        let east = north / max(cos(place.lat * .pi / 180), 0.2)
-        let area = Bounds(
-            south: place.lat - north, west: place.lon - east, north: place.lat + north, east: place.lon + east
-        )
+    /// The server's sites for the area the core says Today looks in.
+    private func sites(around place: Coordinate, from server: URL) async throws -> SitesMap {
+        let area = try todayArea(lat: place.lat, lon: place.lon)
         let path = try sitesPath(south: area.south, west: area.west, north: area.north, east: area.east)
-        guard let url = URL(string: server.absoluteString + path) else { return [] }
+        guard let url = URL(string: server.absoluteString + path) else { throw URLError(.badURL) }
         let (status, body) = try await transport(url)
-        let map = try sitesMap(
+        return try sitesMap(
             south: area.south, west: area.west, north: area.north, east: area.east,
             status: UInt16(clamping: status), body: body
         )
-        let here = CLLocation(latitude: place.lat, longitude: place.lon)
-        var near: [Place] = []
-        for site in map.sites where site.uses.contains(.takeoff) && !site.discouraged {
-            let distance = here.distance(
-                from: CLLocation(latitude: site.position.lat, longitude: site.position.lon)
-            )
-            if distance <= Self.reachM {
-                near.append(Place(site: site, distanceM: distance))
-            }
-        }
-        // Those with a name of their own first: "Take-off" tells a pilot
-        // nothing. Among them, and among the rest, the nearest.
-        near.sort { (one: Place, other: Place) -> Bool in
-            if one.site.isNamed != other.site.isNamed {
-                return one.site.isNamed
-            }
-            return one.distanceM < other.distanceM
-        }
-        return Array(near.prefix(Self.takeoffsShown))
     }
 
     /// What the forecast says about a take-off. The first forecast of a

@@ -64,7 +64,7 @@ struct ReportSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            VentiList {
                 if let outcome {
                     Section {
                         Label(outcome, systemImage: "checkmark.circle")

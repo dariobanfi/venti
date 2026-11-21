@@ -227,7 +227,7 @@ private struct KeyEntry: View {
     @State private var key = ""
 
     var body: some View {
-        Form {
+        VentiList {
             Section {
                 Text("The assistant answers questions about your flying from your logbook. It runs on your own account with Anthropic, the maker of Claude: Venti pays for nothing and takes nothing.")
             }
@@ -274,7 +274,7 @@ private struct OtherServiceForm: View {
     @State private var problem: String?
 
     var body: some View {
-        Form {
+        VentiList {
             Section {
                 Text("The assistant can run at any service that speaks the chat completions format: OpenAI, OpenRouter and others, or a model you run on a computer of your own. You need the address of its API, its name for the model, and a key for your account there.")
             }

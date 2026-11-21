@@ -198,10 +198,16 @@ private struct SiteRow: View {
 /// One flying site, as the design language's sheet has it: its name with
 /// what the forecast says of it, what it is in a line, and the two things
 /// to do from here, plan a route and start a flight. Under that, what its
-/// source says about it, what that is worth, and a way to keep it as a
+/// source says about it, what that is worth, and the ways to keep it: as
+/// one of the pilot's own take-offs, which Today begins with, and as a
 /// waypoint.
 struct SiteScreen: View {
     let site: SiteView
+    /// The credits and the date of the answer the site came from, where
+    /// that is not the map's: Today's, or the pilot's own list's. The core
+    /// keeps them with a site the pilot keeps.
+    var credits: [Credit]?
+    var asOfUnixS: Int64?
 
     @Environment(SitesModel.self) private var sites
     @Environment(WindModel.self) private var wind
@@ -210,7 +216,14 @@ struct SiteScreen: View {
     @Environment(TodayModel.self) private var today
     @Environment(AppNavigation.self) private var navigation
     @Environment(FlySession.self) private var fly
+    @Environment(KeptSitesModel.self) private var own
 
+    /// Whether the site is one of the pilot's own, as the core says.
+    @State private var isOwn = false
+    /// The date a kept site's record is of, for keeping it again as it is.
+    @State private var ownAsOf: Int64?
+    /// Why it could not be kept or forgotten, in the core's words.
+    @State private var ownProblem: String?
     @State private var kept: String?
     /// What the forecast says about flying from here. Absent for a place
     /// to land, without a server, and until the server has answered.
@@ -306,6 +319,17 @@ struct SiteScreen: View {
                 }
             }
             Section {
+                Button(isOwn ? "Kept" : "Keep as my take-off", systemImage: isOwn ? "checkmark" : "plus") {
+                    Task {
+                        await keepOrForget()
+                    }
+                }
+                .accessibilityIdentifier("site-keep")
+                .accessibilityHint(isOwn ? "Forgets it as your take-off" : "")
+            } footer: {
+                Text(ownProblem ?? Self.ownWords(isOwn: isOwn, note: own.list?.note))
+            }
+            Section {
                 Button(kept == nil ? "Add to my waypoints" : "In your waypoints", systemImage: kept == nil ? "plus" : "checkmark") {
                     do {
                         try waypoints.add(name: site.name, position: site.position, elevationM: site.elevationM)
@@ -323,6 +347,28 @@ struct SiteScreen: View {
             // later and must not push that away from under a finger.
             if wind.server != nil, !flown.isEmpty {
                 FlownFromHere(flights: flown)
+            }
+            // More about the site, as its source has it: the mapper's
+            // words as written, the core's sentences, and the web page
+            // its source names, which opens outside the app.
+            if let words = site.description, !words.isEmpty {
+                Section("What its source says") {
+                    Text(words)
+                        .accessibilityIdentifier("site-description")
+                }
+            }
+            let sentences = [site.feeInWords, site.guestsInWords, site.noFlightInWords].filter { !$0.isEmpty }
+            let page = Self.webPage(site.website)
+            if !sentences.isEmpty || page != nil {
+                Section {
+                    ForEach(sentences, id: \.self) { sentence in
+                        Text(sentence)
+                    }
+                    if let page {
+                        Link("Web page: \(page.host() ?? page.absoluteString)", destination: page)
+                            .accessibilityIdentifier("site-website")
+                    }
+                }
             }
             Section {
                 if let address = site.url, let link = URL(string: address) {
@@ -349,6 +395,17 @@ struct SiteScreen: View {
             guard wind.server != nil, site.kind == .takeoff || site.kind == .towing else { return }
             flown = (try? await community.flights(near: site.position)) ?? []
         }
+        // Whether it is one of the pilot's own, and what the core says
+        // with those.
+        .task(id: site.id) {
+            isOwn = await own.isKept(site.id)
+            if isOwn {
+                ownAsOf = await own.asOf(site.id)
+            }
+            if own.list == nil {
+                await own.load(from: nil)
+            }
+        }
         // What the forecast says about flying from here.
         .task(id: site.id) {
             guard isForTakingOff else { return }
@@ -357,6 +414,43 @@ struct SiteScreen: View {
         .fullScreenCover(isPresented: $isPlanningRoute) {
             RouteMapPlanner(from: site.position)
         }
+    }
+
+    /// Keeps the site as one of the pilot's own, or forgets it. The core
+    /// takes the site's whole record, with the credits and the date of
+    /// the answer it came from: the page's own, else the map's.
+    private func keepOrForget() async {
+        do {
+            if isOwn {
+                try await own.forget(site.id)
+            } else {
+                let asOf = asOfUnixS ?? sites.asOfUnixS ?? ownAsOf
+                try await own.keep(site, credits: (credits ?? []) + sites.credits, asOfUnixS: asOf)
+                ownAsOf = asOf
+            }
+            ownProblem = nil
+        } catch {
+            ownProblem = error.words
+        }
+        isOwn = await own.isKept(site.id)
+    }
+
+    /// What stands under the button: what keeping does on this iPhone,
+    /// and the core's note on where the list is kept.
+    static func ownWords(isOwn: Bool, note: String?) -> String {
+        let what = isOwn
+            ? "Today lists it first, among your take-offs. Tap again to forget it."
+            : "Today lists your take-offs first."
+        return [what, note].compactMap { $0 }.joined(separator: "\n\n")
+    }
+
+    /// A web address as a link, where it is one a browser opens. It is
+    /// opened outside the app, never loaded inside.
+    static func webPage(_ address: String?) -> URL? {
+        guard let address, let url = URL(string: address), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https", url.host() != nil
+        else { return nil }
+        return url
     }
 
     /// Whether flights begin here: the forecast's verdict and "Start
@@ -446,7 +540,7 @@ struct SiteScreen: View {
     /// The credit and the notice of the site's source, and what a site on
     /// a map is worth.
     private var footnote: String {
-        let credit = sites.credits.first { $0.source == site.source }
+        let credit = ((credits ?? []) + sites.credits).first { $0.source == site.source }
         let parts = [Self.caution, credit?.notice, credit?.text]
         return parts.compactMap { $0 }.joined(separator: "\n\n")
     }

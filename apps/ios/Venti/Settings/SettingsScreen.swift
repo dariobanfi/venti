@@ -33,6 +33,15 @@ struct SettingsScreen: View {
                 }
 
                 Section {
+                    NavigationLink("Your take-offs") {
+                        KeptSitesScreen()
+                    }
+                    .accessibilityIdentifier("kept-sites-link")
+                } footer: {
+                    Text("The sites you kept as your take-offs. Today lists them first.")
+                }
+
+                Section {
                     Toggle(
                         "Vario sound",
                         isOn: Binding(

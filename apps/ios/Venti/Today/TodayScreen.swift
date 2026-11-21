@@ -302,10 +302,15 @@ struct TodayScreen: View {
     /// language asks a forecast for its update time and its source.
     private var foot: some View {
         let outlook = today.places.compactMap(\.outlook).first
+        // The chosen day's own model, where the best take-off has the day:
+        // a day after the finest model's run ends is a coarser one's.
+        let read = ordered.first.flatMap { outlookDay(of: $0) }
         return VStack(alignment: .leading, spacing: VentiSpace.s2) {
             if let outlook, !outlook.note.isEmpty {
+                let note = read.map(\.note).flatMap { $0.isEmpty ? nil : $0 } ?? outlook.note
+                let run = read.map(\.runUnixS).flatMap { $0 == 0 ? nil : $0 } ?? outlook.runUnixS
                 Text(
-                    "\(outlook.note) Run of \(Format.time(unixSeconds: outlook.runUnixS)), looked up at \(Format.time(unixSeconds: outlook.fetchedUnixS))."
+                    "\(note) Run of \(Format.time(unixSeconds: run)), looked up at \(Format.time(unixSeconds: outlook.fetchedUnixS))."
                 )
             }
             Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits, and the kind of day is what its heat and temperatures say of thermals. They are not advice to fly.")
@@ -469,9 +474,10 @@ private struct TakeoffRow: View {
 private struct HourStrip: View {
     let hours: [OutlookHour]
 
-    /// Whether any of the hours has an estimate of its thermals.
+    /// Whether any of the hours has thermals to climb in. A day without
+    /// any says so in its line, and a row of noughts adds nothing to that.
     static func showsThermals(_ hours: [OutlookHour]) -> Bool {
-        hours.contains { $0.climbMs != nil }
+        hours.contains { ($0.climbMs ?? 0) > 0 }
     }
 
     var body: some View {

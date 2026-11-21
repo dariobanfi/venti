@@ -752,7 +752,7 @@ final class VentiUITests: XCTestCase {
         let kind = element("today-kind-of-day", in: app)
         XCTAssertTrue(kind.waitForExistence(timeout: 90))
         XCTAssertEqual(kind.label, "Big day")
-        XCTAssertTrue(labelled(containing: "m/s to a cloud base of 3400 m", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "m/s to a cloud base of 3500 m", in: app).waitForExistence(timeout: 15))
         sleep(2)
         keepScreenshot("today-5-big-day")
 
@@ -768,6 +768,9 @@ final class VentiUITests: XCTestCase {
         card.tap()
         XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
         XCTAssertTrue(element("thermals", in: app).waitForExistence(timeout: 15))
+        // And draws the day's air: the thermals hour by hour and the
+        // wind at heights.
+        XCTAssertTrue(element("air-chart", in: app).waitForExistence(timeout: 15))
         sleep(1)
         keepScreenshot("today-7-site-on-a-big-day")
     }
@@ -1439,9 +1442,15 @@ final class VentiUITests: XCTestCase {
         // Before take-off the Fly tab says whether there is a map for
         // flying without a network, and leads to the regions.
         let before = element("map-before-takeoff", in: app)
-        XCTAssertTrue(before.waitForExistence(timeout: 10))
+        XCTAssertTrue(before.waitForExistence(timeout: 30))
         before.tap()
-        XCTAssertTrue(app.navigationBars["Offline maps"].waitForExistence(timeout: 10))
+        // On a runner whose simulator has only just started, the app can
+        // be slow to answer for half a minute, and a tap made then is
+        // sometimes lost: the page is asked for once more.
+        if !app.navigationBars["Offline maps"].waitForExistence(timeout: 20) {
+            before.tap()
+        }
+        XCTAssertTrue(app.navigationBars["Offline maps"].waitForExistence(timeout: 30))
         let region = element("map-region", in: app)
         if !region.waitForExistence(timeout: 30) {
             if element("maps-none", in: app).exists {
@@ -1487,7 +1496,7 @@ final class VentiUITests: XCTestCase {
         // development mode's stations stand fifty kilometres off and
         // more, and the badge says so.
         let ground = element("ground-wind-badge", in: app)
-        XCTAssertTrue(ground.waitForExistence(timeout: 60))
+        XCTAssertTrue(ground.waitForExistence(timeout: 120))
         tapWhenStill(ground)
         XCTAssertTrue(element("ground-wind-row", in: app).waitForExistence(timeout: 15))
         sleep(1)

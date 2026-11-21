@@ -234,6 +234,16 @@ struct SiteScreen: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
+            // The day's air as a picture: the thermals hour by hour and
+            // the wind at heights, where the forecast knows the model's
+            // ground to stand them on.
+            if let day, !day.hours.isEmpty, day.groundM != nil {
+                Section {
+                    AirChart(day: day, takeoffM: site.elevationM)
+                } header: {
+                    Text("The air · \(day.name)")
+                }
+            }
             Section {
                 LabeledContent("Where", value: Format.place(lat: site.position.lat, lon: site.position.lon))
                 LabeledContent("Wind it works in") {

@@ -22,7 +22,11 @@ function day(verdict: OutlookDay['verdict'], thermals?: Thermals): OutlookDay {
 		thermalWords: '',
 		thermalLine: '',
 		climbMs: undefined,
-		thermalTopM: undefined
+		thermalTopM: undefined,
+		groundM: undefined,
+		model: 'ICON-D2',
+		runUnixS: 0,
+		note: ''
 	};
 }
 

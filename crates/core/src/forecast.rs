@@ -369,7 +369,7 @@ fn hour_view(hour: &ForecastHour, levels: &[LevelKey], is_daylight: bool) -> For
     }
 }
 
-fn wind(speed_ms: f64, gust_ms: Option<f64>, from_deg: Option<f64>) -> ForecastWind {
+pub(crate) fn wind(speed_ms: f64, gust_ms: Option<f64>, from_deg: Option<f64>) -> ForecastWind {
     ForecastWind {
         speed_ms,
         from_deg,

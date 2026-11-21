@@ -25,10 +25,11 @@ use venti_flight::convection::{Convection, convection};
 use venti_flight::sun;
 
 use crate::airspace::compass;
+use crate::forecast::wind as forecast_wind;
 use crate::server::answer;
 use crate::sites::{WindSpan, wind_fits, wind_spans_in_words};
 use crate::wind::credit;
-use crate::{CoreError, Credit};
+use crate::{CoreError, Credit, ForecastWind};
 
 /// Rain or snow in an hour, millimetres, from which the hour is not for
 /// flying.
@@ -57,6 +58,9 @@ const CLOUD_BASE_CLEAR_M: f64 = 200.0;
 const CAPE_J_KG: f64 = 800.0;
 /// A stretch of flyable hours counts from this many in a row.
 const WINDOW_HOURS: usize = 2;
+/// Up to this height above sea level an hour lists the wind at the
+/// model's levels, metres: the air a paraglider flies in.
+const WINDS_UP_TO_M: f64 = 5000.0;
 /// The climb a paraglider needs in thermals, m/s: to stay up around the
 /// take-off, to fly cross-country, and on a big day.
 const CLIMB_MS: [f64; 3] = [0.5, 1.0, 2.0];
@@ -127,6 +131,20 @@ impl Thermals {
     }
 }
 
+/// The wind at one of the model's levels in an hour, for a picture of the
+/// air over a take-off.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct OutlookWind {
+    /// How high the level lies, metres above sea level. For a level at a
+    /// fixed height above the model's ground it is that ground's height
+    /// with the level's added: the model's, not the terrain's.
+    pub altitude_m: f64,
+    /// The wind there.
+    pub wind: ForecastWind,
+}
+
 /// One daylight hour at a take-off.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -158,6 +176,13 @@ pub struct OutlookHour {
     /// fifty: the cloud base, or where they end in the blue. `None`
     /// without thermals.
     pub thermal_top_m: Option<f64>,
+    /// Whether cumulus caps the thermals: `thermal_top_m` is then the
+    /// cloud base. False on a blue day and without thermals.
+    pub thermal_cloud: bool,
+    /// The wind at the model's levels over its cell, lowest first, from
+    /// 10 m above its ground to 5000 m above the sea. Empty where the
+    /// model's ground is not known: a level's height cannot be said then.
+    pub winds: Vec<OutlookWind>,
 }
 
 /// One day at a take-off.
@@ -213,6 +238,19 @@ pub struct OutlookDay {
     /// How high the thermals go in those hours, metres above sea level to
     /// the nearest fifty: the highest of them.
     pub thermal_top_m: Option<f64>,
+    /// How high the model takes the ground to be in its cell, metres above
+    /// sea level: where the thermals of the hours begin, which in the
+    /// mountains is not where the take-off stands.
+    pub ground_m: Option<f64>,
+    /// The model the day is read from: "ICON-D2". The finest the server
+    /// has, unless a coarser one has more of the day's hours: the day a
+    /// fine model's run ends in, and the days after it.
+    pub model: String,
+    /// When that model's run began, seconds since 1970-01-01 UTC.
+    pub run_unix_s: i64,
+    /// What the reading of that model is and is not, for the foot of the
+    /// screen while this day is shown.
+    pub note: String,
 }
 
 /// What a forecast says about flying from a take-off.
@@ -226,7 +264,8 @@ pub struct SiteOutlook {
     /// each day says what it is called. Empty when the server has no
     /// forecast for the place, or none that reaches into daylight.
     pub days: Vec<OutlookDay>,
-    /// The model read: "ICON-D2". Empty without one.
+    /// The finest model read: "ICON-D2". Empty without one. A day can be
+    /// read from another: each says which.
     pub model: String,
     /// When that model's run began, seconds since 1970-01-01 UTC.
     pub run_unix_s: i64,
@@ -254,14 +293,15 @@ pub fn site_outlook(
     now_unix_s: i64,
 ) -> Result<SiteOutlook, CoreError> {
     let response: ForecastResponse = answer(status, &body)?;
-    // The finest model that has anything to say.
-    let series = response
+    // The models that have anything to say, the finest first.
+    let mut models: Vec<&ForecastSeries> = response
         .layers
         .iter()
         .flat_map(|layer| &layer.series)
         .filter(|series| !series.hours.is_empty())
-        .min_by_key(|series| crate::forecast::model_rank(series.model.as_str()));
-    let Some(series) = series else {
+        .collect();
+    models.sort_by_key(|series| crate::forecast::model_rank(series.model.as_str()));
+    let Some(series) = models.first().copied() else {
         return Ok(SiteOutlook {
             days: Vec::new(),
             model: String::new(),
@@ -276,30 +316,53 @@ pub fn site_outlook(
         works_in: wind_spans_in_words(&wind),
         elevation_m,
     };
+    // A day is one model's, never a blend of two: the finest model's,
+    // unless a coarser one has more of the day's hours. That is the day a
+    // fine model's run ends in, and the days after it.
+    let mut chosen: Vec<OutlookDay> = Vec::new();
+    for model in &models {
+        for day in days(model, &site, utc_offset_s, now_unix_s) {
+            match chosen
+                .iter_mut()
+                .find(|have| have.start_unix_s == day.start_unix_s)
+            {
+                Some(have) if day.hours.len() > have.hours.len() => *have = day,
+                Some(_) => {}
+                None => chosen.push(day),
+            }
+        }
+    }
+    chosen.sort_by_key(|day| day.start_unix_s);
+    Ok(SiteOutlook {
+        // What the finest model's reading is, also on a day with nothing
+        // to say about thermals; each day carries its own.
+        note: note(series, chosen.iter().any(|day| day.thermals.is_some())),
+        days: chosen,
+        model: crate::forecast::model_name(series.model.as_str()),
+        run_unix_s: series.run.timestamp(),
+        fetched_unix_s: response.fetched_at.timestamp(),
+        credits: response.attributions.iter().map(credit).collect(),
+    })
+}
+
+/// What a reading of a model is and is not, for the foot of the screen,
+/// with what the thermal figures are where there are any.
+fn note(series: &ForecastSeries, thermals: bool) -> String {
     let name = crate::forecast::model_name(series.model.as_str());
     let ground = series
         .cell_elevation_m
         .map(|ground| format!(", whose ground lies at {ground:.0} m"))
         .unwrap_or_default();
-    let days = days(series, &site, utc_offset_s, now_unix_s);
-    // What the thermal figures are, where there are any.
-    let estimated = if days.iter().any(|day| day.thermals.is_some()) {
+    let estimated = if thermals {
         " Thermals are an estimate from the model's heat and temperatures over that cell: \
          expect more on a sunlit slope and less in its lee."
     } else {
         ""
     };
-    Ok(SiteOutlook {
-        days,
-        note: format!(
-            "Read from {name} for its grid cell{ground}. It knows nothing of the take-off itself; \
-             the take-off decides.{estimated}"
-        ),
-        model: name,
-        run_unix_s: series.run.timestamp(),
-        fetched_unix_s: response.fetched_at.timestamp(),
-        credits: response.attributions.iter().map(credit).collect(),
-    })
+    format!(
+        "Read from {name} for its grid cell{ground}. It knows nothing of the take-off itself; \
+         the take-off decides.{estimated}"
+    )
 }
 
 /// What the site's source says about the take-off.
@@ -416,6 +479,7 @@ fn days(
         }
     }
     let today = (DateTime::from_timestamp(now_unix_s, 0).unwrap_or_default() + offset).date_naive();
+    let ground = series.cell_elevation_m;
     days.into_iter()
         .filter_map(|(start, hours, gone)| {
             let date = (start + offset).date_naive();
@@ -429,7 +493,13 @@ fn days(
                 1 => "Tomorrow".to_owned(),
                 _ => date.format("%a").to_string(),
             };
-            listed.then(|| day(start.timestamp(), name, &hours))
+            listed.then(|| {
+                let mut day = day(start.timestamp(), name, &hours, ground);
+                day.model = crate::forecast::model_name(series.model.as_str());
+                day.run_unix_s = series.run.timestamp();
+                day.note = note(series, day.thermals.is_some());
+                day
+            })
         })
         .collect()
 }
@@ -629,7 +699,32 @@ fn clock(hour: u32) -> String {
     }
 }
 
-fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
+/// The wind at the model's levels in an hour, lowest first, with each
+/// level's height above the sea.
+fn winds(hour: &ForecastHour, ground_m: f64) -> Vec<OutlookWind> {
+    let at_the_ground = hour.wind_speed_ms.map(|speed| OutlookWind {
+        altitude_m: ground_m + 10.0,
+        wind: forecast_wind(speed, None, hour.wind_direction_deg),
+    });
+    let mut winds: Vec<OutlookWind> = at_the_ground
+        .into_iter()
+        .chain(hour.winds_aloft.iter().filter_map(|level| {
+            let altitude_m = match level.above_ground_m {
+                Some(above) => ground_m + above,
+                None => level.altitude_m?,
+            };
+            Some(OutlookWind {
+                altitude_m,
+                wind: forecast_wind(level.wind_speed_ms?, None, level.wind_direction_deg),
+            })
+        }))
+        .filter(|wind| wind.altitude_m > ground_m && wind.altitude_m <= WINDS_UP_TO_M)
+        .collect();
+    winds.sort_by(|a, b| a.altitude_m.total_cmp(&b.altitude_m));
+    winds
+}
+
+fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>], ground_m: Option<f64>) -> OutlookDay {
     let good = stretch(hours, Flyability::Flyable);
     let fair = stretch(hours, Flyability::Marginal);
     let verdict = match (good, fair) {
@@ -719,6 +814,10 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
                     .air
                     .filter(|air| air.depth_m > 0.0)
                     .map(|air| fifty(air.top_m)),
+                thermal_cloud: judged.air.is_some_and(|air| air.cloud_base_m.is_some()),
+                winds: ground_m
+                    .map(|ground| winds(judged.hour, ground))
+                    .unwrap_or_default(),
             })
             .collect(),
         wind_kmh: middle
@@ -745,6 +844,11 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>]) -> OutlookDay {
             .unwrap_or_default(),
         climb_ms: thermal.as_ref().map(|thermal| thermal.climb_ms),
         thermal_top_m: thermal.as_ref().and_then(|thermal| thermal.top_m),
+        ground_m,
+        // Which model the hours are from is the caller's to say.
+        model: String::new(),
+        run_unix_s: 0,
+        note: String::new(),
     }
 }
 
@@ -923,6 +1027,112 @@ mod tests {
             "Thermals are an estimate from the model's heat and temperatures over that cell: \
              expect more on a sunlit slope and less in its lee."
         ));
+    }
+
+    #[test]
+    fn an_hour_carries_the_air_over_the_take_off_for_a_picture_of_the_day() {
+        // Cumulus at 3400 m, and 4 m/s at every level above the ground.
+        let outlook = outlook_of(|_| air(400.0, 3400.0, 10.0, 4.0));
+        let day = &outlook.days[0];
+        // Where the model's thermals begin: its own ground, not the
+        // take-off's 1550 m.
+        assert_eq!(day.ground_m, Some(812.0));
+        let noon = &day.hours[4];
+        assert_eq!(noon.thermal_top_m, Some(3400.0));
+        assert!(noon.thermal_cloud);
+        // The wind 10 m above the model's ground, then at its levels by
+        // their height above the sea, lowest first.
+        let heights: Vec<f64> = noon.winds.iter().map(|wind| wind.altitude_m).collect();
+        assert_eq!(heights, [822.0, 892.0, 992.0, 1500.0, 3100.0, 4300.0]);
+        assert_eq!(noon.winds[0].wind.label, "11");
+        assert_eq!(noon.winds[0].wind.from_deg, Some(0.0));
+        assert_eq!(noon.winds[3].wind.label, "14");
+        assert_eq!(noon.winds[3].wind.from_deg, None);
+
+        // A blue day has no cloud on its thermals.
+        let day = outlook_of(|_| air(300.0, 0.0, 4.0, 4.0)).days.remove(0);
+        assert_eq!(day.hours[4].thermal_top_m, Some(3250.0));
+        assert!(!day.hours[4].thermal_cloud);
+
+        // A level above 5000 m is not the air a paraglider flies in.
+        let day = outlook_of(|_| {
+            air(300.0, 0.0, 4.0, 4.0).replace(r#""altitude_m": 4300.0"#, r#""altitude_m": 5600.0"#)
+        })
+        .days
+        .remove(0);
+        assert_eq!(day.hours[4].winds.len(), 5);
+    }
+
+    #[test]
+    fn a_day_is_read_from_the_model_that_has_the_most_of_it() {
+        // ICON-D2 has all of 4 July and the morning of the 5th, where its
+        // run ends. ICON-EU has the three days whole.
+        let hours = |day: u32, local: std::ops::RangeInclusive<u32>| -> String {
+            local
+                .map(|hour| {
+                    format!(
+                        r#"{{"time": "2026-07-{day:02}T{:02}:00:00Z", {FINE}}}"#,
+                        hour - 2
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let fine = [hours(4, 8..=19), hours(5, 8..=10)].join(",");
+        let coarse = [hours(4, 8..=19), hours(5, 8..=19), hours(6, 8..=19)].join(",");
+        let body = format!(
+            r#"{{
+            "point": {{"lat": 47.7, "lon": 11.8}},
+            "fetched_at": "2026-07-04T05:40:00Z",
+            "layers": [{{"source": "open-meteo", "series": [
+                {{"source": "open-meteo", "model": "icon-eu", "run": "2026-07-04T00:00:00Z",
+                  "point": {{"lat": 47.7, "lon": 11.8}}, "cell": {{"lat": 47.6875, "lon": 11.8125}},
+                  "cell_elevation_m": 900.0, "hours": [{coarse}]}},
+                {{"source": "open-meteo", "model": "icon-d2", "run": "2026-07-04T03:00:00Z",
+                  "point": {{"lat": 47.7, "lon": 11.8}}, "cell": {{"lat": 47.7, "lon": 11.8}},
+                  "cell_elevation_m": 812.0, "hours": [{fine}]}}
+            ]}}],
+            "attributions": []
+        }}"#
+        );
+        let outlook = site_outlook(
+            200,
+            body.into_bytes(),
+            SUMMER_TIME_S,
+            north(),
+            Some(1550.0),
+            MORNING_S,
+        )
+        .unwrap();
+
+        // Today is the fine model's: both have all of it, and the finer
+        // one is believed. Tomorrow, of which it has three hours, and the
+        // day after, of which it has none, are the coarse model's.
+        let read: Vec<(&str, &str, usize)> = outlook
+            .days
+            .iter()
+            .map(|day| (day.name.as_str(), day.model.as_str(), day.hours.len()))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                ("Today", "ICON-D2", 12),
+                ("Tomorrow", "ICON-EU", 12),
+                ("Mon", "ICON-EU", 12)
+            ]
+        );
+        // Each day says whose reading it is, with that model's own run and
+        // ground; the outlook as a whole names the finest.
+        assert_eq!(outlook.model, "ICON-D2");
+        assert_eq!(outlook.days[0].ground_m, Some(812.0));
+        assert!(outlook.days[0].note.starts_with("Read from ICON-D2"));
+        assert_eq!(outlook.days[1].ground_m, Some(900.0));
+        assert_eq!(outlook.days[1].run_unix_s, 1_783_123_200);
+        assert_eq!(
+            outlook.days[1].note,
+            "Read from ICON-EU for its grid cell, whose ground lies at 900 m. It knows nothing of \
+             the take-off itself; the take-off decides."
+        );
     }
 
     #[test]
@@ -1251,8 +1461,10 @@ mod tests {
         // Seen from the day after, an old forecast has nothing to say.
         assert!(seen_from(1).is_empty());
 
-        // A forecast of the night alone has no day to speak of: not even
-        // today, of which it would be wrong to say that no hours are left.
+        // The fine model has the night alone, which is no day to speak
+        // of: not even today, of which it would be wrong to say that no
+        // hours are left. The day is then the coarser model's, which has
+        // its one hour at noon with a storm's wind, and says whose it is.
         let night = site_outlook(
             200,
             answer_with(&[(23, FINE)]),
@@ -1262,8 +1474,11 @@ mod tests {
             MORNING_S,
         )
         .unwrap();
-        assert!(night.days.is_empty());
         assert_eq!(night.model, "ICON-D2");
+        assert_eq!(night.days.len(), 1);
+        assert_eq!(night.days[0].model, "ICON-EU");
+        assert_eq!(night.days[0].hours.len(), 1);
+        assert_eq!(night.days[0].verdict, Flyability::NotFlyable);
     }
 
     #[test]

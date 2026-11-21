@@ -9,7 +9,7 @@ with it. This program stands in front of a development server and hands
 on everything that server answers, except `GET /v1/forecast`: there it
 keeps the real answer's place, grid cell, model ground and credit, and
 puts made-up hours in place of the model's, from this midnight (UTC) on
-for two days: 26 °C under cumulus at 3400 m with a light south wind, and
+for two days: 26 °C under cumulus at 3500 m with a light south wind, and
 by day as much heat from the ground as a summer noon gives.
 
 How much heat depends on the place asked for, so that a list of take-offs
@@ -64,7 +64,7 @@ def hour(time, heat_at_noon, ground_m):
         # By night the air warms the ground, as under a clear sky.
         "heat_to_air_w_m2": heat_at_noon * sun if sun > 0 else -30.0,
         # Well mixed to 700 m above the ground, and a layer above it that
-        # stops air risen from the ground some 1800 m up.
+        # stops air risen from the ground some 2000 m up.
         "winds_aloft": [
             {"above_ground_m": 80.0, "wind_speed_ms": 3.0, "wind_direction_deg": 180.0,
              "temperature_c": warmth - 2.0},
@@ -72,14 +72,15 @@ def hour(time, heat_at_noon, ground_m):
              "temperature_c": warmth - 3.0},
             {"pressure_hpa": 850.0, "altitude_m": ground_m + 700.0, "wind_speed_ms": 3.5,
              "wind_direction_deg": 190.0, "temperature_c": warmth - 8.0},
-            {"pressure_hpa": 700.0, "altitude_m": ground_m + 2300.0, "wind_speed_ms": 4.0,
-             "wind_direction_deg": 200.0, "temperature_c": warmth - 23.0},
+            {"pressure_hpa": 700.0, "altitude_m": ground_m + 2600.0, "wind_speed_ms": 4.0,
+             "wind_direction_deg": 200.0, "temperature_c": warmth - 25.0},
             {"pressure_hpa": 600.0, "altitude_m": ground_m + 3500.0, "wind_speed_ms": 5.0,
              "wind_direction_deg": 210.0, "temperature_c": warmth - 30.0},
         ],
     }
     if sun >= 0.5:
-        made["convective_cloud_base_m"] = 3400.0
+        # The base rises with the day's warmth, as it does.
+        made["convective_cloud_base_m"] = 2900.0 + 600.0 * sun
         made["convective_cloud_top_m"] = 4200.0
     return made
 

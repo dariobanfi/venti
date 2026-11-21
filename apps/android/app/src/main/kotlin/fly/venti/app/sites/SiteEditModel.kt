@@ -16,10 +16,13 @@ import fly.venti.core.SiteAdding
 import fly.venti.core.SiteConfirmFlight
 import fly.venti.core.SiteConfirmForm
 import fly.venti.core.SiteConfirmations
+import fly.venti.core.SiteCorrecting
+import fly.venti.core.SiteDraftFault
 import fly.venti.core.SiteDraftView
 import fly.venti.core.SiteField
 import fly.venti.core.SiteForm
 import fly.venti.core.SiteHistory
+import fly.venti.core.SiteHistoryOffers
 import fly.venti.core.SiteInTheWay
 import fly.venti.core.SiteOffers
 import fly.venti.core.SitePage
@@ -28,9 +31,10 @@ import fly.venti.core.SiteWritten
 import fly.venti.core.siteAddRequest
 import fly.venti.core.siteChangeRequest
 import fly.venti.core.siteConfirmForm
-import fly.venti.core.siteConfirmations
+import fly.venti.core.siteConfirmationsOf
 import fly.venti.core.siteConfirmationsPath
 import fly.venti.core.siteConfirmed
+import fly.venti.core.siteCorrecting
 import fly.venti.core.siteDraftMoved
 import fly.venti.core.siteDraftNew
 import fly.venti.core.siteDraftOf
@@ -107,6 +111,19 @@ class SiteEditModel(
     fun adding(): SiteAdding? {
         account.account
         return runCatching { core.siteAdding(takesSites()) }.getOrNull()
+    }
+
+    /**
+     * What a site's history offers to whoever is signed in on this phone:
+     * putting a revision back, undoing the last change, bringing a removed
+     * site back and reporting a revision, with the core's line about what
+     * is missing. The core reads the tier from the history's own
+     * identifier, so no site's page is needed for it. `null` when the core
+     * cannot say.
+     */
+    fun historyOffers(history: SiteHistory): SiteHistoryOffers? {
+        account.account
+        return runCatching { core.siteHistoryOffers(history, takesSites()) }.getOrNull()
     }
 
     /** What became of a draft that was sent. */
@@ -188,10 +205,14 @@ class SiteEditModel(
 
     // Confirming: "I took off here and it was good"
 
-    /** Who says they took off at a site, which anyone may read. */
-    suspend fun confirmations(id: String): SiteConfirmations {
-        val answer = look(withContext(background) { siteConfirmationsPath(id) })
-        return withContext(background) { siteConfirmations(answer.status16, answer.body) }
+    /**
+     * Who says they took off at a site, which anyone may read: as the core
+     * reads the list for that site's page, which says nothing of "nobody
+     * yet" for a site nobody takes off at.
+     */
+    suspend fun confirmations(site: SiteView): SiteConfirmations {
+        val answer = look(withContext(background) { siteConfirmationsPath(site.id) })
+        return withContext(background) { siteConfirmationsOf(site, answer.status16, answer.body) }
     }
 
     /** The form for a confirmation: the days to choose from, counted back from this phone's date, and the core's words. */
@@ -247,8 +268,8 @@ class SiteFormDraft private constructor(
     made: SiteDraftView,
     /** The site the draft corrects, as it stood when the draft was made; `null` for a new one. */
     site: SiteView?,
-    /** For a new site: the tier it goes to and the words of its form, as the core said when the form was opened. */
-    val adding: SiteAdding?,
+    /** The words of the form, by the tier the site goes to or is of: the core's. */
+    val words: SiteFormWords,
 ) {
     var site: SiteView? = site
         private set
@@ -277,6 +298,14 @@ class SiteFormDraft private constructor(
 
     /** What they changed, a line a field, in the core's words. */
     var meanwhile: List<String> by mutableStateOf(emptyList())
+        private set
+
+    /**
+     * The fields both changed, each with the core's sentence to show at
+     * the field: "Height: you entered 1840 m, it now stands at 1850 m.
+     * Yours is kept."
+     */
+    var clashes: List<SiteDraftFault> by mutableStateOf(emptyList())
         private set
 
     /** Whether the draft is of a site that is new. */
@@ -308,16 +337,22 @@ class SiteFormDraft private constructor(
         if (SiteField.HEIGHT !in rebased.kept) height = heightAsTyped(rebased.draft.elevationM)
         meanwhileWords = rebased.words
         meanwhile = rebased.theirs
+        clashes = rebased.clashesInWords
         site = now
         return true
     }
 
     companion object {
         /** A draft for a new site at a place, with nothing said yet, for the tier the core names. */
-        fun new(place: Coordinate, adding: SiteAdding? = null): SiteFormDraft = SiteFormDraft(siteDraftNew(place), null, adding)
+        fun new(place: Coordinate, adding: SiteAdding): SiteFormDraft =
+            SiteFormDraft(siteDraftNew(place), null, SiteFormWords(adding))
 
-        /** A draft that corrects a site of Venti's own layers. Throws the core's refusal for a site of another source. */
-        fun of(site: SiteView): SiteFormDraft = SiteFormDraft(siteDraftOf(site), site, null)
+        /**
+         * A draft that corrects a site of Venti's own layers, under the
+         * words of that site's tier. Throws the core's refusal for a site
+         * of another source.
+         */
+        fun of(site: SiteView): SiteFormDraft = SiteFormDraft(siteDraftOf(site), site, SiteFormWords(siteCorrecting(site)))
 
         private val HEIGHT = Regex("""-?\d{0,5}(\.\d{0,2})?""")
 
@@ -328,4 +363,16 @@ class SiteFormDraft private constructor(
             else -> metres.toString()
         }
     }
+}
+
+/**
+ * What the form says around its fields: its title, what giving a site
+ * means, what a site of the tier is worth, and the button that sends. The
+ * core's, for a new site by the tier the account adds to, for a correction
+ * by the tier of the site corrected.
+ */
+class SiteFormWords(val title: String, val giving: String, val note: String, val send: String) {
+    constructor(adding: SiteAdding) : this(adding.title, adding.giving, adding.note, adding.sendWords)
+
+    constructor(correcting: SiteCorrecting) : this(correcting.title, correcting.giving, correcting.note, correcting.sendWords)
 }

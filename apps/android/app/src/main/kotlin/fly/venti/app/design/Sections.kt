@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSpace
 
 // The pieces every list-like screen is made of: a heading, a group of rows
 // on one rounded surface, and a line of explanation under it. They are
@@ -163,7 +164,8 @@ fun LinkRow(
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp),
+            // Room above and below a title of two lines, which large text makes of a sentence.
+            .padding(horizontal = 16.dp, vertical = VentiSpace.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {

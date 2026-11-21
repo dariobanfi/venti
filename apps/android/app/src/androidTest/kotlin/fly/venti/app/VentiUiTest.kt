@@ -45,6 +45,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fly.venti.app.radar.RadarLayer
+import fly.venti.core.siteConfirmationsPath
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -3801,11 +3802,10 @@ class VentiUiTest {
         waitFor(hasTestTag("site-page"))
     }
 
-    /** Signed out, a long press where no site lies offers the way to the account with the core's line why: taken, and an account made. */
+    /** Signed out, a long press where no site lies offers the way to the account as the core's sentence: taken, and an account made. */
     private fun signInFromTheMap(scenario: ActivityScenario<MainActivity>, handle: String) {
         TestDevice.longPress(checkNotNull(TestDevice.onScreen(scenario, lat = 47.295, lon = 10.875)))
-        waitFor(hasTestTag("site-add-sign-in"))
-        assertTrue(exists(hasTestTag("site-add-why-not") and hasText("Sign in to add a place pilots take off from.")))
+        waitFor(hasTestTag("site-add-sign-in") and hasText("Sign in to add a place pilots take off from."))
         assertFalse(exists(hasTestTag("site-add-here")))
         tap(hasTestTag("site-add-sign-in"))
         makeAnAccountAndGoBackToTheMap(handle)
@@ -3842,8 +3842,8 @@ class VentiUiTest {
      * history, undoes the correction and removes it; and is told when a
      * site stands at the place already. Against the development server's
      * made-up sites near Garmisch, with an account the test makes, which
-     * is an ordinary pilot's: signed out, the entry is the way to the
-     * account with the core's line why. Everything said about the rule,
+     * is an ordinary pilot's: signed out, the entry is the core's sentence
+     * and the way to the account. Everything said about the rule,
      * the tier, the licence and a refusal is the core's. Skipped without
      * a server.
      */
@@ -3859,7 +3859,7 @@ class VentiUiTest {
         tapChip("layer-pilots")
         lookAtTheMadeUpSites(scenario)
 
-        // Signed out: the way to the account, with the core's line why.
+        // Signed out: the core's sentence as the entry, which leads to the account.
         val handle = "s${System.currentTimeMillis() % 1_000_000_000}"
         signInFromTheMap(scenario, handle)
 
@@ -3868,7 +3868,6 @@ class VentiUiTest {
         val before = TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0
         pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
         assertTrue(exists(hasTestTag("site-add-here") and hasText("Add a place pilots take off from")))
-        assertFalse(exists(hasTestTag("site-add-why-not")))
         assertFalse(exists(hasTestTag("site-add-sign-in")))
         letTheMapDraw(1)
         keepScreenshot("site-edit-1-entry")
@@ -3905,7 +3904,7 @@ class VentiUiTest {
             exists(
                 hasTestTag("site-giving") and
                     hasText("You give this site to everyone under CC0 1.0", substring = true) and
-                    hasText("to pilots who switch on the sites from pilots", substring = true),
+                    hasText("to pilots who switch on the places from pilots", substring = true),
             ),
         )
         assertTrue(exists(hasTestTag("site-giving-note") and hasText("not official and not checked by anyone", substring = true)))
@@ -4013,9 +4012,9 @@ class VentiUiTest {
         tap(hasText("Done"))
         waitFor(described("Show my position"))
 
-        // On top of a place from pilots that stands: moved there on the map,
-        // refused in the core's words, with the offer to open that one.
-        // (A partner's site is of another layer, which a pilot's place may lie on.)
+        // On top of a site that stands: moved there on the map, refused in
+        // the core's words by the tier of the site in the way, with the
+        // offer to open that one. First a partner's, then a place from pilots.
         lookAtTheMadeUpSites(scenario, atLeast = 3)
         pressWhereNoSiteLies(scenario, lat = 47.275, lon = 10.92)
         tap(hasTestTag("site-add-here"))
@@ -4026,6 +4025,24 @@ class VentiUiTest {
         waitFor(hasTestTag("site-place-card"))
         assertTrue(exists(hasText("Move the map until the mark is where pilots stand or touch down.")))
         assertTrue(exists(hasTestTag("site-place-use") and hasText("Use this place")))
+        // The partner's "Musterkogel West": no place from pilots is put on top of it.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.3, lon = 10.9, zoom = 15.0))
+        letTheMapDraw(2)
+        tap(hasTestTag("site-place-use"))
+        waitFor(form)
+        assertTrue(exists(hasTestTag("site-field-place") and hasText("47.3000° N, 10.9000° E")))
+        screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+        waitFor(hasTestTag("site-problem") and hasText("stands at this place already: Musterkogel West.", substring = true))
+        screen.onNode(hasTestTag("site-in-the-way")).performScrollTo()
+        assertTrue(exists(hasTestTag("site-problem") and hasText("A site that a partner of Venti added", substring = true)))
+        assertTrue(exists(hasTestTag("site-problem") and hasText("open it and report it", substring = true)))
+        assertTrue(exists(hasTestTag("site-in-the-way") and hasText("Open Musterkogel West")))
+        letTheMapDraw(1)
+        keepScreenshot("site-edit-10a-on-a-partners-site")
+
+        // Then onto the place from pilots.
+        screen.onNode(hasTestTag("site-move")).performScrollTo().performClick()
+        waitFor(hasTestTag("site-place-card"))
         assertTrue(TestDevice.lookAt(scenario, lat = 47.29, lon = 10.91, zoom = 15.0))
         letTheMapDraw(2)
         keepScreenshot("site-edit-9-place")
@@ -4035,14 +4052,8 @@ class VentiUiTest {
         assertTrue(exists(hasTestTag("site-field-name") and hasText("Beispieljoch again (not real)")))
         assertTrue(exists(hasTestTag("site-field-place") and hasText("47.2900° N, 10.9100° E")))
         screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
-        waitFor(hasTestTag("site-problem"))
+        waitFor(hasTestTag("site-problem") and hasText("A place from pilots stands here already: Beispieljoch.", substring = true))
         screen.onNode(hasTestTag("site-in-the-way")).performScrollTo()
-        assertTrue(
-            exists(
-                hasTestTag("site-problem") and
-                    hasText("A site that pilots added stands at this place already: Beispieljoch.", substring = true),
-            ),
-        )
         assertTrue(exists(hasTestTag("site-in-the-way") and hasText("Open Beispieljoch")))
         letTheMapDraw(1)
         keepScreenshot("site-edit-10-too-close")
@@ -4107,6 +4118,180 @@ class VentiUiTest {
             screen.onNode(hasTestTag("site-send")).performScrollTo()
             letTheMapDraw(1)
             keepScreenshot("narrow-site-edit-4-giving")
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /**
+     * The places from pilots on a screen 360 dp wide with the text at
+     * 130 %: the filter's sheet with the switch, the page of a place from
+     * pilots with the sentence to confirm, the form that confirms and the
+     * list of who took off there. Skipped without a server.
+     */
+    @Test
+    fun thePlacesFromPilotsOnANarrowScreenWithLargeText() = thePlacesFromPilotsOnANarrowScreen(dark = false)
+
+    /** The same in the dark appearance, and the form for a new place with a fault. Skipped without a server. */
+    @Test
+    fun thePlacesFromPilotsOnANarrowScreenInDarkAppearance() = thePlacesFromPilotsOnANarrowScreen(dark = true)
+
+    private fun thePlacesFromPilotsOnANarrowScreen(dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        val name = if (dark) "narrow-dark-sites-pilots" else "narrow-sites-pilots"
+        TestDevice.narrowWithLargeText()
+        try {
+            launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+            val scenario = checkNotNull(app)
+            val page = hasTestTag("site-page")
+            tapChip("layer-wind")
+            tapChip("layer-pilots")
+            lookAtTheMadeUpSites(scenario)
+            signInFromTheMap(scenario, "w${System.currentTimeMillis() % 1_000_000_000}")
+
+            // The filter's sheet: the switch with the core's sentence, then what it leaves.
+            tap(hasTestTag("sites-filter-open"))
+            waitFor(hasTestTag("sites-filter"))
+            screen.onNode(hasTestTag("sites-from-pilots")).performScrollTo().performClick()
+            waitFor(hasTestTag("sites-from-pilots") and isOn())
+            waitFor(hasTestTag("sites-filter-from-pilots"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-1-filter")
+            screen.onNode(hasTestTag("sites-filter-note")).performScrollTo()
+            letTheMapDraw(1)
+            keepScreenshot("$name-1b-filter-foot")
+            // "Done" stands at the head, which scrolled away.
+            screen.onNode(hasTestTag("sites-filter-done")).performScrollTo().performClick()
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("sites-filter")) }
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+                (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) >= 3
+            }
+            letTheMapDraw(1)
+            keepScreenshot("$name-2-map")
+
+            // The place's page: its tier, the notice once, and the sentence to confirm.
+            openFromTheListOfSites("Beispieljoch")
+            waitFor(hasTestTag("site-tier") and hasText("From pilots"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-3-site")
+            screen.onNode(page).performScrollToNode(hasTestTag("site-confirmed"))
+            waitFor(hasTestTag("site-confirm") and hasText("I took off here and it was good"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-4-site-confirm-entry")
+            screen.onNode(page).performScrollToNode(hasTestTag("site-edits"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-4b-site-entries")
+
+            // The form that confirms.
+            screen.onNode(page).performScrollToNode(hasTestTag("site-confirmed"))
+            tap(hasTestTag("site-confirm"))
+            waitFor(hasTestTag("site-confirm-form"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-5-confirm")
+            screen.onNode(hasTestTag("site-confirm-send")).performScrollTo()
+            letTheMapDraw(1)
+            keepScreenshot("$name-5b-confirm-foot")
+            tap(hasTestTag("site-confirm-cancel"))
+            screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("site-confirm-form")) }
+
+            // Who took off there.
+            tap(hasTestTag("site-confirmations-open"))
+            waitFor(hasTestTag("site-confirmation"))
+            letTheMapDraw(1)
+            keepScreenshot("$name-6-confirmations")
+            tap(hasText("Done"))
+            waitFor(described("Show my position"))
+
+            if (dark) {
+                // The form for a new place, with a fault, and what giving means over the button.
+                // The map followed the place whose page was open: back over the made-up sites.
+                lookAtTheMadeUpSites(scenario, atLeast = 3)
+                pressWhereNoSiteLies(scenario, lat = 47.295, lon = 10.875)
+                letTheMapDraw(1)
+                keepScreenshot("$name-7-entry")
+                tap(hasTestTag("site-add-here"))
+                waitFor(hasTestTag("site-form"))
+                screen.onNode(hasTestTag("site-send")).performScrollTo().performClick()
+                waitFor(hasText("Give the site a name.", substring = true))
+                letTheMapDraw(1)
+                keepScreenshot("$name-8-form-fault")
+                screen.onNode(hasTestTag("site-send")).performScrollTo()
+                letTheMapDraw(1)
+                keepScreenshot("$name-9-giving")
+            }
+        } finally {
+            TestDevice.asItWasBuilt()
+        }
+    }
+
+    /**
+     * The list of who took off at a place while it cannot be read: a
+     * server in front of the development server ([HoursHeldBack]) first
+     * keeps the list waiting, then refuses it, then hands it on, and at
+     * last is gone, as a phone without a network finds it. The site's page
+     * keeps the count the map's answer came with; the list's page waits,
+     * then says why in the core's words with "Try again". On a screen
+     * 360 dp wide with the text at 130 %. Skipped without a server.
+     */
+    @Test
+    fun theListOfWhoTookOffSaysWhenItCannotBeRead() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        val path = siteConfirmationsPath("venti-pilots:0000000000000000000000s002")
+        val page = hasTestTag("site-page")
+        val problem = hasTestTag("site-confirmations-problem")
+        TestDevice.narrowWithLargeText()
+        try {
+            HoursHeldBack(checkNotNull(server), path = path).use { inFront ->
+                launch { putExtra(LaunchOptions.SERVER, inFront.address) }
+                val scenario = checkNotNull(app)
+                tapChip("layer-wind")
+                tapChip("layer-pilots")
+                lookAtTheMadeUpSites(scenario)
+                showThePlacesFromPilots(scenario)
+
+                // Held: the page has the count the map's answer came with, and the list waits.
+                openFromTheListOfSites("Beispieljoch")
+                screen.onNode(page).performScrollToNode(hasTestTag("site-confirmed"))
+                waitFor(hasTestTag("site-confirmations-open") and hasText("1 pilot took off here", substring = true))
+                tap(hasTestTag("site-confirmations-open"))
+                waitFor(hasTestTag("site-confirmations"))
+                assertFalse(exists(problem))
+                assertFalse(exists(hasTestTag("site-confirmation")))
+                letTheMapDraw(1)
+                keepScreenshot("narrow-site-confirmations-1-waiting")
+
+                // Refused: why, in the core's words, and "Try again".
+                inFront.hours = HoursHeldBack.Hours.REFUSED
+                waitFor(problem)
+                assertTrue(exists(hasText("The confirmations could not be read")))
+                assertTrue(exists(hasText("Try again")))
+                letTheMapDraw(1)
+                keepScreenshot("narrow-site-confirmations-2-refused")
+
+                // Handed on: "Try again" reads it.
+                inFront.hours = HoursHeldBack.Hours.HANDED_ON
+                tap(hasText("Try again"))
+                waitFor(hasTestTag("site-confirmation") and hasText("Mara Muster (@mara) on ", substring = true))
+                assertFalse(exists(problem))
+                tap(described("Back"))
+                waitFor(page)
+                tap(described("Back"))
+                waitFor(hasTestTag("site-list"))
+            }
+            // The server is gone, as without a network: the page opens with
+            // what the map's answer said of the place, and the list says why it is not there.
+            openFromTheListOfSites("Beispieljoch")
+            screen.onNode(page).performScrollToNode(hasTestTag("site-confirmed"))
+            waitFor(hasTestTag("site-confirmations-open") and hasText("1 pilot took off here", substring = true))
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-confirmations-3-page-without-a-network")
+            tap(hasTestTag("site-confirmations-open"))
+            waitFor(problem)
+            assertTrue(exists(hasText("Try again")))
+            letTheMapDraw(1)
+            keepScreenshot("narrow-site-confirmations-4-without-a-network")
         } finally {
             TestDevice.asItWasBuilt()
         }

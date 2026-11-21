@@ -64,10 +64,15 @@ class SitesFilterTest {
         assertNull(preferences.mapSitesFilter)
         preferences.mapSitesFilter = SitesFilterWords.kept(asked)
         assertEquals(asked, SitesFilterWords.read(preferences.mapSitesFilter))
-        // The places from pilots are off until the pilot switches them on, and kept as they were left.
-        assertFalse(preferences.mapShowsSitesFromPilots)
-        preferences.mapShowsSitesFromPilots = true
-        assertTrue(preferences.mapShowsSitesFromPilots)
+        // The places from pilots are part of the filter: off until the pilot
+        // switches them on, kept as they were left, and off in a line kept
+        // before the switch was part of it.
+        assertFalse(SitesFilterWords.read(preferences.mapSitesFilter).withPilots)
+        val withPilots = asked.copy(withPilots = true)
+        preferences.mapSitesFilter = SitesFilterWords.kept(withPilots)
+        assertEquals(withPilots, SitesFilterWords.read(preferences.mapSitesFilter))
+        assertEquals(SitesFilterWords.NOTHING, SitesFilterWords.read("ALL||CHOSEN|"))
+        assertTrue(SitesFilterWords.read("ALL||CHOSEN||with-pilots").withPilots)
     }
 
     @Test

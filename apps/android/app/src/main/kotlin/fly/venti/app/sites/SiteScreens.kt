@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -170,7 +172,7 @@ fun SiteSheet(
             pageProblem = model.words(error)
         }
         try {
-            confirmations = model.confirmations(site.id)
+            confirmations = model.confirmations(site)
             confirmationsProblem = null
         } catch (error: CancellationException) {
             throw error
@@ -185,8 +187,6 @@ fun SiteSheet(
     var isConfirming by remember { mutableStateOf(false) }
     // Whether the pilot is being asked if their confirmation is to be taken back.
     var isWithdrawing by remember { mutableStateOf(false) }
-    // A site that was removed from this sheet: its history is what is left to show.
-    var removed by remember { mutableStateOf<String?>(null) }
     // A site or a revision being reported, with its form open.
     var reporting by remember { mutableStateOf<Reported?>(null) }
     // What the pilot has opened from the site's page, the newest last: a
@@ -205,10 +205,7 @@ fun SiteSheet(
     LaunchedEffect(opened.size) {
         if (opened.isNotEmpty()) sheet.expand()
     }
-    val back = {
-        // Behind a removed site's history there is no page to go back to.
-        if (removed != null && opened.size == 1) onDismiss() else opened = opened.dropLast(1)
-    }
+    val back = { opened = opened.dropLast(1) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet,
@@ -239,21 +236,17 @@ fun SiteSheet(
                 )
             }
             is FromASite.History -> if (editing != null) {
-                // Who may correct the site puts it back and brings it back: the core's offer for it.
-                val offers = editing.model.offers(top.site)
+                // By its identifier: what the history offers is the core's to say of the history itself.
                 SiteHistoryPage(
-                    id = top.site.id,
-                    name = top.site.name,
+                    id = top.id,
+                    name = top.name,
                     edit = editing.model,
                     requests = editing.requests,
                     said = editing.said,
-                    mayWrite = offers?.correct?.isOffered == true,
-                    mayReport = offers?.report?.isOffered == true,
                     onBack = back,
                     onDone = onDismiss,
                     onWritten = { written ->
                         // The site as it stands now, on its page, with the core's line.
-                        removed = null
                         opened = emptyList()
                         editing.onWritten(written)
                     },
@@ -278,7 +271,7 @@ fun SiteSheet(
                                 showsSignIn = offers.history.isOffered && !given.model.hasSession,
                                 onCorrect = { given.onCorrect(shown) },
                                 onRemove = { isRemoving = true },
-                                onHistory = { opened = opened + FromASite.History(shown) },
+                                onHistory = { opened = opened + FromASite.History(shown.id, shown.name) },
                                 onReport = { reporting = Reported.site(shown.id) },
                                 onSignIn = given.onSignIn,
                                 onConfirm = { isConfirming = true },
@@ -326,8 +319,7 @@ fun SiteSheet(
                     val words = editing.model.remove(chosen.id, comment)
                     isRemoving = false
                     // What is left of the site is its history, which brings it back.
-                    removed = chosen.id
-                    opened = listOf(FromASite.History(chosen))
+                    opened = listOf(FromASite.History(chosen.id, chosen.name))
                     editing.onSaid(words)
                     null
                 } catch (error: CancellationException) {
@@ -490,8 +482,8 @@ private sealed interface FromASite {
     /** The forecast for the site's place, or for a station's. */
     data class Forecast(val place: ForecastPlace) : FromASite
 
-    /** The history of a site of Venti's own layers: the site as it stands, or as it stood when it was removed. */
-    data class History(val site: SiteView) : FromASite
+    /** The history of a site of Venti's own layers, by the site's identifier, under its name. */
+    data class History(val id: String, val name: String) : FromASite
 
     /** Who says they took off at a site. */
     data class Confirmations(val site: SiteView) : FromASite
@@ -519,7 +511,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
         ) {
             // While a filter is on, the filter in the core's line stands where the title stands.
             Text(
-                if (sites.isAsking) filtered.filterWords else "Flying sites",
+                if (filtered.isOn) filtered.filterWords else "Flying sites",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f).testTag("site-list-title"),
             )
@@ -528,7 +520,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                     Icon(
                         painterResource(R.drawable.ic_filter),
                         contentDescription = SitesFilterWords.TITLE,
-                        tint = if (sites.isAsking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (filtered.isOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -540,7 +532,7 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 sites.problem ?: "Zoom the map in on an area, and the sites its source knows there are listed.",
             )
         } else {
-            if (sites.isAsking) {
+            if (filtered.isOn) {
                 // What the filter leaves of the sites on this part of the
                 // map, and under it how many of them are places from
                 // pilots: the core's two lines.
@@ -672,6 +664,7 @@ private fun SiteRow(site: SiteView, onClick: () -> Unit, dimmed: Boolean = false
  * One flying site: what its source says about it, what that is worth, and
  * a way to keep it as a waypoint. Shown in a sheet over the map.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SitePage(
     site: SiteView,
@@ -747,26 +740,36 @@ private fun SitePage(
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                 }
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    site.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { heading() },
-                )
-                // The site's tier in the core's word or two: "From pilots", "From a partner".
-                site.byPilots?.label?.takeIf { it.isNotEmpty() }?.let { tier ->
+            // The name with the day's status beside it; where the two do not
+            // fit in a line, on a narrow screen or with large text, the
+            // status goes under the name and the name keeps the width.
+            FlowRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(VentiSpace.s1),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
                     Text(
-                        tier,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Venti.colours.textSecondary,
-                        modifier = Modifier.testTag("site-tier"),
+                        site.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.semantics { heading() },
                     )
+                    // The site's tier in the core's word or two: "From pilots", "From a partner".
+                    site.byPilots?.label?.takeIf { it.isNotEmpty() }?.let { tier ->
+                        Text(
+                            tier,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Venti.colours.textSecondary,
+                            modifier = Modifier.testTag("site-tier"),
+                        )
+                    }
                 }
-            }
-            day?.let { shown ->
-                StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
+                day?.let { shown ->
+                    StatusChip(shown.verdict.status, shown.status, Modifier.testTag("site-status"))
+                }
             }
             TextButton(onClick = onDone) { Text("Done") }
         }
@@ -876,13 +879,17 @@ private fun SitePage(
                 SectionFooter("As a waypoint the cockpit can navigate to it, also without a network.")
                 own.problem?.let { SectionFooter(it, Modifier.testTag("site-own-problem")) }
             }
-            // What its source says beyond the name and the wind, as it is
-            // written there: the mapper's words, the core's sentences, and
-            // somebody else's web page, which opens outside the app.
+            // What is said of it beyond the name and the wind, as it is
+            // written there: the description under the core's heading of
+            // whose words it is, the core's sentences, and somebody else's
+            // web page, which opens outside the app.
             val said = SiteWords.said(site)
             val website = SiteWords.website(site)
             if (site.description != null || said.isNotEmpty() || website != null) {
                 item {
+                    if (site.descriptionTitle.isNotEmpty()) {
+                        SectionHeader(site.descriptionTitle, Modifier.testTag("site-description-title"))
+                    }
                     Group(Modifier.testTag("site-more")) {
                         site.description?.let { words ->
                             row { SaidRow(words, Modifier.testTag("site-description")) }

@@ -104,45 +104,26 @@ object SiteEditWords {
 
 /**
  * The entry for adding, in what a long press on the map opens: the core's
- * words for the tier the site would go to, which lead to the form. Where
- * the core says that nothing may be added, its line why, and the way to
- * the account for a phone that holds no session.
+ * words, which lead to the form, or to the account where the core says
+ * that the pilot has to sign in first. Shown where the core has words for
+ * it and nowhere else.
  */
 @Composable
 fun AddSiteEntry(
     adding: SiteAdding,
-    /** Whether the phone holds a session: without one, "Sign in" leads to the account. */
-    hasSession: Boolean,
     onAdd: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.padding(horizontal = VentiSpace.s4)) {
-        if (adding.mayAdd || !hasSession) {
-            Group {
-                row {
-                    if (adding.mayAdd) {
-                        LinkRow(
-                            adding.entryWords,
-                            R.drawable.ic_chevron_right,
-                            Modifier.testTag("site-add-here"),
-                            leading = R.drawable.venti_site,
-                            onClick = onAdd,
-                        )
-                    } else {
-                        LinkRow(
-                            SiteEditWords.SIGN_IN,
-                            R.drawable.ic_chevron_right,
-                            Modifier.testTag("site-add-sign-in"),
-                            leading = R.drawable.venti_site,
-                            onClick = onSignIn,
-                        )
-                    }
-                }
-            }
-        }
-        if (adding.whyNot.isNotEmpty()) {
-            SectionFooter(adding.whyNot, Modifier.testTag("site-add-why-not"))
+    Group(modifier.padding(horizontal = VentiSpace.s4)) {
+        row {
+            LinkRow(
+                adding.entryWords,
+                R.drawable.ic_chevron_right,
+                Modifier.testTag(if (adding.leadsToSignIn) "site-add-sign-in" else "site-add-here"),
+                leading = R.drawable.venti_site,
+                onClick = if (adding.leadsToSignIn) onSignIn else onAdd,
+            )
         }
     }
 }
@@ -208,15 +189,12 @@ fun SiteFormSheet(
     val says = edit.says
     val colours = Venti.colours
     val links = LocalUriHandler.current
-    // The words of the tier: a new site's as the core said them with the
-    // entry; a correction's by the tier of the site that is corrected.
-    val adding = entry.adding
-    val corrected = entry.site?.byPilots
-    val title = adding?.title?.takeIf { it.isNotEmpty() } ?: if (entry.isNew) form.titleNew else form.titleCorrect
-    val giving = adding?.giving?.takeIf { it.isNotEmpty() }
-        ?: if (corrected?.fromPilots == false) form.givingAsPartner else form.giving
-    val note = adding?.note?.takeIf { it.isNotEmpty() } ?: corrected?.note?.takeIf { it.isNotEmpty() } ?: form.note
-    val send = adding?.sendWords?.takeIf { it.isNotEmpty() } ?: if (entry.isNew) form.sendNew else form.sendCorrection
+    // The words of the tier, the core's: a new site's as it said them with
+    // the entry, a correction's as it says them of the site corrected.
+    val title = entry.words.title
+    val giving = entry.words.giving
+    val note = entry.words.note
+    val send = entry.words.send
     val showing = rememberCoroutineScope()
     var isSending by remember { mutableStateOf(false) }
     val draft = entry.draft
@@ -225,7 +203,10 @@ fun SiteFormSheet(
         if (entry.hasTried) siteDraftCheck(draft, entry.comment) else emptyList()
     }
     val spots = remember { SiteField.entries.associateWith { BringIntoViewRequester() } }
-    fun fault(field: SiteField): String? = faults.firstOrNull { it.field == field }?.words
+    // What is wrong at a field; and where nothing is, what the core says
+    // of a field that someone else changed too while the form was open.
+    fun fault(field: SiteField): String? =
+        (faults.firstOrNull { it.field == field } ?: entry.clashes.firstOrNull { it.field == field })?.words
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -845,8 +826,11 @@ private class PuttingBack(val revision: UInt, val question: String, val about: S
  * line with what it changed under it, and the ways back, each under the
  * core's words: "Bring this site back" on a removed site, "Undo the last
  * change" where the core names a revision for it, and the core's offer on
- * each revision that can be put back. They are shown to a pilot the core
- * offers correcting the site to.
+ * each revision that can be put back. Which of them stand for whoever is
+ * signed in here is the core's one answer for the history, with its line
+ * about what is missing; the page needs the site's identifier and no more,
+ * so a removed site's history is read like any other. Behind a removed
+ * site's history there is no page: its way back closes the sheet.
  */
 @Composable
 fun SiteHistoryPage(
@@ -856,10 +840,6 @@ fun SiteHistoryPage(
     requests: CoroutineScope,
     /** The core's line about what was just done to the site. */
     said: String?,
-    /** Whether the core offers this pilot to correct the site: who may, puts it back and brings it back. */
-    mayWrite: Boolean,
-    /** Whether the core offers this pilot to report the site. */
-    mayReport: Boolean,
     onBack: (() -> Unit)?,
     onDone: () -> Unit,
     /** A revision was put back: the site as it stands now. */
@@ -882,9 +862,11 @@ fun SiteHistoryPage(
         }
     }
     val shown = history
+    // What the core offers in this history to whoever is signed in here.
+    val offers = shown?.let { edit.historyOffers(it) }
 
     Column {
-        OverASiteHead(says.history, name, onBack, onDone)
+        OverASiteHead(says.history, name, if (shown?.isRemoved == true) onDone else onBack, onDone)
         Column(
             modifier = Modifier
                 .testTag("site-history")
@@ -904,31 +886,36 @@ fun SiteHistoryPage(
                     TextButton(onClick = { attempt += 1 }) { Text(SiteEditWords.TRY_AGAIN) }
                 }
                 else -> {
+                    // Why something is not offered here, in the core's line.
+                    offers?.note?.takeIf { it.isNotEmpty() }?.let { words ->
+                        SectionFooter(words, Modifier.testTag("site-history-note"))
+                    }
                     // A removed site, as it stood before it was removed.
                     val bringBack = shown.bringBackRevision
-                    if (bringBack != null && mayWrite) {
+                    if (bringBack != null && offers?.bringBack?.isOffered == true) {
                         Button(
                             onClick = { asking = PuttingBack(bringBack, says.bringBackQuestion, says.bringBackAbout, says.bringBack) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-bring-back"),
-                        ) { Text(shown.bringBackWords) }
+                        ) { Text(offers.bringBack.words) }
                     }
                     val undo = shown.undoRevision
-                    if (undo != null && mayWrite) {
+                    if (undo != null && offers?.undo?.isOffered == true) {
+                        val words = offers.undo.words
                         OutlinedButton(
-                            onClick = { asking = PuttingBack(undo, "${shown.undoWords}?", null, shown.undoWords) },
+                            onClick = { asking = PuttingBack(undo, "$words?", null, words) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("site-undo"),
-                        ) { Text(shown.undoWords) }
+                        ) { Text(words) }
                     }
                     for (revision in shown.revisions.asReversed()) {
                         Revision(
                             revision,
-                            report = says.reportRevision,
-                            onPutBack = if (revision.canBePutBack && mayWrite) {
+                            report = offers?.reportRevision?.words.orEmpty(),
+                            onPutBack = if (revision.canBePutBack && offers?.putBack?.isOffered == true) {
                                 { asking = PuttingBack(revision.number, says.putBackQuestion, says.putBackAbout, says.putBack) }
                             } else {
                                 null
                             },
-                            onReport = if (mayReport) {
+                            onReport = if (offers?.reportRevision?.isOffered == true) {
                                 { onReport(Reported.siteRevision(id, revision.number)) }
                             } else {
                                 null
@@ -1004,7 +991,9 @@ private fun Revision(revision: SiteRevisionView, report: String, onPutBack: (() 
 
 /**
  * "Pilots who took off here": the count as the core's line and each
- * confirmation in the core's line, the newest day first. Anyone reads it.
+ * confirmation in the core's line, the newest day first, and under them
+ * the core's sentence where the list does not hold them all. Anyone reads
+ * it.
  */
 @Composable
 fun SiteConfirmationsPage(
@@ -1057,6 +1046,9 @@ fun SiteConfirmationsPage(
                                 }
                             }
                         }
+                    }
+                    if (confirmations.notWholeWords.isNotEmpty()) {
+                        SectionFooter(confirmations.notWholeWords, Modifier.testTag("site-confirmations-not-whole"))
                     }
                 }
             }

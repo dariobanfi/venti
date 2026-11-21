@@ -6,6 +6,7 @@ import fly.venti.app.wind.grown
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.SiteKind
+import fly.venti.core.SitesShown
 import fly.venti.core.SiteView
 import fly.venti.core.WindSpan
 import fly.venti.core.WindStation
@@ -130,21 +131,22 @@ class SitesModelTest {
         val sites = model(server, scope = this)
         val area = valley.grown(0.5)
         // Off until the pilot says so: the path names no such layer, and the filter is not on.
-        assertFalse(sites.showsFromPilots)
+        assertFalse(sites.filter.withPilots)
         sites.load(area, BASE)
         assertEquals(BASE + sitesPath(area.south, area.west, area.north, area.east), server.asked.single())
         assertFalse("venti-pilots" in server.asked.single())
-        assertFalse(sites.isAsking)
+        assertFalse(sites.filtered.isOn)
         assertEquals("", sites.filtered.fromPilotsWords)
         assertTrue(sites.sites.none { it.byPilots?.fromPilots == true })
 
-        // Switched on: the same area is asked for again, with the layer, and
-        // the switch counts as part of the filter being on.
-        sites.showFromPilots(true)
+        // Switched on, in the filter: the same area is asked for again, with
+        // the layer, and the core counts the filter as on and says so in its line.
+        sites.filter = sites.filter.copy(withPilots = true)
         delay(200)
         assertEquals(BASE + sitesPathWithPilots(area.south, area.west, area.north, area.east), server.asked.last())
         assertEquals(2, server.asked.size)
-        assertTrue(sites.isAsking)
+        assertTrue(sites.filtered.isOn)
+        assertTrue(sites.filtered.filterWords, sites.filtered.filterWords.endsWith("with places from pilots"))
         val place = sites.sites.single()
         assertEquals(true, place.byPilots?.fromPilots)
         // Marked wherever it is shown: in the list's line, and under its name on the map.
@@ -158,17 +160,18 @@ class SitesModelTest {
         assertEquals(2, server.asked.size)
 
         // Off again: asked again without it, and nothing of the layer stays.
-        sites.showFromPilots(false)
+        sites.filter = sites.filter.copy(withPilots = false)
         delay(200)
         assertEquals(3, server.asked.size)
         assertFalse("venti-pilots" in server.asked.last())
-        assertFalse(sites.isAsking)
+        assertFalse(sites.filtered.isOn)
         assertTrue(sites.sites.none { it.byPilots?.fromPilots == true })
         // A site of a source keeps its name alone on the map and in its line.
         val takeoff = sites.sites.first { it.name == "Fluggelände Jägerkamp/Nagelspitz" }
         assertEquals("Fluggelände Jägerkamp/Nagelspitz", SiteFeature.label(takeoff))
-        // The same choice again asks nobody.
-        sites.showFromPilots(false)
+        // The same choice again asks nobody, and neither does another part of the filter.
+        sites.filter = sites.filter.copy(withPilots = false)
+        sites.filter = sites.filter.copy(shown = SitesShown.TAKEOFFS)
         delay(200)
         assertEquals(3, server.asked.size)
     }

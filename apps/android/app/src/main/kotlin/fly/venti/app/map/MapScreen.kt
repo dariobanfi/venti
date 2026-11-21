@@ -321,9 +321,8 @@ fun MapScreen(
     // "Measured now" is the station's nearest the middle of the map.
     LaunchedEffect(sites, preferences) {
         if (preferences != null) {
+            // With the places from pilots as the pilot left them: off until switched on.
             sites.filter = SitesFilterWords.read(preferences.mapSitesFilter)
-            // The places from pilots, off until the pilot switched them on.
-            sites.showFromPilots(preferences.mapShowsSitesFromPilots)
         }
     }
     val middle = region?.let { Coordinate(lat = (it.south + it.north) / 2, lon = (it.west + it.east) / 2) }
@@ -475,7 +474,7 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomStart),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         ) {
-            if (hasSites && sites.isAsking) {
+            if (hasSites && filtered.isOn) {
                 // What the pilot asks of the sites and what that leaves,
                 // while a filter or the places from pilots are on: a tap
                 // opens the filter.
@@ -532,7 +531,7 @@ fun MapScreen(
                 // Clear of the map's own credits button on the left and of
                 // the round buttons on the right.
                 Credits(credits, Modifier.padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
-            } else if (showsForecast || showsRadar || (hasSites && sites.isAsking)) {
+            } else if (showsForecast || showsRadar || (hasSites && filtered.isOn)) {
                 // The card stands clear of the map's own credits button.
                 Spacer(Modifier.height(VentiSpace.s6))
             }
@@ -556,7 +555,7 @@ fun MapScreen(
                     R.drawable.ic_filter,
                     SitesFilterWords.TITLE,
                     Modifier.testTag("sites-filter-open"),
-                    isOn = sites.isAsking,
+                    isOn = filtered.isOn,
                     fillsWhenOn = true,
                     onClick = { showsSitesFilter = true },
                 )
@@ -678,7 +677,6 @@ fun MapScreen(
         SitesFilterSheet(
             sites,
             onChange = { filter -> preferences?.mapSitesFilter = SitesFilterWords.kept(filter) },
-            onFromPilots = { on -> preferences?.mapShowsSitesFromPilots = on },
             onDismiss = { showsSitesFilter = false },
         )
     }
@@ -722,10 +720,11 @@ fun MapScreen(
     pressed?.let { place ->
         // Where nothing of the sites lies, the place can become one: the
         // entry stands over its forecast, as the core says for the account.
-        // The phone has the entry for a place from pilots only: a partner
-        // adds a site on the website. Where the server takes nothing from
-        // pilots there is no entry.
-        val adding = siteEdit?.takeIf { pressedIsFree && wind.takesSitesFromPilots }?.adding()?.takeIf { !it.asPartner }
+        // Whether there is an entry, where it leads and what it says are
+        // the core's: there is one where it has words for it. The phone
+        // has it for a place from pilots only: a partner adds a site on
+        // the website.
+        val adding = siteEdit?.takeIf { pressedIsFree }?.adding()?.takeIf { it.entryWords.isNotEmpty() && !it.asPartner }
         ForecastSheet(
             place,
             wind,
@@ -734,7 +733,6 @@ fun MapScreen(
                 {
                     AddSiteEntry(
                         adding = offered,
-                        hasSession = siteEdit.hasSession,
                         onAdd = {
                             pressed = null
                             siteForm = SiteFormDraft.new(place, offered)

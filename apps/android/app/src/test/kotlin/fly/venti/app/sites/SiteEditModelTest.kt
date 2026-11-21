@@ -101,8 +101,12 @@ class SiteEditModelTest {
         assertTrue(edit.hasSession)
         server.sites = { HttpAnswer(201, recorded("site_written.json")) }
 
-        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87))
+        // The demo pilot is a partner: the form's words are the partners' tier's, as the core said them with the entry.
+        val adding = checkNotNull(edit.adding())
+        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87), adding)
         assertTrue(entry.isNew)
+        assertEquals(adding.title to adding.sendWords, entry.words.title to entry.words.send)
+        assertEquals(edit.form.givingAsPartner, entry.words.giving)
         entry.draft = entry.draft.copy(name = "Testkogel (not real)", uses = listOf(SiteKind.TAKEOFF))
         val sent = edit.send(entry.draft, "")
 
@@ -120,7 +124,7 @@ class SiteEditModelTest {
         val server = Server()
         val edit = signedIn(server)
         // No name and no use: the core refuses to make the request.
-        val refused = edit.send(SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87)).draft, "")
+        val refused = edit.send(SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87), checkNotNull(edit.adding())).draft, "")
         assertTrue(refused is SiteEditModel.Sent.Refused)
         assertTrue(server.sent.isEmpty())
     }
@@ -131,11 +135,13 @@ class SiteEditModelTest {
         val edit = signedIn(server)
         server.sites = { HttpAnswer(409, recorded("site_too_close.json")) }
 
-        val entry = SiteFormDraft.new(Coordinate(lat = 47.3, lon = 10.9))
+        val entry = SiteFormDraft.new(Coordinate(lat = 47.3, lon = 10.9), checkNotNull(edit.adding()))
         entry.draft = entry.draft.copy(name = "Testkogel (not real)", uses = listOf(SiteKind.TAKEOFF))
         val refused = edit.send(entry.draft, "") as SiteEditModel.Sent.Refused
 
-        assertTrue(refused.words, refused.words.startsWith("A site that pilots added stands at this place already: Musterkogel West."))
+        // The site in the way is a partner's, and the core says so and names it.
+        assertTrue(refused.words, refused.words.contains("stands at this place already: Musterkogel West."))
+        assertTrue(refused.words, refused.words.contains("partner"))
         val other = checkNotNull(refused.inTheWay)
         assertEquals("Open Musterkogel West", other.words)
         assertEquals("venti:0000000000000000000000s001", other.id)
@@ -152,6 +158,9 @@ class SiteEditModelTest {
         assertTrue(page.canBeCorrected)
         val entry = SiteFormDraft.of(page.site)
         assertFalse(entry.isNew)
+        // The form's words are the core's for the tier of the site corrected: a partner's.
+        assertEquals("Correct this site" to "Save for everyone", entry.words.title to entry.words.send)
+        assertEquals(edit.form.givingAsPartner to page.site.byPilots?.note, entry.words.giving to entry.words.note)
         assertEquals("1862", entry.height)
         entry.draft = entry.draft.copy(name = "Musterkogel Westgrat")
         entry.comment = "its name on the signpost"
@@ -175,6 +184,8 @@ class SiteEditModelTest {
         assertEquals(3u, entry.draft.revision)
         assertEquals("its name on the signpost", entry.comment)
         assertEquals(listOf("Height: 1862 m → 1871 m"), entry.meanwhile)
+        // Nothing both changed: no sentence stands at a field.
+        assertTrue(entry.clashes.isEmpty())
         assertEquals(
             "Someone else changed this site while you were editing it. Your entries are kept, and what you left " +
                 "alone is as the site stands now.",
@@ -197,6 +208,10 @@ class SiteEditModelTest {
         assertEquals(1865.0, entry.draft.elevationM)
         val words = checkNotNull(entry.meanwhileWords)
         assertTrue(words, words.contains("You both changed: Height."))
+        // And the core's sentence for the field, which the form shows where a fault's stands.
+        val clash = entry.clashes.single()
+        assertEquals(SiteField.HEIGHT, clash.field)
+        assertTrue(clash.words, clash.words.startsWith("Height: you entered 1865 m, it now stands at 1871 m."))
         // A refusal for another reason carries nothing: the form stays as it is.
         server.sites = { refusal(403, "sites_closed") }
         val refused = edit.send(entry.draft, "") as SiteEditModel.Sent.Refused
@@ -212,8 +227,10 @@ class SiteEditModelTest {
         }
         val partners = edit.page(ID).site
         assertEquals("From a partner", partners.byPilots?.label)
-        val listed = edit.confirmations(ID)
+        val listed = edit.confirmations(partners)
         assertEquals("2 pilots took off here, last on 16 November 2026", listed.words)
+        // The list holds them all: nothing is said under it.
+        assertEquals("", listed.notWholeWords)
         assertTrue(listed.lines.first().words, listed.lines.first().words.startsWith("Mara Muster (@mara) on Mon 16 Nov 2026"))
         assertTrue(server.sent.all { it.headers["Authorization"] == null })
 
@@ -253,7 +270,9 @@ class SiteEditModelTest {
         assertEquals("Add as a place from pilots", adding.sendWords)
         // Where the server takes nothing from pilots, an ordinary pilot adds nothing, and the core says why.
         edit.takesSites = { false }
-        assertEquals("This server takes no places from pilots yet.", checkNotNull(edit.adding()).whyNot)
+        val closed = checkNotNull(edit.adding())
+        assertEquals("This server takes no places from pilots yet.", closed.whyNot)
+        assertEquals("", closed.entryWords)
         assertFalse(checkNotNull(edit.offers(partners, listed)).confirm.isOffered)
         edit.takesSites = { true }
 
@@ -284,9 +303,11 @@ class SiteEditModelTest {
         assertEquals(edit.says.signedOut, offers.note)
         assertTrue(offers.history.isOffered)
         assertFalse(listOf(offers.correct, offers.remove, offers.confirm, offers.withdraw, offers.report).any { it.isOffered })
+        // The entry for adding is the core's sentence, and it leads to the account.
         val adding = checkNotNull(edit.adding())
         assertFalse(adding.mayAdd)
-        assertEquals("Sign in to add a place pilots take off from.", adding.whyNot)
+        assertTrue(adding.leadsToSignIn)
+        assertEquals("Sign in to add a place pilots take off from.", adding.entryWords)
         // Signed out there is no account to read, and nothing is asked.
         server.sent.clear()
         account.refresh()
@@ -321,7 +342,7 @@ class SiteEditModelTest {
         assertTrue(edit.confirmFlights(written.site, form.days[1].day).isEmpty())
 
         // The list holds another pilot's and not this one's: the core offers no taking back.
-        val listed = edit.confirmations(ID)
+        val listed = edit.confirmations(written.site)
         assertFalse(checkNotNull(edit.offers(written.site, listed)).hasConfirmed)
         // With this pilot's own in it, the core says so and offers both ways on.
         val mine = listed.copy(lines = listed.lines.map { it.copy(by = it.by.copy(handle = "demo")) }.take(1))
@@ -362,10 +383,15 @@ class SiteEditModelTest {
         assertNull(history.bringBackRevision)
         // The newest revision is the one the site stands at.
         assertEquals(history.revisions.last().number, history.revision)
+        // What the history offers is the core's answer for it, read from the
+        // history alone: signed out nothing is put back or reported, and it says why.
+        val offers = checkNotNull(edit.historyOffers(history))
+        assertFalse(listOf(offers.putBack, offers.undo, offers.bringBack, offers.reportRevision).any { it.isOffered })
+        assertTrue(offers.note, offers.note.startsWith("Sign in to put a revision back"))
 
         // Signed out, a draft that could be sent is not: there is no token to send it with.
         server.sent.clear()
-        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87))
+        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87), checkNotNull(edit.adding()))
         entry.draft = entry.draft.copy(name = "Testkogel (not real)", uses = listOf(SiteKind.TAKEOFF))
         val refused = edit.send(entry.draft, "") as SiteEditModel.Sent.Refused
         assertTrue(refused.words.isNotEmpty())
@@ -391,12 +417,13 @@ class SiteEditModelTest {
         // What the server refuses is said in the core's words.
         server.sites = { refusal(403, "sites_closed") }
         val problem = runCatching { edit.remove(ID, "") }.exceptionOrNull() as Exception
-        assertTrue(edit.words(problem).startsWith("This server takes no sites from pilots."))
+        assertTrue(edit.words(problem), edit.words(problem).startsWith("This server takes no places from pilots"))
     }
 
     @Test
     fun aHeightIsTakenAsItIsTypedOnlyWhileItCanBeANumber() {
-        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87))
+        val adding = checkNotNull(signedOut(Server()).second.adding())
+        val entry = SiteFormDraft.new(Coordinate(lat = 47.27, lon = 10.87), adding)
         assertEquals("", entry.height)
         entry.typeHeight("1862")
         assertEquals(1862.0, entry.draft.elevationM)

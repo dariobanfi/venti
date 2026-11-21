@@ -45,7 +45,6 @@ import fly.venti.core.SitesFiltered
 import fly.venti.core.SitesShown
 import fly.venti.core.SitesWindIs
 import fly.venti.core.WindStation
-import fly.venti.core.siteWords
 import fly.venti.core.sitesFilterChoices
 import fly.venti.core.stationsNear
 
@@ -67,18 +66,23 @@ object SitesFilterWords {
         takeoffsFromM = null,
     )
 
-    /** A filter as the settings keep it: its four parts in a line, an absent one empty. */
+    /**
+     * A filter as the settings keep it: its parts in a line, an absent one
+     * empty; the last says whether the places from pilots are switched on.
+     */
     fun kept(filter: SitesFilter): String = listOf(
         filter.shown.name,
         filter.windFromDeg?.toString().orEmpty(),
         filter.windIs.name,
         filter.takeoffsFromM?.toString().orEmpty(),
+        if (filter.withPilots) WITH_PILOTS else "",
     ).joinToString(SEPARATOR)
 
     /** The filter a line of [kept] stands for; one that asks nothing for a line that is none. */
     fun read(kept: String?): SitesFilter {
         val parts = kept?.split(SEPARATOR) ?: return NOTHING
-        if (parts.size != 4) return NOTHING
+        // A line kept before the switch was part of the filter has four parts: the places from pilots are off.
+        if (parts.size != 4 && parts.size != 5) return NOTHING
         val shown = SitesShown.entries.firstOrNull { it.name == parts[0] } ?: return NOTHING
         val windIs = SitesWindIs.entries.firstOrNull { it.name == parts[2] } ?: return NOTHING
         return SitesFilter(
@@ -86,6 +90,7 @@ object SitesFilterWords {
             windFromDeg = parts[1].toDoubleOrNull(),
             windIs = windIs,
             takeoffsFromM = parts[3].toDoubleOrNull(),
+            withPilots = parts.getOrNull(4) == WITH_PILOTS,
         )
     }
 
@@ -102,6 +107,7 @@ object SitesFilterWords {
     }
 
     private const val SEPARATOR = "|"
+    private const val WITH_PILOTS = "with-pilots"
 }
 
 /**
@@ -174,15 +180,12 @@ private fun Leaves(filtered: SitesFiltered) {
 @Composable
 fun SitesFilterSheet(
     sites: SitesModel,
-    /** Told the filter after every choice, to keep it for the next run. */
+    /** Told the filter after every choice, the switch of the places from pilots too, to keep it for the next run. */
     onChange: (SitesFilter) -> Unit,
-    /** Told whether the places from pilots show, to keep it for the next run. */
-    onFromPilots: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colours = Venti.colours
     val choices = remember { sitesFilterChoices() }
-    val says = remember { siteWords() }
     val filter = sites.filter
     val asked = sites.asked
     val filtered = sites.filtered
@@ -272,19 +275,17 @@ fun SitesFilterSheet(
             }
 
             // The crowdsourced layer, which no map shows until its pilot
-            // says so: the core's name for it and what it is.
+            // says so: a part of the filter, under the core's name for it
+            // and the core's sentence of what it is.
             Group(Modifier.padding(top = VentiSpace.s3)) {
                 row {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .toggleable(
-                                value = sites.showsFromPilots,
+                                value = filter.withPilots,
                                 role = Role.Switch,
-                                onValueChange = { on ->
-                                    sites.showFromPilots(on)
-                                    onFromPilots(on)
-                                },
+                                onValueChange = { on -> choose(filter.copy(withPilots = on)) },
                             )
                             .testTag("sites-from-pilots")
                             .heightIn(min = VentiSize.touch)
@@ -292,11 +293,11 @@ fun SitesFilterSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(says.pilotsLayer, style = MaterialTheme.typography.bodyLarge)
-                            Text(says.pilotsLayerAbout, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
+                            Text(choices.withPilotsWords, style = MaterialTheme.typography.bodyLarge)
+                            Text(choices.withPilotsAbout, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
                         }
                         Spacer(Modifier.width(VentiSpace.s3))
-                        Switch(checked = sites.showsFromPilots, onCheckedChange = null)
+                        Switch(checked = filter.withPilots, onCheckedChange = null)
                     }
                 }
             }

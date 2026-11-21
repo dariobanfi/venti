@@ -1,0 +1,3894 @@
+{
+  "AccessToken": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "scopes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Scope"
+        }
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "last_used_on": {
+        "type": "string",
+        "format": "date"
+      },
+      "expires_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "scopes",
+      "created_at"
+    ]
+  },
+  "AccessTokensResponse": {
+    "type": "object",
+    "properties": {
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccessToken"
+        }
+      }
+    },
+    "required": [
+      "tokens"
+    ]
+  },
+  "Account": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "publishing_suspended_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "edits_sites": {
+        "type": "boolean",
+        "description": "True for an account whoever runs the server named as one of Venti's partners for flying sites; left out for every other."
+      }
+    },
+    "required": [
+      "handle",
+      "display_name",
+      "created_at"
+    ]
+  },
+  "AccountResponse": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "$ref": "#/components/schemas/Account"
+      }
+    },
+    "required": [
+      "account"
+    ]
+  },
+  "Activity": {
+    "type": "object",
+    "properties": {
+      "by_notam": {
+        "type": "boolean"
+      },
+      "on_request": {
+        "type": "boolean"
+      },
+      "on_demand": {
+        "type": "boolean"
+      },
+      "special_agreement": {
+        "type": "boolean"
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OperatingHours"
+        }
+      },
+      "hours_remarks": {
+        "type": "string"
+      },
+      "from": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "until": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "by_notam",
+      "on_request",
+      "on_demand",
+      "special_agreement"
+    ]
+  },
+  "AddSiteRequest": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/SiteDraft"
+      },
+      "comment": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "site"
+    ]
+  },
+  "Airspace": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "class": {
+        "$ref": "#/components/schemas/AirspaceClass"
+      },
+      "airspace_type": {
+        "$ref": "#/components/schemas/AirspaceType"
+      },
+      "country": {
+        "type": "string"
+      },
+      "lower": {
+        "$ref": "#/components/schemas/RawLimit"
+      },
+      "upper": {
+        "$ref": "#/components/schemas/RawLimit"
+      },
+      "lower_at_least": {
+        "$ref": "#/components/schemas/RawLimit"
+      },
+      "upper_at_most": {
+        "$ref": "#/components/schemas/RawLimit"
+      },
+      "geometry": {
+        "$ref": "#/components/schemas/RawPolygon"
+      },
+      "activity": {
+        "$ref": "#/components/schemas/Activity"
+      },
+      "frequencies": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Frequency"
+        }
+      },
+      "remarks": {
+        "type": "string"
+      },
+      "validity": {
+        "$ref": "#/components/schemas/Validity"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "class",
+      "airspace_type",
+      "lower",
+      "upper",
+      "geometry",
+      "activity",
+      "validity"
+    ]
+  },
+  "AirspaceClass": {
+    "type": "string",
+    "enum": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "unclassified"
+    ]
+  },
+  "AirspaceLayer": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "fetched_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "file_date": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "newest_change": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "covers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RawBox"
+        }
+      },
+      "countries": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "airspaces": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Airspace"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "fetched_at",
+      "airspaces"
+    ]
+  },
+  "AirspaceResponse": {
+    "type": "object",
+    "properties": {
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AirspaceLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "layers",
+      "attributions"
+    ]
+  },
+  "AirspaceType": {
+    "type": "string"
+  },
+  "Attribution": {
+    "description": "The credit of one data source an answer draws on. Whoever shows the data shows `text`, linked to `url`, next to it, and `notice` if there is one: the sources' licences require it. An answer's `attributions` has one entry per source it draws on, and only those.",
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "licence": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "notice": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "provider",
+      "licence",
+      "text",
+      "url"
+    ]
+  },
+  "ChangePasswordRequest": {
+    "type": "object",
+    "properties": {
+      "current_password": {
+        "type": "string"
+      },
+      "new_password": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "current_password",
+      "new_password"
+    ]
+  },
+  "ChangeSiteRequest": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/SiteDraft"
+      },
+      "revision": {
+        "type": "integer"
+      },
+      "comment": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "site",
+      "revision"
+    ]
+  },
+  "Circle": {
+    "type": "object",
+    "properties": {
+      "centre": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "radius_m": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "centre",
+      "radius_m"
+    ]
+  },
+  "ClientAddressesHealth": {
+    "type": "string",
+    "x-venti-values": [
+      "seen",
+      "hidden"
+    ]
+  },
+  "ConfirmSiteRequest": {
+    "description": "\"I took off here and it was good\": the day, a line if wanted, and one of the pilot's own flights if wanted, by its address.",
+    "type": "object",
+    "properties": {
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "note": {
+        "type": "string"
+      },
+      "flight": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "day"
+    ]
+  },
+  "CreateAccessTokenRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "scopes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "expires_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "password": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "scopes",
+      "password"
+    ]
+  },
+  "CreateAccessTokenResponse": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "$ref": "#/components/schemas/AccessToken"
+      },
+      "secret": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "token",
+      "secret"
+    ]
+  },
+  "CreateAccountRequest": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "invite": {
+        "type": "string"
+      },
+      "device": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle",
+      "display_name",
+      "password"
+    ]
+  },
+  "CreateGroupRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "CreateGroupResponse": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "$ref": "#/components/schemas/Group"
+      },
+      "invite_code": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "group",
+      "invite_code"
+    ]
+  },
+  "DayTime": {},
+  "DeleteAccountRequest": {
+    "type": "object",
+    "properties": {
+      "password": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "password"
+    ]
+  },
+  "DeletedFlight": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "identity": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "identity"
+    ]
+  },
+  "ErrorBody": {
+    "description": "`code` is stable and for programs; `message` is for the person writing the client and may change. `scope` comes with `insufficient_scope`, `site` with `site_too_close`.",
+    "type": "object",
+    "properties": {
+      "code": {
+        "$ref": "#/components/schemas/ErrorCode"
+      },
+      "message": {
+        "type": "string"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/Scope"
+      },
+      "site": {
+        "$ref": "#/components/schemas/ErrorSite"
+      }
+    },
+    "required": [
+      "code",
+      "message"
+    ]
+  },
+  "ErrorCode": {
+    "description": "A stable code. `x-venti-values` lists the codes the server has today; docs/api.md says which status each comes with and when. A client must expect codes it does not know.",
+    "type": "string",
+    "x-venti-values": [
+      "invalid_request",
+      "invalid_bbox",
+      "box_too_large",
+      "invalid_station_id",
+      "invalid_time",
+      "invalid_range",
+      "station_not_found",
+      "invalid_position",
+      "outside_region",
+      "no_forecasts",
+      "no_radar",
+      "invalid_handle",
+      "invalid_display_name",
+      "invalid_password",
+      "invalid_visibility",
+      "invalid_cursor",
+      "invalid_limit",
+      "invalid_sort",
+      "unauthorized",
+      "insufficient_scope",
+      "session_required",
+      "invalid_credentials",
+      "wrong_password",
+      "registration_closed",
+      "invalid_invite",
+      "handle_taken",
+      "session_not_found",
+      "invalid_token_name",
+      "invalid_scopes",
+      "invalid_expiry",
+      "too_many_tokens",
+      "token_not_found",
+      "invalid_kept_site",
+      "too_many_kept_sites",
+      "flight_not_found",
+      "pilot_not_found",
+      "invalid_flight",
+      "account_full",
+      "flight_taken_down",
+      "publishing_suspended",
+      "invalid_report",
+      "invalid_group_name",
+      "invalid_group_invite",
+      "group_full",
+      "too_many_groups",
+      "group_not_found",
+      "group_member_not_found",
+      "not_group_keeper",
+      "invalid_plan",
+      "invalid_day",
+      "plan_not_found",
+      "not_plan_author",
+      "group_plans_full",
+      "invalid_live_track_id",
+      "invalid_fixes",
+      "fixes_out_of_time",
+      "live_track_not_found",
+      "live_track_taken",
+      "live_track_gone",
+      "live_track_full",
+      "invalid_site",
+      "site_out_of_area",
+      "site_not_found",
+      "site_gone",
+      "site_revision_not_found",
+      "site_too_close",
+      "site_changed",
+      "sites_closed",
+      "sites_for_partners",
+      "invalid_layers",
+      "invalid_confirmation",
+      "map_not_found",
+      "range_not_satisfiable",
+      "rate_limited",
+      "not_found",
+      "method_not_allowed",
+      "payload_too_large",
+      "unsupported_media_type",
+      "timeout",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "ErrorResponse": {
+    "description": "The body of every answer with a 4xx or 5xx status.",
+    "type": "object",
+    "properties": {
+      "error": {
+        "$ref": "#/components/schemas/ErrorBody"
+      }
+    },
+    "required": [
+      "error"
+    ]
+  },
+  "ErrorSite": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  },
+  "Flight": {
+    "description": "A flight as worked out by the server from the uploaded file. `id` is its address for good and is never used for another flight.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "identity": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "visibility": {
+        "$ref": "#/components/schemas/Visibility"
+      },
+      "uploaded_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "start": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "airtime_s": {
+        "type": "integer"
+      },
+      "takeoff": {
+        "$ref": "#/components/schemas/FlightPlace"
+      },
+      "landing": {
+        "$ref": "#/components/schemas/FlightPlace"
+      },
+      "track_length_m": {
+        "type": "number"
+      },
+      "max_altitude_m": {
+        "type": "integer"
+      },
+      "max_climb_ms": {
+        "type": "number"
+      },
+      "score": {
+        "$ref": "#/components/schemas/FlightScore"
+      },
+      "glider": {
+        "type": "string"
+      },
+      "outline": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "file_bytes": {
+        "type": "integer"
+      },
+      "analysis_version": {
+        "type": "integer"
+      },
+      "taken_down_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "published_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "identity",
+      "pilot",
+      "visibility",
+      "uploaded_at",
+      "start",
+      "airtime_s",
+      "track_length_m",
+      "max_altitude_m",
+      "max_climb_ms",
+      "outline",
+      "file_bytes",
+      "analysis_version"
+    ]
+  },
+  "FlightChangesResponse": {
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Flight"
+        }
+      },
+      "deleted": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DeletedFlight"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more changes wait: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: drop what you hold and keep what the answers from here on give."
+      }
+    },
+    "required": [
+      "flights",
+      "deleted",
+      "cursor",
+      "more",
+      "reset"
+    ]
+  },
+  "FlightPlace": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "altitude_m": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "time",
+      "position",
+      "altitude_m"
+    ]
+  },
+  "FlightResponse": {
+    "type": "object",
+    "properties": {
+      "flight": {
+        "$ref": "#/components/schemas/Flight"
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "flight"
+    ]
+  },
+  "FlightScore": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/RouteKind"
+      },
+      "closed": {
+        "type": "boolean"
+      },
+      "distance_m": {
+        "type": "number"
+      },
+      "points": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "kind",
+      "closed",
+      "distance_m",
+      "points"
+    ]
+  },
+  "FlightTerms": {
+    "description": "Under what terms the flights of an answer may be used by somebody other than their pilot. Read it from each answer and act on it as it stands that day. `decided: false` marks a holding statement: the terms are not settled, and `licence` is absent until they are.",
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "licence": {
+        "type": "string"
+      },
+      "decided": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "text",
+      "decided"
+    ]
+  },
+  "FlightTrack": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "geometry": {
+        "$ref": "#/components/schemas/TrackLine"
+      },
+      "properties": {
+        "$ref": "#/components/schemas/TrackProperties"
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "type",
+      "id",
+      "geometry",
+      "properties"
+    ]
+  },
+  "FlightsResponse": {
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Flight"
+        }
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `after`. Absent on the last page."
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "flights"
+    ]
+  },
+  "ForecastHour": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "wind_speed_ms": {
+        "type": "number"
+      },
+      "wind_direction_deg": {
+        "type": "number"
+      },
+      "wind_gust_ms": {
+        "type": "number"
+      },
+      "temperature_c": {
+        "type": "number"
+      },
+      "dew_point_c": {
+        "type": "number"
+      },
+      "cloud_cover_pct": {
+        "type": "number"
+      },
+      "cloud_cover_low_pct": {
+        "type": "number"
+      },
+      "cloud_cover_mid_pct": {
+        "type": "number"
+      },
+      "cloud_cover_high_pct": {
+        "type": "number"
+      },
+      "precipitation_mm": {
+        "type": "number"
+      },
+      "cape_j_kg": {
+        "type": "number"
+      },
+      "freezing_level_m": {
+        "type": "number"
+      },
+      "updraft_ms": {
+        "type": "number"
+      },
+      "convective_cloud_base_m": {
+        "type": "number"
+      },
+      "convective_cloud_top_m": {
+        "type": "number"
+      },
+      "heat_to_air_w_m2": {
+        "type": "number"
+      },
+      "winds_aloft": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WindAloft"
+        }
+      }
+    },
+    "required": [
+      "time"
+    ]
+  },
+  "ForecastLayer": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "series": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ForecastSeries"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "series"
+    ]
+  },
+  "ForecastNearby": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "radius_km": {
+        "type": "number"
+      },
+      "cells": {
+        "type": "integer"
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NearbyHour"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "radius_km",
+      "cells",
+      "hours"
+    ]
+  },
+  "ForecastResponse": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "fetched_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ForecastLayer"
+        }
+      },
+      "nearby": {
+        "$ref": "#/components/schemas/ForecastNearby"
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "point",
+      "fetched_at",
+      "layers",
+      "attributions"
+    ]
+  },
+  "ForecastSeries": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "available_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "point": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "cell": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "cell_elevation_m": {
+        "type": "number"
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ForecastHour"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "model",
+      "run",
+      "point",
+      "cell",
+      "hours"
+    ]
+  },
+  "ForecastsHealth": {
+    "type": "string",
+    "x-venti-values": [
+      "available",
+      "not_configured"
+    ]
+  },
+  "Frequency": {
+    "type": "object",
+    "properties": {
+      "mhz": {
+        "type": "number"
+      },
+      "name": {
+        "type": "string"
+      },
+      "primary": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "mhz",
+      "primary"
+    ]
+  },
+  "Group": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "keeper": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "member_count": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "created_at",
+      "keeper",
+      "member_count"
+    ]
+  },
+  "GroupInviteResponse": {
+    "type": "object",
+    "properties": {
+      "invite_code": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "invite_code"
+    ]
+  },
+  "GroupResponse": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "$ref": "#/components/schemas/Group"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Pilot"
+        }
+      }
+    },
+    "required": [
+      "group",
+      "members"
+    ]
+  },
+  "GroupsResponse": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Group"
+        }
+      }
+    },
+    "required": [
+      "groups"
+    ]
+  },
+  "HandOverGroupRequest": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle"
+    ]
+  },
+  "HealthResponse": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/HealthStatus"
+      },
+      "version": {
+        "type": "string"
+      },
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "forecasts": {
+        "$ref": "#/components/schemas/ForecastsHealth"
+      },
+      "registration": {
+        "$ref": "#/components/schemas/RegistrationMode"
+      },
+      "sites_from_pilots": {
+        "$ref": "#/components/schemas/SitesFromPilots"
+      },
+      "client_addresses": {
+        "$ref": "#/components/schemas/ClientAddressesHealth"
+      },
+      "thermal_map": {
+        "$ref": "#/components/schemas/ThermalMapHealth"
+      },
+      "radar": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RadarHealth"
+        }
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SourceHealth"
+        }
+      }
+    },
+    "required": [
+      "status",
+      "version",
+      "time",
+      "sources"
+    ]
+  },
+  "HealthStatus": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "degraded"
+    ]
+  },
+  "HeightUnit": {
+    "type": "string",
+    "enum": [
+      "feet",
+      "metres",
+      "flight-level"
+    ]
+  },
+  "JoinGroupRequest": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "code"
+    ]
+  },
+  "JoinGroupResponse": {
+    "type": "object",
+    "properties": {
+      "group": {
+        "$ref": "#/components/schemas/Group"
+      },
+      "joined": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "group",
+      "joined"
+    ]
+  },
+  "KeepSiteRequest": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/Site"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/SiteStanding"
+      },
+      "attribution": {
+        "$ref": "#/components/schemas/Attribution"
+      },
+      "as_of": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "kept_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "site"
+    ]
+  },
+  "KeptSite": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/Site"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/SiteStanding"
+      },
+      "attribution": {
+        "$ref": "#/components/schemas/Attribution"
+      },
+      "as_of": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "kept_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "site",
+      "kept_at"
+    ]
+  },
+  "KeptSiteChangesResponse": {
+    "type": "object",
+    "properties": {
+      "kept": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/KeptSite"
+        }
+      },
+      "forgotten": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more changes wait: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: drop what you hold and keep what the answers from here on give."
+      }
+    },
+    "required": [
+      "kept",
+      "forgotten",
+      "cursor",
+      "more",
+      "reset"
+    ]
+  },
+  "KeptSiteResponse": {
+    "type": "object",
+    "properties": {
+      "kept": {
+        "$ref": "#/components/schemas/KeptSite"
+      }
+    },
+    "required": [
+      "kept"
+    ]
+  },
+  "LiveFix": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "altitude_m": {
+        "type": "integer"
+      },
+      "ground_speed_ms": {
+        "type": "number"
+      },
+      "climb_ms": {
+        "type": "number"
+      },
+      "course_deg": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "time",
+      "position",
+      "altitude_m"
+    ]
+  },
+  "LivePositionsRequest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "visibility": {
+        "$ref": "#/components/schemas/LiveVisibility"
+      },
+      "landed": {
+        "type": "boolean"
+      },
+      "fixes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveFix"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "visibility",
+      "fixes"
+    ]
+  },
+  "LivePositionsResponse": {
+    "type": "object",
+    "properties": {
+      "track": {
+        "$ref": "#/components/schemas/LiveTrack"
+      },
+      "page": {
+        "type": "string"
+      },
+      "created": {
+        "type": "boolean"
+      },
+      "stored": {
+        "type": "integer"
+      },
+      "known": {
+        "type": "integer"
+      },
+      "refused_future": {
+        "type": "integer"
+      },
+      "refused_old": {
+        "type": "integer"
+      },
+      "refused_full": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "track",
+      "page",
+      "created",
+      "stored",
+      "known",
+      "refused_future",
+      "refused_old",
+      "refused_full"
+    ]
+  },
+  "LiveTrack": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "visibility": {
+        "$ref": "#/components/schemas/LiveVisibility"
+      },
+      "landed": {
+        "type": "boolean"
+      },
+      "started_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "latest": {
+        "$ref": "#/components/schemas/LiveFix"
+      },
+      "fixes": {
+        "type": "integer"
+      },
+      "expires_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "pilot",
+      "visibility",
+      "landed",
+      "started_at",
+      "latest",
+      "fixes",
+      "expires_at"
+    ]
+  },
+  "LiveTrackResponse": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "track": {
+        "$ref": "#/components/schemas/LiveTrack"
+      },
+      "fixes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveFix"
+        }
+      },
+      "cursor": {
+        "type": "string"
+      },
+      "more": {
+        "type": "boolean"
+      },
+      "reset": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "time",
+      "track",
+      "fixes",
+      "cursor",
+      "more",
+      "reset"
+    ]
+  },
+  "LiveTracksResponse": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tracks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LiveTrack"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "time",
+      "tracks",
+      "truncated"
+    ]
+  },
+  "LiveVisibility": {
+    "type": "string",
+    "x-venti-values": [
+      "link",
+      "public"
+    ]
+  },
+  "MapCredit": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "MapFile": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "$ref": "#/components/schemas/MapFileRole"
+      },
+      "name": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "integer"
+      },
+      "sha256": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "credits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapCredit"
+        }
+      }
+    },
+    "required": [
+      "role",
+      "name",
+      "bytes",
+      "sha256",
+      "path",
+      "credits"
+    ]
+  },
+  "MapFileRole": {
+    "type": "string",
+    "x-venti-values": [
+      "basemap",
+      "terrain"
+    ]
+  },
+  "MapRegion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      },
+      "covers": {
+        "$ref": "#/components/schemas/RawBox"
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapFile"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "version",
+      "covers",
+      "files"
+    ]
+  },
+  "MapsResponse": {
+    "type": "object",
+    "properties": {
+      "regions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapRegion"
+        }
+      }
+    },
+    "required": [
+      "regions"
+    ]
+  },
+  "ModelHealth": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "available_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "checked_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "model",
+      "run",
+      "checked_at"
+    ]
+  },
+  "NearbyHour": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "wind": {
+        "$ref": "#/components/schemas/NearbyStrongest"
+      },
+      "gust": {
+        "$ref": "#/components/schemas/NearbyStrongest"
+      }
+    },
+    "required": [
+      "time",
+      "model",
+      "run"
+    ]
+  },
+  "NearbyStrongest": {
+    "type": "object",
+    "properties": {
+      "kmh": {
+        "type": "integer"
+      },
+      "at": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "from_deg": {
+        "type": "integer"
+      },
+      "ground_m": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "kmh",
+      "at"
+    ]
+  },
+  "ObservationsResponse": {
+    "type": "object",
+    "properties": {
+      "station": {
+        "$ref": "#/components/schemas/Station"
+      },
+      "observations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Reading"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "station",
+      "observations",
+      "attributions"
+    ]
+  },
+  "OperatingHours": {
+    "type": "object",
+    "properties": {
+      "day": {},
+      "start": {
+        "$ref": "#/components/schemas/DayTime"
+      },
+      "end": {
+        "$ref": "#/components/schemas/DayTime"
+      },
+      "by_notam": {
+        "type": "boolean"
+      },
+      "except_public_holidays": {
+        "type": "boolean"
+      },
+      "remarks": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "day",
+      "start",
+      "end",
+      "by_notam",
+      "except_public_holidays"
+    ]
+  },
+  "Pilot": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle",
+      "display_name"
+    ]
+  },
+  "PilotResponse": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Flight"
+        }
+      },
+      "next": {
+        "type": "string",
+        "description": "The cursor of the next page: send it as `after`. Absent on the last page."
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "pilot",
+      "flights"
+    ]
+  },
+  "Plan": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "group": {
+        "type": "string"
+      },
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "place": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "meet_at": {
+        "type": "string"
+      },
+      "note": {
+        "type": "string"
+      },
+      "author": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "changed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "in": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Pilot"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "group",
+      "day",
+      "place",
+      "author",
+      "created_at",
+      "changed_at",
+      "in"
+    ]
+  },
+  "PlanBoardResponse": {
+    "type": "object",
+    "properties": {
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Group"
+        }
+      },
+      "plans": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Plan"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "groups",
+      "plans",
+      "truncated"
+    ]
+  },
+  "PlanRequest": {
+    "type": "object",
+    "properties": {
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "place": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "meet_at": {
+        "type": "string"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "day",
+      "place"
+    ]
+  },
+  "PlanResponse": {
+    "type": "object",
+    "properties": {
+      "plan": {
+        "$ref": "#/components/schemas/Plan"
+      }
+    },
+    "required": [
+      "plan"
+    ]
+  },
+  "PlansResponse": {
+    "type": "object",
+    "properties": {
+      "plans": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Plan"
+        }
+      }
+    },
+    "required": [
+      "plans"
+    ]
+  },
+  "PublicFlightChangesResponse": {
+    "type": "object",
+    "properties": {
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Flight"
+        }
+      },
+      "withdrawn": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WithdrawnFlight"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more changes wait: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: drop what you hold and keep what the answers from here on give."
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "flights",
+      "withdrawn",
+      "cursor",
+      "more",
+      "reset",
+      "terms"
+    ]
+  },
+  "RadarFrameRef": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "interval_s": {
+        "type": "integer"
+      },
+      "path": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "time",
+      "interval_s",
+      "path",
+      "bytes"
+    ]
+  },
+  "RadarHealth": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "frames": {
+        "type": "integer"
+      },
+      "newest_frame": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "newest_frame_age_s": {
+        "type": "integer"
+      },
+      "bytes": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "source",
+      "frames",
+      "bytes"
+    ]
+  },
+  "RadarLayer": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "west": {
+        "type": "number"
+      },
+      "south": {
+        "type": "number"
+      },
+      "east": {
+        "type": "number"
+      },
+      "north": {
+        "type": "number"
+      },
+      "columns": {
+        "type": "integer"
+      },
+      "rows": {
+        "type": "integer"
+      },
+      "cadence_seconds": {
+        "type": "integer"
+      },
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RadarFrameRef"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "west",
+      "south",
+      "east",
+      "north",
+      "columns",
+      "rows",
+      "cadence_seconds",
+      "frames"
+    ]
+  },
+  "RadarResponse": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "steps_mm_h": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
+      "unseen": {
+        "type": "integer"
+      },
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RadarLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "time",
+      "steps_mm_h",
+      "unseen",
+      "layers",
+      "attributions"
+    ]
+  },
+  "RankedPilot": {
+    "type": "object",
+    "properties": {
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "points": {
+        "type": "number"
+      },
+      "scored": {
+        "type": "integer"
+      },
+      "flights": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Flight"
+        }
+      }
+    },
+    "required": [
+      "pilot",
+      "points",
+      "scored",
+      "flights"
+    ]
+  },
+  "RankingResponse": {
+    "type": "object",
+    "properties": {
+      "counted": {
+        "type": "integer"
+      },
+      "pilots": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RankedPilot"
+        }
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "counted",
+      "pilots"
+    ]
+  },
+  "RawBox": {
+    "description": "A box in WGS84 degrees.",
+    "type": "object",
+    "properties": {
+      "south": {
+        "type": "number"
+      },
+      "west": {
+        "type": "number"
+      },
+      "north": {
+        "type": "number"
+      },
+      "east": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "south",
+      "west",
+      "north",
+      "east"
+    ]
+  },
+  "RawLimit": {
+    "type": "object",
+    "properties": {
+      "reference": {
+        "$ref": "#/components/schemas/VerticalReference"
+      },
+      "value": {
+        "type": "number"
+      },
+      "unit": {
+        "$ref": "#/components/schemas/HeightUnit"
+      },
+      "metres": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "reference"
+    ]
+  },
+  "RawPoint": {
+    "description": "A position in WGS84 degrees.",
+    "type": "object",
+    "properties": {
+      "lat": {
+        "type": "number"
+      },
+      "lon": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "lat",
+      "lon"
+    ]
+  },
+  "RawPolygon": {
+    "type": "object",
+    "properties": {
+      "exterior": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "holes": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "circle": {
+        "$ref": "#/components/schemas/Circle"
+      }
+    },
+    "required": [
+      "exterior"
+    ]
+  },
+  "Reading": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "wind_speed_ms": {
+        "type": "number"
+      },
+      "wind_gust_ms": {
+        "type": "number"
+      },
+      "wind_direction_deg": {
+        "type": "number"
+      },
+      "gust_direction_deg": {
+        "type": "number"
+      },
+      "temperature_c": {
+        "type": "number"
+      },
+      "humidity_pct": {
+        "type": "number"
+      },
+      "pressure_hpa": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "time"
+    ]
+  },
+  "RegistrationMode": {
+    "type": "string",
+    "x-venti-values": [
+      "open",
+      "invite",
+      "closed"
+    ]
+  },
+  "RemoveSiteRequest": {
+    "type": "object",
+    "properties": {
+      "comment": {
+        "type": "string"
+      }
+    }
+  },
+  "ReportReason": {
+    "type": "string",
+    "x-venti-values": [
+      "offensive",
+      "impersonation",
+      "privacy",
+      "not_a_flight",
+      "spam",
+      "other",
+      "wrong_or_dangerous",
+      "not_a_site"
+    ]
+  },
+  "ReportRequest": {
+    "type": "object",
+    "properties": {
+      "subject": {
+        "$ref": "#/components/schemas/ReportSubject"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/ReportReason"
+      },
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "subject",
+      "reason"
+    ]
+  },
+  "ReportResponse": {
+    "type": "object",
+    "properties": {
+      "created": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "created"
+    ]
+  },
+  "ReportSubject": {
+    "type": "object",
+    "properties": {
+      "flight": {
+        "type": "string"
+      },
+      "group": {
+        "type": "string"
+      },
+      "plan": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "id"
+        ]
+      },
+      "site": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    }
+  },
+  "RestoreSiteRequest": {
+    "type": "object",
+    "properties": {
+      "restore": {
+        "type": "integer"
+      },
+      "comment": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "restore"
+    ]
+  },
+  "RouteKind": {
+    "type": "string",
+    "x-venti-values": [
+      "free_flight",
+      "free_triangle",
+      "fai_triangle"
+    ]
+  },
+  "Scope": {
+    "description": "What a token for another program may do. `x-venti-values` lists the scopes there are today.",
+    "type": "string",
+    "x-venti-values": [
+      "account:read",
+      "flights:read",
+      "flights:write",
+      "live:write",
+      "sites:write",
+      "groups:read",
+      "groups:write",
+      "reports:write",
+      "kept-sites:read",
+      "kept-sites:write"
+    ]
+  },
+  "Session": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "device": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "last_used_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "current": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "created_at",
+      "last_used_at",
+      "current"
+    ]
+  },
+  "SessionsResponse": {
+    "type": "object",
+    "properties": {
+      "sessions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Session"
+        }
+      }
+    },
+    "required": [
+      "sessions"
+    ]
+  },
+  "SignInRequest": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "device": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle",
+      "password"
+    ]
+  },
+  "SignInResponse": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "$ref": "#/components/schemas/Account"
+      },
+      "session": {
+        "$ref": "#/components/schemas/Session"
+      },
+      "token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "account",
+      "session",
+      "token"
+    ]
+  },
+  "Site": {
+    "description": "A flying site, of exactly one source or of one of Venti's own two layers. Records of two sources are never merged.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "elevation_m": {
+        "type": "number"
+      },
+      "uses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteUse"
+        }
+      },
+      "wind_directions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WindSector"
+        }
+      },
+      "paragliding": {
+        "type": "boolean"
+      },
+      "hang_gliding": {
+        "type": "boolean"
+      },
+      "official": {
+        "type": "boolean"
+      },
+      "discouraged": {
+        "type": "boolean"
+      },
+      "url": {
+        "type": "string"
+      },
+      "website": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "fee": {
+        "type": "string"
+      },
+      "guest_guidelines": {
+        "type": "boolean"
+      },
+      "no_flight_time": {
+        "type": "string"
+      },
+      "outline": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "required": [
+      "id",
+      "position",
+      "uses"
+    ]
+  },
+  "SiteChangesResponse": {
+    "type": "object",
+    "properties": {
+      "sites": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteRecord"
+        }
+      },
+      "removed": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Send it as `since` with the next request."
+      },
+      "more": {
+        "type": "boolean",
+        "description": "Whether more changes wait: ask again at once with `cursor`."
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "True when the cursor sent was not this server's: drop what you hold and keep what the answers from here on give."
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "sites",
+      "removed",
+      "cursor",
+      "more",
+      "reset",
+      "attributions"
+    ]
+  },
+  "SiteConfirmation": {
+    "description": "One pilot's confirmation of a site. `with_flight` is there, and true, where the server found a flight of the pilot's that took off at the site.",
+    "type": "object",
+    "properties": {
+      "by": {
+        "$ref": "#/components/schemas/SitePilot"
+      },
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "note": {
+        "type": "string"
+      },
+      "with_flight": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "by",
+      "day"
+    ]
+  },
+  "SiteConfirmationsResponse": {
+    "description": "Who says they took off at a site: at most the newest 100.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "confirmed": {
+        "$ref": "#/components/schemas/SiteConfirmed"
+      },
+      "confirmations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteConfirmation"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "confirmed",
+      "confirmations"
+    ]
+  },
+  "SiteConfirmed": {
+    "description": "How many pilots say they took off at a site and that it was good, and the newest day one of them speaks of. Left out of a site's `standing` while nobody has.",
+    "type": "object",
+    "properties": {
+      "pilots": {
+        "type": "integer"
+      },
+      "latest_day": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "required": [
+      "pilots"
+    ]
+  },
+  "SiteDraft": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "elevation_m": {
+        "type": "number"
+      },
+      "uses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteUse"
+        }
+      },
+      "wind_directions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WindSector"
+        }
+      },
+      "paragliding": {
+        "type": "boolean"
+      },
+      "hang_gliding": {
+        "type": "boolean"
+      },
+      "website": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "fee": {
+        "type": "string"
+      },
+      "guest_guidelines": {
+        "type": "boolean"
+      },
+      "no_flight_time": {
+        "type": "string"
+      },
+      "outline": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "required": [
+      "name",
+      "position",
+      "uses"
+    ]
+  },
+  "SiteHistoryResponse": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "integer"
+      },
+      "removed": {
+        "type": "boolean"
+      },
+      "revisions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteRevision"
+        }
+      },
+      "more": {
+        "type": "boolean"
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "revision",
+      "removed",
+      "revisions",
+      "more",
+      "attributions"
+    ]
+  },
+  "SiteLayer": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "fetched_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "as_of": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "covers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RawBox"
+        }
+      },
+      "sites": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Site"
+        }
+      },
+      "standing": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteStanding"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "fetched_at",
+      "as_of",
+      "sites"
+    ]
+  },
+  "SitePilot": {
+    "type": "object",
+    "properties": {
+      "handle": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "handle",
+      "display_name"
+    ]
+  },
+  "SiteRecord": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/Site"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/SiteStanding"
+      }
+    },
+    "required": [
+      "site",
+      "standing"
+    ]
+  },
+  "SiteResponse": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "$ref": "#/components/schemas/Site"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/SiteStanding"
+      },
+      "lasting": {
+        "type": "boolean"
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "site",
+      "lasting",
+      "attributions"
+    ]
+  },
+  "SiteRevision": {
+    "type": "object",
+    "properties": {
+      "number": {
+        "type": "integer"
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "by": {
+        "$ref": "#/components/schemas/SitePilot"
+      },
+      "via": {
+        "$ref": "#/components/schemas/SiteVia"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/SiteRevisionKind"
+      },
+      "restores": {
+        "type": "integer"
+      },
+      "comment": {
+        "type": "string"
+      },
+      "site": {
+        "$ref": "#/components/schemas/Site"
+      }
+    },
+    "required": [
+      "number",
+      "at",
+      "via",
+      "kind",
+      "site"
+    ]
+  },
+  "SiteRevisionKind": {
+    "type": "string",
+    "x-venti-values": [
+      "created",
+      "changed",
+      "restored",
+      "removed"
+    ]
+  },
+  "SiteStanding": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "integer"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "created_by": {
+        "$ref": "#/components/schemas/SitePilot"
+      },
+      "changed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "changed_by": {
+        "$ref": "#/components/schemas/SitePilot"
+      },
+      "confirmed": {
+        "$ref": "#/components/schemas/SiteConfirmed"
+      }
+    },
+    "required": [
+      "id",
+      "revision",
+      "created_at",
+      "changed_at"
+    ]
+  },
+  "SiteUse": {
+    "type": "string",
+    "x-venti-values": [
+      "takeoff",
+      "landing",
+      "towing",
+      "training"
+    ]
+  },
+  "SiteVia": {
+    "type": "string",
+    "x-venti-values": [
+      "session",
+      "operator",
+      "token"
+    ]
+  },
+  "SitesFromPilots": {
+    "type": "string",
+    "x-venti-values": [
+      "open",
+      "closed"
+    ]
+  },
+  "SitesResponse": {
+    "type": "object",
+    "properties": {
+      "layers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteLayer"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "layers",
+      "attributions"
+    ]
+  },
+  "SourceHealth": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "cadence_seconds": {
+        "type": "integer"
+      },
+      "last_success": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "last_failure": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "newest_observation": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "stale": {
+        "type": "boolean"
+      },
+      "stations": {
+        "type": "integer"
+      },
+      "airspaces": {
+        "type": "integer"
+      },
+      "file_date": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sites": {
+        "type": "integer"
+      },
+      "sites_as_of": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ModelHealth"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "provider",
+      "cadence_seconds",
+      "stale",
+      "stations"
+    ]
+  },
+  "Station": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "elevation_m": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "name",
+      "position"
+    ]
+  },
+  "StationWithLatest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number"
+          },
+          "lon": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ]
+      },
+      "elevation_m": {
+        "type": "number"
+      },
+      "latest": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wind_speed_ms": {
+            "type": "number"
+          },
+          "wind_gust_ms": {
+            "type": "number"
+          },
+          "wind_direction_deg": {
+            "type": "number"
+          },
+          "temperature_c": {
+            "type": "number"
+          },
+          "gust_direction_deg": {
+            "type": "number"
+          },
+          "humidity_pct": {
+            "type": "number"
+          },
+          "pressure_hpa": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "time",
+          "wind_speed_ms"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "name",
+      "position",
+      "elevation_m",
+      "latest"
+    ]
+  },
+  "StationsResponse": {
+    "type": "object",
+    "properties": {
+      "stations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/StationWithLatest"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "stations",
+      "truncated",
+      "attributions"
+    ]
+  },
+  "ThermalGrid": {
+    "type": "object",
+    "properties": {
+      "south": {
+        "type": "number"
+      },
+      "west": {
+        "type": "number"
+      },
+      "step_deg": {
+        "type": "number"
+      },
+      "rows": {
+        "type": "integer"
+      },
+      "columns": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "south",
+      "west",
+      "step_deg",
+      "rows",
+      "columns"
+    ]
+  },
+  "ThermalHoursResponse": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "layer": {
+        "$ref": "#/components/schemas/ThermalLayer"
+      },
+      "height_m": {
+        "type": "integer"
+      },
+      "heights_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "whole": {
+        "type": "boolean"
+      },
+      "computed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "grid": {
+        "$ref": "#/components/schemas/ThermalGrid"
+      },
+      "ground_m": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ThermalMapHour"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "date",
+      "layer",
+      "heights_m",
+      "model",
+      "run",
+      "whole",
+      "computed_at",
+      "grid",
+      "ground_m",
+      "hours",
+      "attributions"
+    ]
+  },
+  "ThermalKind": {
+    "type": "string",
+    "enum": [
+      "weak",
+      "local",
+      "cross_country",
+      "big"
+    ]
+  },
+  "ThermalLayer": {
+    "type": "string",
+    "enum": [
+      "thermals",
+      "wind",
+      "cloud",
+      "rain"
+    ]
+  },
+  "ThermalMapDay": {
+    "type": "object",
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "whole": {
+        "type": "boolean"
+      },
+      "verdict": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "why": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "thermals": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "climb_ms": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "top_m": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "cloud": {
+        "type": "array",
+        "items": {
+          "type": "boolean"
+        }
+      }
+    },
+    "required": [
+      "date",
+      "whole",
+      "verdict",
+      "thermals",
+      "climb_ms",
+      "top_m",
+      "cloud"
+    ]
+  },
+  "ThermalMapHealth": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "computed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ThermalMapModelHealth"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "models"
+    ]
+  },
+  "ThermalMapHour": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "verdict": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "why": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "thermals": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThermalKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "climb_ms": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "top_m": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "cloud": {
+        "type": "array",
+        "items": {
+          "type": "boolean"
+        }
+      },
+      "wind_kmh": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "wind_from_deg": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "gust_kmh": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "cloud_cover_pct": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "precipitation_mm": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      }
+    },
+    "required": [
+      "time"
+    ]
+  },
+  "ThermalMapModelHealth": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "model"
+    ]
+  },
+  "ThermalMapResponse": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "computed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "grid": {
+        "$ref": "#/components/schemas/ThermalGrid"
+      },
+      "ground_m": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": "One entry per cell of the grid; null for a cell that has no value."
+      },
+      "heights_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "days": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ThermalMapDay"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "model",
+      "run",
+      "computed_at",
+      "grid",
+      "ground_m",
+      "days",
+      "attributions"
+    ]
+  },
+  "ThermalReason": {
+    "type": "string",
+    "enum": [
+      "rain",
+      "wind",
+      "gusts",
+      "wind_aloft",
+      "cloud_base",
+      "storms"
+    ]
+  },
+  "ThermalVerdict": {
+    "type": "string",
+    "enum": [
+      "flyable",
+      "marginal",
+      "not_flyable"
+    ]
+  },
+  "TrackLine": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string"
+      },
+      "coordinates": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "required": [
+      "type",
+      "coordinates"
+    ]
+  },
+  "TrackProperties": {
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "times_s": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "pressure_altitudes_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "fixes": {
+        "type": "integer"
+      },
+      "every": {
+        "type": "integer"
+      },
+      "takeoff_s": {
+        "type": "integer"
+      },
+      "landing_s": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "start",
+      "times_s",
+      "fixes",
+      "every"
+    ]
+  },
+  "UpdateFlightRequest": {
+    "type": "object",
+    "properties": {
+      "visibility": {
+        "$ref": "#/components/schemas/Visibility"
+      }
+    },
+    "required": [
+      "visibility"
+    ]
+  },
+  "UpdateGroupRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "UploadResponse": {
+    "type": "object",
+    "properties": {
+      "flight": {
+        "$ref": "#/components/schemas/Flight"
+      },
+      "created": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "flight",
+      "created"
+    ]
+  },
+  "Validity": {
+    "type": "object",
+    "properties": {
+      "airac": {
+        "type": "string"
+      },
+      "file_date": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updated": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "VerticalReference": {
+    "type": "string",
+    "enum": [
+      "ground",
+      "above-ground",
+      "mean-sea-level",
+      "standard",
+      "unlimited"
+    ]
+  },
+  "Visibility": {
+    "description": "Who may read a flight: `private` its pilot, `unlisted` whoever has its address, `public` everyone, in the lists too.",
+    "type": "string",
+    "x-venti-values": [
+      "private",
+      "unlisted",
+      "public"
+    ]
+  },
+  "WindAloft": {
+    "type": "object",
+    "properties": {
+      "above_ground_m": {
+        "type": "number"
+      },
+      "pressure_hpa": {
+        "type": "number"
+      },
+      "altitude_m": {
+        "type": "number"
+      },
+      "wind_speed_ms": {
+        "type": "number"
+      },
+      "wind_direction_deg": {
+        "type": "number"
+      },
+      "temperature_c": {
+        "type": "number"
+      }
+    }
+  },
+  "WindSector": {
+    "type": "object",
+    "properties": {
+      "from_deg": {
+        "type": "number"
+      },
+      "to_deg": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "from_deg",
+      "to_deg"
+    ]
+  },
+  "WithdrawnFlight": {
+    "type": "object",
+    "properties": {
+      "id_sha256": {
+        "type": "string"
+      },
+      "withdrawn_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id_sha256"
+    ]
+  }
+}

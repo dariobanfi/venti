@@ -75,6 +75,7 @@ mod log;
 mod maps;
 mod mcp;
 mod observations;
+mod openapi;
 mod pilots;
 mod radar;
 mod ranking;
@@ -93,8 +94,11 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::http::{HeaderValue, Method, header};
-use axum::routing::{any, delete, get, post, put};
+use axum::extract::{Request, State};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use axum::routing::{MethodRouter, any, delete, get, post, put};
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
@@ -124,6 +128,7 @@ use crate::radar::Radar;
 use crate::thermals::ThermalMap;
 
 pub use mcp::MCP_PATH;
+pub use openapi::OPENAPI_PATH;
 
 /// The largest request body accepted where a request carries JSON or
 /// nothing: far more than a sign-in needs, and too little to be a burden.
@@ -173,7 +178,12 @@ impl ServedSource {
     }
 }
 
-/// Which web origins may call the API from a browser.
+/// Which web origins may call the API from a browser with everything it
+/// has: a token, a body, any method.
+///
+/// Whatever is listed here, a page of any origin may read what anyone may
+/// read: a `GET` or `HEAD` under `/v1` that carries no `Authorization`
+/// header is answered to every origin ([`open_reads`]).
 ///
 /// Either way the answer never tells a browser to send credentials along:
 /// the API knows no cookies, and a session token gets into a request only
@@ -477,14 +487,24 @@ impl<S: Store> Api<S> {
     /// track's identifier out, and of a path under a group everything
     /// that names the group, a plan or a member. How much is written
     /// about requests that fail is said in [`log`].
-    pub fn router(mut self, cors: &Cors) -> Router {
+    pub fn router(self, cors: &Cors) -> Router {
+        self.router_and_routes(cors).0
+    }
+
+    /// The router, and the path of every route it has, as the router
+    /// writes them (`/v1/sites/{*rest}`). The second is for whatever has
+    /// to be held to the router: the description of the API
+    /// ([`openapi`]) is, by a test that asks this.
+    pub fn router_and_routes(mut self, cors: &Cors) -> (Router, Vec<&'static str>) {
         self.mcp = mcp::protocol(self.sources.values(), cors, &self.public_url);
+        let mut routes = Vec::new();
         let deadline = |limit: Duration| {
             axum::middleware::from_fn(move |request, next| shape::deadline(limit, request, next))
         };
 
-        let ordinary = Router::new()
+        let ordinary = Routes::new(&mut routes)
             .route(HEALTH_PATH, get(health::health::<S>))
+            .route(OPENAPI_PATH, get(openapi::show))
             .route(STATIONS_PATH, get(stations::stations::<S>))
             .route(
                 "/v1/stations/{id}/observations",
@@ -586,33 +606,38 @@ impl<S: Store> Api<S> {
                 "/v1/groups/{id}/plans/{plan}/in",
                 put(groups::say_in::<S>).delete(groups::take_back::<S>),
             )
+            .done()
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
         // The fixes of a live track: a batch is larger than the other JSON
         // bodies may be, and far smaller than a file.
-        let positions = Router::new()
+        let positions = Routes::new(&mut routes)
             .route(LIVE_POSITIONS_PATH, post(live::send::<S>))
+            .done()
             .layer(RequestBodyLimitLayer::new(MAX_LIVE_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
-        let upload = Router::new()
+        let upload = Routes::new(&mut routes)
             .route(FLIGHTS_PATH, post(flights::upload::<S>))
+            .done()
             // The framework's own limit is for forms; the layer below is
             // the one that counts here.
             .layer(DefaultBodyLimit::disable())
             .layer(RequestBodyLimitLayer::new(flights::MAX_UPLOAD_BYTES))
             .layer(deadline(UPLOAD_DEADLINE));
 
-        let share = Router::new()
+        let share = Routes::new(&mut routes)
             .route("/f/{id}", get(share::page::<S>))
             .route("/f/{id}/preview.png", get(share::preview::<S>))
             .route("/live/{id}", get(live::page::<S>))
+            .done()
             .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
             .layer(deadline(DEADLINE));
 
-        let connector = Router::new()
+        let connector = Routes::new(&mut routes)
             .route(MCP_PATH, any(mcp::endpoint::<S>))
+            .done()
             // The framework's own limit is for forms; the layer below is
             // the one that counts here.
             .layer(DefaultBodyLimit::disable())
@@ -626,17 +651,22 @@ impl<S: Store> Api<S> {
         // The files of a map region. The group is merged in below, after
         // the compression is laid around the others, and it has no
         // deadline: see above. `get` answers `HEAD` as well.
-        let map_files = Router::new()
+        let map_files = Routes::new(&mut routes)
             .route(maps::FILE_ROUTE, get(maps::file::<S>))
+            .done()
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .layer(axum::middleware::from_fn_with_state(
                 api.clone(),
                 clients::note::<S>,
             ))
             .with_state(api.clone())
-            .layer(cors_layer(cors));
+            .layer(cors_layer(cors))
+            .layer(axum::middleware::from_fn_with_state(
+                own_origins(cors),
+                open_reads,
+            ));
 
-        Router::new()
+        let router = Router::new()
             .merge(ordinary)
             .merge(positions)
             .merge(upload)
@@ -650,14 +680,185 @@ impl<S: Store> Api<S> {
             ))
             .with_state(api)
             .layer(cors_layer(cors))
+            .layer(axum::middleware::from_fn_with_state(
+                own_origins(cors),
+                open_reads,
+            ))
             .layer(CompressionLayer::new())
             .merge(map_files)
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(log::request_span)
                     .on_failure(log::failure),
-            )
+            );
+        routes.sort_unstable();
+        routes.dedup();
+        (router, routes)
     }
+}
+
+/// A group of routes that writes the path of each into a list, so that
+/// the router can say which routes it has: the framework's own router
+/// cannot.
+struct Routes<'a, T> {
+    router: Router<T>,
+    paths: &'a mut Vec<&'static str>,
+}
+
+impl<'a, T: Clone + Send + Sync + 'static> Routes<'a, T> {
+    fn new(paths: &'a mut Vec<&'static str>) -> Self {
+        Self {
+            router: Router::new(),
+            paths,
+        }
+    }
+
+    fn route(mut self, path: &'static str, methods: MethodRouter<T>) -> Self {
+        self.paths.push(path);
+        self.router = self.router.route(path, methods);
+        self
+    }
+
+    fn done(self) -> Router<T> {
+        self.router
+    }
+}
+
+/// The request headers a page of any origin may send with a read: what
+/// asks for an answer only if it changed, and for a part of a map file.
+const OPEN_READ_HEADERS: [header::HeaderName; 3] =
+    [header::IF_NONE_MATCH, header::RANGE, header::IF_RANGE];
+
+/// What a page may read of an answer's headers beyond the few a browser
+/// always shows it.
+const EXPOSED_HEADERS: [header::HeaderName; 4] = [
+    header::ETAG,
+    header::RETRY_AFTER,
+    header::ACCEPT_RANGES,
+    header::CONTENT_RANGE,
+];
+
+fn listed(names: &[header::HeaderName]) -> HeaderValue {
+    let names: Vec<&str> = names.iter().map(header::HeaderName::as_str).collect();
+    HeaderValue::from_str(&names.join(", ")).unwrap_or(HeaderValue::from_static(""))
+}
+
+/// The origins of the configuration, or none where every origin may do
+/// everything.
+type OwnOrigins = Option<Arc<[String]>>;
+
+fn own_origins(cors: &Cors) -> OwnOrigins {
+    match cors {
+        Cors::Any => None,
+        Cors::Origins(origins) => Some(origins.clone().into()),
+    }
+}
+
+/// Answers a read that anyone may make to a page of any origin.
+///
+/// Such a read is a `GET` or a `HEAD` under `/v1` that carries no
+/// `Authorization` header: it is answered with what the server gives
+/// everyone, so a page of another maker may see it. The answer says
+/// `Access-Control-Allow-Origin: *`, which a browser takes only for a
+/// request without credentials of its own, and names the headers a
+/// reader needs.
+///
+/// Everything else is left to the layer inside ([`cors_layer`]), which
+/// answers the origins of the configuration and nobody else: a request
+/// with a token, and every request that writes. A preflight is answered
+/// here only when it asks for such a read and for no header beyond
+/// [`OPEN_READ_HEADERS`], and the answer allows `GET` and `HEAD` with
+/// those headers and nothing more. That matters: a browser remembers
+/// what a preflight allowed, and one that allowed `POST` or
+/// `Content-Type` to a stranger would let that stranger's page send
+/// sign-in attempts through a visitor's browser.
+///
+/// The share pages and the connector are not under `/v1` and are not
+/// touched.
+async fn open_reads(State(ours): State<OwnOrigins>, request: Request, next: Next) -> Response {
+    // Every origin is answered by the layer inside already.
+    let Some(ours) = ours else {
+        return next.run(request).await;
+    };
+    let headers = request.headers();
+    let stranger = headers
+        .get(header::ORIGIN)
+        .is_some_and(|origin| !ours.iter().any(|own| own.as_bytes() == origin.as_bytes()));
+    if !stranger || !request.uri().path().starts_with("/v1/") {
+        return next.run(request).await;
+    }
+    if request.method() == Method::OPTIONS {
+        if !asks_for_an_open_read(headers) {
+            return next.run(request).await;
+        }
+        let mut answer = StatusCode::NO_CONTENT.into_response();
+        let out = answer.headers_mut();
+        out.insert(
+            header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("*"),
+        );
+        out.insert(
+            header::ACCESS_CONTROL_ALLOW_METHODS,
+            HeaderValue::from_static("GET, HEAD"),
+        );
+        out.insert(
+            header::ACCESS_CONTROL_ALLOW_HEADERS,
+            listed(&OPEN_READ_HEADERS),
+        );
+        out.insert(
+            header::ACCESS_CONTROL_MAX_AGE,
+            HeaderValue::from(PREFLIGHT_MAX_AGE.as_secs()),
+        );
+        out.insert(
+            header::VARY,
+            HeaderValue::from_static(
+                "origin, access-control-request-method, access-control-request-headers",
+            ),
+        );
+        return answer;
+    }
+    let open = (request.method() == Method::GET || request.method() == Method::HEAD)
+        && !headers.contains_key(header::AUTHORIZATION);
+    let mut answer = next.run(request).await;
+    if open {
+        let out = answer.headers_mut();
+        out.insert(
+            header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("*"),
+        );
+        out.insert(
+            header::ACCESS_CONTROL_EXPOSE_HEADERS,
+            listed(&EXPOSED_HEADERS),
+        );
+    }
+    answer
+}
+
+/// Whether a preflight asks for a read that anyone may make: `GET` or
+/// `HEAD`, and no header beyond [`OPEN_READ_HEADERS`].
+fn asks_for_an_open_read(preflight: &HeaderMap) -> bool {
+    let method = preflight
+        .get(header::ACCESS_CONTROL_REQUEST_METHOD)
+        .and_then(|method| method.to_str().ok());
+    if !matches!(method, Some("GET" | "HEAD")) {
+        return false;
+    }
+    preflight
+        .get_all(header::ACCESS_CONTROL_REQUEST_HEADERS)
+        .iter()
+        .all(|asked| {
+            asked.to_str().is_ok_and(|asked| {
+                asked
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                    .all(|name| {
+                        OPEN_READ_HEADERS
+                            .iter()
+                            .any(|open| open.as_str().eq_ignore_ascii_case(name))
+                    })
+            })
+        })
 }
 
 fn cors_layer(cors: &Cors) -> CorsLayer {
@@ -692,11 +893,6 @@ fn cors_layer(cors: &Cors) -> CorsLayer {
             .into_iter()
             .chain(mcp::REQUEST_HEADERS),
         ))
-        .expose_headers([
-            header::ETAG,
-            header::RETRY_AFTER,
-            header::ACCEPT_RANGES,
-            header::CONTENT_RANGE,
-        ])
+        .expose_headers(EXPOSED_HEADERS)
         .max_age(PREFLIGHT_MAX_AGE)
 }

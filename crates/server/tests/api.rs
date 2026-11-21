@@ -451,55 +451,230 @@ async fn answers_are_compressed_when_the_client_accepts_it() {
     assert_eq!(packed.header(header::ETAG), plain.header(header::ETAG));
 }
 
+const ELSEWHERE: &str = "https://elsewhere.example";
+
+fn preflight(path: &str, origin: &str, method: &str, headers: Option<&str>) -> Request<Body> {
+    let mut request = Request::builder()
+        .method(Method::OPTIONS)
+        .uri(path)
+        .header(header::ORIGIN, origin)
+        .header(header::ACCESS_CONTROL_REQUEST_METHOD, method);
+    if let Some(headers) = headers {
+        request = request.header(header::ACCESS_CONTROL_REQUEST_HEADERS, headers);
+    }
+    request.body(Body::empty()).unwrap()
+}
+
 #[tokio::test]
-async fn only_the_configured_web_origin_may_read_the_api() {
+async fn the_configured_web_origin_may_do_everything_from_a_browser() {
     let router = recorded().await;
 
     let ours = get_with(&router, "/v1/health", &[(header::ORIGIN, WEB_APP)]).await;
     assert_eq!(ours.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), WEB_APP);
 
-    let theirs = get_with(
-        &router,
-        "/v1/health",
-        &[(header::ORIGIN, "https://elsewhere.example")],
-    )
-    .await;
-    assert_eq!(
-        theirs.status,
-        StatusCode::OK,
-        "CORS is enforced by the browser"
-    );
-    assert!(
-        !theirs
-            .headers
-            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-    );
-
     // What a browser asks before a request with a validator.
-    let preflight = Request::builder()
-        .method(Method::OPTIONS)
-        .uri(first_region())
-        .header(header::ORIGIN, WEB_APP)
-        .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
-        .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "if-none-match")
-        .body(Body::empty())
-        .unwrap();
-    let preflight = send(&router, preflight).await;
-    assert_eq!(preflight.status, StatusCode::OK);
-    assert_eq!(
-        preflight.header(header::ACCESS_CONTROL_ALLOW_ORIGIN),
-        WEB_APP
-    );
+    let asked = preflight(&first_region(), WEB_APP, "GET", Some("if-none-match"));
+    let asked = send(&router, asked).await;
+    assert_eq!(asked.status, StatusCode::OK);
+    assert_eq!(asked.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), WEB_APP);
     assert!(
-        preflight
+        asked
             .header(header::ACCESS_CONTROL_ALLOW_METHODS)
             .contains("GET")
     );
     assert!(
-        preflight
+        asked
             .header(header::ACCESS_CONTROL_ALLOW_HEADERS)
             .contains("if-none-match")
     );
+
+    // And before one that writes for an account.
+    let asked = preflight(
+        "/v1/flights",
+        WEB_APP,
+        "POST",
+        Some("authorization, content-type"),
+    );
+    let asked = send(&router, asked).await;
+    assert_eq!(asked.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), WEB_APP);
+    assert!(
+        asked
+            .header(header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .contains("authorization")
+    );
+}
+
+#[tokio::test]
+async fn a_page_of_any_origin_may_read_what_anyone_may_read() {
+    let router = recorded().await;
+
+    for path in [
+        "/v1/health".to_owned(),
+        first_region(),
+        "/v1/flights/public".to_owned(),
+        "/v1/openapi.json".to_owned(),
+    ] {
+        let read = get_with(&router, &path, &[(header::ORIGIN, ELSEWHERE)]).await;
+        assert_eq!(read.status, StatusCode::OK, "{path}");
+        assert_eq!(
+            read.header(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            "*",
+            "{path}"
+        );
+        // Never with the browser's own credentials.
+        assert!(
+            !read
+                .headers
+                .contains_key(header::ACCESS_CONTROL_ALLOW_CREDENTIALS)
+        );
+        // The headers a reader needs: to ask again only for what changed,
+        // and to wait as long as it is told.
+        let exposed = read.header(header::ACCESS_CONTROL_EXPOSE_HEADERS);
+        assert!(exposed.contains("etag"), "{exposed}");
+        assert!(exposed.contains("retry-after"), "{exposed}");
+        // A cache keeps the answers to different origins apart.
+        assert!(read.header_values(header::VARY).contains("origin"));
+    }
+
+    // An error is read as well: a page can tell its visitor what went wrong.
+    let refused = get_with(&router, "/v1/stations", &[(header::ORIGIN, ELSEWHERE)]).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    assert_eq!(refused.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), "*");
+
+    // The pages for people are not part of the API and stay as they were.
+    let page = get_with(
+        &router,
+        "/f/0123456789abcdefghjkmnpqrs",
+        &[(header::ORIGIN, ELSEWHERE)],
+    )
+    .await;
+    assert!(
+        !page
+            .headers
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+}
+
+#[tokio::test]
+async fn a_preflight_from_any_origin_opens_reads_and_nothing_else() {
+    let router = recorded().await;
+
+    // A read with a validator: allowed, and only as a read.
+    for headers in [Some("if-none-match"), Some("If-None-Match, Range"), None] {
+        let asked = send(
+            &router,
+            preflight(&first_region(), ELSEWHERE, "GET", headers),
+        )
+        .await;
+        assert_eq!(asked.status, StatusCode::NO_CONTENT);
+        assert_eq!(asked.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), "*");
+        assert_eq!(
+            asked.header(header::ACCESS_CONTROL_ALLOW_METHODS),
+            "GET, HEAD"
+        );
+        // A browser remembers what a preflight allowed: this one must not
+        // allow a token or a JSON body, or the next request of the page
+        // could carry one unasked.
+        assert_eq!(
+            asked.header(header::ACCESS_CONTROL_ALLOW_HEADERS),
+            "if-none-match, range, if-range"
+        );
+        assert!(
+            !asked
+                .headers
+                .contains_key(header::ACCESS_CONTROL_ALLOW_CREDENTIALS)
+        );
+        assert!(asked.headers.contains_key(header::ACCESS_CONTROL_MAX_AGE));
+    }
+
+    // A read with a token, a write, a JSON body: as before, not allowed.
+    for (path, method, headers) in [
+        ("/v1/flights", "GET", Some("authorization")),
+        ("/v1/flights", "GET", Some("if-none-match, Authorization")),
+        ("/v1/sessions", "POST", Some("content-type")),
+        ("/v1/sessions", "GET", Some("content-type")),
+        ("/v1/flights/0123456789abcdefghjkmnpqrs", "DELETE", None),
+        ("/v1/account/password", "PUT", Some("authorization")),
+    ] {
+        let asked = send(&router, preflight(path, ELSEWHERE, method, headers)).await;
+        assert!(
+            !asked
+                .headers
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            "{method} {path} with {headers:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_signed_request_from_another_origin_is_as_it_was() {
+    let router = recorded().await;
+    let token = format!("Bearer {}", venti_server::dev::DEMO_TOKEN);
+
+    // The server answers, as it answers any program; the browser of a
+    // page on another site is told nothing that lets the page read it.
+    let signed = get_with(
+        &router,
+        "/v1/flights",
+        &[
+            (header::ORIGIN, ELSEWHERE),
+            (header::AUTHORIZATION, token.as_str()),
+        ],
+    )
+    .await;
+    assert_eq!(signed.status, StatusCode::OK);
+    assert!(
+        !signed
+            .headers
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+    signed.is_private();
+
+    // A public read with a token on it is no open read either.
+    let signed = get_with(
+        &router,
+        "/v1/health",
+        &[
+            (header::ORIGIN, ELSEWHERE),
+            (header::AUTHORIZATION, token.as_str()),
+        ],
+    )
+    .await;
+    assert!(
+        !signed
+            .headers
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+
+    // Nor is a write, with or without a token.
+    let write = send(
+        &router,
+        Request::builder()
+            .method(Method::POST)
+            .uri("/v1/sessions")
+            .header(header::ORIGIN, ELSEWHERE)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{}"))
+            .unwrap(),
+    )
+    .await;
+    assert!(
+        !write
+            .headers
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+
+    // The web app's own origin reads its account as before.
+    let ours = get_with(
+        &router,
+        "/v1/flights",
+        &[
+            (header::ORIGIN, WEB_APP),
+            (header::AUTHORIZATION, token.as_str()),
+        ],
+    )
+    .await;
+    assert_eq!(ours.header(header::ACCESS_CONTROL_ALLOW_ORIGIN), WEB_APP);
 }
 
 // --- Requests that cannot be answered ---------------------------------------

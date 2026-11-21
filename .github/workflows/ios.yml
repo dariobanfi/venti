@@ -232,6 +232,10 @@ jobs:
           # The build cache restores `target`, and with it what an earlier
           # run left there. xcodebuild refuses to overwrite a result bundle.
           # The app is signed for this Mac only, as for the unit tests.
+          # A test that fails is run once more, in a fresh process: on these
+          # runners the simulator now and then fails to launch the app
+          # ("Failed to launch", "Failed to get background assertion"),
+          # which says nothing about the app. A test that fails twice fails.
           rm -rf target/apple/Venti.xcresult target/apple/attachments target/apple/screenshots
           mkdir -p target/apple
           xcodebuild test \
@@ -241,6 +245,8 @@ jobs:
             -derivedDataPath target/apple/DerivedData \
             -resultBundlePath target/apple/Venti.xcresult \
             $ONLY_TESTING \
+            -retry-tests-on-failure -test-iterations 2 \
+            -test-repetition-relaunch-enabled YES \
             CODE_SIGN_IDENTITY=- \
             2>&1 | tee target/apple/xcodebuild.log \
             | grep -E "^Test (Suite|Case) |Executed [0-9]+ tests|(error|warning): |\*\* TEST"

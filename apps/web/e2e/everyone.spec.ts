@@ -6,13 +6,12 @@
  */
 
 import type { Page } from '@playwright/test';
-import { expect, metric, panel, test } from './helpers';
+import { expect, metric, panel, rowsOf, test } from './helpers';
 
 /** The newest of the five, Jonas Beispiel's of 6 September. */
 const NEWEST = 'nfmvgygyr34epnfbcekb04nwqc';
 
-const flights = (page: Page) => page.getByRole('list', { name: 'Everyone’s flights' });
-const rows = (page: Page) => flights(page).getByRole('listitem');
+const rows = (page: Page) => rowsOf(page, 'Everyone’s flights');
 const whose = (page: Page) => page.getByRole('navigation', { name: 'Whose flights' });
 
 test('everyone’s flights are listed newest first or best, on any day or on the days chosen', async ({
@@ -35,7 +34,7 @@ test('everyone’s flights are listed newest first or best, on any day or on the
 	await expect(rows(page)).toHaveCount(5);
 	const first = rows(page).first();
 	await expect(first.getByRole('link', { name: 'Jonas Beispiel' })).toBeVisible();
-	await expect(first).toContainText(/Sun, 6 Sept? 2026 · Sample Wing/);
+	await expect(first).toContainText(/Sun, 6 Sept? 2026[\s\S]*Sample Wing/);
 	await expect(first).toContainText('12.0 km');
 	await expect(first).toContainText('0:29 h');
 	await expect(rows(page).last()).toContainText('Demo Pilot');
@@ -109,17 +108,20 @@ test('a long list is read a page at a time', async ({ context, page }) => {
 	await expect(rows(page).last()).toContainText('Demo Pilot');
 });
 
-test('a pilot’s name leads to that pilot’s flights', async ({ page, keep }) => {
+test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wide }) => {
 	await page.goto('/logbook/everyone/');
 	await rows(page).first().getByRole('link', { name: 'Jonas Beispiel' }).click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/pilot\/\?handle=jonas$/);
 
 	await expect(page.getByRole('heading', { level: 1, name: 'Jonas Beispiel' })).toBeVisible();
 	await expect(page.getByText('@jonas', { exact: true })).toBeVisible();
-	const own = page.getByRole('list', { name: 'Flights of Jonas Beispiel' }).getByRole('listitem');
+	const own = rowsOf(page, 'Flights of Jonas Beispiel');
 	await expect(own).toHaveCount(2);
 	// The rows of one pilot's flights begin with the day.
-	await expect(own.first().getByRole('link')).toHaveText(/Sun, 6 Sept? 2026\s*Sample Wing/);
+	await expect(own.first().getByRole('link')).toHaveText(
+		wide ? /^Sun, 6 Sept? 2026$/ : /Sun, 6 Sept? 2026\s*Sample Wing/
+	);
+	await expect(own.first()).toContainText('Sample Wing');
 	await expect(own.last()).toContainText('9.0 km');
 	await expect(page.getByText(/^The flights this pilot shares with everyone/)).toBeVisible();
 	await keep('64-pilot-flights');
@@ -204,7 +206,7 @@ test('what another pilot wrote is shown as text, never as markup', async ({ cont
 	await expect(rows(page).first().getByRole('link').first()).toHaveText(written.slice(0, 39) + '…');
 	await expect(rows(page).first()).toContainText('<script>document.title = 2</script>');
 	// Nothing of them became an element, and nothing of them ran.
-	await expect(flights(page).locator('img, b, script')).toHaveCount(0);
+	await expect(rows(page).locator('img, b, script')).toHaveCount(0);
 	await expect(page).toHaveTitle('Everyone’s flights · Venti');
 });
 

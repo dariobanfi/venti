@@ -197,31 +197,4 @@
 		outline-offset: -0.1875rem;
 		border-radius: 0.5rem;
 	}
-
-	/* Wide: the numbers in columns under the headings of `PublicFlightList`. */
-	@media (min-width: 56rem) {
-		li {
-			padding-right: 1rem;
-		}
-
-		.figures {
-			flex-direction: row;
-			align-items: baseline;
-			gap: 0;
-		}
-
-		.figure,
-		.figure.extra {
-			display: block;
-			width: var(--column);
-			text-align: right;
-			font-size: var(--body);
-			font-weight: 400;
-			color: var(--text);
-		}
-
-		.chevron {
-			display: none;
-		}
-	}
 </style>

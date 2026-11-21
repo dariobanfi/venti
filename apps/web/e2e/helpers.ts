@@ -270,3 +270,14 @@ export async function dropFiles(
 	await page.dispatchEvent('body', 'drop', { dataTransfer: transfer });
 	await expect(page.getByText(says)).toBeHidden();
 }
+
+/**
+ * The rows of a list of flights or pilots: a table's on a wide screen,
+ * a list's on a phone.
+ */
+export function rowsOf(within: Page | Locator, name: string | RegExp): Locator {
+	return within
+		.getByRole('list', { name })
+		.locator('> li')
+		.or(within.getByRole('table', { name }).locator('tbody > tr'));
+}

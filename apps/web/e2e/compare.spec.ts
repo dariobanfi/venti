@@ -6,14 +6,12 @@
  */
 
 import type { Page } from '@playwright/test';
-import { addSampleFlight, expect, flightDetails, test } from './helpers';
+import { addSampleFlight, expect, flightDetails, rowsOf, test } from './helpers';
 
 /** Opens Mara Muster's flight of 16 August 2026, from that day's list. */
 async function openMarasFlight(page: Page) {
 	await page.goto('/logbook/everyone/?order=best&from=2026-08-16&to=2026-08-16');
-	await page
-		.getByRole('list', { name: 'Everyone’s flights' })
-		.getByRole('listitem')
+	await rowsOf(page, 'Everyone’s flights')
 		.filter({ hasText: 'Mara Muster' })
 		.getByRole('link')
 		.last()

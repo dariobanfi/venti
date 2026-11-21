@@ -8,10 +8,9 @@
  */
 
 import type { Page } from '@playwright/test';
-import { expect, test } from './helpers';
+import { expect, rowsOf, test } from './helpers';
 
-const ranking = (page: Page) => page.getByRole('list', { name: /^Ranking of / });
-const pilots = (page: Page) => ranking(page).locator('> li');
+const pilots = (page: Page) => rowsOf(page, /^Ranking of /);
 const whose = (page: Page) => page.getByRole('navigation', { name: 'Whose flights' });
 const counted = (page: Page, pilot: string) =>
 	page.getByRole('list', { name: `The flights of ${pilot} that count` }).getByRole('listitem');

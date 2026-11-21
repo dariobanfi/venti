@@ -13,6 +13,8 @@
 	import { NOT_RANKED } from '#lib/community/model.svelte.ts';
 	import { queryOf } from '#lib/community/pages.ts';
 	import RankingList from '#lib/community/RankingList.svelte';
+	import RankingTable from '#lib/community/RankingTable.svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import WhoseFlights from '#lib/community/WhoseFlights.svelte';
 	import { nothingRanked } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
@@ -38,6 +40,9 @@
 		const named = season === ranking.seasons[0] ? '' : season;
 		void goto(rankingHref(named), { replace: true, reset: false });
 	}
+
+	/** A wide screen has a table; a phone, the list of cards. */
+	const wide = new MediaQuery('min-width: 56rem', false);
 </script>
 
 <svelte:head>
@@ -70,7 +75,13 @@
 		{/if}
 
 		{#if ranking.pilots.length > 0}
-			<RankingList label="Ranking of {ranking.season}" pilots={ranking.pilots} />
+			{#if wide.current}
+				<div class="table">
+					<RankingTable label="Ranking of {ranking.season}" pilots={ranking.pilots} />
+				</div>
+			{:else}
+				<RankingList label="Ranking of {ranking.season}" pilots={ranking.pilots} />
+			{/if}
 			<p class="footnote">{ranking.rule}</p>
 		{:else if ranking.loading || (!ranking.known && !ranking.problem && !ranking.absent)}
 			<p class="waiting" role="status">Fetching the ranking…</p>
@@ -170,5 +181,12 @@
 		.page {
 			padding-top: 2rem;
 		}
+	}
+
+	.table {
+		overflow-x: auto;
+		background: var(--surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-m);
 	}
 </style>

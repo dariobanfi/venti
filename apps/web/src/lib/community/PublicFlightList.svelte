@@ -4,9 +4,11 @@
 	these are and whose reckoning the distances and points.
 -->
 <script lang="ts">
+	import { MediaQuery } from 'svelte/reactivity';
 	import Icon from '#lib/design/Icon.svelte';
 	import type { ListState } from './pages';
 	import PublicFlightRow from './PublicFlightRow.svelte';
+	import PublicFlightTable from './PublicFlightTable.svelte';
 
 	interface Props {
 		/** What the list is called, for a screen reader. */
@@ -24,23 +26,22 @@
 	}
 
 	let { label, list, named, nothing, reckoning, onmore, onagain }: Props = $props();
+
+	/** A wide screen has a table whose headings sort; a phone, the list of rows. */
+	const wide = new MediaQuery('min-width: 56rem', false);
 </script>
 
 {#if list.flights.length > 0}
-	<div class="card">
-		<!-- What the columns of a wide screen hold. Each number says so itself
-		     to a screen reader, so the headings are for the eye. -->
-		<div class="columns" aria-hidden="true">
-			<span>Distance</span>
-			<span>Airtime</span>
-			<span>Points</span>
-			<span>Highest</span>
-		</div>
-		<ul aria-label={label}>
-			{#each list.flights as flight (flight.id)}
-				<PublicFlightRow {flight} {named} />
-			{/each}
-		</ul>
+	<div class="card" class:wide={wide.current}>
+		{#if wide.current}
+			<PublicFlightTable {label} flights={list.flights} {named} />
+		{:else}
+			<ul aria-label={label}>
+				{#each list.flights as flight (flight.id)}
+					<PublicFlightRow {flight} {named} />
+				{/each}
+			</ul>
+		{/if}
 	</div>
 	{#if list.problem}
 		<p class="problem" role="status">{list.problem}</p>
@@ -71,12 +72,6 @@
 		background: var(--surface);
 		border-radius: var(--radius-card);
 		overflow: hidden;
-		/* The width of one column of numbers on a wide screen. */
-		--column: 6.5rem;
-	}
-
-	.columns {
-		display: none;
 	}
 
 	.more {
@@ -137,19 +132,9 @@
 		margin-top: 0.75rem;
 	}
 
-	@media (min-width: 56rem) {
-		.columns {
-			display: flex;
-			justify-content: flex-end;
-			padding: 0.625rem 1rem 0.375rem;
-			font-size: var(--caption);
-			color: var(--text-secondary);
-			border-bottom: 0.5px solid var(--separator);
-		}
-
-		.columns span {
-			width: var(--column);
-			text-align: right;
-		}
+	/* A table on a wide screen: flat, with the pack's border. */
+	.card.wide {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-m);
 	}
 </style>

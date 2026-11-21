@@ -11,6 +11,7 @@ import {
 	flightDetails,
 	mapTabDrawn,
 	showTheValley,
+	rowsOf,
 	test,
 	BETWEEN_THE_MOUNTAINS
 } from './helpers';
@@ -19,8 +20,7 @@ import {
 const RAMP = 'osm-free-flying:node/5964676196';
 const WALLBERG = `/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent(RAMP)}`;
 
-const flights = (page: Page) =>
-	page.getByRole('list', { name: 'Flights from here' }).getByRole('listitem');
+const flights = (page: Page) => rowsOf(page, 'Flights from here');
 const ranked = (page: Page) =>
 	page.getByRole('list', { name: /^Ranking from here/ }).locator('> li');
 
@@ -82,13 +82,7 @@ test('a site’s page lists what was flown from it, the best first, and ranks it
 
 test('a flight leads to the flights from its take-off', async ({ page, wide }) => {
 	await page.goto('/logbook/everyone/');
-	await page
-		.getByRole('list', { name: 'Everyone’s flights' })
-		.getByRole('listitem')
-		.first()
-		.getByRole('link')
-		.last()
-		.click();
+	await rowsOf(page, 'Everyone’s flights').first().getByRole('link').last().click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
 
 	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();

@@ -151,7 +151,7 @@ struct MapScreen: View {
                 onHourPlace: { place in
                     openHourSquare(at: place)
                 },
-                radar: isRadarOn ? radar.picture : nil
+                radar: isRadarOn ? radar.pictures : []
             )
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
@@ -526,10 +526,14 @@ struct MapScreen: View {
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
         }
-        // The radar's source asks for its credit at the data: here by
-        // name, and in full behind the card's "Key and notes".
-        if isRadarOn, radar.picture != nil, let credit = radar.layer?.credit {
-            parts.append("Radar: \(credit.provider)")
+        // A radar's source asks for its credit at the data: here by
+        // name, for every layer drawn, and in full behind the card's "Key
+        // and notes".
+        if isRadarOn, !radar.pictures.isEmpty {
+            let providers = radar.drawnLayers.compactMap(\.credit?.provider)
+            if !providers.isEmpty {
+                parts.append("Radar: \(providers.formatted(.list(type: .and)))")
+            }
         }
         let line = parts.joined(separator: " · ")
         // Who made the photographs, on a line of its own while they show.

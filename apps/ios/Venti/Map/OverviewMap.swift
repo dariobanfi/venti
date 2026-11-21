@@ -65,8 +65,9 @@ struct OverviewMap: UIViewRepresentable {
     /// is drawn, where nothing else the app draws lies: the screen finds
     /// the square from the place, drawn or not.
     var onHourPlace: (Coordinate) -> Void = { _ in }
-    /// The rain radar's picture to draw; nothing while the layer is off.
-    var radar: RadarPicture?
+    /// The rain radar's pictures to draw, the first at the bottom; none
+    /// while the layer is off.
+    var radar: [RadarPicture] = []
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -150,9 +151,10 @@ struct OverviewMap: UIViewRepresentable {
         /// What was drawn of an hour: its identity, `nil` for none.
         private var drawnHour: String??
 
-        private var radar: RadarPicture?
-        /// Which picture of the radar was drawn: `nil` inside for none.
-        private var drawnRadar: String??
+        private var radar: [RadarPicture] = []
+        /// Which pictures of the radar were drawn; `nil` before the first
+        /// time.
+        private var drawnRadar: [String]?
 
         private var forecast: ThermalMapDay?
         private var drawnForecast: ThermalMapDay?
@@ -222,18 +224,18 @@ struct OverviewMap: UIViewRepresentable {
             drawHour(on: map)
         }
 
-        func showRadar(_ picture: RadarPicture?, on map: MLNMapView) {
-            radar = picture
+        func showRadar(_ pictures: [RadarPicture], on map: MLNMapView) {
+            radar = pictures
             drawRadar(on: map)
         }
 
-        /// Draws the radar's picture, once the style is there and only
-        /// when it is another picture.
+        /// Draws the radar's pictures, once the style is there and only
+        /// when they are others.
         private func drawRadar(on map: MLNMapView) {
             guard isStyleLoaded, let style = map.style else { return }
-            let id = radar?.id
-            if let drawn = drawnRadar, drawn == id { return }
-            drawnRadar = .some(id)
+            let ids = radar.map(\.id)
+            if drawnRadar == ids { return }
+            drawnRadar = ids
             RadarLayers.show(radar, in: style)
         }
 

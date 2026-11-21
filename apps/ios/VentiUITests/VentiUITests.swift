@@ -1789,10 +1789,11 @@ final class VentiUITests: XCTestCase {
 
     /// Where the map opens for the radar's screenshots: far enough out for
     /// the whole of the development server's pictures (9.4 to 17.2 E,
-    /// 46.3 to 48.5 N), their edge and the veil over what the radar did
-    /// not see, in the part of the map the card leaves to be seen. The
-    /// map that comes with the app ends long before: beyond it the
-    /// picture lies on the map's bare ground.
+    /// 46.3 to 48.5 N, the region's box, for both layers), their edge,
+    /// and the analysis filling what the radars do not see, in the part
+    /// of the map the card leaves to be seen. The map that comes with the
+    /// app ends long before: beyond it the pictures lie on the map's bare
+    /// ground.
     private static let overTheRadar = "46.3,13.3,5"
 
     /// Opens or closes "Key and notes" on the rain radar's card.
@@ -1806,13 +1807,13 @@ final class VentiUITests: XCTestCase {
         XCTAssertEqual(more.value as? String, shown ? "Shown" : "Hidden")
     }
 
-    /// Waits until the radar's line on the card ends with these words,
+    /// Waits until the radar's line on the card has these words in it,
     /// and says whether it came to that.
-    private func radarSays(_ ending: String, in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+    private func radarSays(_ part: String, in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
         let words = element("radar-words", in: app)
         let until = Date().addingTimeInterval(timeout)
         while Date() < until {
-            if words.exists, words.label.hasSuffix(ending) {
+            if words.exists, words.label.contains(part) {
                 return true
             }
             usleep(300_000)
@@ -1820,14 +1821,26 @@ final class VentiUITests: XCTestCase {
         return false
     }
 
+    /// Whether a line is a moment's of both layers: the radars' time and
+    /// age, and the time of the analysis under it. The times are on the
+    /// simulator's clock, so they are looked at by their form.
+    private func isAMomentOfBothLayers(_ line: String, minutes: Int) -> Bool {
+        let time = "\\d\\d:\\d\\d"
+        let form = "^Rain radar, \(time), \(minutes) minutes ago\\. Austria's analysis is of \(time)\\.$"
+        return line.range(of: form, options: .regularExpression) != nil
+    }
+
     /// The rain radar on the map tab, against the development server,
-    /// which has two frames recorded from DWD on 2026-11-21, of 11:35 and
-    /// 11:40 UTC, a morning with little rain, and a radar's clock that
-    /// stands at 11:44: the layer switched on, the card with both frames
-    /// on the newest, the key and the notes behind their line, a step to
-    /// the frame before, and the frames played to the newest again. The
-    /// chip's choice is kept between launches: the test starts by looking
-    /// which way it stands and switches it off at its end.
+    /// which has both sources recorded on 2026-11-21: DWD's radars with
+    /// frames of 13:10 and 13:15 UTC, GeoSphere Austria's analysis with
+    /// frames of 12:45 and 13:00, and a radar's clock that stands at
+    /// 13:19. The layer switched on, the card with the two moments on the
+    /// newest, both pictures on the map with the radars' on top and the
+    /// analysis where the radars see nothing, the key and the notes
+    /// behind their line with what each layer is, a step to the moment
+    /// before, and the moments played to the newest again. The chip's
+    /// choice is kept between launches: the test starts by looking which
+    /// way it stands and switches it off at its end.
     func testTheMapShowsTheRainRadar() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")
@@ -1844,41 +1857,59 @@ final class VentiUITests: XCTestCase {
 
         setLayer("radar-chip", on: true, in: app)
         XCTAssertTrue(chip.isSelected)
-        // The card: both frames, on the newest, four minutes old by the
-        // radar's clock. The clock's time is the simulator's time zone's.
+        // The card: the two moments, on the newest, the radars' picture
+        // four minutes old by the radar's clock, and the line saying of
+        // which moment the analysis under it is. The clock's times are
+        // the simulator's time zone's.
         let strip = element("radar-frames", in: app)
         XCTAssertTrue(strip.waitForExistence(timeout: 60))
         XCTAssertTrue(radarSays(", 4 minutes ago", in: app, timeout: 60))
-        XCTAssertTrue(element("radar-words", in: app).label.hasPrefix("Rain radar, "))
+        let newest = element("radar-words", in: app).label
+        XCTAssertTrue(isAMomentOfBothLayers(newest, minutes: 4), newest)
         XCTAssertEqual((strip.value as? String)?.hasSuffix(", 4 minutes ago"), true)
         XCTAssertTrue(element("radar-play", in: app).exists)
         // The card as it opens: the key and the notes are not on it.
         XCTAssertFalse(element("radar-key", in: app).exists)
-        // The source's credit stands at the map while its picture does.
-        XCTAssertTrue(labelled(containing: "Radar: Deutscher Wetterdienst", in: app).waitForExistence(timeout: 30))
-        // Time for the picture to be drawn.
+        // Both sources' credits stand at the map while their pictures do.
+        XCTAssertTrue(
+            labelled(containing: "Radar: Deutscher Wetterdienst and GeoSphere Austria", in: app)
+                .waitForExistence(timeout: 30)
+        )
+        // Time for the pictures to be drawn.
         sleep(4)
         keepScreenshot("map-radar-1-newest")
 
-        // Behind "Key and notes": the key from the most rain down, what
-        // the radar did not see, the note and the credit.
+        // Behind "Key and notes": what each layer is, the key from the
+        // most rain down, what the radar did not see, the note and both
+        // credits.
         showRadarKeyAndNotes(true, in: app)
-        XCTAssertTrue(element("radar-key", in: app).waitForExistence(timeout: 15))
+        let layers = element("radar-layers", in: app)
+        XCTAssertTrue(layers.waitForExistence(timeout: 15))
+        XCTAssertTrue(layers.label.contains("Germany's radars, every 5 minutes"), layers.label)
+        XCTAssertTrue(
+            layers.label.contains("Austria's analysis of radar and gauges, every 15 minutes"), layers.label
+        )
+        XCTAssertTrue(element("radar-key", in: app).exists)
         XCTAssertTrue(labelled(containing: "Cloudburst", in: app).exists)
         XCTAssertTrue(labelled(containing: "Not seen by the radar", in: app).exists)
-        XCTAssertTrue(labelled(containing: "Datenbasis: Deutscher Wetterdienst", in: app).exists)
+        let note = element("radar-note", in: app)
+        XCTAssertTrue(note.label.contains("Datenbasis: Deutscher Wetterdienst"), note.label)
+        XCTAssertTrue(note.label.contains("Data source: GeoSphere Austria"), note.label)
         sleep(1)
         keepScreenshot("map-radar-2-key-and-notes")
         showRadarKeyAndNotes(false, in: app)
 
-        // The frame before: a tap on its cell, the strip's left half.
+        // The moment before: a tap on its cell, the strip's left half.
+        // The same analysis lies under the radars' picture before.
         strip.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
         XCTAssertTrue(radarSays(", 9 minutes ago", in: app))
+        let before = element("radar-words", in: app).label
+        XCTAssertTrue(isAMomentOfBothLayers(before, minutes: 9), before)
         XCTAssertEqual((strip.value as? String)?.hasSuffix(", 9 minutes ago"), true)
         sleep(2)
-        keepScreenshot("map-radar-3-the-frame-before")
+        keepScreenshot("map-radar-3-the-moment-before")
 
-        // Played: through the frames, to stop at the newest.
+        // Played: through the moments, to stop at the newest.
         element("radar-play", in: app).tap()
         let played = radarSays(", 4 minutes ago", in: app)
         sleep(1)
@@ -1888,13 +1919,14 @@ final class VentiUITests: XCTestCase {
         setLayer("radar-chip", on: false, in: app)
         XCTAssertFalse(chip.isSelected)
         XCTAssertFalse(element("radar-card", in: app).exists)
-        XCTAssertTrue(played, "The frames did not play to the newest.")
+        XCTAssertTrue(played, "The moments did not play to the newest.")
     }
 
     /// The rain radar's card in the dark appearance, over the map, which
     /// stays light: closed and with "Key and notes" open, the map closer
-    /// in, over the south of Bavaria, where a pixel of the picture is to
-    /// be told from the next.
+    /// in, over the south of Bavaria and Tirol, where a pixel of a
+    /// picture is to be told from the next and the radars' picture gives
+    /// way to the analysis south of the main ridge.
     func testTheRainRadarsCardInTheDark() throws {
         guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
             throw XCTSkip("No Venti server was named in VENTI_SERVER.")

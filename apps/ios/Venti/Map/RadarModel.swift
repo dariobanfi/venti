@@ -3,13 +3,16 @@ import Observation
 import SwiftUI
 import VentiCore
 
-/// A frame's picture as the map draws it: the server's picture in the
+/// One layer's picture as the map draws it: the server's picture in the
 /// app's colours, and the four edges it is pinned to the map by.
 struct RadarPicture: Equatable {
     /// The radar source the frame is of.
     let source: String
     /// The frame's time, which with the source says which picture it is.
     let timeUnixS: Int64
+    /// Whether what the source did not see is drawn as the veil: so for
+    /// the lowest picture of a moment, and clear in those above it.
+    let drawsUnseen: Bool
     /// The picture, a PNG.
     let png: Data
     let west: Double
@@ -19,20 +22,20 @@ struct RadarPicture: Equatable {
 
     /// Which picture it is, so that the map draws it again only when it
     /// is another.
-    var id: String { "\(source) \(timeUnixS) \(west) \(south) \(east) \(north)" }
+    var id: String { "\(source) \(timeUnixS) \(drawsUnseen) \(west) \(south) \(east) \(north)" }
 }
 
 /// The rain radar of the map tab: the last frames Venti holds of what a
-/// weather service's radars saw (`GET /v1/radar`), and the picture of the
-/// frame chosen.
+/// weather service's radars saw (`GET /v1/radar`), a layer for each
+/// source, and the pictures of the moment chosen.
 ///
-/// What to ask, how to read the answer, every word about a frame and the
-/// picture in the app's colours are the core's (`radarPath`, `radar`,
+/// What to ask, how to read the answer, every word about a frame, which
+/// frame of which layer lies on the map at a moment and the picture in the
+/// app's colours are the core's (`radarPath`, `radar`, `RadarView.moments`,
 /// `radarFrameImage`). This class asks while the map tab's layer is on,
 /// again every five minutes, and reads the answer it has again every
 /// minute, so that a frame's age in words stays true. It keeps the
-/// pictures it fetched for this run of the app. Of the layers of an answer
-/// it shows the first: Venti has one radar source today.
+/// pictures it fetched for this run of the app, by layer and frame.
 @MainActor
 @Observable
 final class RadarModel {
@@ -44,7 +47,7 @@ final class RadarModel {
         case idle
         /// Asked, and no list yet.
         case loading
-        /// There is a list of frames.
+        /// There is a list of layers and their frames.
         case loaded
         /// This Venti has no rain radar, in the core's words.
         case none(String)
@@ -57,7 +60,7 @@ final class RadarModel {
     static let askEvery: TimeInterval = 5 * 60
     /// How often the answer at hand is read again, for the ages in words.
     static let readEvery = Duration.seconds(60)
-    /// How long a frame stays while the frames play: four a second.
+    /// How long a moment stays while the moments play: four a second.
     static let playStep = Duration.milliseconds(250)
     /// The status a Venti without a rain radar answers with (`no_radar`).
     static let noRadarStatus = 501
@@ -65,17 +68,18 @@ final class RadarModel {
     private(set) var state = State.idle
     /// The radar as the core read it, once there is a list.
     private(set) var view: RadarView?
-    /// The picture on the map: the chosen frame's once it is there, and
-    /// until then the one before it, with its own time.
-    private(set) var picture: RadarPicture?
-    /// Why the chosen frame's picture is not on the map, in words.
+    /// The pictures on the map, the first at the bottom: the chosen
+    /// moment's once they are all there, and until then those of the
+    /// moment before it, with its own time.
+    private(set) var pictures: [RadarPicture] = []
+    /// Why the chosen moment's pictures are not on the map, in words.
     private(set) var pictureProblem: String?
     /// Whether a picture is being fetched.
     private(set) var isFetching = false
-    /// Whether the frames are playing.
+    /// Whether the moments are playing.
     private(set) var isPlaying = false
-    /// The time of the frame the pilot chose; `nil` for the newest, which
-    /// a new frame then takes the place of.
+    /// The time of the moment the pilot chose; `nil` for the one the card
+    /// opens at, the newest, which a newer one then takes the place of.
     private(set) var chosenTime: Int64?
 
     /// The server to ask. The app sets this to the one in the settings.
@@ -94,40 +98,68 @@ final class RadarModel {
     @ObservationIgnored private var answer: (status: UInt16, body: Data)?
     @ObservationIgnored private var askedAt: Date?
     @ObservationIgnored private var askedServer: URL?
-    /// The pictures of this run of the app, in the app's colours, by the
-    /// frame's path.
-    @ObservationIgnored private var pictures: [String: Data] = [:]
+    /// The pictures of this run of the app as the server sent them, by
+    /// the frame's path, which names its layer and its time.
+    @ObservationIgnored private var fetched: [String: Data] = [:]
     @ObservationIgnored private var playing: Task<Void, Never>?
 
     init(transport: @escaping Transport = RadarModel.fetch) {
         self.transport = transport
     }
 
-    /// The layer shown: the first of the answer.
-    var layer: RadarLayerView? { view?.layers.first }
-
-    /// The frame chosen: the pilot's, or the newest.
-    var frame: RadarFrameView? {
-        guard let layer else { return nil }
-        return layer.frames.first { $0.timeUnixS == chosenTime } ?? layer.frames.last
+    /// The moment chosen: the pilot's, or the one the card opens at.
+    var moment: RadarMoment? {
+        guard let view else { return nil }
+        return view.moments.first { $0.timeUnixS == chosenTime } ?? Self.opening(of: view)
     }
 
-    /// The chosen frame by its place among the layer's frames.
+    /// The chosen moment by its place among the moments.
     var chosenIndex: Int? {
-        guard let layer, let frame else { return nil }
-        return layer.frames.firstIndex { $0.timeUnixS == frame.timeUnixS }
+        guard let view, let moment else { return nil }
+        return view.moments.firstIndex { $0.timeUnixS == moment.timeUnixS }
     }
 
-    /// The frame whose picture is on the map.
-    var shownFrame: RadarFrameView? {
-        guard let layer, let picture, picture.source == layer.source else { return nil }
-        return layer.frames.first { $0.timeUnixS == picture.timeUnixS }
+    /// The moment whose pictures are on the map.
+    var shownMoment: RadarMoment? {
+        guard let view, !pictures.isEmpty else { return nil }
+        let onTheMap = pictures.map(\.id)
+        // The chosen one before any other that draws the same.
+        return ([moment].compactMap { $0 } + view.moments).first { drawn(at: $0).map(\.id) == onTheMap }
     }
 
-    /// What to write beside the pictures: the line of the frame on the
-    /// map, the chosen one's while none is.
+    /// What to write beside the pictures: the line of the moment on the
+    /// map, the chosen one's while the map has none.
     var label: String {
-        (shownFrame ?? frame)?.label ?? ""
+        (pictures.isEmpty ? moment : shownMoment)?.label ?? ""
+    }
+
+    /// The chosen moment for VoiceOver: its time, and the age of its
+    /// topmost picture.
+    var spoken: String {
+        guard let moment else { return "" }
+        guard let top = drawn(at: moment).last else { return moment.clock }
+        return "\(moment.clock), \(top.frame.age)"
+    }
+
+    /// The layers drawn, the topmost first: those of the pictures on the
+    /// map, and of the chosen moment while the map has none.
+    var drawnLayers: [RadarLayerView] {
+        guard let view else { return [] }
+        let sources =
+            pictures.isEmpty
+            ? (moment.map { drawn(at: $0).map(\.layer.source) } ?? [])
+            : pictures.map(\.source)
+        return sources.reversed().compactMap { source in view.layers.first { $0.source == source } }
+    }
+
+    /// That the newest picture is too old to be the rain of now, in the
+    /// core's words: of the topmost layer that has frames, and of the
+    /// topmost while none has. `nil` while it is not.
+    var caution: String? {
+        guard let view, let layer = view.layers.last(where: { !$0.frames.isEmpty }) ?? view.layers.last else {
+            return nil
+        }
+        return layer.stale ? layer.staleWords : nil
     }
 
     /// For as long as the layer is on and the map in front: asks at once,
@@ -157,8 +189,8 @@ final class RadarModel {
         return now().timeIntervalSince(askedAt) >= Self.askEvery
     }
 
-    /// Asks for the list of frames, and then for the chosen frame's
-    /// picture.
+    /// Asks for the list of frames, and then for the chosen moment's
+    /// pictures.
     func load() async {
         guard let server = server() else {
             forget()
@@ -214,7 +246,7 @@ final class RadarModel {
             }
             return
         }
-        await showPicture()
+        await showPictures()
     }
 
     /// Reads the answer at hand again by the clock as it is now: the
@@ -224,29 +256,32 @@ final class RadarModel {
         show(read)
     }
 
-    /// Chooses a frame by its place among the layer's frames, and puts
-    /// its picture on the map. The newest is no choice: a newer frame
-    /// takes its place when it comes.
+    /// Chooses a moment by its place among the moments, and puts its
+    /// pictures on the map. The one the card opens at is no choice: a
+    /// newer moment takes its place when it comes.
     func choose(_ index: Int) async {
-        guard let layer, layer.frames.indices.contains(index) else { return }
-        chosenTime = index == layer.frames.count - 1 ? nil : layer.frames[index].timeUnixS
-        await showPicture()
+        guard let view, view.moments.indices.contains(index) else { return }
+        let moment = view.moments[index]
+        chosenTime = moment.timeUnixS == Self.opening(of: view)?.timeUnixS ? nil : moment.timeUnixS
+        await showPictures()
     }
 
-    /// Fetches the chosen frame's picture again, after it could not be had.
+    /// Fetches the chosen moment's pictures again, after one could not be
+    /// had.
     func tryPictureAgain() async {
-        await showPicture()
+        await showPictures()
     }
 
-    /// Plays the frames from the oldest to the newest, four a second, and
-    /// stops at the newest; a second call while they play stops them. The
-    /// pictures are all fetched before the first is shown.
+    /// Plays the moments from the oldest to the newest, four a second,
+    /// and stops at the newest; a second call while they play stops them.
+    /// The pictures are all fetched before the first is shown.
     func play() {
         if isPlaying {
             stop()
             return
         }
-        guard let layer, layer.frames.count > 1 else { return }
+        guard let view, view.moments.count > 1 else { return }
+        let moments = view.moments
         isPlaying = true
         playing = Task {
             defer {
@@ -256,23 +291,25 @@ final class RadarModel {
                 }
             }
             isFetching = true
-            for frame in layer.frames {
-                _ = try? await coloured(frame)
+            for moment in moments {
+                for one in drawn(at: moment) {
+                    _ = try? await picture(of: one)
+                }
             }
             isFetching = false
-            for index in layer.frames.indices {
+            for index in moments.indices {
                 if Task.isCancelled {
                     return
                 }
                 await choose(index)
-                if index < layer.frames.count - 1 {
+                if index < moments.count - 1 {
                     try? await Task.sleep(for: Self.playStep)
                 }
             }
         }
     }
 
-    /// Stops the frames where they are.
+    /// Stops the moments where they are.
     func stop() {
         playing?.cancel()
         playing = nil
@@ -298,34 +335,72 @@ final class RadarModel {
         if view != read {
             view = read
         }
-        // A frame the server has dropped is no longer chosen.
-        if let chosenTime, layer?.frames.contains(where: { $0.timeUnixS == chosenTime }) != true {
+        // A moment the server has dropped is no longer chosen.
+        if let chosenTime, !read.moments.contains(where: { $0.timeUnixS == chosenTime }) {
             self.chosenTime = nil
         }
     }
 
-    /// Puts the chosen frame's picture on the map. A picture that cannot
-    /// be had leaves the one before it there, with its own time.
-    private func showPicture() async {
-        guard let layer, let frame else {
-            picture = nil
+    /// The moment the card opens at.
+    private static func opening(of view: RadarView) -> RadarMoment? {
+        let first = Int(view.firstMoment)
+        return view.moments.indices.contains(first) ? view.moments[first] : view.moments.last
+    }
+
+    /// One picture a moment asks for: the layer, which of its frames, and
+    /// whether the veil over what the source did not see is drawn.
+    private struct Drawn {
+        let layer: RadarLayerView
+        let frame: RadarFrameView
+        let drawsUnseen: Bool
+
+        func picture(_ png: Data) -> RadarPicture {
+            RadarPicture(
+                source: layer.source, timeUnixS: frame.timeUnixS, drawsUnseen: drawsUnseen, png: png,
+                west: layer.west, south: layer.south, east: layer.east, north: layer.north
+            )
+        }
+
+        /// The picture's own name for itself, without fetching it.
+        var id: String { picture(Data()).id }
+    }
+
+    /// What a moment draws, the first at the bottom, as the core says it:
+    /// each picture by its layer and its frame.
+    private func drawn(at moment: RadarMoment) -> [Drawn] {
+        guard let view else { return [] }
+        return moment.frames.compactMap { one in
+            guard view.layers.indices.contains(Int(one.layer)) else { return nil }
+            let layer = view.layers[Int(one.layer)]
+            guard layer.frames.indices.contains(Int(one.frame)) else { return nil }
+            return Drawn(layer: layer, frame: layer.frames[Int(one.frame)], drawsUnseen: one.drawsUnseen)
+        }
+    }
+
+    /// Puts the chosen moment's pictures on the map, all of them at once.
+    /// A picture that cannot be had leaves those of the moment before
+    /// there, with their own time: a moment is not drawn in part, as its
+    /// line says what lies under what.
+    private func showPictures() async {
+        guard let moment else {
+            pictures = []
             pictureProblem = nil
             return
         }
+        let wanted = drawn(at: moment)
         do {
-            if pictures[frame.path] == nil {
+            if wanted.contains(where: { fetched[$0.frame.path] == nil }) {
                 isFetching = true
             }
             defer { isFetching = false }
-            let png = try await coloured(frame)
-            // Another frame may have been chosen meanwhile.
-            guard self.layer?.source == layer.source, self.frame?.timeUnixS == frame.timeUnixS else { return }
-            let shown = RadarPicture(
-                source: layer.source, timeUnixS: frame.timeUnixS, png: png,
-                west: layer.west, south: layer.south, east: layer.east, north: layer.north
-            )
-            if picture != shown {
-                picture = shown
+            var shown: [RadarPicture] = []
+            for one in wanted {
+                shown.append(try await picture(of: one))
+            }
+            // Another moment may have been chosen meanwhile.
+            guard self.moment?.timeUnixS == moment.timeUnixS else { return }
+            if pictures != shown {
+                pictures = shown
             }
             pictureProblem = nil
         } catch is CancellationError {
@@ -334,7 +409,7 @@ final class RadarModel {
             if (error as? URLError)?.code == .cancelled {
                 return
             }
-            guard self.frame?.timeUnixS == frame.timeUnixS else { return }
+            guard self.moment?.timeUnixS == moment.timeUnixS else { return }
             pictureProblem =
                 error is CoreError
                 ? error.words
@@ -342,26 +417,40 @@ final class RadarModel {
         }
     }
 
-    /// A frame's picture in the app's colours: kept from earlier in this
-    /// run of the app, or fetched and coloured by the core.
-    private func coloured(_ frame: RadarFrameView) async throws -> Data {
-        if let kept = pictures[frame.path] {
-            return kept
-        }
-        guard let server = server(), let url = URL(string: server.absoluteString + frame.path), let view else {
+    /// A layer's picture of a frame in the app's colours: the server's,
+    /// kept from earlier in this run of the app or fetched, and coloured
+    /// by the core, with what the source did not see as the veil or clear.
+    private func picture(of one: Drawn) async throws -> RadarPicture {
+        guard let server = server(), let view else {
             throw URLError(.badURL)
         }
-        let (status, body) = try await transport(url)
-        guard status == 200 else {
-            // The core's words for what a server says in place of a picture.
-            _ = try radar(status: UInt16(clamping: status), body: body, utcOffsetS: 0, nowUnixS: 0)
-            throw URLError(.badServerResponse)
+        let kept = fetched[one.frame.path]
+        let body: Data
+        if let kept {
+            body = kept
+        } else {
+            guard let url = URL(string: server.absoluteString + one.frame.path) else {
+                throw URLError(.badURL)
+            }
+            let (status, answer) = try await transport(url)
+            guard status == 200 else {
+                // The core's words for what a server says in place of a picture.
+                _ = try radar(status: UInt16(clamping: status), body: answer, utcOffsetS: 0, nowUnixS: 0)
+                throw URLError(.badServerResponse)
+            }
+            body = answer
         }
         let palette = colours(view.key)
-        let png = try radarFrameImage(picture: body, rain: palette.rain, unseen: palette.unseen)
-        guard server == self.server() else { throw CancellationError() }
-        pictures[frame.path] = png
-        return png
+        let png = try radarFrameImage(
+            picture: body, rain: palette.rain, unseen: one.drawsUnseen ? palette.unseen : RadarColours.clear
+        )
+        if kept == nil {
+            guard server == self.server() else { throw CancellationError() }
+            // Kept once the core has read it: what is no picture is asked
+            // for again.
+            fetched[one.frame.path] = body
+        }
+        return one.picture(png)
     }
 
     /// Forgets what was another server's.
@@ -369,10 +458,10 @@ final class RadarModel {
         stop()
         view = nil
         answer = nil
-        picture = nil
+        pictures = []
         pictureProblem = nil
         chosenTime = nil
-        pictures = [:]
+        fetched = [:]
     }
 }
 
@@ -389,6 +478,10 @@ enum RadarColours {
     static var unseenOnMap: Color {
         ThermalKeyColour.onMap(scale: .veil, scaleStep: 1)
     }
+
+    /// What a source did not see in a picture that lies over another's:
+    /// nothing, so that the picture below shows through.
+    static let clear: UInt32 = 0
 
     /// The colours as the core takes them for a picture: the six steps of
     /// rain, the first step first, and the veil, each `0xRRGGBBAA` and

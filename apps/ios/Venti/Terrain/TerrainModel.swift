@@ -35,7 +35,9 @@ final class TerrainModel {
     /// The folder the tiles are kept in; `nil` keeps none.
     @ObservationIgnored private let folder: URL?
     @ObservationIgnored private var isLoading = false
-    @ObservationIgnored private var hasReadArchive = false
+    /// The reading of the archive inside the app, once begun: whoever
+    /// wants the ground waits for it to end.
+    @ObservationIgnored private var archiveRead: Task<Void, Never>?
     /// The elevation archives of the regions kept on the iPhone, by
     /// their files: opened in the terrain, and read before anything is
     /// fetched.
@@ -137,8 +139,21 @@ final class TerrainModel {
     /// server, read, and let go again. Empty where there is no ground to
     /// be had.
     func ground(under flight: FlightView) async -> [GroundUnderFlight] {
-        let (track, area) = (flight.track, flight.bounds)
-        // A terrain of its own, which goes when the flight is closed: the
+        let track = flight.track
+        let under = await ground(covering: flight.bounds)
+        return await Task.detached(priority: .utility) {
+            under.groundUnder(track: track, places: Self.placesUnderAFlight)
+        }.value
+    }
+
+    /// The ground under an area: a flight's, or a planned route's for the
+    /// heights to leave its places at. What kept regions have of it is
+    /// read, then the tiles it lacks are brought from the iPhone's store
+    /// or the tile server. How many tiles, at which zoom, is the core's
+    /// (`tilesCovering`). Where there is none to be had, a terrain that
+    /// knows no ground.
+    func ground(covering area: Bounds) async -> Terrain {
+        // A terrain of its own, which goes when its user lets it go: the
         // cockpit's holds the ground around the glider and no more.
         let under: Terrain
         switch source {
@@ -165,21 +180,21 @@ final class TerrainModel {
                 await Self.bring(tile, into: under, from: template, keptIn: folder, by: transport)
             }
         }
-        return await Task.detached(priority: .utility) {
-            under.groundUnder(track: track, places: Self.placesUnderAFlight)
-        }.value
+        return under
     }
 
     /// Reads the archive inside the app into the terrain, once.
     private func readArchive() async {
-        guard case .archive(let file) = source, !hasReadArchive else { return }
-        hasReadArchive = true
-        let terrain = terrain
-        // Reading and decoding take a moment: not on the main thread.
-        await Task.detached(priority: .utility) {
-            guard let archive = try? Data(contentsOf: file) else { return }
-            _ = try? terrain.addArchive(archive: archive)
-        }.value
+        guard case .archive(let file) = source else { return }
+        if archiveRead == nil {
+            let terrain = terrain
+            // Reading and decoding take a moment: not on the main thread.
+            archiveRead = Task.detached(priority: .utility) {
+                guard let archive = try? Data(contentsOf: file) else { return }
+                _ = try? terrain.addArchive(archive: archive)
+            }
+        }
+        await archiveRead?.value
     }
 
     /// Brings one tile into a terrain: from the iPhone's store if it is

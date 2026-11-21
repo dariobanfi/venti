@@ -317,30 +317,3 @@ struct PilotFlightsScreen: View {
         }
     }
 }
-
-/// What was flown from a place: the newest public flights that took off
-/// there, as a section of a flying site's page. The page fetches them; a
-/// site nobody shared a flight from has no such section.
-struct FlownFromHere: View {
-    let flights: [PublicFlight]
-
-    /// The most flights a site's page lists.
-    static let atMost = 5
-
-    var body: some View {
-        Section {
-            ForEach(flights.prefix(Self.atMost), id: \.id) { flight in
-                NavigationLink {
-                    PublicFlightScreen(flight: flight)
-                } label: {
-                    PublicFlightRow(flight: flight)
-                }
-                .accessibilityIdentifier("site-flight")
-            }
-        } header: {
-            Text("Flown from here")
-        } footer: {
-            Text("The newest flights that pilots share with everyone on Venti and that took off within a kilometre and a half of this place.")
-        }
-    }
-}

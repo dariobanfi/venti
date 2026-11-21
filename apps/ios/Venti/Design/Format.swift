@@ -35,6 +35,12 @@ enum Format {
         date(unixSeconds).formatted(date: .omitted, time: .shortened)
     }
 
+    /// A minute of the day on a 24-hour clock, as the core writes its
+    /// times in words: "09:30", "14:00".
+    static func clock(minuteOfDay: Int) -> String {
+        String(format: "%02d:%02d", minuteOfDay / 60, minuteOfDay % 60)
+    }
+
     /// Hours and minutes the way pilots log airtime: "0:29", "5:42".
     static func hoursMinutes(seconds: Int64) -> String {
         Duration.seconds(seconds).formatted(.time(pattern: .hourMinute))

@@ -14,6 +14,8 @@ import VentiCore
 struct RouteMapPlanner: View {
     @Environment(TaskModel.self) private var tasks
     @Environment(OfflineMapsModel.self) private var maps
+    @Environment(WindModel.self) private var wind
+    @Environment(TerrainModel.self) private var terrain
     @Environment(\.dismiss) private var dismiss
 
     /// The places of the route so far, in order.
@@ -22,6 +24,16 @@ struct RouteMapPlanner: View {
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     /// Who made the photographs in view on the map.
     @State private var photos = PhotoCredits()
+    /// The weather along the route, from the server the wind comes from.
+    @State private var weather = RouteWeatherModel()
+    /// How high the planner is, for the most its card may take.
+    @State private var room: CGFloat = 0
+    /// How high the card's content is, for a card no higher than it.
+    @State private var contentHeight: CGFloat = 0
+
+    /// How much of the planner's height its card takes at the most, with
+    /// the weather open: it scrolls before it covers more of the map.
+    static let cardShare = 0.6
 
     /// A route with nothing drawn yet, or one that begins at a place: a
     /// take-off whose page the pilot came from.
@@ -66,6 +78,15 @@ struct RouteMapPlanner: View {
 
                 panel(for: plan)
             }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                room = height
+            }
+            .onAppear {
+                weather.server = { [wind] in wind.server }
+                weather.ground = { [terrain] area in await terrain.ground(covering: area) }
+            }
             .navigationTitle("Draw a route")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -88,8 +109,27 @@ struct RouteMapPlanner: View {
         }
     }
 
-    /// What the route comes to, and what can be done with it.
+    /// What the route comes to, and what can be done with it. With the
+    /// weather open the card grows, and scrolls before it covers more
+    /// than its share of the map.
     private func panel(for plan: RoutePlan) -> some View {
+        ScrollView {
+            content(of: plan)
+                .padding(16)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    contentHeight = height
+                }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: room > 0 ? min(contentHeight, room * Self.cardShare) : nil)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ventiFloating(in: .rect(cornerRadius: 28))
+        .padding(12)
+    }
+
+    private func content(of plan: RoutePlan) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(problem ?? plan.words)
                 .font(.venti(.subheadline))
@@ -138,11 +178,11 @@ struct RouteMapPlanner: View {
             }
             .buttonStyle(.venti(.quiet))
             .font(.venti(.subheadline))
+            if places.count >= 2 {
+                RouteWeatherSection(weather: weather, places: places)
+            }
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .ventiFloating(in: .rect(cornerRadius: 28))
-        .padding(12)
     }
 
     /// The legs in a line: "1  10.0 km E · 2  9.8 km NW".
@@ -200,8 +240,9 @@ struct RouteDrawingMap: UIViewRepresentable {
             map.setCenter(start.location, zoomLevel: 9.5, animated: false)
         } else {
             // The northern Alps between Lake Constance and Salzburg, as
-            // the map tab begins.
-            map.setCenter(CLLocationCoordinate2D(latitude: 47.45, longitude: 11.6), zoomLevel: 7.4, animated: false)
+            // the map tab begins, or where a UI test names.
+            let at = LaunchOptions.mapAt ?? (lat: 47.45, lon: 11.6, zoom: 7.4)
+            map.setCenter(CLLocationCoordinate2D(latitude: at.lat, longitude: at.lon), zoomLevel: at.zoom, animated: false)
         }
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))

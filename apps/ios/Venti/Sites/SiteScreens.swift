@@ -324,7 +324,6 @@ struct SiteScreen: View {
     @Environment(SitesModel.self) private var sites
     @Environment(WindModel.self) private var wind
     @Environment(WaypointsModel.self) private var waypoints
-    @Environment(CommunityModel.self) private var community
     @Environment(TodayModel.self) private var today
     @Environment(AppNavigation.self) private var navigation
     @Environment(FlySession.self) private var fly
@@ -342,9 +341,6 @@ struct SiteScreen: View {
     /// to land, without a server, and until the server has answered.
     @State private var outlook: SiteOutlook?
     @State private var isPlanningRoute = false
-    /// The newest public flights that took off here. Empty until the
-    /// server has answered, and for a site nobody shared a flight from.
-    @State private var flown: [PublicFlight] = []
     /// What the public flights that began here say about the site, as
     /// the core reads Venti's answer. Absent until it has answered, and
     /// where it could not be asked.
@@ -514,12 +510,6 @@ struct SiteScreen: View {
             } footer: {
                 Text("As a waypoint the cockpit can navigate to it, also without a network.")
             }
-            // What others flew from here and shared with everyone: under
-            // what the page is opened for, because it arrives a moment
-            // later and must not push that away from under a finger.
-            if wind.server != nil, !flown.isEmpty {
-                FlownFromHere(flights: flown)
-            }
             // More about the site, as its source has it: the mapper's
             // words as written, the core's sentences, and the web page
             // its source names, which opens outside the app.
@@ -587,12 +577,6 @@ struct SiteScreen: View {
                     .frame(width: 1, height: 1)
                     .accessibilityHidden(true)
             }
-        }
-        // What was flown from a place to take off from; a landing field
-        // has no flights that began there.
-        .task(id: site.id) {
-            guard wind.server != nil, site.kind == .takeoff || site.kind == .towing else { return }
-            flown = (try? await community.flights(near: site.position)) ?? []
         }
         // What the public flights that began here say about the site.
         .task(id: site.id) {

@@ -2345,6 +2345,72 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("route-4-drawn-kept")
     }
 
+    /// The weather along a route drawn near the Tegernsee, the
+    /// development mode's forecast region and the ground of the map that
+    /// comes with the app: the route in words, each place's line and the
+    /// height to leave it at, in light and once in the dark. Skipped
+    /// without a server.
+    func testARouteShowsTheWeatherAlongIt() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        for dark in [false, true] {
+            let app = launch(
+                bundledMap: true, dark: dark, extra: ["--server", server, "--map-at", "47.68,11.75,11"]
+            )
+            drawATriangle(in: app)
+            let toggle = element("route-weather-toggle", in: app)
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+            XCTAssertEqual(toggle.value as? String, "Hidden")
+            toggle.tap()
+            XCTAssertTrue(element("route-weather-words", in: app).waitForExistence(timeout: 30))
+            // The forecast's model and credits once Venti has answered.
+            _ = element("route-weather-credits", in: app).waitForExistence(timeout: 30)
+            let departure = element("route-weather-departure", in: app)
+            XCTAssertTrue(departure.waitForExistence(timeout: 30))
+            // The heights follow the forecast, once the ground is read.
+            for _ in 0..<30 where !departure.label.contains(" m ") {
+                sleep(1)
+            }
+            XCTAssertTrue(departure.label.contains(" m "), departure.label)
+            XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "route-weather-point").count, 3)
+            sleep(2)
+            keepScreenshot(dark ? "route-weather-3-dark" : "route-weather-1")
+            if !dark {
+                // Further down the card: the places, the legs and the credits.
+                element("route-weather-words", in: app).swipeUp()
+                sleep(1)
+                keepScreenshot("route-weather-2-places")
+            }
+            app.terminate()
+        }
+    }
+
+    /// Opens the map to draw a route on from the Fly tab, and draws three
+    /// places on it.
+    private func drawATriangle(in app: XCUIApplication) {
+        openTab("Fly", in: app)
+        let row = element("task-before-takeoff", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.tap()
+        let draw = element("task-draw-route", in: app)
+        for _ in 0..<4 where !(draw.exists && draw.isHittable) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(draw.waitForExistence(timeout: 10))
+        draw.tap()
+        let map = element("route-map", in: app)
+        XCTAssertTrue(map.waitForExistence(timeout: 20))
+        // Time for the map to draw before it is tapped.
+        sleep(4)
+        for (x, y) in [(0.3, 0.35), (0.7, 0.35), (0.5, 0.15)] {
+            map.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y)).tap()
+            // A single tap waits for the map's double tap to be ruled out.
+            sleep(1)
+        }
+        XCTAssertTrue(labelled(containing: "along the route", in: app).waitForExistence(timeout: 10))
+    }
+
     /// Airspace from the pilot's server: with a server set, the app has
     /// fetched the airspace around the map by itself. It says before
     /// take-off what the cockpit will warn from, and lists it with its
@@ -2414,18 +2480,12 @@ final class VentiUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(forecast.waitForExistence(timeout: 10))
 
-        // Further down the site's page: what was flown from here, where
-        // the server has public flights that took off at this site, and
-        // where the site is from.
+        // Further down the site's page: where the site is from.
         let source = saying("OpenStreetMap", in: app)
         for _ in 0..<4 where !source.exists {
             app.swipeUp()
         }
         XCTAssertTrue(source.exists)
-        if element("site-flight", in: app).exists {
-            sleep(1)
-            keepScreenshot("sites-3b-flown-from-here")
-        }
 
         // Back to the list and out of it. A tap while the page is still
         // settling from the swipes is taken for the end of the scroll and

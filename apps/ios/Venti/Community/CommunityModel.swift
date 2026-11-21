@@ -193,17 +193,6 @@ final class CommunityModel {
         }.value
     }
 
-    /// The public flights that took off near a place, the newest first:
-    /// what was flown from a site. The first page of them.
-    func flights(near place: Coordinate, withinM radius: Double = 1500) async throws -> [PublicFlight] {
-        let path = try publicFlightsNearPath(lat: place.lat, lon: place.lon, radiusM: radius)
-        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
-            throw URLError(.badURL)
-        }
-        let (status, body) = try await transport(url)
-        return try publicFlights(status: UInt16(clamping: status), body: body).flights
-    }
-
     /// The public flights that took off inside a part of the map and
     /// began in a span of time, the newest first: what was flown around a
     /// flight on its day. The first page of them.

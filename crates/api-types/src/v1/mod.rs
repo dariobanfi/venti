@@ -89,6 +89,7 @@ mod observations;
 mod radar;
 mod report;
 mod request;
+mod route;
 mod sites;
 mod stations;
 mod takeoffs;
@@ -173,6 +174,11 @@ pub use request::{
     plan_path, session_path, share_image_path, share_path, site_candidates_path,
     site_confirmation_path, site_confirmations_path, site_flights_path, site_history_path,
     site_path, site_revisions_path, sites_path,
+};
+pub use route::{
+    ROUTE_POINTS_AT_MOST, ROUTE_WEATHER_PATH, RoutePointsError, RouteWeatherHour,
+    RouteWeatherPoint, RouteWeatherRequest, RouteWeatherResponse, RouteWindAloft,
+    parse_route_points,
 };
 pub use sites::{
     AddSiteRequest, CONFIRMATION_DAYS_BACK, CONFIRMATION_FLIGHT_WITHIN_M, ChangeSiteRequest,

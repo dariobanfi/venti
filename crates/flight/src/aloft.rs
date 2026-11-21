@@ -117,6 +117,23 @@ pub fn wind_at_height(hour: &ForecastHour, ground_m: Option<f64>, height_m: f64)
             AtHeight::Unknown
         };
     }
+    between_levels(&levels, height_m).map_or(AtHeight::Unknown, AtHeight::Wind)
+}
+
+/// The wind at `height_m` read between levels that are each a height and
+/// a wind, sorted the lowest first, as [`wind_at_height`] reads it: the
+/// speed in a straight line by height between the level below and the
+/// level above, the direction along the shorter way round. At a level,
+/// that level's wind. `None` for a height below the lowest level or above
+/// the highest, and without levels: nothing is read beyond them. A client
+/// that holds the wind at a few heights, as the thermal map serves it,
+/// reads between them with this.
+#[must_use]
+pub fn between_levels(levels: &[(f64, WindAt)], height_m: f64) -> Option<WindAt> {
+    let (lowest, highest) = (levels.first()?, levels.last()?);
+    if height_m < lowest.0 || height_m > highest.0 {
+        return None;
+    }
     let above = levels
         .iter()
         .position(|(altitude, _)| *altitude >= height_m)
@@ -125,10 +142,10 @@ pub fn wind_at_height(hour: &ForecastHour, ground_m: Option<f64>, height_m: f64)
     let (above_m, above) = levels[above];
     let span = above_m - below_m;
     if span <= 0.0 {
-        return AtHeight::Wind(above);
+        return Some(above);
     }
     let share = ((height_m - below_m) / span).clamp(0.0, 1.0);
-    AtHeight::Wind(WindAt {
+    Some(WindAt {
         speed_ms: below.speed_ms + share * (above.speed_ms - below.speed_ms),
         from_deg: match (below.from_deg, above.from_deg) {
             (Some(from), Some(to)) => Some(between(from, to, share)),
@@ -293,6 +310,28 @@ mod tests {
         hour.wind_direction_deg = Some(360.0);
         hour.winds_aloft[0].wind_direction_deg = Some(-20.0);
         close(wind(wind_at_height(&hour, Some(0.0), 60.0)), 6.0, 350.0);
+    }
+
+    #[test]
+    fn a_few_heights_are_read_between_as_the_levels_are() {
+        let at = |speed_ms: f64, from: f64| WindAt {
+            speed_ms,
+            from_deg: Some(from),
+        };
+        let levels = [(1500.0, at(4.0, 350.0)), (2000.0, at(8.0, 30.0))];
+        close(
+            wind(AtHeight::Wind(between_levels(&levels, 1750.0).unwrap())),
+            6.0,
+            10.0,
+        );
+        close(
+            wind(AtHeight::Wind(between_levels(&levels, 2000.0).unwrap())),
+            8.0,
+            30.0,
+        );
+        assert_eq!(between_levels(&levels, 1499.0), None);
+        assert_eq!(between_levels(&levels, 2001.0), None);
+        assert_eq!(between_levels(&[], 1500.0), None);
     }
 
     #[test]

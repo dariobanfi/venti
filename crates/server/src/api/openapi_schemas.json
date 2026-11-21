@@ -2548,6 +2548,155 @@
       "fai_triangle"
     ]
   },
+  "RouteWeatherHour": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "verdict": {
+        "$ref": "#/components/schemas/ThermalVerdict"
+      },
+      "why": {
+        "$ref": "#/components/schemas/ThermalReason"
+      },
+      "thermals": {
+        "$ref": "#/components/schemas/ThermalKind"
+      },
+      "climb_ms": {
+        "type": "number"
+      },
+      "top_m": {
+        "type": "integer"
+      },
+      "cloud": {
+        "type": "boolean"
+      },
+      "wind_kmh": {
+        "type": "integer"
+      },
+      "wind_from_deg": {
+        "type": "integer"
+      },
+      "gust_kmh": {
+        "type": "integer"
+      },
+      "aloft": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RouteWindAloft"
+        }
+      },
+      "cloud_cover_pct": {
+        "type": "integer"
+      },
+      "precipitation_mm": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "time",
+      "cloud"
+    ]
+  },
+  "RouteWeatherPoint": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "cell": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "ground_m": {
+        "type": "integer"
+      },
+      "hours": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RouteWeatherHour"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "hours"
+    ]
+  },
+  "RouteWeatherResponse": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "model": {
+        "type": "string"
+      },
+      "run": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "whole": {
+        "type": "boolean"
+      },
+      "computed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "heights_m": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RouteWeatherPoint"
+        }
+      },
+      "attributions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Attribution"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "date",
+      "model",
+      "run",
+      "whole",
+      "computed_at",
+      "heights_m",
+      "points",
+      "attributions"
+    ]
+  },
+  "RouteWindAloft": {
+    "type": "object",
+    "properties": {
+      "height_m": {
+        "type": "integer"
+      },
+      "kmh": {
+        "type": "integer"
+      },
+      "from_deg": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "height_m",
+      "kmh"
+    ]
+  },
   "Scope": {
     "description": "What a token for another program may do. `x-venti-values` lists the scopes there are today.",
     "type": "string",

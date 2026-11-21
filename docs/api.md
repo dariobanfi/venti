@@ -6,7 +6,7 @@ The server answers a small JSON API that the phone and web apps use: for the liv
 
 Everything here is version 1. It has four parts:
 
-- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals) and [the hours of its days](#get-v1thermalshoursdatelayerheight), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
+- **Weather stations, airspace, flying sites, forecasts and map regions**, which anyone may read: [health](#get-v1health), [stations](#get-v1stationsbboxwestsoutheastnorth), [observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth), [forecast](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the hours of its days](#get-v1thermalshoursdatelayerheight) and [the forecast along a route](#get-v1routeweatherdatepoints), [the map regions to download](#maps) and [their files](#get-and-head-v1mapsregionversionname), and [tiles of map imagery](#get-v1imagerysourcezxy).
 - **Accounts and flights**: [accounts and sessions](#accounts-and-sessions), [the sites a pilot keeps as their own](#the-sites-a-pilot-keeps), [flights](#flights), [pilots](#pilots), [everyone's public flights in one list](#public-flights) with [what changed among them](#get-v1flightspublicchangessincepilotlimit) and [a flight's track as GeoJSON](#get-v1flightsidtrack), which a program of another maker reads as [Following Venti's public flights](#following-ventis-public-flights) says, [the page a shared flight has](#the-page-a-shared-flight-has), and [reporting something to whoever runs the server](#reports), with [what they can then do](#what-whoever-runs-the-server-can-do).
 - **Live tracks**, where a glider is while it flies: [what a live track is](#live-tracks), [sending positions](#post-v1livepositions), [who is in the air](#get-v1livebboxwestsoutheastnorth), [one track](#get-v1liveidsinceafterlimit), [deleting one](#delete-v1liveid), and [the page a live track has](#the-page-a-live-track-has).
 - **Groups**, which only their members see: [what a group is](#groups), [making one](#post-v1groups), [the groups a pilot is in](#get-v1groups), [coming into one with an invite code](#post-v1groupsjoin), [a group and its members](#get-v1groupsid), [what its keeper can do](#patch-v1groupsid), [leaving](#delete-v1groupsidmembershandle), and [plans for a flying day](#plans-for-a-flying-day): [posting one](#post-v1groupsidplans), [a group's plans](#get-v1groupsidplansfromto), [the plans of all of a pilot's groups](#get-v1groupsplansfromto), and [saying "I am in"](#put-and-delete-v1groupsidplansplanin).
@@ -3357,6 +3357,672 @@ A day in late November has half the hours and half the size. One answer with eve
 | `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
 
 **In the development mode** the hours are those of the recorded map's four days, by the code a real server runs: seven hours a day, from 08:00 to 14:00 UTC, on the 21st to the 23rd, and five on the 24th, which ends with ICON-EU's run at noon. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint for each day of its made-up map, with eleven hours a day and something in every layer.
+
+## `GET /v1/route/weather?date=&points=`
+
+The forecast along a route: for each point of a route and each daylight hour of one day, what the thermal map holds for the cell the point lies in, every layer of [`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight) at once: the hour's verdict and thermals, the wind 10 m above the model's ground with its gusts, the wind at each height the map keeps, cloud and rain. It is read from the hours the map serves, so it says what the map says and costs no request to the forecast's source, however many routes are asked for. What a pilot meets on the way, when, and at which height, the client works out from it: the core does it for the apps (`crates/core/src/route_weather.rs`, [design.md](design.md#plan)).
+
+| Parameter | Meaning |
+|---|---|
+| `date` | The day, written `YYYY-MM-DD`: one of `days[].date` of `GET /v1/thermals`. Needed |
+| `points` | The route's points in the order they are flown, each `lat,lon` in WGS84 degrees, joined by `;`: `47.6642,11.7967;47.62,11.91`. One to **25** points, a bound and not a setting. Needed |
+
+**Why a `GET`.** The answer is the same for everyone who asks for the same points on the same day, so it is cached and validated like the map's own answers; and 25 points written to five decimals, about a metre, are some 500 characters of a query string, well inside what any server and proxy takes. A route of more points would need a body, and a `POST` is not cached.
+
+**It is the map's cell, not the point.** Each point is read in the square of the map's grid it lies in, from the one cell of the model the map asked for that square: what [`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight) says of a square holds here. Two points in the same square have the same hours. A point outside the map has no `cell` and no hours.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/route/weather?date=2026-11-22&points=47.6642,11.7967;47.62,11.91;47.6603,11.5197'
+```
+
+The answer of the development mode, whole: the Wallberg, a place in the square south-east of it, and the Brauneck, which lies west of the four recorded squares and so has no hours.
+
+<details><summary>The answer</summary>
+
+```json
+{
+  "source": "open-meteo",
+  "date": "2026-11-22",
+  "model": "icon-d2",
+  "run": "2026-11-21T06:00:00Z",
+  "whole": true,
+  "computed_at": "2026-11-21T09:30:00Z",
+  "heights_m": [
+    1000,
+    1500,
+    2000,
+    2500,
+    3000,
+    4000
+  ],
+  "points": [
+    {
+      "at": {
+        "lat": 47.6642,
+        "lon": 11.7967
+      },
+      "cell": {
+        "lat": 47.7,
+        "lon": 11.8
+      },
+      "ground_m": 1069,
+      "hours": [
+        {
+          "time": "2026-11-22T08:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 3,
+          "wind_from_deg": 90,
+          "gust_kmh": 12,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 5,
+              "from_deg": 210
+            },
+            {
+              "height_m": 2000,
+              "kmh": 19,
+              "from_deg": 230
+            },
+            {
+              "height_m": 2500,
+              "kmh": 32,
+              "from_deg": 250
+            },
+            {
+              "height_m": 3000,
+              "kmh": 45,
+              "from_deg": 270
+            },
+            {
+              "height_m": 4000,
+              "kmh": 47,
+              "from_deg": 280
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T09:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 0,
+          "wind_from_deg": 90,
+          "gust_kmh": 11,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 7,
+              "from_deg": 210
+            },
+            {
+              "height_m": 2000,
+              "kmh": 19,
+              "from_deg": 230
+            },
+            {
+              "height_m": 2500,
+              "kmh": 32,
+              "from_deg": 250
+            },
+            {
+              "height_m": 3000,
+              "kmh": 43,
+              "from_deg": 270
+            },
+            {
+              "height_m": 4000,
+              "kmh": 42,
+              "from_deg": 270
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T10:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 1,
+          "wind_from_deg": 60,
+          "gust_kmh": 12,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 6,
+              "from_deg": 190
+            },
+            {
+              "height_m": 2000,
+              "kmh": 18,
+              "from_deg": 220
+            },
+            {
+              "height_m": 2500,
+              "kmh": 30,
+              "from_deg": 240
+            },
+            {
+              "height_m": 3000,
+              "kmh": 41,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 42,
+              "from_deg": 260
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T11:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 1,
+          "wind_from_deg": 320,
+          "gust_kmh": 11,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 6,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2000,
+              "kmh": 17,
+              "from_deg": 220
+            },
+            {
+              "height_m": 2500,
+              "kmh": 28,
+              "from_deg": 240
+            },
+            {
+              "height_m": 3000,
+              "kmh": 37,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 30,
+              "from_deg": 250
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T12:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "top_m": 1200,
+          "cloud": true,
+          "wind_kmh": 1,
+          "wind_from_deg": 280,
+          "gust_kmh": 12,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 5,
+              "from_deg": 220
+            },
+            {
+              "height_m": 2000,
+              "kmh": 15,
+              "from_deg": 240
+            },
+            {
+              "height_m": 2500,
+              "kmh": 24,
+              "from_deg": 250
+            },
+            {
+              "height_m": 3000,
+              "kmh": 32,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 15,
+              "from_deg": 250
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T13:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 2,
+          "wind_from_deg": 290,
+          "gust_kmh": 13,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 5,
+              "from_deg": 250
+            },
+            {
+              "height_m": 2000,
+              "kmh": 12,
+              "from_deg": 250
+            },
+            {
+              "height_m": 2500,
+              "kmh": 20,
+              "from_deg": 250
+            },
+            {
+              "height_m": 3000,
+              "kmh": 25,
+              "from_deg": 250
+            },
+            {
+              "height_m": 4000,
+              "kmh": 15,
+              "from_deg": 220
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T14:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 3,
+          "wind_from_deg": 280,
+          "gust_kmh": 17,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 7,
+              "from_deg": 280
+            },
+            {
+              "height_m": 2000,
+              "kmh": 11,
+              "from_deg": 270
+            },
+            {
+              "height_m": 2500,
+              "kmh": 15,
+              "from_deg": 260
+            },
+            {
+              "height_m": 3000,
+              "kmh": 20,
+              "from_deg": 250
+            },
+            {
+              "height_m": 4000,
+              "kmh": 31,
+              "from_deg": 260
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        }
+      ]
+    },
+    {
+      "at": {
+        "lat": 47.62,
+        "lon": 11.91
+      },
+      "cell": {
+        "lat": 47.6,
+        "lon": 11.9
+      },
+      "ground_m": 1046,
+      "hours": [
+        {
+          "time": "2026-11-22T08:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 4,
+          "wind_from_deg": 110,
+          "gust_kmh": 5,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 7,
+              "from_deg": 160
+            },
+            {
+              "height_m": 2000,
+              "kmh": 18,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2500,
+              "kmh": 29,
+              "from_deg": 230
+            },
+            {
+              "height_m": 3000,
+              "kmh": 40,
+              "from_deg": 270
+            },
+            {
+              "height_m": 4000,
+              "kmh": 44,
+              "from_deg": 280
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T09:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 4,
+          "wind_from_deg": 110,
+          "gust_kmh": 8,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 8,
+              "from_deg": 170
+            },
+            {
+              "height_m": 2000,
+              "kmh": 18,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2500,
+              "kmh": 28,
+              "from_deg": 230
+            },
+            {
+              "height_m": 3000,
+              "kmh": 38,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 40,
+              "from_deg": 270
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T10:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 3,
+          "wind_from_deg": 130,
+          "gust_kmh": 8,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 9,
+              "from_deg": 170
+            },
+            {
+              "height_m": 2000,
+              "kmh": 18,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2500,
+              "kmh": 27,
+              "from_deg": 230
+            },
+            {
+              "height_m": 3000,
+              "kmh": 35,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 40,
+              "from_deg": 260
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T11:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "top_m": 1150,
+          "cloud": false,
+          "wind_kmh": 1,
+          "wind_from_deg": 90,
+          "gust_kmh": 7,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 8,
+              "from_deg": 170
+            },
+            {
+              "height_m": 2000,
+              "kmh": 15,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2500,
+              "kmh": 23,
+              "from_deg": 230
+            },
+            {
+              "height_m": 3000,
+              "kmh": 29,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 24,
+              "from_deg": 250
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T12:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "top_m": 1150,
+          "cloud": false,
+          "wind_kmh": 1,
+          "wind_from_deg": 90,
+          "gust_kmh": 5,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 6,
+              "from_deg": 160
+            },
+            {
+              "height_m": 2000,
+              "kmh": 13,
+              "from_deg": 200
+            },
+            {
+              "height_m": 2500,
+              "kmh": 19,
+              "from_deg": 230
+            },
+            {
+              "height_m": 3000,
+              "kmh": 24,
+              "from_deg": 260
+            },
+            {
+              "height_m": 4000,
+              "kmh": 13,
+              "from_deg": 230
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T13:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 2,
+          "wind_from_deg": 50,
+          "gust_kmh": 4,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 2,
+              "from_deg": 130
+            },
+            {
+              "height_m": 2000,
+              "kmh": 8,
+              "from_deg": 170
+            },
+            {
+              "height_m": 2500,
+              "kmh": 13,
+              "from_deg": 210
+            },
+            {
+              "height_m": 3000,
+              "kmh": 18,
+              "from_deg": 240
+            },
+            {
+              "height_m": 4000,
+              "kmh": 15,
+              "from_deg": 220
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        },
+        {
+          "time": "2026-11-22T14:00:00Z",
+          "verdict": "flyable",
+          "thermals": "weak",
+          "climb_ms": 0.0,
+          "cloud": false,
+          "wind_kmh": 2,
+          "wind_from_deg": 20,
+          "gust_kmh": 4,
+          "aloft": [
+            {
+              "height_m": 1500,
+              "kmh": 4,
+              "from_deg": 310
+            },
+            {
+              "height_m": 2000,
+              "kmh": 8,
+              "from_deg": 300
+            },
+            {
+              "height_m": 2500,
+              "kmh": 12,
+              "from_deg": 280
+            },
+            {
+              "height_m": 3000,
+              "kmh": 17,
+              "from_deg": 270
+            },
+            {
+              "height_m": 4000,
+              "kmh": 41,
+              "from_deg": 250
+            }
+          ],
+          "cloud_cover_pct": 100,
+          "precipitation_mm": 0.0
+        }
+      ]
+    },
+    {
+      "at": {
+        "lat": 47.6603,
+        "lon": 11.5197
+      },
+      "hours": []
+    }
+  ],
+  "attributions": [
+    {
+      "source": "open-meteo",
+      "provider": "Open-Meteo, with models of Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Weather data by Open-Meteo.com. Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo",
+      "url": "https://open-meteo.com/"
+    }
+  ]
+}
+```
+
+</details>
+
+| Field | Meaning |
+|---|---|
+| `source`, `model`, `run`, `whole`, `computed_at` | As in [`GET /v1/thermals/hours`](#get-v1thermalshoursdatelayerheight): the source, the model the day is read from and its newest run, whether every cell has all of the day's daylight hours, and when the map was worked out. **Show the pilot the model and the run** |
+| `date` | The day, by the sun at the cells |
+| `heights_m` | The heights above mean sea level the map keeps the wind at, the lowest first: the same as in `GET /v1/thermals` |
+| `points` | One entry per point asked for, in the same order |
+| `points[].at` | The point as it was asked for |
+| `points[].cell` | The middle of the map's square the point lies in. Left out outside the map |
+| `points[].ground_m` | The height of the day's model's ground in that square, whole metres above mean sea level: the height its hours are judged at. Left out where the model gives none |
+| `points[].hours` | The square's daylight hours of the day that the map holds, oldest first. Empty outside the map |
+
+An hour has the values of every layer for its square, each left out where the model gives none: `time`; `verdict`, `why`, `thermals`, `climb_ms`, `top_m` and `cloud` as the layer `thermals` has them; `wind_kmh`, `wind_from_deg` and `gust_kmh` as the layer `wind` at the ground; `cloud_cover_pct`; `precipitation_mm`. In whole km/h, tens of degrees, whole percent and tenths of a millimetre, as in the hours. `aloft` lists the wind at those of `heights_m` that have one in the hour, the lowest first, each with `height_m`, `kmh` and `from_deg`: a height under the model's ground, or above its highest level, has none and is not listed.
+
+A client expects values of `verdict`, `why` and `thermals` it does not know, and fields it does not know.
+
+**Credit.** Show the credit of the source with what is drawn from it, with its link.
+
+**Caching.** `Cache-Control: public, max-age=60` and an `ETag`, as the hours. The answer changes when the map does, with a run of the day's model.
+
+**When there is no answer.**
+
+| Status | `error.code` | When |
+|---|---|---|
+| `400` | `invalid_day` | `date` is missing or is not a date written `YYYY-MM-DD` |
+| `400` | `invalid_position` | `points` is missing or empty, has more than 25 points, or a point that is not `lat,lon` on the globe; `message` names the point by its number from 1 |
+| `404` | `not_found` | The map has no hours for this day. `message` lists the days it has |
+| `501` | `no_forecasts` | The server has no forecast service, and no map |
+| `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
+
+**In the development mode** the points are read in the recorded map's four squares around the Wallberg, on its four days.
 
 ## `GET /v1/radar`
 

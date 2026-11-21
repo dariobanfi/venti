@@ -36,7 +36,7 @@ use venti_api_types::v1::{
     DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, ROUTE_WEATHER_PATH, SESSIONS_PATH,
     SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
     THERMALS_PATH,
 };
@@ -377,6 +377,13 @@ fn operations() -> Vec<Op> {
         .query(&["date!", "layer", "height"])
         .json("ThermalHoursResponse"),
         get(
+            ROUTE_WEATHER_PATH,
+            "The thermal map's hours of a day at each point of a route",
+        )
+        .docs("GET /v1/route/weather?date=&points=")
+        .query(&["date!", "points!"])
+        .json("RouteWeatherResponse"),
+        get(
             RADAR_PATH,
             "The rain radar frames the server holds, in layers by source",
         )
@@ -689,6 +696,10 @@ fn query_parameter(spec: &str) -> Value {
         "date" => (
             "A day the thermal map has, written YYYY-MM-DD.",
             json!({"type": "string", "format": "date"}),
+        ),
+        "points" => (
+            "The points of a route in the order they are flown, each lat,lon in WGS84 degrees, joined by ;, for example 47.6642,11.7967;47.7,11.9. At most 25.",
+            json!({"type": "string"}),
         ),
         "layer" => (
             "A layer of the thermal map's hours; the error for an unknown one lists those there are.",

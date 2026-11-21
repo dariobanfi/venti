@@ -39,6 +39,10 @@
 //!   a layer of it some tens of kilobytes. The days and their hours are
 //!   made together when a model's part is whole, so that they say the
 //!   same.
+//! - **Read along a route.** For the points of a route and a day, every
+//!   layer of the hours of the cell each point lies in
+//!   (`GET /v1/route/weather`, [`DayHours::along`]): read from the hours
+//!   served, at no request to the source.
 //! - **Read for a place.** A forecast for a place goes out with the
 //!   strongest wind and gust among the cells within
 //!   `venti_flight::nearby::NEARBY_KM` of it, hour by hour
@@ -55,9 +59,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use chrono::{Duration, NaiveDate};
 use venti_api_types::v1::{
-    ForecastNearby, NearbyHour, NearbyStrongest, THERMAL_GRID_DEG, ThermalGrid,
-    ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,
-    ThermalMapResponse, ThermalReason, ThermalVerdict,
+    ForecastNearby, NearbyHour, NearbyStrongest, RouteWeatherHour, RouteWeatherPoint,
+    RouteWeatherResponse, RouteWindAloft, THERMAL_GRID_DEG, ThermalGrid, ThermalHoursResponse,
+    ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour, ThermalMapResponse, ThermalReason,
+    ThermalVerdict,
 };
 use venti_domain::{
     BoundingBox, ForecastHour, ForecastSeries, GeoPoint, ModelId, SourceId, Timestamp,
@@ -477,6 +482,76 @@ impl DayHours {
             hours,
             attributions: Vec::new(),
         })
+    }
+
+    /// The day at each point of a route as the API answers it, without
+    /// the credit, which is the API's: for the cell each point lies in,
+    /// every layer of each of the cell's hours. An hour the cell has no
+    /// verdict in is none of its daylight hours, or one the runs at hand do
+    /// not hold, and is left out; a point outside the grid has no hours.
+    pub fn along(&self, points: &[GeoPoint]) -> RouteWeatherResponse {
+        let heights_m = heights();
+        let points = points
+            .iter()
+            .map(|at| {
+                let Some(cell) = self.grid.cell_at(*at) else {
+                    return RouteWeatherPoint {
+                        at: *at,
+                        cell: None,
+                        ground_m: None,
+                        hours: Vec::new(),
+                    };
+                };
+                let hours = self
+                    .hours
+                    .iter()
+                    .filter(|hour| hour.verdict[cell].is_some())
+                    .map(|hour| RouteWeatherHour {
+                        time: hour.time,
+                        verdict: hour.verdict[cell],
+                        why: hour.why[cell],
+                        thermals: hour.thermals[cell],
+                        climb_ms: hour.climb_ms[cell],
+                        top_m: hour.top_m[cell],
+                        cloud: hour.cloud[cell],
+                        wind_kmh: hour.wind_kmh[cell],
+                        wind_from_deg: hour.wind_from_deg[cell],
+                        gust_kmh: hour.gust_kmh[cell],
+                        aloft: hour
+                            .aloft
+                            .iter()
+                            .zip(&heights_m)
+                            .filter_map(|(wind, height_m)| {
+                                Some(RouteWindAloft {
+                                    height_m: *height_m,
+                                    kmh: wind.kmh[cell]?,
+                                    from_deg: wind.from_deg[cell],
+                                })
+                            })
+                            .collect(),
+                        cloud_cover_pct: hour.cloud_cover_pct[cell],
+                        precipitation_mm: hour.precipitation_mm[cell],
+                    })
+                    .collect();
+                RouteWeatherPoint {
+                    at: *at,
+                    cell: self.grid.point(cell),
+                    ground_m: self.ground_m[cell],
+                    hours,
+                }
+            })
+            .collect();
+        RouteWeatherResponse {
+            source: self.source.clone(),
+            date: self.date,
+            model: self.model.clone(),
+            run: self.run,
+            whole: self.whole,
+            computed_at: self.computed_at,
+            heights_m,
+            points,
+            attributions: Vec::new(),
+        }
     }
 }
 

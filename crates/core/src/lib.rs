@@ -48,6 +48,7 @@ mod maps;
 mod radar;
 mod report;
 mod route_plan;
+mod route_weather;
 mod server;
 mod site_edit;
 mod site_filter;
@@ -92,6 +93,7 @@ pub use maps::*;
 pub use radar::*;
 pub use report::*;
 pub use route_plan::*;
+pub use route_weather::*;
 pub use site_edit::*;
 pub use site_filter::*;
 pub use site_offers::{

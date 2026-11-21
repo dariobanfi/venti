@@ -50,13 +50,13 @@ use venti_core::{
     KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
-    ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteDraftFault, SiteDraftView, SiteForm,
-    SiteHistory, SiteInTheWay, SiteOutlook, SitePage, SiteStatistics, SiteView, SiteWritten,
-    SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage, StationAir,
-    StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
-    TerrainTile, ThermalHoursLayer, ThermalMap, ThermalMapHourSquare, ThermalMapHoursView,
-    ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint,
-    WindMap, WindSpan, WindStation,
+    RouteAlong, RoutePlace, RouteSetting, ServerRequest, ServerStatus, SignedIn, SiteAtPlace,
+    SiteDraftFault, SiteDraftView, SiteForm, SiteHistory, SiteInTheWay, SiteOutlook, SitePage,
+    SiteStatistics, SiteView, SiteWritten, SitesFilter, SitesFilterChoices, SitesFiltered,
+    SitesMap, StagedStorage, StationAir, StationDay, StationDays, StationHistory, Storage,
+    SyncStep, SyncSummary, Tendencies, TerrainTile, ThermalHoursLayer, ThermalMap,
+    ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
+    TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
@@ -2097,6 +2097,81 @@ impl Terrain {
             .map(to_js)
             .collect()
     }
+}
+
+// A planned route with the weather along it: the page asks the server
+// for the thermal map's hours at the route's points, reads the answer
+// once into a `RouteForecast`, and asks its `along` again whenever the
+// pilot changes the start, the speed or the glide; `routeAlong` is the
+// same without a forecast.
+
+/// The path and query to `GET` for the forecast along a route: its places
+/// and the day, as the thermal map names it. At most 25 places. Throws,
+/// in words for the pilot, for a route or a day the server cannot be
+/// asked for.
+#[wasm_bindgen(js_name = routeWeatherPath)]
+pub fn route_weather_path(places: Vec<Ts<RoutePlace>>, date: String) -> Result<String, JsValue> {
+    let places = places.iter().map(from_js).collect::<Result<Vec<_>, _>>()?;
+    venti_core::route_weather_path(places, date).map_err(thrown)
+}
+
+/// The server's answer of the forecast along a route, read once.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct RouteForecast {
+    forecast: Arc<venti_core::RouteForecast>,
+}
+
+#[wasm_bindgen]
+impl RouteForecast {
+    /// Reads the server's answer to `routeWeatherPath`. Throws, in words
+    /// for the pilot, when the answer is a refusal or cannot be read.
+    #[wasm_bindgen(constructor)]
+    pub fn new(status: u16, body: Vec<u8>) -> Result<RouteForecast, JsValue> {
+        Ok(Self {
+            forecast: venti_core::RouteForecast::read(status, body).map_err(thrown)?,
+        })
+    }
+
+    /// A route as the pilot means to fly it, with this forecast: when the
+    /// pilot is at each place, what the forecast has there then, each
+    /// leg's wind, the height to leave each place at over the ground in
+    /// `terrain` in that wind, and the whole route in a few sentences.
+    /// The forecast and the terrain stay the page's, to ask again with
+    /// when the pilot changes the start, the speed or the glide.
+    pub fn along(
+        &self,
+        setting: Ts<RouteSetting>,
+        terrain: &Terrain,
+        utc_offset_s: i32,
+    ) -> Result<Ts<RouteAlong>, JsValue> {
+        to_js(&venti_core::route_along(
+            from_js(&setting)?,
+            Some(self.forecast.clone()),
+            Some(terrain.terrain.clone()),
+            utc_offset_s,
+        ))
+    }
+}
+
+/// A route as the pilot means to fly it, without a forecast: when the
+/// pilot is at each place, and the height to leave each place at over the
+/// ground in `terrain` in still air. A `Terrain` that holds no tiles
+/// gives no heights, and says so. `RouteForecast.along` is the same with
+/// the forecast's wind and weather. `utc_offset_s` is how far the pilot's
+/// clock is ahead of UTC.
+#[wasm_bindgen(js_name = routeAlong)]
+pub fn route_along(
+    setting: Ts<RouteSetting>,
+    terrain: &Terrain,
+    utc_offset_s: i32,
+) -> Result<Ts<RouteAlong>, JsValue> {
+    to_js(&venti_core::route_along(
+        from_js(&setting)?,
+        None,
+        Some(terrain.terrain.clone()),
+        utc_offset_s,
+    ))
 }
 
 // Other pilots' flights: the flights the pilots of the Venti server share

@@ -25,6 +25,7 @@ mod identity;
 pub mod igc;
 pub mod layering;
 pub mod nearby;
+pub mod route_plan;
 mod summary;
 pub mod testing;
 pub mod track;

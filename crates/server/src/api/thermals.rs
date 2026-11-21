@@ -6,7 +6,8 @@ use axum::response::Response;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use venti_api_types::v1::{
-    ErrorCode, ThermalHoursResponse, ThermalLayer, ThermalMapResponse, format_day, parse_day,
+    ErrorCode, RouteWeatherResponse, ThermalHoursResponse, ThermalLayer, ThermalMapResponse,
+    format_day, parse_day, parse_route_points,
 };
 use venti_sources::Kind;
 use venti_store::Store;
@@ -22,6 +23,12 @@ pub(crate) struct HoursParams {
     date: Option<String>,
     layer: Option<String>,
     height: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct RouteParams {
+    date: Option<String>,
+    points: Option<String>,
 }
 
 /// After how many seconds a client that was told the map is not there yet
@@ -46,20 +53,7 @@ pub(crate) async fn thermal_hours<S: Store>(
     headers: HeaderMap,
     Query(params): Query<HoursParams>,
 ) -> Result<Response, ApiError> {
-    let date = params
-        .date
-        .as_deref()
-        .ok_or_else(|| {
-            ApiError::bad_request(
-                ErrorCode::InvalidDay,
-                format!("date is missing; {DATE_HELP}"),
-            )
-        })
-        .and_then(|text| {
-            parse_day(text).map_err(|error| {
-                ApiError::bad_request(ErrorCode::InvalidDay, format!("date: {error}; {DATE_HELP}"))
-            })
-        })?;
+    let date = day(params.date.as_deref())?;
     // Without a layer, the hours' verdicts: what the map of the days is
     // made of.
     let layer = match params.layer.as_deref() {
@@ -105,6 +99,39 @@ pub(crate) async fn thermal_hours<S: Store>(
     Ok(cache::json(&headers, &answer))
 }
 
+/// `GET /v1/route/weather?date=&points=`: for each point of a route and
+/// each daylight hour of a day of the thermal map, what the map holds for
+/// the cell the point lies in. A `GET` and not a `POST` with a body: the
+/// answer is the same for everyone who asks for the same points, so it is
+/// cached and validated as the map's own answers are, and twenty-five
+/// points are some 500 characters of a query string.
+pub(crate) async fn route_weather<S: Store>(
+    State(api): State<Arc<Api<S>>>,
+    headers: HeaderMap,
+    Query(params): Query<RouteParams>,
+) -> Result<Response, ApiError> {
+    let date = day(params.date.as_deref())?;
+    let points = parse_route_points(params.points.as_deref().unwrap_or_default())
+        .map_err(|error| ApiError::bad_request(ErrorCode::InvalidPosition, error.to_string()))?;
+    let answer = api.route_weather(date, &points)?;
+    Ok(cache::json(&headers, &answer))
+}
+
+/// The `date` of a request, as a day the map names.
+fn day(text: Option<&str>) -> Result<NaiveDate, ApiError> {
+    text.ok_or_else(|| {
+        ApiError::bad_request(
+            ErrorCode::InvalidDay,
+            format!("date is missing; {DATE_HELP}"),
+        )
+    })
+    .and_then(|text| {
+        parse_day(text).map_err(|error| {
+            ApiError::bad_request(ErrorCode::InvalidDay, format!("date: {error}; {DATE_HELP}"))
+        })
+    })
+}
+
 impl<S: Store> Api<S> {
     /// The thermal map, as the API answers it, with its source's credit.
     ///
@@ -132,18 +159,24 @@ impl<S: Store> Api<S> {
         let mut answer = map
             .hours_of(date)
             .and_then(|day| day.layer(layer, height_m))
-            .ok_or_else(|| {
-                let has: Vec<String> = made.days.iter().map(|day| format_day(day.date)).collect();
-                ApiError::new(
-                    StatusCode::NOT_FOUND,
-                    ErrorCode::NotFound,
-                    format!(
-                        "the thermal map has no hours for {}; it has {}",
-                        format_day(date),
-                        has.join(", ")
-                    ),
-                )
-            })?;
+            .ok_or_else(|| no_such_day(date, &made))?;
+        answer.attributions = self.attributions([&answer.source]);
+        Ok(answer)
+    }
+
+    /// The day of the thermal map at each point of a route, as the API
+    /// answers it, with the source's credit. Refused as the map itself is
+    /// while there is none; a day the map does not have is not found.
+    pub(crate) fn route_weather(
+        &self,
+        date: NaiveDate,
+        points: &[venti_domain::GeoPoint],
+    ) -> Result<RouteWeatherResponse, ApiError> {
+        let (map, made) = self.made_thermal_map()?;
+        let mut answer = map
+            .hours_of(date)
+            .map(|day| day.along(points))
+            .ok_or_else(|| no_such_day(date, &made))?;
         answer.attributions = self.attributions([&answer.source]);
         Ok(answer)
     }
@@ -175,4 +208,18 @@ impl<S: Store> Api<S> {
                 .retry_after(COME_BACK_S)
             })
     }
+}
+
+/// A day the thermal map does not have, and the days it has.
+fn no_such_day(date: NaiveDate, made: &ThermalMapResponse) -> ApiError {
+    let has: Vec<String> = made.days.iter().map(|day| format_day(day.date)).collect();
+    ApiError::new(
+        StatusCode::NOT_FOUND,
+        ErrorCode::NotFound,
+        format!(
+            "the thermal map has no hours for {}; it has {}",
+            format_day(date),
+            has.join(", ")
+        ),
+    )
 }

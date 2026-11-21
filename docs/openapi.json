@@ -2582,6 +2582,155 @@
           "fai_triangle"
         ]
       },
+      "RouteWeatherHour": {
+        "properties": {
+          "aloft": {
+            "items": {
+              "$ref": "#/components/schemas/RouteWindAloft"
+            },
+            "type": "array"
+          },
+          "climb_ms": {
+            "type": "number"
+          },
+          "cloud": {
+            "type": "boolean"
+          },
+          "cloud_cover_pct": {
+            "type": "integer"
+          },
+          "gust_kmh": {
+            "type": "integer"
+          },
+          "precipitation_mm": {
+            "type": "number"
+          },
+          "thermals": {
+            "$ref": "#/components/schemas/ThermalKind"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "top_m": {
+            "type": "integer"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ThermalVerdict"
+          },
+          "why": {
+            "$ref": "#/components/schemas/ThermalReason"
+          },
+          "wind_from_deg": {
+            "type": "integer"
+          },
+          "wind_kmh": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time",
+          "cloud"
+        ],
+        "type": "object"
+      },
+      "RouteWeatherPoint": {
+        "properties": {
+          "at": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "cell": {
+            "$ref": "#/components/schemas/RawPoint"
+          },
+          "ground_m": {
+            "type": "integer"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/RouteWeatherHour"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "hours"
+        ],
+        "type": "object"
+      },
+      "RouteWeatherResponse": {
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "type": "array"
+          },
+          "computed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "heights_m": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "model": {
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/RouteWeatherPoint"
+            },
+            "type": "array"
+          },
+          "run": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "whole": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "date",
+          "model",
+          "run",
+          "whole",
+          "computed_at",
+          "heights_m",
+          "points",
+          "attributions"
+        ],
+        "type": "object"
+      },
+      "RouteWindAloft": {
+        "properties": {
+          "from_deg": {
+            "type": "integer"
+          },
+          "height_m": {
+            "type": "integer"
+          },
+          "kmh": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "height_m",
+          "kmh"
+        ],
+        "type": "object"
+      },
       "Scope": {
         "description": "What a token for another program may do. `x-venti-values` lists the scopes there are today.",
         "type": "string",
@@ -7067,6 +7216,51 @@
         ],
         "summary": "Report something to whoever runs the server; 200 for one sent before",
         "x-venti-docs": "POST /v1/reports"
+      }
+    },
+    "/v1/route/weather": {
+      "get": {
+        "description": "Anyone; no token.",
+        "operationId": "get_route_weather",
+        "parameters": [
+          {
+            "description": "A day the thermal map has, written YYYY-MM-DD.",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The points of a route in the order they are flown, each lat,lon in WGS84 degrees, joined by ;, for example 47.6642,11.7967;47.7,11.9. At most 25.",
+            "in": "query",
+            "name": "points",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteWeatherResponse"
+                }
+              }
+            },
+            "description": "The answer."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "summary": "The thermal map's hours of a day at each point of a route",
+        "x-venti-docs": "GET /v1/route/weather?date=&points="
       }
     },
     "/v1/sessions": {

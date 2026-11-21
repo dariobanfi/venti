@@ -497,6 +497,12 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         "/v1/thermals/hours",
         Answer(200),
     ),
+    (
+        "route_weather.json",
+        "get",
+        "/v1/route/weather",
+        Answer(200),
+    ),
     ("radar.json", "get", "/v1/radar", Answer(200)),
     ("radar_two_layers.json", "get", "/v1/radar", Answer(200)),
     ("maps.json", "get", "/v1/maps", Answer(200)),

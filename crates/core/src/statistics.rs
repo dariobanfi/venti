@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Datelike};
 
-use crate::Core;
+use crate::analysis::RouteKind;
+use crate::{Core, logbook};
 
 /// How many months the monthly figures go back, counting the month of the
 /// newest flight.
@@ -44,6 +45,78 @@ pub struct GliderStatistics {
     pub distance_m: f64,
 }
 
+/// One calendar year of flying (UTC).
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct YearStatistics {
+    /// The year.
+    pub year: i32,
+    /// Flights that year.
+    pub flights: u32,
+    /// Time in the air, seconds.
+    pub airtime_s: i64,
+    /// Scored cross-country distance, metres.
+    pub distance_m: f64,
+    /// Cross-country points, by this app's own calculation.
+    pub points: f64,
+    /// The longest flight of the year, seconds.
+    pub longest_s: i64,
+    /// The longest scored distance of the year, metres.
+    pub farthest_m: f64,
+    /// The highest point reached that year, metres.
+    pub highest_m: i32,
+}
+
+/// One month of the calendar over all the years flown: when in the year
+/// the pilot flies.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SeasonStatistics {
+    /// The month, 1 to 12.
+    pub month: u32,
+    /// Flights in that month, all years together.
+    pub flights: u32,
+    /// Time in the air in that month, all years together, seconds.
+    pub airtime_s: i64,
+    /// Scored cross-country distance in that month, metres.
+    pub distance_m: f64,
+}
+
+/// The flights that score as one kind of route.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct RouteStatistics {
+    /// What the flights score as.
+    pub kind: RouteKind,
+    /// How many flights do.
+    pub flights: u32,
+    /// How many of them came back to where they began.
+    pub closed: u32,
+    /// Their scored distance together, metres.
+    pub distance_m: f64,
+    /// The one with the longest scored distance, in metres.
+    pub farthest: Option<BestFlight>,
+}
+
+/// What a flight of this pilot is usually like: the middle one of all, so
+/// that one long day does not speak for the rest.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct TypicalFlight {
+    /// The median time in the air, seconds.
+    pub airtime_s: i64,
+    /// The median scored distance of the flights that have a score, metres.
+    pub distance_m: Option<f64>,
+    /// The median of the flights' highest points, metres.
+    pub highest_m: i32,
+    /// The median of the flights' best half-minute climbs, metres per second.
+    pub best_climb_ms: f64,
+}
+
 /// One of the pilot's bests: which flight, and the figure.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -68,6 +141,17 @@ pub struct LogbookStatistics {
     pub months: Vec<MonthStatistics>,
     /// The gliders flown, the most flown first.
     pub gliders: Vec<GliderStatistics>,
+    /// Every year with a flight, the newest first, for one year beside
+    /// another.
+    pub years: Vec<YearStatistics>,
+    /// January to December over all the years flown: twelve entries once
+    /// there is a flight, none before.
+    pub seasons: Vec<SeasonStatistics>,
+    /// The flights by what they score as, in the order free flight,
+    /// triangle, FAI triangle; a kind no flight scores as is left out.
+    pub routes: Vec<RouteStatistics>,
+    /// What a flight is usually like. Absent for an empty logbook.
+    pub typical: Option<TypicalFlight>,
     /// The longest flight, in seconds.
     pub longest: Option<BestFlight>,
     /// The flight with the longest scored distance, in metres.
@@ -111,8 +195,76 @@ impl Core {
 
         let mut gliders: BTreeMap<Option<String>, GliderStatistics> = BTreeMap::new();
         let mut bests: [Option<BestFlight>; 5] = Default::default();
+        let mut years: BTreeMap<i32, YearStatistics> = BTreeMap::new();
+        let mut seasons: Vec<SeasonStatistics> = if flights.is_empty() {
+            Vec::new()
+        } else {
+            (1..=12)
+                .map(|month| SeasonStatistics {
+                    month,
+                    flights: 0,
+                    airtime_s: 0,
+                    distance_m: 0.0,
+                })
+                .collect()
+        };
+        let mut routes: [Option<RouteStatistics>; 3] = Default::default();
         for (id, summary) in &flights {
             let distance_m = summary.score.map_or(0.0, |score| score.distance_m);
+
+            if let Some(time) = DateTime::from_timestamp(summary.start_unix_s, 0) {
+                let year = years.entry(time.year()).or_insert(YearStatistics {
+                    year: time.year(),
+                    flights: 0,
+                    airtime_s: 0,
+                    distance_m: 0.0,
+                    points: 0.0,
+                    longest_s: 0,
+                    farthest_m: 0.0,
+                    highest_m: summary.max_altitude_m,
+                });
+                year.flights += 1;
+                year.airtime_s += summary.duration_s;
+                year.distance_m += distance_m;
+                year.points += summary.score.map_or(0.0, |score| score.points);
+                year.longest_s = year.longest_s.max(summary.duration_s);
+                year.farthest_m = year.farthest_m.max(distance_m);
+                year.highest_m = year.highest_m.max(summary.max_altitude_m);
+                if let Some(season) = seasons.get_mut(time.month0() as usize) {
+                    season.flights += 1;
+                    season.airtime_s += summary.duration_s;
+                    season.distance_m += distance_m;
+                }
+            }
+
+            if let Some(score) = summary.score {
+                let (place, kind) = match score.kind {
+                    logbook::StoredKind::FreeFlight => (0, RouteKind::FreeFlight),
+                    logbook::StoredKind::FreeTriangle => (1, RouteKind::FreeTriangle),
+                    logbook::StoredKind::FaiTriangle => (2, RouteKind::FaiTriangle),
+                };
+                let route = routes[place].get_or_insert(RouteStatistics {
+                    kind,
+                    flights: 0,
+                    closed: 0,
+                    distance_m: 0.0,
+                    farthest: None,
+                });
+                route.flights += 1;
+                route.closed += u32::from(score.closed);
+                route.distance_m += score.distance_m;
+                if route
+                    .farthest
+                    .as_ref()
+                    .is_none_or(|best| score.distance_m > best.value)
+                {
+                    route.farthest = Some(BestFlight {
+                        flight_id: id.clone(),
+                        start_unix_s: summary.start_unix_s,
+                        value: score.distance_m,
+                    });
+                }
+            }
 
             if let (Some(newest), Some(number)) = (newest_month, month_number(summary.start_unix_s))
                 && let Some(month) = usize::try_from(number - (newest - MONTHS + 1))
@@ -165,9 +317,46 @@ impl Core {
         let mut gliders: Vec<GliderStatistics> = gliders.into_values().collect();
         gliders.sort_by(|a, b| (b.airtime_s, &a.glider).cmp(&(a.airtime_s, &b.glider)));
         let [longest, farthest, most_points, highest, best_climb] = bests;
+
+        // The middle one of each figure: of an even number, the lower of
+        // the two in the middle, which is a flight that was flown.
+        let typical = (!flights.is_empty()).then(|| {
+            let mut airtimes: Vec<i64> = flights
+                .iter()
+                .map(|(_, flight)| flight.duration_s)
+                .collect();
+            let mut heights: Vec<i32> = flights
+                .iter()
+                .map(|(_, flight)| flight.max_altitude_m)
+                .collect();
+            let mut climbs: Vec<f64> = flights
+                .iter()
+                .map(|(_, flight)| flight.max_climb_ms)
+                .collect();
+            let mut distances: Vec<f64> = flights
+                .iter()
+                .filter_map(|(_, flight)| flight.score.map(|score| score.distance_m))
+                .collect();
+            airtimes.sort_unstable();
+            heights.sort_unstable();
+            climbs.sort_by(f64::total_cmp);
+            distances.sort_by(f64::total_cmp);
+            let middle = (flights.len() - 1) / 2;
+            TypicalFlight {
+                airtime_s: airtimes[middle],
+                distance_m: (!distances.is_empty()).then(|| distances[(distances.len() - 1) / 2]),
+                highest_m: heights[middle],
+                best_climb_ms: climbs[middle],
+            }
+        });
+
         LogbookStatistics {
             months,
             gliders,
+            years: years.into_values().rev().collect(),
+            seasons,
+            routes: routes.into_iter().flatten().collect(),
+            typical,
             longest,
             farthest,
             most_points,
@@ -198,6 +387,62 @@ mod tests {
         assert!(statistics.months.is_empty());
         assert!(statistics.gliders.is_empty());
         assert_eq!(statistics.longest, None);
+        assert!(statistics.years.is_empty());
+        assert!(statistics.seasons.is_empty());
+        assert!(statistics.routes.is_empty());
+        assert_eq!(statistics.typical, None);
+    }
+
+    #[test]
+    fn years_seasons_routes_and_the_typical_flight_are_counted() {
+        let folder = TempFolder::new();
+        let core = Core::new(folder.path().to_str().unwrap().to_owned()).unwrap();
+        // Two flights in July 2026, one in September and one in June 2025.
+        for day in ["040726", "030726", "040925", "040625"] {
+            core.import_flight(sample().replace("040726", day)).unwrap();
+        }
+
+        let statistics = core.statistics();
+
+        // One year beside another, the newest first.
+        let years: Vec<(i32, u32, i64)> = statistics
+            .years
+            .iter()
+            .map(|year| (year.year, year.flights, year.airtime_s))
+            .collect();
+        assert_eq!(years, [(2026, 2, 2 * 1744), (2025, 2, 2 * 1744)]);
+        let year = statistics.years[0];
+        assert_eq!(year.longest_s, 1744);
+        assert_eq!(year.highest_m, 2117);
+        assert!(year.farthest_m > 10_000.0);
+        assert!((year.distance_m - 2.0 * year.farthest_m).abs() < 1e-6);
+        assert!(year.points > 20.0);
+
+        // When in the year: twelve months, whatever the years.
+        assert_eq!(statistics.seasons.len(), 12);
+        let flown: Vec<(u32, u32)> = statistics
+            .seasons
+            .iter()
+            .filter(|season| season.flights > 0)
+            .map(|season| (season.month, season.flights))
+            .collect();
+        assert_eq!(flown, [(6, 1), (7, 2), (9, 1)]);
+        assert_eq!(statistics.seasons[6].airtime_s, 2 * 1744);
+
+        // The sample scores as a free flight, all four times.
+        assert_eq!(statistics.routes.len(), 1);
+        let route = &statistics.routes[0];
+        assert_eq!(route.kind, RouteKind::FreeFlight);
+        assert_eq!((route.flights, route.closed), (4, 0));
+        assert!((route.distance_m - 4.0 * year.farthest_m).abs() < 1e-6);
+        assert!((route.farthest.as_ref().unwrap().value - year.farthest_m).abs() < 1e-9);
+
+        // Four flights that are the same flight: the middle one is that flight.
+        let typical = statistics.typical.unwrap();
+        assert_eq!(typical.airtime_s, 1744);
+        assert_eq!(typical.highest_m, 2117);
+        assert!((typical.distance_m.unwrap() - year.farthest_m).abs() < 1e-9);
+        assert!((typical.best_climb_ms - 2.4).abs() < 0.05);
     }
 
     #[test]

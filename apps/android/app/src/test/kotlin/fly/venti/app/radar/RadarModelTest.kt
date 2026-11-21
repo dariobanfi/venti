@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.zip.CRC32
 import java.util.zip.DeflaterOutputStream
@@ -20,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -44,6 +46,9 @@ class RadarModelTest {
         @Volatile
         var picture = HttpAnswer(200, picture())
 
+        /** The pictures of frames that have another than that one, by their paths. */
+        val pictureOf = ConcurrentHashMap<String, ByteArray>()
+
         @Volatile
         var isReached = true
 
@@ -53,7 +58,8 @@ class RadarModelTest {
         fun answer(url: String): HttpAnswer {
             asked += url
             if (!isReached) throw IOException("no route to the server")
-            return if (url.endsWith(".png")) picture else list
+            if (!url.endsWith(".png")) return list
+            return pictureOf[url.removePrefix(BASE)]?.let { HttpAnswer(200, it) } ?: picture
         }
     }
 
@@ -110,8 +116,13 @@ class RadarModelTest {
     }
 
     @Test
-    fun aMomentDrawsBothLayersAndOnlyTheLowestVeilsWhatWasNotSeen() = runBlocking {
+    fun aMomentDrawsBothLayersAndTheLowerIsClearWhereTheUpperSees() = runBlocking {
         val server = Server()
+        // The analysis' pictures have the values 0 to 7, row by row, and
+        // so has the radars' of 13:10. The radars' of 13:15 sees dry at
+        // the first two places, rain at the next two and at the seventh,
+        // and nothing at the others.
+        server.pictureOf[radars("1315")] = picture(byteArrayOf(0, 0, 3, 1, 7, 7, 6, 7))
         val radar = model(server)
         radar.load()
         radar.showFrame()
@@ -128,40 +139,51 @@ class RadarModelTest {
         }
         assertNull(radar.pictureProblem)
 
-        // A picture's pixels are the values 0 to 7, row by row: no rain
-        // stays clear and each step has the colour its line of the key
-        // names, the same in both pictures. What was not seen has the
-        // veil's colour in the lower picture and none in the upper, whose
-        // veil would hide the lower's rain.
-        val (lower, upper) = shown.pictures.map { pixels(it.png) }
+        // No rain is clear and each step has the colour its line of the
+        // key names. What was not seen has no colour in the upper picture,
+        // whose veil would hide the lower's rain.
         val state = radar.state as RadarState.There
-        val bySteps = state.view.key.sortedBy { it.step }
-        for (pixels in listOf(lower, upper)) {
-            assertEquals(0, pixels[0] ushr 24)
-            assertEquals(bySteps.map { RadarLayer.colour(it).toArgb() }, pixels.subList(1, 7))
-        }
-        assertEquals(RadarLayer.UNSEEN.toArgb(), lower[7])
-        assertEquals(0, upper[7] ushr 24)
+        val steps = listOf(CLEAR) + state.view.key.sortedBy { it.step }.map { RadarLayer.colour(it).toArgb() }
+        val veil = RadarLayer.UNSEEN.toArgb()
+        val (lower, upper) = shown.pictures.map { pixels(it.png) }
+        assertEquals(listOf(CLEAR, CLEAR, steps[3], steps[1], CLEAR, CLEAR, steps[6], CLEAR), upper)
+        // The lower picture was coloured under the upper's as the server
+        // sent it: clear wherever the upper sees, dry over its rain and
+        // rain over its rain, so that no place is drawn twice; its own
+        // rain and its veil only where the upper saw nothing.
+        assertEquals(listOf(CLEAR, CLEAR, CLEAR, CLEAR, steps[4], steps[5], CLEAR, veil), lower)
         // The stand-ins the core names today: a trace in the grey of the vario scale, a cloudburst in the wind's deepest.
-        assertEquals(VentiLight.vario[3].toArgb(), lower[1])
-        assertEquals(VentiLight.wind[6].toArgb(), lower[6])
+        assertEquals(VentiLight.vario[3].toArgb(), upper[3])
+        assertEquals(VentiLight.wind[6].toArgb(), upper[6])
 
         // The earlier moment has the same analysis under another frame of
-        // the radars: only that is fetched, and the analysis' picture stays.
+        // the radars: only that is fetched, and the analysis' picture is
+        // another, clear where that frame sees, which is all but the last
+        // place.
         radar.choose(0)
         assertEquals("14:10", radar.moment?.clock)
         radar.showFrame()
         assertEquals("Rain radar, 14:10, 9 minutes ago. Austria's analysis is of 14:00.", radar.shownMoment?.label)
-        assertEquals(listOf(analysis("1300"), radars("1310")), radar.shown?.pictures?.map { it.path })
-        assertSame(shown.pictures[0].png, radar.shown?.pictures?.get(0)?.png)
+        val earlier = checkNotNull(radar.shown)
+        assertEquals(listOf(analysis("1300"), radars("1310")), earlier.pictures.map { it.path })
         assertEquals(radars("1310"), server.paths.last())
-        // Back on the newest, nothing is asked again.
+        assertEquals(4, server.asked.size)
+        assertNotSame(shown.pictures[0].png, earlier.pictures[0].png)
+        assertEquals(List(7) { CLEAR } + veil, pixels(earlier.pictures[0].png))
+        assertEquals(steps + CLEAR, pixels(earlier.pictures[1].png))
+        // Back on the newest, nothing is asked again, and the pictures
+        // are the ones kept: the analysis' by the frame that lies over it.
         radar.choose(1)
         assertNull(radar.chosenTime)
         radar.showFrame()
+        assertSame(shown.pictures[0].png, radar.shown?.pictures?.get(0)?.png)
         assertSame(shown.pictures[1].png, radar.shown?.pictures?.get(1)?.png)
+        radar.choose(0)
+        radar.showFrame()
+        assertSame(earlier.pictures[0].png, radar.shown?.pictures?.get(0)?.png)
         assertEquals(4, server.asked.size)
-        assertEquals(3, radar.keptPictures)
+        // The analysis under each of the two frames, and those two.
+        assertEquals(4, radar.keptPictures)
     }
 
     @Test
@@ -210,13 +232,15 @@ class RadarModelTest {
 
         // A list that no longer has it goes back to the newest, and lets its picture go.
         radar.showFrame()
-        assertEquals(4, radar.keptPictures)
+        // The analysis under each of the three frames, and those three.
+        assertEquals(6, radar.keptPictures)
         server.list = HttpAnswer(200, WITH_A_THIRD.replace(Regex("""\{\s*"time": "2026-11-21T13:10:00Z".*?\},""", RegexOption.DOT_MATCHES_ALL), "").toByteArray())
         radar.load()
         assertEquals(listOf("14:15", "14:20"), radar.moments.map { it.clock })
         assertNull(radar.chosenTime)
         assertEquals("14:20", radar.moment?.clock)
-        assertEquals(3, radar.keptPictures)
+        // The frame that went, and the analysis as it lay under it.
+        assertEquals(4, radar.keptPictures)
     }
 
     @Test
@@ -399,17 +423,21 @@ class RadarModelTest {
                 .also { check(!it.contains("1315Z.png")) { "the recorded answer has changed" } }
         }
 
-        /** A picture's eight pixels as Java reads them, row by row. */
+        /** A pixel without a colour, as [pixels] reads one. */
+        private const val CLEAR = 0
+
+        /** A picture's eight pixels as Java reads them, row by row; one that is clear is [CLEAR], whatever colour lies under it. */
         private fun pixels(png: ByteArray): List<Int> {
             val read = checkNotNull(ImageIO.read(ByteArrayInputStream(png)))
-            return (0 until 2).flatMap { y -> (0 until 4).map { x -> read.getRGB(x, y) } }
+            return (0 until 2).flatMap { y -> (0 until 4).map { x -> read.getRGB(x, y).let { if (it ushr 24 == 0) CLEAR else it } } }
         }
 
         /**
-         * A picture as a server writes one: four by two pixels with the
-         * values 0 to 7, a palette of eight greys, one byte a pixel.
+         * A picture as a server writes one: four by two pixels, row by
+         * row, with the values 0 to 7 unless others are given, a palette
+         * of eight greys, one byte a pixel.
          */
-        fun picture(): ByteArray {
+        fun picture(values: ByteArray = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)): ByteArray {
             val out = ByteArrayOutputStream()
             out.write(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
             fun chunk(name: String, data: ByteArray) {
@@ -423,7 +451,7 @@ class RadarModelTest {
             chunk("IHDR", byteArrayOf(0, 0, 0, 4, 0, 0, 0, 2, 8, 3, 0, 0, 0))
             chunk("PLTE", ByteArray(24) { (it / 3 * 30).toByte() })
             // Two rows, each a filter byte and four pixels.
-            val rows = byteArrayOf(0, 0, 1, 2, 3, 0, 4, 5, 6, 7)
+            val rows = byteArrayOf(0) + values.copyOfRange(0, 4) + byteArrayOf(0) + values.copyOfRange(4, 8)
             chunk("IDAT", ByteArrayOutputStream().also { packed -> DeflaterOutputStream(packed).use { it.write(rows) } }.toByteArray())
             chunk("IEND", ByteArray(0))
             return out.toByteArray()

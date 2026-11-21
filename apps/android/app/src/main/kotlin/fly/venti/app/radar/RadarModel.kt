@@ -13,7 +13,7 @@ import fly.venti.core.RadarLayerView
 import fly.venti.core.RadarMoment
 import fly.venti.core.RadarView
 import fly.venti.core.radar
-import fly.venti.core.radarFrameImage
+import fly.venti.core.radarFrameImageUnder
 import fly.venti.core.radarPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -80,14 +80,15 @@ class RadarColours(
  * The rain radar for the map tab's "Radar" layer, from Venti.
  *
  * What to ask the server and how to read its answer are the core's
- * (`radarPath`, `radar`, `radarFrameImage`): the layers and their frames,
- * the moments of the card's strip and which frame of which layer lies on
- * the map at each, their times and ages in words, when the newest is too
- * old to be the rain of now, the key and every word on the card come from
- * there. This class asks for the list and for the pictures, keeps each
- * picture for this run of the app while its frame is in the list, and
- * remembers which moment the pilot looks at: the one the core opens on,
- * the newest, until another is chosen.
+ * (`radarPath`, `radar`, `radarFrameImageUnder`): the layers and their
+ * frames, the moments of the card's strip and which frame of which layer
+ * lies on the map at each, their times and ages in words, when the newest
+ * is too old to be the rain of now, the key and every word on the card
+ * come from there, and so does where a picture is clear because one above
+ * it sees the place. This class asks for the list and for the pictures,
+ * keeps each picture for this run of the app while its frame is in the
+ * list, and remembers which moment the pilot looks at: the one the core
+ * opens on, the newest, until another is chosen.
  */
 class RadarModel(
     private val transport: WindTransport = { url -> Http.get(url) },
@@ -142,16 +143,29 @@ class RadarModel(
     var isPlaying: Boolean by mutableStateOf(false)
         private set
 
+    /** The pictures as the server sent them, by their frames' paths. */
+    private val served = mutableMapOf<String, ByteArray>()
+
+    /** What a picture in the app's colours is kept by. */
+    private data class Coloured(
+        /** The path of the frame the picture is of. */
+        val path: String,
+        /** Whether what was not seen is drawn in it. */
+        val drawsUnseen: Boolean,
+        /** The paths of the frames that lie over it, the lowest first: it is clear where one of them sees. */
+        val above: List<String>,
+    )
+
     /**
-     * The pictures in the app's colours, each layer's frames by their
-     * paths, and by whether what was not seen is drawn in them.
+     * The pictures in the app's colours. The same frame of a layer lies
+     * under other frames at another moment, and is another picture then.
      */
-    private val kept = mutableMapOf<Pair<String, Boolean>, ByteArray>()
+    private val kept = mutableMapOf<Coloured, ByteArray>()
 
     /** One asking for the list at a time: the layer's own and the pilot's "Try again". */
     private val asking = Mutex()
 
-    /** One picture is fetched at a time. */
+    /** One moment's pictures are fetched and coloured at a time, so that none is twice. */
     private val fetching = Mutex()
 
     /** The stops of the card's strip, the oldest first: one line of time for all layers. */
@@ -315,19 +329,24 @@ class RadarModel(
     /** Takes a reading of the list, and lets go of the pictures of frames it no longer has. */
     private fun settle(read: RadarView) {
         view = read
-        val paths = read.layers.flatMap { layer -> layer.frames.map { it.path } }.toSet()
-        kept.keys.retainAll { (path, _) -> path in paths }
+        val paths = paths(read)
+        served.keys.retainAll { it in paths }
+        kept.keys.retainAll { it.path in paths && paths.containsAll(it.above) }
         // A moment the list has dropped is no longer one to choose.
         if (read.moments.none { it.timeUnixS == chosenTime }) chosenTime = null
     }
 
+    /** The paths of all frames a list has. */
+    private fun paths(view: RadarView): Set<String> = view.layers.flatMap { layer -> layer.frames.map { it.path } }.toSet()
+
     /**
      * Puts the pictures of the moment looked at on the map: for each of
      * its frames, the lowest first, the one kept, or fetched now and
-     * written in the app's colours by the core. They change together, once
-     * all are there. Until then, and when one cannot be fetched, the
-     * pictures before stay with their own time: never an empty map under a
-     * newer time, and never two moments mixed.
+     * written in the app's colours by the core, clear where a picture
+     * above it sees. They change together, once all are there. Until
+     * then, and when one cannot be fetched, the pictures before stay with
+     * their own time: never an empty map under a newer time, and never two
+     * moments mixed.
      */
     suspend fun showFrame() {
         val server = server() ?: return
@@ -340,15 +359,19 @@ class RadarModel(
         }
         val wanted = wanted(view, moment)
         try {
-            val pictures = moment.frames.mapNotNull { drawn ->
-                val layer = view.layers.getOrNull(drawn.layer.toInt()) ?: return@mapNotNull null
-                val frame = layer.frames.getOrNull(drawn.frame.toInt()) ?: return@mapNotNull null
-                val png = picture(server, frame.path, drawn.drawsUnseen, view)
+            val coloured = coloured(server, wanted, view)
+            // The layers of the frames that have a picture, as `wanted` has their paths.
+            val layers = moment.frames.mapNotNull { drawn ->
+                view.layers.getOrNull(drawn.layer.toInt())?.takeIf { it.frames.getOrNull(drawn.frame.toInt()) != null }?.let { drawn.layer.toInt() to it }
+            }
+            val pictures = layers.indices.map { place ->
+                val (number, layer) = layers[place]
+                val (path, drawsUnseen) = wanted[place]
                 RadarPicture(
-                    layer = drawn.layer.toInt(),
-                    path = frame.path,
-                    drawsUnseen = drawn.drawsUnseen,
-                    png = png,
+                    layer = number,
+                    path = path,
+                    drawsUnseen = drawsUnseen,
+                    png = coloured[place],
                     west = layer.west,
                     south = layer.south,
                     east = layer.east,
@@ -377,26 +400,45 @@ class RadarModel(
     private fun isLookedAt(wanted: List<Pair<String, Boolean>>): Boolean = moment != null && picturesWanted == wanted
 
     /**
-     * A frame's picture in the app's colours: kept, or fetched and kept.
-     * What the source did not see is the veil in the lowest picture of a
-     * moment and clear in each above it, so that one source's veil does
-     * not hide another's rain. One at a time, so that none is fetched twice.
+     * A moment's pictures in the app's colours, the lowest first: each
+     * kept, or coloured now and kept. A picture is clear wherever one
+     * above it at the moment sees the place, rain or dry, which the core
+     * reads from the pictures above as the server sent them: so one word
+     * is shown at every place, the topmost's that sees it. What the source
+     * did not see is the veil in the lowest picture and clear in each
+     * above it, so that one source's veil does not hide another's rain.
      */
-    private suspend fun picture(server: String, path: String, drawsUnseen: Boolean, view: RadarView): ByteArray = fetching.withLock {
-        kept[path to drawsUnseen]?.let { return@withLock it }
+    private suspend fun coloured(server: String, wanted: List<Pair<String, Boolean>>, view: RadarView): List<ByteArray> = fetching.withLock {
+        // The colours in the order of the steps, the first step first.
+        val rain = view.key.sortedBy { it.step }.map(colours.rain)
+        // What is fetched for this moment, each picture once.
+        val fetched = mutableMapOf<String, ByteArray>()
+        wanted.mapIndexed { place, (path, drawsUnseen) ->
+            val above = wanted.drop(place + 1).map { it.first }
+            val key = Coloured(path, drawsUnseen, above)
+            kept[key]?.let { return@mapIndexed it }
+            val read = (listOf(path) + above).associateWith { served[it] ?: fetched[it] ?: fetch(server, it).also { body -> fetched[it] = body } }
+            val unseen = if (drawsUnseen) colours.unseen else RadarColours.CLEAR
+            val png = withContext(background) {
+                radarFrameImageUnder(read.getValue(path), above.map(read::getValue), rain, unseen)
+            }
+            // Only what the list still has is kept, and only what the core could read.
+            val listed = this.view?.let(::paths).orEmpty()
+            if (listed.containsAll(read.keys)) kept[key] = png
+            served += read.filterKeys { it in listed }
+            png
+        }
+    }
+
+    /** A frame's picture as the server sent it. */
+    private suspend fun fetch(server: String, path: String): ByteArray {
         val fetched = pictures(server + path)
         if (fetched.status != HTTP_OK) {
             // The core has the words for a server's refusal: it reads the list's the same way.
             radar(fetched.status.coerceIn(0, UShort.MAX_VALUE.toInt()).toUShort(), fetched.body, 0, 0)
             throw CoreException.Server(RadarWords.PICTURE_UNREACHABLE)
         }
-        // The colours in the order of the steps, the first step first.
-        val rain = view.key.sortedBy { it.step }.map(colours.rain)
-        val unseen = if (drawsUnseen) colours.unseen else RadarColours.CLEAR
-        val png = withContext(background) { radarFrameImage(fetched.body, rain, unseen) }
-        // Only what the list still has is kept.
-        if (this.view?.layers?.any { layer -> layer.frames.any { it.path == path } } == true) kept[path to drawsUnseen] = png
-        png
+        return fetched.body
     }
 
     /**
@@ -429,10 +471,11 @@ class RadarModel(
         chosenTime = null
         shown = null
         pictureProblem = null
+        served.clear()
         kept.clear()
     }
 
-    /** How many pictures are kept: for the tests. */
+    /** How many pictures in the app's colours are kept: for the tests. */
     val keptPictures: Int get() = kept.size
 
     companion object {

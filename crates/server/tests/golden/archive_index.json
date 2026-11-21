@@ -60,6 +60,12 @@
       "holds": "The reports the account sent to whoever runs the server, as it sent them.",
       "record": "ArchiveReports",
       "entries": 0
+    },
+    {
+      "path": "alerts.json",
+      "holds": "The account's alarms, and what they fired in the last 30 days.",
+      "record": "ArchiveAlerts",
+      "entries": 3
     }
   ],
   "flights": [

@@ -13,9 +13,10 @@ use std::io::{Cursor, Read};
 use axum::http::{Method, StatusCode, header};
 use serde::de::DeserializeOwned;
 use venti_api_types::v1::{
-    ACCOUNT_ARCHIVE_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE,
-    ARCHIVE_MEDIA_TYPE, AccessTokensResponse, AccountResponse, ArchiveIndex, ArchiveReports,
-    ArchiveSites, ErrorCode, FLIGHTS_PATH, Flight, FlightsResponse, GROUPS_PATH, GroupsResponse,
+    ACCOUNT_ARCHIVE_PATH, ACCOUNT_PATH, ACCOUNT_TOKENS_PATH, ALERTS_FIRED_PATH, ALERTS_PATH,
+    ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, AccessTokensResponse, AccountResponse,
+    AlertsResponse, ArchiveAlerts, ArchiveIndex, ArchiveReports, ArchiveSites, ErrorCode,
+    FLIGHTS_PATH, FiredAlertsResponse, Flight, FlightsResponse, GROUPS_PATH, GroupsResponse,
     KEPT_SITE_CHANGES_PATH, KeptSiteChangesResponse, MAX_ARCHIVE_FILE_BYTES, PlansResponse,
     REPORTS_PATH, ReportRequest, SESSIONS_PATH, SessionsResponse, SiteRevisionKind, UploadResponse,
     flight_file_path, site_confirmation_path,
@@ -220,6 +221,16 @@ async fn every_file_of_the_archive_is_listed_and_is_the_record_the_api_answers()
         (&kept.kept, &kept.forgotten),
         (&theirs.kept, &theirs.forgotten)
     );
+
+    // The alarms, and what they fired, as the account's own requests
+    // answer them.
+    let alerts: ArchiveAlerts = archive.json("alerts.json");
+    let theirs: AlertsResponse = own(&router, token, ALERTS_PATH).await;
+    assert!(!alerts.alerts.is_empty());
+    assert_eq!(alerts.alerts, theirs.alerts);
+    let fired: FiredAlertsResponse = own(&router, token, ALERTS_FIRED_PATH).await;
+    assert!(!alerts.fired.is_empty());
+    assert_eq!(alerts.fired, fired.fired);
 
     // The plans the pilot posted, and those of others they are in on.
     let plans: PlansResponse = archive.json("plans.json");

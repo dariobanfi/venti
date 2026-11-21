@@ -6,14 +6,15 @@
 //! one: `flights.json` is a [`FlightsResponse`](super::FlightsResponse),
 //! `groups.json` a [`GroupsResponse`](super::GroupsResponse), and so on.
 //! [`ArchiveIndex`] names every file with the type it holds, so a program
-//! reads an archive with the types it reads the API with. Three kinds had
+//! reads an archive with the types it reads the API with. Four kinds had
 //! no list by account and get one here: the revisions of sites, the
-//! confirmations, and the reports.
+//! confirmations, the reports, and the alarms together with what they
+//! fired.
 
 use serde::{Deserialize, Serialize};
 use venti_domain::{SiteId, Timestamp};
 
-use super::{FlightId, Handle, ReportRequest, SiteRevision};
+use super::{Alert, FiredAlert, FlightId, Handle, ReportRequest, SiteRevision};
 
 /// The address of the archive.
 pub const ACCOUNT_ARCHIVE_PATH: &str = "/v1/account/archive";
@@ -139,4 +140,15 @@ pub struct ArchiveReport {
     /// What was sent: the body of `POST /v1/reports`. A site is named
     /// with the revision the server noted.
     pub report: ReportRequest,
+}
+
+/// `alerts.json`: the pilot's alarms and what they fired, each as the API
+/// hands it out.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArchiveAlerts {
+    /// The alarms, oldest first, as `GET /v1/account/alerts` lists them.
+    pub alerts: Vec<Alert>,
+    /// What they fired that the server still keeps, oldest first, as
+    /// `GET /v1/account/alerts/fired` hands it out.
+    pub fired: Vec<FiredAlert>,
 }

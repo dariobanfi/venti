@@ -47,7 +47,8 @@ use venti_store::{
     SiteRevising, SiteWrite, Store,
 };
 
-use super::auth::{Client, May, Signed, WriteSites};
+use super::auth::{May, Signed, WriteSites};
+use super::budget::Reader;
 use super::error::ApiError;
 use super::{Api, body, cache};
 use crate::accounts::secret;
@@ -598,7 +599,7 @@ pub(crate) struct PageParams {
 /// `GET /v1/sites/{id}` and `GET /v1/sites/{id}/history`.
 pub(crate) async fn show<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    Client(client): Client,
+    reader: Reader,
     headers: HeaderMap,
     Path(rest): Path<String>,
     Query(params): Query<PageParams>,
@@ -609,7 +610,7 @@ pub(crate) async fn show<S: Store>(
         }
         Target::Flights(id) => {
             let site = api.standing(&id).await?;
-            api.flights_at(client, &headers, id, &site.site).await
+            api.flights_at(&reader, &headers, id, &site.site).await
         }
         Target::Site(id) => {
             // A source's site: the record of the set the server holds
@@ -619,7 +620,7 @@ pub(crate) async fn show<S: Store>(
                 // flights say about one.
                 let of = flights_of_a_source(&rest).ok_or_else(no_such_site)?;
                 let site = api.of_a_source(&of).await?.ok_or_else(no_such_site)?;
-                return api.flights_at(client, &headers, of, &site).await;
+                return api.flights_at(&reader, &headers, of, &site).await;
             };
             Ok(cache::slow_json(&headers, &api.source_answer(&id, site)))
         }

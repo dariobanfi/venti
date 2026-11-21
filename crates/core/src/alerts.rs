@@ -25,7 +25,7 @@ use venti_api_types::v1::{
 use venti_domain::GeoPoint;
 
 use crate::account::{Halt, asked_to_wait, failed, fetched, json_request, settled};
-use crate::server::answer;
+use crate::server::{answer, refusal};
 use crate::{Core, CoreError, ServerRequest, SyncStep, SyncSummary};
 
 /// The file the device keeps the account's alarms and what fired in.
@@ -102,41 +102,57 @@ pub enum AlertDayKind {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AlertDraft {
     /// What the pilot calls it: "Wallberg north".
+    #[uniffi(default = "")]
     pub name: String,
     /// Whether it is on.
+    #[uniffi(default = true)]
     pub enabled: bool,
     /// Which kind it is.
     pub kind: AlertKind,
     /// Wind: the station's identifier, as the station's page has it.
+    #[uniffi(default = "")]
     pub station_id: String,
     /// Wind: the station's name.
+    #[uniffi(default = "")]
     pub station_name: String,
     /// Wind: the first of the sixteen points the wind may come from, 0 for
     /// north, 1 for north-north-east, clockwise. `None` with `to_point`
     /// for any direction.
+    #[uniffi(default = None)]
     pub from_point: Option<u8>,
     /// Wind: the last of them, clockwise from `from_point`; the same point
     /// for one point alone.
+    #[uniffi(default = None)]
     pub to_point: Option<u8>,
     /// Wind: the least mean wind, km/h.
+    #[uniffi(default = None)]
     pub min_kmh: Option<u16>,
     /// Wind: the most mean wind, km/h.
+    #[uniffi(default = None)]
     pub max_kmh: Option<u16>,
     /// Wind: the strongest gust there may be, km/h.
+    #[uniffi(default = None)]
     pub gusts_max_kmh: Option<u16>,
     /// Wind: only from this hour, 0 to 23, Central European Time.
+    #[uniffi(default = None)]
     pub from_hour: Option<u8>,
     /// Wind: to this hour, 1 to 24.
+    #[uniffi(default = None)]
     pub to_hour: Option<u8>,
     /// Day: where, latitude.
+    #[uniffi(default = 0.0)]
     pub lat: f64,
     /// Day: where, longitude.
+    #[uniffi(default = 0.0)]
     pub lon: f64,
     /// Day: the site, if the place is one.
+    #[uniffi(default = None)]
     pub site_id: Option<String>,
     /// Day: the place's name: "Brauneck".
+    #[uniffi(default = "")]
     pub place_name: String,
     /// Day: which days, 0 for today to 3.
+    #[uniffi(default = [])]
     pub days_ahead: Vec<u8>,
     /// Day: the least the day is to be.
     pub at_least: AlertDayKind,
@@ -148,8 +164,10 @@ pub struct AlertDraft {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AlertFaultView {
     /// The field, as the server names it: `rule.min_kmh`.
+    #[uniffi(default = "")]
     pub field: String,
     /// What is wrong, in words.
+    #[uniffi(default = "")]
     pub message: String,
 }
 
@@ -159,15 +177,20 @@ pub struct AlertFaultView {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct AlertView {
     /// Its identifier, for changing and removing it.
+    #[uniffi(default = "")]
     pub id: String,
     /// What the pilot calls it.
+    #[uniffi(default = "")]
     pub name: String,
     /// Whether it is on.
+    #[uniffi(default = false)]
     pub enabled: bool,
     /// What it waits for, in one line.
+    #[uniffi(default = "")]
     pub line: String,
     /// The alarm as a draft, for the form that changes it. `None` for a
     /// kind this version does not know: it can be removed, not changed.
+    #[uniffi(default = None)]
     pub draft: Option<AlertDraft>,
 }
 
@@ -177,14 +200,18 @@ pub struct AlertView {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FiredLine {
     /// The alarm that fired.
+    #[uniffi(default = "")]
     pub alert_id: String,
     /// A title: the alarm's name.
+    #[uniffi(default = "")]
     pub title: String,
     /// What happened: "Wallberg: 15 km/h from the north at 11:20, as your
     /// alarm 'Wallberg north' asks".
+    #[uniffi(default = "")]
     pub line: String,
     /// When the server found it, seconds since 1970: for the order and
     /// for a notification's time.
+    #[uniffi(default = 0)]
     pub fired_at_unix_s: i64,
 }
 
@@ -194,10 +221,13 @@ pub struct FiredLine {
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct FiredPage {
     /// What fired, the oldest first.
+    #[uniffi(default = [])]
     pub lines: Vec<FiredLine>,
     /// What to pass as `since` next time.
+    #[uniffi(default = "")]
     pub cursor: String,
     /// Whether more waits: ask again at once.
+    #[uniffi(default = false)]
     pub more: bool,
 }
 
@@ -454,19 +484,30 @@ pub fn alert_check(draft: AlertDraft) -> Vec<AlertFaultView> {
         .collect()
 }
 
+/// The fields a fault can be about, as the server names them, each with
+/// its name in words, in the form's order. The last is said of a field
+/// this version does not know.
+const FIELDS: [(&str, &str); 13] = [
+    ("name", "The name"),
+    ("rule.kind", "The kind of alarm"),
+    ("rule.station", "The station"),
+    ("rule.station_name", "The station's name"),
+    ("rule.directions", "The directions"),
+    ("rule.min_kmh", "The least wind"),
+    ("rule.max_kmh", "The most wind"),
+    ("rule.gusts_max_kmh", "The gusts"),
+    ("rule.hours", "The hours"),
+    ("rule.place", "The place"),
+    ("rule.place_name", "The place's name"),
+    ("rule.days_ahead", "The days"),
+    ("rule", "The alarm"),
+];
+
 fn field_words(field: &str) -> &'static str {
-    match field {
-        "name" => "The name",
-        "rule.station_name" => "The station's name",
-        "rule.place_name" => "The place's name",
-        "rule.directions" => "The directions",
-        "rule.min_kmh" => "The least wind",
-        "rule.max_kmh" => "The most wind",
-        "rule.gusts_max_kmh" => "The gusts",
-        "rule.hours" => "The hours",
-        "rule.days_ahead" => "The days",
-        _ => "The alarm",
-    }
+    FIELDS
+        .iter()
+        .find(|(name, _)| *name == field)
+        .map_or("The alarm", |(_, words)| words)
 }
 
 /// The request for the account's alarms.
@@ -502,6 +543,233 @@ pub fn alert_remove_request(id: String) -> ServerRequest {
         body: None,
         content_type: None,
         needs_token: true,
+    }
+}
+
+/// Reads the answer to [`alert_remove_request`] and says what became of
+/// the alarm. One that was gone already is gone: that is no error.
+///
+/// # Errors
+///
+/// The server's refusal, in words.
+#[uniffi::export]
+pub fn alert_removed(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
+    if (200..300).contains(&status) || status == 404 {
+        Ok("The alarm is deleted.".to_owned())
+    } else {
+        Err(refusal(status, &body))
+    }
+}
+
+// --- The words of the screens -------------------------------------------------
+
+/// A kind of day as the form offers it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertDayKindChoice {
+    /// The draft's value.
+    pub kind: AlertDayKind,
+    /// Its name: "Cross-country".
+    #[uniffi(default = "")]
+    pub name: String,
+}
+
+/// A field a fault can be about.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertFieldName {
+    /// The key, as [`AlertFaultView::field`] has it: `rule.min_kmh`. It
+    /// does not change; a shell puts a fault at the control of this key.
+    #[uniffi(default = "")]
+    pub field: String,
+    /// The field in words, as a fault's message begins: "The least
+    /// wind".
+    #[uniffi(default = "")]
+    pub name: String,
+}
+
+/// The words of "Alert me", of the form, of the list under the account
+/// and of what fired: the same in the three apps. What an alarm waits
+/// for, what fired and what is wrong with a draft are worded where they
+/// are made ([`alert_line`], [`FiredLine`], [`alert_check`]).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct AlertFormWords {
+    /// The entry on a station's and a take-off's page, and the title of
+    /// the form for a new alarm: "Alert me".
+    #[uniffi(default = "")]
+    pub alert_me: String,
+    /// The title of the form that changes an alarm: "Change the alarm".
+    #[uniffi(default = "")]
+    pub change_title: String,
+    /// The entry under the account and the title of its screen:
+    /// "Alerts".
+    #[uniffi(default = "")]
+    pub title: String,
+    /// The title over the list: "Your alarms".
+    #[uniffi(default = "")]
+    pub list_title: String,
+    /// What the list says when it is empty.
+    #[uniffi(default = "")]
+    pub list_empty: String,
+    /// The title over what fired: "What fired".
+    #[uniffi(default = "")]
+    pub fired_title: String,
+    /// What it says when nothing fired: "Nothing has fired in the last
+    /// 30 days."
+    #[uniffi(default = "")]
+    pub fired_empty: String,
+    /// The note under what fired: where the alarms are checked and how
+    /// long what fired is kept.
+    #[uniffi(default = "")]
+    pub fired_note: String,
+    /// What "Alert me" says to a pilot signed out: "Alarms live on your
+    /// account: sign in to set one."
+    #[uniffi(default = "")]
+    pub signed_out: String,
+    /// "Name".
+    #[uniffi(default = "")]
+    pub name: String,
+    /// "Station", over a wind alarm's station.
+    #[uniffi(default = "")]
+    pub station: String,
+    /// "Place", over a day alarm's place.
+    #[uniffi(default = "")]
+    pub place: String,
+    /// The alarm's switch: "On".
+    #[uniffi(default = "")]
+    pub on: String,
+    /// The first of the points: "Wind from".
+    #[uniffi(default = "")]
+    pub wind_from: String,
+    /// The last of them: "To".
+    #[uniffi(default = "")]
+    pub wind_to: String,
+    /// The choice of no direction, of no bound and of no hour: "Any".
+    #[uniffi(default = "")]
+    pub any: String,
+    /// "Least wind".
+    #[uniffi(default = "")]
+    pub least: String,
+    /// "Most wind".
+    #[uniffi(default = "")]
+    pub most: String,
+    /// "Gusts at most".
+    #[uniffi(default = "")]
+    pub gusts_at_most: String,
+    /// The unit of the three: "km/h".
+    #[uniffi(default = "")]
+    pub kmh: String,
+    /// The title over the hours, with their time zone: "Hours, Central
+    /// European Time".
+    #[uniffi(default = "")]
+    pub hours_title: String,
+    /// The first hour: "From".
+    #[uniffi(default = "")]
+    pub from_hour: String,
+    /// The last: "To".
+    #[uniffi(default = "")]
+    pub to_hour: String,
+    /// The title over the days: "Days".
+    #[uniffi(default = "")]
+    pub days: String,
+    /// The names of the days, at the index of the draft's value in
+    /// `days_ahead`: "Today", "Tomorrow", "In 2 days", "In 3 days".
+    #[uniffi(default = [])]
+    pub day_names: Vec<String>,
+    /// The title over the kinds of day: "At least".
+    #[uniffi(default = "")]
+    pub at_least: String,
+    /// The kinds of day, the least first.
+    #[uniffi(default = [])]
+    pub day_kinds: Vec<AlertDayKindChoice>,
+    /// "Save".
+    #[uniffi(default = "")]
+    pub save: String,
+    /// The button that deletes an alarm: "Delete alarm".
+    #[uniffi(default = "")]
+    pub delete: String,
+    /// The question before it: "Delete this alarm?"
+    #[uniffi(default = "")]
+    pub delete_question: String,
+    /// The fields a fault can be about, in the form's order, for a shell
+    /// that puts a fault at its field.
+    #[uniffi(default = [])]
+    pub fields: Vec<AlertFieldName>,
+}
+
+/// The words of the alarms' screens.
+#[uniffi::export]
+pub fn alert_form_words() -> AlertFormWords {
+    let text = str::to_owned;
+    AlertFormWords {
+        alert_me: text("Alert me"),
+        change_title: text("Change the alarm"),
+        title: text("Alerts"),
+        list_title: text("Your alarms"),
+        list_empty: text(
+            "No alarms yet. Set one with \u{201c}Alert me\u{201d} on a wind station\u{2019}s \
+             page or a take-off\u{2019}s page.",
+        ),
+        fired_title: text("What fired"),
+        fired_empty: format!(
+            "Nothing has fired in the last {} days.",
+            venti_api_types::v1::FIRED_KEPT_DAYS
+        ),
+        fired_note: format!(
+            "Venti checks your alarms where the data arrives, and keeps what they fired for {} \
+             days.",
+            venti_api_types::v1::FIRED_KEPT_DAYS
+        ),
+        signed_out: text("Alarms live on your account: sign in to set one."),
+        name: text("Name"),
+        station: text("Station"),
+        place: text("Place"),
+        on: text("On"),
+        wind_from: text("Wind from"),
+        wind_to: text("To"),
+        any: text("Any"),
+        least: text("Least wind"),
+        most: text("Most wind"),
+        gusts_at_most: text("Gusts at most"),
+        kmh: text("km/h"),
+        hours_title: text("Hours, Central European Time"),
+        from_hour: text("From"),
+        to_hour: text("To"),
+        days: text("Days"),
+        day_names: (0..=venti_api_types::v1::MAX_DAYS_AHEAD)
+            .map(|day| match day {
+                0 => text("Today"),
+                1 => text("Tomorrow"),
+                n => format!("In {n} days"),
+            })
+            .collect(),
+        at_least: text("At least"),
+        day_kinds: [
+            (AlertDayKind::Flyable, "Flyable"),
+            (AlertDayKind::Local, "Local thermals"),
+            (AlertDayKind::CrossCountry, "Cross-country"),
+            (AlertDayKind::Big, "Big day"),
+        ]
+        .into_iter()
+        .map(|(kind, name)| AlertDayKindChoice {
+            kind,
+            name: text(name),
+        })
+        .collect(),
+        save: text("Save"),
+        delete: text("Delete alarm"),
+        delete_question: text("Delete this alarm?"),
+        fields: FIELDS
+            .iter()
+            .map(|(field, name)| AlertFieldName {
+                field: text(field),
+                name: text(name),
+            })
+            .collect(),
     }
 }
 
@@ -1006,6 +1274,59 @@ mod tests {
         no_station.station_id = String::new();
         assert_eq!(alert_check(no_station)[0].message, "Choose a station.");
         assert_eq!(alert_check(day_draft()), []);
+    }
+
+    #[test]
+    fn the_words_line_up_with_the_drafts_values_and_the_faults() {
+        let words = alert_form_words();
+        assert_eq!(
+            words.day_names.len(),
+            usize::from(venti_api_types::v1::MAX_DAYS_AHEAD) + 1
+        );
+        assert_eq!(words.day_names[2], "In 2 days");
+        assert_eq!(words.day_kinds[3].kind, AlertDayKind::Big);
+        assert_eq!(words.hours_title, "Hours, Central European Time");
+        assert_eq!(
+            words.signed_out,
+            "Alarms live on your account: sign in to set one."
+        );
+        // Every fault the check can give is at a field the words name,
+        // and its message begins with that name.
+        let mut wrong = wind_draft();
+        wrong.name = String::new();
+        wrong.min_kmh = Some(30);
+        wrong.from_hour = Some(20);
+        let mut day = day_draft();
+        day.days_ahead = Vec::new();
+        day.place_name = String::new();
+        let mut no_place = day_draft();
+        no_place.lat = 200.0;
+        let faults: Vec<AlertFaultView> = [wrong, day, no_place]
+            .into_iter()
+            .flat_map(alert_check)
+            .collect();
+        assert!(faults.len() >= 5, "{faults:?}");
+        for fault in faults {
+            let named = words
+                .fields
+                .iter()
+                .find(|field| field.field == fault.field)
+                .unwrap_or_else(|| panic!("{} is named", fault.field));
+            if fault.field != "rule.station" && fault.field != "rule.place" {
+                assert!(fault.message.starts_with(&named.name), "{fault:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_alarm_that_is_gone_is_deleted() {
+        assert_eq!(
+            alert_removed(204, Vec::new()).unwrap(),
+            "The alarm is deleted."
+        );
+        assert!(alert_removed(404, Vec::new()).is_ok());
+        assert!(alert_removed(401, Vec::new()).is_err());
+        assert!(alert_removed(500, b"oops".to_vec()).is_err());
     }
 
     #[test]

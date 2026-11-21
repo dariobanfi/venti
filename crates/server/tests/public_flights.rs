@@ -597,7 +597,8 @@ async fn an_address_reads_public_flights_only_so_often_in_an_hour() {
     ] {
         assert_eq!(from("203.0.113.7", path).await.status, StatusCode::OK);
     }
-    // A token does not lift it: the bound is the address's.
+    // A session's token does not lift it: the bound is the address's. A
+    // token for a program has a budget of its own (`tests/limits.rs`).
     let with_a_token = ask(Method::GET, &reads[2])
         .token(&anna.token)
         .from("203.0.113.7")

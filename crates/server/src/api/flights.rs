@@ -20,7 +20,8 @@ use venti_store::{
     Flight, FlightKey, Kept, Listing, Room, Saved, Store, Visibility, VisibilityChange,
 };
 
-use super::auth::{Client, May, ReadFlights, Viewer, Viewing, WriteFlights};
+use super::auth::{May, ReadFlights, Viewer, Viewing, WriteFlights};
+use super::budget::Reader;
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
@@ -614,11 +615,11 @@ pub(crate) async fn file<S: Store>(
 pub(crate) async fn track<S: Store>(
     State(api): State<Arc<Api<S>>>,
     Viewing(viewer, ..): Viewing<ReadFlights>,
-    Client(client): Client,
+    reader: Reader,
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    api.count_public_flight_read(client)?;
+    api.count_public_read(&reader)?;
     let flight = api.visible_flight(&id, &viewer).await?;
     let address: FlightId = flight.id.parse().map_err(|_| ApiError::internal())?;
     // The flight can be deleted between the two questions.

@@ -151,12 +151,27 @@ pub struct Limits {
     pub public_flight_reads_per_network: u32,
     /// The window for both.
     pub public_flight_window: Duration,
+    /// Requests one token for a program may make within
+    /// [`token_window`](Self::token_window), of any kind, whatever their
+    /// answers: its own budget, which no other token of the account and
+    /// no session shares (`docs/api.md`, "Limits"). Every answer to a
+    /// request with such a token says what is left of it.
+    ///
+    /// Three thousand six hundred an hour is one a second, all hour long:
+    /// a logger that sends its position every five seconds uses a fifth
+    /// of it, and a program that keeps a copy of a pilot's logbook in
+    /// step once a minute a sixtieth. It is of the order of what Venti's
+    /// own apps ask with a session in an hour of use, and six times what
+    /// an address without a token may read of public flights. An
+    /// estimate, and the owner's to set.
+    pub token_requests_per_window: u32,
+    /// The window for it.
+    pub token_window: Duration,
     /// How many keys (addresses, handles, accounts) each of the tables
     /// that count attempts watches at most. A key costs about 110 bytes
     /// (measured 2026-11-19), so each full table is 11 MB, and the server
-    /// has thirteen: ten until 2026-11-20, and three since for what an
-    /// account does with groups, which count by account and so cannot be
-    /// filled by strangers. The size is not what the server expects to need, which is
+    /// has nineteen (2026-11-21), most of which count by account or by a
+    /// token that was checked and so cannot be filled by strangers. The size is not what the server expects to need, which is
     /// some hundreds: it is what someone who wants to fill a table has to
     /// bring. With IPv6 counted at two levels that is 100,000 IPv4
     /// addresses within a window, or some hundreds to thousands of IPv6
@@ -206,6 +221,8 @@ impl Default for Limits {
             public_flight_reads_per_address: 600,
             public_flight_reads_per_network: 2400,
             public_flight_window: Duration::hours(1),
+            token_requests_per_window: 3600,
+            token_window: Duration::hours(1),
             watched_keys: 100_000,
             sessions_per_account: 50,
             // More than a year: a pilot who does not fly all winter must
@@ -239,6 +256,7 @@ impl Limits {
             forecast_fetches_per_network: u32::MAX,
             public_flight_reads_per_address: u32::MAX,
             public_flight_reads_per_network: u32::MAX,
+            token_requests_per_window: u32::MAX,
             // A dump is as the layer is at every request: the clock
             // never gets as far as a remake would be due.
             dump_remake_after: Duration::zero(),

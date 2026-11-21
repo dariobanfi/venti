@@ -175,6 +175,9 @@ fn observable(answer: &Answer) -> (StatusCode, Vec<(String, String)>, Vec<u8>) {
     let mut headers: Vec<(String, String)> = answer
         .headers
         .iter()
+        // What a token or an address has left of its budget says how often
+        // it asked, and nothing of a report.
+        .filter(|(name, _)| !name.as_str().starts_with("ratelimit"))
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap().to_owned()))
         .collect();
     headers.sort();

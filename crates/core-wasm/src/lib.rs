@@ -58,7 +58,7 @@ use venti_core::{
     ThermalMapHourSquare, ThermalMapHoursView, ThermalMapShapes, ThermalStripDay, TodayOrder,
     TodayStanding, TodayTakeoffs, TrackPoint, WindMap, WindSpan, WindStation,
 };
-use venti_core::{AlertDraft, AlertFaultView, AlertView, FiredLine, FiredPage};
+use venti_core::{AlertDraft, AlertFaultView, AlertFormWords, AlertView, FiredLine, FiredPage};
 use venti_core::{CandidateOffer, SiteCandidates, SiteFlights, SiteFlightsWords};
 use venti_core::{
     SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteCorrecting,
@@ -1224,6 +1224,19 @@ pub fn alert_change_request(
 #[wasm_bindgen(js_name = alertRemoveRequest)]
 pub fn alert_remove_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
     to_js(&venti_core::alert_remove_request(id))
+}
+
+/// Reads the answer to `alertRemoveRequest`: what became of the alarm. A
+/// 404 is an alarm that was gone already, and no error.
+#[wasm_bindgen(js_name = alertRemoved)]
+pub fn alert_removed(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+    venti_core::alert_removed(status, body).map_err(thrown)
+}
+
+/// The words of the alarms' screens: the form, the list and what fired.
+#[wasm_bindgen(js_name = alertFormWords)]
+pub fn alert_form_words() -> Result<Ts<AlertFormWords>, JsValue> {
+    to_js(&venti_core::alert_form_words())
 }
 
 /// Reads the answer to `alertsRequest`.

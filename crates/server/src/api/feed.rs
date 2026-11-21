@@ -13,7 +13,7 @@
 //! whoever keeps a copy of public flights can keep it true.
 //!
 //! Both are open to anyone without a token, and bounded by the address
-//! that asks ([`Api::count_public_flight_read`]). Every answer says under
+//! that asks or by the token that asks ([`Api::count_public_read`]). Every answer says under
 //! what its flights are given ([`FlightTerms`]).
 
 use std::net::IpAddr;
@@ -31,39 +31,19 @@ use venti_api_types::v1::{
 use venti_domain::Timestamp;
 use venti_store::{PublicFlights, PublicOrder, ScoreKey, Store, Visibility};
 
-use super::auth::Client;
+use super::budget::Reader;
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::flights::{page_key, page_token};
 use super::log::Sparse;
 use super::{Api, body, cache, wire};
-use crate::accounts::client::counting_keys;
 
 impl<S: Store> Api<S> {
-    /// Counts a read of public flights as data for the address that asks,
-    /// and refuses it when the address has made as many as one may in the
-    /// time: a page of everyone's public flights, a page of what changed
-    /// among them, a flight's track.
-    ///
-    /// These are open to anyone, and without a bound one address could
-    /// take every public flight as fast as the database hands them out.
-    /// Counted as the forecasts an address makes the server fetch are: by
-    /// address, and by network for IPv6.
+    /// Counts a read of public flights as data for the address that asks
+    /// without a token, as [`Api::count_public_read`] does: for the
+    /// connector, which looks at no token.
     pub(crate) fn count_public_flight_read(&self, client: IpAddr) -> Result<(), ApiError> {
-        let address = counting_keys(client);
-        let by_address = address.counted(
-            self.limits.public_flight_reads_per_address,
-            self.limits.public_flight_reads_per_network,
-        );
-        self.public_flight_reads
-            .attempt(&by_address, self.clock.now())
-            .map_err(|refused| {
-                ApiError::rate_limited(
-                    refused,
-                    "this address has read public flights as often as one address may in an \
-                     hour",
-                )
-            })
+        self.count_public_read(&Reader::at(client))
     }
 
     /// The account whose public flights a request's `pilot` means: the
@@ -184,11 +164,11 @@ pub(super) fn which(
 /// made no flight public is a pilot nobody has, as on the pilot's page.
 pub(crate) async fn list<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    Client(client): Client,
+    reader: Reader,
     Query(params): Query<Params>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    api.count_public_flight_read(client)?;
+    api.count_public_read(&reader)?;
     let limit = body::page_size(params.limit.as_deref())?;
     let which = PublicFlights {
         pilot: api.pilot_asked_for(params.pilot.as_deref()).await?,
@@ -275,11 +255,11 @@ pub(crate) struct ChangesParams {
 /// never public is in neither.
 pub(crate) async fn changes<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    Client(client): Client,
+    reader: Reader,
     Query(params): Query<ChangesParams>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    api.count_public_flight_read(client)?;
+    api.count_public_read(&reader)?;
     let limit = body::page_size(params.limit.as_deref())?;
     let asked: i64 = match params.since.as_deref() {
         None => 0,

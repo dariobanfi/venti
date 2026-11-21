@@ -67,6 +67,7 @@ mod alerts;
 mod archive;
 mod auth;
 mod body;
+mod budget;
 mod cables;
 mod cache;
 mod clients;
@@ -280,6 +281,8 @@ pub struct Api<S> {
     forecast_fetches: Throttle,
     /// Reads of public flights as data, by client address.
     public_flight_reads: Throttle,
+    /// Requests made with a token for a program, by token.
+    token_requests: Throttle,
     /// Where requests come from, to notice a setup that hides it.
     clients: clients::ClientWatch,
     /// Where forecasts come from, on a server that was told where its
@@ -387,6 +390,11 @@ impl<S: Store> Api<S> {
             public_flight_reads: Throttle::new(
                 "addresses that read public flights as data",
                 limits.public_flight_window,
+                limits.watched_keys,
+            ),
+            token_requests: Throttle::new(
+                "tokens for programs that made requests",
+                limits.token_window,
                 limits.watched_keys,
             ),
             clients: clients::ClientWatch::default(),
@@ -729,6 +737,10 @@ impl<S: Store> Api<S> {
             .route(maps::FILE_ROUTE, get(maps::file::<S>))
             .done()
             .merge(archive)
+            .layer(axum::middleware::from_fn_with_state(
+                api.clone(),
+                budget::count::<S>,
+            ))
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .layer(axum::middleware::from_fn_with_state(
                 api.clone(),
@@ -746,6 +758,10 @@ impl<S: Store> Api<S> {
             .merge(positions)
             .merge(upload)
             .fallback(error::not_found)
+            .layer(axum::middleware::from_fn_with_state(
+                api.clone(),
+                budget::count::<S>,
+            ))
             .layer(axum::middleware::from_fn(shape::uniform_errors))
             .merge(share)
             .merge(connector)
@@ -806,11 +822,13 @@ const OPEN_READ_HEADERS: [header::HeaderName; 3] =
 
 /// What a page may read of an answer's headers beyond the few a browser
 /// always shows it.
-const EXPOSED_HEADERS: [header::HeaderName; 4] = [
+const EXPOSED_HEADERS: [header::HeaderName; 6] = [
     header::ETAG,
     header::RETRY_AFTER,
     header::ACCEPT_RANGES,
     header::CONTENT_RANGE,
+    budget::RATELIMIT_POLICY,
+    budget::RATELIMIT,
 ];
 
 fn listed(names: &[header::HeaderName]) -> HeaderValue {

@@ -91,6 +91,19 @@ pub struct Refused {
     pub shared: bool,
 }
 
+/// What the tightest of an attempt's keys has left of its window, for an
+/// answer that says so (`RateLimit`, `docs/api.md`, "Limits").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Left {
+    /// The attempts the tightest key has in one window.
+    pub limit: u32,
+    /// What it has left of them now.
+    pub remaining: u32,
+    /// How long until its window closes, or the length of a window for a
+    /// key that has none open.
+    pub reset: Duration,
+}
+
 /// An attempt that was counted before its outcome was known. Hand it to
 /// [`Throttle::give_back`] if it turned out well; drop it and it stays
 /// counted.
@@ -160,6 +173,18 @@ impl Throttle {
         // Nothing of this is ever given back.
         let _ = table.add(keys, weight, now);
         Ok(())
+    }
+
+    /// Like [`attempt`](Self::attempt), and says what the tightest of the
+    /// keys has left afterwards, refused or not.
+    pub fn attempt_left(&self, keys: &[Counted], now: Timestamp) -> (Result<(), Refused>, Left) {
+        let mut table = self.lock();
+        let outcome = table.check(keys, now);
+        if outcome.is_ok() {
+            // Nothing of this is ever given back.
+            let _ = table.add(keys, 1, now);
+        }
+        (outcome, table.left(keys, now))
     }
 
     /// Like [`attempt`](Self::attempt), for an attempt whose outcome is not
@@ -385,6 +410,46 @@ impl Table {
                 }
             }
         }
+    }
+
+    /// What the tightest of `keys` has left: the least remaining, and of
+    /// two with as little the one that waits longer. Counts nothing.
+    fn left(&mut self, keys: &[Counted], now: Timestamp) -> Left {
+        let window = self.window;
+        let mut tightest: Option<Left> = None;
+        for counted in keys {
+            let (limit, watched) = match self.place(counted.key, now) {
+                Place::Own => (counted.limit, self.open(counted.key, now).copied()),
+                Place::Shared => (
+                    counted.limit.saturating_mul(SHARED_FACTOR),
+                    self.shared.filter(|shared| shared.until > now),
+                ),
+            };
+            let this = watched.map_or(
+                Left {
+                    limit,
+                    remaining: limit,
+                    reset: window,
+                },
+                |watched| Left {
+                    limit,
+                    remaining: limit.saturating_sub(watched.count),
+                    reset: watched.until - now,
+                },
+            );
+            let tighter = tightest.is_none_or(|before| {
+                (this.remaining, std::cmp::Reverse(this.reset))
+                    < (before.remaining, std::cmp::Reverse(before.reset))
+            });
+            if tighter {
+                tightest = Some(this);
+            }
+        }
+        tightest.unwrap_or(Left {
+            limit: 0,
+            remaining: 0,
+            reset: window,
+        })
     }
 
     /// The count of `key`, if its window is open.
@@ -660,6 +725,30 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn an_attempt_says_what_its_tightest_key_has_left() {
+        let throttle = roomy(Duration::hours(1));
+        let both = [Counted::new("address", 3), Counted::new("network", 12)];
+        let (outcome, left) = throttle.attempt_left(&both, at(0));
+        assert_eq!(outcome, Ok(()));
+        assert_eq!(
+            left,
+            Left {
+                limit: 3,
+                remaining: 2,
+                reset: Duration::hours(1)
+            }
+        );
+        assert!(throttle.attempt_left(&both, at(10)).0.is_ok());
+        assert!(throttle.attempt_left(&both, at(20)).0.is_ok());
+        let (outcome, left) = throttle.attempt_left(&both, at(30));
+        assert!(outcome.is_err());
+        assert_eq!((left.remaining, left.reset), (0, Duration::minutes(30)));
+        // A refusal counts nothing: the network has 9 of 12 left.
+        let (_, left) = throttle.attempt_left(&one("network", 12), at(30));
+        assert_eq!(left.remaining, 8);
     }
 
     #[test]

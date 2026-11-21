@@ -4,7 +4,8 @@
 //! (`docs/data-platform.md`, principle 11). The archive holds the account,
 //! every flight with its file as it was uploaded, the groups and plans,
 //! what the pilot gave to the sites that pilots make, the sites they keep,
-//! the tokens they gave to programs and the reports they sent. Its JSON
+//! the tokens they gave to programs, the reports they sent, and their
+//! alarms with what they fired. Its JSON
 //! files are the API's own records, and `index.json`
 //! ([`ArchiveIndex`]) names each with the record it holds.
 //!
@@ -37,10 +38,11 @@ use serde::Serialize;
 use tokio::sync::{Semaphore, mpsc};
 use venti_api_types::v1::{
     ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, AccessTokensResponse, AccountResponse,
-    ArchiveFile, ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport, ArchiveReports,
-    ArchiveSiteConfirmation, ArchiveSites, FlightsResponse, GroupsResponse, Handle,
-    KeptSiteChangesResponse, MAX_ARCHIVE_FILE_BYTES, PlansResponse, ReportRequest, ReportSubject,
-    ReportedPlan, ReportedSite, SessionsResponse, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL,
+    ArchiveAlerts, ArchiveFile, ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport,
+    ArchiveReports, ArchiveSiteConfirmation, ArchiveSites, FIRED_KEPT_DAYS, FlightsResponse,
+    GroupsResponse, Handle, KeptSiteChangesResponse, MAX_ARCHIVE_FILE_BYTES, PlansResponse,
+    ReportRequest, ReportSubject, ReportedPlan, ReportedSite, SessionsResponse,
+    VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL,
 };
 use venti_domain::Timestamp;
 use venti_store::{Flight, Listing, Store};
@@ -50,7 +52,7 @@ use zip::write::SimpleFileOptions;
 use super::auth::OwnSession;
 use super::error::ApiError;
 use super::log::Sparse;
-use super::{Api, cache, kept_sites, sites, wire};
+use super::{Api, alerts, cache, kept_sites, sites, wire};
 use crate::accounts::throttle::{Counted, Throttle};
 use crate::flights::unpack;
 
@@ -424,6 +426,41 @@ impl<S: Store> Api<S> {
             "The reports the account sent to whoever runs the server, as it sent them.",
             reports.len(),
             &ArchiveReports { reports },
+        )?);
+
+        // The alarms, and what they fired of the days the server keeps,
+        // page by page.
+        let kept_from = now - chrono::Duration::days(FIRED_KEPT_DAYS);
+        let mut fired = Vec::new();
+        let mut since = 0;
+        loop {
+            let page = store.fired_alerts(account_id, since, PAGE).await?;
+            since = page.fired.last().map_or(since, |last| last.number);
+            for one in page.fired.iter().filter(|one| one.fired_at >= kept_from) {
+                // The text is the server's own writing.
+                fired.push(serde_json::from_str(&one.record).map_err(|_| ApiError::internal())?);
+            }
+            if !page.more || page.fired.is_empty() {
+                break;
+            }
+        }
+        let made = ArchiveAlerts {
+            alerts: store
+                .alerts(account_id)
+                .await?
+                .iter()
+                .map(alerts::wire)
+                .collect::<Result<_, _>>()?,
+            fired,
+        };
+        files.push(ready(
+            "alerts.json",
+            "ArchiveAlerts",
+            &format!(
+                "The account's alarms, and what they fired in the last {FIRED_KEPT_DAYS} days."
+            ),
+            made.alerts.len() + made.fired.len(),
+            &made,
         )?);
 
         Ok(Gathered { files, flights })

@@ -26,7 +26,7 @@ use super::{Api, body, cache};
 use crate::accounts::secret::random_id;
 
 /// A stored alarm as the API hands it out.
-fn wire(alert: &venti_store::Alert) -> Result<Alert, ApiError> {
+pub(super) fn wire(alert: &venti_store::Alert) -> Result<Alert, ApiError> {
     // The text is the server's own writing.
     let rule: AlertRule = serde_json::from_str(&alert.rule).map_err(|_| ApiError::internal())?;
     Ok(Alert {

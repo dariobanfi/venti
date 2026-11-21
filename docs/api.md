@@ -21,7 +21,7 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 
 **Acting for a pilot.** A pilot makes a token for the program in their account, limited to scopes, and gives the program its secret; the program sends it as `Authorization: Bearer venti_pat_…`. The program never sees the pilot's password, and the pilot withdraws the token at any time. [Tokens for other programs](#tokens-for-other-programs) has the scopes, which request needs which, and the errors a program meets.
 
-**The bounds.** Open does not mean unbounded. An answer `429` carries `Retry-After`: wait that long. Ask again with `If-None-Match` and the `ETag` of the answer you kept, and an unchanged one costs a `304`; `Cache-Control` says for how long an answer may be reused without asking ([Caching](#rules-that-hold-for-every-endpoint)). The bounds that are counted today: [600 reads an hour per address](#how-often-an-address-may-read) of public flights as data; forecasts of places the server has to fetch, per address ([forecast](#get-v1forecastlatlon)); a box that holds too much is refused with `box_too_large`; a page is 100 entries at most; and everything an account writes is counted per account, which a token shares ([Tokens](#tokens-for-other-programs)). Reads that have no bound today may get one.
+**The bounds.** Open does not mean unbounded. An answer `429` carries `Retry-After`: wait that long. Ask again with `If-None-Match` and the `ETag` of the answer you kept, and an unchanged one costs a `304`; `Cache-Control` says for how long an answer may be reused without asking ([Caching](#rules-that-hold-for-every-endpoint)). The bounds that are counted today: a token for a program makes [3,600 requests an hour](#limits), its own budget, and every answer it gets says in `RateLimit` what is left; [600 reads an hour per address](#how-often-an-address-may-read) of public flights as data without a token, said the same way; forecasts of places the server has to fetch, per address ([forecast](#get-v1forecastlatlon)); a box that holds too much is refused with `box_too_large`; a page is 100 entries at most; and everything an account writes is counted per account, which a token shares ([Tokens](#tokens-for-other-programs)). Reads that have no bound today may get one.
 
 **What the licences ask.** The data is not Venti's to give away without conditions, and the conditions travel in the answers:
 
@@ -187,7 +187,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 
 **Bodies.** A request that carries JSON says so: `Content-Type: application/json`, with or without a character set. Anything else, and no type at all, is answered `415` with `unsupported_media_type` before the body is looked at. The one request whose body is not JSON is the upload of a flight file, which takes any type. A JSON body may be 16 kB, and one that carries the fixes of a live track 32 kB; a larger one is answered `413` and not read. The rule is what keeps a page on another site from sending sign-in or registration attempts through a visitor's browser: a browser sends a body typed `text/plain` anywhere without asking, and asks the server first before it sends one typed `application/json`.
 
-**Browsers.** A page on any site may read what anyone may read. A `GET` or `HEAD` under `/v1` that carries no `Authorization` header is answered with `Access-Control-Allow-Origin: *`, whatever the page's origin, and the page may read `ETag`, `Retry-After`, `Accept-Ranges` and `Content-Range` of the answer. It may send `If-None-Match`, `Range` and `If-Range` with such a read; the browser's question beforehand (the preflight) is answered for `GET` and `HEAD` with these three headers and nothing else. Everything beyond that is for the origins the server's configuration lists (`cors_origins`), which is where Venti's own web app is served from: a request with a token, a request with a body, every method that writes. To a page of any other origin such a request is not allowed, and the answer to one carries nothing that lets the page read it. Apps that are not browsers are not affected by any of this. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. The server sets no cookie and reads none. A page on another site therefore cannot make a visitor's browser act for the visitor: it does not have the visitor's token, and an open read is answered with what everybody gets. The pages for people ([a shared flight's](#the-page-a-shared-flight-has), [a live track's](#the-page-a-live-track-has)) and [the connector](mcp.md) are not under `/v1`, and nothing of this applies to them.
+**Browsers.** A page on any site may read what anyone may read. A `GET` or `HEAD` under `/v1` that carries no `Authorization` header is answered with `Access-Control-Allow-Origin: *`, whatever the page's origin, and the page may read `ETag`, `Retry-After`, `Accept-Ranges`, `Content-Range`, `RateLimit-Policy` and `RateLimit` of the answer. It may send `If-None-Match`, `Range` and `If-Range` with such a read; the browser's question beforehand (the preflight) is answered for `GET` and `HEAD` with these three headers and nothing else. Everything beyond that is for the origins the server's configuration lists (`cors_origins`), which is where Venti's own web app is served from: a request with a token, a request with a body, every method that writes. To a page of any other origin such a request is not allowed, and the answer to one carries nothing that lets the page read it. Apps that are not browsers are not affected by any of this. The API never tells a browser to send cookies or other credentials of its own along (`Access-Control-Allow-Credentials` is never set), and it has no use for them: an account is acted for with a token that the page's own code puts into the `Authorization` header, and in no other way. The server sets no cookie and reads none. A page on another site therefore cannot make a visitor's browser act for the visitor: it does not have the visitor's token, and an open read is answered with what everybody gets. The pages for people ([a shared flight's](#the-page-a-shared-flight-has), [a live track's](#the-page-a-live-track-has)) and [the connector](mcp.md) are not under `/v1`, and nothing of this applies to them.
 
 **Errors.** Every answer with a 4xx or 5xx status has the same body:
 
@@ -276,6 +276,32 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 500 | `internal` | The server failed in a way it did not expect; the cause is in its log |
 
 A client must expect codes it does not know.
+
+## Limits
+
+What a client may ask is bounded, and an answer says what is left of the bound it was counted against.
+
+**A token for a program** makes at most **3,600 requests an hour**, of any kind, whatever their answers: a budget of its own, which no other token of the account and no session shares. The hour begins with its first request and ends an hour later. Every answer to a request with such a token, a refusal too, carries two fields:
+
+```
+RateLimit-Policy: "token";q=3600;w=3600
+RateLimit: "token";a=3599;w=3540
+```
+
+`RateLimit-Policy` names the budget (`"token"`), its quota `q` and its window `w` in seconds. `RateLimit` says what is available of it, `a`, and in how many seconds the window closes, `w`. When `a` reached 0 the next request is answered `429` with `rate_limited` and `Retry-After`, which names the same moment as `w`; nothing of the request was done. A token that is not good, withdrawn, ended or never given out, is answered `401` on every path, also where a request without a token would be answered: send no token where none is needed.
+
+**A read without a token** is bounded by the address that asks where it is bounded at all: today the [reads of public flights as data](#how-often-an-address-may-read), 600 an hour, which say the same in the same two fields with the name `"address"`:
+
+```
+RateLimit-Policy: "address";q=600;w=3600
+RateLimit: "address";a=599;w=3600
+```
+
+The same reads with a token for a program are counted against the token's budget and not the address's, so that a program of a club with many pilots behind one address is not held up by the address. With a session's token they are counted for the address, as without one.
+
+**A session of Venti's own apps** spends no such budget, and its answers carry neither field. What every account may write is counted per account, whatever it writes with: [sites](#sites-that-ventis-partners-and-pilots-add), [flights](#post-v1flights), [reports](#reports), [groups](#groups), [an archive](#get-v1accountarchive).
+
+The two fields are those of the IETF's draft "RateLimit header fields for HTTP", [draft-ietf-httpapi-ratelimit-headers-12](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/) as it stood on 2026-11-21. It is a draft and not a standard: earlier versions named the fields `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`, and a later one may rename them again, which this API would follow. A client reads `Retry-After` first. The numbers are estimates, counted in the server's memory as its other limits are; [the development mode](#try-it) has none of them.
 
 ## `GET /v1/health`
 
@@ -4545,6 +4571,7 @@ The answer is `200` with `Content-Type: application/zip` and a name for the file
 | `sites.json` | `{"revisions": […], "confirmations": […]}` | What the account gave to the [sites that pilots make](#sites-that-ventis-partners-and-pilots-add). `revisions`: every revision it wrote, by site and number, each as [a site's history](#get-v1sitesidhistoryafterlimit) has it; the site is `site.id`, and the revision with `number` 1 made the site. `confirmations`: where it says it took off, each with `site`, `day`, `note`, `with_flight` and `at`. Given under CC0 1.0 |
 | `kept-sites.json` | The answer of [`GET /v1/account/kept-sites/changes`](#get-v1accountkept-siteschangessincelimit) from the beginning, all pages in one | The sites the account keeps as its own |
 | `reports.json` | `{"reports": [{"sent_at": "…", "report": {…}}]}` | The [reports](#reports) the account sent and the server still keeps: `report` is the body of `POST /v1/reports` as it was sent, a site with the revision the server noted |
+| `alerts.json` | `{"alerts": […], "fired": […]}` | The account's [alarms](#alarms), each as [`GET /v1/account/alerts`](#get-v1accountalerts) lists it, and what they fired of the last 30 days, each as [`GET /v1/account/alerts/fired`](#get-v1accountalertsfiredsincelimit) hands it out, the oldest first |
 
 Never in it: the password or its fingerprint, and the secret of a session or of a token. `index.json` says in `not_included` what else the account has on the server that the archive does not hold: live tracks, which the server removes 48 hours after their last position; what other pilots put into the groups; and what whoever runs the server noted about a report.
 
@@ -4613,6 +4640,12 @@ This is `index.json` of the demo account's archive:
       "holds": "The reports the account sent to whoever runs the server, as it sent them.",
       "record": "ArchiveReports",
       "entries": 0
+    },
+    {
+      "path": "alerts.json",
+      "holds": "The account's alarms, and what they fired in the last 30 days.",
+      "record": "ArchiveAlerts",
+      "entries": 3
     }
   ],
   "flights": [
@@ -5881,7 +5914,7 @@ The answer carries [`terms`](#flights), under what its flights are given.
 
 #### How often an address may read
 
-Five requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), and [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box. An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. A token does not change the count: it is the address's. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
+Five requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), and [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box. An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. Every such answer says what the address has left in `RateLimit` ([Limits](#limits)). A session's token does not change the count: it is the address's. A token for a program does: the read is counted against the token's own budget instead. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 

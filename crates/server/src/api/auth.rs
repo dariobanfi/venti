@@ -33,8 +33,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::extract::{ConnectInfo, FromRequestParts};
-use axum::http::header;
 use axum::http::request::Parts;
+use axum::http::{HeaderMap, header};
 use venti_api_types::v1::{ErrorCode, Scope};
 use venti_store::{AccessToken, Account, Session, SiteVia, Store};
 
@@ -175,8 +175,8 @@ enum Bearer {
 }
 
 /// The token a request carries. `Ok(None)` when it carries none.
-fn bearer(parts: &Parts) -> Result<Option<Bearer>, ApiError> {
-    let mut values = parts.headers.get_all(header::AUTHORIZATION).iter();
+fn bearer(headers: &HeaderMap) -> Result<Option<Bearer>, ApiError> {
+    let mut values = headers.get_all(header::AUTHORIZATION).iter();
     let Some(value) = values.next() else {
         return Ok(None);
     };
@@ -206,10 +206,41 @@ fn bearer(parts: &Parts) -> Result<Option<Bearer>, ApiError> {
 }
 
 /// Whoever the request acts for. `Ok(None)` when it carries no token.
+///
+/// A token for a program was checked already, before the request reached
+/// its handler, where its requests are counted ([`super::budget`]): what
+/// that check found is used, and the store is not asked twice.
 async fn signed<S: Store>(parts: &Parts, api: &Api<S>) -> Result<Option<Signed>, ApiError> {
-    let Some(bearer) = bearer(parts)? else {
+    if let Some(checked) = parts.extensions.get::<Checked>() {
+        return Ok(Some(checked.0.clone()));
+    }
+    let Some(bearer) = bearer(&parts.headers)? else {
         return Ok(None);
     };
+    signed_by(api, bearer).await.map(Some)
+}
+
+/// A token for a program that was checked for a request, in the request's
+/// extensions.
+#[derive(Debug, Clone)]
+pub(crate) struct Checked(pub(crate) Signed);
+
+/// The token for a program a request carries, checked: `Ok(None)` when it
+/// carries none, or a session's token, or nothing that can be read as a
+/// token (the handler says so, if it asks). A token that is not good is
+/// refused.
+pub(crate) async fn program<S: Store>(
+    headers: &HeaderMap,
+    api: &Api<S>,
+) -> Result<Option<Signed>, ApiError> {
+    match bearer(headers) {
+        Ok(Some(bearer @ Bearer::Program(_))) => signed_by(api, bearer).await.map(Some),
+        _ => Ok(None),
+    }
+}
+
+/// Whoever a token acts for, or why it acts for nobody.
+async fn signed_by<S: Store>(api: &Api<S>, bearer: Bearer) -> Result<Signed, ApiError> {
     let now = api.clock.now();
     match bearer {
         Bearer::Session(token) => api
@@ -241,7 +272,6 @@ async fn signed<S: Store>(parts: &Parts, api: &Api<S>) -> Result<Option<Signed>,
                 )
             }),
     }
-    .map(Some)
 }
 
 fn needs_account() -> ApiError {

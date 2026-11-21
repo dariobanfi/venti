@@ -36,9 +36,8 @@
 //! Candidates read every public flight of the box, so the box may span
 //! [`MAX_CANDIDATE_BOX_DEG`] degrees at most, and an answer may be reused
 //! for a minute. Both count as reads of public flights for the address
-//! that asks ([`Api::count_public_flight_read`]).
+//! that asks, or the token ([`Api::count_public_read`]).
 
-use std::net::IpAddr;
 use std::sync::Arc;
 
 use axum::extract::{Query, State};
@@ -54,7 +53,7 @@ use venti_domain::{BoundingBox, Site, SiteId, SiteUse, SourceId};
 use venti_sources::Kind;
 use venti_store::{CandidateRule, FlightsFrom, Store, Visibility, solar_day};
 
-use super::auth::Client;
+use super::budget::Reader;
 use super::cache::Keeper;
 use super::error::ApiError;
 use super::log::Sparse;
@@ -93,12 +92,12 @@ impl<S: Store> Api<S> {
     /// reuse, so that a flight made private is gone from it at once.
     pub(super) async fn flights_at(
         &self,
-        client: IpAddr,
+        reader: &Reader,
         headers: &HeaderMap,
         id: SiteId,
         site: &Site,
     ) -> Result<Response, ApiError> {
-        self.count_public_flight_read(client)?;
+        self.count_public_read(reader)?;
         let answer = self.site_flights(id, site).await?;
         Ok(cache::shared_json(headers, &answer, Keeper::Anyone))
     }
@@ -183,11 +182,11 @@ pub(crate) struct Params {
 /// at most.
 pub(crate) async fn candidates<S: Store>(
     State(api): State<Arc<Api<S>>>,
-    Client(client): Client,
+    reader: Reader,
     Query(params): Query<Params>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    api.count_public_flight_read(client)?;
+    api.count_public_read(&reader)?;
     let bbox = params.bbox.ok_or_else(|| {
         ApiError::bad_request(
             ErrorCode::InvalidBbox,

@@ -121,8 +121,8 @@ pub use alerts::{
     alert_path, weekday_name,
 };
 pub use archive::{
-    ACCOUNT_ARCHIVE_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, ArchiveFile,
-    ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport, ArchiveReports,
+    ACCOUNT_ARCHIVE_PATH, ARCHIVE_FORMAT, ARCHIVE_INDEX_FILE, ARCHIVE_MEDIA_TYPE, ArchiveAlerts,
+    ArchiveFile, ArchiveFlight, ArchiveIndex, ArchiveLicence, ArchiveReport, ArchiveReports,
     ArchiveSiteConfirmation, ArchiveSites, MAX_ARCHIVE_FILE_BYTES,
 };
 pub use attribution::Attribution;

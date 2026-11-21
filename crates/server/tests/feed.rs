@@ -107,6 +107,9 @@ fn observable(answer: &Answer) -> (StatusCode, Vec<(String, String)>, Vec<u8>) {
     let mut headers: Vec<(String, String)> = answer
         .headers
         .iter()
+        // What the address has left of its reads says how often it read,
+        // and nothing of the flights.
+        .filter(|(name, _)| !name.as_str().starts_with("ratelimit"))
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap().to_owned()))
         .collect();
     headers.sort();

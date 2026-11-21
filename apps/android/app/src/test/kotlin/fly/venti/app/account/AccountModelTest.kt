@@ -8,10 +8,14 @@ import fly.venti.core.FlightVisibility
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
+import fly.venti.core.SiteKind
+import fly.venti.core.sitesMap
 import fly.venti.core.syncSummaryInWords
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertArrayEquals
@@ -61,6 +65,8 @@ class AccountModelTest {
                 method == "POST" && request.path == "/v1/accounts" -> HttpAnswer(201, recorded("sign_in.json"))
                 method == "GET" && request.path == "/v1/flights/changes" -> HttpAnswer(200, NO_CHANGES.toByteArray())
                 method == "POST" && request.path == "/v1/flights" -> HttpAnswer(201, recorded("upload.json"))
+                method == "GET" && request.path == "$KEPT_SITES/changes" -> HttpAnswer(200, NO_KEPT_CHANGES.toByteArray())
+                method == "PUT" && request.path.startsWith("$KEPT_SITES/") -> HttpAnswer(200, keptAsSent(request))
                 method == "PATCH" -> HttpAnswer(
                     200,
                     recorded("upload.json").decodeToString().replace("\"private\"", "\"unlisted\"").toByteArray(),
@@ -118,7 +124,10 @@ class AccountModelTest {
         assertEquals(1u, account.account?.flightsOnServer)
         assertFalse(account.isWorking)
 
-        assertEquals(listOf("POST", "GET", "POST"), server.methods())
+        // And after the logbook the pilot's own take-offs are asked for.
+        assertEquals(listOf("POST", "GET", "POST", "GET"), server.methods())
+        assertEquals("$KEPT_SITES/changes", server.sent[3].path)
+        assertEquals("Bearer $TOKEN", server.sent[3].headers["Authorization"])
         assertTrue(server.sent.all { it.url.startsWith("$SERVER/v1/") })
         // The password goes with the sign-in, with what to call this
         // phone, and the token does not; after that the token goes with
@@ -510,6 +519,95 @@ class AccountModelTest {
     }
 
     @Test
+    fun thePilotsOwnTakeoffsFollowTheAccount() = runBlocking {
+        val logbook = logbook()
+        val kept = logbook.makeKeptSites()
+        val server = Server()
+        val account = model(logbook, server)
+        // Tied as the app ties them, but for the scope: the test runs the sync a change asks for itself.
+        var asked = 0
+        kept.onChanged = { asked += 1 }
+        account.onKeptSitesChanged = kept::synced
+        val map = sitesMap(47.6, 11.7, 47.8, 12.0, 200.toUShort(), recorded("sites.json"))
+        val takeoff = map.sites.first { it.isNamed && SiteKind.TAKEOFF in it.uses }
+        val landing = map.sites.first { it.isNamed && SiteKind.TAKEOFF !in it.uses }
+        fun aboutKept() = server.sent.filter { it.path.startsWith(KEPT_SITES) }
+        suspend fun note() = checkNotNull(kept.all(null)).note
+
+        // Signed out, a kept take-off is on this phone alone and nothing is sent.
+        assertTrue(kept.keep(takeoff, map.credits, map.asOfUnixS))
+        assertEquals(1, asked)
+        account.syncKeptSites()
+        assertTrue(server.sent.isEmpty())
+        assertTrue(note(), note().startsWith("Kept on this device only"))
+
+        // Signing in offers the account what the phone holds, with the
+        // session's token, and the list then says where it lives.
+        val read = kept.changes
+        account.signIn(SERVER, "demo", "a password of the test")
+        assertNull(account.problem)
+        assertEquals(
+            listOf("GET" to "$KEPT_SITES/changes", "PUT" to "$KEPT_SITES/${takeoff.id}"),
+            aboutKept().map { it.method to it.path },
+        )
+        assertTrue(aboutKept().all { it.headers["Authorization"] == "Bearer $TOKEN" })
+        val offered = Json.parseToJsonElement(checkNotNull(aboutKept().last().body).decodeToString()).jsonObject
+        assertEquals(takeoff.id, offered.getValue("site").jsonObject.getValue("id").jsonPrimitive.content)
+        assertTrue(note(), note().startsWith("Kept on your Venti account and on this device"))
+        // What lists the take-offs was told to read them again.
+        assertTrue(kept.changes > read)
+        assertFalse(account.isWorking)
+
+        // Kept while signed in: it waits for the sync its keeping asks for,
+        // which is the take-offs' alone, not the logbook's.
+        assertTrue(kept.keep(landing, map.credits, map.asOfUnixS))
+        assertEquals(2, asked)
+        assertTrue(note(), "after the next sync" in note())
+        server.sent.clear()
+        account.syncKeptSites()
+        assertEquals(listOf("GET", "PUT"), server.methods())
+        assertEquals("$KEPT_SITES/${landing.id}", server.sent.last().path)
+        assertTrue(note(), note().startsWith("Kept on your Venti account and on this device"))
+
+        // Forgotten here, forgotten there.
+        assertTrue(kept.forget(landing.id))
+        assertEquals(3, asked)
+        server.sent.clear()
+        account.syncKeptSites()
+        assertEquals("DELETE" to "$KEPT_SITES/${landing.id}", server.sent.first().let { it.method to it.path })
+        assertEquals(listOf(takeoff.id), kept.all(null)?.sites?.map { it.site.id })
+
+        // A server out of reach is no news: the list says that something waits.
+        server.instead = { throw IOException("no route to host") }
+        assertTrue(kept.keep(landing, map.credits, map.asOfUnixS))
+        account.syncKeptSites()
+        assertNull(account.problem)
+        assertTrue(note(), "after the next sync" in note())
+
+        // Another phone signs in to the account: what the account keeps comes to it.
+        val other = logbook()
+        val there = other.makeKeptSites()
+        val itsServer = Server()
+        itsServer.instead = { request ->
+            if (request.path == "$KEPT_SITES/changes") HttpAnswer(200, recorded("kept_site_changes.json")) else null
+        }
+        val itsAccount = model(other, itsServer)
+        itsAccount.onKeptSitesChanged = there::synced
+        assertEquals(emptyList<String>(), there.all(null)?.sites?.map { it.site.name })
+        itsAccount.signIn(SERVER, "demo", "a password of the test")
+        assertEquals(listOf("Fluggelände Jägerkamp/Nagelspitz"), there.all(null)?.sites?.map { it.site.name })
+        assertEquals(1, there.changes)
+        assertTrue(checkNotNull(there.all(null)).note.startsWith("Kept on your Venti account and on this device"))
+        // Nothing was sent from a phone that held nothing.
+        assertTrue(itsServer.sent.none { it.method == "PUT" })
+
+        // Signed out, the list stays on the phone and says so.
+        itsAccount.signOut()
+        assertEquals(1, there.all(null)?.sites?.size)
+        assertTrue(checkNotNull(there.all(null)).note.startsWith("Kept on this device only"))
+    }
+
+    @Test
     fun theThreeAnswersToWhoMaySeeAFlightHaveTheirWords() {
         assertEquals(
             listOf("Only me", "Anyone with the link", "Everyone"),
@@ -532,6 +630,18 @@ class AccountModelTest {
         const val SERVER = "https://venti.example.org"
 
         const val NO_CHANGES = """{"flights": [], "deleted": [], "cursor": "c1", "more": false, "reset": false}"""
+
+        /** Where the account keeps the pilot's own take-offs. */
+        const val KEPT_SITES = "/v1/account/kept-sites"
+
+        const val NO_KEPT_CHANGES = """{"kept": [], "forgotten": [], "cursor": "1", "more": false, "reset": false}"""
+
+        /** The server's answer to keeping a site: the record it was sent, with the moment it was kept. */
+        fun keptAsSent(request: Sent): ByteArray {
+            val said = Json.parseToJsonElement(checkNotNull(request.body).decodeToString()).jsonObject
+            val kept = JsonObject(said + ("kept_at" to JsonPrimitive("2026-11-21T09:05:00Z")))
+            return JsonObject(mapOf("kept" to kept)).toString().toByteArray()
+        }
 
         fun recorded(name: String): ByteArray = TestSupport.recordedAnswers.resolve(name).readBytes()
 

@@ -23,7 +23,9 @@ import kotlinx.coroutines.withContext
  * The core keeps them on the phone, with their source's credit, and says
  * which of them Today lists; this class asks it, away from the screen's
  * thread, and counts the changes so that a screen knows when to ask again.
- * Nothing of it goes to a server.
+ * Signed in, the list is on the pilot's account too: the account's model
+ * runs the core's sync after each change ([onChanged]) and says when a
+ * sync is through ([synced]). Signed out, nothing of it goes to a server.
  */
 class KeptSitesModel(
     private val core: Core,
@@ -37,6 +39,18 @@ class KeptSitesModel(
     /** Why the last keeping or forgetting did not work, in words for the pilot. */
     var problem: String? by mutableStateOf(null)
         private set
+
+    /** Called after a site was kept or forgotten: the account then brings its list in step. */
+    var onChanged: () -> Unit = {}
+
+    /**
+     * A sync with the account is through: what lists the sites reads them
+     * again, for what the account brought or took, and for the core's note
+     * on where the list is kept.
+     */
+    fun synced() {
+        changes += 1
+    }
 
     /**
      * The credit and the date a site was kept with before it was forgotten
@@ -108,6 +122,7 @@ class KeptSitesModel(
         problem = failure
         // Counted also when it failed: a screen then reads what is true.
         changes += 1
+        if (failure == null) onChanged()
         return failure == null
     }
 }

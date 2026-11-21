@@ -40,7 +40,8 @@ typealias AccountTransport = suspend (
  *
  * What to ask the server and what its answers mean is the core's. This
  * class sends the requests, keeps the session token where the phone keeps
- * secrets and runs the sync that keeps the logbook and the server in step.
+ * secrets and runs the syncs that keep the logbook and the pilot's own
+ * take-offs in step with the server.
  *
  * Its calls are made from the app's own scope, not a screen's: a sync or a
  * sign-in carries on when the pilot has moved to another screen.
@@ -80,6 +81,13 @@ class AccountModel(
 
     /** Called after a sync changed the logbook, so its screens can catch up. */
     var onLogbookChanged: () -> Unit = {}
+
+    /**
+     * Called after the pilot's own take-offs were brought in step with the
+     * account, so that what lists them reads them again: the list may have
+     * grown or shrunk, and it says anew where it is kept.
+     */
+    var onKeptSitesChanged: () -> Unit = {}
 
     private var lastAutomaticSync: Long? = null
 
@@ -230,12 +238,65 @@ class AccountModel(
         val server = account?.server ?: return
         lastAutomaticSync = clock()
         val run = core.sync()
-        var step = withContext(background) { run.start(clock() / 1000) }
+        val end = toItsEnd(server, reportsProblems, { run.start(clock() / 1000) }, run::receive)
+        if (end is SyncStep.Finished) lastSync = end.summary
+        account = withContext(background) { runCatching { core.account() }.getOrNull() }
+        onLogbookChanged()
+        // The pilot's own take-offs follow the account wherever the logbook does.
+        runKeptSitesSync(reportsProblems)
+    }
+
+    /**
+     * Brings the pilot's own take-offs in step with the account, after one
+     * was kept or forgotten. Signed out it does nothing: the list is then
+     * on this phone alone. It is quiet: the list itself says that
+     * something waits for the next sync.
+     */
+    suspend fun syncKeptSites() {
+        if (!isSignedIn) return
+        if (isWorking) {
+            // What the present run does not take, the next one does.
+            isSyncDue = true
+            return
+        }
+        isWorking = true
+        try {
+            runKeptSitesSync(reportsProblems = false)
+            while (isSyncDue && isSignedIn) {
+                isSyncDue = false
+                runSync(reportsProblems = false)
+            }
+        } finally {
+            isWorking = false
+        }
+    }
+
+    private suspend fun runKeptSitesSync(reportsProblems: Boolean) {
+        val server = account?.server?.takeIf { isSignedIn } ?: return
+        val run = core.keptSitesSync()
+        toItsEnd(server, reportsProblems, { run.start(clock() / 1000) }, run::receive)
+        account = withContext(background) { runCatching { core.account() }.getOrNull() }
+        onKeptSitesChanged()
+    }
+
+    /**
+     * Runs one of the core's syncs to its end: sends each request the core
+     * hands over, with the session's token, and hands the answer back,
+     * until the core says that it has finished or why it stopped. Returns
+     * the step it ended on.
+     */
+    private suspend fun toItsEnd(
+        server: String,
+        reportsProblems: Boolean,
+        start: () -> SyncStep,
+        receive: (UShort, ByteArray, UInt?) -> SyncStep,
+    ): SyncStep {
+        var step = withContext(background) { start() }
         while (true) {
             val request = (step as? SyncStep.Send)?.request ?: break
             step = try {
                 val answer = ask(request, server)
-                withContext(background) { run.receive(answer.status16, answer.body, answer.retryAfterSeconds) }
+                withContext(background) { receive(answer.status16, answer.body, answer.retryAfterSeconds) }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -244,18 +305,14 @@ class AccountModel(
                 break
             }
         }
-        when (val end = step) {
-            is SyncStep.Finished -> lastSync = end.summary
-            is SyncStep.Failed -> {
-                if (end.needsSignIn) {
-                    withContext(background) { session.remove() }
-                }
-                if (reportsProblems || end.needsSignIn) problem = end.message
+        val end = step
+        if (end is SyncStep.Failed) {
+            if (end.needsSignIn) {
+                withContext(background) { session.remove() }
             }
-            is SyncStep.Send -> Unit
+            if (reportsProblems || end.needsSignIn) problem = end.message
         }
-        account = withContext(background) { runCatching { core.account() }.getOrNull() }
-        onLogbookChanged()
+        return end
     }
 
     // Sharing

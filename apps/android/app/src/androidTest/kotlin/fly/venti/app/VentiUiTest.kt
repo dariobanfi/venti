@@ -4057,4 +4057,243 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("dark-site-edit-3-giving")
     }
+
+    /** From Today to the account's form, by way of the settings. */
+    private fun openTheAccountFromToday() {
+        openFromToday("Settings")
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
+        waitFor(hasTestTag("account-handle"))
+    }
+
+    /** Today itself, from another tab: a page left over it is left with a second tap. */
+    private fun backToToday() {
+        tap(tab("Today"))
+        if (exists(hasText("Vario sound"))) {
+            tap(tab("Today"))
+        }
+        waitFor(hasTestTag("today-card"))
+    }
+
+    /** The list of the pilot's own take-offs, from Today, by way of the settings. */
+    private fun openThePilotsTakeoffs() {
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
+        openFromToday("Settings")
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
+    }
+
+    /**
+     * A take-off kept while signed in is on the pilot's account, and the
+     * list says so in the core's words; the app started again with nothing
+     * on the device, and signed in to the same account, has it back from
+     * the account. Against the development server, with an account the
+     * test makes. Skipped without a server.
+     */
+    @Test
+    fun aKeptTakeoffFollowsTheAccount() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+        val takeoff = "Fluggelände Jägerkamp/Nagelspitz"
+        val page = hasTestTag("site-page")
+        val onTheAccount = hasTestTag("kept-sites-note") and
+            hasText("Kept on your Venti account and on this device", substring = true)
+        val handle = "k${System.currentTimeMillis() % 1_000_000_000}"
+
+        waitFor(hasTestTag("today-card"))
+        openTheAccountFromToday()
+        makeAnAccountAndGoBackToTheMap(handle)
+
+        // Signed in, the take-off is kept from its page as ever.
+        backToToday()
+        waitFor(hasText(takeoff) and hasClickAction())
+        screen.onAllNodes(hasText(takeoff) and hasClickAction()).onFirst().performScrollTo().performClick()
+        waitFor(page)
+        screen.onNode(page).performTouchInput { swipeUp() }
+        TestDevice.letTheAppRun(screen, 1)
+        screen.onNode(page).performScrollToNode(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Keep as my take-off"))
+        tap(hasTestTag("site-own"))
+        waitFor(hasTestTag("site-own") and hasText("Kept"))
+        tap(hasText("Done"))
+        waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
+
+        // Its list says where it lives, once the sync that followed is through.
+        openThePilotsTakeoffs()
+        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
+        waitFor(onTheAccount)
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("kept-account-1-on-the-account")
+        app?.close()
+
+        // Started again with an empty device: nothing is kept, until the
+        // pilot signs in to the same account.
+        launch(onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(hasTestTag("today-card"))
+        waitFor(hasText(takeoff) and hasClickAction())
+        assertFalse(exists(hasTestTag("today-kept-title")))
+        openTheAccountFromToday()
+        screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
+        screen.onNode(hasTestTag("account-password")).performTextInput("a password for this test")
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@$handle"))
+        waitFor(hasText("Sync now"))
+        tap(described("Back"))
+        waitFor(hasTestTag("kept-sites-link"))
+        screen.onNode(hasTestTag("kept-sites-link")).performScrollTo().performClick()
+        waitFor(hasTestTag("kept-site") and hasAnyDescendant(described(takeoff)))
+        waitFor(onTheAccount)
+        assertTrue(exists(hasText("© OpenStreetMap contributors", substring = true)))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("kept-account-2-back-from-the-account")
+
+        // And Today lists it first again.
+        tap(described("Back"))
+        waitFor(hasText("Vario sound"))
+        backToToday()
+        waitFor(hasTestTag("today-kept-title") and hasText("Your take-offs"))
+
+        // Forgotten here, it is forgotten on the account: the list is empty, and stays so.
+        openThePilotsTakeoffs()
+        waitFor(hasTestTag("kept-forget"))
+        tap(hasTestTag("kept-forget"))
+        waitFor(hasTestTag("kept-forget-confirm"))
+        tap(hasTestTag("kept-forget-confirm"))
+        waitFor(hasText("No take-offs of your own yet"))
+        TestDevice.letTheAppRun(screen, 2)
+        assertTrue(exists(hasText("No take-offs of your own yet")))
+    }
+
+    /** Makes a new account from the form that is open, and opens "Programs with access" from its page. */
+    private fun makeAnAccountAndOpenTheProgramsWithAccess(handle: String) {
+        tap(hasTestTag("account-new"))
+        waitFor(hasTestTag("account-invite"))
+        screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
+        screen.onNode(hasTestTag("account-name")).performTextInput("Test Pilot (not real)")
+        screen.onNode(hasTestTag("account-password")).performTextInput("a password for this test")
+        screen.onNode(hasTestTag("account-submit")).performScrollTo()
+        tap(hasTestTag("account-submit"))
+        waitFor(hasText("@$handle"))
+        waitFor(hasText("Sync now"))
+        screen.onNode(hasTestTag("account-tokens")).performScrollTo()
+        assertTrue(exists(hasTestTag("account-tokens") and hasText("Programs with access")))
+        tap(hasTestTag("account-tokens"))
+        // A new account has given no program access: the core's line.
+        waitFor(hasTestTag("tokens-empty") and hasText("No program has access to your account."))
+        assertTrue(exists(hasText("without telling it your password", substring = true)))
+    }
+
+    /** The form that gives access, filled in for "My logger" with two things it may do. */
+    private fun fillInTheFormForMyLogger() {
+        tap(hasTestTag("tokens-give"))
+        waitFor(hasTestTag("token-name"))
+        screen.onNode(hasTestTag("token-name")).performTextInput("My logger")
+        for (scope in listOf("flights:write", "live:write")) {
+            screen.onNode(hasTestTag("token-scope-$scope")).performScrollTo().performClick()
+            screen.onNode(hasTestTag("token-scope-$scope")).assertIsOn()
+        }
+        screen.onNode(hasTestTag("token-name")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+    }
+
+    /**
+     * "Programs with access": a pilot gives a logger access to two things,
+     * sees its secret once, finds it in the list, and withdraws it.
+     * Against the development server, with an account the test makes.
+     * Every word about a token and every refusal is the core's. Skipped
+     * without a server.
+     */
+    @Test
+    fun aPilotGivesAProgramAccessAndWithdrawsIt() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch { putExtra(LaunchOptions.SERVER, server) }
+        openTheAccount()
+        makeAnAccountAndOpenTheProgramsWithAccess("t${System.currentTimeMillis() % 1_000_000_000}")
+
+        // A program without a name is refused before anything is sent.
+        tap(hasTestTag("tokens-give"))
+        waitFor(hasTestTag("token-submit"))
+        screen.onNode(hasTestTag("token-submit")).performScrollTo().performClick()
+        waitFor(hasText("Give the program a name, so that you know later what this access is for."))
+        tap(described("Back"))
+        waitFor(hasTestTag("tokens-give"))
+
+        fillInTheFormForMyLogger()
+        assertTrue(exists(hasText("Flights: write")))
+        keepScreenshot("tokens-1-form")
+
+        // The password is asked for, with the core's reason, and a wrong one is refused in its words.
+        screen.onNode(hasTestTag("token-password")).performScrollTo().performTextInput("not the password at all")
+        assertTrue(exists(hasText("nobody who picks up this device", substring = true)))
+        screen.onNode(hasTestTag("token-submit")).performScrollTo().performClick()
+        waitFor(hasTestTag("token-problem") and hasText("The password is wrong."))
+        tap(hasText("OK") and hasClickAction())
+        screen.onNode(hasTestTag("token-password")).performTextClearance()
+        screen.onNode(hasTestTag("token-password")).performTextInput("a password for this test")
+        screen.onNode(hasTestTag("token-submit")).performScrollTo().performClick()
+
+        // The secret, once: with the core's words, and no way off the page but its own button.
+        waitFor(hasTestTag("token-secret"))
+        val secret = screen.onNode(hasTestTag("token-secret")).fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
+        assertTrue(secret.startsWith("venti_pat_"))
+        assertTrue(exists(hasText("Copy it now: Venti does not show it again.")))
+        assertTrue(exists(hasText("give it to nobody else", substring = true)))
+        assertFalse(exists(described("Back")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("tokens-2-secret-shown-once")
+
+        // Copied with the clipboard told that it is a secret.
+        tap(hasTestTag("token-copy"))
+        waitFor(hasTestTag("token-copied"))
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+        var isMarkedSensitive = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            isMarkedSensitive = clipboard.primaryClipDescription?.extras
+                ?.getBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE) == true
+            // Nothing of the test stays on the emulator's clipboard.
+            clipboard.clearPrimaryClip()
+        }
+        assertTrue(isMarkedSensitive)
+        tap(hasTestTag("token-done"))
+
+        // The list has it, with what it may do in the core's line, and no secret anywhere.
+        waitFor(hasTestTag("token") and hasAnyDescendant(described("My logger")))
+        assertTrue(exists(saying("Flights: write · Live tracking: send")))
+        assertTrue(exists(sayingLike("Made \\d+ \\w+ \\d{4}\nLast used never\nEnds never")))
+        assertFalse(exists(hasText("venti_pat_", substring = true)))
+        // Android's own note that something was copied has gone by then.
+        TestDevice.letTheAppRun(screen, 7)
+        keepScreenshot("tokens-3-list")
+
+        // Withdrawing asks first, in the core's words.
+        tap(hasTestTag("token-withdraw"))
+        waitFor(hasTestTag("token-withdraw-confirm"))
+        assertTrue(exists(hasText("Withdraw the access of \u201cMy logger\u201d?")))
+        assertTrue(exists(hasText("Keep access")))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("tokens-4-withdraw")
+        tap(hasTestTag("token-withdraw-confirm"))
+        waitFor(hasTestTag("tokens-empty") and hasText("No program has access to your account."))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("tokens-5-none")
+
+        // One step back is the account's page.
+        tap(described("Back"))
+        waitFor(hasTestTag("account-tokens"))
+    }
+
+    /** The form that gives a program access, in dark appearance. */
+    @Test
+    fun theFormThatGivesAProgramAccessInDarkAppearance() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        openTheAccount()
+        makeAnAccountAndOpenTheProgramsWithAccess("u${System.currentTimeMillis() % 1_000_000_000}")
+        fillInTheFormForMyLogger()
+        keepScreenshot("dark-tokens-1-form")
+    }
 }

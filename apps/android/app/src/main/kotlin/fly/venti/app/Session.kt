@@ -248,6 +248,8 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // The pilot's own take-offs are on the account too, once signed in.
+            logbook.follow(account, keptSites, scope)
             // The pilot's groups and their plans for a flying day, asked
             // of the account's server and kept nowhere.
             val groups = logbook.makeGroups(account)

@@ -35,6 +35,7 @@ import fly.venti.core.pendingRecordings
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
@@ -224,7 +225,11 @@ class LogbookModel(
     /** The pilot's task, which the core keeps beside the logbook: one at a time. */
     fun makeTasks(now: () -> Long = { System.currentTimeMillis() / 1000 }): TaskModel = TaskModel(core, now, background)
 
-    /** The pilot's own take-offs, which the core keeps beside the logbook, on this phone only. */
+    /**
+     * The pilot's own take-offs, which the core keeps beside the logbook:
+     * on this phone, and on the pilot's account once [follow] has tied
+     * them to it.
+     */
     fun makeKeptSites(): KeptSitesModel = KeptSitesModel(core, background)
 
     /** The pilot's waypoints, which the core keeps beside the logbook. */
@@ -261,6 +266,17 @@ class LogbookModel(
         // A sync fetches flights and removes them: the list is read again.
         account.onLogbookChanged = ::refresh
         return account
+    }
+
+    /**
+     * Has the pilot's own take-offs follow the account: after one is kept
+     * or forgotten the account brings its list in step, in `scope`, so
+     * that leaving a screen does not cut it short, and after each sync the
+     * take-offs are read again.
+     */
+    fun follow(account: AccountModel, kept: KeptSitesModel, scope: CoroutineScope) {
+        kept.onChanged = { scope.launch { account.syncKeptSites() } }
+        account.onKeptSitesChanged = kept::synced
     }
 
     /**

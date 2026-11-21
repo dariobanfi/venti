@@ -49,10 +49,12 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSpace
 import fly.venti.app.R
 import fly.venti.app.design.ActionRow
 import fly.venti.app.design.Format
 import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
 import fly.venti.app.design.ValueRow
@@ -60,6 +62,7 @@ import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.core.AccountView
 import fly.venti.core.syncSummaryInWords
+import fly.venti.core.tokenForm
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.net.URI
@@ -78,6 +81,12 @@ fun AccountScreen(
     scope: CoroutineScope,
     onBack: () -> Unit,
 ) {
+    // "Programs with access" is a page of the account's, laid over it.
+    var showsTokens by rememberSaveable { mutableStateOf(false) }
+    if (showsTokens && account.isSignedIn) {
+        TokensScreen(account, onBack = { showsTokens = false })
+        return
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -102,7 +111,7 @@ fun AccountScreen(
         ) {
             val signedIn = account.account
             if (signedIn != null) {
-                SignedIn(signedIn, account, scope)
+                SignedIn(signedIn, account, scope, onTokens = { showsTokens = true })
             } else {
                 SignInForm(account, (wind.server as? WindServer.Usable)?.url, scope)
             }
@@ -255,7 +264,7 @@ private fun SignInForm(
 
 /** The account, and how the logbook and the server stand. */
 @Composable
-private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: CoroutineScope) {
+private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: CoroutineScope, onTokens: () -> Unit) {
     var isConfirmingSignOut by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -315,6 +324,16 @@ private fun SignedIn(signedIn: AccountView, account: AccountModel, scope: Corout
         "Venti syncs by itself when you open the app and after a flight. Your flights stay private on the " +
             "Venti until you share one.",
     )
+
+    if (account.isSignedIn) {
+        // What other programs may do for the pilot: the core's name for it.
+        Spacer(Modifier.height(VentiSpace.s5))
+        Group {
+            row {
+                LinkRow(tokenForm().title, R.drawable.ic_chevron_right, Modifier.testTag("account-tokens"), onClick = onTokens)
+            }
+        }
+    }
 
     Spacer(Modifier.height(24.dp))
     Group {

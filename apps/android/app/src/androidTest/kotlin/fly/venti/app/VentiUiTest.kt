@@ -1689,11 +1689,14 @@ class VentiUiTest {
         // One site: what its source says, and what that is worth. Kept as
         // a waypoint, the cockpit can navigate to it.
         tap(described(takeoff))
-        // Under the head and the picture of the day's air.
+        // The page is a lazy list: what lies under the head and the picture
+        // of the day's air is there only once it is scrolled to, and goes
+        // again when it is scrolled past. So the official mark is found by
+        // scrolling to it (finding it is the check), and the keep row after.
         waitFor(hasTestTag("site-page"))
-        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("Add to my waypoints"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("Marked as an official site"))
+        screen.onNode(hasTestTag("site-page")).performScrollToNode(hasTestTag("site-keep"))
         waitFor(hasText("Add to my waypoints"))
-        assertTrue(exists(hasText("Marked as an official site")))
         tap(hasText("Add to my waypoints"))
         waitFor(hasText("In your waypoints"))
         screen.onNode(hasTestTag("site-page")).performScrollToNode(hasText("See or correct it at the source"))

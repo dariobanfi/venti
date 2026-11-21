@@ -57,6 +57,27 @@ enum Palette {
     }
 }
 
+/// How strong a forecast's thermals are, in the six steps of the design
+/// language's thermal scale: pale where there is little to climb in, deep
+/// coral where the climb is strong.
+///
+/// The steps and their colours are the pack's (`VentiScaleBreaks.thermal`,
+/// `VentiTheme.thermal`): 0.5, 1, 1.5, 2 and 3 m/s.
+struct ThermalBand: Equatable, Sendable {
+    /// The step, 0 for the weakest to 5.
+    let step: Int
+
+    init(metresPerSecond climb: Double) {
+        let breaks = VentiScaleBreaks.thermal
+        step = breaks.firstIndex { climb < $0 } ?? breaks.count
+    }
+
+    /// The step's colour, by the appearance of where it is drawn.
+    var color: Color {
+        Color(uiColor: UIColor { traits in UIColor(VentiTheme.of(traits).thermal[step]) })
+    }
+}
+
 /// How fast the glider was climbing or sinking, in the seven steps of the
 /// design language's vario scale: teal where it sank, grey where it held
 /// its height, coral where it climbed. "Cool is down, warm is up."

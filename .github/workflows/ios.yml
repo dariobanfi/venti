@@ -28,6 +28,7 @@ on:
       - "crates/llm/**"
       - "crates/tools/**"
       - "tools/uniffi-bindgen-swift/**"
+      - "tools/made-up-day/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -189,6 +190,15 @@ jobs:
             sleep 1
           done
           curl -sf http://127.0.0.1:8080/v1/health
+          # In front of it, a stand-in whose forecast is a made-up summer
+          # day: the recorded forecasts are of late November and have no
+          # thermals to show (tools/made-up-day/serve.py).
+          nohup python3 tools/made-up-day/serve.py --behind http://127.0.0.1:8080 --port 8081 > target/made-up-day.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8081/v1/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf "http://127.0.0.1:8081/v1/forecast?lat=47.66&lon=11.8" > /dev/null
 
       # The server as it runs on a Mac, for the same Mac: started with
       # `dev --maps apps/ios/Venti/Resources` it is what the tests talk to.
@@ -215,6 +225,8 @@ jobs:
           # Reaches the UI tests as VENTI_SERVER. The simulator shares the
           # Mac's network, so the app finds the server at this address.
           TEST_RUNNER_VENTI_SERVER: http://127.0.0.1:8080
+          # The stand-in with the made-up day, as VENTI_MADE_UP_DAY_SERVER.
+          TEST_RUNNER_VENTI_MADE_UP_DAY_SERVER: http://127.0.0.1:8081
         run: |
           set -o pipefail
           # The build cache restores `target`, and with it what an earlier

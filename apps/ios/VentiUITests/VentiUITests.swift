@@ -731,6 +731,47 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 15))
     }
 
+    /// Today on a strong summer day, which no recording has: against a
+    /// stand-in server that hands on a development server's answers and
+    /// makes up the forecast (`tools/made-up-day`). The day is made up;
+    /// what is tested is that the screens say what the core reads from it.
+    func testTodaySaysWhatKindOfDayTheThermalsMake() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_MADE_UP_DAY_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No stand-in server with a made-up day was named in VENTI_MADE_UP_DAY_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--bundled-map", "--server", server]
+        app.launch()
+
+        // The best take-off is the one with the best thermals: its card
+        // says the kind of day with its figures, and the head says it
+        // over the valley.
+        let card = element("today-card", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: 60))
+        let kind = element("today-kind-of-day", in: app)
+        XCTAssertTrue(kind.waitForExistence(timeout: 90))
+        XCTAssertEqual(kind.label, "Big day")
+        XCTAssertTrue(labelled(containing: "m/s to a cloud base of 3400 m", in: app).waitForExistence(timeout: 15))
+        sleep(2)
+        keepScreenshot("today-5-big-day")
+
+        // Further down: the hours with their climbs, and the other
+        // take-offs with their kinds of day.
+        app.swipeUp()
+        sleep(1)
+        keepScreenshot("today-6-kinds-of-day")
+
+        // The take-off's own page says it too.
+        app.swipeDown()
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        card.tap()
+        XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
+        XCTAssertTrue(element("thermals", in: app).waitForExistence(timeout: 15))
+        sleep(1)
+        keepScreenshot("today-7-site-on-a-big-day")
+    }
+
     /// The app's icon on the home screen: the design language's, which
     /// the screenshot is kept to show.
     func testTheAppHasItsIconOnTheHomeScreen() {

@@ -383,6 +383,10 @@ struct SiteScreen: View {
                     Text(Self.words(of: day))
                         .foregroundStyle(.venti(.textSecondary))
                         .accessibilityIdentifier("site-outlook")
+                    if day.thermals != nil {
+                        ThermalLine(day: day)
+                            .padding(.top, VentiSpace.s1)
+                    }
                 }
             }
             HStack(spacing: VentiSpace.s3) {

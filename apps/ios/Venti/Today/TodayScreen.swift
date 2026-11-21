@@ -4,8 +4,8 @@ import VentiCore
 /// The Today tab, as the design language's Today screen has it: the day in
 /// a line over the valley, and under it the take-offs around with what the
 /// forecast says about flying from each. The nearest take-off with the
-/// best outlook is a card with its readings and its hours; the others are
-/// rows with their status.
+/// best outlook is a card with its readings, its thermals and its hours;
+/// the others are rows with their status and the kind of day.
 ///
 /// What a forecast says about a take-off is the core's reading of a weather
 /// model, and the screen says so at its foot: the model, when the server
@@ -96,8 +96,9 @@ struct TodayScreen: View {
     }
 
     /// The take-offs in the order they are shown: by what the forecast
-    /// says of the chosen day, the better first, and among equals the
-    /// nearer. One the server has not answered for yet comes last.
+    /// says of the chosen day, the better first, among flyable days the
+    /// one with the better thermals, and among equals the nearer. One the
+    /// server has not answered for yet comes last.
     private var ordered: [TodayModel.Place] {
         today.places.sorted { one, other in
             let ranks = (rank(one), rank(other))
@@ -106,11 +107,17 @@ struct TodayScreen: View {
     }
 
     private func rank(_ place: TodayModel.Place) -> Int {
-        switch outlookDay(of: place)?.verdict {
-        case .flyable: 0
-        case .marginal: 1
-        case .notFlyable: 2
-        case nil: 3
+        guard let day = outlookDay(of: place) else { return 6 }
+        switch day.verdict {
+        case .flyable:
+            switch day.thermals {
+            case .big: return 0
+            case .crossCountry: return 1
+            case .local: return 2
+            case .weak, nil: return 3
+            }
+        case .marginal: return 4
+        case .notFlyable: return 5
         }
     }
 
@@ -163,6 +170,11 @@ struct TodayScreen: View {
                         .minimumScaleFactor(0.7)
                         .lineLimit(2)
                         .accessibilityIdentifier("today-headline")
+                    if let kind = kindOfDay {
+                        Text(kind)
+                            .font(.ventiType(.label))
+                            .accessibilityIdentifier("today-kind-of-day")
+                    }
                 }
                 .foregroundStyle(VentiBrand.ink)
                 .padding(.horizontal, VentiSpace.s4)
@@ -194,6 +206,15 @@ struct TodayScreen: View {
             return outlookDay(of: best)?.headline
                 ?? (today.places.allSatisfy(\.isAsked) ? "No forecast" : "Reading the forecast")
         }
+    }
+
+    /// The kind of day the best take-off's thermals make, "Cross-country
+    /// day", where the forecast has an estimate.
+    private var kindOfDay: String? {
+        guard case .loaded = today.state, let best = ordered.first,
+              let words = outlookDay(of: best)?.thermalWords, !words.isEmpty
+        else { return nil }
+        return words
     }
 
     // MARK: The list
@@ -287,7 +308,7 @@ struct TodayScreen: View {
                     "\(outlook.note) Run of \(Format.time(unixSeconds: outlook.runUnixS)), looked up at \(Format.time(unixSeconds: outlook.fetchedUnixS))."
                 )
             }
-            Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits. They are not advice to fly.")
+            Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits, and the kind of day is what its heat and temperatures say of thermals. They are not advice to fly.")
             ForEach(today.credits, id: \.source) { credit in
                 Text(credit.text)
             }
@@ -361,6 +382,9 @@ private struct TakeoffCard: View {
                     Text(day.why)
                         .foregroundStyle(.venti(.textSecondary))
                 }
+                if day.thermals != nil {
+                    ThermalLine(day: day)
+                }
                 HStack(alignment: .top, spacing: VentiSpace.s2) {
                     Metric(
                         caption: day.windFrom.isEmpty ? "Wind" : "Wind from \(day.windFrom)",
@@ -374,9 +398,13 @@ private struct TakeoffCard: View {
                 }
                 if !day.hours.isEmpty {
                     HourStrip(hours: day.hours)
-                    Text("Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not.")
-                        .font(.ventiType(.caption))
-                        .foregroundStyle(.venti(.textSecondary))
+                    Text(
+                        HourStrip.showsThermals(day.hours)
+                            ? "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not. Under it the climb to expect in thermals, in m/s, with a bar that grows with it."
+                            : "Wind in km/h at 10 m. The bar is the hour's status: tall for flyable, low for not."
+                    )
+                    .font(.ventiType(.caption))
+                    .foregroundStyle(.venti(.textSecondary))
                 }
             } else {
                 Text(TodayScreen.waitingWords(for: place))
@@ -402,11 +430,19 @@ private struct TakeoffRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(place.site.name)
                     .font(.ventiType(.heading))
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(detail)
                     .font(.ventiType(.label))
                     .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(2)
+                if let day, !day.thermalWords.isEmpty {
+                    HStack(spacing: VentiSpace.s1) {
+                        ThermalMark(climbMs: day.climbMs ?? 0)
+                        Text(day.thermalWords)
+                            .font(.ventiType(.label))
+                            .lineLimit(1)
+                    }
+                }
             }
             Spacer(minLength: VentiSpace.s2)
             if let day {
@@ -427,11 +463,19 @@ private struct TakeoffRow: View {
 
 /// The day's hours side by side: the hour, where the wind goes, its
 /// speed, and a bar that is the hour's status by its height and its
-/// colour.
+/// colour. Where the forecast has an estimate of the thermals, the climb
+/// to expect stands under it, with a bar in the thermal scale's colour
+/// that grows with the climb.
 private struct HourStrip: View {
     let hours: [OutlookHour]
 
+    /// Whether any of the hours has an estimate of its thermals.
+    static func showsThermals(_ hours: [OutlookHour]) -> Bool {
+        hours.contains { $0.climbMs != nil }
+    }
+
     var body: some View {
+        let showsThermals = Self.showsThermals(hours)
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(hours, id: \.timeUnixS) { hour in
                 VStack(spacing: VentiSpace.s1) {
@@ -457,6 +501,19 @@ private struct HourStrip: View {
                         .fill(.venti(Self.role(hour.verdict)))
                         .frame(height: Self.height(hour.verdict))
                         .frame(height: 12, alignment: .bottom)
+                    if showsThermals {
+                        let band = ThermalBand(metresPerSecond: hour.climbMs ?? 0)
+                        Text(hour.climbMs.map { Format.decimal($0, places: 1) } ?? "–")
+                            .font(.venti(.subheadline, .semibold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .padding(.top, VentiSpace.s1)
+                        Rectangle()
+                            .fill(band.color)
+                            .frame(height: Self.height(band))
+                            .frame(height: 12, alignment: .bottom)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .ignore)
@@ -483,6 +540,12 @@ private struct HourStrip: View {
         }
     }
 
+    /// Taller for a stronger climb: two points for none to climb in, up
+    /// to twelve for the scale's strongest step.
+    static func height(_ band: ThermalBand) -> CGFloat {
+        CGFloat(2 + 2 * band.step)
+    }
+
     static func spoken(_ hour: OutlookHour) -> String {
         let verdict =
             switch hour.verdict {
@@ -491,6 +554,15 @@ private struct HourStrip: View {
             case .notFlyable: "Not flyable"
             }
         let wind = hour.windKmh.isEmpty ? "" : ", wind \(hour.windKmh) kilometres an hour"
-        return hour.why.isEmpty ? "\(verdict)\(wind)" : "\(verdict): \(hour.why)\(wind)"
+        var thermals = ""
+        if let climb = hour.climbMs {
+            thermals = climb > 0
+                ? ", thermals \(Format.decimal(climb, places: 1)) metres per second"
+                : ", no thermals to climb in"
+            if climb > 0, let top = hour.thermalTopM {
+                thermals += " to \(Format.metres(top)) metres"
+            }
+        }
+        return hour.why.isEmpty ? "\(verdict)\(wind)\(thermals)" : "\(verdict): \(hour.why)\(wind)\(thermals)"
     }
 }

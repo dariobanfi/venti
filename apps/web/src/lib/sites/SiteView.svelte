@@ -14,21 +14,40 @@
 	is, in the manner of a plan's "I am in". The core keeps the site in this
 	browser and says whether it is kept; Today lists the kept take-offs first.
 
-	A site that pilots made on Venti (`byPilots`) says who added it and who
-	changed it last, in the core's words, with the core's notice that nobody
-	verified it; and it can be corrected, removed, looked at through its
-	history and reported from here (`pilots`). What the server answered to
-	the pilot's last change of it stands at the top, in the core's line.
+	A site of Venti's own two tiers (`byPilots`) says its tier in the core's
+	label ("From pilots", "From a partner"), who added it and who changed it
+	last, in the core's words; a crowdsourced one has the core's notice above
+	its description. What may be done about it is the core's one answer
+	(`Core.siteOffers`), asked for this site and whoever is signed in: to
+	correct it, remove it, read its history, report it, and to say "I took
+	off here and it was good". Only what is offered is shown, in the core's
+	words, and its one note says why something is missing. Under the facts
+	stands how many pilots confirmed it, as the core's line, which opens
+	their list; and once this pilot has, the core's sentence in the button's
+	place, with changing the day and taking it back. What the server
+	answered to the pilot's last change stands at the top, in the core's line.
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import type { Credit, SiteOutlook, SiteView } from '#lib/core/index.ts';
+	import type {
+		Credit,
+		SiteConfirmations,
+		SiteOffers,
+		SiteOutlook,
+		SiteView,
+		SiteWritten
+	} from '#lib/core/index.ts';
+	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
+	import Sheet from '#lib/design/Sheet.svelte';
 	import StatusChip from '#lib/today/StatusChip.svelte';
 	import AirChart from '#lib/today/AirChart.svelte';
 	import NearbyLine from '#lib/today/NearbyLine.svelte';
 	import ThermalLine from '#lib/today/ThermalLine.svelte';
+	import { said as whyNot, type SiteEditsModel } from './edit.svelte';
+	import SiteConfirmSheet from './SiteConfirmSheet.svelte';
 	import { asOf, CAUTION, forecastLine, marks, said, siteLine, webPage, withLinks } from './words';
 	import WindRose from './WindRose.svelte';
 
@@ -53,22 +72,115 @@
 		/** What became of the pilot's last change to the site, in the core's line. */
 		written?: string;
 		/**
-		 * For a site that pilots made, what a pilot can do about it. Without
-		 * `correct`, the server takes no sites and offers neither that nor
-		 * removing.
+		 * Where a site can be written and confirmed: the core is asked what
+		 * may be offered for this one, and the page does what is chosen.
 		 */
-		pilots?: {
-			/** The words on what opens the form: the core's "Correct this site". */
-			correct?: string;
+		own?: {
+			edits: SiteEditsModel;
 			oncorrect: () => void;
 			onremove: () => void;
 			onhistory: () => void;
 			onreport: () => void;
+			/** The site as the server has it after a confirmation or its taking back, with the core's line. */
+			onchanged: (written: SiteWritten) => void;
 		};
 	}
 
-	let { site, credit, asOfUnixS, onforecast, flightsHref, outlook, written, pilots }: Props =
-		$props();
+	let {
+		site,
+		credit,
+		asOfUnixS,
+		onforecast,
+		flightsHref,
+		outlook,
+		written,
+		own: can
+	}: Props = $props();
+
+	const edits = $derived(can?.edits);
+	const words = $derived(edits?.words);
+
+	/** Who says they took off here: asked for a site of Venti's own tiers. */
+	let confirmations = $state.raw<SiteConfirmations>();
+	/** Counts the changes of the pilot's own confirmation, after which the list is read again. */
+	let confirmed = $state(0);
+	$effect(() => {
+		const id = site.id;
+		void confirmed;
+		// Another site's list is let go of at once.
+		if (untrack(() => confirmations)?.siteId !== id) confirmations = undefined;
+		if (!edits || !site.byPilots) return;
+		let current = true;
+		edits.confirmations(id).then(
+			(list) => {
+				if (current) confirmations = list;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** What the core says may be offered for this site, to whoever is signed in. */
+	let offers = $state.raw<SiteOffers>();
+	$effect(() => {
+		// Asked again when the account changes, and with the list of confirmations.
+		void edits?.asked;
+		const list = confirmations;
+		const here = $state.snapshot(site) as SiteView;
+		if (!edits) {
+			offers = undefined;
+			return;
+		}
+		let current = true;
+		edits.offers(here, list).then(
+			(answer) => {
+				if (current) offers = answer;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/** Whether the form of "I took off here" is open, and the list of who did. */
+	let confirming = $state(false);
+	let listing = $state(false);
+	/** Whether the pilot is asked before the confirmation is taken back. */
+	let withdrawing = $state(false);
+	let withdrawProblem = $state.raw<string>();
+
+	function wasConfirmed(now: SiteWritten) {
+		confirming = false;
+		confirmed += 1;
+		can?.onchanged(now);
+	}
+
+	async function withdraw() {
+		withdrawing = false;
+		withdrawProblem = undefined;
+		if (!edits) return;
+		try {
+			const line = await edits.withdraw(site.id);
+			confirmed += 1;
+			// The site's own count is the server's: read as it stands now.
+			const page = await edits.page(site.id);
+			can?.onchanged({ site: page.site, words: line });
+		} catch (error) {
+			withdrawProblem = whyNot(error);
+		}
+	}
+
+	/** How many pilots took off here, as the core's line; nothing where nobody has said so. */
+	const confirmedLine = $derived(
+		confirmations?.siteId === site.id
+			? confirmations.pilots > 0
+				? confirmations.words
+				: ''
+			: (site.byPilots?.confirmedInWords ?? '')
+	);
 
 	/** The first day that still has flying hours: the one the forecast's line is about. */
 	const day = $derived(outlook?.days.find((one) => one.hours.length > 0) ?? outlook?.days[0]);
@@ -127,6 +239,10 @@
 			<StatusChip verdict={day.verdict} status={day.status} />
 		{/if}
 		<p>{siteLine(site, text)}</p>
+		{#if site.byPilots?.label}
+			<!-- The tier, by the name: "From pilots", "From a partner". -->
+			<p class="lesser tier">{site.byPilots.label}</p>
+		{/if}
 		{#if day}
 			<p class="lesser">{forecastLine(day)}</p>
 			<!-- Much stronger wind near by: a note under the day's reason, and no verdict. -->
@@ -172,6 +288,32 @@
 		</div>
 	</dl>
 
+	{#if site.byPilots && words && (confirmedLine || offers?.confirm.isOffered || offers?.hasConfirmed)}
+		<section class="card" aria-label={words.confirmationsTitle}>
+			{#if confirmedLine}
+				<button class="row link" type="button" onclick={() => (listing = true)}>
+					{confirmedLine}
+				</button>
+			{/if}
+			{#if offers?.hasConfirmed}
+				<p class="row said" role="status">{offers.confirmedWords}</p>
+			{/if}
+			{#if offers?.confirm.isOffered}
+				<button class="row link" type="button" onclick={() => (confirming = true)}>
+					{offers.confirm.words}
+				</button>
+			{/if}
+			{#if offers?.withdraw.isOffered}
+				<button class="row link" type="button" onclick={() => (withdrawing = true)}>
+					{offers.withdraw.words}
+				</button>
+			{/if}
+			{#if withdrawProblem}
+				<p class="row said" role="alert">{withdrawProblem}</p>
+			{/if}
+		</section>
+	{/if}
+
 	{#if marked.length > 0}
 		<ul class="card" aria-label="What its source marks it as">
 			{#each marked as mark (mark.says)}
@@ -203,6 +345,14 @@
 		{/if}
 	</div>
 
+	{#if site.byPilots?.fromPilots}
+		<!-- A place from pilots: the core's notice, above what is said about it. -->
+		<p class="card row mark notice">
+			<Icon name="warning" />
+			{site.byPilots.note}
+		</p>
+	{/if}
+
 	{#if site.description || sentences.length > 0 || web}
 		<section class="card" aria-label="What its source says about it">
 			{#if site.description}
@@ -222,7 +372,7 @@
 
 	{#if site.byPilots}
 		{@const by = site.byPilots}
-		<section aria-label="Added by pilots">
+		<section aria-label={by.label || 'Added on Venti'}>
 			<div class="card">
 				<p class="row">
 					<span class="who">{by.addedInWords}</span>
@@ -234,22 +384,36 @@
 						<span class="host when numeric">{text.day(by.changedUnixS)}</span>
 					</p>
 				{/if}
-				{#if pilots}
-					{#if pilots.correct}
-						<button class="row link" type="button" onclick={pilots.oncorrect}>
-							{pilots.correct}
-						</button>
-						<button class="row link" type="button" onclick={pilots.onremove}>
-							Remove this site
+				{#if can && offers}
+					<!-- What the core offers, in its words; what it does not is not shown. -->
+					{#if offers.correct.isOffered}
+						<button class="row link" type="button" onclick={can.oncorrect}>
+							{offers.correct.words}
 						</button>
 					{/if}
-					<button class="row link" type="button" onclick={pilots.onhistory}>History</button>
-					<button class="row link" type="button" onclick={pilots.onreport}>
-						Report this site
-					</button>
+					{#if offers.remove.isOffered}
+						<button class="row link" type="button" onclick={can.onremove}>
+							{offers.remove.words}
+						</button>
+					{/if}
+					{#if offers.history.isOffered}
+						<button class="row link" type="button" onclick={can.onhistory}>
+							{offers.history.words}
+						</button>
+					{/if}
+					{#if offers.report.isOffered}
+						<button class="row link" type="button" onclick={can.onreport}>
+							{offers.report.words}
+						</button>
+					{/if}
 				{/if}
 			</div>
-			<p class="footnote">{by.note}</p>
+			{#if offers?.note}
+				<p class="footnote">{offers.note}</p>
+			{/if}
+			{#if !by.fromPilots}
+				<p class="footnote">{by.note}</p>
+			{/if}
 		</section>
 	{/if}
 
@@ -260,6 +424,9 @@
 					See or correct it at the source
 				</a>
 			</div>
+		{/if}
+		{#if !site.byPilots && offers?.note}
+			<p class="footnote">{offers.note}</p>
 		{/if}
 		<p class="footnote">{CAUTION}</p>
 		{#if credit?.notice}
@@ -283,6 +450,42 @@
 		{/if}
 	</section>
 </div>
+
+{#if site.byPilots && edits && words}
+	<!-- Who says they took off here, the newest first, each in the core's line. -->
+	<Sheet open={listing} title={words.confirmationsTitle} onclose={() => (listing = false)}>
+		{#if confirmations}
+			<p class="footnote count">
+				{confirmations.pilots > 0 ? confirmations.words : confirmations.nobodyWords}
+			</p>
+			{#if confirmations.lines.length > 0}
+				<ul class="card lines" aria-label={words.confirmationsTitle}>
+					{#each confirmations.lines as line (line.by.handle + line.day)}
+						<li class="row said">{line.words}</li>
+					{/each}
+				</ul>
+			{/if}
+		{/if}
+	</Sheet>
+
+	<SiteConfirmSheet
+		open={confirming}
+		{site}
+		{edits}
+		onconfirmed={wasConfirmed}
+		onclose={() => (confirming = false)}
+	/>
+
+	<ConfirmDialog
+		open={withdrawing}
+		title={words.withdrawQuestion}
+		message={offers?.confirmedWords ?? ''}
+		confirm={words.withdraw}
+		cancel={words.cancel}
+		onconfirm={() => void withdraw()}
+		oncancel={() => (withdrawing = false)}
+	/>
+{/if}
 
 <style>
 	.head {
@@ -359,6 +562,27 @@
 	.warns,
 	.warns :global(svg) {
 		color: var(--danger);
+	}
+
+	/* The notice of a place from pilots: a row of its own, read before the rest. */
+	.notice {
+		align-items: flex-start;
+		padding-block: 0.75rem;
+		font-size: var(--footnote);
+		color: var(--text-secondary);
+	}
+
+	.notice :global(svg) {
+		flex: none;
+	}
+
+	.count {
+		padding-top: 0.25rem;
+		padding-bottom: 0.75rem;
+	}
+
+	.lines {
+		list-style: none;
 	}
 
 	/* The source's own words: text that may run over lines, never markup. */

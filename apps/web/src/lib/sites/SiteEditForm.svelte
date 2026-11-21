@@ -1,25 +1,47 @@
 <!--
-	The form for a flying site a pilot adds to Venti's own layer, or corrects
-	there. Everything it says is the core's (`siteForm`): the fields in the
+	The form for a flying site added to one of Venti's two tiers, or
+	corrected there. Everything it says is the core's (`siteForm`, and for a
+	new site `Core.siteAdding`, which says the tier): the fields in the
 	core's order, each with its title and its line of help, the uses and the
 	sixteen wind directions as chips to tick, the answers about guests'
-	rules, what giving a site means with the licence as a link, and the words
-	on the button. What is wrong with a draft is the core's too, shown at its
+	rules, the tier's notice, what giving a site to that tier means with the
+	licence as a link, and the words on the button (`says`). What is wrong
+	with a draft is the core's too, shown at its
 	field once the pilot has tried to send; the button stays there to be
 	pressed, so that the pilot learns what is missing.
 
 	The place is shown in words, with "Move": the form then gives way to the
 	map, where the pilot moves the map under a mark (`onmove`).
 
+	When someone else changed the site meanwhile, the draft stands on the
+	site as it is now by the core's merge: its words stand over the button
+	with what the others changed, the fields both changed are marked as
+	fields with a fault are, and "Show how it stands now" opens the site
+	beside the form (`onshow`), which keeps everything the pilot entered.
+
 	The fields are the pack's inputs, as the plans' form has them.
 -->
 <script lang="ts">
-	import type { SiteForm, SiteFormField, SiteKind, SiteWritten } from '#lib/core/index.ts';
+	import type {
+		SiteForm,
+		SiteFormField,
+		SiteKind,
+		SiteView,
+		SiteWords,
+		SiteWritten
+	} from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import type { SiteDraft } from './edit.svelte';
 
 	interface Props {
 		form: SiteForm;
+		/** The words of a site's page, the core's: "Move", "Show how it stands now". */
+		words: SiteWords;
+		/**
+		 * What the form says for the tier the site is of: the tier's notice,
+		 * what giving to it means, and the words on the button.
+		 */
+		says: { note: string; giving: string; send: string };
 		/** The site being written, which outlives this form. */
 		editing: SiteDraft;
 		/** Whether the chips of the wind scroll sideways in one row, on a narrow screen. */
@@ -30,9 +52,21 @@
 		onsent: (written: SiteWritten) => void;
 		/** Opens another site, by its identifier: the one that stands in the way. */
 		onopen: (id: string) => void;
+		/** Shows the site as it stands now beside the form, which stays as it is. */
+		onshow: (site: SiteView) => void;
 	}
 
-	let { form, editing, compact = false, onmove, onsent, onopen }: Props = $props();
+	let {
+		form,
+		words,
+		says,
+		editing,
+		compact = false,
+		onmove,
+		onsent,
+		onopen,
+		onshow
+	}: Props = $props();
 
 	const id = $props.id();
 	const text = format();
@@ -70,10 +104,10 @@
 
 	/** The sentence about giving, around the licence's name, which is a link. */
 	const giving = $derived.by(() => {
-		const at = form.giving.indexOf(form.licence);
+		const at = says.giving.indexOf(form.licence);
 		return at < 0
-			? { before: `${form.giving} `, after: '' }
-			: { before: form.giving.slice(0, at), after: form.giving.slice(at + form.licence.length) };
+			? { before: `${says.giving} `, after: '' }
+			: { before: says.giving.slice(0, at), after: says.giving.slice(at + form.licence.length) };
 	});
 
 	async function send(event: SubmitEvent) {
@@ -93,7 +127,7 @@
 {/snippet}
 
 {#snippet line(field: SiteFormField, value: string, set: (typed: string) => void, kind?: 'url')}
-	<section class="group">
+	<section class="group" class:clash={editing.clashed(field.field)}>
 		<label class="group-title" for="{id}-{field.field}">{field.title}</label>
 		<div class="group-card">
 			<div class="field">
@@ -103,7 +137,7 @@
 					autocomplete="off"
 					aria-describedby="{id}-{field.field}-help"
 					aria-required={field.isNeeded}
-					aria-invalid={Boolean(editing.fault(field.field))}
+					aria-invalid={Boolean(editing.fault(field.field)) || editing.clashed(field.field)}
 					{value}
 					oninput={(event) => set(typed(event))}
 				/>
@@ -114,22 +148,26 @@
 {/snippet}
 
 <form onsubmit={send} novalidate>
+	<!-- The tier's notice, before anything is entered. -->
+	<p class="group-note tier">{says.note}</p>
 	{#each form.fields as field (field.field)}
 		{#if field.field === 'name'}
 			{@render line(field, draft.name, (name) => editing.set({ name }))}
 		{:else if field.field === 'place'}
-			<section class="group" aria-labelledby="{id}-place">
+			<section class="group" class:clash={editing.clashed('place')} aria-labelledby="{id}-place">
 				<h3 class="group-title" id="{id}-place">{field.title}</h3>
 				<div class="group-card">
 					<div class="group-row">
 						<span class="numeric">{text.place(draft.position.lat, draft.position.lon)}</span>
-						<button class="button-plain move" type="button" onclick={onmove}>Move</button>
+						<button class="button-plain move" type="button" onclick={onmove}>
+							{words.movePlace}
+						</button>
 					</div>
 				</div>
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'uses'}
-			<section class="group" aria-labelledby="{id}-uses">
+			<section class="group" class:clash={editing.clashed('uses')} aria-labelledby="{id}-uses">
 				<h3 class="group-title" id="{id}-uses">{field.title}</h3>
 				<div class="chips" role="group" aria-labelledby="{id}-uses">
 					{#each form.uses as use (use.kind)}
@@ -146,7 +184,7 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'height'}
-			<section class="group">
+			<section class="group" class:clash={editing.clashed('height')}>
 				<label class="group-title" for="{id}-height">{field.title}</label>
 				<div class="group-card">
 					<div class="field">
@@ -170,7 +208,7 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'wind'}
-			<section class="group" aria-labelledby="{id}-wind">
+			<section class="group" class:clash={editing.clashed('wind')} aria-labelledby="{id}-wind">
 				<h3 class="group-title" id="{id}-wind">{field.title}</h3>
 				<div class="chips" class:compact role="group" aria-labelledby="{id}-wind">
 					{#each form.winds as wind (wind.fromDeg)}
@@ -190,7 +228,7 @@
 				{@render about(field)}
 			</section>
 		{:else if field.field === 'description'}
-			<section class="group">
+			<section class="group" class:clash={editing.clashed('description')}>
 				<label class="group-title" for="{id}-description">{field.title}</label>
 				<div class="group-card">
 					<textarea
@@ -206,7 +244,7 @@
 		{:else if field.field === 'fee'}
 			{@render line(field, draft.fee, (fee) => editing.set({ fee }))}
 		{:else if field.field === 'guests'}
-			<section class="group">
+			<section class="group" class:clash={editing.clashed('guests')}>
 				<label class="group-title" for="{id}-guests">{field.title}</label>
 				<div class="group-card">
 					<div class="field">
@@ -252,30 +290,35 @@
 				{/if}
 			</div>
 		{/if}
-		{#if editing.changedMeanwhile.length > 0}
-			<!-- What the others changed, in the core's words, to look at before sending again. -->
-			<ul class="group-card meanwhile" aria-label="How it stands now">
-				{#each editing.changedMeanwhile as revision (revision.number)}
-					<li>
-						<p>{revision.words}</p>
-						{#each revision.changes as change (change)}
-							<p class="lesser">{change}</p>
+		{#if editing.changedMeanwhile.length > 0 || editing.standsNow}
+			<!-- What the others changed, in the core's lines, to look at before sending again. -->
+			<div class="group-card meanwhile">
+				{#if editing.changedMeanwhile.length > 0}
+					<ul aria-label={words.showNow}>
+						{#each editing.changedMeanwhile as change (change)}
+							<li>{change}</li>
 						{/each}
-					</li>
-				{/each}
-			</ul>
+					</ul>
+				{/if}
+				{#if editing.standsNow}
+					{@const now = editing.standsNow}
+					<button class="button-plain" type="button" onclick={() => onshow(now)}>
+						{words.showNow}
+					</button>
+				{/if}
+			</div>
 		{/if}
 		<div class="submit">
 			<button class="button-prominent" type="submit" disabled={editing.sending}>
-				{editing.corrects ? form.sendCorrection : form.sendNew}
+				{says.send}
 			</button>
 		</div>
 	</section>
 </form>
 
 <style>
-	form > .group:first-child {
-		margin-top: 0.25rem;
+	form > .tier + .group {
+		margin-top: 1rem;
 	}
 
 	label.group-title {
@@ -400,15 +443,28 @@
 
 	.meanwhile {
 		margin-top: var(--space-3);
+		padding: 0.75rem 1rem;
 		font-size: var(--footnote);
 	}
 
-	.meanwhile li {
-		padding: 0.75rem 1rem;
+	.meanwhile ul {
+		list-style: none;
+		color: var(--text-secondary);
 	}
 
-	.lesser {
-		color: var(--text-secondary);
+	.meanwhile .button-plain {
+		margin: 0.25rem 0 -0.5rem -0.75rem;
+		/* Not a row of the card: no hairline over it. */
+		box-shadow: none;
+	}
+
+	/* A field both the pilot and someone else changed: marked as a field with a fault is. */
+	.clash .group-title {
+		color: var(--danger);
+	}
+
+	.tier {
+		padding-top: 0;
 	}
 
 	.submit {

@@ -133,6 +133,20 @@ export class SitesWatch {
 	}
 
 	/**
+	 * What the server is asked for has changed, as when the pilot switches
+	 * the places from pilots on or off: the answer held is for another
+	 * question and is let go of, with what it drew. Returns whether the
+	 * server has to be asked.
+	 */
+	again(): boolean {
+		// An answer on its way is for the old question too.
+		this.#asked += 1;
+		this.#answered = undefined;
+		this.#show();
+		return this.#wanted !== undefined && !this.#absent;
+	}
+
+	/**
 	 * Lays a site the pilot has just added, corrected or put back over what
 	 * the server last answered, so that the map shows it without waiting
 	 * for the server to be asked again.

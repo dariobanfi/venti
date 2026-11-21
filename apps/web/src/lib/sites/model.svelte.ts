@@ -68,7 +68,8 @@ export class SitesModel {
 	constructor(core: CoreClient) {
 		this.#core = core;
 		this.#watch = new SitesWatch(
-			(box) => core.sites(box),
+			// With the places from pilots only while their switch is on.
+			(box) => core.sites(box, this.choice.fromPilots),
 			(state) => (this.state = state)
 		);
 		void core.sitesFilterChoices().then(
@@ -82,9 +83,14 @@ export class SitesModel {
 		return this.state.sites.find((site) => site.id === id);
 	}
 
-	/** A site the pilot has just written stands on the map as it was written. */
+	/**
+	 * A site the pilot has just written stands on the map as it was
+	 * written. Not a place from pilots while their switch is off: the pilot
+	 * sees its page, and the map shows that layer only once it is switched on.
+	 */
 	put(site: SiteView): void {
-		this.#watch.put(site);
+		if (site.byPilots?.fromPilots && !this.choice.fromPilots) this.#watch.drop(site.id);
+		else this.#watch.put(site);
 	}
 
 	/** A site the pilot has just removed is off the map. */
@@ -102,8 +108,14 @@ export class SitesModel {
 
 	/** The pilot changes what the filter asks; the browser remembers it. */
 	choose(changed: Partial<SitesChoice>): void {
-		this.choice = { ...this.choice, ...changed };
+		const before = this.choice;
+		this.choice = { ...before, ...changed };
 		keepChoice(globalThis.localStorage, this.choice);
+		// The places from pilots are another question to the server.
+		if (this.choice.fromPilots !== before.fromPilots && this.#watch.again()) {
+			clearTimeout(this.#settling);
+			void this.#watch.load();
+		}
 	}
 
 	/**

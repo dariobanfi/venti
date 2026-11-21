@@ -29,6 +29,13 @@ export interface SitesChoice {
 	windFromDeg: number | undefined;
 	/** Take-offs from this height up, in metres. Nothing asks about no height. */
 	takeoffsFromM: number | undefined;
+	/**
+	 * Whether the places from pilots are on the map and in the list: the
+	 * crowdsourced layer, which nothing shows until its pilot switched it
+	 * on. It is no part of the filter the core is asked with: it decides
+	 * what the server is asked for.
+	 */
+	fromPilots: boolean;
 }
 
 /** Nothing chosen: every site. */
@@ -36,7 +43,8 @@ export const NO_CHOICE: SitesChoice = {
 	shown: 'all',
 	windIs: 'chosen',
 	windFromDeg: undefined,
-	takeoffsFromM: undefined
+	takeoffsFromM: undefined,
+	fromPilots: false
 };
 
 const KEY = 'venti.map-sites-filter';
@@ -54,13 +62,18 @@ export function keptChoice(storage: Pick<Storage, 'getItem'> | undefined): Sites
 	try {
 		const kept: unknown = JSON.parse(storage?.getItem(KEY) ?? 'null');
 		if (typeof kept !== 'object' || kept === null) return NO_CHOICE;
-		const { shown, windIs, windFromDeg, takeoffsFromM } = kept as Record<string, unknown>;
+		const { shown, windIs, windFromDeg, takeoffsFromM, fromPilots } = kept as Record<
+			string,
+			unknown
+		>;
 		const is = WIND_IS.find((one) => one === windIs) ?? 'chosen';
 		return {
 			shown: SHOWN.find((one) => one === shown) ?? 'all',
 			windIs: is,
 			windFromDeg: is === 'chosen' ? number(windFromDeg) : undefined,
-			takeoffsFromM: number(takeoffsFromM)
+			takeoffsFromM: number(takeoffsFromM),
+			// Off unless the pilot left it on.
+			fromPilots: fromPilots === true
 		};
 	} catch {
 		return NO_CHOICE;

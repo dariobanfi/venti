@@ -54,6 +54,10 @@ class Server {
 		const other = this.instead(request);
 		if (other) return other;
 		if (request.path === '/v1/sessions') return answer(201, recorded('sign_in.json'));
+		if (request.path === '/v1/account') return answer(200, recorded('account.json'));
+		if (request.path.endsWith('/confirmation')) {
+			return request.method === 'DELETE' ? answer(204) : answer(200, recorded('site.json'));
+		}
 		if (request.method === 'DELETE') return answer(204);
 		return answer(request.method === 'POST' ? 201 : 200, recorded('site_written.json'));
 	};
@@ -61,6 +65,9 @@ class Server {
 	get: Get = async (path): Promise<Answer> => {
 		this.read.push(path);
 		if (path.endsWith('/history')) return { status: 200, body: recorded('site_history.json') };
+		if (path.endsWith('/confirmations')) {
+			return { status: 200, body: recorded('site_confirmations.json') };
+		}
 		if (path.includes('osm-free-flying')) {
 			return { status: 200, body: recorded('site_of_a_source.json') };
 		}
@@ -88,7 +95,7 @@ async function signedIn() {
 	await account.signIn('demo', 'demo-pilot-password');
 	const written = { times: 0 };
 	const edits = new SiteEditSource(session, () => (written.times += 1), server.send, server.get);
-	return { server, edits, written };
+	return { server, edits, written, account };
 }
 
 /** A take-off a pilot could add: a name, a use, a height and two points of the compass. */
@@ -258,6 +265,215 @@ describe('a site a pilot adds or corrects', () => {
 	});
 });
 
+/** The server's word about an account that is no partner of Venti for flying sites. */
+function ordinary(): ServerAnswer {
+	const said = JSON.parse(text(recorded('account.json')));
+	said.account.edits_sites = false;
+	return answer(200, json(said));
+}
+
+describe('what may be offered for a site, and to whom', () => {
+	it('is the core’s answer for a partner: the partners’ entry, and correcting a partner’s site', async () => {
+		const { edits } = await signedIn();
+		const { site } = await edits.page(KOGEL);
+
+		// The recorded sign-in is the development mode's one partner.
+		expect(await edits.adding(true)).toMatchObject({
+			mayAdd: true,
+			asPartner: true,
+			layer: 'venti',
+			entryWords: 'Add a site',
+			title: 'Add a site',
+			sendWords: 'Add for everyone'
+		});
+		// A partner adds whatever the server says of pilots.
+		expect((await edits.adding(false)).mayAdd).toBe(true);
+		const offers = await edits.offers(site, true, undefined);
+		expect(offers.correct).toEqual({ isOffered: true, words: 'Correct this site' });
+		expect(offers.remove).toEqual({ isOffered: true, words: 'Remove this site' });
+		expect(offers.confirm).toEqual({ isOffered: true, words: 'I took off here and it was good' });
+		expect(offers.note).toBe('');
+	});
+
+	it('follows what the server says of the account now: an ordinary pilot adds a place from pilots', async () => {
+		const { server, edits, account } = await signedIn();
+		const { site } = await edits.page(KOGEL);
+		server.instead = (request) => (request.path === '/v1/account' ? ordinary() : undefined);
+
+		const view = await account.refresh();
+
+		// Asked with the session, and remembered by the core.
+		expect(server.sent.at(-1)).toMatchObject({ method: 'GET', path: '/v1/account', token: TOKEN });
+		expect(view?.mayEditPartnerSites ?? false).toBe(false);
+		expect((await account.account())?.mayEditPartnerSites ?? false).toBe(false);
+		const adding = await edits.adding(true);
+		expect(adding).toMatchObject({
+			mayAdd: true,
+			asPartner: false,
+			layer: 'venti-pilots',
+			entryWords: 'Add a place pilots take off from',
+			title: 'A place pilots take off from',
+			sendWords: 'Add as a place from pilots'
+		});
+		expect(adding.giving).toContain('pilots who switch on the sites from pilots');
+		// Where the server takes none, nothing is added, and the core says why.
+		expect(await edits.adding(false)).toMatchObject({
+			mayAdd: false,
+			entryWords: '',
+			whyNot: 'This server takes no places from pilots yet.'
+		});
+		// A partner's site is not theirs to change: reported, confirmed, and told why.
+		const offers = await edits.offers(site, true, undefined);
+		expect(offers.correct).toEqual({ isOffered: false, words: '' });
+		expect(offers.remove.isOffered).toBe(false);
+		expect(offers.report).toEqual({ isOffered: true, words: 'Report this site' });
+		expect(offers.confirm.isOffered).toBe(true);
+		expect(offers.note).toBe(
+			"A partner of Venti added this site, and only Venti's partners change it. If something about it is wrong, report it."
+		);
+	});
+
+	it('keeps what it knew when the server gives no answer, and signs nobody out', async () => {
+		const { server, edits, account } = await signedIn();
+		server.instead = (request) => (request.path === '/v1/account' ? answer(503) : undefined);
+
+		const view = await account.refresh();
+
+		expect(view?.needsSignIn).toBe(false);
+		expect((await edits.adding(true)).asPartner).toBe(true);
+	});
+
+	it('says to sign in again once the server no longer knows the session', async () => {
+		const { server, edits, account } = await signedIn();
+		const { site } = await edits.page(KOGEL);
+		server.instead = (request) => (request.path === '/v1/account' ? answer(401) : undefined);
+
+		const view = await account.refresh();
+
+		expect(view?.needsSignIn).toBe(true);
+		expect(await edits.adding(true)).toMatchObject({
+			mayAdd: false,
+			whyNot: 'Sign in again to add a place pilots take off from.'
+		});
+		const offers = await edits.offers(site, true, undefined);
+		expect(offers.correct.isOffered).toBe(false);
+		expect(offers.history.isOffered).toBe(true);
+		expect(offers.note).toBe(edits.words().signedInAgain);
+	});
+
+	it('offers nothing for a site of a source, which is corrected at its source', async () => {
+		const { edits } = await signedIn();
+		const { site } = await edits.page('osm-free-flying:way/1080986173');
+
+		const offers = await edits.offers(site, true, undefined);
+
+		expect(
+			[offers.correct, offers.remove, offers.confirm, offers.report, offers.history].map(
+				(offer) => offer.isOffered
+			)
+		).toEqual([false, false, false, false, false]);
+		expect(offers.note).toMatch(/^This site is its source's record/);
+	});
+});
+
+describe('“I took off here and it was good”', () => {
+	it('has the core’s form: the days from today back, and the line with its limit', async () => {
+		const { edits } = await signedIn();
+
+		const form = edits.confirmForm('2026-11-18');
+
+		expect(form.days.slice(0, 3)).toEqual([
+			{ day: '2026-11-18', words: 'Today' },
+			{ day: '2026-11-17', words: 'Yesterday' },
+			{ day: '2026-11-16', words: 'Mon 16 Nov' }
+		]);
+		expect(form.noteAtMost).toBe(200);
+		expect(form.send).toBe('Confirm');
+	});
+
+	it('is sent from the pilot’s account for a day, and answered with the core’s sentence', async () => {
+		const { server, edits, written } = await signedIn();
+
+		const confirmed = await edits.confirm(KOGEL, '2026-11-17', '2026-11-18', 'Smooth.', undefined);
+
+		const [request] = server.about;
+		expect(request).toMatchObject({
+			method: 'PUT',
+			path: `/v1/sites/${KOGEL}/confirmation`,
+			token: TOKEN
+		});
+		expect(JSON.parse(request.body)).toEqual({ day: '2026-11-17', note: 'Smooth.' });
+		expect(confirmed.site.id).toBe(KOGEL);
+		expect(confirmed.words).toBe('You confirmed this site for Tue 17 Nov.');
+		expect(written.times).toBe(1);
+		// The logbook is empty: no flight of that day began here.
+		expect(await edits.confirmFlights(confirmed.site, '2026-11-17', 3600)).toEqual([]);
+
+		// A day that is to come is refused in the core's words before anything is sent.
+		await expect(edits.confirm(KOGEL, '2026-11-19', '2026-11-18', '', undefined)).rejects.toThrow();
+		expect(server.about).toHaveLength(1);
+	});
+
+	it('is listed in the core’s lines, and taken back', async () => {
+		const { server, edits } = await signedIn();
+		const { site } = await edits.page(KOGEL);
+
+		const list = await edits.confirmations(KOGEL);
+
+		expect(server.read.at(-1)).toBe(`/v1/sites/${KOGEL}/confirmations`);
+		expect(list.pilots).toBe(2);
+		expect(list.words).toBe('2 pilots took off here, last on 16 November 2026');
+		expect(list.lines[0].words).toBe(
+			'Mara Muster (@mara) on Mon 16 Nov 2026: “North-west at noon, smooth.”'
+		);
+		// The demo pilot is not among them: nothing to take back is offered.
+		const offers = await edits.offers(site, true, list);
+		expect(offers.hasConfirmed).toBe(false);
+		expect(offers.withdraw.isOffered).toBe(false);
+
+		const words = await edits.withdraw(KOGEL);
+
+		expect(server.about.at(-1)).toMatchObject({
+			method: 'DELETE',
+			path: `/v1/sites/${KOGEL}/confirmation`,
+			token: TOKEN
+		});
+		expect(words).not.toBe('');
+	});
+});
+
+describe('a draft when someone else changed the site meanwhile', () => {
+	it('is carried onto the site as it stands by the core: the pilot’s entries stay', async () => {
+		const { edits } = await signedIn();
+		const { site: base } = await edits.page(KOGEL);
+		const edited = { ...edits.draftOf(base), elevationM: 1871 };
+		// Meanwhile someone renamed the site, as its third revision.
+		const now = {
+			...base,
+			name: 'Musterkogel Nord',
+			byPilots: base.byPilots && { ...base.byPilots, revision: base.byPilots.revision + 1 }
+		};
+
+		const rebased = edits.rebased(base, edited, now);
+
+		expect(rebased.draft).toMatchObject({
+			siteId: KOGEL,
+			revision: 3,
+			name: 'Musterkogel Nord',
+			elevationM: 1871
+		});
+		expect(rebased.kept).toEqual(['height']);
+		expect(rebased.clashes).toEqual([]);
+		expect(rebased.theirs).toEqual(['Name: “Musterkogel West” → “Musterkogel Nord”']);
+		expect(rebased.words).toMatch(/^Someone else changed this site while you were editing it\./);
+
+		// Both changed the height, and not to the same: the pilot's stays, and is named.
+		const clash = edits.rebased(base, edited, { ...now, elevationM: 1850 });
+		expect(clash.draft.elevationM).toBe(1871);
+		expect(clash.clashes).toEqual(['height']);
+	});
+});
+
 describe('whether the server takes sites from pilots', () => {
 	const health = (change: (health: Record<string, unknown>) => void): Get => {
 		const said = JSON.parse(text(recorded('health.json')));
@@ -294,5 +510,28 @@ describe('the list of sites after the pilot wrote one', () => {
 		await sites.sites(box);
 
 		expect(asked).toEqual(['cache', 'fresh']);
+	});
+
+	it('holds the places from pilots only when it was asked for with them', async () => {
+		const asked: string[] = [];
+		const get: Get = async (path) => {
+			asked.push(path);
+			return {
+				status: 200,
+				body: recorded(path.includes('venti-pilots') ? 'sites_venti_pilots.json' : 'sites.json')
+			};
+		};
+		const sites = new SitesSource(async () => true, get, get);
+		const box = { south: 47.2, west: 10.8, north: 47.4, east: 11 };
+
+		const without = await sites.sites(box);
+		const withPilots = await sites.sites(box, true);
+
+		expect(asked[0]).not.toContain('venti-pilots');
+		expect(asked[1]).toContain('venti-pilots');
+		expect(without?.sites.some((site) => site.byPilots?.fromPilots)).toBe(false);
+		const joch = withPilots?.sites.find((site) => site.name === 'Beispieljoch');
+		expect(joch?.byPilots).toMatchObject({ fromPilots: true, label: 'From pilots' });
+		expect(joch?.byPilots?.note).toMatch(/^Added by pilots on Venti: not official/);
 	});
 });

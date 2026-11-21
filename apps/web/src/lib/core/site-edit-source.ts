@@ -1,11 +1,14 @@
 /**
- * Sites that pilots make, as the worker talks to the Venti server about
- * them: adding a site to Venti's own layer, correcting one, removing it,
- * putting a revision back, and reading one site and its history.
+ * Sites of Venti's own two tiers, the partners' and the crowdsourced one,
+ * as the worker talks to the Venti server about them: adding a site,
+ * correcting one, removing it, putting a revision back, saying "I took off
+ * here and it was good", and reading one site, its history and who
+ * confirmed it.
  *
- * Everything about it is the core's (`crates/core/src/site_edit.rs`): the
- * form and its words, the draft, the check, each request and what the
- * server's answer means, with every refusal put into words. This file
+ * Everything about it is the core's (`crates/core/src/site_edit.rs`,
+ * `site_offers.rs`): what may be offered to whom, the form and its words,
+ * the draft, the check, each request and what the server's answer means,
+ * with every refusal put into words. This file
  * sends the requests in between, a write with the session token of the
  * account this browser is signed in to, as a report is sent
  * (`account-source.ts`).
@@ -16,29 +19,46 @@
 import { type Send, sendToThisOrigin } from './account-source';
 import {
 	type Coordinate,
+	type SiteAdding,
 	siteAddRequest,
 	siteChangeRequest,
+	siteConfirmations,
+	type SiteConfirmations,
+	siteConfirmationsPath,
+	siteConfirmed,
+	type SiteConfirmFlight,
+	siteConfirmForm,
+	type SiteConfirmForm,
 	siteDraftCheck,
 	type SiteDraftFault,
 	siteDraftMoved,
 	siteDraftNew,
 	siteDraftOf,
+	siteDraftRebased,
+	type SiteDraftRebased,
 	type SiteDraftView,
 	siteDraftWindInWords,
 	siteForm,
 	type SiteForm,
-	siteHistory,
 	type SiteHistory,
+	siteHistoryPage,
 	siteHistoryPath,
 	siteInTheWay,
 	type SiteInTheWay,
+	type SiteOffers,
 	sitePage,
 	type SitePage,
 	sitePath,
 	siteRemoved,
 	siteRemoveRequest,
 	siteRestoreRequest,
+	type SiteRevisionView,
 	type SiteView,
+	siteWasChanged,
+	siteWithdrawn,
+	siteWithdrawRequest,
+	siteWords,
+	type SiteWords,
 	siteWritten,
 	type SiteWritten
 } from './pkg/venti_core_wasm.js';
@@ -62,11 +82,7 @@ export type SiteSent =
 			words: string;
 			/** The site that stands at the place already, to open instead. */
 			inTheWay: SiteInTheWay | undefined;
-			/**
-			 * Whether the site was changed by someone else meanwhile: the
-			 * server's conflict that names no site in the way. The core says
-			 * it in words only, so this is read from the answer's status.
-			 */
+			/** Whether the site was changed by someone else meanwhile, as the core reads the answer. */
 			changedMeanwhile: boolean;
 	  };
 
@@ -109,6 +125,80 @@ export class SiteEditSource {
 	/** The form in the core's words. Asks no server. */
 	form(): SiteForm {
 		return siteForm();
+	}
+
+	/** The words of a site's page, the core's. Asks no server. */
+	words(): SiteWords {
+		return siteWords();
+	}
+
+	/**
+	 * What may be offered for a site to whoever is signed in here, as the
+	 * core's one answer. `takes` is what the server's status says.
+	 */
+	offers(
+		site: SiteView,
+		takes: boolean,
+		confirmations: SiteConfirmations | undefined
+	): Promise<SiteOffers> {
+		return this.#session.ask((core) => core.siteOffers(site, takes, confirmations));
+	}
+
+	/** Whether to offer adding a site, into which tier, and the words of the entry and its form. */
+	adding(takes: boolean): Promise<SiteAdding> {
+		return this.#session.ask((core) => core.siteAdding(takes));
+	}
+
+	/** The form of "I took off here and it was good", for the pilot's today (`YYYY-MM-DD`). */
+	confirmForm(today: string): SiteConfirmForm {
+		return siteConfirmForm(today);
+	}
+
+	/** The pilot's own flights of a day that began at the site: often none. */
+	confirmFlights(site: SiteView, day: string, utcOffsetS: number): Promise<SiteConfirmFlight[]> {
+		return this.#session.ask((core) => core.siteConfirmFlights(site, day, utcOffsetS));
+	}
+
+	/**
+	 * Says of a site "I took off here and it was good", for a day. Throws,
+	 * in the core's words, before the server is asked and when it refuses.
+	 */
+	async confirm(
+		id: string,
+		day: string,
+		today: string,
+		note: string,
+		flight: string | undefined
+	): Promise<SiteWritten> {
+		const request = await this.#session.ask((core) =>
+			core.siteConfirmRequest(id, day, today, note, flight)
+		);
+		const answer = await this.#send(request, await this.#session.token());
+		const written = siteConfirmed(answer.status, answer.body, day);
+		this.#written();
+		return written;
+	}
+
+	/** Takes the pilot's confirmation of a site back. Answers what became of it, in a line. */
+	async withdraw(id: string): Promise<string> {
+		const answer = await this.#send(siteWithdrawRequest(id), await this.#session.token());
+		const words = siteWithdrawn(answer.status, answer.body);
+		this.#written();
+		return words;
+	}
+
+	/** Who says they took off at a site, the newest first, in the core's lines. */
+	async confirmations(id: string): Promise<SiteConfirmations> {
+		const answer = await this.#get(siteConfirmationsPath(id));
+		return siteConfirmations(answer.status, answer.body);
+	}
+
+	/**
+	 * A draft carried onto the site as it stands, after someone else
+	 * changed it: the core's one merge.
+	 */
+	rebased(base: SiteView, edited: SiteDraftView, now: SiteView): SiteDraftRebased {
+		return siteDraftRebased(base, edited, now);
 	}
 
 	/** An empty draft at a place. */
@@ -183,13 +273,17 @@ export class SiteEditSource {
 	async history(id: string): Promise<SiteHistory> {
 		let after: number | undefined;
 		let whole: SiteHistory | undefined;
+		// The last revision of the page before, so that the core says what
+		// the first one of the next changed.
+		let before: SiteRevisionView | undefined;
 		// Each page holds some revisions; a hundred pages are more than a site has.
 		for (let page = 0; page < 100; page += 1) {
 			const answer = await this.#get(siteHistoryPath(id, after));
-			const next = siteHistory(answer.status, answer.body);
+			const next = siteHistoryPage(answer.status, answer.body, before);
 			whole = whole ? joined(whole, next) : next;
 			if (next.nextAfter === undefined) break;
 			after = next.nextAfter;
+			before = next.revisions.at(-1);
 		}
 		return whole!;
 	}
@@ -206,18 +300,16 @@ export class SiteEditSource {
 				kind: 'refused',
 				words: error instanceof Error ? error.message : String(error),
 				inTheWay,
-				changedMeanwhile: answer.status === 409 && !inTheWay
+				changedMeanwhile: siteWasChanged(answer.status, answer.body)
 			};
 		}
 	}
 }
 
 /**
- * Two pages of a history as one. The core says what a revision changed
- * against the one before it on the same page, so the first revision of a
- * later page has no such lines; and it looks for the revision that undoes
- * the last change among the revisions of the page it reads, which the last
- * page holds.
+ * Two pages of a history as one. The core looks for the revision that
+ * undoes the last change, and the one that brings a removed site back,
+ * among the revisions of the page it reads, which the last page holds.
  */
 function joined(first: SiteHistory, next: SiteHistory): SiteHistory {
 	return { ...next, revisions: [...first.revisions, ...next.revisions] };

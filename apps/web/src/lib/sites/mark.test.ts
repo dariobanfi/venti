@@ -47,6 +47,41 @@ describe('flying sites on the map', () => {
 		expect(features[0].geometry).toEqual({ type: 'Point', coordinates: [11.905, 47.679] });
 	});
 
+	it('say their tier under the name where they are places from pilots, with the pin of their use', () => {
+		const by = {
+			revision: 1,
+			addedUnixS: 0,
+			addedBy: undefined,
+			changedUnixS: 0,
+			changedBy: undefined,
+			note: '',
+			addedInWords: '',
+			changedInWords: ''
+		};
+		const fromPilots = {
+			...JAEGERKAMP,
+			byPilots: { ...by, fromPilots: true, label: 'From pilots' }
+		};
+		const ofAPartner = {
+			...LANDING,
+			byPilots: { ...by, fromPilots: false, label: 'From a partner' }
+		};
+
+		const { features } = siteFeatures([fromPilots, ofAPartner]);
+
+		expect(features.map((feature) => feature.properties)).toEqual([
+			// The pack has no pin for the tier: the words under the name tell it apart.
+			{
+				id: 'test:way/1',
+				picture: 'site-takeoff',
+				label: 'Fluggelände Jägerkamp\nFrom pilots',
+				apart: false
+			},
+			// A partner's site says its tier on its page only.
+			{ id: 'test:way/2', picture: 'site-landing', label: 'Landeplatz Jägerkamp', apart: false }
+		]);
+	});
+
 	it('are a layer of their own, drawn once the map shows a valley', () => {
 		const layer = sitesLayer('noto-sans-regular');
 

@@ -7,7 +7,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { accountHref, placeHref } from '#lib/app/routes.ts';
+	import { placeHref } from '#lib/app/routes.ts';
 	import type {
 		Bounds,
 		Coordinate,
@@ -223,7 +223,12 @@
 	 * with the "Sites" layer off, there is nothing it leaves anything of.
 	 */
 	const sitesFiltered = $derived(
-		sitesLeft?.isOn && places.close && !off.includes('sites') ? sitesLeft : undefined
+		sitesLeft &&
+			(sitesLeft.isOn || sites?.choice.fromPilots) &&
+			places.close &&
+			!off.includes('sites')
+			? sitesLeft
+			: undefined
 	);
 	/** Whether the filter's choices are open: a pane at the map's side, or a sheet. */
 	let filtering = $state(false);
@@ -442,10 +447,21 @@
 	// --- Sites that pilots make: adding one, correcting, removing, their history ---
 
 	const edits = $derived(app.siteEdits);
-	/** The form's words, while the server takes sites from pilots: then adding one is offered. */
-	const siteForm = $derived(edits?.takes ? edits.form : undefined);
-	/** Whether the pilot can write a site: signed in, on a server that takes sites. */
-	const canWriteSites = $derived(Boolean(siteForm && app.account?.signedIn));
+	/** The form in the core's words, and the words of a site's page. */
+	const siteForm = $derived(edits?.form);
+	const siteWords = $derived(edits?.words);
+	/**
+	 * Whether a site may be added from here, into which tier, and what the
+	 * entry and its form say: the core's answer (`Core.siteAdding`) for the
+	 * account this browser is signed in to. The page decides nothing of it.
+	 */
+	const adding = $derived(edits?.adding?.mayAdd ? edits.adding : undefined);
+	// What the core offers follows the account: asked again when the pilot
+	// signs in or out, and when the server has said what the account is.
+	$effect(() => {
+		void app.account?.account;
+		void edits?.accountChanged();
+	});
 	/** The site being added or corrected, while its form is open or its place is being moved. */
 	let editing = $state.raw<SiteDraft>();
 	/**
@@ -457,25 +473,39 @@
 	let placingProblem = $state.raw<string>();
 	/** What the server answered to the pilot's last change of the chosen site, in the core's line. */
 	let siteWritten = $state.raw<{ id: string; words: string }>();
-	/** The site whose history is open, by its identifier, with the core's line about its removal. */
-	let historyOf = $state.raw<{ id: string; said?: string }>();
+	/**
+	 * The site whose history is open, by its identifier, with the site as
+	 * the page held it (what the core is asked with for what may be done)
+	 * and the core's line about its removal.
+	 */
+	let historyOf = $state.raw<{ id: string; site?: SiteView; said?: string }>();
 	/** The site the pilot is about to remove, while the line about it is asked for. */
 	let removing = $state.raw<SiteView>();
 	let removingNow = $state(false);
 	let removeRefusal = $state.raw<string>();
 	/** A site or one of its revisions being reported to whoever runs the server. */
 	let reportedOfSites = $state.raw<Reported>();
-	/** Whether the pilot is told that a site is written from an account. */
-	let askingToSignIn = $state(false);
 	/** The "Why" line of the core's form: its title and its help, for the dialogs that ask it. */
 	const why = $derived(siteForm?.fields.find((field) => field.field === 'comment'));
-
-	/** Whether a site can be written from here; if the pilot is signed out, says why not. */
-	function signedInForSites(): boolean {
-		if (app.account?.signedIn) return true;
-		askingToSignIn = true;
-		return false;
-	}
+	/**
+	 * What the form says for the tier of the site in it: a new site's is
+	 * the tier the core adds to; a correction's is the tier the site is of.
+	 */
+	const formSays = $derived.by(() => {
+		if (!siteForm || !editing) return undefined;
+		if (!editing.corrects) {
+			return adding
+				? { title: adding.title, note: adding.note, giving: adding.giving, send: adding.sendWords }
+				: undefined;
+		}
+		const from = editing.tier;
+		return {
+			title: siteForm.titleCorrect,
+			note: from?.note ?? '',
+			giving: from?.fromPilots ? siteForm.giving : siteForm.givingAsPartner,
+			send: siteForm.sendCorrection
+		};
+	});
 
 	function closeOthers() {
 		chosenAirspace = undefined;
@@ -489,7 +519,7 @@
 
 	/** "Add a site": the pilot moves the map under the mark to say where. */
 	function startAdding() {
-		if (!signedInForSites()) return;
+		if (!adding) return;
 		closeOthers();
 		editing = undefined;
 		placingProblem = undefined;
@@ -498,12 +528,12 @@
 
 	/** "Add a site here": the form for a new site at a place clicked on the map. */
 	async function addSiteAt(place: Coordinate) {
-		if (!edits || !signedInForSites()) return;
+		if (!edits || !adding) return;
 		closeOthers();
 		try {
 			editing = await edits.draftAt(place);
 		} catch (error) {
-			app.notice = { title: siteForm?.titleNew ?? '', lines: [whyNot(error)] };
+			app.notice = { title: adding.title, lines: [whyNot(error)] };
 		}
 	}
 
@@ -531,7 +561,7 @@
 
 	/** "Correct this site": the form on the site as it stands. */
 	async function correctSite(site: SiteView) {
-		if (!edits || !signedInForSites()) return;
+		if (!edits) return;
 		try {
 			const draft = await edits.draftOf($state.snapshot(site) as SiteView);
 			closeOthers();
@@ -564,6 +594,27 @@
 		);
 	}
 
+	/**
+	 * "Show how it stands now": the site as it is after someone else
+	 * changed it, beside the form, which keeps what the pilot entered.
+	 */
+	function showBesideForm(site: SiteView) {
+		sites?.put(site);
+		siteWritten = undefined;
+		chosenSite = {
+			site,
+			credit: places.credits.find((credit) => credit.source === site.source),
+			asOfUnixS: undefined
+		};
+	}
+
+	/** A confirmation was said or taken back: the site as the server has it now, with the core's line. */
+	function siteConfirmed(written: SiteWritten) {
+		sites?.put(written.site);
+		siteWritten = { id: written.site.id, words: written.words };
+		if (chosenSite?.site.id === written.site.id) chosenSite = { ...chosenSite, site: written.site };
+	}
+
 	/** The form sent its site: the core's line, and the site's page. */
 	function siteSent(written: SiteWritten) {
 		editing = undefined;
@@ -585,6 +636,7 @@
 	async function removeSite(comment: string) {
 		if (!edits || !removing || removingNow) return;
 		const { id } = removing;
+		const site = removing;
 		removingNow = true;
 		removeRefusal = undefined;
 		try {
@@ -593,7 +645,7 @@
 			sites?.drop(id);
 			if (chosenSite?.site.id === id) chosenSite = undefined;
 			// Its history stays, and is where it can be brought back.
-			historyOf = { id, said: words };
+			historyOf = { id, site, said: words };
 		} catch (error) {
 			removeRefusal = whyNot(error);
 		} finally {
@@ -604,7 +656,7 @@
 	/** A revision was put back from the history: the site stands on the map as it is now. */
 	function putBack(written: SiteWritten) {
 		sites?.put(written.site);
-		if (historyOf) historyOf = { id: historyOf.id };
+		if (historyOf) historyOf = { id: historyOf.id, site: written.site };
 		if (chosenSite?.site.id === written.site.id) showWritten(written.site, written.words);
 	}
 
@@ -870,38 +922,41 @@
 					flightsHref={flownFrom(site) ? placeHref(site.position, site.id) : undefined}
 					outlook={siteOutlook}
 					written={siteWritten?.id === site.id ? siteWritten.words : undefined}
-					pilots={site.byPilots
+					own={edits
 						? {
-								correct: siteForm?.titleCorrect,
+								edits,
 								oncorrect: () => void correctSite(site),
-								onremove: () => {
-									if (signedInForSites()) removing = site;
-								},
-								onhistory: () => (historyOf = { id: site.id }),
-								onreport: () => (reportedOfSites = reportedSite(site.id))
+								onremove: () => (removing = site),
+								onhistory: () => (historyOf = { id: site.id, site }),
+								onreport: () => (reportedOfSites = reportedSite(site.id)),
+								onchanged: siteConfirmed
 							}
 						: undefined}
 				/>
 			{/if}
 		</MapPanel>
-		{#if siteForm}
-			<!-- The form for a site a pilot adds or corrects: a pane beside the
-			     map on a wide screen, a sheet on a narrow one. It gives way to
-			     the map while the pilot moves the place. -->
+		{#if siteForm && siteWords}
+			<!-- The form for a site that is added or corrected: a pane beside
+			     the map on a wide screen, a sheet on a narrow one. It gives way
+			     to the map while the pilot moves the place. Its title, notice,
+			     sentence of giving and button are the tier's, as the core says. -->
 			<MapPanel
-				shown={editing && !placing ? 'site-form' : undefined}
-				title={editing?.corrects ? siteForm.titleCorrect : siteForm.titleNew}
+				shown={editing && formSays && !placing ? 'site-form' : undefined}
+				title={formSays?.title ?? ''}
 				wide={wide.current}
 				onclose={() => (editing = undefined)}
 			>
-				{#if editing}
+				{#if editing && formSays}
 					<SiteEditForm
 						form={siteForm}
+						words={siteWords}
+						says={formSays}
 						{editing}
 						compact={!wide.current}
 						onmove={movePlace}
 						onsent={siteSent}
 						onopen={(id) => void openSiteById(id)}
+						onshow={showBesideForm}
 					/>
 				{/if}
 			</MapPanel>
@@ -960,11 +1015,12 @@
 				{#if chosenAirspace}
 					{@const { place } = chosenAirspace}
 					<AirspaceOver {place} airspace={app.airspace} />
-					{#if siteForm}
-						<!-- The place the pilot clicked, where nothing of Venti's lay. -->
+					{#if adding}
+						<!-- The place the pilot clicked, where nothing of Venti's lay:
+						     the core's entry for the tier this pilot adds to. -->
 						<div class="group-card here">
 							<button class="group-row" type="button" onclick={() => void addSiteAt(place)}>
-								Add a site here
+								{adding.entryWords}
 							</button>
 						</div>
 					{/if}
@@ -998,19 +1054,23 @@
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
 	<div class="foot">
-		{#if placing && siteForm}
+		{#if placing && siteForm && siteWords}
 			<!-- The map is moved under the mark; this says so and takes the place. -->
-			<div class="forecast-card placing" role="group" aria-label={siteForm.titleNew}>
+			<div
+				class="forecast-card placing"
+				role="group"
+				aria-label={editing?.corrects ? siteForm.titleCorrect : (adding?.entryWords ?? '')}
+			>
 				<p>{siteForm.placeWords}</p>
 				{#if placingProblem}
 					<p class="refusal" role="alert">{placingProblem}</p>
 				{/if}
 				<div class="placing-acts">
 					<button class="button-prominent" type="button" onclick={() => void usePlace()}>
-						Use this place
+						{siteWords.usePlace}
 					</button>
 					<button class="button-plain" type="button" onclick={() => (placing = false)}>
-						Cancel
+						{siteWords.cancel}
 					</button>
 				</div>
 			</div>
@@ -1060,15 +1120,17 @@
 				<MapButton
 					label="Filter sites"
 					icon="filter"
-					pressed={Boolean(sitesLeft?.isOn)}
+					pressed={Boolean(sitesLeft?.isOn) || sites.choice.fromPilots}
 					onclick={() => (filtering = !filtering)}
 				/>
 			{/if}
-			<!-- A site of the pilot's own knowledge, for everyone: where the
-			     server takes sites from pilots. -->
-			{#if siteForm}
+			<!-- A site of the pilot's own knowledge: shown where the core says
+			     this account may add one, in the words of the tier it adds to
+			     ("Add a site" for a partner of Venti, "Add a place pilots take
+			     off from" for every other pilot). -->
+			{#if adding}
 				<MapButton
-					label={siteForm.titleNew}
+					label={adding.entryWords}
 					icon="takeoff"
 					pressed={placing}
 					onclick={startAdding}
@@ -1159,7 +1221,11 @@
 />
 
 <!-- A site's history: its revisions, and the way back to any of them. -->
-<Sheet open={historyOf !== undefined} title="History" onclose={() => (historyOf = undefined)}>
+<Sheet
+	open={historyOf !== undefined}
+	title={siteWords?.history ?? ''}
+	onclose={() => (historyOf = undefined)}
+>
 	{#if historyOf && edits}
 		{#if historyOf.said}
 			<p class="group-card removed" role="status">{historyOf.said}</p>
@@ -1167,7 +1233,7 @@
 		<SiteHistoryView
 			{edits}
 			id={historyOf.id}
-			canWrite={canWriteSites}
+			site={historyOf.site}
 			onwritten={putBack}
 			onreport={(revision) =>
 				historyOf && (reportedOfSites = reportedSiteRevision(historyOf.id, revision))}
@@ -1178,10 +1244,10 @@
 <!-- Removing a site asks for the line that is kept with it first. -->
 <PromptDialog
 	open={removing !== undefined}
-	title="Remove this site"
-	message={why?.help}
+	title={siteWords?.removeQuestion ?? ''}
+	message={[siteWords?.removeAbout, why?.help].filter(Boolean).join(' ')}
 	label={why?.title ?? ''}
-	confirm="Remove"
+	confirm={siteWords?.remove ?? ''}
 	optional
 	working={removingNow}
 	refusal={removeRefusal}
@@ -1198,21 +1264,6 @@
 	{...reportedOfSites ?? reportedSite('')}
 	onclose={() => (reportedOfSites = undefined)}
 />
-
-<!-- A site is written from an account: a pilot who is signed out is told so. -->
-<Sheet
-	open={askingToSignIn}
-	title={siteForm?.titleNew ?? ''}
-	onclose={() => (askingToSignIn = false)}
->
-	<div class="group-card sign-in">
-		<p>
-			A site is added and corrected from your account, so that pilots see who it comes from. Sign in
-			under Settings, Account.
-		</p>
-		<a class="button-plain" href={accountHref()}>Account</a>
-	</div>
-</Sheet>
 
 <style>
 	.screen {
@@ -1375,19 +1426,9 @@
 		gap: var(--space-2);
 	}
 
-	.removed,
-	.sign-in {
-		padding: 0.75rem 1rem;
-	}
-
 	.removed {
 		margin-bottom: var(--space-3);
-	}
-
-	.sign-in .button-plain {
-		margin: 0.25rem 0 -0.5rem -0.75rem;
-		/* Not a row of the card: no hairline over it. */
-		box-shadow: none;
+		padding: 0.75rem 1rem;
 	}
 
 	/* The panes at the map's side on a wide screen, one under the other;

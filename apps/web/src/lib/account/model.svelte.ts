@@ -89,6 +89,9 @@ export class AccountModel {
 		now: () => number = () => Date.now()
 	): Promise<AccountModel> {
 		const model = new AccountModel(core, await core.account(), onSynced, now);
+		// What the server says of the account can have changed since the
+		// last visit; nothing waits for the answer.
+		void model.ask();
 		// Whether there is a server decides only what the account screen
 		// offers; nothing waits for the answer.
 		void core.hasServer().then(
@@ -244,6 +247,21 @@ export class AccountModel {
 		}
 		await this.refresh();
 		await this.#onSynced(keptSites);
+	}
+
+	/**
+	 * Asks the server what it says of the account now, which the core
+	 * remembers: its name, and whether it is a partner of Venti for flying
+	 * sites. When the app starts and when the account's page opens. Signed
+	 * out, nothing is asked.
+	 */
+	async ask(): Promise<void> {
+		if (!this.account) return;
+		try {
+			this.account = await this.#core.refreshAccount();
+		} catch {
+			// The screens keep what they have.
+		}
 	}
 
 	/** Reads the account as it is stored now: after a sync, or a change in another tab. */

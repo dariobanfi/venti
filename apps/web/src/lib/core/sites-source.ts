@@ -24,6 +24,7 @@ import {
 	sitesMap,
 	type SitesMap,
 	sitesPath,
+	sitesPathWithPilots,
 	type SiteView
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
@@ -86,11 +87,15 @@ export class SitesSource {
 	 * The flying sites in a box of the map. Nothing if this site has no
 	 * server. Throws, with words for the pilot, when the server gives no
 	 * usable answer.
+	 *
+	 * `withPilots` asks for the crowdsourced layer too, which no map shows
+	 * until its pilot switched it on; each of its sites then says its tier.
 	 */
-	async sites(box: Bounds): Promise<SitesMap | undefined> {
+	async sites(box: Bounds, withPilots = false): Promise<SitesMap | undefined> {
 		if (!(await this.#present())) return undefined;
 		const get = this.#wrote ? this.#fresh : this.#get;
-		const answer = await get(sitesPath(box.south, box.west, box.north, box.east));
+		const path = withPilots ? sitesPathWithPilots : sitesPath;
+		const answer = await get(path(box.south, box.west, box.north, box.east));
 		// The core is told the box again: it says whether the server's set
 		// is whole for all of it.
 		return sitesMap(box.south, box.west, box.north, box.east, answer.status, answer.body);

@@ -3,15 +3,18 @@
 	each in the core's line ("Changed by Mara Beispiel (@mara) on 21 Nov
 	2026: “fixed the height”") with what it changed under it, field by field.
 
-	A signed-in pilot can undo the last change, where the core names the
-	revision that does it, and put the site back to any revision the core
-	says can be put back: that is also how a removed site comes back. Both
-	ask for the line that is kept with the new revision first ("Why", which
-	may stay empty) and are sent as the core's request; a refusal stands in
-	the core's words.
+	Whoever the core says may correct the site (`Core.siteOffers`, asked
+	for the site as the page held it, since a revision's record does not
+	say its tier) can undo the last change,
+	where the core names the revision that does it, put the site back to any
+	revision the core says can be put back, and bring a removed site back
+	("Bring this site back": the revision before the removal). Every one of
+	these words is the core's. Each asks for the line that is kept with the
+	new revision first ("Why", which may stay empty) and is sent as the
+	core's request; a refusal stands in the core's words.
 -->
 <script lang="ts">
-	import type { SiteHistory, SiteWritten } from '#lib/core/index.ts';
+	import type { SiteHistory, SiteView, SiteWritten } from '#lib/core/index.ts';
 	import PromptDialog from '#lib/design/PromptDialog.svelte';
 	import { said, type SiteEditsModel } from './edit.svelte';
 
@@ -19,15 +22,20 @@
 		edits: SiteEditsModel;
 		/** The site, by its identifier. */
 		id: string;
-		/** Whether the pilot can change the site: signed in, on a server that takes sites. */
-		canWrite: boolean;
+		/**
+		 * The site as the page holds it, or held it before it was removed:
+		 * what the core is asked with for what this pilot may do.
+		 */
+		site: SiteView | undefined;
 		/** Called with the site as it stands after a revision was put back. */
 		onwritten: (written: SiteWritten) => void;
 		/** Reports one revision to whoever runs the server. */
 		onreport?: (revision: number) => void;
 	}
 
-	let { edits, id, canWrite, onwritten, onreport }: Props = $props();
+	let { edits, id, site, onwritten, onreport }: Props = $props();
+
+	const words = $derived(edits.words);
 
 	type Phase =
 		{ is: 'loading' } | { is: 'ready'; history: SiteHistory } | { is: 'failed'; why: string };
@@ -51,8 +59,42 @@
 
 	$effect(() => load(id));
 
-	/** The revision to put back, with the words on what does it, while its "Why" is asked. */
-	let putting = $state.raw<{ revision: number; title: string }>();
+	/**
+	 * Whether the core offers this pilot to correct the site, and with that
+	 * to put a revision of it back; asked again when the account changes.
+	 */
+	let canWrite = $state(false);
+	$effect(() => {
+		void edits.asked;
+		const held = site ? ($state.snapshot(site) as SiteView) : undefined;
+		if (!held) {
+			canWrite = false;
+			return;
+		}
+		let current = true;
+		edits.offers(held).then(
+			(offers) => {
+				if (current) canWrite = offers.correct.isOffered;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	/**
+	 * The revision to put back, with the words on what does it and what
+	 * that means, while its "Why" is asked.
+	 */
+	let putting = $state.raw<{
+		revision: number;
+		/** The words on the button that does it. */
+		title: string;
+		/** The core's question, where it has one for this. */
+		question?: string;
+		about?: string;
+	}>();
 	let working = $state(false);
 	let refusal = $state.raw<string>();
 	/** The core's line about the last revision put back. */
@@ -89,6 +131,25 @@
 		{#if outcome}
 			<p class="group-card words" role="status">{outcome}</p>
 		{/if}
+		{#if canWrite && history.bringBackRevision !== undefined}
+			{@const back = history.bringBackRevision}
+			{@const title = history.bringBackWords || (words?.bringBack ?? '')}
+			<div class="group-card">
+				<button
+					class="group-row"
+					type="button"
+					onclick={() =>
+						(putting = {
+							revision: back,
+							title,
+							question: words?.bringBackQuestion,
+							about: words?.bringBackAbout
+						})}
+				>
+					{title}
+				</button>
+			</div>
+		{/if}
 		{#if canWrite && history.undoRevision !== undefined}
 			{@const undo = history.undoRevision}
 			<div class="group-card">
@@ -111,22 +172,30 @@
 					{#if (canWrite && revision.canBePutBack) || onreport}
 						<div class="acts">
 							{#if canWrite && revision.canBePutBack}
+								{@const title = revision.putBackWords || (words?.putBack ?? '')}
 								<button
 									class="button-plain"
 									type="button"
 									onclick={() =>
-										(putting = { revision: revision.number, title: 'Put back to this' })}
+										(putting = {
+											revision: revision.number,
+											title,
+											question: history.isRemoved
+												? words?.bringBackQuestion
+												: words?.putBackQuestion,
+											about: history.isRemoved ? words?.bringBackAbout : words?.putBackAbout
+										})}
 								>
-									Put back to this
+									{title}
 								</button>
 							{/if}
-							{#if onreport}
+							{#if onreport && words}
 								<button
 									class="button-plain"
 									type="button"
 									onclick={() => onreport(revision.number)}
 								>
-									Report
+									{words.reportRevision}
 								</button>
 							{/if}
 						</div>
@@ -147,9 +216,11 @@
 <!-- The line kept with the new revision, asked before anything is sent. -->
 <PromptDialog
 	open={putting !== undefined}
-	title={putting?.title ?? ''}
+	title={putting?.question || (putting?.title ?? '')}
 	label={edits.form?.fields.find((field) => field.field === 'comment')?.title ?? ''}
-	message={edits.form?.fields.find((field) => field.field === 'comment')?.help}
+	message={[putting?.about, edits.form?.fields.find((field) => field.field === 'comment')?.help]
+		.filter(Boolean)
+		.join(' ')}
 	confirm={putting?.title ?? ''}
 	optional
 	{working}
@@ -194,9 +265,12 @@
 		color: var(--text-secondary);
 	}
 
+	/* The core's words on these are long: they go under each other where
+	   they do not fit side by side. */
 	.acts {
 		display: flex;
-		gap: var(--space-2);
+		flex-wrap: wrap;
+		gap: 0 var(--space-2);
 		margin: 0.25rem 0 -0.5rem -0.75rem;
 	}
 

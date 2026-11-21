@@ -11,6 +11,7 @@ import type { Bounds, SiteView } from '#lib/core/index.ts';
 import { INK_ON_MAP, MUTED_INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
 import { pictureName } from './symbols';
 import { SITES_MIN_ZOOM } from './watch';
+import { fromPilots } from './words';
 
 /** The map's data source that holds the sites, and the layer that draws it. */
 export const SITES_SOURCE = 'flying-sites';
@@ -148,10 +149,18 @@ export function sitesLayer(font: string): LayerSpecification {
 	};
 }
 
+/** A site's name as the map writes it, a crowdsourced one's with its tier under it. */
+function named(site: SiteView): string {
+	const tier = fromPilots(site);
+	return tier ? `${site.name}\n${tier}` : site.name;
+}
+
 /**
  * The sites as the map's symbol layer reads them. Only a name the source
  * gives is written on the map: "Take-off" under every take-off sign would
- * say nothing.
+ * say nothing. A crowdsourced site's name has the core's label under it
+ * ("From pilots"): the pack has no pin of its own for that tier, so the
+ * words tell it from an official site.
  *
  * `apart` are the take-offs whose source does not say what the filter
  * asks: they stay on the map, as the muted pin and without a name, so that
@@ -167,7 +176,7 @@ export function siteFeatures(
 		properties: {
 			id: site.id,
 			picture: pictureName(site.kind, isApart),
-			label: site.isNamed && !isApart ? site.name : '',
+			label: site.isNamed && !isApart ? named(site) : '',
 			apart: isApart
 		}
 	});

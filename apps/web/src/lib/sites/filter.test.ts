@@ -26,7 +26,8 @@ const NORTH_WEST: SitesChoice = {
 	shown: 'takeoffs',
 	windIs: 'chosen',
 	windFromDeg: 315,
-	takeoffsFromM: 1500
+	takeoffsFromM: 1500,
+	fromPilots: false
 };
 
 describe('the filter of the sites as the pilot left it', () => {
@@ -36,6 +37,21 @@ describe('the filter of the sites as the pilot left it', () => {
 
 		keepChoice(storage, NORTH_WEST);
 		expect(keptChoice(storage)).toEqual(NORTH_WEST);
+	});
+
+	it('keeps the places from pilots off until the pilot switched them on, and then as left', () => {
+		const storage = memory();
+		// Off by default, and for a choice kept before the switch was there.
+		expect(keptChoice(storage).fromPilots).toBe(false);
+		storage.setItem('venti.map-sites-filter', JSON.stringify({ shown: 'takeoffs' }));
+		expect(keptChoice(storage).fromPilots).toBe(false);
+		// Only what the pilot left on is on.
+		storage.setItem('venti.map-sites-filter', JSON.stringify({ fromPilots: 'yes' }));
+		expect(keptChoice(storage).fromPilots).toBe(false);
+		keepChoice(storage, { ...NO_CHOICE, fromPilots: true });
+		expect(keptChoice(storage)).toEqual({ ...NO_CHOICE, fromPilots: true });
+		keepChoice(storage, NO_CHOICE);
+		expect(keptChoice(storage).fromPilots).toBe(false);
 	});
 
 	it('keeps no direction for the wind now, which is read anew wherever the map is', () => {

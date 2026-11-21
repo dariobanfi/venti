@@ -33,6 +33,15 @@ export function detail(site: SiteView, text: Pick<Writing, 'metres'>): string {
 	return parts.length === 0 ? 'No more is known' : parts.join(' · ');
 }
 
+/**
+ * The core's label of a crowdsourced site ("From pilots"), to stand by its
+ * name wherever a map or a list shows it. Nothing for every other site: a
+ * partner's says its tier on its page only.
+ */
+export function fromPilots(site: SiteView): string | undefined {
+	return site.byPilots?.fromPilots ? site.byPilots.label || undefined : undefined;
+}
+
 /** Something the source marks a site as. */
 export interface Mark {
 	icon: 'verified' | 'warning' | 'nosign';

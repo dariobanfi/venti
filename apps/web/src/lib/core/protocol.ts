@@ -58,12 +58,19 @@ import type {
 	ReportForm,
 	ReportReason,
 	ReportSubject,
+	SiteAdding,
 	SiteAtPlace,
+	SiteConfirmations,
+	SiteConfirmFlight,
+	SiteConfirmForm,
+	SiteDraftRebased,
 	SiteDraftView,
 	SiteForm,
 	SiteHistory,
+	SiteOffers,
 	SiteOutlook,
 	SitePage,
+	SiteWords,
 	SiteWritten,
 	ThermalMap,
 	SitesFilter,
@@ -150,12 +157,7 @@ export interface Calls {
 		answer: StationDay;
 	};
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
-	sites: { given: Bounds; answer: SitesMap | undefined };
-	/**
-	 * Whether the server takes flying sites from pilots: whether to offer
-	 * adding and correcting one at all.
-	 */
-	takesSites: { given: undefined; answer: boolean };
+	sites: { given: { box: Bounds; withPilots: boolean }; answer: SitesMap | undefined };
 	/** The form for a site a pilot adds or corrects, in the core's words. */
 	siteForm: { given: undefined; answer: SiteForm };
 	/** An empty draft of a site at a place. */
@@ -176,6 +178,40 @@ export interface Calls {
 	removeSite: { given: { id: string; comment: string }; answer: string };
 	/** Puts a site back to what one of its revisions said. */
 	restoreSite: { given: { id: string; revision: number; comment: string }; answer: SiteWritten };
+	/** The words of a site's page, the core's. */
+	siteWords: { given: undefined; answer: SiteWords };
+	/**
+	 * What may be offered for a site to whoever is signed in here: the
+	 * core's one answer, by the account as the server described it last
+	 * and by whether the server takes sites from pilots.
+	 */
+	siteOffers: {
+		given: { site: SiteView; confirmations: SiteConfirmations | undefined };
+		answer: SiteOffers;
+	};
+	/** Whether to offer adding a site, into which tier, and what the entry and its form say. */
+	siteAdding: { given: undefined; answer: SiteAdding };
+	/** Given the pilot's today (`YYYY-MM-DD`): the form of "I took off here and it was good". */
+	siteConfirmForm: { given: string; answer: SiteConfirmForm };
+	/** The pilot's own flights of a day that began at a site. */
+	siteConfirmFlights: {
+		given: { site: SiteView; day: string; utcOffsetS: number };
+		answer: SiteConfirmFlight[];
+	};
+	/** Says of a site "I took off here and it was good". Fails in the core's words. */
+	confirmSite: {
+		given: { id: string; day: string; today: string; note: string; flight: string | undefined };
+		answer: SiteWritten;
+	};
+	/** Given a site's identifier: takes the pilot's confirmation back. The answer is a line. */
+	withdrawSiteConfirmation: { given: string; answer: string };
+	/** Given a site's identifier: who says they took off there. */
+	siteConfirmations: { given: string; answer: SiteConfirmations };
+	/** A draft carried onto the site as it stands now, after someone else changed it. */
+	siteDraftRebased: {
+		given: { base: SiteView; edited: SiteDraftView; now: SiteView };
+		answer: SiteDraftRebased;
+	};
 	/** Given a site's identifier: the site as it stands now. */
 	sitePage: { given: string; answer: SitePage };
 	/** Given the identifier of a site that pilots made: all of its history. */
@@ -314,6 +350,8 @@ export interface Calls {
 	registration: { given: undefined; answer: Registration | undefined };
 	/** The account this browser is signed in to, if any. */
 	account: { given: undefined; answer: AccountView | undefined };
+	/** The same after asking the server what it says of the account now. */
+	refreshAccount: { given: undefined; answer: AccountView | undefined };
 	signIn: { given: { handle: string; password: string }; answer: AccountView };
 	createAccount: { given: NewAccount; answer: AccountView };
 	signOut: { given: undefined; answer: undefined };
@@ -479,8 +517,7 @@ export async function answer<Name extends CallName>(
 		stationAir: ({ station, stations }) => wind.air(station, stations),
 		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
 		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
-		sites: (box) => sites.sites(box),
-		takesSites: () => wind.takesSitesFromPilots(),
+		sites: ({ box, withPilots }) => sites.sites(box, withPilots),
 		siteForm: () => siteEdits.form(),
 		siteDraftNew: (place) => siteEdits.draftNew(place),
 		siteDraftOf: (site) => siteEdits.draftOf(site),
@@ -490,6 +527,18 @@ export async function answer<Name extends CallName>(
 		changeSite: ({ draft, comment }) => siteEdits.change(draft, comment),
 		removeSite: ({ id, comment }) => siteEdits.remove(id, comment),
 		restoreSite: ({ id, revision, comment }) => siteEdits.restore(id, revision, comment),
+		siteWords: () => siteEdits.words(),
+		siteOffers: async ({ site, confirmations }) =>
+			siteEdits.offers(site, await wind.takesSitesFromPilots(), confirmations),
+		siteAdding: async () => siteEdits.adding(await wind.takesSitesFromPilots()),
+		siteConfirmForm: (today) => siteEdits.confirmForm(today),
+		siteConfirmFlights: ({ site, day, utcOffsetS }) =>
+			siteEdits.confirmFlights(site, day, utcOffsetS),
+		confirmSite: ({ id, day, today, note, flight }) =>
+			siteEdits.confirm(id, day, today, note, flight),
+		withdrawSiteConfirmation: (id) => siteEdits.withdraw(id),
+		siteConfirmations: (id) => siteEdits.confirmations(id),
+		siteDraftRebased: ({ base, edited, now }) => siteEdits.rebased(base, edited, now),
 		sitePage: (id) => siteEdits.page(id),
 		siteHistory: (id) => siteEdits.history(id),
 		sitesFilterChoices: () => sites.filterChoices(),
@@ -526,6 +575,7 @@ export async function answer<Name extends CallName>(
 		hasServer: () => wind.present(),
 		registration: () => wind.registration(),
 		account: () => account.account(),
+		refreshAccount: () => account.refresh(),
 		signIn: ({ handle, password }) => account.signIn(handle, password),
 		createAccount: (wanted) => account.createAccount(wanted),
 		signOut: () => account.signOut(),

@@ -11,11 +11,18 @@
 	`filterSites`). Under "Landings" the wind and the height are not asked,
 	and neither is offered: the core says so with the choice.
 
+	At its foot stands the switch of the crowdsourced layer, "Places from
+	pilots", with the core's sentence under it (`siteWords`): off until the
+	pilot switches it on, and kept as the pilot left it. It is no part of
+	what the core filters by: with it on, the server is asked for that
+	layer too.
+
 	"Forecast now" is not offered: the page has no forecast for the map's
 	middle at hand. On a narrow screen the chips scroll sideways (`compact`);
 	on a wide one they wrap, the pane being narrow and the screen large.
 -->
 <script lang="ts">
+	import { getApp } from '#lib/app/app.svelte.ts';
 	import Segmented from '#lib/design/Segmented.svelte';
 	import type { SitesModel } from './model.svelte';
 	import SitesFilterLine from './SitesFilterLine.svelte';
@@ -30,6 +37,8 @@
 
 	const id = $props.id();
 	const choices = $derived(sites.choices);
+	/** The words of the layer's switch, the core's. */
+	const words = $derived(getApp().siteEdits?.words);
 	const choice = $derived(sites.choice);
 	/** Whether the wind and the height are asked under what is shown. */
 	const asksTakeoffs = $derived(
@@ -130,6 +139,21 @@
 		{/if}
 		<p class="caption">{choices.note}</p>
 	{/if}
+	{#if words}
+		<div class="group-card layer">
+			<label class="group-row toggle">
+				<span>{words.pilotsLayer}</span>
+				<input
+					type="checkbox"
+					role="switch"
+					aria-describedby="{id}-pilots"
+					checked={choice.fromPilots}
+					onchange={(event) => sites.choose({ fromPilots: event.currentTarget.checked })}
+				/>
+			</label>
+		</div>
+		<p class="caption" id="{id}-pilots">{words.pilotsLayerAbout}</p>
+	{/if}
 </div>
 
 <style>
@@ -185,6 +209,10 @@
 		.chip {
 			min-height: 2rem;
 		}
+	}
+
+	.layer {
+		margin-top: var(--space-2);
 	}
 
 	.caption {

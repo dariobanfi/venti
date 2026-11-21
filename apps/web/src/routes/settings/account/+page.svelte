@@ -4,6 +4,7 @@
 	`AccountScreen.swift` is its twin.
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { browser } from '$app/env';
 	import SignedIn from '#lib/account/SignedIn.svelte';
 	import SignInForm from '#lib/account/SignInForm.svelte';
@@ -13,6 +14,14 @@
 
 	const app = getApp();
 	const account = $derived(app.account);
+
+	// What the server says of the account can change while a browser stays
+	// signed in (its name, whether it is a partner for flying sites): it is
+	// asked whenever this page opens.
+	$effect(() => {
+		const model = account;
+		untrack(() => void model?.ask());
+	});
 
 	/** The server is the one this site is served from. */
 	const host = browser ? location.host : '';

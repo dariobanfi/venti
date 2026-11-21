@@ -184,6 +184,31 @@ export class AccountSource {
 		return this.#session.ask((core) => core.account());
 	}
 
+	/**
+	 * Asks the server what it says of the account now: its name, and
+	 * whether it is a partner of Venti for flying sites, which can change
+	 * while a browser stays signed in. The core remembers the answer, and
+	 * what may be offered for a site follows it. The account as it is known
+	 * then; as it was known before, when the server gives no usable answer.
+	 * Nothing is asked in a browser that is not signed in.
+	 */
+	async refresh(): Promise<AccountView | undefined> {
+		const request = await this.#session.ask((core) => core.accountRequest());
+		if (!request) return this.account();
+		try {
+			const answer = await this.#send(request, await this.#session.token());
+			const view = await this.#session.change((core) =>
+				core.accountRead(answer.status, answer.body)
+			);
+			// The server no longer takes the token: it is of no use to anyone.
+			if (view?.needsSignIn) await this.#session.forgetToken();
+			return view;
+		} catch {
+			// Out of reach, or an answer the core cannot read: what is stored stays.
+			return this.account();
+		}
+	}
+
 	/** Signs in. Throws, in the core's words, when the server refuses. */
 	async signIn(handle: string, password: string): Promise<AccountView> {
 		const request = await this.#session.ask((core) =>

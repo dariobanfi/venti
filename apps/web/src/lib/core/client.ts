@@ -19,6 +19,7 @@ import type {
 	ReportReason,
 	ReportSubject,
 	SitesFilter,
+	SiteConfirmations,
 	SiteDraftView,
 	SiteView,
 	TodayStanding,
@@ -167,13 +168,8 @@ export class CoreClient {
 	}
 
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
-	sites(box: Bounds) {
-		return this.#call('sites', box);
-	}
-
-	/** Whether the server takes flying sites from pilots. */
-	takesSites() {
-		return this.#call('takesSites', undefined);
+	sites(box: Bounds, withPilots = false) {
+		return this.#call('sites', { box, withPilots });
 	}
 
 	/** The form for a site a pilot adds or corrects, in the core's words. */
@@ -219,6 +215,51 @@ export class CoreClient {
 	/** Puts a site back to what one of its revisions said. */
 	restoreSite(id: string, revision: number, comment: string) {
 		return this.#call('restoreSite', { id, revision, comment });
+	}
+
+	/** The words of a site's page, the core's. */
+	siteWords() {
+		return this.#call('siteWords', undefined);
+	}
+
+	/** What may be offered for a site to whoever is signed in here: the core's one answer. */
+	siteOffers(site: SiteView, confirmations?: SiteConfirmations) {
+		return this.#call('siteOffers', { site, confirmations });
+	}
+
+	/** Whether to offer adding a site, into which tier, and the words of the entry and its form. */
+	siteAdding() {
+		return this.#call('siteAdding', undefined);
+	}
+
+	/** The form of "I took off here and it was good", for the pilot's today (`YYYY-MM-DD`). */
+	siteConfirmForm(today: string) {
+		return this.#call('siteConfirmForm', today);
+	}
+
+	/** The pilot's own flights of a day that began at a site. */
+	siteConfirmFlights(site: SiteView, day: string, utcOffsetS: number) {
+		return this.#call('siteConfirmFlights', { site, day, utcOffsetS });
+	}
+
+	/** Says of a site "I took off here and it was good". Fails in the core's words. */
+	confirmSite(id: string, day: string, today: string, note: string, flight?: string) {
+		return this.#call('confirmSite', { id, day, today, note, flight });
+	}
+
+	/** Takes the pilot's confirmation of a site back. Answers what became of it. */
+	withdrawSiteConfirmation(id: string) {
+		return this.#call('withdrawSiteConfirmation', id);
+	}
+
+	/** Who says they took off at a site, in the core's lines. */
+	siteConfirmations(id: string) {
+		return this.#call('siteConfirmations', id);
+	}
+
+	/** A draft carried onto the site as it stands now: the core's merge. */
+	siteDraftRebased(base: SiteView, edited: SiteDraftView, now: SiteView) {
+		return this.#call('siteDraftRebased', { base, edited, now });
 	}
 
 	/** One site as it stands now, by its identifier. */
@@ -432,6 +473,11 @@ export class CoreClient {
 	/** The account this browser is signed in to, if any. */
 	account() {
 		return this.#call('account', undefined);
+	}
+
+	/** The same, after asking the server what it says of the account now. */
+	refreshAccount() {
+		return this.#call('refreshAccount', undefined);
 	}
 
 	signIn(handle: string, password: string) {

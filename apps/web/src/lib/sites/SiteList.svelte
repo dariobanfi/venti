@@ -20,7 +20,7 @@
 	import SiteGlyph from './SiteGlyph.svelte';
 	import SitesFilterCard from './SitesFilterCard.svelte';
 	import type { SitesState } from './watch';
-	import { asOf, CAUTION, detail, nothingListed } from './words';
+	import { asOf, CAUTION, detail, fromPilots, nothingListed } from './words';
 
 	interface Props {
 		open: boolean;
@@ -63,6 +63,10 @@
 			<span class="pair">
 				<span class="name">{site.name}</span>
 				<span class="lesser">{detail(site, text)}</span>
+				{#if fromPilots(site)}
+					<!-- A place from pilots says its tier under its name, in the core's label. -->
+					<span class="lesser tier">{fromPilots(site)}</span>
+				{/if}
 			</span>
 		</button>
 	</li>
@@ -100,6 +104,9 @@
 				</div>
 			{:else}
 				<p class="left numeric" role="status">{left.words}</p>
+				{#if left.fromPilotsWords}
+					<p class="left numeric">{left.fromPilotsWords}</p>
+				{/if}
 			{/if}
 		{/if}
 		{#if shown.length === 0 && apart.length === 0 && search.trim() !== ''}

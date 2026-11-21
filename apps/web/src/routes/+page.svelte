@@ -27,10 +27,12 @@
 	import {
 		creditLine as forecastCreditLine,
 		hasSquaresIn,
-		isDrawn
+		isDrawn,
+		sameAsked
 	} from '#lib/forecast/thermal-map.ts';
 	import ThermalMapCard from '#lib/forecast/ThermalMapCard.svelte';
 	import ThermalSquare from '#lib/forecast/ThermalSquare.svelte';
+	import ThermalHourSquare from '#lib/forecast/ThermalHourSquare.svelte';
 	import GliderView from '#lib/live/GliderView.svelte';
 	import LiveList from '#lib/live/LiveList.svelte';
 	import { countIn as glidersIn } from '#lib/live/mark.ts';
@@ -90,8 +92,43 @@
 	$effect(() => {
 		if (showForecast) return thermals?.keepCurrent();
 	});
-	/** The day of the thermal map on the map, while the layer is on. */
-	const thermalDay = $derived(showForecast ? thermals?.day : undefined);
+	// The hours of the layer, the day and the height chosen, and what the
+	// map draws of the hour shown.
+	$effect(() => {
+		if (showForecast) void thermals?.loadHours();
+	});
+	$effect(() => {
+		if (showForecast) void thermals?.loadShapes();
+	});
+	/** One hour of the layer chosen, drawn in place of the day. */
+	const thermalHour = $derived.by(() => {
+		const view = showForecast ? thermals?.view : undefined;
+		const shapes = thermals?.shapes;
+		if (!view || thermals?.hour === undefined || !shapes) return undefined;
+		if (!sameAsked(shapes.asked, thermals.hours?.asked)) return undefined;
+		const choice = thermals.map?.layers.find((one) => one.layer === view.layer);
+		return { squares: shapes.squares, arrows: shapes.arrows, legend: choice?.legend ?? [] };
+	});
+	/**
+	 * The day of the thermal map on the map, while the layer is on: not while
+	 * the hours of another layer are asked for, so that its squares do not
+	 * stand under another key, and not while an hour is drawn.
+	 */
+	const thermalDay = $derived.by(() => {
+		if (!showForecast || thermalHour) return undefined;
+		if (thermals?.asked && thermals.hoursAsking && !thermals.view) return undefined;
+		if (thermals?.view && thermals.hour !== undefined) return undefined;
+		return thermals?.day;
+	});
+	/** A square of an hour the pilot chose: the place clicked and its square's number. */
+	let chosenHourSquare = $state.raw<{ place: Coordinate; cell: number }>();
+	// The day as a whole has squares of its own; while another day's or
+	// layer's hours are asked for, the square stays open.
+	$effect(() => {
+		if (!showForecast || (thermals?.view && thermals.hour === undefined)) {
+			chosenHourSquare = undefined;
+		}
+	});
 	/** The square the pilot chose, by its corner: the same square on another day. */
 	let chosenSquare = $state.raw<{ south: number; west: number }>();
 	const square = $derived(
@@ -280,6 +317,22 @@
 		};
 	}
 
+	/** The square of an hour under a place; airspace there where the map has no square. */
+	function openHourSquare(place: Coordinate) {
+		void thermals?.cellAt(place).then((cell) => {
+			if (cell === undefined) {
+				openAirspace(place);
+				return;
+			}
+			chosenAirspace = undefined;
+			chosen = undefined;
+			chosenSite = undefined;
+			chosenGlider = undefined;
+			chosenSquare = undefined;
+			chosenHourSquare = { place, cell };
+		});
+	}
+
 	function openSquare(cell: number) {
 		const picked = thermalDay?.cells[cell];
 		if (!picked) return;
@@ -342,7 +395,9 @@
 		hidden={off}
 		{aerial}
 		{thermalDay}
+		{thermalHour}
 		onsquare={openSquare}
+		onhourat={openHourSquare}
 		onairspaceat={openAirspace}
 	/>
 	<!-- The design pack's chips: what the map shows, switched on and off. -->
@@ -407,10 +462,40 @@
 				asking={thermals.asking}
 				problem={thermals.problem}
 				inView={!view || !thermals.day || hasSquaresIn(thermals.day, view.region)}
-				onday={(date) => (thermals.chosenDate = date)}
+				onday={(date) => thermals.chooseDay(date)}
 				onretry={() => void thermals.load()}
+				layer={thermals.layer}
+				heightM={thermals.heightM}
+				view={thermals.view}
+				hour={thermals.hour}
+				hoursAsking={thermals.hoursAsking}
+				hoursProblem={thermals.hoursProblem}
+				onlayer={(layer) => thermals.chooseLayer(layer)}
+				onheight={(heightM) => thermals.chooseHeight(heightM)}
+				onhour={(hour) => (thermals.chosenHour = hour)}
+				onretryhours={() => void thermals.loadHours()}
 			>
-				{#if chosenHere && square && thermals.map && thermals.day}
+				{#if chosenHere && chosenHourSquare}
+					<div class="chosen-square">
+						<header>
+							<h3>{thermals.day?.name}</h3>
+							<button
+								type="button"
+								aria-label="Close"
+								title="Close"
+								onclick={() => (chosenHourSquare = undefined)}
+							>
+								<Icon name="close" />
+							</button>
+						</header>
+						<ThermalHourSquare
+							{thermals}
+							place={chosenHourSquare.place}
+							cell={chosenHourSquare.cell}
+							onforecast={(cell) => thermals.day && squareForecast(cell, thermals.day)}
+						/>
+					</div>
+				{:else if chosenHere && square && thermals.map && thermals.day}
 					<div class="chosen-square">
 						<header>
 							<h3>{thermals.day.name}</h3>
@@ -477,6 +562,25 @@
 				/>
 			{/if}
 		</MapPanel>
+		{#if !wide.current && thermals && chosenHourSquare}
+			<!-- A square of an hour of the forecast map, on a narrow screen. -->
+			<MapPanel
+				shown={chosenHourSquare ? String(chosenHourSquare.cell) : undefined}
+				title={thermals.day?.name ?? 'Forecast'}
+				wide={false}
+				half
+				onclose={() => (chosenHourSquare = undefined)}
+			>
+				{#if chosenHourSquare}
+					<ThermalHourSquare
+						{thermals}
+						place={chosenHourSquare.place}
+						cell={chosenHourSquare.cell}
+						onforecast={(cell) => thermals.day && squareForecast(cell, thermals.day)}
+					/>
+				{/if}
+			</MapPanel>
+		{/if}
 		{#if !wide.current && thermals?.map && thermalDay}
 			<!-- A square of the thermal map, on a narrow screen: a sheet of half
 			     the screen, the square staying in view above it. -->

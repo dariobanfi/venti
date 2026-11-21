@@ -122,7 +122,7 @@ test('the map draws the airspace the server has for where the pilot looks, and s
 	// airspace is shown. On the map that is a line; the airspace screen has
 	// it in full.
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
-	await expect(page.getByText('Wind: Deutscher Wetterdienst and GeoSphere Austria')).toBeVisible();
+	await expect(page.getByText(/^Wind: .*Deutscher Wetterdienst.*GeoSphere Austria/)).toBeVisible();
 	await mapDrawn();
 	await keep('33-map-airspace');
 

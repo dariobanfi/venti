@@ -120,6 +120,16 @@ export type {
 	ThermalMap,
 	ThermalMapCell,
 	ThermalMapDay,
+	ThermalHoursLayer,
+	ThermalMapHourMark,
+	ThermalMapHourSquare,
+	ThermalMapHoursView,
+	ThermalMapKey,
+	ThermalMapLayerChoice,
+	ThermalMapLevel,
+	ThermalMapScale,
+	ThermalMapShapes,
+	ThermalStripDay,
 	SitesMap,
 	SiteView,
 	StationAir,
@@ -157,6 +167,7 @@ export type {
 } from './community-source';
 export type { LiveAnswer, LiveFollowAnswer } from './live-source';
 export type { WindAnswer } from './wind-source';
+export type { HoursAsked } from './thermal-map-source';
 
 /** The kinds of error the core itself raises. Their messages are fit to show as they are. */
 const CORE_ERRORS: CoreErrorKind[] = [

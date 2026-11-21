@@ -62,6 +62,10 @@ import type {
 	SiteView,
 	StationAir,
 	StationDay,
+	ThermalMapHourSquare,
+	ThermalMapHoursView,
+	ThermalMapShapes,
+	ThermalStripDay,
 	StationDays,
 	StationHistory,
 	WindStation
@@ -71,7 +75,7 @@ import type { GroupsSource } from './groups-source';
 import type { LiveAnswer, LiveFollowAnswer, LiveSource } from './live-source';
 import type { CoreSession } from './session';
 import type { SitesSource } from './sites-source';
-import type { ThermalMapSource } from './thermal-map-source';
+import type { HoursAsked, ThermalMapSource } from './thermal-map-source';
 import type { TodaySource, TodayTakeoffs } from './today-source';
 import type { GroundAsked, TerrainSource } from './terrain-source';
 import type { WindAnswer, WindSource } from './wind-source';
@@ -188,6 +192,26 @@ export interface Calls {
 	};
 	/** The kind of day, square by square, from today on. Nothing if this site has no server. */
 	thermalMap: { given: undefined; answer: ThermalMap | undefined };
+	/**
+	 * One layer of one day of the thermal map hour by hour, as a card shows
+	 * it. The worker keeps what it read for the calls below, while the map
+	 * of the days is the same.
+	 */
+	thermalHours: { given: HoursAsked; answer: ThermalMapHoursView };
+	/** What the map draws of one hour of hours read before: two GeoJSON texts. */
+	thermalHourShapes: { given: { asked: HoursAsked; hour: number }; answer: ThermalMapShapes };
+	/** A square in one hour of hours read before, in words. */
+	thermalHourSquare: {
+		given: { asked: HoursAsked; cell: number; hour: number };
+		answer: ThermalMapHourSquare | undefined;
+	};
+	/** The square a place lies in, in hours read before. */
+	thermalCellAt: {
+		given: { asked: HoursAsked; lat: number; lon: number };
+		answer: number | undefined;
+	};
+	/** Every day of the map at the square of a place, side by side. */
+	thermalStrip: { given: Coordinate; answer: ThermalStripDay[] };
 	/** Whether this site has a Venti server behind it. Yes, if that cannot be found out. */
 	hasServer: { given: undefined; answer: boolean };
 	/** Who may create an account on this site's server, if the server says. */
@@ -353,6 +377,11 @@ export async function answer<Name extends CallName>(
 		todayOutlook: ({ id, nowUnixS }) => today.outlook(id, nowUnixS),
 		siteOutlook: (site) => today.outlookFor(site),
 		thermalMap: () => thermals.map(),
+		thermalHours: (asked) => thermals.hours(asked),
+		thermalHourShapes: ({ asked, hour }) => thermals.shapes(asked, hour),
+		thermalHourSquare: ({ asked, cell, hour }) => thermals.square(asked, cell, hour),
+		thermalCellAt: ({ asked, lat, lon }) => thermals.cellAt(asked, lat, lon),
+		thermalStrip: (place) => thermals.strip(place.lat, place.lon),
 		compareFlights: ({ first, other }) =>
 			community.compare(first, other, async (id) => (await session.flightFile(id)).igcText),
 		hasServer: () => wind.present(),

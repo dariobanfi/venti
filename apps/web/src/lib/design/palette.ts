@@ -10,7 +10,7 @@
  */
 
 import tokens from '../../../../../design/tokens/tokens.json';
-import type { WindBand } from '#lib/core/index.ts';
+import type { ThermalMapKey, WindBand } from '#lib/core/index.ts';
 
 /** A colour of the pack's light theme, by its group and name. */
 function light(group: Record<string, { $value: string }>, name: string): string {
@@ -153,3 +153,22 @@ export const THERMAL_ON_MAP: readonly string[] = [1, 2, 3, 4, 5, 6].map((index) 
  * thermal scale's darkest step.
  */
 export const NOT_FLYABLE_ON_MAP = light(tokens.theme.light, 'text-muted');
+
+/**
+ * The colour of a line of the forecast map's key, and of the squares that
+ * carry its step: the core names the scale and its step (`ThermalMapKey`),
+ * and this reads the light theme's token, the map being light in both
+ * appearances. The veil is the not-flyable veil above.
+ */
+export function keyColor(key: Pick<ThermalMapKey, 'scale' | 'scaleStep'>): string {
+	switch (key.scale) {
+		case 'thermal':
+			return light(tokens.scale.thermal.light, String(key.scaleStep));
+		case 'wind':
+			return step('wind', key.scaleStep);
+		case 'vario':
+			return step('vario', key.scaleStep);
+		default:
+			return NOT_FLYABLE_ON_MAP;
+	}
+}

@@ -9,7 +9,15 @@
  * was judged at. They are Android's and the iPhone's.
  */
 
-import type { Bounds, ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
+import type {
+	Bounds,
+	HoursAsked,
+	ThermalHoursLayer,
+	ThermalMap,
+	ThermalMapCell,
+	ThermalMapDay,
+	ThermalMapHoursView
+} from '#lib/core/index.ts';
 import type { Format } from '#lib/design/format.ts';
 
 /** How long a map is shown before the server is asked again. */
@@ -22,7 +30,11 @@ export const WORDS = {
 	asking: 'Asking Venti for the forecast map.',
 	noDays: 'The forecast map has no day from today on.',
 	noneHere: 'The forecast map has no squares for this part of the map.',
-	noServer: 'This copy of the app is served without Venti behind it, so there is no forecast map.'
+	noServer: 'This copy of the app is served without Venti behind it, so there is no forecast map.',
+	askingHours: 'Asking Venti for the hours of this layer.',
+	hoursUnreachable: 'Venti could not be reached for the hours of this layer.',
+	/** The first cell of the line of hours on "Thermals": the day as a whole. */
+	day: 'Day'
 } as const;
 
 /** "Judged at the model's ground, 1240 m" */
@@ -127,4 +139,51 @@ export function isDue(
 	if (triedMs !== fetchedMs && nowMs - triedMs < RETRY_MS) return false;
 	if (fetchedMs === undefined) return true;
 	return nowMs - fetchedMs >= KEEP_MS;
+}
+
+/**
+ * What to ask the server for, for the layer and the height the pilot chose
+ * on the day shown: nothing where the map has no hours (a server without
+ * them, where the layer is the days alone). A layer the map does not
+ * offer is read as "Thermals"; a height only with the wind, and only one
+ * of the map's.
+ */
+export function hoursAsked(
+	map: Pick<ThermalMap, 'layers' | 'levels'> | undefined,
+	day: Pick<ThermalMapDay, 'date'> | undefined,
+	layer: string,
+	heightM: number | undefined
+): HoursAsked | undefined {
+	if (!map || !day || map.layers.length === 0) return undefined;
+	const chosen = map.layers.find((one) => one.layer === layer) ?? map.layers[0];
+	const level = chosen.hasLevels
+		? map.levels.find((one) => one.heightM !== undefined && one.heightM === heightM)
+		: undefined;
+	return {
+		date: day.date,
+		layer: chosen.layer as ThermalHoursLayer,
+		...(level?.heightM === undefined ? {} : { heightM: level.heightM })
+	};
+}
+
+/** Whether two askings are for the same answer. */
+export function sameAsked(one: HoursAsked | undefined, other: HoursAsked | undefined): boolean {
+	return (
+		one?.date === other?.date && one?.layer === other?.layer && one?.heightM === other?.heightM
+	);
+}
+
+/**
+ * The hour shown, by its number in the view's hours, or nothing for the
+ * day as a whole: the hour the pilot chose, else on "Thermals" the day,
+ * which is where its line of hours opens, else the hour the core names.
+ */
+export function shownHour(
+	view: Pick<ThermalMapHoursView, 'hours' | 'firstHour' | 'layer'>,
+	chosen: number | 'day' | undefined
+): number | undefined {
+	if (chosen === 'day') return view.layer === 'thermals' ? undefined : view.firstHour;
+	if (chosen !== undefined && chosen >= 0 && chosen < view.hours.length) return chosen;
+	if (view.layer === 'thermals') return undefined;
+	return Math.min(Math.max(view.firstHour, 0), Math.max(view.hours.length - 1, 0));
 }

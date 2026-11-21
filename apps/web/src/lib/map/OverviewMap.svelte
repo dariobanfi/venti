@@ -16,6 +16,7 @@
 		LiveGlider,
 		SiteView,
 		ThermalMapDay,
+		ThermalMapKey,
 		TrailPointView,
 		WindStation
 	} from '#lib/core/index.ts';
@@ -26,7 +27,15 @@
 		LABEL_ON_MAP,
 		PAPER_ON_MAP
 	} from '#lib/design/palette.ts';
-	import { layerAbove, THERMAL_SOURCE, thermalLayer } from '#lib/forecast/thermal-layer.ts';
+	import {
+		arrowsLayer,
+		dayFill,
+		hourFill,
+		layerAbove,
+		THERMAL_ARROWS,
+		THERMAL_SOURCE,
+		thermalLayer
+	} from '#lib/forecast/thermal-layer.ts';
 	import { squareAt, squareFeatures } from '#lib/forecast/thermal-map.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
@@ -90,6 +99,17 @@
 		/** The day of the thermal map whose squares to draw, while the "Forecast" layer is on. */
 		thermalDay?: ThermalMapDay;
 		/**
+		 * One hour of a layer of the thermal map, drawn in place of the day:
+		 * the squares, the arrows and the key their steps are coloured by.
+		 */
+		thermalHour?: {
+			squares: GeoJSON.FeatureCollection;
+			arrows: GeoJSON.FeatureCollection;
+			legend: readonly ThermalMapKey[];
+		};
+		/** Called with a place clicked while an hour is drawn, where nothing else is under the pointer. */
+		onhourat?: (at: { lat: number; lon: number }) => void;
+		/**
 		 * Called with a square's place in its day's list when the pilot
 		 * chooses it where nothing else the map draws is under the pointer.
 		 */
@@ -122,6 +142,8 @@
 		hidden = [],
 		aerial = false,
 		thermalDay,
+		thermalHour,
+		onhourat,
 		onsquare,
 		onairspaceat
 	}: Props = $props();
@@ -219,6 +241,9 @@
 		for (const picture of windPictures()) {
 			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
 		}
+		// The forecast's arrows, hour by hour: under the stations, which stay on top.
+		map.addSource(THERMAL_ARROWS, { type: 'geojson', data: NOTHING });
+		map.addLayer(arrowsLayer(module.LABEL_FONT));
 		map.addSource(WIND, { type: 'geojson', data: NOTHING });
 		map.addLayer({
 			id: WIND,
@@ -315,6 +340,10 @@
 		}
 		// Nothing else under the pointer: the square of the thermal map there.
 		const at = map.unproject([point.x, point.y]);
+		if (thermalHour && onhourat) {
+			onhourat({ lat: at.lat, lon: at.lng });
+			return;
+		}
 		const square = thermalDay && squareAt(thermalDay, { lat: at.lat, lon: at.lng });
 		if (square && thermalDay && onsquare) {
 			onsquare(thermalDay.cells.indexOf(square));
@@ -359,10 +388,19 @@
 		airspaceOnMap?.look();
 	});
 
-	// Draws the squares of the day looked at, and none while the layer is off.
+	// Draws the squares of the day looked at, or of the hour, and none while
+	// the layer is off.
 	$effect(() => {
 		if (!map || !setup) return;
-		setup.shapes(map, THERMAL_SOURCE)?.setData(squareFeatures(thermalDay));
+		if (thermalHour) {
+			map.setPaintProperty(THERMAL_SOURCE, 'fill-color', hourFill(thermalHour.legend));
+			setup.shapes(map, THERMAL_SOURCE)?.setData(thermalHour.squares);
+			setup.shapes(map, THERMAL_ARROWS)?.setData(thermalHour.arrows);
+		} else {
+			map.setPaintProperty(THERMAL_SOURCE, 'fill-color', dayFill());
+			setup.shapes(map, THERMAL_SOURCE)?.setData(squareFeatures(thermalDay));
+			setup.shapes(map, THERMAL_ARROWS)?.setData(NOTHING);
+		}
 	});
 
 	// Draws the flying sites when they change.

@@ -8,9 +8,34 @@
  * holds the rules.
  */
 
-import type { CoreClient, ThermalMap } from '#lib/core/index.ts';
+import type {
+	CoreClient,
+	HoursAsked,
+	ThermalMap,
+	ThermalMapHoursView,
+	ThermalStripDay
+} from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
-import { dayOf, isDue, WORDS } from './thermal-map';
+import { forecastChoice, keepForecastChoice } from '#lib/map/layers.ts';
+import { dayOf, hoursAsked, isDue, sameAsked, shownHour, WORDS } from './thermal-map';
+
+/** What the map draws of one hour: the squares and the arrows. */
+export interface HourShapes {
+	asked: HoursAsked;
+	hour: number;
+	squares: GeoJSON.FeatureCollection;
+	arrows: GeoJSON.FeatureCollection;
+}
+
+type Core = Pick<
+	CoreClient,
+	| 'thermalMap'
+	| 'thermalHours'
+	| 'thermalHourShapes'
+	| 'thermalHourSquare'
+	| 'thermalCellAt'
+	| 'thermalStrip'
+>;
 
 /** How often the layer looks whether the map is due, in milliseconds. */
 const CHECK_MS = 60_000;
@@ -31,14 +56,132 @@ export class ThermalMapModel {
 	/** The day shown. */
 	readonly day = $derived(dayOf(this.map, this.chosenDate));
 
-	#core: Pick<CoreClient, 'thermalMap'>;
+	/** The layer the pilot chose, by the core's name, and the height of the wind: kept. */
+	layer = $state('thermals');
+	heightM = $state<number>();
+	/** The hour the pilot chose on the line of hours; "day" for the day as a whole. */
+	chosenHour = $state<number | 'day'>();
+
+	/** What the hours are asked for: nothing where the map has none. */
+	readonly asked = $derived(hoursAsked(this.map, this.day, this.layer, this.heightM));
+	/** The hours of what is asked, once read. */
+	hours = $state.raw<{ asked: HoursAsked; view: ThermalMapHoursView }>();
+	/** Whether the hours are being asked for. */
+	hoursAsking = $state(false);
+	/** Why the hours could not be had, in words: the layer then shows the day. */
+	hoursProblem = $state<string>();
+	/** The hours that belong to what is asked, if they are read. */
+	readonly view = $derived(
+		this.hours && sameAsked(this.hours.asked, this.asked) ? this.hours.view : undefined
+	);
+	/** The hour shown, by its number; nothing for the day as a whole. */
+	readonly hour = $derived(this.view ? shownHour(this.view, this.chosenHour) : undefined);
+	/** What the map draws of the hour shown. */
+	shapes = $state.raw<HourShapes>();
+
+	#core: Core;
 	#clock: () => number;
 	#triedMs: number | undefined;
 	#fetchedMs: number | undefined;
+	/** Counts the questions about hours, so that a slow answer is dropped. */
+	#hoursAsked = 0;
+	#shapesAsked = 0;
 
-	constructor(core: Pick<CoreClient, 'thermalMap'>, clock: () => number = Date.now) {
+	constructor(core: Core, clock: () => number = Date.now) {
 		this.#core = core;
 		this.#clock = clock;
+		const kept = forecastChoice(globalThis.localStorage);
+		this.layer = kept.layer;
+		this.heightM = kept.heightM;
+	}
+
+	/** Shows another layer; on another layer the hours start again where the core says. */
+	chooseLayer(layer: string): void {
+		if (layer === this.layer) return;
+		this.layer = layer;
+		this.chosenHour = undefined;
+		keepForecastChoice(globalThis.localStorage, { layer, heightM: this.heightM });
+	}
+
+	/** Shows the wind at another height, or at the ground; the hour stays. */
+	chooseHeight(heightM: number | undefined): void {
+		this.heightM = heightM;
+		keepForecastChoice(globalThis.localStorage, { layer: this.layer, heightM });
+	}
+
+	/** Shows another day; its hours start again where the core says. */
+	chooseDay(date: string): void {
+		if (date === this.chosenDate) return;
+		this.chosenDate = date;
+		this.chosenHour = undefined;
+	}
+
+	/**
+	 * Asks for the hours of what is asked now, unless they are at hand or
+	 * being asked for. Call it again whenever the day, the layer or the
+	 * height changes.
+	 */
+	async loadHours(): Promise<void> {
+		const asked = this.asked;
+		if (!asked || sameAsked(this.hours?.asked, asked)) return;
+		const mine = ++this.#hoursAsked;
+		this.hoursAsking = true;
+		this.hoursProblem = undefined;
+		try {
+			const view = await this.#core.thermalHours(asked);
+			if (mine !== this.#hoursAsked) return;
+			this.hours = { asked, view };
+		} catch (error) {
+			if (mine !== this.#hoursAsked) return;
+			const said = error instanceof Error ? error.message : String(error);
+			this.hoursProblem = isInWords(error) ? said : `${WORDS.hoursUnreachable} ${said}`;
+		} finally {
+			if (mine === this.#hoursAsked) this.hoursAsking = false;
+		}
+	}
+
+	/** Asks for what the map draws of the hour shown; nothing to draw for the day. */
+	async loadShapes(): Promise<void> {
+		const hours = this.view ? this.hours : undefined;
+		const hour = this.hour;
+		const mine = ++this.#shapesAsked;
+		if (!hours || hour === undefined) {
+			this.shapes = undefined;
+			return;
+		}
+		if (this.shapes && sameAsked(this.shapes.asked, hours.asked) && this.shapes.hour === hour) {
+			return;
+		}
+		const shapes = await this.#core.thermalHourShapes(hours.asked, hour);
+		if (mine !== this.#shapesAsked) return;
+		this.shapes = {
+			asked: hours.asked,
+			hour,
+			squares: JSON.parse(shapes.squares),
+			arrows: JSON.parse(shapes.arrows)
+		};
+	}
+
+	/** The number of the square a place lies in, in the hours shown. */
+	cellAt(place: { lat: number; lon: number }): Promise<number | undefined> {
+		const hours = this.view ? this.hours : undefined;
+		return hours
+			? this.#core.thermalCellAt(hours.asked, place.lat, place.lon)
+			: Promise.resolve(undefined);
+	}
+
+	/** A square of the hours shown in the hour shown, in words. */
+	square(cell: number) {
+		const hours = this.view ? this.hours : undefined;
+		const hour = this.hour;
+		return hours && hour !== undefined
+			? this.#core.thermalHourSquare(hours.asked, cell, hour)
+			: Promise.resolve(undefined);
+	}
+
+	/** Every day of the map at the square of a place. */
+	strip(place: { lat: number; lon: number }): Promise<ThermalStripDay[]> {
+		return this.#core.thermalStrip(place);
 	}
 
 	/** Asks the server whenever the map is due, while the layer is on. Returns the stop. */
@@ -65,6 +208,10 @@ export class ThermalMapModel {
 			const read = await this.#core.thermalMap();
 			if (read) {
 				this.map = read;
+				// The hours are asked again of the worker, which keeps them
+				// while the map is the same and lets them go when it is not.
+				this.hours = undefined;
+				this.shapes = undefined;
 				this.#fetchedMs = at;
 				this.problem = undefined;
 			} else {

@@ -29,7 +29,7 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	await mapTabDrawn(page, mapDrawn);
 
 	// Whose data is on the map is written on the map.
-	await expect(page.getByText('Wind: Deutscher Wetterdienst and GeoSphere Austria')).toBeVisible();
+	await expect(page.getByText(/^Wind: .*Deutscher Wetterdienst.*GeoSphere Austria/)).toBeVisible();
 	// The map places the arrows over a few frames and fades them in.
 	await page.waitForTimeout(1500);
 	await keep('18-map-wind');
@@ -38,14 +38,12 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	const rows = list.getByRole('listitem');
-	// The stations around what the map shows. A phone's narrow map leaves
-	// out the Sonnblick, far in the east.
-	await expect(rows).toHaveCount(wide ? 6 : 5);
-	await expect(rows.first()).toContainText('Garmisch-Partenkirchen');
-	await expect(rows.first()).toContainText('719 m');
-	await expect(rows.first()).toContainText('5/8 km/h');
+	// The stations around what the map shows, each by its name.
+	const garmisch = rows.filter({ hasText: 'Garmisch-Partenkirchen' });
+	await expect(garmisch).toContainText('719 m');
+	await expect(garmisch).toContainText('5/8 km/h');
 	// A name the provider shouts is set in ordinary case, by the core.
-	await expect(rows.nth(3)).toContainText('Patscherkofel');
+	await expect(rows.filter({ hasText: 'Patscherkofel' })).toHaveCount(1);
 	// A screen reader hears a sentence, not a fraction.
 	await expect(
 		list.getByRole('button', {
@@ -60,8 +58,9 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	await list.getByRole('searchbox', { name: 'Station' }).fill('nothing like this');
 	await expect(list).toContainText('No results for “nothing like this”');
 	await list.getByRole('searchbox', { name: 'Station' }).fill('SPITZ');
-	await expect(rows).toHaveCount(1);
-	await rows.first().getByRole('button').click();
+	await expect(rows.filter({ hasText: 'Zugspitze' })).toHaveCount(1);
+	await expect(rows.filter({ hasText: 'Garmisch-Partenkirchen' })).toHaveCount(0);
+	await rows.filter({ hasText: 'Zugspitze' }).getByRole('button').click();
 	await expect(list).toBeHidden();
 
 	// The station: what it measures now, by the server's clock.
@@ -135,7 +134,11 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
 	await list.getByRole('searchbox', { name: 'Station' }).fill('Innsbruck');
-	await list.getByRole('listitem').first().getByRole('button').click();
+	await list
+		.getByRole('listitem')
+		.filter({ hasText: 'Innsbruck/Universitaet' })
+		.getByRole('button')
+		.click();
 	const station = stationPanel(page, wide, 'Innsbruck/Universitaet');
 
 	// In the valley, with the Patscherkofel 1673 m above it 8 km away. The

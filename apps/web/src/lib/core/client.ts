@@ -7,6 +7,7 @@
 import type { NewAccount } from './account-source';
 import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
+import type { HoursAsked } from './thermal-map-source';
 import type {
 	Bounds,
 	Coordinate,
@@ -250,6 +251,31 @@ export class CoreClient {
 	/** The kind of day, square by square, from today on. Nothing if this site has no server. */
 	thermalMap() {
 		return this.#call('thermalMap', undefined);
+	}
+
+	/** One layer of one day of the thermal map hour by hour. */
+	thermalHours(asked: HoursAsked) {
+		return this.#call('thermalHours', asked);
+	}
+
+	/** What the map draws of one hour of those hours: two GeoJSON texts. */
+	thermalHourShapes(asked: HoursAsked, hour: number) {
+		return this.#call('thermalHourShapes', { asked, hour });
+	}
+
+	/** A square in one hour of those hours, in words. */
+	thermalHourSquare(asked: HoursAsked, cell: number, hour: number) {
+		return this.#call('thermalHourSquare', { asked, cell, hour });
+	}
+
+	/** The square a place lies in. */
+	thermalCellAt(asked: HoursAsked, lat: number, lon: number) {
+		return this.#call('thermalCellAt', { asked, lat, lon });
+	}
+
+	/** Every day of the map at the square of a place, side by side. */
+	thermalStrip(place: Coordinate) {
+		return this.#call('thermalStrip', place);
 	}
 
 	/** What the forecast says about flying from one of the take-offs last listed. */

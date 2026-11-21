@@ -15,13 +15,113 @@ import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from 
 
 const MADE_UP_DAY = process.env.VENTI_MADE_UP_DAY_SERVER ?? 'http://127.0.0.1:8081';
 
-/** Answers the thermal map with the stand-in's made-up one. */
+/** Answers the thermal map, and its hours, with the stand-in's made-up ones. */
 async function madeUpMap(page: Page) {
 	await page.route('**/v1/thermals', async (route) => {
 		const response = await route.fetch({ url: `${MADE_UP_DAY}/v1/thermals` });
 		await route.fulfill({ response });
 	});
+	await page.route('**/v1/thermals/hours?*', async (route) => {
+		const asked = new URL(route.request().url());
+		const response = await route.fetch({ url: `${MADE_UP_DAY}${asked.pathname}${asked.search}` });
+		await route.fulfill({ response });
+	});
 }
+
+/** The made-up map's grid and ground, as its stand-in answers them. */
+async function madeUpGrid(): Promise<{
+	grid: { south: number; west: number; step_deg: number; rows: number; columns: number };
+	ground_m: number[];
+}> {
+	return (await fetch(`${MADE_UP_DAY}/v1/thermals`)).json();
+}
+
+/**
+ * The middle of the square of the made-up map nearest the valley whose
+ * ground is above or below a height: the test's map has the valley's
+ * tiles and none further out.
+ */
+async function squareWhereGround(above: boolean, heightM: number) {
+	const { grid, ground_m } = await madeUpGrid();
+	const middle = (cell: number) => ({
+		latitude: grid.south + Math.floor(cell / grid.columns) * grid.step_deg,
+		longitude: grid.west + (cell % grid.columns) * grid.step_deg
+	});
+	const away = (cell: number) =>
+		Math.hypot(
+			middle(cell).latitude - BETWEEN_THE_MOUNTAINS.latitude,
+			middle(cell).longitude - BETWEEN_THE_MOUNTAINS.longitude
+		);
+	const cells = ground_m
+		.map((ground, cell) => ({ ground, cell }))
+		.filter(({ ground }) => (above ? ground > heightM : ground < heightM))
+		.toSorted((one, other) => away(one.cell) - away(other.cell));
+	return middle(cells[0].cell);
+}
+
+/** Goes to a place on the made-up map, with the forecast layer on and nothing else of Venti's. */
+async function forecastAt(
+	context: import('@playwright/test').BrowserContext,
+	page: Page,
+	mapDrawn: () => Promise<void>,
+	place: { latitude: number; longitude: number }
+) {
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(place);
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	for (const name of ['Wind', 'Sites', 'Pilots']) {
+		await page
+			.getByRole('group', { name: 'Layers on the map' })
+			.getByRole('button', { name })
+			.click();
+	}
+	await forecastChip(page).click();
+	await showTheValley(page, mapDrawn, 1);
+}
+
+/**
+ * Clicks the map in the middle, or on a phone just above the card that
+ * stands at the map's foot, where the middle may lie under it.
+ */
+async function clickTheMiddle(page: Page, wide: boolean) {
+	const canvas = page.locator('canvas.maplibregl-canvas');
+	const box = (await canvas.boundingBox())!;
+	let y = box.height / 2;
+	if (!wide) {
+		const top = (await card(page).boundingBox())!.y - box.y;
+		y = Math.min(y, top - 24);
+	}
+	await canvas.click({ position: { x: box.width / 2, y } });
+}
+
+/** Zooms the map in or out by steps, with the keyboard, and waits for it to be drawn. */
+async function zoom(page: Page, mapDrawn: () => Promise<void>, steps: number) {
+	const canvas = page.locator('canvas.maplibregl-canvas');
+	await canvas.focus();
+	for (let step = 0; step < Math.abs(steps); step += 1) {
+		await page.keyboard.press(steps > 0 ? 'Equal' : 'Minus');
+		await mapDrawn();
+	}
+	await canvas.blur();
+}
+
+/** Steps the line of hours to an hour by its label, with the keyboard. */
+async function toHour(page: Page, label: string) {
+	const hours = card(page).getByRole('slider', { name: 'Hour' });
+	await hours.focus();
+	await page.keyboard.press('Home');
+	for (let step = 0; step < 16; step += 1) {
+		if ((await hours.getAttribute('aria-valuetext')) === label) break;
+		await page.keyboard.press('ArrowRight');
+	}
+	await expect(hours).toHaveAttribute('aria-valuetext', label);
+	await hours.blur();
+}
+
+/** The card's row of layers. */
+const layerChip = (page: Page, name: string) =>
+	card(page).getByRole('group', { name: 'Layer' }).getByRole('button', { name, exact: true });
 
 const forecastChip = (page: Page) =>
 	page.getByRole('group', { name: 'Layers on the map' }).getByRole('button', { name: 'Forecast' });
@@ -178,15 +278,7 @@ test('the forecast layer reads the development server’s November map, and says
 			.click();
 	}
 	await showTheValley(page, mapDrawn, 1);
-	const canvas = page.locator('canvas.maplibregl-canvas');
-	const box = (await canvas.boundingBox())!;
-	const below = wide
-		? 0
-		: await page
-				.locator('nav')
-				.first()
-				.evaluate((nav) => nav.clientHeight);
-	await canvas.click({ position: { x: box.width / 2, y: (box.height - below) / 2 - 10 } });
+	await clickTheMiddle(page, wide);
 	const square = wide ? card(page) : page.getByRole('dialog');
 	await expect(square).toContainText('Not flyable');
 	await expect(square).toContainText('Rain');
@@ -204,4 +296,154 @@ test('the forecast layer reads the development server’s November map, and says
 	await mapTabDrawn(page, mapDrawn);
 	await expect(forecastChip(page)).toHaveAttribute('aria-pressed', 'true');
 	await expect(card(page).getByRole('list', { name: 'Key' })).toBeVisible();
+});
+
+test('the forecast layer shows each layer hour by hour, and what a square says in an hour', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	// MADE UP: the stand-in's map and its hours; see `tools/made-up-day/serve.py`.
+	await madeUpMap(page);
+	const low = await squareWhereGround(false, 1000);
+	await forecastAt(context, page, mapDrawn, low);
+	// Out to where a few squares and their arrows are in view.
+	await zoom(page, mapDrawn, -2);
+
+	// The layers above the days; "Thermals" first, and on it the line of
+	// hours opens at the day as a whole.
+	const chips = card(page).getByRole('group', { name: 'Layer' }).getByRole('button');
+	await expect(chips).toHaveText(['Thermals', 'Wind', 'Gusts', 'Cloud', 'Rain']);
+	await expect(layerChip(page, 'Thermals')).toHaveAttribute('aria-pressed', 'true');
+	const hours = card(page).getByRole('slider', { name: 'Hour' });
+	await expect(hours).toHaveAttribute('aria-valuetext', 'Day');
+
+	// One hour on: that hour's thermals, under the hour's key. A step of an
+	// hour is measured from the key to the map drawn again.
+	await hours.focus();
+	const started = Date.now();
+	await page.keyboard.press('ArrowRight');
+	await expect(hours).toHaveAttribute('aria-valuetext', /^\d\d:00$/);
+	await mapDrawn();
+	console.log(`A step of an hour took ${Date.now() - started} ms to draw.`);
+	await keep('120-map-forecast-thermals-hour');
+
+	// The wind at the ground: arrows, opened at the hour the core names.
+	await layerChip(page, 'Wind').click();
+	await expect(layerChip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
+	await expect(hours).toHaveAttribute('aria-valuetext', /^\d\d:00$/);
+	const height = card(page).getByRole('combobox', { name: 'Height' });
+	await expect(height).toHaveValue('');
+	// Midday, where the made-up day has the most to see.
+	await toHour(page, '13:00');
+	await mapDrawn();
+	await keep('121-map-forecast-wind');
+
+	// The wind at 2000 m.
+	await height.selectOption({ label: '2000 m' });
+	await mapDrawn();
+	await keep('122-map-forecast-wind-2000');
+
+	for (const [layer, name] of [
+		['Gusts', '123-map-forecast-gusts'],
+		['Cloud', '124-map-forecast-cloud'],
+		['Rain', '125-map-forecast-rain']
+	] as const) {
+		await layerChip(page, layer).click();
+		await expect(layerChip(page, layer)).toHaveAttribute('aria-pressed', 'true');
+		await expect(hours).toBeVisible();
+		await expect(height).toBeHidden();
+		await toHour(page, '13:00');
+		await mapDrawn();
+		await keep(name);
+	}
+
+	// A square in an hour: its days side by side, the hour and the layer in
+	// the core's words.
+	await layerChip(page, 'Wind').click();
+	await height.selectOption({ label: 'Ground' });
+	await zoom(page, mapDrawn, 2);
+	await clickTheMiddle(page, wide);
+	const square = wide ? card(page) : page.getByRole('dialog');
+	const days = square.getByRole('group', { name: 'This square, day by day' }).getByRole('button');
+	await expect(days).toHaveCount(4);
+	await expect(days.first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(square).toContainText(/km\/h/);
+	await expect(square.getByRole('button', { name: 'Forecast for this place' })).toBeVisible();
+	await mapDrawn();
+	await keep('126-map-forecast-square-hour');
+
+	// Another day from the square's strip: the map shows it.
+	await days.nth(1).click();
+	await expect(days.nth(1)).toHaveAttribute('aria-pressed', 'true');
+	await expect(
+		card(page).getByRole('radiogroup', { name: 'Day' }).getByRole('radio').nth(1)
+	).toBeChecked();
+
+	// The layer and the height are kept as the pilot left them; the hour is not.
+	await page.reload();
+	await mapTabDrawn(page, mapDrawn);
+	await expect(layerChip(page, 'Wind')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the wind under the model’s ground is none, and says so', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide
+}) => {
+	// MADE UP: a square whose made-up ground lies above 1000 m.
+	await madeUpMap(page);
+	await forecastAt(context, page, mapDrawn, await squareWhereGround(true, 1000));
+	await layerChip(page, 'Wind').click();
+	await card(page).getByRole('combobox', { name: 'Height' }).selectOption({ label: '1000 m' });
+	await expect(card(page).getByRole('slider', { name: 'Hour' })).toBeVisible();
+	await mapDrawn();
+	await clickTheMiddle(page, wide);
+	const square = wide ? card(page) : page.getByRole('dialog');
+	await expect(square).toContainText('No wind at 1000 m here');
+	await expect(square).toContainText("The model's ground lies higher");
+	await mapDrawn();
+	await keep('127-map-forecast-wind-under-ground');
+});
+
+test('while the hours are asked for the card says so, and when they cannot be had the day stands', async ({
+	context,
+	page,
+	mapDrawn,
+	keep
+}) => {
+	await madeUpMap(page);
+	// The hours of the wind are slow at first, then refused.
+	let answer: 'slow' | 'refused' = 'slow';
+	let release = () => {};
+	await page.route('**/v1/thermals/hours?*layer=wind*', async (route) => {
+		if (answer === 'slow') {
+			await new Promise<void>((done) => (release = done));
+			return route.fulfill({
+				status: 503,
+				json: { error: { code: 'unavailable', message: 'for developers' } }
+			});
+		}
+		return route.fulfill({
+			status: 503,
+			json: { error: { code: 'unavailable', message: 'for developers' } }
+		});
+	});
+	await forecastAt(context, page, mapDrawn, await squareWhereGround(false, 1000));
+	await layerChip(page, 'Wind').click();
+	await expect(card(page).getByRole('status')).toHaveText(
+		'Asking Venti for the hours of this layer.'
+	);
+	await keep('128-map-forecast-hours-waiting');
+	answer = 'refused';
+	release();
+	await expect(card(page).getByRole('button', { name: 'Try again' })).toBeVisible();
+	// The day's squares stand under the day's key.
+	await expect(card(page).getByRole('list', { name: 'Key' })).toContainText('Big day');
+	await mapDrawn();
+	await keep('129-map-forecast-hours-refused');
 });

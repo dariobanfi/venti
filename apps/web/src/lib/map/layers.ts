@@ -17,6 +17,8 @@ export const MAP_LAYERS: readonly { layer: MapLayer; name: string }[] = [
 const KEY = 'venti.map-layers-off';
 const AERIAL_KEY = 'venti.map-aerial';
 const FORECAST_KEY = 'venti.map-forecast';
+const FORECAST_LAYER_KEY = 'venti.map-forecast-layer';
+const FORECAST_HEIGHT_KEY = 'venti.map-forecast-height';
 
 /**
  * Whether the pilot looks at the aerial view instead of the drawn ground,
@@ -79,6 +81,43 @@ export function keepLayersOff(
 ): void {
 	try {
 		storage?.setItem(KEY, JSON.stringify(off));
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * What the "Forecast" layer shows and at which height the wind, as this
+ * browser remembers it: the layer by the core's name ("thermals", "wind",
+ * …), the height in metres, nothing for the ground. Thermals at the ground
+ * until the pilot chooses; the hour is never kept.
+ */
+export interface ForecastChoice {
+	layer: string;
+	heightM: number | undefined;
+}
+
+export function forecastChoice(storage: Pick<Storage, 'getItem'> | undefined): ForecastChoice {
+	try {
+		const height = Number(storage?.getItem(FORECAST_HEIGHT_KEY) ?? undefined);
+		return {
+			layer: storage?.getItem(FORECAST_LAYER_KEY) ?? 'thermals',
+			heightM: Number.isFinite(height) && height > 0 ? height : undefined
+		};
+	} catch {
+		return { layer: 'thermals', heightM: undefined };
+	}
+}
+
+/** Remembers the layer and the height. Nothing happens where the browser keeps nothing. */
+export function keepForecastChoice(
+	storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined,
+	choice: ForecastChoice
+): void {
+	try {
+		storage?.setItem(FORECAST_LAYER_KEY, choice.layer);
+		if (choice.heightM === undefined) storage?.removeItem(FORECAST_HEIGHT_KEY);
+		else storage?.setItem(FORECAST_HEIGHT_KEY, String(choice.heightM));
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

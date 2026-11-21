@@ -92,3 +92,98 @@ describe('the thermal map from the server', () => {
 		expect(THERMAL_MAP_UNREACHABLE).toBe('Venti could not be reached for the forecast map.');
 	});
 });
+
+/** The server's recorded hours of the 22nd: thermals, and the wind at 1000 m. */
+const recordedFile = (name: string): Uint8Array =>
+	readFileSync(new URL(`../../../../../crates/server/tests/golden/${name}`, import.meta.url));
+
+/** A server with the map of the days and the hours it recorded. */
+function hoursServer() {
+	const asked: string[] = [];
+	const get: Get = async (path) => {
+		asked.push(path);
+		if (path === '/v1/thermals') return { status: 200, body: recorded() };
+		if (path.includes('layer=wind')) {
+			return { status: 200, body: recordedFile('thermal_hours_wind.json') };
+		}
+		return { status: 200, body: recordedFile('thermal_hours.json') };
+	};
+	return { asked, get };
+}
+
+describe('the thermal map hour by hour', () => {
+	it('reads a day’s hours once, and draws each hour from what it kept', async () => {
+		const { asked, get } = hoursServer();
+		const source = new ThermalMapSource(
+			async () => true,
+			async () => NOON_21,
+			get
+		);
+		const map = (await source.map())!;
+		expect(map.layers.map((layer) => layer.layer)).toEqual([
+			'thermals',
+			'wind',
+			'gusts',
+			'cloud',
+			'rain'
+		]);
+		expect(map.levels[0].name).toBe('Ground');
+
+		const asking = { date: '2026-11-22', layer: 'thermals' } as const;
+		const view = await source.hours(asking);
+		await source.hours(asking);
+		expect(asked.filter((path) => path.startsWith('/v1/thermals/hours'))).toHaveLength(1);
+		expect(view.hours.length).toBeGreaterThan(0);
+		expect(view.hours[0].label).toMatch(/^\d\d:00$/);
+
+		const shapes = source.shapes(asking, view.firstHour);
+		const squares = JSON.parse(shapes.squares) as GeoJSON.FeatureCollection;
+		expect(squares.type).toBe('FeatureCollection');
+		expect(JSON.parse(shapes.arrows).features).toEqual([]);
+
+		// A place on the grid has a square, whether one is drawn there or not.
+		const cell = source.cellAt(asking, 47.7, 11.8);
+		expect(cell).toBeTypeOf('number');
+		expect(source.square(asking, cell!, view.firstHour)?.title).not.toBe('');
+	});
+
+	it('reads the wind at a height, and lets go of the hours when another map comes', async () => {
+		const { get } = hoursServer();
+		const source = new ThermalMapSource(
+			async () => true,
+			async () => NOON_21,
+			get
+		);
+		await source.map();
+		const asking = { date: '2026-11-22', layer: 'wind', heightM: 1000 } as const;
+		const view = await source.hours(asking);
+		expect(view.heightM).toBe(1000);
+		expect(view.layer).toBe('wind');
+
+		const strip = await source.strip(47.7, 11.8);
+		expect(strip.map((day) => day.date)).toContain('2026-11-22');
+	});
+
+	it('says in the core’s words when the server refuses the hours, and asks again later', async () => {
+		let refusing = true;
+		const asked: string[] = [];
+		const get: Get = async (path) => {
+			asked.push(path);
+			if (path === '/v1/thermals') return { status: 200, body: recorded() };
+			return refusing
+				? { status: 503, body: new Uint8Array() }
+				: { status: 200, body: recordedFile('thermal_hours.json') };
+		};
+		const source = new ThermalMapSource(
+			async () => true,
+			async () => NOON_21,
+			get
+		);
+		await source.map();
+		const asking = { date: '2026-11-22', layer: 'thermals' } as const;
+		const failure = await source.hours(asking).catch((error: unknown) => error);
+		expect(isInWords(failure)).toBe(true);
+		refusing = false;
+		expect((await source.hours(asking)).hours.length).toBeGreaterThan(0);
+	});
+});

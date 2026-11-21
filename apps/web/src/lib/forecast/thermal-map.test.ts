@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { ThermalMap, ThermalMapCell, ThermalMapDay } from '#lib/core/index.ts';
 import { format } from '#lib/design/format.ts';
-import { NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
+import { keyColor, NOT_FLYABLE_ON_MAP, THERMAL_ON_MAP } from '#lib/design/palette.ts';
 import style from '../../../../../map/style.json';
-import { layerAbove, thermalLayer } from './thermal-layer';
+import { hourFill, layerAbove, thermalLayer } from './thermal-layer';
 import {
 	creditLine,
 	dayOf,
 	hasSquaresIn,
+	hoursAsked,
 	isDue,
 	judgedAt,
 	KEEP_MS,
 	RETRY_MS,
 	runLine,
+	sameAsked,
+	shownHour,
 	squareAt,
 	squareFeatures
 } from './thermal-map';
@@ -200,5 +203,75 @@ describe('the layer of squares', () => {
 		expect(layerAbove(layers.slice(0, 2))).toBeUndefined();
 		// The base map's own style has them.
 		expect(layerAbove(style.layers)).toBe('aerial-aerialway-casing');
+	});
+});
+
+describe('the hours of a day, layer by layer', () => {
+	const choice = (layer: string, hasLevels = false) => ({
+		layer: layer as never,
+		name: layer,
+		hasLevels,
+		hasArrows: hasLevels,
+		legend: [],
+		note: ''
+	});
+	const withHours = {
+		layers: [choice('thermals'), choice('wind', true), choice('gusts'), choice('cloud')],
+		levels: [
+			{ heightM: undefined, name: 'Ground', words: '' },
+			{ heightM: 2000, name: '2000 m', words: '' }
+		]
+	};
+	const day = { date: '2026-07-12' };
+
+	it('are asked for by the day, the layer and, for the wind, the height', () => {
+		expect(hoursAsked(withHours, day, 'cloud', 2000)).toEqual({
+			date: '2026-07-12',
+			layer: 'cloud'
+		});
+		expect(hoursAsked(withHours, day, 'wind', 2000)).toEqual({
+			date: '2026-07-12',
+			layer: 'wind',
+			heightM: 2000
+		});
+		// A height the map does not have, or none: the ground.
+		expect(hoursAsked(withHours, day, 'wind', 1234)).toEqual({ date: '2026-07-12', layer: 'wind' });
+		// A layer the map does not offer is read as its first.
+		expect(hoursAsked(withHours, day, 'rain', undefined)?.layer).toBe('thermals');
+	});
+
+	it('are not asked for where the map has none: the layer is the days alone', () => {
+		expect(hoursAsked({ layers: [], levels: [] }, day, 'wind', undefined)).toBeUndefined();
+		expect(hoursAsked(undefined, day, 'wind', undefined)).toBeUndefined();
+		expect(sameAsked(undefined, undefined)).toBe(true);
+		expect(
+			sameAsked({ date: 'a', layer: 'wind', heightM: 1000 }, { date: 'a', layer: 'wind' })
+		).toBe(false);
+	});
+
+	it('open on the day as a whole on "Thermals", else at the hour the core names', () => {
+		const hours = [0, 1, 2, 3].map((index) => ({
+			timeUnixS: index,
+			clockHour: 10 + index,
+			label: `${10 + index}:00`
+		}));
+		expect(shownHour({ layer: 'thermals', hours, firstHour: 2 }, undefined)).toBeUndefined();
+		expect(shownHour({ layer: 'wind', hours, firstHour: 2 }, undefined)).toBe(2);
+		expect(shownHour({ layer: 'wind', hours, firstHour: 2 }, 1)).toBe(1);
+		// "Day" is no choice on the other layers, and an hour the day lacks is none.
+		expect(shownHour({ layer: 'wind', hours, firstHour: 2 }, 'day')).toBe(2);
+		expect(shownHour({ layer: 'thermals', hours, firstHour: 2 }, 9)).toBeUndefined();
+	});
+
+	it('colour a square by the line of the key that has its step', () => {
+		const fill = hourFill([
+			{ step: 1, words: 'Light', scale: 'wind', scaleStep: 2 },
+			{ step: 2, words: 'Overcast', scale: 'veil', scaleStep: 0 }
+		]) as unknown[];
+		expect(fill.slice(0, 2)).toEqual(['match', ['get', 'step']]);
+		expect(fill[3]).toBe(keyColor({ scale: 'wind', scaleStep: 2 }));
+		expect(fill[5]).toBe(NOT_FLYABLE_ON_MAP);
+		expect(keyColor({ scale: 'thermal', scaleStep: 3 })).toBe(THERMAL_ON_MAP[2]);
+		expect(keyColor({ scale: 'vario', scaleStep: 4 })).toMatch(/^#/);
 	});
 });

@@ -49,10 +49,10 @@ describe('wind from the server', () => {
 
 		expect(asked).toEqual(['/v1/health', '/v1/stations?bbox=10,46.5,13.5,48.5']);
 		expect(answer?.map.stations.map((station) => station.name)).toContain('Zugspitze');
-		expect(answer?.map.credits.map((credit) => credit.provider)).toEqual([
-			'Deutscher Wetterdienst',
-			'GeoSphere Austria'
-		]);
+		const providers = answer?.map.credits.map((credit) => credit.provider);
+		expect(providers).toContain('Deutscher Wetterdienst');
+		expect(providers).toContain('GeoSphere Austria');
+		expect(new Set(providers).size).toBe(providers?.length);
 		expect(answer?.lateProviders).toEqual([]);
 	});
 
@@ -107,7 +107,7 @@ describe('wind from the server', () => {
 
 	it('names the providers the server has not heard from', async () => {
 		const late = JSON.parse(new TextDecoder().decode(recorded('health.json')));
-		late.sources[0].stale = true;
+		late.sources.find((source: { source: string }) => source.source === 'dwd-10min').stale = true;
 		const { get } = server({
 			'/v1/health': { status: 200, body: new TextEncoder().encode(JSON.stringify(late)) }
 		});

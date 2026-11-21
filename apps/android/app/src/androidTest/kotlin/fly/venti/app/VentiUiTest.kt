@@ -1926,11 +1926,11 @@ class VentiUiTest {
             hasText("Judged at the model's ground, ", substring = true),
             hasTestTag("square-note"),
         )
-        assertTrue(
-            exists(hasTestTag("square-status") and (described("Flyable") or described("Marginal") or described("Not flyable"))),
-        )
+        // The status, read with what speaks against the day where something does: "Marginal, Gusts".
+        val statuses = listOf("Flyable", "Marginal", "Not flyable").map { hasContentDescription(it, substring = true) }
+        assertTrue(exists(hasTestTag("square-status") and statuses.reduce { one, other -> one or other }))
         // A square with a kind of day has the mark and its line; one that is not flyable has none.
-        if (!exists(hasTestTag("square-status") and described("Not flyable"))) {
+        if (!exists(hasTestTag("square-status") and hasContentDescription("Not flyable", substring = true))) {
             assertTrue(exists(hasTestTag("thermal-line") and hasAnyAncestor(sheet)))
         }
         letTheMapDraw(2)

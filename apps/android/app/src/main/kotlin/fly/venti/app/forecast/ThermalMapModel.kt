@@ -10,6 +10,7 @@ import fly.venti.app.wind.WindTransport
 import fly.venti.core.Bounds
 import fly.venti.core.CoreException
 import fly.venti.core.ThermalMap
+import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapDay
 import fly.venti.core.thermalMap
 import fly.venti.core.thermalMapPath
@@ -220,6 +221,10 @@ object ThermalMapWords {
     const val NO_DAYS = "The forecast map has no days from today on."
     const val NONE_HERE = "The forecast map has no squares for this part of the map."
     const val TRY_AGAIN = "Try again"
+
+    /** A square's status as TalkBack reads it, with what speaks against the day: "Marginal, Gusts". */
+    fun status(square: ThermalMapCell): String =
+        if (square.why.isEmpty()) square.status else "${square.status}, ${square.why}"
 
     /** "Judged at the model's ground, 1240 m" */
     fun judgedAt(groundM: Double): String = "Judged at the model's ground, ${Format.metres(groundM)} m"

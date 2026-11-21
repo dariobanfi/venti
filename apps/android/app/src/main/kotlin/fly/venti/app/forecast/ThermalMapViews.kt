@@ -200,7 +200,8 @@ private fun Swatch(fill: Int) {
 
 /**
  * A square of the forecast map, tapped: the pack's sheet with the day's
- * name, the status as icon, word and colour, the mark with the kind of day
+ * name, the status as icon, word and colour with what speaks against the
+ * day beside it, the mark with the kind of day
  * and the thermals' line, the height the square was judged at, and what
  * the map is, with its credits. Every word but the height's is the core's.
  */
@@ -230,8 +231,27 @@ fun ThermalSquareSheet(map: ThermalMap, day: ThermalMapDay, square: ThermalMapCe
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    StatusChip(square.verdict.status, square.status, Modifier.testTag("square-status"))
                     TextButton(onClick = onDismiss) { Text("Done") }
+                }
+                // The status, and what speaks against the day beside it,
+                // read by TalkBack as one: "Marginal, Gusts".
+                Row(
+                    modifier = Modifier
+                        .padding(start = VentiSpace.s5, end = VentiSpace.s5)
+                        .testTag("square-status")
+                        .clearAndSetSemantics { contentDescription = ThermalMapWords.status(square) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                ) {
+                    StatusChip(square.verdict.status, square.status)
+                    if (square.why.isNotEmpty()) {
+                        Text(
+                            square.why,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colours.textSecondary,
+                            modifier = Modifier.testTag("square-why"),
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier

@@ -248,6 +248,23 @@ class ThermalMapModelTest {
     }
 
     @Test
+    fun aSquareSaysWhatSpeaksAgainstItsDayWithItsStatus() = runBlocking {
+        val forecast = model(Server())
+        forecast.load()
+        val today = checkNotNull(forecast.day).cells
+        // A flyable day has nothing against it.
+        assertEquals("", today[0].why)
+        assertEquals("Flyable", ThermalMapWords.status(today[0]))
+        assertEquals("Showers or thunderstorms can grow", today[1].why)
+        assertEquals("Not flyable, Showers or thunderstorms can grow", ThermalMapWords.status(today[1]))
+        forecast.choose("2026-07-13")
+        assertEquals("Marginal, Gusts", ThermalMapWords.status(checkNotNull(forecast.day).cells[0]))
+        // A day the server gives no reasons for has none.
+        forecast.choose("2026-07-14")
+        assertTrue(checkNotNull(forecast.day).cells.all { it.why.isEmpty() })
+    }
+
+    @Test
     fun theCardKnowsWhenThePartInViewHasNoSquares() = runBlocking {
         val forecast = model(Server())
         forecast.load()
@@ -279,12 +296,14 @@ class ThermalMapModelTest {
                      "verdict": ["flyable", "not_flyable", null],
                      "thermals": ["cross_country", "big", null],
                      "climb_ms": [1.8, 2.4, null], "top_m": [3250, 3400, null],
-                     "cloud": [true, false, false]},
+                     "cloud": [true, false, false],
+                     "why": [null, "storms", null]},
                     {"date": "2026-07-13", "whole": true,
                      "verdict": ["marginal", "flyable", "flyable"],
                      "thermals": ["weak", "weak", null],
                      "climb_ms": [0.3, 0.0, null], "top_m": [1800, null, null],
-                     "cloud": [false, false, false]},
+                     "cloud": [false, false, false],
+                     "why": ["gusts", null, null]},
                     {"date": "2026-07-14", "whole": true,
                      "verdict": ["flyable", "flyable", "flyable"],
                      "thermals": ["weak", "weak", null],

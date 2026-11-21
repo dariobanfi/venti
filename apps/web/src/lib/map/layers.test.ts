@@ -8,8 +8,10 @@ import {
 	keepForecast,
 	keepLayersOff,
 	keepRadar,
+	keepSlopes,
 	layersOff,
-	radarOn
+	radarOn,
+	slopesOn
 } from './layers';
 
 function memory() {
@@ -82,6 +84,20 @@ describe('the layers switched off on the map', () => {
 		};
 		expect(layersOff(refusing)).toEqual([]);
 		expect(() => keepLayersOff(refusing, ['wind'])).not.toThrow();
+	});
+});
+
+describe('the slopes layer', () => {
+	it('is off until the pilot switches it on, and remembered by the browser apart from the others', () => {
+		const storage = memory();
+		expect(slopesOn(storage)).toBe(false);
+		keepSlopes(storage, true);
+		expect(slopesOn(storage)).toBe(true);
+		expect(radarOn(storage)).toBe(false);
+		expect(forecastOn(storage)).toBe(false);
+		keepSlopes(storage, false);
+		expect(slopesOn(storage)).toBe(false);
+		expect(slopesOn(undefined)).toBe(false);
 	});
 });
 

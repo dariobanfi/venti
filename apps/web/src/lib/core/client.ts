@@ -9,6 +9,7 @@ import type { FlightRef, PublicFlightsAsked } from './community-source';
 import type { GroundAsked } from './terrain-source';
 import type { RadarColours } from './radar-source';
 import type { RouteWeatherAsked } from './route-weather-source';
+import type { SlopesAsked } from './slopes-source';
 import type { HoursAsked } from './thermal-map-source';
 import type { AccessWanted } from './tokens-source';
 import type { Box } from './takeoffs-source';
@@ -427,6 +428,16 @@ export class CoreClient {
 	/** Lets go of the ground kept for the glide's reach. */
 	forgetGlideReach() {
 		return this.#call('forgetGlideReach', undefined);
+	}
+
+	/** How steep the ground is over a box of the map, cell by cell; nothing for a question asked since. */
+	slopes(asked: SlopesAsked) {
+		return this.#call('slopes', asked);
+	}
+
+	/** Lets go of the ground kept for the map of slopes. */
+	forgetSlopes() {
+		return this.#call('forgetSlopes', undefined);
 	}
 
 	/** The cables around a place, as a map layer. Nothing if this site has no server. */

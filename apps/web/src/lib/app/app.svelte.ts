@@ -22,6 +22,8 @@ import {
 	type FlightView,
 	type ForecastView,
 	type CablesMap,
+	type SlopesAnswer,
+	type SlopesAsked,
 	type GlideReach,
 	type GlideReachSetting,
 	type GroundUnderFlight,
@@ -219,6 +221,18 @@ export class App {
 	/** Lets go of the ground kept for the glide's reach. */
 	async forgetGlideReach(): Promise<void> {
 		await this.#core?.forgetGlideReach();
+	}
+
+	/** How steep the ground is over a box of the map, cell by cell; nothing for a question asked since. */
+	async slopes(asked: SlopesAsked): Promise<SlopesAnswer | undefined> {
+		if (!browser) return undefined;
+		await this.start();
+		return this.#core?.slopes(asked);
+	}
+
+	/** Lets go of the ground kept for the map of slopes. */
+	async forgetSlopes(): Promise<void> {
+		await this.#core?.forgetSlopes();
 	}
 
 	/**

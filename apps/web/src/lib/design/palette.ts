@@ -188,3 +188,14 @@ export function keyColor(key: Pick<ThermalMapKey, 'scale' | 'scaleStep'>): strin
 			return NOT_FLYABLE_ON_MAP;
 	}
 }
+
+/**
+ * The map of slopes, by the core's class from under 25° to 40° and more.
+ * The pack has no scale for steepness; this takes the thermal scale's
+ * steps 2 to 6, its sequential ramp from light to strong, so that the
+ * steeper the ground the stronger the colour. Step 1 is left out: drawn
+ * see-through it does not show on the map at all.
+ */
+export const SLOPE_ON_MAP: readonly string[] = [2, 3, 4, 5, 6].map((index) =>
+	light(tokens.scale.thermal.light, String(index))
+);

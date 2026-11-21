@@ -62,13 +62,17 @@
 		keepForecast,
 		keepLayersOff,
 		keepRadar,
+		keepSlopes,
 		type MapLayer,
 		MAP_LAYERS,
 		layersOff,
-		radarOn
+		radarOn,
+		slopesOn
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import RadarCard from '#lib/radar/RadarCard.svelte';
+	import { SlopesModel } from '#lib/slopes/model.svelte.ts';
+	import SlopesKey from '#lib/slopes/SlopesKey.svelte';
 	import { RoutePlanner } from '#lib/route/planner.svelte.ts';
 	import RoutePlanCard from '#lib/route/RoutePlanCard.svelte';
 	import RouteWeather from '#lib/route/RouteWeather.svelte';
@@ -307,6 +311,21 @@
 			lon: (region.west + region.east) / 2
 		});
 	});
+
+	// --- Slopes ---
+
+	/** Whether the map shows how steep the ground is: off until the pilot asks. */
+	let slopesChosen = $state(slopesOn(globalThis.localStorage));
+	/** The slopes of the part of the map in view, asked for once the map rests close enough. */
+	const slopes = new SlopesModel(
+		(asked) => app.slopes(asked),
+		() => void app.forgetSlopes()
+	);
+	$effect(() => {
+		if (view && slopesChosen) slopes.show(view.region, view.zoom);
+	});
+	/** Whether the slopes are on but the map too far out to draw them. */
+	const slopesTooFar = $derived(slopesChosen && view !== undefined && !slopes.close);
 
 	// --- Cables ---
 
@@ -937,6 +956,7 @@
 		{thermalDay}
 		{thermalHour}
 		radar={showRadar ? radar?.onMap : undefined}
+		slopes={slopesChosen ? slopes.shown : undefined}
 		onsquare={openSquare}
 		onhourat={openHourSquare}
 		onplaceat={openPlace}
@@ -979,6 +999,20 @@
 			>
 				<Icon name="rain" />
 				Radar
+			</button>
+			<!-- How steep the ground is, for walking up to a take-off. -->
+			<button
+				class="chip"
+				type="button"
+				aria-pressed={slopesChosen}
+				onclick={() => {
+					slopesChosen = !slopesChosen;
+					keepSlopes(globalThis.localStorage, slopesChosen);
+					if (!slopesChosen) slopes.off();
+				}}
+			>
+				<Icon name="mountain" />
+				Slopes
 			</button>
 			{#each MAP_LAYERS as { layer, name } (layer)}
 				<button
@@ -1379,6 +1413,11 @@
 		{#if candidatesSaid}
 			<p class="notice" role="status">{candidatesSaid}</p>
 		{/if}
+		{#if slopesTooFar}
+			<p class="notice" role="status">Zoom in to a hillside to see how steep it is.</p>
+		{:else if slopesChosen && slopes.problem}
+			<p class="notice" role="status">{slopes.problem}</p>
+		{/if}
 		{#if cables.problem && cables.close && !off.includes('cables')}
 			<p class="notice" role="status">{cables.problem}</p>
 		{/if}
@@ -1428,6 +1467,11 @@
 		     over the credits. -->
 		{#if sitesFiltered && !wide.current}
 			{@render filterOn(sitesFiltered)}
+		{/if}
+		{#if slopesChosen && slopes.shown && !placing}
+			<div class="forecast-card">
+				<SlopesKey />
+			</div>
 		{/if}
 		{#if showRadar && radar && !wide.current}
 			<div class="forecast-card">

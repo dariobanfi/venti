@@ -23,6 +23,7 @@ import { CoreSession } from './session';
 import { SiteEditSource } from './site-edit-source';
 import { TakeoffsSource } from './takeoffs-source';
 import { SitesSource } from './sites-source';
+import { SlopesSource } from './slopes-source';
 import { type FileStore, MemoryStore } from './store';
 import { TerrainSource } from './terrain-source';
 import { ThermalMapSource } from './thermal-map-source';
@@ -81,7 +82,8 @@ const starting: Promise<Answering> = (async () => {
 		),
 		routeWeather: new RouteWeatherSource(() => wind.present()),
 		glideReach: new GlideReachSource(),
-		cables: new CablesSource(() => wind.present())
+		cables: new CablesSource(() => wind.present()),
+		slopes: new SlopesSource()
 	};
 })();
 

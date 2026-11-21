@@ -59,6 +59,8 @@
 		radarOpacity
 	} from '#lib/radar/radar-layer.ts';
 	import type { OnMap } from '#lib/radar/radar.svelte.ts';
+	import { SLOPES_OPACITY } from '#lib/slopes/grid.ts';
+	import type { SlopesPicture } from '#lib/slopes/model.svelte.ts';
 	import {
 		closingOutline,
 		drawnLine,
@@ -195,6 +197,11 @@
 		 * whether that layer is too old to be the rain of now and drawn fainter.
 		 */
 		radar?: readonly OnMap[];
+		/**
+		 * How steep the ground is, while the "Slopes" layer is on and the map
+		 * close enough: one picture of the part of the map asked about.
+		 */
+		slopes?: SlopesPicture;
 		/** Called with a place clicked while an hour is drawn, where nothing else is under the pointer. */
 		onhourat?: (at: { lat: number; lon: number }) => void;
 		/**
@@ -272,6 +279,7 @@
 		thermalDay,
 		thermalHour,
 		radar,
+		slopes,
 		onhourat,
 		onsquare,
 		onplaceat,
@@ -298,6 +306,8 @@
 	const REACH = 22;
 
 	const WIND = 'wind-stations';
+	/** The map's source and layer of the slopes' picture. */
+	const SLOPES = 'slopes';
 
 	let container: HTMLDivElement;
 	let setup: typeof import('./setup') | undefined;
@@ -869,6 +879,47 @@
 		}
 		// A map says nothing of what it draws; the browser tests read it here.
 		(globalThis as { ventiRadar?: unknown }).ventiRadar = map.getLayersOrder().filter(isRadar);
+	});
+
+	// Draws the slopes as one picture pinned by its corners, a cell a
+	// pixel and without smoothing, under the forecast's squares and the
+	// radar; none while the layer is off. An image source cannot be without
+	// a picture, so it comes and goes with the picture.
+	$effect(() => {
+		if (!map) return;
+		const source = map.getSource<ImageSource>(SLOPES);
+		if (!slopes) {
+			if (source) {
+				map.removeLayer(SLOPES);
+				map.removeSource(SLOPES);
+			}
+		} else if (source) {
+			if (source.url !== slopes.url) {
+				source.updateImage({ url: slopes.url, coordinates: slopes.corners });
+			}
+		} else {
+			map.addSource(SLOPES, { type: 'image', url: slopes.url, coordinates: slopes.corners });
+			map.addLayer(
+				{
+					id: SLOPES,
+					type: 'raster',
+					source: SLOPES,
+					paint: {
+						'raster-resampling': 'nearest',
+						'raster-opacity': SLOPES_OPACITY,
+						'raster-fade-duration': 0
+					}
+				},
+				THERMAL_SOURCE
+			);
+		}
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiSlopes?: unknown }).ventiSlopes = {
+			drawn: Boolean(map.getLayer(SLOPES)),
+			cells: slopes?.cells ?? 0,
+			classed: slopes?.classed ?? 0,
+			byClass: slopes?.byClass ?? []
+		};
 	});
 
 	// Draws the flying sites when they change: the signs, and under them the

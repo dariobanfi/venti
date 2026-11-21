@@ -245,6 +245,7 @@ export type { AlertsHeld, AlertsSynced } from './alerts-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
 export type { RouteWeatherAnswer, RouteWeatherAsked } from './route-weather-source';
+export type { SlopesAnswer, SlopesAsked } from './slopes-source';
 export type { SiteDraftChecked, SiteSent } from './site-edit-source';
 export type { Box } from './takeoffs-source';
 export type {

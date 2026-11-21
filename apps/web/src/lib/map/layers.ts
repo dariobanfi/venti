@@ -19,6 +19,7 @@ const KEY = 'venti.map-layers-off';
 const AERIAL_KEY = 'venti.map-aerial';
 const FORECAST_KEY = 'venti.map-forecast';
 const RADAR_KEY = 'venti.map-radar';
+const SLOPES_KEY = 'venti.map-slopes';
 const CANDIDATES_KEY = 'venti.map-candidates';
 const FORECAST_LAYER_KEY = 'venti.map-forecast-layer';
 const FORECAST_HEIGHT_KEY = 'venti.map-forecast-height';
@@ -81,6 +82,27 @@ export function radarOn(storage: Pick<Storage, 'getItem'> | undefined): boolean 
 export function keepRadar(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
 	try {
 		storage?.setItem(RADAR_KEY, on ? 'on' : 'off');
+	} catch {
+		// A private window, or no storage: the choice lasts for the visit.
+	}
+}
+
+/**
+ * Whether the map shows how steep the ground is (the "Slopes" chip), as
+ * this browser remembers it. Off until the pilot switches it on.
+ */
+export function slopesOn(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+	try {
+		return storage?.getItem(SLOPES_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+/** Remembers whether the "Slopes" layer is on. Nothing happens where the browser keeps nothing. */
+export function keepSlopes(storage: Pick<Storage, 'setItem'> | undefined, on: boolean): void {
+	try {
+		storage?.setItem(SLOPES_KEY, on ? 'on' : 'off');
 	} catch {
 		// A private window, or no storage: the choice lasts for the visit.
 	}

@@ -605,7 +605,7 @@ No open real-time lightning source was found.
 | OpenStreetMap free-flying tags | Takeoffs and landings, with the outline of those mapped as areas and what their mappers wrote about them, asked for through an Overpass instance: one request a day for a region's box | ODbL 1.0, verified 2026-11-19; share-alike, kept as a separate layer | **Built**. Coverage measured: thin, see below |
 | ParaglidingEarth | Worldwide sites, variable quality | CC BY-SA 3.0, newer contributions also ODbL | Open, share-alike, separate layer. Not used |
 | **DHV site database** | The authoritative list of approved sites for Germany, also covering Austria; bulk files exist | No terms published | **Ask**. Not used |
-| Our own community edits | Site pages improved by pilots | Ours | Grows over time |
+| Our own community edits | Take-offs and landings that pilots make on Venti, each with its history | CC0 1.0, the owner's decision of 2026-11-21; given by the pilots themselves, so there is no provider's page to verify and no manifest | **On the server since 2026-11-21** as the layer `venti`, apart from every source in this table; the core reads it for the apps, which do not write to it yet. It is no adapter: [data-platform.md](data-platform.md#take-offs-and-landings-made-by-pilots) |
 
 **OpenStreetMap, as read on its own pages on 2026-11-19:**
 

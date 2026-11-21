@@ -1,0 +1,22 @@
+{
+  "site": {
+    "name": "Beispielkopf Süd",
+    "position": {
+      "lat": 47.4,
+      "lon": 11.2
+    },
+    "elevation_m": 1540.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 135.0,
+        "to_deg": 225.0
+      }
+    ],
+    "paragliding": true,
+    "description": "Made up, for the documentation. No such place exists."
+  },
+  "comment": "From where I stood on 14 November."
+}

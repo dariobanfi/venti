@@ -145,6 +145,27 @@ pub enum ErrorCode {
     /// The live track holds as many fixes as a track may. Begin a new
     /// track with a new identifier.
     LiveTrackFull,
+    /// What a request says about a site cannot be kept: a text too long
+    /// or with what does not print, no use, a height or a wind direction
+    /// that cannot be, a web address of another form, or a comment that
+    /// is too long. The message names the field.
+    InvalidSite,
+    /// The place is in no region this server serves.
+    SiteOutOfArea,
+    /// No site has this identifier.
+    SiteNotFound,
+    /// The site was taken down. Its identifier is never used again.
+    SiteGone,
+    /// The site has no revision with this number.
+    SiteRevisionNotFound,
+    /// Another site that pilots made stands within a few metres of the
+    /// place. Correct that one instead; the message names it.
+    SiteTooClose,
+    /// The site was changed since the revision the request names. Read it
+    /// again and make the change from what it says now.
+    SiteChanged,
+    /// This server takes no sites from pilots.
+    SitesClosed,
     /// The server hands out no map file under this path: no region with
     /// this identifier, not in this version, or no file of this name. A
     /// region whose files were renewed has a new version; the list of

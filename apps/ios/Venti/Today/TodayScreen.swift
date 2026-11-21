@@ -386,6 +386,11 @@ struct TodayScreen: View {
         let sources = today.credits + (today.listed?.credits ?? []).filter { site in
             !today.credits.contains { $0.source == site.source }
         }
+        // What the wind near by is and is not, while some take-off's day
+        // has its line: the note of the first that has. The core names the
+        // squares it read for that take-off.
+        let nearbyNote = today.places
+            .first { !(outlookDay(of: $0)?.nearby ?? "").isEmpty }?.outlook?.nearbyNote ?? ""
         return VStack(alignment: .leading, spacing: VentiSpace.s2) {
             if let outlook, !outlook.note.isEmpty {
                 let note = read.map(\.note).flatMap { $0.isEmpty ? nil : $0 } ?? outlook.note
@@ -393,6 +398,10 @@ struct TodayScreen: View {
                 Text(
                     "\(note) Run of \(Format.time(unixSeconds: run)), looked up at \(Format.time(unixSeconds: outlook.fetchedUnixS))."
                 )
+            }
+            if !nearbyNote.isEmpty {
+                Text(nearbyNote)
+                    .accessibilityIdentifier("today-nearby-note")
             }
             Text("Flyable, marginal and not flyable are what the forecast's wind, gusts, rain and cloud say by fixed limits, and the kind of day is what its heat and temperatures say of thermals. They are not advice to fly.")
             ForEach(sources, id: \.source) { credit in
@@ -500,6 +509,9 @@ private struct TakeoffCard: View {
                     Text(day.why)
                         .foregroundStyle(.venti(.textSecondary))
                 }
+                // The wind near by where it is much stronger: a note under
+                // the day's own reason, and no part of the status.
+                NearbyLine(words: day.nearby)
                 if day.thermals != nil {
                     ThermalLine(day: day)
                 }
@@ -553,6 +565,7 @@ private struct TakeoffRow: View {
                     .font(.ventiType(.label))
                     .foregroundStyle(.venti(.textSecondary))
                     .lineLimit(2)
+                NearbyLine(words: day?.nearby ?? "")
                 if let day, !day.thermalWords.isEmpty {
                     HStack(spacing: VentiSpace.s1) {
                         ThermalMark(climbMs: day.climbMs ?? 0)
@@ -682,6 +695,12 @@ private struct HourStrip: View {
                 thermals += " to \(Format.metres(top)) metres"
             }
         }
-        return hour.why.isEmpty ? "\(verdict)\(wind)\(thermals)" : "\(verdict): \(hour.why)\(wind)\(thermals)"
+        // What is much stronger near by in the hour, in the core's line:
+        // the strip has no room for it, a screen reader has.
+        let line = hour.nearby?.line ?? ""
+        let nearby = line.isEmpty ? "" : ". \(line)"
+        return hour.why.isEmpty
+            ? "\(verdict)\(wind)\(thermals)\(nearby)"
+            : "\(verdict): \(hour.why)\(wind)\(thermals)\(nearby)"
     }
 }

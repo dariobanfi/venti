@@ -23,7 +23,7 @@ use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
 use crate::thermals::{InStore, ThermalMap};
-use crate::{adapters, groups, live, maintenance, plan, radar};
+use crate::{adapters, groups, live, maintenance, pilot_sites, plan, radar};
 
 /// How far back from the time of a run observations are taken. See
 /// [`Collector::new`].
@@ -72,7 +72,15 @@ pub async fn serve(config: Config) -> Result<(), String> {
         analyser: analyser.clone(),
         live: live::Limits::keeping(Duration::hours(i64::from(config.retention.live_hours))),
         groups: groups::Limits::keeping(config.retention.plan_days),
+        sites: pilot_sites::Settings {
+            accept: config.sites_from_pilots,
+            regions: packs.iter().map(|pack| pack.bounds).collect(),
+            limits: pilot_sites::Limits::default(),
+        },
     };
+    if config.sites_from_pilots {
+        tracing::info!("sites: this server takes sites from pilots (sites_from_pilots)");
+    }
     // Forecasts are fetched when they are asked for, by a service of their
     // own with a fetcher like the collector's. It exists only if the server
     // was told where its Open-Meteo instance is.

@@ -11,12 +11,18 @@
 //! most have no name and no wind directions. The views say what the source
 //! says and nothing more.
 //!
+//! Beside the sources' layers the server has one of its own, `venti`: the
+//! sites that pilots made on Venti. They are read by the same calls and
+//! are the same view, with one thing more: who added the site and who
+//! changed it last ([`SiteByPilots`]). They are added by pilots and not
+//! verified by anyone, and the view says so.
+//!
 //! Beside this module: the filter of the sites, by use, wind and height
 //! (`site_filter`), and the sites a pilot keeps as their own, with which
 //! Today begins (`kept_sites`).
 
-use venti_api_types::v1::{SitesRequest, SitesResponse};
-use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse, WindSector};
+use venti_api_types::v1::{SitePilot, SiteStanding, SitesRequest, SitesResponse};
+use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, WindSector};
 use venti_flight::live::navigation::bearing_deg;
 
 use crate::server::answer;
@@ -162,6 +168,56 @@ pub fn stations_near(
     near
 }
 
+/// A pilot as a site that pilots made names them.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteAuthor {
+    /// The pilot's handle, without an `@`.
+    pub handle: String,
+    /// The name the pilot is shown by.
+    pub name: String,
+}
+
+/// What a site of Venti's own layer has that a source's site has not: it
+/// was added by a pilot on Venti, anyone signed in may correct it, and
+/// every change is kept. Nobody has verified it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteByPilots {
+    /// The number of the revision the site stands at; 1 for a site nobody
+    /// has changed since it was added. A correction names it.
+    pub revision: u32,
+    /// When the site was added, seconds since 1970-01-01 UTC.
+    pub added_unix_s: i64,
+    /// Who added it. Absent once that pilot's account is gone.
+    pub added_by: Option<SiteAuthor>,
+    /// When it last changed, seconds since 1970-01-01 UTC: when it was
+    /// added, for a site at its first revision.
+    pub changed_unix_s: i64,
+    /// Who changed it last. Absent when whoever runs Venti did, and once
+    /// that pilot's account is gone.
+    pub changed_by: Option<SiteAuthor>,
+    /// What to say wherever the site is shown as more than a mark: "Added
+    /// by pilots on Venti and not verified. A site on the map is not
+    /// permission to fly there."
+    pub note: String,
+    /// Who added it, as a line of the site's page: "Added by Max
+    /// Mustermann (@demo)". The date beside it is `added_unix_s`.
+    pub added_in_words: String,
+    /// Who changed it last, as a line of the site's page: "Last changed
+    /// by Mara Beispiel (@mara)". The date beside it is `changed_unix_s`.
+    /// Empty for a site nobody has changed since it was added.
+    pub changed_in_words: String,
+}
+
 /// One flying site as a map and a sheet show it. A shell hands it back to
 /// have sites filtered ([`crate::filter_sites`]) and to keep one as the
 /// pilot's own ([`crate::Core::keep_site`]).
@@ -240,6 +296,13 @@ pub struct SiteView {
     /// drawn as a point; `position` is then all there is, and with an
     /// outline it is the middle of the box around it.
     pub outline: Vec<Coordinate>,
+    /// For a site of Venti's own layer (`source` is `venti`): who added
+    /// it and who changed it last, with what to say about such a site.
+    /// Absent for a site of a source the server collects, and a record a
+    /// shell builds without it is such a site.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub by_pilots: Option<SiteByPilots>,
 }
 
 /// The sites in a part of the map. A shell hands it back for Today's
@@ -285,12 +348,23 @@ pub fn sites_map(
 ) -> Result<SitesMap, CoreError> {
     let asked = area(south, west, north, east)?;
     let response: SitesResponse = answer(status, &body)?;
-    Ok(SitesMap {
+    Ok(sites_of(&asked, &response))
+}
+
+/// What an answer of the server holds for the box that was asked for.
+fn sites_of(asked: &BoundingBox, response: &SitesResponse) -> SitesMap {
+    SitesMap {
         sites: response
             .layers
             .iter()
-            .flat_map(|layer| &layer.sites)
-            .map(site_view)
+            .flat_map(|layer| {
+                // Where a layer says where its sites stand, it says so by
+                // identifier: a layer of a source's whole set says nothing.
+                layer.sites.iter().map(|site| {
+                    let standing = layer.standing.iter().find(|one| one.id == site.id);
+                    site_view(site, standing)
+                })
+            })
             .collect(),
         credits: response.attributions.iter().map(credit).collect(),
         as_of_unix_s: response
@@ -308,7 +382,7 @@ pub fn sites_map(
                     && cover.east() >= asked.east()
             })
         }),
-    })
+    }
 }
 
 /// How far from a place a take-off may lie to be the site of that place,
@@ -365,14 +439,8 @@ pub fn site_at(
     body: Vec<u8>,
 ) -> Result<SiteAtPlace, CoreError> {
     let asked = around_place(lat, lon)?;
-    let map = sites_map(
-        asked.south(),
-        asked.west(),
-        asked.north(),
-        asked.east(),
-        status,
-        body,
-    )?;
+    let response: SitesResponse = answer(status, &body)?;
+    let map = sites_of(&asked, &response);
     let here = GeoPoint::new(lat, lon).map_err(|_| CoreError::Server {
         message: "The app could not ask the server about the sites at this place.".to_owned(),
     })?;
@@ -394,8 +462,17 @@ pub fn site_at(
             .find(|credit| credit.source == site.source)
             .cloned()
     });
+    // The date is the one of the site's own layer: another source's data
+    // may be older or newer, and says nothing about this site.
+    let as_of_unix_s = site.as_ref().and_then(|site| {
+        response
+            .layers
+            .iter()
+            .find(|layer| layer.source.as_str() == site.source)
+            .map(|layer| layer.as_of.timestamp())
+    });
     Ok(SiteAtPlace {
-        as_of_unix_s: site.as_ref().and(map.as_of_unix_s),
+        as_of_unix_s,
         site,
         credit,
     })
@@ -415,8 +492,81 @@ fn area(south: f64, west: f64, north: f64, east: f64) -> Result<BoundingBox, Cor
     })
 }
 
-/// A site of the canonical record as a map and a sheet show it.
-pub(crate) fn site_view(site: &Site) -> SiteView {
+/// What to say wherever a site of Venti's own layer is shown as more than
+/// a mark.
+const BY_PILOTS_NOTE: &str = "Added by pilots on Venti and not verified. A site on the map is \
+                              not permission to fly there.";
+
+fn author(pilot: &SitePilot) -> SiteAuthor {
+    SiteAuthor {
+        handle: pilot.handle.as_str().to_owned(),
+        name: pilot.display_name.clone(),
+    }
+}
+
+/// "Max Mustermann (@demo)"; the handle alone for a pilot without a name.
+fn author_in_words(author: &SiteAuthor) -> String {
+    match author.name.trim() {
+        "" => format!("@{}", author.handle),
+        name => format!("{name} (@{})", author.handle),
+    }
+}
+
+/// Where a site of Venti's own layer stands, as its page shows it.
+fn by_pilots(standing: &SiteStanding) -> SiteByPilots {
+    let added_by = standing.created_by.as_ref().map(author);
+    let changed_by = standing.changed_by.as_ref().map(author);
+    SiteByPilots {
+        revision: standing.revision,
+        added_unix_s: standing.created_at.timestamp(),
+        changed_unix_s: standing.changed_at.timestamp(),
+        note: BY_PILOTS_NOTE.to_owned(),
+        added_in_words: added_by.as_ref().map_or_else(
+            || "Added by a pilot who is no longer on Venti".to_owned(),
+            |author| format!("Added by {}", author_in_words(author)),
+        ),
+        changed_in_words: match (&changed_by, standing.revision) {
+            (_, 0 | 1) => String::new(),
+            (Some(author), _) => format!("Last changed by {}", author_in_words(author)),
+            // Whoever runs Venti changes a site without an account, and a
+            // pilot's name goes with the account: the server tells the
+            // two apart only in the site's history.
+            (None, _) => "Last changed by whoever runs Venti, or by a pilot who is no longer on \
+                          Venti"
+                .to_owned(),
+        },
+        added_by,
+        changed_by,
+    }
+}
+
+/// Where a site stands, as the server said it, from what a view says of
+/// it: for keeping a site of Venti's own layer with who made it. `None`
+/// for a view of a source's site, and for one whose identifier is none.
+pub(crate) fn standing_of(view: &SiteView) -> Option<SiteStanding> {
+    let by = view.by_pilots.as_ref()?;
+    let id: SiteId = view.id.parse().ok()?;
+    let pilot = |author: &Option<SiteAuthor>| {
+        let author = author.as_ref()?;
+        Some(SitePilot {
+            handle: venti_api_types::v1::Handle::new(&author.handle).ok()?,
+            display_name: author.name.clone(),
+        })
+    };
+    Some(SiteStanding {
+        id,
+        revision: by.revision,
+        created_at: chrono::DateTime::from_timestamp(by.added_unix_s, 0)?,
+        created_by: pilot(&by.added_by),
+        changed_at: chrono::DateTime::from_timestamp(by.changed_unix_s, 0)?,
+        changed_by: pilot(&by.changed_by),
+    })
+}
+
+/// A site of the canonical record as a map and a sheet show it. `standing`
+/// is what the server says beside a site that pilots made; a source's site
+/// has none.
+pub(crate) fn site_view(site: &Site, standing: Option<&SiteStanding>) -> SiteView {
     let uses: Vec<SiteKind> = site.uses.iter().copied().map(kind).collect();
     let kind_in_words = uses_in_words(&uses);
     let name = site
@@ -478,6 +628,7 @@ pub(crate) fn site_view(site: &Site) -> SiteView {
                 lon: point.lon(),
             })
             .collect(),
+        by_pilots: standing.map(by_pilots),
     }
 }
 
@@ -901,11 +1052,14 @@ mod tests {
             ))
             .unwrap()
         };
-        let said = site_view(&record(
-            r#","fee":"yes","guest_guidelines":true,"no_flight_time":"01.05-30.09",
+        let said = site_view(
+            &record(
+                r#","fee":"yes","guest_guidelines":true,"no_flight_time":"01.05-30.09",
                "website":"http://example.org/fluggebiet",
                "description":"Nicht im hohen Gras landen.\nWindsack vorhanden.""#,
-        ));
+            ),
+            None,
+        );
         assert_eq!(said.fee_in_words, "A fee is asked for using this site.");
         assert_eq!(
             said.guests_in_words,
@@ -925,7 +1079,7 @@ mod tests {
             Some("Nicht im hohen Gras landen.\nWindsack vorhanden.")
         );
 
-        let other = site_view(&record(r#","fee":"no","guest_guidelines":false"#));
+        let other = site_view(&record(r#","fee":"no","guest_guidelines":false"#), None);
         assert_eq!(other.fee_in_words, "No fee is asked for using this site.");
         assert_eq!(
             other.guests_in_words,
@@ -933,9 +1087,152 @@ mod tests {
         );
         assert_eq!(other.no_flight_in_words, "");
         // Anything else a mapper wrote about a fee is shown as written.
-        let own = site_view(&record(r#","fee":"donation""#));
+        let own = site_view(&record(r#","fee":"donation""#), None);
         assert_eq!(own.fee_in_words, "Fee: donation");
         assert_eq!(own.guests_in_words, "");
+    }
+
+    /// An answer with OpenStreetMap's layer and Venti's own: a take-off
+    /// of each on the same hill, a landing that pilots added and whoever
+    /// runs Venti corrected, and a take-off whose author has left. Made
+    /// up, in the shape `docs/api.md` gives the answer.
+    fn with_the_layer_of_pilots() -> Vec<u8> {
+        br#"{
+            "layers": [
+                {"source": "osm-free-flying", "fetched_at": "2026-11-19T18:10:00Z",
+                 "as_of": "2026-11-18T21:21:02Z",
+                 "covers": [{"south": 46.3, "west": 9.4, "north": 48.5, "east": 17.2}],
+                 "sites": [{"id": "osm-free-flying:node/5964676196",
+                            "position": {"lat": 47.6652, "lon": 11.7954}, "uses": ["takeoff"],
+                            "url": "https://www.openstreetmap.org/node/5964676196"}]},
+                {"source": "venti", "fetched_at": "2026-11-21T09:00:00Z",
+                 "as_of": "2026-11-21T09:00:00Z",
+                 "sites": [
+                    {"id": "venti:00000000000000000000000041", "name": "Musterberg Ost",
+                     "position": {"lat": 47.6642, "lon": 11.7967}, "elevation_m": 1580.0,
+                     "uses": ["takeoff"],
+                     "wind_directions": [{"from_deg": 45.0, "to_deg": 135.0}],
+                     "description": "Made up for the development mode."},
+                    {"id": "venti:00000000000000000000000042", "name": "Musterwiese",
+                     "position": {"lat": 47.6700, "lon": 11.7900}, "uses": ["landing"]},
+                    {"id": "venti:00000000000000000000000043",
+                     "position": {"lat": 47.6600, "lon": 11.7800}, "uses": ["takeoff"]}],
+                 "standing": [
+                    {"id": "venti:00000000000000000000000041", "revision": 3,
+                     "created_at": "2026-11-03T10:00:00Z",
+                     "created_by": {"handle": "demo", "display_name": "Max Mustermann"},
+                     "changed_at": "2026-11-12T17:30:00Z",
+                     "changed_by": {"handle": "mara", "display_name": "Mara Beispiel"}},
+                    {"id": "venti:00000000000000000000000042", "revision": 2,
+                     "created_at": "2026-11-05T08:00:00Z",
+                     "created_by": {"handle": "jonas", "display_name": ""},
+                     "changed_at": "2026-11-06T08:00:00Z"},
+                    {"id": "venti:00000000000000000000000043", "revision": 1,
+                     "created_at": "2026-11-07T08:00:00Z",
+                     "changed_at": "2026-11-07T08:00:00Z"}]}
+            ],
+            "attributions": [
+                {"source": "osm-free-flying", "provider": "OpenStreetMap contributors",
+                 "licence": "ODbL 1.0", "text": "\u00a9 OpenStreetMap contributors",
+                 "url": "https://www.openstreetmap.org/copyright"},
+                {"source": "venti", "provider": "Venti contributors", "licence": "CC0 1.0",
+                 "text": "Venti contributors",
+                 "url": "https://creativecommons.org/publicdomain/zero/1.0/"}
+            ]
+        }"#
+        .to_vec()
+    }
+
+    #[test]
+    fn a_site_that_pilots_made_says_who_added_it_and_that_nobody_verified_it() {
+        let map = sites_map(47.55, 11.6, 47.85, 12.0, 200, with_the_layer_of_pilots()).unwrap();
+        // Both layers are on the map, each site its own source's, each
+        // source with its own credit: nothing of the two is put together.
+        let sources: Vec<&str> = map.sites.iter().map(|site| site.source.as_str()).collect();
+        assert_eq!(sources, ["osm-free-flying", "venti", "venti", "venti"]);
+        let licences: Vec<&str> = map
+            .credits
+            .iter()
+            .map(|credit| credit.licence.as_str())
+            .collect();
+        assert_eq!(licences, ["ODbL 1.0", "CC0 1.0"]);
+        // A source's site says nothing of the kind.
+        assert_eq!(map.sites[0].by_pilots, None);
+
+        let site = &map.sites[1];
+        assert_eq!(site.name, "Musterberg Ost");
+        assert_eq!(site.wind_in_words, "NE to SE");
+        // A pilot's site has no record elsewhere to look at.
+        assert_eq!(site.url, None);
+        let by = site.by_pilots.as_ref().unwrap();
+        assert_eq!(by.revision, 3);
+        assert_eq!(
+            by.note,
+            "Added by pilots on Venti and not verified. A site on the map is not permission to \
+             fly there."
+        );
+        assert_eq!(by.added_in_words, "Added by Max Mustermann (@demo)");
+        assert_eq!(by.changed_in_words, "Last changed by Mara Beispiel (@mara)");
+        assert_eq!(by.added_unix_s, 1_793_700_000);
+        assert_eq!(by.changed_unix_s, 1_794_504_600);
+        assert_eq!(by.added_by.as_ref().unwrap().handle, "demo");
+
+        // A pilot without a name is their handle. A change with no pilot
+        // to it is whoever runs Venti's, or a pilot's who has left: the
+        // answer does not say which.
+        let corrected = map.sites[2].by_pilots.as_ref().unwrap();
+        assert_eq!(corrected.added_in_words, "Added by @jonas");
+        assert_eq!(corrected.changed_by, None);
+        assert_eq!(
+            corrected.changed_in_words,
+            "Last changed by whoever runs Venti, or by a pilot who is no longer on Venti"
+        );
+        // A site nobody changed has no line about a change, and one whose
+        // author has left says so.
+        let untouched = map.sites[3].by_pilots.as_ref().unwrap();
+        assert_eq!(
+            untouched.added_in_words,
+            "Added by a pilot who is no longer on Venti"
+        );
+        assert_eq!(untouched.changed_in_words, "");
+        assert_eq!(untouched.changed_unix_s, untouched.added_unix_s);
+
+        // What a view says of where its site stands is what the server
+        // said, to the second.
+        let response: SitesResponse = serde_json::from_slice(&with_the_layer_of_pilots()).unwrap();
+        let said = &response.layers[1].standing;
+        assert_eq!(standing_of(&map.sites[1]).as_ref(), Some(&said[0]));
+        assert_eq!(standing_of(&map.sites[3]).as_ref(), Some(&said[2]));
+        assert_eq!(standing_of(&map.sites[0]), None);
+    }
+
+    #[test]
+    fn the_site_of_a_place_is_the_nearest_take_off_of_either_layer_with_its_own_credit() {
+        // On the hill the pilots' take-off is the nearer one.
+        let found = site_at(47.6642, 11.7967, None, 200, with_the_layer_of_pilots()).unwrap();
+        let site = found.site.unwrap();
+        assert_eq!(site.id, "venti:00000000000000000000000041");
+        assert!(site.by_pilots.is_some());
+        let credit = found.credit.unwrap();
+        assert_eq!(
+            (credit.source.as_str(), credit.licence.as_str()),
+            ("venti", "CC0 1.0")
+        );
+        // The date is its own layer's, not the oldest of the answer.
+        assert_eq!(found.as_of_unix_s, Some(1_795_251_600));
+
+        // OpenStreetMap's is found by its identifier, with its own date.
+        let named = site_at(
+            47.6642,
+            11.7967,
+            Some("osm-free-flying:node/5964676196".to_owned()),
+            200,
+            with_the_layer_of_pilots(),
+        )
+        .unwrap();
+        assert_eq!(named.site.unwrap().by_pilots, None);
+        assert_eq!(named.credit.unwrap().licence, "ODbL 1.0");
+        assert_eq!(named.as_of_unix_s, Some(1_795_036_862));
     }
 
     #[test]

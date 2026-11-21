@@ -1031,6 +1031,209 @@ final class VentiUITests: XCTestCase {
         }
     }
 
+    /// The air around and above a take-off, against a Venti server in
+    /// development mode, whose recorded forecasts of late November have a
+    /// neighbourhood with strong gusts on some hours and stable air on
+    /// most: Today says a day's line about the wind near by with the
+    /// take-off it is about, and what that is; the take-off's page draws
+    /// the hours' layers into the picture of the day's air and says an
+    /// hour's layers and its wind near by in words when the hour is
+    /// tapped. What is asserted is what the recording has, by its shape
+    /// and not by its figures.
+    ///
+    /// A take-off's page speaks of its first day with hours left, and by
+    /// the development server's clock that is the recorded Saturday, a
+    /// day of rain whose air is mixed all the way up. So the test names
+    /// the moment itself (`--today-at`): the Sunday evening, after which
+    /// the page speaks of the Monday, whose wind near by is much stronger
+    /// and whose air is stable; and for the picture in the dark the
+    /// Saturday evening, for the Sunday, which has an inversion as well.
+    func testATakeoffsPageShowsTheAirAroundAndAbove() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--bundled-map", "--server", server, "--today-at", "2026-11-22T18:00:00Z",
+        ]
+        app.launch()
+
+        // Today, with every forecast read.
+        let card = element("today-card", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: 60))
+        let status = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label IN %@", ["Flyable", "Marginal", "Not flyable"]))
+            .firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 90))
+        sleep(4)
+
+        // The day's line: on the first of the days that has one for some
+        // take-off. It names the hour, what is stronger and where, and
+        // what the place itself has.
+        let line = labelled(containing: "Much stronger near by at", in: app)
+        // Whether the day Today opens on has it: the first with hours
+        // left, which is the day a take-off's page speaks of.
+        let isOnTheFirstDay = line.exists
+        let days = app.buttons.matching(identifier: "today-days")
+        var dayWithLine: Int?
+        var said: [String] = []
+        for index in 0..<max(days.count, 1) {
+            if days.count > 1 {
+                days.element(boundBy: index).tap()
+                sleep(1)
+            }
+            let takeoffs = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier IN %@", ["today-card", "today-row"]))
+            let lines = takeoffs.matching(NSPredicate(format: "label CONTAINS %@", "Much stronger near by at"))
+            said.append("day \(index): \(lines.count) of \(takeoffs.count) take-offs")
+            if dayWithLine == nil, line.exists {
+                dayWithLine = index
+            }
+        }
+        // How often the line speaks in the recording, for whoever reads
+        // the log.
+        print("The wind near by, day by day: \(said.joined(separator: "; "))")
+        let found = try XCTUnwrap(dayWithLine, "No day of the recording has a line about the wind near by")
+        if days.count > 1 {
+            days.element(boundBy: found).tap()
+            sleep(1)
+        }
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertNotNil(
+            line.label.range(
+                of: #"Much stronger near by at \d{1,2}:00: (gusts to|wind) \d+ km/h .+, \d+ km/h at the place"#,
+                options: .regularExpression
+            ),
+            line.label
+        )
+        // And at the foot, what the wind near by is and that it judges
+        // nothing.
+        XCTAssertTrue(labelled(containing: "Near by is the strongest wind and gust", in: app).exists)
+        XCTAssertTrue(labelled(containing: "it changes no verdict", in: app).exists)
+        bringUp(line, in: app)
+        sleep(1)
+        keepScreenshot("air-1-today-the-days-line")
+
+        // The take-off the line is about: its own page.
+        line.tap()
+        XCTAssertTrue(labelled(containing: "Wind it works in", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
+        // The page speaks of the first day that has hours left; where that
+        // day has the line, it stands under the day's own.
+        let onPage = element("site-nearby", in: app)
+        if isOnTheFirstDay {
+            XCTAssertTrue(onPage.waitForExistence(timeout: 10))
+            XCTAssertTrue(onPage.label.contains("Much stronger near by at"), onPage.label)
+        }
+        sleep(1)
+        keepScreenshot("air-2-site-the-days-line")
+
+        // Further down, the picture of the day's air, with the hours to
+        // tap over it.
+        let chart = element("air-chart", in: app)
+        for _ in 0..<4 where !chart.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(chart.waitForExistence(timeout: 15))
+        let hours = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "air-hour-"))
+        XCTAssertGreaterThan(hours.count, 1)
+        // What each hour says, as a screen reader hears it.
+        let spoken = hours.allElementsBoundByIndex.map { ($0.value as? String) ?? "" }
+        print("The hours of the picture: \(spoken)")
+        // Late November: the air is stable or inverted in most hours, and
+        // the forecast map's daylight hours have a wind near by.
+        let layered = spoken.filter { $0.contains("Stable layer between") || $0.contains("Inversion between") }
+        XCTAssertGreaterThan(layered.count, spoken.count / 2, "\(spoken)")
+        XCTAssertTrue(spoken.contains { $0.contains("Gusts near by: ") }, "\(spoken)")
+
+        // The picture whole, clear of the tab bar, with the words of the
+        // hour it opens on under it.
+        let detail = element("air-hour-clock", in: app)
+        bringUp(detail, in: app)
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        sleep(1)
+        keepScreenshot("air-3-the-picture-with-layers")
+
+        // An hour tapped: its layers in the core's words, each beside its
+        // band, and the strongest wind and gust near by with where. An
+        // hour in which the wind near by is much stronger where the day
+        // has one, else the first with layers and figures.
+        let hasLine = { (said: String) in
+            said.range(of: #"^(Gusts to|Wind) \d+ km/h .+, \d+ km/h at the place"#, options: .regularExpression) != nil
+        }
+        let wanted = spoken.firstIndex(where: hasLine)
+            ?? spoken.firstIndex { $0.contains("layer between") && $0.contains("Gusts near by: ") }
+            ?? spoken.firstIndex { $0.contains("Gusts near by: ") }
+        let index = try XCTUnwrap(wanted)
+        hours.element(boundBy: index).tap()
+        usleep(600_000)
+        let figure = app.descendants(matching: .any).matching(identifier: "air-hour-figure")
+        XCTAssertTrue(figure.firstMatch.waitForExistence(timeout: 10))
+        let gusts = figure.matching(NSPredicate(format: "label == %@", "Gusts near by")).firstMatch
+        XCTAssertTrue(gusts.exists)
+        let figureWords = (gusts.value as? String) ?? ""
+        XCTAssertNotNil(
+            figureWords.range(of: #"^\d+ km/h (\d+ km to the [a-z-]+|in the square around the place)"#, options: .regularExpression),
+            figureWords
+        )
+        if hasLine(spoken[index]) {
+            let hourLine = element("air-hour-line", in: app)
+            XCTAssertTrue(hourLine.exists)
+            XCTAssertTrue(hourLine.label.hasPrefix("Gusts to") || hourLine.label.hasPrefix("Wind "), hourLine.label)
+        }
+        if spoken[index].contains("layer between") || spoken[index].contains("Inversion between") {
+            let layer = element("air-hour-layer", in: app)
+            XCTAssertTrue(layer.exists)
+            XCTAssertNotNil(
+                layer.label.range(
+                    of: #"(Stable layer|Inversion) between \d+ and \d+ m: \d+\.\d °C"#, options: .regularExpression
+                ),
+                layer.label
+            )
+        }
+        bringUp(detail, in: app)
+        sleep(1)
+        keepScreenshot("air-4-an-hour-in-words")
+
+        // Under the picture, what the layers and the wind near by are and
+        // are not.
+        let layersNote = labelled(containing: "Layers are read between the model's levels", in: app)
+        bringUp(layersNote, in: app)
+        XCTAssertTrue(layersNote.waitForExistence(timeout: 10))
+        XCTAssertTrue(labelled(containing: "Near by is the strongest wind and gust", in: app).exists)
+        sleep(1)
+        keepScreenshot("air-5-the-notes")
+
+        // The picture once more in the dark, on the day before, whose air
+        // has an inversion at the ground under its stable layer: the bands
+        // are in the dark theme's muted ink.
+        app.terminate()
+        app.launchArguments = [
+            "--ui-testing", "--bundled-map", "--dark", "--server", server, "--today-at", "2026-11-21T18:00:00Z",
+        ]
+        app.launch()
+        XCTAssertTrue(card.waitForExistence(timeout: 60))
+        XCTAssertTrue(status.waitForExistence(timeout: 90))
+        sleep(4)
+        card.tap()
+        XCTAssertTrue(element("site-status", in: app).waitForExistence(timeout: 30))
+        for _ in 0..<4 where !chart.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(chart.waitForExistence(timeout: 15))
+        let inTheDark = hours.allElementsBoundByIndex.map { ($0.value as? String) ?? "" }
+        print("The hours of the picture in the dark: \(inTheDark)")
+        XCTAssertTrue(inTheDark.contains { $0.contains("Inversion between") }, "\(inTheDark)")
+        if let inverted = inTheDark.firstIndex(where: { $0.contains("Inversion between") }) {
+            hours.element(boundBy: inverted).tap()
+            usleep(600_000)
+        }
+        bringUp(detail, in: app)
+        sleep(1)
+        keepScreenshot("air-6-the-picture-in-the-dark")
+    }
+
     /// Draws the page up until an element stands clear of the tab bar.
     private func bringUp(_ element: XCUIElement, in app: XCUIApplication) {
         let bottom = app.windows.firstMatch.frame.maxY - 110

@@ -57,6 +57,7 @@ pub mod live;
 pub mod maintenance;
 pub mod maps;
 pub mod moderation;
+pub mod pilot_sites;
 pub mod plan;
 pub mod radar;
 pub mod serve;

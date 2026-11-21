@@ -3,10 +3,10 @@
 //! `tests/memory.rs` and `tests/postgres.rs` both run every function here,
 //! each against its own implementation. A new behaviour is added once, as a
 //! function and a name in [`store_suite`], and both stores must pass it.
-//! Stations and observations are below; airspace, flying sites, forecasts,
-//! accounts, flights, live tracks, groups with their plans, and what
-//! whoever runs the server does about what is shared have files of their
-//! own.
+//! Stations and observations are below; airspace, flying sites, the sites
+//! that pilots make, forecasts, accounts, flights, live tracks, groups with
+//! their plans, and what whoever runs the server does about what is shared
+//! have files of their own.
 
 mod accounts;
 mod airspace;
@@ -15,6 +15,7 @@ mod forecasts;
 mod groups;
 mod live;
 mod moderation;
+mod pilot_sites;
 mod sites;
 
 pub(crate) use accounts::*;
@@ -24,6 +25,7 @@ pub(crate) use forecasts::*;
 pub(crate) use groups::*;
 pub(crate) use live::*;
 pub(crate) use moderation::*;
+pub(crate) use pilot_sites::*;
 pub(crate) use sites::*;
 
 use chrono::{Duration, TimeZone, Utc};
@@ -67,6 +69,17 @@ macro_rules! store_suite {
             a_bad_site_set_is_refused_and_nothing_is_stored,
             site_layers_are_kept_apart_and_sorted,
             pruning_leaves_sites_alone,
+            a_site_a_pilot_made_is_read_back_with_its_author_and_times,
+            a_change_to_a_site_is_a_new_revision_and_the_old_ones_stay,
+            a_removed_site_keeps_its_address_and_can_be_restored,
+            a_site_taken_down_comes_back_only_by_the_operator,
+            standing_sites_keep_their_distance_from_each_other,
+            adds_racing_for_one_place_put_one_site_there,
+            the_history_of_a_site_is_read_page_by_page,
+            what_changed_among_the_sites_is_listed_once_per_site,
+            the_identifier_of_a_site_is_never_used_again,
+            a_deleted_account_leaves_its_sites_without_an_author,
+            sites_of_pilots_are_found_by_box_apart_from_a_sources,
             what_a_look_at_the_forecast_models_found_is_read_back,
             a_healthy_look_replaces_what_is_known_about_the_models,
             a_failed_or_older_look_changes_nothing_about_the_models,

@@ -1,0 +1,116 @@
+{
+  "sites": [
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s001",
+        "name": "Musterkogel West",
+        "position": {
+          "lat": 47.3,
+          "lon": 10.9
+        },
+        "elevation_m": 1862.0,
+        "uses": [
+          "takeoff"
+        ],
+        "wind_directions": [
+          {
+            "from_deg": 225.0,
+            "to_deg": 315.0
+          }
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s001",
+        "revision": 2,
+        "created_at": "2026-10-29T19:05:00Z",
+        "created_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        "changed_at": "2026-10-31T19:05:00Z",
+        "changed_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        }
+      }
+    },
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s002",
+        "revision": 3,
+        "created_at": "2026-11-06T19:05:00Z",
+        "created_by": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "changed_at": "2026-11-13T19:05:00Z",
+        "changed_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        }
+      }
+    },
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s003",
+        "name": "Musterwiese",
+        "position": {
+          "lat": 47.28,
+          "lon": 10.89
+        },
+        "elevation_m": 1010.0,
+        "uses": [
+          "landing"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s003",
+        "revision": 1,
+        "created_at": "2026-11-14T19:05:00Z",
+        "created_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "changed_at": "2026-11-14T19:05:00Z",
+        "changed_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        }
+      }
+    }
+  ],
+  "removed": [
+    "venti:0000000000000000000000s004"
+  ],
+  "cursor": "8",
+  "more": false,
+  "reset": false,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}

@@ -89,6 +89,23 @@ usage: venti-server <command>
       Remove a group with its members' places in it and all its plans.
       Touches no account, tells nobody, and cannot be undone.
 
+  site <SITE> [--config FILE]
+      Show one site that pilots made: what it says, who made it, where it
+      stands, and every revision of its history. SITE is the site's
+      identifier (venti: and 26 characters) or a link that ends in it.
+      Changes nothing.
+
+  revert-site <SITE> --revision N [--comment TEXT] [--config FILE]
+      Put a site that pilots made back to what its revision N said, as a
+      new revision of the operator's. Brings back a site that was removed
+      or taken down. The comment is kept in the site's history, which
+      everyone can read.
+
+  remove-site <SITE> [--comment TEXT] [--config FILE]
+      Take a site that pilots made down: it is gone to everyone, and its
+      identifier is never used again. Deletes nothing; revert-site brings
+      it back.
+
   ingest <region.toml> [--source ID] [--archive DIR] [--json]
       Run a region's sources once against the live providers and print a
       health line for each. Stores nothing. Fails when a source delivers
@@ -124,7 +141,8 @@ pub enum Command {
     /// Make invite codes.
     Invite(invite::Args),
     /// Read the reports, or act on a flight, a live track, an account, a
-    /// group or a plan, as whoever runs the server.
+    /// group, a plan or a site that pilots made, as whoever runs the
+    /// server.
     Moderate(moderation::Args),
     /// Analyse the flight file on standard input.
     Derive,
@@ -145,7 +163,9 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "invite" => parse_invite(args),
         "reports" | "close-report" | "take-down" | "release" | "remove-live-track"
         | "suspend-publishing" | "resume-publishing" | "group" | "rename-group" | "remove-plan"
-        | "remove-group" => parse_moderation(&command, args),
+        | "remove-group" | "site" | "revert-site" | "remove-site" => {
+            parse_moderation(&command, args)
+        }
         "derive" => match args.next() {
             None => Ok(Command::Derive),
             Some(other) => Err(format!("derive does not take {other:?}")),
@@ -264,8 +284,8 @@ fn parse_invite(mut args: impl Iterator<Item = String>) -> Result<Command, Strin
 }
 
 /// Reads one of the operator's subcommands: the one thing each is pointed
-/// at, `--config`, and what only one of them takes (`--all`, `--note`,
-/// `--name`).
+/// at, `--config`, and what only some of them take (`--all`, `--note`,
+/// `--name`, `--revision`, `--comment`).
 fn parse_moderation(
     command: &str,
     mut args: impl Iterator<Item = String>,
@@ -275,12 +295,23 @@ fn parse_moderation(
     let mut all = false;
     let mut note = None;
     let mut name = None;
+    let mut revision = None;
+    let mut comment = None;
+    let about_a_site = matches!(command, "revert-site" | "remove-site");
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--config" => config = Some(PathBuf::from(value("--config", &mut args)?)),
             "--all" if command == "reports" => all = true,
             "--note" if command == "close-report" => note = Some(value("--note", &mut args)?),
             "--name" if command == "rename-group" => name = Some(value("--name", &mut args)?),
+            "--revision" if command == "revert-site" => {
+                let text = value("--revision", &mut args)?;
+                let number = text.parse::<u32>().ok().filter(|number| *number >= 1);
+                revision = Some(number.ok_or_else(|| {
+                    format!("--revision takes the number of a revision, from 1 on, not {text:?}")
+                })?);
+            }
+            "--comment" if about_a_site => comment = Some(value("--comment", &mut args)?),
             _ if arg.starts_with("--") => return Err(format!("{command} does not take {arg:?}")),
             _ if command == "reports" => return Err(format!("reports does not take {arg:?}")),
             _ if target.is_none() => target = Some(arg),
@@ -325,6 +356,19 @@ fn parse_moderation(
         },
         "remove-group" => Action::RemoveGroup {
             group: target("a group's identifier")?,
+        },
+        "site" => Action::Site {
+            site: target("a site's identifier")?,
+        },
+        "revert-site" => Action::RevertSite {
+            site: target("a site's identifier")?,
+            revision: revision
+                .ok_or("revert-site needs --revision with the number of the revision to restore")?,
+            comment,
+        },
+        "remove-site" => Action::RemoveSite {
+            site: target("a site's identifier")?,
+            comment,
         },
         other => return Err(format!("unknown command {other:?}")),
     };
@@ -608,7 +652,62 @@ mod tests {
             }))
         );
 
+        // What is done about a site that pilots made: by its identifier,
+        // a revision by its number, and a comment that is one argument.
+        let site = "venti:55555555555555555555555555".to_owned();
+        assert_eq!(
+            action("site venti:55555555555555555555555555"),
+            Action::Site { site: site.clone() }
+        );
+        assert_eq!(
+            action("remove-site venti:55555555555555555555555555"),
+            Action::RemoveSite {
+                site: site.clone(),
+                comment: None
+            }
+        );
+        let reverting = parse(
+            [
+                "revert-site",
+                "--revision",
+                "2",
+                "venti:55555555555555555555555555",
+                "--comment",
+                "Back to what --all agreed on",
+            ]
+            .map(str::to_owned),
+        );
+        assert_eq!(
+            reverting,
+            Ok(Command::Moderate(moderation::Args {
+                config: None,
+                action: Action::RevertSite {
+                    site,
+                    revision: 2,
+                    comment: Some("Back to what --all agreed on".to_owned()),
+                },
+            }))
+        );
+
         for mistake in [
+            "site",
+            "site a b",
+            "site a --comment x",
+            "site a --revision 1",
+            "sites",
+            "revert-site",
+            "revert-site a",
+            "revert-site a --revision",
+            "revert-site a --revision 0",
+            "revert-site a --revision -1",
+            "revert-site a --revision two",
+            "revert-site --revision 2",
+            "revert-site a --revision 2 --comment",
+            "revert-site a --revision 2 --note x",
+            "remove-site",
+            "remove-site a b",
+            "remove-site a --revision 2",
+            "remove-site a --all",
             "reports demo",
             "reports --note x",
             "close-report",
@@ -655,6 +754,9 @@ mod tests {
             "rename-group <GROUP> --name TEXT",
             "remove-plan <PLAN>",
             "remove-group <GROUP>",
+            "site <SITE>",
+            "revert-site <SITE> --revision N [--comment TEXT]",
+            "remove-site <SITE> [--comment TEXT]",
         ] {
             assert!(USAGE.contains(command), "{command}");
         }

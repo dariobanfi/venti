@@ -127,6 +127,15 @@ pub fn settings(public_url: PublicUrl, analyser: Analyser, password_cost: Cost) 
         analyser,
         live: crate::live::Limits::none(),
         groups: crate::groups::Limits::none(),
+        // The development mode takes sites from pilots, in the first
+        // region: its data is made up, and an app is built against it.
+        sites: crate::pilot_sites::Settings {
+            accept: true,
+            regions: RegionPack::from_toml(FIRST_REGION)
+                .map(|pack| vec![pack.bounds])
+                .unwrap_or_default(),
+            limits: crate::pilot_sites::Limits::none(),
+        },
     }
 }
 
@@ -359,6 +368,206 @@ async fn add_demo_groups(
             }
         }
     }
+    Ok(())
+}
+
+/// The identifiers of the sites the three pilots made, all of them made
+/// up: no such take-off or landing exists, and each record says so.
+///
+/// - The first: a take-off the demo account added twenty days before the
+///   mode's clock; `mara` added its wind directions two days later.
+/// - The second: a take-off `jonas` added; `mara` gave it a wrong height,
+///   and the demo account put it back to the first revision.
+/// - The third: a landing field `mara` added, at its first revision.
+/// - The fourth: a take-off `jonas` added twice by mistake and removed
+///   again. Its address answers that it is gone.
+///
+/// They lie in the Lechtal Alps, in a box of their own:
+/// [`DEMO_SITES_BBOX`].
+pub const DEMO_SITES: [&str; 4] = [
+    "venti:0000000000000000000000s001",
+    "venti:0000000000000000000000s002",
+    "venti:0000000000000000000000s003",
+    "venti:0000000000000000000000s004",
+];
+
+/// A box that holds the sites of [`DEMO_SITES`] and nothing of another
+/// layer in the recorded data: `west,south,east,north`.
+pub const DEMO_SITES_BBOX: &str = "10.85,47.25,10.95,47.32";
+
+/// Puts the made-up sites of the development mode into the store, with
+/// their histories. `accounts` are the three pilots, by handle.
+async fn add_demo_sites(
+    store: &MemoryStore,
+    accounts: &[Account],
+    now: Timestamp,
+) -> Result<(), String> {
+    use venti_domain::{GeoPoint, Site, SiteUse, WindSector};
+    use venti_store::{NewPilotSite, SiteAct, SiteRevising, SiteVia, SiteWrite};
+
+    use crate::pilot_sites::APART_M;
+
+    let account = |handle: &str| {
+        accounts
+            .iter()
+            .find(|account| account.handle == handle)
+            .map(|account| account.id.clone())
+            .ok_or_else(|| format!("the development mode has no pilot {handle}"))
+    };
+    let made_up = "A made-up site of the development mode. No such place exists.";
+    let site = |id: &str, name: &str, lat: f64, lon: f64, height: f64, used: SiteUse| {
+        Ok::<Site, String>(Site {
+            id: id
+                .parse()
+                .map_err(|_| format!("{id} is no site identifier"))?,
+            name: Some(name.to_owned()),
+            position: GeoPoint::new(lat, lon).map_err(|e| e.to_string())?,
+            elevation_m: Some(height),
+            uses: vec![used],
+            wind_directions: Vec::new(),
+            paragliding: Some(true),
+            hang_gliding: None,
+            official: None,
+            discouraged: false,
+            url: None,
+            website: None,
+            description: Some(made_up.to_owned()),
+            fee: None,
+            guest_guidelines: None,
+            no_flight_time: None,
+            outline: None,
+        })
+    };
+    let days = |days: i64| now - chrono::Duration::days(days);
+    let must = |written: Result<SiteWrite, venti_store::StoreError>, what: &str| match written {
+        Ok(SiteWrite::Written(_)) => Ok(()),
+        other => Err(format!("a made-up site could not be {what}: {other:?}")),
+    };
+    let add = |site: Site, by: String, at: Timestamp, why: &str| NewPilotSite {
+        site,
+        author_id: by,
+        at,
+        via: SiteVia::Session,
+        comment: Some(why.to_owned()),
+    };
+    let revise = |id: &str, by: String, at: Timestamp, act: SiteAct, why: &str| {
+        Ok::<SiteRevising, String>(SiteRevising {
+            id: id
+                .parse()
+                .map_err(|_| format!("{id} is no site identifier"))?,
+            author_id: Some(by),
+            at,
+            via: SiteVia::Session,
+            act,
+            comment: Some(why.to_owned()),
+            expects: None,
+        })
+    };
+    let [first, second, third, fourth] = DEMO_SITES;
+
+    // The first: added, then given its wind directions.
+    let kogel = site(
+        first,
+        "Musterkogel West",
+        47.3,
+        10.9,
+        1862.0,
+        SiteUse::Takeoff,
+    )?;
+    let new = add(
+        kogel.clone(),
+        account(DEMO_HANDLE)?,
+        days(20),
+        "Made up, for the development mode.",
+    );
+    must(store.add_pilot_site(&new, APART_M).await, "added")?;
+    let with_wind = Site {
+        wind_directions: vec![WindSector {
+            from_deg: 225.0,
+            to_deg: 315.0,
+        }],
+        ..kogel
+    };
+    let change = revise(
+        first,
+        account("mara")?,
+        days(18),
+        SiteAct::Change(Box::new(with_wind)),
+        "Wind directions added.",
+    )?;
+    must(store.revise_pilot_site(&change, APART_M).await, "changed")?;
+
+    // The second: added, changed for the worse, and put back.
+    let joch = site(
+        second,
+        "Beispieljoch",
+        47.29,
+        10.91,
+        2104.0,
+        SiteUse::Takeoff,
+    )?;
+    let new = add(
+        joch.clone(),
+        account("jonas")?,
+        days(12),
+        "Made up, for the development mode.",
+    );
+    must(store.add_pilot_site(&new, APART_M).await, "added")?;
+    let wrong = Site {
+        elevation_m: Some(1204.0),
+        ..joch
+    };
+    let change = revise(
+        second,
+        account("mara")?,
+        days(6),
+        SiteAct::Change(Box::new(wrong)),
+        "Height corrected.",
+    )?;
+    must(store.revise_pilot_site(&change, APART_M).await, "changed")?;
+    let undo = revise(
+        second,
+        account(DEMO_HANDLE)?,
+        days(5),
+        SiteAct::Restore(1),
+        "The height was right before.",
+    )?;
+    must(store.revise_pilot_site(&undo, APART_M).await, "restored")?;
+
+    // The third: a landing field at its first revision.
+    let wiese = site(third, "Musterwiese", 47.28, 10.89, 1010.0, SiteUse::Landing)?;
+    let new = add(
+        wiese,
+        account("mara")?,
+        days(4),
+        "Made up, for the development mode.",
+    );
+    must(store.add_pilot_site(&new, APART_M).await, "added")?;
+
+    // The fourth: added by mistake and removed again.
+    let twice = site(
+        fourth,
+        "Musterkogel",
+        47.305,
+        10.905,
+        1870.0,
+        SiteUse::Takeoff,
+    )?;
+    let new = add(
+        twice,
+        account("jonas")?,
+        days(3),
+        "Made up, for the development mode.",
+    );
+    must(store.add_pilot_site(&new, APART_M).await, "added")?;
+    let removal = revise(
+        fourth,
+        account("jonas")?,
+        days(3) + chrono::Duration::minutes(10),
+        SiteAct::Remove { take_down: false },
+        "Added twice: the same take-off as Musterkogel West.",
+    )?;
+    must(store.revise_pilot_site(&removal, APART_M).await, "removed")?;
     Ok(())
 }
 
@@ -675,6 +884,7 @@ async fn add_demo_account(
         pilots.push(further);
     }
     add_demo_groups(store, &pilots, now).await?;
+    add_demo_sites(store, &pilots, now).await?;
 
     let session = Session {
         id: DEMO_SESSION_ID.to_owned(),

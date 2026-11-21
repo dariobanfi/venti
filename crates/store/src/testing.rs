@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
@@ -16,12 +16,12 @@ use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
-    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
-    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
+    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
+    ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
+    SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
 };
 
 /// A store whose database is down, or answers with a failure after a delay.
@@ -134,6 +134,43 @@ impl Store for TroubledStore {
     }
 
     async fn site_sets(&self, _: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
+        self.fail().await
+    }
+
+    async fn set_site(&self, _: &SiteId) -> Result<Option<Site>, StoreError> {
+        self.fail().await
+    }
+
+    async fn add_pilot_site(&self, _: &NewPilotSite, _: f64) -> Result<SiteWrite, StoreError> {
+        self.fail().await
+    }
+
+    async fn revise_pilot_site(&self, _: &SiteRevising, _: f64) -> Result<SiteWrite, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilot_sites_in(
+        &self,
+        _: &BoundingBox,
+        _: usize,
+    ) -> Result<Vec<PilotSite>, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilot_site(&self, _: &SiteId) -> Result<Option<PilotSite>, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilot_site_revisions(
+        &self,
+        _: &SiteId,
+        _: u32,
+        _: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError> {
+        self.fail().await
+    }
+
+    async fn pilot_site_changes(&self, _: i64, _: usize) -> Result<PilotSiteChanges, StoreError> {
         self.fail().await
     }
 

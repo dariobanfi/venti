@@ -1,0 +1,17 @@
+Site venti:0s1te0s1te0s1te0s1te0s1te0
+  Name:         Nonsense?[2J
+  Place:        46.90000, 13.10000
+  Height:       1862 m
+  Uses:         take-off
+  Wind from:    180° to 270°
+  Paragliders:  yes
+  Web page:     https://example.com/buy
+  Made:         2026-11-18 19:05 UTC by mara (Mara Muster)
+  Stands:       at revision 3
+
+History, 3 revisions, the first one first:
+   1  2026-11-18 19:05 UTC  mara (Mara Muster), through a session made the site: "From my own flights there."
+   2  2026-11-18 21:05 UTC  jonas (Jonas Beispiel), through a session changed it (elevation_m, description): "Height from my GPS."
+   3  2026-11-19 21:05 UTC  an account that is gone, through a session changed it (name, website, description)
+
+The record is as it stands, or as it last stood. Nothing was changed: see `venti-server --help` for revert-site and remove-site.

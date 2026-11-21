@@ -26,7 +26,7 @@ use venti_api_types::v1::{
     group_member_path, group_path, group_plans_path, plan_in_path, plan_path, share_image_path,
     share_path,
 };
-use venti_domain::GeoPoint;
+use venti_domain::{GeoPoint, SiteId, SiteUse, WindSector};
 use venti_server::accounts::Limits;
 use venti_server::adapters;
 use venti_server::api::{Api, Cors, Settings};
@@ -39,7 +39,10 @@ use venti_server::live;
 use venti_server::moderation::{Action, Outcome, Site, perform};
 use venti_sources::testing::assert_golden;
 use venti_store::testing::TroubledStore;
-use venti_store::{MemoryStore, NewReport, ReportListing, ReportSaved, Store};
+use venti_store::{
+    MemoryStore, NewPilotSite, NewReport, PilotSite, ReportListing, ReportSaved, SiteAct,
+    SiteRevising, SiteVia, SiteWrite, Store,
+};
 
 mod common;
 
@@ -2516,6 +2519,398 @@ async fn a_database_that_is_down_is_said_to_be_down() {
     assert_eq!(get(&router, "/v1/health").await.status, StatusCode::OK);
 }
 
+// --- Sites that pilots made -------------------------------------------------------------
+
+/// The identifier of the site these tests make, and of a second one. The
+/// development mode has neither.
+const A_SITE: &str = "venti:0s1te0s1te0s1te0s1te0s1te0";
+const ANOTHER_SITE: &str = "venti:0s2te0s2te0s2te0s2te0s2te0";
+
+/// How near to each other the commands let two sites stand, in metres:
+/// the number `revert-site` names when it refuses.
+const SITES_APART_M: f64 = 20.0;
+
+/// A made-up take-off under an identifier, far from every site the
+/// development mode starts with.
+fn a_takeoff(id: &str, name: &str) -> venti_domain::Site {
+    venti_domain::Site {
+        id: id.parse().unwrap(),
+        name: Some(name.to_owned()),
+        position: GeoPoint::new(46.9, 13.1).unwrap(),
+        elevation_m: Some(1840.0),
+        uses: vec![SiteUse::Takeoff],
+        wind_directions: vec![WindSector {
+            from_deg: 180.0,
+            to_deg: 270.0,
+        }],
+        paragliding: Some(true),
+        hang_gliding: None,
+        official: None,
+        discouraged: false,
+        url: None,
+        website: None,
+        description: None,
+        fee: None,
+        guest_guidelines: None,
+        no_flight_time: None,
+        outline: None,
+    }
+}
+
+async fn account_id(store: &MemoryStore, handle: &str) -> String {
+    store.account(handle).await.unwrap().unwrap().id
+}
+
+/// Adds a site as a pilot does, at the clock's time.
+async fn add_site(
+    store: &MemoryStore,
+    clock: &TestClock,
+    author: &str,
+    site: venti_domain::Site,
+    comment: &str,
+) -> PilotSite {
+    let new = NewPilotSite {
+        site,
+        author_id: author.to_owned(),
+        at: clock.now(),
+        via: SiteVia::Session,
+        comment: Some(comment.to_owned()),
+    };
+    match store.add_pilot_site(&new, SITES_APART_M).await.unwrap() {
+        SiteWrite::Written(site) => *site,
+        other => panic!("{other:?}"),
+    }
+}
+
+/// Changes a site as a pilot does, at the clock's time.
+async fn change_site(
+    store: &MemoryStore,
+    clock: &TestClock,
+    author: &str,
+    site: venti_domain::Site,
+    comment: Option<&str>,
+) -> PilotSite {
+    let revising = SiteRevising {
+        id: site.id.clone(),
+        author_id: Some(author.to_owned()),
+        at: clock.now(),
+        via: SiteVia::Session,
+        act: SiteAct::Change(Box::new(site)),
+        comment: comment.map(str::to_owned),
+        expects: None,
+    };
+    let written = store.revise_pilot_site(&revising, SITES_APART_M).await;
+    match written.unwrap() {
+        SiteWrite::Written(site) => *site,
+        other => panic!("{other:?}"),
+    }
+}
+
+async fn stored_site(store: &MemoryStore, id: &str) -> PilotSite {
+    let id: SiteId = id.parse().unwrap();
+    store.pilot_site(&id).await.unwrap().unwrap()
+}
+
+#[tokio::test]
+async fn whoever_runs_the_server_looks_at_a_site_reverts_it_and_takes_it_down() {
+    let (router, store) = recorded_with_its_store().await;
+    let clock = TestClock::new();
+    let [mara, jonas] = DEMO_PILOTS.map(|pilot| pilot.handle);
+    let (mara, jonas) = (
+        account_id(&store, mara).await,
+        account_id(&store, jonas).await,
+    );
+    // A pilot who changes the site and then deletes the account.
+    sign_up(&router, "gast").await;
+    let guest = account_id(&store, "gast").await;
+
+    // The site's story: made by one pilot, corrected by a second,
+    // scribbled on by a third, whose account is gone afterwards.
+    let made = a_takeoff(A_SITE, "Musterkogel West");
+    add_site(
+        &store,
+        &clock,
+        &mara,
+        made.clone(),
+        "From my own flights there.",
+    )
+    .await;
+    clock.advance(Duration::hours(2));
+    let mut corrected = made.clone();
+    corrected.elevation_m = Some(1862.0);
+    corrected.description =
+        Some("A made-up take-off.\nSteep; not for the first flight.".to_owned());
+    change_site(
+        &store,
+        &clock,
+        &jonas,
+        corrected.clone(),
+        Some("Height from my GPS."),
+    )
+    .await;
+    clock.advance(Duration::days(1));
+    let mut scribbled = corrected.clone();
+    scribbled.name = Some("Nonsense\u{1b}[2J".to_owned());
+    scribbled.description = None;
+    scribbled.website = Some("https://example.com/buy".to_owned());
+    change_site(&store, &clock, &guest, scribbled.clone(), None).await;
+    store.delete_account(&guest).await.unwrap();
+    clock.advance(Duration::minutes(30));
+
+    // Looking at it: the record as it stands, and every revision.
+    let look = |site: &str| Action::Site {
+        site: site.to_owned(),
+    };
+    let shown = operator(&store, &clock, look(&format!(" {A_SITE}\n"))).await;
+    assert!(shown.found, "{}", shown.said);
+    assert_golden_text("operator_site.txt", &format!("{}\n", shown.said));
+    for expected in [
+        "Site venti:0s1te0s1te0s1te0s1te0s1te0\n  Name:         Nonsense?[2J\n",
+        "  Place:        46.90000, 13.10000\n  Height:       1862 m\n  Uses:         take-off\n",
+        "  Wind from:    180° to 270°\n",
+        "  Web page:     https://example.com/buy\n",
+        "  Made:         2026-11-18 19:05 UTC by mara (Mara Muster)\n",
+        "  Stands:       at revision 3\n",
+        "History, 3 revisions, the first one first:\n",
+        "   1  2026-11-18 19:05 UTC  mara (Mara Muster), through a session made the site: \
+         \"From my own flights there.\"\n",
+        "   2  2026-11-18 21:05 UTC  jonas (Jonas Beispiel), through a session changed it \
+         (elevation_m, description): \"Height from my GPS.\"\n",
+        "   3  2026-11-19 21:05 UTC  an account that is gone, through a session changed it \
+         (name, website, description)\n",
+        "Nothing was changed",
+    ] {
+        assert!(shown.said.contains(expected), "{expected}\n{}", shown.said);
+    }
+    // A link that ends in the identifier names the site too.
+    let link = format!("{PUBLIC_URL}/v1/sites/{A_SITE}/");
+    assert_eq!(operator(&store, &clock, look(&link)).await, shown);
+    assert_eq!(stored_site(&store, A_SITE).await.revision, 3);
+    // What is no site that pilots made: no identifier, another source's
+    // site, a site nobody made.
+    for nothing in [
+        "",
+        "demo",
+        NOBODYS,
+        "venti:",
+        "venti:short",
+        "osm-free-flying:node/5964676196",
+        "x' OR '1'='1",
+        ANOTHER_SITE,
+    ] {
+        for action in [
+            look(nothing),
+            Action::RevertSite {
+                site: nothing.to_owned(),
+                revision: 1,
+                comment: None,
+            },
+            Action::RemoveSite {
+                site: nothing.to_owned(),
+                comment: None,
+            },
+        ] {
+            let outcome = operator(&store, &clock, action).await;
+            assert!(!outcome.found, "{nothing:?}: {}", outcome.said);
+        }
+    }
+
+    // Back to what the second revision said, as a fourth of the
+    // operator's, with a comment cleaned as a pilot's is.
+    let revert = |revision: u32, comment: Option<&str>| Action::RevertSite {
+        site: A_SITE.to_owned(),
+        revision,
+        comment: comment.map(str::to_owned),
+    };
+    let reverted = operator(&store, &clock, revert(2, Some("  Not\ta site's name. "))).await;
+    assert!(reverted.found, "{}", reverted.said);
+    assert!(
+        reverted.said.starts_with(
+            "Site venti:0s1te0s1te0s1te0s1te0s1te0 \"Musterkogel West\" says again what its \
+             revision 2 said, as its revision 4.\n"
+        ),
+        "{}",
+        reverted.said
+    );
+    assert!(reverted.said.contains("no report was closed"));
+    let now = stored_site(&store, A_SITE).await;
+    assert_eq!((now.revision, &now.site), (4, &corrected));
+    assert_eq!((&now.changed_by, now.changed_at), (&None, clock.now()));
+    assert!(now.stands());
+    let shown = operator(&store, &clock, look(A_SITE)).await;
+    assert!(
+        shown.said.contains(
+            "   4  2026-11-19 21:35 UTC  the operator restored revision 2 (name, website, \
+             description): \"Not a site's name.\"\n"
+        ),
+        "{}",
+        shown.said
+    );
+    // The same again changes nothing; a revision it does not have is
+    // none; a comment that is too long is refused before anything is
+    // looked at.
+    let again = operator(&store, &clock, revert(2, None)).await;
+    assert!(again.found);
+    assert!(again.said.ends_with("Nothing changed."), "{}", again.said);
+    let none = operator(&store, &clock, revert(5, None)).await;
+    assert!(!none.found);
+    assert!(
+        none.said
+            .contains("has no revision 5: it stands at revision 4"),
+        "{}",
+        none.said
+    );
+    let long = "x".repeat(201);
+    for action in [
+        revert(1, Some(long.as_str())),
+        Action::RemoveSite {
+            site: A_SITE.to_owned(),
+            comment: Some(long.clone()),
+        },
+    ] {
+        let refused = perform(&*store, &clock, site(), &action).await;
+        assert!(refused.unwrap_err().starts_with("a comment is one line"));
+    }
+    assert_eq!(stored_site(&store, A_SITE).await, now);
+
+    // Taken down: gone, and kept.
+    clock.advance(Duration::minutes(5));
+    let remove = Action::RemoveSite {
+        site: A_SITE.to_owned(),
+        comment: Some("Private ground; the owner asked.".to_owned()),
+    };
+    let removed = operator(&store, &clock, remove.clone()).await;
+    assert!(removed.found, "{}", removed.said);
+    assert!(
+        removed.said.starts_with(
+            "Site venti:0s1te0s1te0s1te0s1te0s1te0 \"Musterkogel West\" is taken down, as its \
+             revision 5. It stood until now.\n"
+        ),
+        "{}",
+        removed.said
+    );
+    assert!(removed.said.contains(
+        "`venti-server revert-site venti:0s1te0s1te0s1te0s1te0s1te0 --revision 4` brings it back"
+    ));
+    let down = stored_site(&store, A_SITE).await;
+    assert_eq!((down.revision, down.taken_down), (5, true));
+    assert_eq!(down.removed_at, Some(clock.now()));
+    assert_eq!(down.site, corrected);
+    let everywhere = venti_domain::BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap();
+    let standing = store.pilot_sites_in(&everywhere, 10_000).await.unwrap();
+    assert!(standing.iter().all(|site| site.site.id != down.site.id));
+    // No pilot brings it back.
+    let by_a_pilot = SiteRevising {
+        id: A_SITE.parse().unwrap(),
+        author_id: Some(mara.clone()),
+        at: clock.now(),
+        via: SiteVia::Session,
+        act: SiteAct::Restore(4),
+        comment: None,
+        expects: None,
+    };
+    assert_eq!(
+        store.revise_pilot_site(&by_a_pilot, SITES_APART_M).await,
+        Ok(SiteWrite::TakenDown)
+    );
+    // The operator still sees all of it, and taking it down again changes
+    // nothing.
+    let shown = operator(&store, &clock, look(A_SITE)).await;
+    assert!(shown.found);
+    for expected in [
+        "  Stands:       taken down since 2026-11-19 21:40 UTC, at revision 5; gone to \
+         everyone, and only revert-site brings it back\n",
+        "   5  2026-11-19 21:40 UTC  the operator removed it: \"Private ground; the owner \
+         asked.\"\n",
+    ] {
+        assert!(shown.said.contains(expected), "{expected}\n{}", shown.said);
+    }
+    let again = operator(&store, &clock, remove).await;
+    assert!(again.found);
+    assert!(
+        again
+            .said
+            .ends_with("is taken down already. Nothing changed."),
+        "{}",
+        again.said
+    );
+    assert_eq!(stored_site(&store, A_SITE).await, down);
+
+    // Somebody adds a site at the place meanwhile: the one that was taken
+    // down does not come back on top of it.
+    let other = a_takeoff(ANOTHER_SITE, "Musterkogel");
+    add_site(&store, &clock, &mara, other, "The take-off by the cross.").await;
+    let blocked = operator(&store, &clock, revert(4, None)).await;
+    assert!(!blocked.found);
+    assert!(
+        blocked.said.starts_with(
+            "Nothing changed: as its revision 4 said, site venti:0s1te0s1te0s1te0s1te0s1te0 \
+             would stand less than 20 m from site venti:0s2te0s2te0s2te0s2te0s2te0"
+        ),
+        "{}",
+        blocked.said
+    );
+    assert_eq!(stored_site(&store, A_SITE).await, down);
+    // With that one taken down, it does, as a sixth revision.
+    let other_down = Action::RemoveSite {
+        site: ANOTHER_SITE.to_owned(),
+        comment: None,
+    };
+    assert!(operator(&store, &clock, other_down).await.found);
+    clock.advance(Duration::minutes(5));
+    let back = operator(&store, &clock, revert(4, Some("Agreed with the owner."))).await;
+    assert!(back.found, "{}", back.said);
+    assert!(
+        back.said
+            .contains("as its revision 6. It was taken down and stands again"),
+        "{}",
+        back.said
+    );
+    let now = stored_site(&store, A_SITE).await;
+    assert_eq!(
+        (now.revision, now.taken_down, now.removed_at),
+        (6, false, None)
+    );
+    assert_eq!(now.site, corrected);
+    assert_eq!(now.created_by.map(|pilot| pilot.account_id), Some(mara));
+
+    // A site a pilot removed is taken down as one that stood is, and the
+    // command says which it was.
+    let by_a_pilot = SiteRevising {
+        id: A_SITE.parse().unwrap(),
+        author_id: Some(jonas),
+        at: clock.now(),
+        via: SiteVia::Session,
+        act: SiteAct::Remove { take_down: false },
+        comment: None,
+        expects: None,
+    };
+    let removed = store.revise_pilot_site(&by_a_pilot, SITES_APART_M).await;
+    assert!(matches!(removed, Ok(SiteWrite::Written(_))));
+    let shown = operator(&store, &clock, look(A_SITE)).await;
+    assert!(
+        shown.said.contains(
+            "  Stands:       removed since 2026-11-19 21:45 UTC, at revision 7; a pilot can \
+             bring it back\n"
+        ),
+        "{}",
+        shown.said
+    );
+    let taken_down = Action::RemoveSite {
+        site: A_SITE.to_owned(),
+        comment: None,
+    };
+    let taken_down = operator(&store, &clock, taken_down).await;
+    assert!(taken_down.found);
+    assert!(
+        taken_down
+            .said
+            .contains("as its revision 8. A pilot had removed it"),
+        "{}",
+        taken_down.said
+    );
+}
+
 // --- The operator's guide ---------------------------------------------------------------
 
 #[test]
@@ -2527,6 +2922,13 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
     assert!(
         guide.contains(printed.trim_end()),
         "deploy/README.md does not show operator_reports.txt as the tests keep it; copy the \
+         file from crates/server/tests/golden into the document"
+    );
+    // So is what `site` prints.
+    let printed = std::fs::read_to_string(golden("operator_site.txt")).unwrap();
+    assert!(
+        guide.contains(printed.trim_end()),
+        "deploy/README.md does not show operator_site.txt as the tests keep it; copy the \
          file from crates/server/tests/golden into the document"
     );
     // Every command the program has for this is in the guide, and the
@@ -2543,6 +2945,9 @@ fn the_operators_guide_shows_the_commands_as_they_are() {
         "rename-group",
         "remove-plan",
         "remove-group",
+        "site",
+        "revert-site",
+        "remove-site",
     ];
     for command in commands {
         let in_the_guide = format!("docker compose exec server venti-server {command}");

@@ -8,6 +8,7 @@ mod groups;
 mod live;
 mod migrate;
 mod partitions;
+mod pilot_sites;
 mod reports;
 mod sites;
 
@@ -19,7 +20,8 @@ use deadpool_postgres::{
 };
 use tokio_postgres::{NoTls, Row};
 use venti_domain::{
-    Airspace, BoundingBox, GeoPoint, Observation, Site, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
+    Timestamp,
 };
 
 use crate::flight::{Room, Saved};
@@ -27,12 +29,12 @@ use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
-    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
-    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange, batch,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
+    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
+    ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
+    SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -539,6 +541,55 @@ impl Store for PgStore {
 
     async fn site_sets(&self, sources: &[SourceId]) -> Result<Vec<SiteSet>, StoreError> {
         sites::sets(&self.client().await?, sources).await
+    }
+
+    async fn set_site(&self, id: &SiteId) -> Result<Option<Site>, StoreError> {
+        sites::one(&self.client().await?, id).await
+    }
+
+    async fn add_pilot_site(
+        &self,
+        new: &NewPilotSite,
+        apart_m: f64,
+    ) -> Result<SiteWrite, StoreError> {
+        pilot_sites::add(&mut self.client().await?, new, apart_m).await
+    }
+
+    async fn revise_pilot_site(
+        &self,
+        revising: &SiteRevising,
+        apart_m: f64,
+    ) -> Result<SiteWrite, StoreError> {
+        pilot_sites::revise(&mut self.client().await?, revising, apart_m).await
+    }
+
+    async fn pilot_sites_in(
+        &self,
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<PilotSite>, StoreError> {
+        pilot_sites::in_box(&self.client().await?, area, limit).await
+    }
+
+    async fn pilot_site(&self, id: &SiteId) -> Result<Option<PilotSite>, StoreError> {
+        pilot_sites::one(&self.client().await?, id).await
+    }
+
+    async fn pilot_site_revisions(
+        &self,
+        id: &SiteId,
+        after: u32,
+        limit: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError> {
+        pilot_sites::revisions(&self.client().await?, id, after, limit).await
+    }
+
+    async fn pilot_site_changes(
+        &self,
+        since: i64,
+        limit: usize,
+    ) -> Result<PilotSiteChanges, StoreError> {
+        pilot_sites::changes(&self.client().await?, since, limit).await
     }
 
     async fn save_forecast_check(

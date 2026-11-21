@@ -1,0 +1,94 @@
+{
+  "id": "venti:0000000000000000000000s002",
+  "revision": 3,
+  "removed": false,
+  "revisions": [
+    {
+      "number": 1,
+      "at": "2026-11-06T19:05:00Z",
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "via": "session",
+      "kind": "created",
+      "comment": "Made up, for the development mode.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    },
+    {
+      "number": 2,
+      "at": "2026-11-12T19:05:00Z",
+      "by": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "via": "session",
+      "kind": "changed",
+      "comment": "Height corrected.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 1204.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    },
+    {
+      "number": 3,
+      "at": "2026-11-13T19:05:00Z",
+      "by": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "via": "session",
+      "kind": "restored",
+      "restores": 1,
+      "comment": "The height was right before.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    }
+  ],
+  "more": false,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "site": {
+    "id": "osm-free-flying:way/1080986173",
+    "name": "Fluggelände Jägerkamp/Nagelspitz",
+    "position": {
+      "lat": 47.6791413,
+      "lon": 11.9051032
+    },
+    "elevation_m": 1560.0,
+    "uses": [
+      "takeoff"
+    ],
+    "paragliding": true,
+    "hang_gliding": true,
+    "official": true,
+    "url": "https://www.openstreetmap.org/way/1080986173",
+    "website": "https://www.dhv.de/",
+    "fee": "yes",
+    "outline": [
+      [
+        11.9055085,
+        47.6789575
+      ],
+      [
+        11.9055532,
+        47.6793075
+      ],
+      [
+        11.9048395,
+        47.6794382
+      ],
+      [
+        11.9046533,
+        47.6788445
+      ],
+      [
+        11.9055085,
+        47.6789575
+      ]
+    ]
+  },
+  "lasting": false,
+  "attributions": [
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    }
+  ]
+}

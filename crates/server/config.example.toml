@@ -87,6 +87,13 @@ log_level = "info"
 #   "closed"  nobody; existing accounts keep working
 registration = "invite"
 
+# Whether the server takes flying sites from pilots.     VENTI_SITES_FROM_PILOTS
+# What they give is given under CC0 1.0 and stays when the account goes.
+# Off unless set: the terms that say so to a pilot are not written yet, so
+# turn it on only where every pilot is your own. Reading the sites pilots
+# made is always on.
+sites_from_pilots = false
+
 # The address people reach the server at, without a      VENTI_PUBLIC_URL
 # slash at the end. Share pages need it: the links a chat app follows to
 # build a preview must be complete. Left out, links point at the listen

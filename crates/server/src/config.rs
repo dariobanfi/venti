@@ -62,6 +62,11 @@ pub struct Config {
     pub providers: Providers,
     /// The most one account may keep.
     pub room: Room,
+    /// Whether the server takes flying sites from pilots; see
+    /// [`crate::pilot_sites`]. Off unless it is set: the terms under which
+    /// a pilot gives a site are not written yet, and until they are only
+    /// a server whose pilots are its owner's own turns this on.
+    pub sites_from_pilots: bool,
 }
 
 /// The most flights an account may keep unless the configuration says
@@ -168,6 +173,7 @@ struct File {
     cors_origins: Option<Vec<String>>,
     log_level: Option<String>,
     registration: Option<String>,
+    sites_from_pilots: Option<bool>,
     public_url: Option<String>,
     trusted_proxies: Option<Vec<String>>,
     overpass_url: Option<String>,
@@ -254,6 +260,10 @@ const LOG_LEVEL: Setting = Setting {
 const REGISTRATION: Setting = Setting {
     key: "registration",
     variable: "VENTI_REGISTRATION",
+};
+const SITES_FROM_PILOTS: Setting = Setting {
+    key: "sites_from_pilots",
+    variable: "VENTI_SITES_FROM_PILOTS",
 };
 const PUBLIC_URL: Setting = Setting {
     key: "public_url",
@@ -425,6 +435,14 @@ impl Config {
             .parse()
             .map_err(|problem: String| REGISTRATION.invalid(problem))?;
 
+        // Off unless told otherwise, and told in so many words.
+        let sites_from_pilots = match env(&SITES_FROM_PILOTS).as_deref() {
+            None => file.sites_from_pilots.unwrap_or(false),
+            Some("true") => true,
+            Some("false") => false,
+            Some(_) => return Err(SITES_FROM_PILOTS.invalid("say true or false")),
+        };
+
         let public_url = env(&PUBLIC_URL)
             .or(file.public_url)
             .map(|url| PublicUrl::new(&url).map_err(|problem| PUBLIC_URL.invalid(problem)))
@@ -503,6 +521,7 @@ impl Config {
             trusted_proxies,
             providers,
             room,
+            sites_from_pilots,
         })
     }
 }
@@ -585,6 +604,8 @@ mod tests {
             }
         );
         assert_eq!(config.registration, Registration::Invite);
+        // No pilot gives a site to a server that was not told to take one.
+        assert!(!config.sites_from_pilots);
         assert_eq!(
             config.public_url,
             Some(PublicUrl::new("http://127.0.0.1:8080").unwrap())
@@ -731,6 +752,7 @@ mod tests {
                 ("VENTI_LIVE_HOURS", "24"),
                 ("VENTI_REPORT_DAYS", "30"),
                 ("VENTI_PLAN_DAYS", "7"),
+                ("VENTI_SITES_FROM_PILOTS", "true"),
                 ("VENTI_REGISTRATION", "open"),
                 ("VENTI_PUBLIC_URL", "https://venti.example"),
                 ("VENTI_TRUSTED_PROXIES", "172.18.0.0/16, ::1"),
@@ -761,6 +783,7 @@ mod tests {
         assert_eq!(config.retention.live_hours, 24);
         assert_eq!(config.retention.report_days, 30);
         assert_eq!(config.retention.plan_days, 7);
+        assert!(config.sites_from_pilots);
     }
 
     #[test]
@@ -805,6 +828,7 @@ mod tests {
         assert!(with("VENTI_LIVE_HOURS", "0").contains("retention.live_hours"));
         assert!(with("VENTI_REPORT_DAYS", "0").contains("retention.report_days"));
         assert!(with("VENTI_PLAN_DAYS", "0").contains("retention.plan_days"));
+        assert!(with("VENTI_SITES_FROM_PILOTS", "yes").contains("sites_from_pilots"));
         assert!(with("VENTI_ACCOUNT_FLIGHTS", "0").contains("accounts.flights"));
         assert!(with("VENTI_ACCOUNT_STORAGE_MB", "plenty").contains("accounts.storage_mb"));
         assert!(with("VENTI_OBSERVATION_MONTHS", "many").contains("whole number"));

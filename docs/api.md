@@ -167,6 +167,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_cursor`, `invalid_limit` | `after` or `since` is not a value the server gave out; `limit` is not a number from 1 to 100, or from 1 to 5000 for the fixes of a live track |
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
+| 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-pilots-make) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
 | 400 | `invalid_group_name` | The name of a [group](#groups) is empty or has more than 60 characters |
 | 400 | `invalid_plan` | A [plan](#plans-for-a-flying-day) is for a day the server takes no plan for, its place is empty or has more than 80 characters, or its note has more than 500 |
@@ -181,19 +182,23 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `invalid_group_invite` | The invite code lets nobody into a [group](#groups): mistyped, replaced, ended, or never one. Which of these is not said |
 | 403 | `group_full`, `too_many_groups`, `group_plans_full` | The group has as many members as a group may have; the account is in as many groups as an account may be in; the group holds as many plans as a group may hold at a time |
 | 403 | `not_group_keeper`, `not_plan_author` | A member of a group asked for what only its keeper may do; a member asked to change a plan they did not post, or to delete one without being its author or the keeper |
+| 403 | `sites_closed` | The server takes no [sites from pilots](#sites-that-pilots-make); or a site of a source was to be changed, which is corrected at its source |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `pilot_not_found` | The account has no such session; no pilot has this handle |
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
 | 404 | `group_not_found` | No [group](#groups) has this identifier, or the caller is not in it. The two cannot be told apart, on any endpoint about a group |
+| 404 | `site_not_found`, `site_revision_not_found` | No [site](#sites-that-pilots-make) has this identifier; the site has no revision with this number |
 | 404 | `group_member_not_found`, `plan_not_found` | Said to members of a group only: no member of it has this handle; it has no plan with this identifier, or none any more |
 | 404 | `map_not_found` | The server hands out no [map file](#get-and-head-v1mapsregionversionname) under this path: no region with this identifier, not in this version, or no file of this name. The three cannot be told apart |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API. For the hours of the thermal map: the map has no such day, and `message` lists the days it has |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
+| 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
+| 410 | `site_gone` | The [site](#sites-that-pilots-make) was removed, or taken down. Its identifier is not used again |
 | 410 | `live_track_gone` | Fixes were sent under an identifier whose live track was deleted or removed, or that was taken out of use. An identifier is used once: begin a new track with a new one |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, a batch of live fixes of more than 32 kB, or a flight file of more than 4 MB |
 | 415 | `unsupported_media_type` | A request whose body is JSON did not say so with `Content-Type: application/json` |
@@ -787,7 +792,7 @@ A box that holds more than 5000 airspaces is refused with `400` and `box_too_lar
 
 ## `GET /v1/sites?bbox=west,south,east,north`
 
-The flying sites inside a box: take-offs, landings, training slopes and winch sites, as the server last fetched them from its sources. Today there is one source, OpenStreetMap.
+The flying sites inside a box: take-offs, landings, training slopes and winch sites. They come in layers of two kinds that are never merged: a source's sites as the server last fetched them (today one source, OpenStreetMap), and, since 2026-11-21, the sites that pilots made on Venti, the layer `venti`, which is in the answer when it has a site in the box; see [Sites that pilots make](#sites-that-pilots-make). What follows describes a source's layer.
 
 `bbox` is required and written as for stations. Sites on the edge are included.
 
@@ -991,6 +996,689 @@ Every text in a record is the source's, and the source is a map that anyone can 
 **Size.** One answer carries the whole box; there are no pages. The first region whole is 502 sites, 205 of them with an outline: 168 kB plain and 37 kB with gzip (measured 2026-11-21; 110 kB and 17 kB before a record had outlines). A box that holds more than 5000 sites is refused with `400` and `box_too_large`, as for airspace.
 
 **When a source fails.** A run that could not fetch everything changes nothing: the server keeps serving the set of its last whole run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
+
+## Sites that pilots make
+
+Since 2026-11-21 the server keeps flying sites that pilots add themselves, beside the sites of its sources and never merged with them. They are the layer `venti`.
+
+- **An identifier that stays.** A site's identifier is `venti:` and 26 characters, made by the server and never used for another site. Its address is `/v1/sites/{id}` for good; a site that was removed answers `410` with `site_gone`.
+- **Every change is a revision that is kept.** A revision holds the whole record as it stood from then on, who made it, when, through what it came in (`session`: a sign-in of the pilot's own; `operator`: whoever runs the server), and a line saying why. Nothing is overwritten. A change is undone by a revision that restores an earlier one and names it; removing a site is a revision too.
+- **The licence: CC0 1.0.** What pilots give as sites is given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), by the owner's decision of 2026-11-21. Every answer that carries a site of the layer says so in `attributions`: source `venti`, provider "Venti contributors". The licence asks for no credit; the entry's `notice` is to be shown wherever a site of the layer is: "Added by pilots and not verified. A site on the map is not permission to fly there."
+- **Who may write.** Any signed-in pilot adds a site, and any signed-in pilot corrects, removes or restores any site of the layer, unless whoever runs the server has suspended the account's publishing (`403`, `publishing_suspended`). An account adds at most 20 sites a day and writes at most 100 revisions a day (`429`, `rate_limited`).
+- **Only where the server is told to take them.** A server takes sites from pilots when its configuration says `sites_from_pilots = true`; otherwise every write is `403` with `sites_closed`. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. Reading is never off.
+- **A pilot's name on a site.** A site and each revision name the pilot who made them by handle and display name, to everyone. When an account is deleted, its sites and revisions stay and lose that name.
+- **Not permission to fly.** A site of this layer is what a pilot entered, checked by nobody.
+
+The development mode starts with four made-up sites of its three pilots in the Lechtal Alps, in the box `10.85,47.25,10.95,47.32`; each record says that it is made up.
+
+| Identifier | What it is |
+|---|---|
+| `venti:0000000000000000000000s001` | "Musterkogel West", a take-off the demo account added; `mara` added its wind directions. Revision 2 |
+| `venti:0000000000000000000000s002` | "Beispieljoch", a take-off `jonas` added; `mara` gave it a wrong height and the demo account restored revision 1. Revision 3 |
+| `venti:0000000000000000000000s003` | "Musterwiese", a landing `mara` added. Revision 1 |
+| `venti:0000000000000000000000s004` | A take-off `jonas` added twice by mistake and removed again. Its address answers `410` |
+
+### The layer in `GET /v1/sites`
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "osm-free-flying",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [
+        {
+          "south": 46.3,
+          "west": 9.4,
+          "north": 48.5,
+          "east": 17.2
+        }
+      ],
+      "sites": []
+    },
+    {
+      "source": "venti",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [],
+      "sites": [
+        {
+          "id": "venti:0000000000000000000000s001",
+          "name": "Musterkogel West",
+          "position": {
+            "lat": 47.3,
+            "lon": 10.9
+          },
+          "elevation_m": 1862.0,
+          "uses": [
+            "takeoff"
+          ],
+          "wind_directions": [
+            {
+              "from_deg": 225.0,
+              "to_deg": 315.0
+            }
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        },
+        {
+          "id": "venti:0000000000000000000000s002",
+          "name": "Beispieljoch",
+          "position": {
+            "lat": 47.29,
+            "lon": 10.91
+          },
+          "elevation_m": 2104.0,
+          "uses": [
+            "takeoff"
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        },
+        {
+          "id": "venti:0000000000000000000000s003",
+          "name": "Musterwiese",
+          "position": {
+            "lat": 47.28,
+            "lon": 10.89
+          },
+          "elevation_m": 1010.0,
+          "uses": [
+            "landing"
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        }
+      ],
+      "standing": [
+        {
+          "id": "venti:0000000000000000000000s001",
+          "revision": 2,
+          "created_at": "2026-10-29T19:05:00Z",
+          "created_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "changed_at": "2026-10-31T19:05:00Z",
+          "changed_by": {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          }
+        },
+        {
+          "id": "venti:0000000000000000000000s002",
+          "revision": 3,
+          "created_at": "2026-11-06T19:05:00Z",
+          "created_by": {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          },
+          "changed_at": "2026-11-13T19:05:00Z",
+          "changed_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          }
+        },
+        {
+          "id": "venti:0000000000000000000000s003",
+          "revision": 1,
+          "created_at": "2026-11-14T19:05:00Z",
+          "created_by": {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          },
+          "changed_at": "2026-11-14T19:05:00Z",
+          "changed_by": {
+            "handle": "mara",
+            "display_name": "Mara Muster"
+          }
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    },
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+The layer `venti` is in the answer when pilots made a site that stands inside the box, and absent otherwise. Its `sites` are the same canonical records as every layer's, so a client that knows nothing of this layer draws them as it draws any other. Beside them, `standing` has one entry per site in the same order: the `revision` the site stands at, `created_at` and `created_by`, `changed_at` and `changed_by` (each a pilot's `handle` and `display_name`, left out where the account is gone or the revision was the operator's). `fetched_at` and `as_of` are the moment of the answer: the layer is read as it is. `covers` is empty: the layer holds what pilots added and is whole nowhere. A record of this layer never has `official`, `discouraged` or `url`: those are not one pilot's to say, and the record's address is `/v1/sites/{id}`. The sites of both kinds of layer count towards the 5000 of one answer.
+
+### `GET /v1/sites/{id}`
+
+One site by its identifier, of any layer. No token.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001'
+```
+
+```json
+{
+  "site": {
+    "id": "venti:0000000000000000000000s001",
+    "name": "Musterkogel West",
+    "position": {
+      "lat": 47.3,
+      "lon": 10.9
+    },
+    "elevation_m": 1862.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 225.0,
+        "to_deg": 315.0
+      }
+    ],
+    "paragliding": true,
+    "description": "A made-up site of the development mode. No such place exists."
+  },
+  "standing": {
+    "id": "venti:0000000000000000000000s001",
+    "revision": 2,
+    "created_at": "2026-10-29T19:05:00Z",
+    "created_by": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "changed_at": "2026-10-31T19:05:00Z",
+    "changed_by": {
+      "handle": "mara",
+      "display_name": "Mara Muster"
+    }
+  },
+  "lasting": true,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+`lasting` says what the address promises. For a site that pilots made it is `true`: the identifier is the server's own, and the address answers the site, or `410` with `site_gone` once it is removed. For a site of a source it is `false`: the identifier is the source's (`osm-free-flying:way/1080986173`, with its `/` as it is), the record is the one in the set the server holds now, there is no `standing`, and when the source no longer has the site the address answers `404` with `site_not_found`:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/osm-free-flying:way/1080986173'
+```
+
+```json
+{
+  "site": {
+    "id": "osm-free-flying:way/1080986173",
+    "name": "Fluggelände Jägerkamp/Nagelspitz",
+    "position": {
+      "lat": 47.6791413,
+      "lon": 11.9051032
+    },
+    "elevation_m": 1560.0,
+    "uses": [
+      "takeoff"
+    ],
+    "paragliding": true,
+    "hang_gliding": true,
+    "official": true,
+    "url": "https://www.openstreetmap.org/way/1080986173",
+    "website": "https://www.dhv.de/",
+    "fee": "yes",
+    "outline": [
+      [
+        11.9055085,
+        47.6789575
+      ],
+      [
+        11.9055532,
+        47.6793075
+      ],
+      [
+        11.9048395,
+        47.6794382
+      ],
+      [
+        11.9046533,
+        47.6788445
+      ],
+      [
+        11.9055085,
+        47.6789575
+      ]
+    ]
+  },
+  "lasting": false,
+  "attributions": [
+    {
+      "source": "osm-free-flying",
+      "provider": "OpenStreetMap contributors",
+      "licence": "ODbL 1.0",
+      "text": "© OpenStreetMap contributors",
+      "url": "https://www.openstreetmap.org/copyright",
+      "notice": "This data is OpenStreetMap's and is available under the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/. Anyone can correct it: https://www.openstreetmap.org/fixthemap"
+    }
+  ]
+}
+```
+
+`404` with `site_not_found` for an identifier no site has, of a source this server does not serve sites of, or of no form at all.
+
+### `GET /v1/sites/{id}/history?after=&limit=`
+
+The revisions of a site that pilots made, the first one first. No token. `limit` is 1 to 100 as everywhere; `after` is the number of the last revision of the page before.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
+```
+
+```json
+{
+  "id": "venti:0000000000000000000000s002",
+  "revision": 3,
+  "removed": false,
+  "revisions": [
+    {
+      "number": 1,
+      "at": "2026-11-06T19:05:00Z",
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "via": "session",
+      "kind": "created",
+      "comment": "Made up, for the development mode.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    },
+    {
+      "number": 2,
+      "at": "2026-11-12T19:05:00Z",
+      "by": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "via": "session",
+      "kind": "changed",
+      "comment": "Height corrected.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 1204.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    },
+    {
+      "number": 3,
+      "at": "2026-11-13T19:05:00Z",
+      "by": {
+        "handle": "demo",
+        "display_name": "Demo Pilot"
+      },
+      "via": "session",
+      "kind": "restored",
+      "restores": 1,
+      "comment": "The height was right before.",
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      }
+    }
+  ],
+  "more": false,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+`kind` is `created`, `changed`, `restored` (with `restores`, the number of the revision it put back) or `removed`; a client expects kinds it does not know. `site` is the whole record as it stood from that revision on, and for a `removed` revision as it stood until then. `more` says that revisions follow. A site that a pilot removed keeps its history (`removed` is `true`), so that it can be restored. A site that whoever runs the server took down answers `410` with `site_gone` here too.
+
+### `GET /v1/sites/changes?since=&limit=`
+
+What happened in the layer since a program last asked: for whoever keeps a copy of it. No token. It works as [`GET /v1/flights/changes`](#get-v1flightschangessincelimit) does: `since` is the `cursor` of the answer before, and none starts at the beginning.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/changes'
+```
+
+```json
+{
+  "sites": [
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s001",
+        "name": "Musterkogel West",
+        "position": {
+          "lat": 47.3,
+          "lon": 10.9
+        },
+        "elevation_m": 1862.0,
+        "uses": [
+          "takeoff"
+        ],
+        "wind_directions": [
+          {
+            "from_deg": 225.0,
+            "to_deg": 315.0
+          }
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s001",
+        "revision": 2,
+        "created_at": "2026-10-29T19:05:00Z",
+        "created_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        "changed_at": "2026-10-31T19:05:00Z",
+        "changed_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        }
+      }
+    },
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s002",
+        "name": "Beispieljoch",
+        "position": {
+          "lat": 47.29,
+          "lon": 10.91
+        },
+        "elevation_m": 2104.0,
+        "uses": [
+          "takeoff"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s002",
+        "revision": 3,
+        "created_at": "2026-11-06T19:05:00Z",
+        "created_by": {
+          "handle": "jonas",
+          "display_name": "Jonas Beispiel"
+        },
+        "changed_at": "2026-11-13T19:05:00Z",
+        "changed_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        }
+      }
+    },
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s003",
+        "name": "Musterwiese",
+        "position": {
+          "lat": 47.28,
+          "lon": 10.89
+        },
+        "elevation_m": 1010.0,
+        "uses": [
+          "landing"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s003",
+        "revision": 1,
+        "created_at": "2026-11-14T19:05:00Z",
+        "created_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        },
+        "changed_at": "2026-11-14T19:05:00Z",
+        "changed_by": {
+          "handle": "mara",
+          "display_name": "Mara Muster"
+        }
+      }
+    }
+  ],
+  "removed": [
+    "venti:0000000000000000000000s004"
+  ],
+  "cursor": "8",
+  "more": false,
+  "reset": false,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+`sites` are the sites that are new, changed or back, each once and as it stands now, with its `standing`; `removed` are the identifiers of sites that are gone. `more` says to ask again at once with `cursor`. `reset` is `true` when the server did not know the cursor and started from the beginning. An account that is deleted takes its name off its sites without a change being listed: a copy's author names can be older than the server's.
+
+### `POST /v1/sites`
+
+Needs a token. Adds a site, as its first revision.
+
+```json
+{
+  "site": {
+    "name": "Beispielkopf Süd",
+    "position": {
+      "lat": 47.4,
+      "lon": 11.2
+    },
+    "elevation_m": 1540.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 135.0,
+        "to_deg": 225.0
+      }
+    ],
+    "paragliding": true,
+    "description": "Made up, for the documentation. No such place exists."
+  },
+  "comment": "From where I stood on 14 November."
+}
+```
+
+`site` says what the site is: `name` (required, one line, 200 characters at most), `position` (required), `uses` (at least one of `takeoff`, `landing`, `towing`, `training`), and if the pilot knows them `elevation_m` (−500 to 9,000), `wind_directions` (at most 16 spans within 0 to 360), `paragliding`, `hang_gliding`, `website` (an `http` or `https` address of plain form, 500 characters at most), `description` (1,000 characters, may have lines), `fee` and `no_flight_time` (one line, 100 characters), `guest_guidelines`, `outline`. They mean what they mean in [a record](#get-v1sitesbboxwestsoutheastnorth), and are held to the same checks as a source's records. `comment` is one line of at most 200 characters, kept with the revision. Text is cleaned as all text is that one person types and another reads: what does not print is dropped.
+
+**A site comes from the pilot's own knowledge**: where they stood, where their own flight began. It is not copied from OpenStreetMap, another database, a map or a guide.
+
+The answer is `201` with the site as [`GET /v1/sites/{id}`](#get-v1sitesid) answers it, under its new identifier, at revision 1.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_site` | A field cannot be kept; `message` names it and repeats nothing that was sent |
+| 400 | `site_out_of_area` | The place is in no region this server serves |
+| 403 | `sites_closed` | This server takes no sites from pilots |
+| 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
+| 409 | `site_too_close` | A site of the layer stands less than 20 m from the place. `message` names it: if it is the same place, correct that one |
+| 429 | `rate_limited` | The account has added 20 sites today |
+
+### `PUT /v1/sites/{id}`
+
+Needs a token. Replaces what a site of the layer says, as a new revision. `site` is the whole record as it is to stand: a field left out is a field the site no longer has. `revision` is the number of the revision the change was made from.
+
+```json
+{
+  "site": {
+    "name": "Musterkogel West",
+    "position": {
+      "lat": 47.3,
+      "lon": 10.9
+    },
+    "elevation_m": 1871.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 225.0,
+        "to_deg": 315.0
+      }
+    ],
+    "paragliding": true,
+    "description": "A made-up site of the development mode. No such place exists."
+  },
+  "revision": 2,
+  "comment": "Height from my own GPS."
+}
+```
+
+The answer is `200` with the site as it now stands:
+
+```json
+{
+  "site": {
+    "id": "venti:0000000000000000000000s001",
+    "name": "Musterkogel West",
+    "position": {
+      "lat": 47.3,
+      "lon": 10.9
+    },
+    "elevation_m": 1871.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 225.0,
+        "to_deg": 315.0
+      }
+    ],
+    "paragliding": true,
+    "description": "A made-up site of the development mode. No such place exists."
+  },
+  "standing": {
+    "id": "venti:0000000000000000000000s001",
+    "revision": 3,
+    "created_at": "2026-10-29T19:05:00Z",
+    "created_by": {
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "changed_at": "2026-11-18T19:05:00Z",
+    "changed_by": {
+      "handle": "petra",
+      "display_name": "Pilot petra"
+    }
+  },
+  "lasting": true,
+  "attributions": [
+    {
+      "source": "venti",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+A request that would change nothing writes no revision and answers `200` with the site as it is.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_site`, `site_out_of_area` | As for adding |
+| 403 | `sites_closed` | This server takes no sites from pilots; or the site is a source's, which is corrected at the source (its `url`) |
+| 404 | `site_not_found` | No site of the layer has this identifier |
+| 409 | `site_changed` | The site stands at another revision than `revision`: somebody changed it meanwhile. Read it again |
+| 409 | `site_too_close` | At its new place the site would stand less than 20 m from another |
+| 410 | `site_gone` | The site is removed. Restoring a revision brings it back |
+| 429 | `rate_limited` | The account has written 100 revisions today: changes, restores and removals together |
+
+### `POST /v1/sites/{id}/revisions`
+
+Needs a token. Puts a site back to what an earlier revision said, as a new revision that names it. This is how a change is undone, and how a removed site comes back.
+
+```json
+{
+  "restore": 2,
+  "comment": "The height was right before."
+}
+```
+
+The answer is `200` with the site as it now stands. `404` with `site_revision_not_found` if the site has no revision with that number; `409` with `site_too_close` if another site stands there by now; `410` with `site_gone` if whoever runs the server took the site down; the others as for changing.
+
+### `DELETE /v1/sites/{id}`
+
+Needs a token. Removes a site of the layer, as a new revision. The body may be left out; one that is there is `{"comment": "…"}`, sent as JSON. The answer is `204` with no body. From then on the site is in no box, its address answers `410`, `GET /v1/sites/changes` lists it as removed, and its history stays, so that any pilot can restore it. `410` with `site_gone` if it is removed already.
+
+Only whoever runs the server takes a site down so that no pilot brings it back; see [deploy/README.md](../deploy/README.md).
 
 ## `GET /v1/forecast?lat=&lon=`
 

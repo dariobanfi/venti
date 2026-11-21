@@ -2,7 +2,7 @@
 
 use deadpool_postgres::Client;
 use tokio_postgres::Row;
-use venti_domain::{BoundingBox, Site, SourceId};
+use venti_domain::{BoundingBox, Site, SiteId, SourceId};
 
 use super::airspace::{boxes_from, edges_of};
 use super::{corrupt, count, db_error, upsert_run};
@@ -186,4 +186,24 @@ pub(super) async fn sets(
         .await
         .map_err(db_error)?;
     rows.iter().map(set_from).collect()
+}
+
+/// The site with this identifier in the set of its source, if the set the
+/// database holds now has one.
+pub(super) async fn one(client: &Client, id: &SiteId) -> Result<Option<Site>, StoreError> {
+    // An identifier with a zero byte in it is the identifier of no site,
+    // which is known without asking a database that would refuse it.
+    if id.local().contains('\0') {
+        return Ok(None);
+    }
+    let statement = client
+        .prepare_cached("SELECT t.record FROM sites t WHERE t.id = $1")
+        .await
+        .map_err(db_error)?;
+    let row = client
+        .query_opt(&statement, &[&id.to_string()])
+        .await
+        .map_err(db_error)?;
+    row.map(|row| serde_json::from_str(row.get("record")).map_err(|e| corrupt("site record", e)))
+        .transpose()
 }

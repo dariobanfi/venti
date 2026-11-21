@@ -99,8 +99,8 @@ use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH,
-    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
+    SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -205,6 +205,8 @@ pub struct Settings {
     /// What bounds groups and their plans, and for how long a plan is
     /// kept after its day.
     pub groups: crate::groups::Limits,
+    /// Whether the server takes sites from pilots, where, and how many.
+    pub sites: crate::pilot_sites::Settings,
 }
 
 /// What the request handlers work with.
@@ -255,6 +257,9 @@ pub struct Api<S> {
     /// Groups and plans: their limits, and what each account has used of
     /// them.
     groups: groups::Groups,
+    /// The sites that pilots make: the settings, and what each account
+    /// has used of what is counted.
+    pilot_sites: sites::PilotSites,
     /// The map regions the server hands out. None, unless it was given
     /// some.
     maps: Maps,
@@ -342,6 +347,7 @@ impl<S: Store> Api<S> {
             radar: None,
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
+            pilot_sites: sites::PilotSites::new(settings.sites, limits.watched_keys),
             maps: Maps::default(),
             imagery: None,
             station_priority: Vec::new(),
@@ -474,7 +480,15 @@ impl<S: Store> Api<S> {
                 get(observations::observations::<S>),
             )
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
-            .route(SITES_PATH, get(sites::sites::<S>))
+            .route(SITES_PATH, get(sites::sites::<S>).post(sites::add::<S>))
+            .route(SITE_CHANGES_PATH, get(sites::changes::<S>))
+            .route(
+                "/v1/sites/{*rest}",
+                get(sites::show::<S>)
+                    .put(sites::change::<S>)
+                    .post(sites::restore::<S>)
+                    .delete(sites::remove::<S>),
+            )
             .route(FORECAST_PATH, get(forecast::forecast::<S>))
             .route(THERMALS_PATH, get(thermals::thermals::<S>))
             .route(THERMAL_HOURS_PATH, get(thermals::thermal_hours::<S>))

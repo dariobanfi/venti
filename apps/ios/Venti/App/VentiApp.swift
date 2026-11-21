@@ -99,7 +99,13 @@ enum Session {
             let own = KeptSitesModel(core: core)
             let today = TodayModel(kept: own)
             today.server = { wind.server }
-            today.clock = { await wind.serverNow() }
+            today.clock = {
+                // A UI test names the moment itself.
+                if let at = LaunchOptions.todayAt {
+                    return at
+                }
+                return await wind.serverNow()
+            }
             // And the forecast map of the map tab.
             let thermals = ThermalMapModel()
             thermals.server = { wind.server }
@@ -320,6 +326,19 @@ enum LaunchOptions {
             return nil
         }
         return (numbers[0], numbers[1], numbers[2])
+    }
+
+    /// The moment Today's forecasts take for now, given as `--today-at
+    /// <time>` ("2026-11-22T18:00:00Z"), in place of the server's clock. A
+    /// take-off's page speaks of the first day that has hours left: a UI
+    /// test chooses with this which of the recorded forecast's days that
+    /// is. Without it, and where the time does not read, the server's
+    /// clock.
+    static var todayAt: Int64? {
+        guard let flag = arguments.firstIndex(of: "--today-at"), arguments.indices.contains(flag + 1),
+              let moment = ISO8601DateFormatter().date(from: arguments[flag + 1])
+        else { return nil }
+        return Int64(moment.timeIntervalSince1970)
     }
 
     /// Starts with the filter of the flying sites asking nothing, and

@@ -4,7 +4,7 @@
 //! server to read it, so there is one definition of the format.
 
 use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
-use venti_domain::{BoundingBox, GeoError, GeoPoint, StationId, Timestamp};
+use venti_domain::{BoundingBox, GeoError, GeoPoint, SiteId, StationId, Timestamp};
 
 use super::{FlightId, GroupId, Handle, LiveTrackId, PlanId};
 
@@ -93,6 +93,25 @@ impl SitesRequest {
     pub fn path_and_query(&self) -> String {
         format!("{SITES_PATH}?bbox={}", format_bbox(&self.bbox))
     }
+}
+
+/// Path of what changed among the sites that pilots made.
+pub const SITE_CHANGES_PATH: &str = "/v1/sites/changes";
+
+/// Path of one site, of any layer. A source's own key may hold a `/`
+/// (`osm-free-flying:node/5964676196`), which stays as it is.
+pub fn site_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}")
+}
+
+/// Path of the history of a site that pilots made.
+pub fn site_history_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}/history")
+}
+
+/// Path that takes a revision restoring an earlier one.
+pub fn site_revisions_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}/revisions")
 }
 
 /// Path of the forecast for a place.

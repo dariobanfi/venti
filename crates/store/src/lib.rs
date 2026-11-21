@@ -40,6 +40,7 @@ mod group;
 mod live;
 mod memory;
 mod month;
+mod pilot_site;
 mod postgres;
 mod report;
 mod site;
@@ -49,7 +50,7 @@ use std::future::Future;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, Observation, Site, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId, Timestamp,
 };
 
 pub use account::{
@@ -74,6 +75,10 @@ pub use live::{
 };
 pub use memory::MemoryStore;
 pub use month::Month;
+pub use pilot_site::{
+    NewPilotSite, PilotSite, PilotSiteChanges, RevisionKind, SiteAct, SitePilot, SiteRevising,
+    SiteRevision, SiteVia, SiteWrite,
+};
 pub use postgres::PgStore;
 pub use report::{
     NewReport, Report, ReportClosing, ReportClosure, ReportKey, ReportListing, ReportSaved,
@@ -345,6 +350,76 @@ pub trait Store: Send + Sync + 'static {
         &self,
         sources: &[SourceId],
     ) -> impl Future<Output = Result<Vec<SiteSet>, StoreError>> + Send;
+
+    /// The site with this identifier in the whole set of its source, as
+    /// the set the store holds now has it. `None` if the set has none: a
+    /// site of a source goes when a run no longer delivers it.
+    fn set_site(
+        &self,
+        id: &SiteId,
+    ) -> impl Future<Output = Result<Option<Site>, StoreError>> + Send;
+
+    // --- Sites that pilots make -------------------------------------------
+
+    /// Adds a site that a pilot made, as its first revision, unless a
+    /// standing site of the layer is nearer to it than `apart_m` metres;
+    /// see [`SiteWrite`], of which this answers `Written`, `TooClose` and
+    /// `NoSuchAccount`. Of two calls that race for one place, one gets it.
+    ///
+    /// An identifier that is in use is refused with
+    /// [`StoreError::Invalid`]: an identifier is never used twice, also
+    /// not after its site was removed.
+    fn add_pilot_site(
+        &self,
+        new: &NewPilotSite,
+        apart_m: f64,
+    ) -> impl Future<Output = Result<SiteWrite, StoreError>> + Send;
+
+    /// Writes a revision of a site that pilots made: a change, a restore
+    /// of an earlier revision, or its removal; see [`SiteWrite`]. The
+    /// revisions before it stay as they are. A site that stands after the
+    /// revision is held to the same distance from the others as a new one.
+    fn revise_pilot_site(
+        &self,
+        revising: &SiteRevising,
+        apart_m: f64,
+    ) -> impl Future<Output = Result<SiteWrite, StoreError>> + Send;
+
+    /// The standing sites that pilots made inside a box, edges included,
+    /// sorted by identifier, `limit` at most. A removed site is not among
+    /// them.
+    fn pilot_sites_in(
+        &self,
+        area: &BoundingBox,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<PilotSite>, StoreError>> + Send;
+
+    /// A site that pilots made, standing or removed. `None` if no site
+    /// ever had the identifier.
+    fn pilot_site(
+        &self,
+        id: &SiteId,
+    ) -> impl Future<Output = Result<Option<PilotSite>, StoreError>> + Send;
+
+    /// A site that pilots made with one page of its revisions: those with
+    /// a number above `after`, by number, `limit` at most. `None` if no
+    /// site ever had the identifier.
+    fn pilot_site_revisions(
+        &self,
+        id: &SiteId,
+        after: u32,
+        limit: usize,
+    ) -> impl Future<Output = Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError>> + Send;
+
+    /// What changed among the sites that pilots made after the change
+    /// number `since`: every site whose latest revision took a later
+    /// number, by that number, `limit` at most. A site that changed
+    /// several times is listed once, as it is now.
+    fn pilot_site_changes(
+        &self,
+        since: i64,
+        limit: usize,
+    ) -> impl Future<Output = Result<PilotSiteChanges, StoreError>> + Send;
 
     // --- Forecasts --------------------------------------------------------
 

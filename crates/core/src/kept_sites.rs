@@ -33,11 +33,11 @@ use std::cmp::Ordering;
 use std::io;
 
 use serde::{Deserialize, Serialize};
-use venti_api_types::v1::Attribution;
+use venti_api_types::v1::{Attribution, SiteStanding};
 use venti_domain::{GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, WindSector};
 use venti_flight::live::navigation::bearing_deg;
 
-use crate::sites::{SiteKind, SiteView, SitesMap, site_view};
+use crate::sites::{SiteKind, SiteView, SitesMap, site_view, standing_of};
 use crate::today::{Flyability, Thermals};
 use crate::wind::credit;
 use crate::{Bounds, Coordinate, Core, CoreError, Credit};
@@ -73,6 +73,11 @@ struct KeptLayer {
 struct KeptRecord {
     /// The canonical record, as the server sent it.
     site: Site,
+    /// For a site that pilots made on Venti: who added it and who changed
+    /// it last, as the server said when the record was last seen. A
+    /// source's site has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    standing: Option<SiteStanding>,
     /// The date the source's data was of when the record was last seen in
     /// an answer, seconds since 1970-01-01 UTC.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -216,6 +221,7 @@ impl Core {
         }
         let kept = KeptRecord {
             site: record,
+            standing: standing_of(&site),
             as_of_unix_s,
         };
         match layer
@@ -267,7 +273,7 @@ impl Core {
             .iter()
             .flat_map(|layer| &layer.sites)
             .map(|kept| KeptSite {
-                site: site_view(&kept.site),
+                site: site_view(&kept.site, kept.standing.as_ref()),
                 as_of_unix_s: kept.as_of_unix_s,
                 distance_m: from.map(|from| from.distance_m(kept.site.position)),
                 bearing_deg: from.map(|from| bearing_deg(from, kept.site.position)),
@@ -324,7 +330,7 @@ impl Core {
             .flat_map(|layer| &layer.sites)
             .filter(|kept| kept.site.is(SiteUse::Takeoff))
             .map(|kept| TodayTakeoff {
-                site: site_view(&kept.site),
+                site: site_view(&kept.site, kept.standing.as_ref()),
                 is_kept: true,
                 distance_m: away(kept.site.position),
             })
@@ -464,16 +470,17 @@ impl Core {
             let mut found = false;
             for kept in &mut layer.sites {
                 let id = kept.site.id.to_string();
-                let Some(site) = seen
+                let Some((site, standing)) = seen
                     .sites
                     .iter()
                     .find(|site| site.id == id)
-                    .and_then(site_of)
+                    .and_then(|view| Some((site_of(view)?, standing_of(view))))
                 else {
                     continue;
                 };
                 found = true;
                 kept.site = site;
+                kept.standing = standing;
                 kept.as_of_unix_s = seen.as_of_unix_s.or(kept.as_of_unix_s);
             }
             if found && let Some(attribution) = attribution_of(&seen.credits, &layer.source) {
@@ -862,6 +869,94 @@ mod tests {
             assert_eq!(kept.sites[0].as_of_unix_s, Some(1_800_000_000));
             // An answer without the credit takes none away.
             assert_eq!(kept.credits, map.credits);
+        });
+    }
+
+    /// OpenStreetMap's layer and Venti's own in one answer, made up: a
+    /// take-off of each.
+    fn with_pilots(revision: u32, changed_by: &str) -> SitesMap {
+        let answer = format!(
+            r#"{{"layers": [
+                 {{"source": "osm-free-flying", "fetched_at": "2026-11-20T06:00:00Z",
+                   "as_of": "2026-11-20T05:00:00Z", "covers": [],
+                   "sites": [{{"id": "osm-free-flying:node/1",
+                              "position": {{"lat": 47.66, "lon": 11.79}}, "uses": ["takeoff"]}}]}},
+                 {{"source": "venti", "fetched_at": "2026-11-21T09:00:00Z",
+                   "as_of": "2026-11-21T09:00:00Z", "covers": [],
+                   "sites": [{{"id": "venti:00000000000000000000000041", "name": "Musterberg Ost",
+                              "position": {{"lat": 47.6642, "lon": 11.7967}}, "uses": ["takeoff"]}}],
+                   "standing": [{{"id": "venti:00000000000000000000000041", "revision": {revision},
+                     "created_at": "2026-11-03T10:00:00Z",
+                     "created_by": {{"handle": "demo", "display_name": "Max Mustermann"}},
+                     "changed_at": "2026-11-12T17:30:00Z",
+                     "changed_by": {{"handle": "{changed_by}", "display_name": "Mara Beispiel"}}}}]}}],
+               "attributions": [
+                 {{"source": "osm-free-flying", "provider": "OpenStreetMap contributors",
+                   "licence": "ODbL 1.0", "text": "© OpenStreetMap contributors",
+                   "url": "https://www.openstreetmap.org/copyright"}},
+                 {{"source": "venti", "provider": "Venti contributors", "licence": "CC0 1.0",
+                   "text": "Venti contributors",
+                   "url": "https://creativecommons.org/publicdomain/zero/1.0/"}}]}}"#
+        );
+        sites_map(40.0, 5.0, 50.0, 18.0, 200, answer.into_bytes()).unwrap()
+    }
+
+    #[test]
+    fn a_kept_site_that_pilots_made_keeps_who_made_it_in_a_file_of_its_own_layer() {
+        const OWN: &str = "venti:00000000000000000000000041";
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            let map = with_pilots(2, "mara");
+            keep(&core, &map, OWN);
+            keep(&core, &map, "osm-free-flying:node/1");
+
+            // Read back without a network it is what the answer said, who
+            // added it and that nobody verified it included.
+            let kept = core.kept_sites(None).unwrap();
+            let own = kept
+                .sites
+                .iter()
+                .find(|kept| kept.site.id == OWN)
+                .map(|kept| &kept.site);
+            assert_eq!(own, Some(&site(&map, OWN)));
+            let by = own.and_then(|site| site.by_pilots.as_ref()).unwrap();
+            assert_eq!(by.added_in_words, "Added by Max Mustermann (@demo)");
+            assert_eq!(by.changed_in_words, "Last changed by Mara Beispiel (@mara)");
+            assert!(by.note.contains("not verified"), "{}", by.note);
+            // The two layers are two files, each with its own credit.
+            let licences: Vec<&str> = kept
+                .credits
+                .iter()
+                .map(|credit| credit.licence.as_str())
+                .collect();
+            assert_eq!(licences, ["ODbL 1.0", "CC0 1.0"]);
+            let mut files = backing.open().list(FOLDER).unwrap();
+            files.sort();
+            assert_eq!(files.len(), 2, "{files:?}");
+            // OpenStreetMap's has no such part, kept or not.
+            assert!(
+                kept.sites
+                    .iter()
+                    .any(|kept| kept.site.source == "osm-free-flying"
+                        && kept.site.by_pilots.is_none())
+            );
+
+            // An answer that holds the site anew brings its newer standing.
+            let newer = with_pilots(3, "jonas");
+            let today = core
+                .today_takeoffs(Some(WALLBERG), Some(newer.clone()))
+                .unwrap();
+            let listed = today
+                .takeoffs
+                .iter()
+                .find(|takeoff| takeoff.site.id == OWN)
+                .unwrap();
+            assert!(listed.is_kept);
+            let kept = core.kept_sites(None).unwrap();
+            let own = kept.sites.iter().find(|kept| kept.site.id == OWN).unwrap();
+            let by = own.site.by_pilots.as_ref().unwrap();
+            assert_eq!(by.revision, 3);
+            assert_eq!(by.changed_by.as_ref().unwrap().handle, "jonas");
         });
     }
 

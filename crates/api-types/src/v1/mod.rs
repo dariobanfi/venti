@@ -134,13 +134,19 @@ pub use request::{
     LIVE_PATH, LIVE_POSITIONS_PATH, LiveTrackRequest, LiveTracksRequest, ObservationsRequest,
     PLAN_BOARD_PATH, PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays, PlansRequest,
     PositionError, PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest, SESSIONS_PATH,
-    SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError, flight_file_path,
-    flight_path, format_bbox, format_day, format_time, group_invite_path, group_keeper_path,
-    group_member_path, group_path, group_plans_path, live_page_path, live_track_path,
-    observations_path, parse_bbox, parse_day, parse_position, parse_time, pilot_path, plan_in_path,
-    plan_path, session_path, share_image_path, share_path,
+    SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest, TimeError,
+    flight_file_path, flight_path, format_bbox, format_day, format_time, group_invite_path,
+    group_keeper_path, group_member_path, group_path, group_plans_path, live_page_path,
+    live_track_path, observations_path, parse_bbox, parse_day, parse_position, parse_time,
+    pilot_path, plan_in_path, plan_path, session_path, share_image_path, share_path,
+    site_history_path, site_path, site_revisions_path,
 };
-pub use sites::{SiteLayer, SitesResponse};
+pub use sites::{
+    AddSiteRequest, ChangeSiteRequest, MAX_SITE_COMMENT_LENGTH, RemoveSiteRequest,
+    RestoreSiteRequest, SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
+    SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
+    VENTI_SITES_SOURCE, parse_site_comment,
+};
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use thermals::{
     THERMAL_GRID_DEG, THERMAL_HOURS_PATH, THERMALS_PATH, ThermalGrid, ThermalHoursRequest,

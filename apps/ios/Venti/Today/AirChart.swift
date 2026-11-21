@@ -62,8 +62,11 @@ struct AirScale: Equatable {
 /// The air over a take-off through one day, as a picture: for every hour
 /// how high the thermals go, as a column in the colour of the climb to
 /// expect with the climb over it; a cloud on the column where cumulus caps
-/// them; the wind at the model's levels as arrows; the take-off's height
-/// as a line, and the model's own ground as a band at the foot.
+/// them; where the air is layered, a band across the hour, hatched for a
+/// stable layer and filled for an inversion; the wind at the model's levels
+/// as arrows; the take-off's height as a line, and the model's own ground
+/// as a band at the foot. A tap on an hour says its layers and the wind
+/// near by in words under the picture.
 ///
 /// It is drawn, not a chart of a library: the columns stand on a ground
 /// that is not zero, and the arrows are winds.
@@ -80,20 +83,67 @@ struct AirChart: View {
     /// The height kept for the climbs at the head.
     private static let head: CGFloat = 22
 
+    /// The hour whose words stand under the picture: the first to come
+    /// until the pilot taps another.
+    @State private var chosen = 0
+
+    /// Whether the hours can be looked at one by one: where some hour has
+    /// a layer or a wind near by to say.
+    private var hasDetail: Bool {
+        day.hours.contains(where: AirAround.hasDetail)
+    }
+
+    /// The chosen hour's place among the day's, whatever the day has left.
+    private var shown: Int {
+        min(max(chosen, 0), max(day.hours.count - 1, 0))
+    }
+
     var body: some View {
+        let detailed = hasDetail
+        let at = shown
         VStack(alignment: .leading, spacing: VentiSpace.s2) {
             Canvas { context, size in
                 guard let scale = AirScale(day: day, takeoffM: takeoffM) else { return }
-                draw(in: &context, size: size, scale: scale)
+                draw(in: &context, size: size, scale: scale, shown: detailed ? at : nil)
             }
             .frame(height: 280)
             .accessibilityElement()
             .accessibilityLabel("The air through the day")
             .accessibilityValue(spoken)
             .accessibilityIdentifier("air-chart")
+            .overlay {
+                if detailed {
+                    // The hours to tap, over the picture: each one element
+                    // for a screen reader, which hears the hour's line and
+                    // layers.
+                    HStack(spacing: 0) {
+                        ForEach(Array(day.hours.enumerated()), id: \.element.timeUnixS) { index, hour in
+                            Button {
+                                chosen = index
+                            } label: {
+                                Color.clear
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(hour.hour) o'clock")
+                            .accessibilityValue(AirAround.spoken(hour))
+                            .accessibilityAddTraits(index == at ? .isSelected : [])
+                            .accessibilityIdentifier("air-hour-\(index)")
+                        }
+                    }
+                    .padding(.leading, Self.gutter)
+                }
+            }
+            if detailed, day.hours.indices.contains(at) {
+                HourAir(hour: day.hours[at])
+            }
             Text(caption)
                 .font(.ventiType(.caption))
                 .foregroundStyle(.venti(.textSecondary))
+        }
+        // Another day begins with its first hour.
+        .onChange(of: day.startUnixS) {
+            chosen = 0
         }
     }
 
@@ -101,7 +151,10 @@ struct AirChart: View {
     /// where the take-off has a height to draw it at.
     private var caption: String {
         let takeoff = takeoffM == nil ? "" : "The dashed line is the take-off. "
-        return "How high the thermals go hour by hour, in the colour of the climb to expect, with the climb in m/s over each and a cloud where cumulus caps them. The arrows are the wind at the model's levels, in km/h. \(takeoff)The band at the foot is the model's ground, which is smoother than the terrain. Heights in metres above sea level."
+        let layers = day.hours.contains { !$0.layers.isEmpty }
+            ? "A hatched band is a stable layer, a filled one an inversion. " : ""
+        let hours = hasDetail ? " Tap an hour for its layers and the wind near by in words." : ""
+        return "How high the thermals go hour by hour, in the colour of the climb to expect, with the climb in m/s over each and a cloud where cumulus caps them. \(layers)The arrows are the wind at the model's levels, in km/h. \(takeoff)The band at the foot is the model's ground, which is smoother than the terrain. Heights in metres above sea level.\(hours)"
     }
 
     /// The picture in words, for a screen reader: the day's line.
@@ -109,7 +162,9 @@ struct AirChart: View {
         day.thermalLine.isEmpty ? "No estimate of the thermals" : day.thermalLine
     }
 
-    private func draw(in context: inout GraphicsContext, size: CGSize, scale: AirScale) {
+    /// - Parameter shown: the hour whose words stand under the picture,
+    ///   where the hours can be looked at one by one.
+    private func draw(in context: inout GraphicsContext, size: CGSize, scale: AirScale, shown: Int?) {
         let ink = Color.venti(.text)
         let quiet = Color.venti(.textSecondary)
         let plot = CGRect(
@@ -153,9 +208,11 @@ struct AirChart: View {
         for (index, hour) in day.hours.enumerated() {
             let middle = plot.minX + slot * (CGFloat(index) + 0.5)
 
-            // The hour at the foot.
+            // The hour at the foot; the one looked at in ink.
             context.draw(
-                Text(hour.hour).font(.ventiType(.caption)).foregroundStyle(quiet),
+                index == shown
+                    ? Text(hour.hour).font(.ventiType(.caption).weight(.semibold)).foregroundStyle(ink)
+                    : Text(hour.hour).font(.ventiType(.caption)).foregroundStyle(quiet),
                 at: CGPoint(x: middle, y: plot.maxY + Self.foot / 2)
             )
 
@@ -186,6 +243,26 @@ struct AirChart: View {
                         at: CGPoint(x: middle, y: Self.head / 2)
                     )
                 }
+            }
+
+            // Where the air is layered in the hour, over the thermals'
+            // column and under the arrows: cut where the picture ends, and
+            // at the model's ground.
+            for layer in hour.layers {
+                let from = max(layer.bottomM, day.groundM ?? layer.bottomM)
+                guard let part = scale.within(bottomM: from, topM: layer.topM) else { continue }
+                LayerBand.draw(
+                    in: &context,
+                    band: CGRect(
+                        x: middle - slot / 2, y: y(part.topM), width: slot, height: y(part.bottomM) - y(part.topM)
+                    ),
+                    inversion: layer.inversion
+                )
+            }
+            if index == shown {
+                // The hour whose words stand under the picture.
+                let column = CGRect(x: middle - slot / 2, y: plot.minY, width: slot, height: plot.height)
+                context.stroke(Path(column.insetBy(dx: 0.5, dy: 0.5)), with: .color(.venti(.borderStrong)), lineWidth: 1)
             }
 
             // The wind: at 10 m above the model's ground, and at every

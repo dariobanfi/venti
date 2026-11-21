@@ -282,6 +282,71 @@ ORDER BY g.created_at, g.id;
 
 No command takes a member out of a group either; that is its keeper's to do. Do not delete rows of `group_members` by hand: the database refuses to remove a group's keeper, and a member's plans go with the row. Neither the commands about groups nor this statement have been run through `docker compose exec` on a real server *(to verify)*.
 
+## Sites that pilots make
+
+Beside the flying sites of OpenStreetMap the server keeps the sites that pilots make on Venti: a layer of its own, `venti`, in the same answers ([api.md](../docs/api.md)). Every change to such a site is a revision that is kept, and every answer names the licence the layer is given under: CC0 1.0, which the owner decided on 2026-11-21 ([data-platform.md](../docs/data-platform.md)).
+
+- **Reading is always on. Writing is off unless you turn it on**: `VENTI_SITES_FROM_PILOTS=true` in `.env` (`sites_from_pilots = true` in a configuration file), then `docker compose up -d`. Without it the server answers every attempt to add or change a site that it takes none, and hands out what it holds. The development mode has it on. **Leave it off on a server that others can sign up on.** The licence is decided; the terms for contributors, which tell a pilot before the first site that it is given under CC0 1.0 and stays when the account goes, are not written. Until they are, nobody but the owner should give a site to a public server.
+- **A history that anyone reads and any signed-in pilot can undo is the first line; you are the second.** `site` shows one site with every revision, who made each and through what. `revert-site` puts it back to what an earlier revision said, as a revision of yours that the history shows as the operator's, with your comment for everyone to read. `remove-site` takes it down: it is in no answer, its address and its history answer that it is gone, no pilot brings it back, and its identifier is never used for another site.
+- **Nothing is deleted.** A site that was taken down is kept with its whole history, `site` still shows it, and `revert-site` brings it back. A site also stays when the account that made it is deleted; its revisions then name no author.
+- **Two sites never stand within 20 m of each other**, so `revert-site` refuses to bring a site back onto a place where another one stands by now, and names that one.
+- **Pilots cannot report a site yet.** Until they can, you hear of a wrong site by other ways, and its identifier is in its address.
+
+```bash
+cd /opt/venti/deploy
+docker compose exec server venti-server site <SITE>                  # venti: and 26 characters, or a link that ends in it
+docker compose exec server venti-server revert-site <SITE> --revision 2 --comment "Not a site's name."
+docker compose exec server venti-server remove-site <SITE> --comment "Private ground; the owner asked."
+```
+
+This is what `site` prints, here for a made-up site that three pilots wrote to, the last of whom deleted the account afterwards:
+
+```
+Site venti:0s1te0s1te0s1te0s1te0s1te0
+  Name:         Nonsense?[2J
+  Place:        46.90000, 13.10000
+  Height:       1862 m
+  Uses:         take-off
+  Wind from:    180° to 270°
+  Paragliders:  yes
+  Web page:     https://example.com/buy
+  Made:         2026-11-18 19:05 UTC by mara (Mara Muster)
+  Stands:       at revision 3
+
+History, 3 revisions, the first one first:
+   1  2026-11-18 19:05 UTC  mara (Mara Muster), through a session made the site: "From my own flights there."
+   2  2026-11-18 21:05 UTC  jonas (Jonas Beispiel), through a session changed it (elevation_m, description): "Height from my GPS."
+   3  2026-11-19 21:05 UTC  an account that is gone, through a session changed it (name, website, description)
+
+The record is as it stands, or as it last stood. Nothing was changed: see `venti-server --help` for revert-site and remove-site.
+```
+
+The line of a revision names, in brackets, the fields in which the record differed from the revision before, by their names in the API. What a revision said in full is in the API's answer for the site's history, and for a site that is taken down in the database only (`pilot_site_revisions.record`). Text that does not print is shown as a question mark.
+
+`revert-site` says what it did:
+
+```
+Site venti:0s1te0s1te0s1te0s1te0s1te0 "Musterkogel West" says again what its revision 2 said, as its revision 4.
+The revision is in the site's history as the operator's, with its comment, for everyone to read. Nobody is told, and nothing stops a pilot from changing the site again.
+Nothing else changed: no earlier revision was removed, no account was touched, and no report was closed.
+```
+
+and so does `remove-site`:
+
+```
+Site venti:0s1te0s1te0s1te0s1te0s1te0 "Musterkogel West" is taken down, as its revision 5. It stood until now.
+It is in no answer about its place, its address and its history answer that it is gone, and no pilot can bring it back. Whoever follows what changed among the sites learns that it is gone, and nobody is told by whom or why. Its identifier is never used for another site.
+Nothing was deleted: the site and every revision are kept, and `venti-server site venti:0s1te0s1te0s1te0s1te0s1te0` still shows them. `venti-server revert-site venti:0s1te0s1te0s1te0s1te0s1te0 --revision 4` brings it back as it last stood. It does not stop anyone from adding a site at the place again. No account was touched, and no report was closed.
+```
+
+No command lists the sites; the API does, for anyone: `GET /v1/sites/changes` from the beginning is every site there is, removed ones as identifiers. The sites that are taken down, which no answer shows:
+
+```sql
+SELECT id, removed_at, revision FROM pilot_sites WHERE taken_down ORDER BY removed_at;
+```
+
+The three commands were run against the server's tests and not through `docker compose exec` on a real server, and the tables behind them not against PostgreSQL *(to verify)*.
+
 ## The connector
 
 The server answers a pilot's own Claude or ChatGPT at `https://<domain>/mcp`, with wind and airspace, without sign-in ([docs/mcp.md](../docs/mcp.md)). It is on as soon as the server runs, and needs the domain and HTTPS: Claude reaches a connector over port 443 only.

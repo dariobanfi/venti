@@ -60,7 +60,7 @@ pub use run::{
     AirspaceRejection, AirspaceRunOutput, AirspaceRunReport, Failure, RunOptions, RunOutput,
     RunReport, run_airspace, run_observations,
 };
-pub use sites::{SiteRejection, SiteRunOutput, SiteRunReport, run_sites};
+pub use sites::{SiteRejection, SiteRunOutput, SiteRunReport, check_site, run_sites};
 pub use source::{
     AirspaceSource, ForecastSource, ObservationSource, Parsed, ParsedAirspace, ParsedForecast,
     ParsedSites, PlanCtx, Request, SiteSource, Skipped, SourceError,

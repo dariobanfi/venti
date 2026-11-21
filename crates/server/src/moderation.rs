@@ -14,7 +14,10 @@
 //!   anything public, `resume-publishing` gives it back;
 //! - `group` shows one group with its members and its plans,
 //!   `rename-group` gives it another name, `remove-plan` removes one of
-//!   its plans and `remove-group` the group with everything in it.
+//!   its plans and `remove-group` the group with everything in it;
+//! - `site` shows one site that pilots made with its whole history,
+//!   `revert-site` puts it back to what an earlier revision said, and
+//!   `remove-site` takes it down.
 //!
 //! There is no web page for any of this, and the API offers none of it:
 //! whoever can run this program on the server's machine, with the server's
@@ -30,6 +33,12 @@
 //! whom. A group that is gone leaves nothing behind that could say so, and
 //! the server keeps no list of who was in one.
 //!
+//! What is done about a site that pilots made is a revision like any
+//! other, kept in the site's history and shown there as the operator's:
+//! unlike a group, a site is everyone's to read, and so is what became of
+//! it. A site that is taken down is gone to everyone, its identifier is
+//! never used again, and only `revert-site` brings it back.
+//!
 //! What a command prints is for the operator's eyes. It names reporters,
 //! which the API never does, the identifiers of live tracks, which are the
 //! keys to them, and who is in a group and where its members mean to be,
@@ -42,13 +51,14 @@ use std::process::ExitCode;
 
 use chrono::NaiveDate;
 use venti_api_types::v1::{
-    FlightId, GroupId, GroupTextError, Handle, LiveTrackId, PlanId, format_day, live_page_path,
-    parse_group_name, share_path,
+    FlightId, GroupId, GroupTextError, Handle, LiveTrackId, PlanId, VENTI_SITES_SOURCE, format_day,
+    live_page_path, parse_group_name, parse_site_comment, share_path,
 };
-use venti_domain::Timestamp;
+use venti_domain::{Site as FlyingSite, SiteId, SiteUse, Timestamp};
 use venti_store::{
-    Flight, GroupMembers, GroupPilot, LiveVisibility, PgStore, Plan, Report, ReportClosing,
-    ReportListing, ReportSubject, Store, Visibility,
+    Flight, GroupMembers, GroupPilot, LiveVisibility, PgStore, PilotSite, Plan, Report,
+    ReportClosing, ReportListing, ReportSubject, RevisionKind, SiteAct, SitePilot, SiteRevising,
+    SiteRevision, SiteVia, SiteWrite, Store, Visibility,
 };
 
 use crate::accounts::secret;
@@ -60,8 +70,13 @@ use crate::groups;
 /// text; the bound is what keeps a slip of the hand out of the table.
 pub const MAX_NOTE_LENGTH: usize = 1000;
 
-/// How many reports are read from the store at a time.
+/// How many reports, or revisions of a site, are read from the store at a
+/// time.
 const PAGE: usize = 100;
+
+/// How far apart, in metres, two sites that pilots made stand at least.
+/// A site that `revert-site` brings back is held to it as a new one is.
+use crate::pilot_sites::APART_M;
 
 /// One thing the operator asks for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +139,31 @@ pub enum Action {
     RemoveGroup {
         /// The group's identifier.
         group: String,
+    },
+    /// Show one site that pilots made, with its whole history.
+    Site {
+        /// The site's identifier, or a link that ends in it.
+        site: String,
+    },
+    /// Put a site that pilots made back to what an earlier revision said,
+    /// as a revision of the operator's. Brings back a site that was
+    /// removed or taken down.
+    RevertSite {
+        /// The site's identifier, or a link that ends in it.
+        site: String,
+        /// The number of the revision to restore.
+        revision: u32,
+        /// Why, in one line. Kept with the revision, where everyone who
+        /// reads the site's history reads it.
+        comment: Option<String>,
+    },
+    /// Take a site that pilots made down.
+    RemoveSite {
+        /// The site's identifier, or a link that ends in it.
+        site: String,
+        /// Why, in one line. Kept with the revision; nobody but the
+        /// operator reads the history of a site that is taken down.
+        comment: Option<String>,
     },
 }
 
@@ -556,7 +596,388 @@ pub async fn perform(
                 counted(removed.plans as usize, "plan", "plans"),
             )))
         }
+        Action::Site { site } => {
+            let Some(id) = pilot_site_id(site) else {
+                return Ok(Outcome::nothing(no_site_identifier(site)));
+            };
+            // The history is read page by page, and the site with each
+            // page: the last page's is the one that is shown, so that no
+            // revision is listed beyond the one the site is said to stand
+            // at.
+            let mut revisions: Vec<SiteRevision> = Vec::new();
+            let seen = loop {
+                let after = revisions.last().map_or(0, |revision| revision.number);
+                let page = store.pilot_site_revisions(&id, after, PAGE).await;
+                let Some((seen, page)) = page.map_err(failed)? else {
+                    return Ok(Outcome::nothing(no_site(&id)));
+                };
+                let last = page.len() < PAGE;
+                revisions.extend(page);
+                if last {
+                    break seen;
+                }
+            };
+            Ok(Outcome::found(shown_site(&seen, &revisions)))
+        }
+        Action::RevertSite {
+            site,
+            revision,
+            comment,
+        } => {
+            let comment = site_comment(comment.as_deref())?;
+            let Some(id) = pilot_site_id(site) else {
+                return Ok(Outcome::nothing(no_site_identifier(site)));
+            };
+            let Some(before) = store.pilot_site(&id).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_site(&id)));
+            };
+            let revising = SiteRevising {
+                id: id.clone(),
+                author_id: None,
+                at: clock.now(),
+                via: SiteVia::Operator,
+                act: SiteAct::Restore(*revision),
+                comment,
+                expects: None,
+            };
+            let written = store.revise_pilot_site(&revising, APART_M).await;
+            Ok(match written.map_err(failed)? {
+                SiteWrite::Written(now) => {
+                    let back = match (before.taken_down, before.stands()) {
+                        (true, _) => {
+                            " It was taken down and stands again: it is in every \
+                                      answer about its place, and its history can be read."
+                        }
+                        (false, false) => " It was removed and stands again.",
+                        (false, true) => "",
+                    };
+                    Outcome::found(format!(
+                        "Site {id} {} says again what its revision {revision} said, as its \
+                         revision {}.{back}\n\
+                         The revision is in the site's history as the operator's, with its \
+                         comment, for everyone to read. Nobody is told, and nothing stops a \
+                         pilot from changing the site again.\n\
+                         Nothing else changed: no earlier revision was removed, no account was \
+                         touched, and no report was closed.",
+                        named(&now.site),
+                        now.revision,
+                    ))
+                }
+                SiteWrite::Same(now) => Outcome::found(format!(
+                    "Site {id} {} says already what its revision {revision} said, and \
+                     stands. Nothing changed.",
+                    named(&now.site),
+                )),
+                SiteWrite::NoSuchRevision => Outcome::nothing(format!(
+                    "Site {id} has no revision {revision}: it stands at revision {}, and \
+                     `venti-server site {id}` lists them. Nothing changed.",
+                    before.revision,
+                )),
+                SiteWrite::TooClose(other) => Outcome::nothing(format!(
+                    "Nothing changed: as its revision {revision} said, site {id} would stand \
+                     less than {APART_M} m from site {other}, and two sites that pilots made \
+                     are never that near to each other. Look at that one with \
+                     `venti-server site {other}`; restore another revision, or take one of \
+                     the two down.",
+                )),
+                SiteWrite::NoSuchSite => Outcome::nothing(no_site(&id)),
+                // Not answers to a restore by the operator that names no
+                // revision to start from.
+                SiteWrite::Stale { .. }
+                | SiteWrite::Removed
+                | SiteWrite::TakenDown
+                | SiteWrite::NoSuchAccount => {
+                    return Err(format!(
+                        "the store refused to restore revision {revision} of site {id} in a \
+                         way it does not refuse the operator. Nothing changed."
+                    ));
+                }
+            })
+        }
+        Action::RemoveSite { site, comment } => {
+            let comment = site_comment(comment.as_deref())?;
+            let Some(id) = pilot_site_id(site) else {
+                return Ok(Outcome::nothing(no_site_identifier(site)));
+            };
+            let Some(before) = store.pilot_site(&id).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_site(&id)));
+            };
+            let revising = SiteRevising {
+                id: id.clone(),
+                author_id: None,
+                at: clock.now(),
+                via: SiteVia::Operator,
+                act: SiteAct::Remove { take_down: true },
+                comment,
+                expects: None,
+            };
+            let written = store.revise_pilot_site(&revising, APART_M).await;
+            Ok(match written.map_err(failed)? {
+                SiteWrite::Written(now) => {
+                    let was = if before.stands() {
+                        "It stood until now"
+                    } else {
+                        "A pilot had removed it, and could have brought it back until now"
+                    };
+                    Outcome::found(format!(
+                        "Site {id} {} is taken down, as its revision {}. {was}.\n\
+                         It is in no answer about its place, its address and its history \
+                         answer that it is gone, and no pilot can bring it back. Whoever \
+                         follows what changed among the sites learns that it is gone, and \
+                         nobody is told by whom or why. Its identifier is never used for \
+                         another site.\n\
+                         Nothing was deleted: the site and every revision are kept, and \
+                         `venti-server site {id}` still shows them. \
+                         `venti-server revert-site {id} --revision {}` brings it back as it \
+                         last stood. It does not stop anyone from adding a site at the place \
+                         again. No account was touched, and no report was closed.",
+                        named(&now.site),
+                        now.revision,
+                        before.revision,
+                    ))
+                }
+                // Removed once more only to take it down: so it is down.
+                SiteWrite::Removed => Outcome::found(format!(
+                    "Site {id} {} is taken down already. Nothing changed.",
+                    named(&before.site),
+                )),
+                SiteWrite::NoSuchSite => Outcome::nothing(no_site(&id)),
+                SiteWrite::Same(_)
+                | SiteWrite::TooClose(_)
+                | SiteWrite::Stale { .. }
+                | SiteWrite::TakenDown
+                | SiteWrite::NoSuchRevision
+                | SiteWrite::NoSuchAccount => {
+                    return Err(format!(
+                        "the store refused to take site {id} down in a way it does not \
+                         refuse the operator. Nothing changed."
+                    ));
+                }
+            })
+        }
     }
+}
+
+// --- Sites that pilots made -------------------------------------------------
+
+/// The identifier of a site that pilots made, from what an operator
+/// pastes: the identifier, or a link that ends in it. `None` for anything
+/// else, an identifier of another source's site included: those are the
+/// source's, and nothing here acts on them.
+fn pilot_site_id(text: &str) -> Option<SiteId> {
+    let id: SiteId = last_part(text).parse().ok()?;
+    (id.source().as_str() == VENTI_SITES_SOURCE && secret::is_id(id.local())).then_some(id)
+}
+
+fn no_site_identifier(text: &str) -> String {
+    format!(
+        "{:?} is not the identifier of a site that pilots made: such an identifier is \
+         `{VENTI_SITES_SOURCE}:` and 26 characters. A site of another source is that \
+         source's to correct, and goes or changes with its next run.",
+        on_one_line(text)
+    )
+}
+
+fn no_site(id: &SiteId) -> String {
+    format!("There is no site with the identifier {id}, and there never was one.")
+}
+
+/// The comment of a revision of the operator's, cleaned as a pilot's is.
+fn site_comment(comment: Option<&str>) -> Result<Option<String>, String> {
+    parse_site_comment(comment).map_err(|most| {
+        format!(
+            "a comment is one line of at most {most} characters: it is kept with the \
+             revision, in the site's history"
+        )
+    })
+}
+
+/// A site by its name between quotation marks, or by saying that it has
+/// none.
+fn named(site: &FlyingSite) -> String {
+    site.name
+        .as_deref()
+        .map_or_else(|| "without a name".to_owned(), quoted)
+}
+
+fn site_pilot(pilot: Option<&SitePilot>) -> String {
+    pilot.map_or_else(
+        || "an account that is gone".to_owned(),
+        |pilot| who(&pilot.handle, &pilot.display_name),
+    )
+}
+
+fn use_in_words(used_for: SiteUse) -> &'static str {
+    match used_for {
+        SiteUse::Takeoff => "take-off",
+        SiteUse::Landing => "landing",
+        SiteUse::Towing => "towing",
+        SiteUse::Training => "training",
+        SiteUse::Other => "another use",
+    }
+}
+
+fn yes_or_no(value: bool) -> &'static str {
+    if value { "yes" } else { "no" }
+}
+
+/// What a site's record says, as the lines of a block: every field that
+/// says something, and of an outline how many points it has.
+fn record_lines(block: &mut String, site: &FlyingSite) {
+    labelled(block, "Name:", site.name.as_deref().unwrap_or("none"));
+    let place = format!("{:.5}, {:.5}", site.position.lat(), site.position.lon());
+    labelled(block, "Place:", &place);
+    if let Some(height) = site.elevation_m {
+        labelled(block, "Height:", &format!("{height:.0} m"));
+    }
+    let uses: Vec<&str> = site.uses.iter().copied().map(use_in_words).collect();
+    labelled(block, "Uses:", &uses.join(", "));
+    if !site.wind_directions.is_empty() {
+        let sectors: Vec<String> = site
+            .wind_directions
+            .iter()
+            .map(|sector| {
+                if sector.from_deg == sector.to_deg {
+                    format!("{:.0}°", sector.from_deg)
+                } else {
+                    format!("{:.0}° to {:.0}°", sector.from_deg, sector.to_deg)
+                }
+            })
+            .collect();
+        labelled(block, "Wind from:", &sectors.join(", "));
+    }
+    for (label, value) in [
+        ("Paragliders:", site.paragliding),
+        ("Hang gliders:", site.hang_gliding),
+        ("Guest rules:", site.guest_guidelines),
+    ] {
+        if let Some(value) = value {
+            labelled(block, label, yes_or_no(value));
+        }
+    }
+    for (label, text) in [
+        ("Web page:", &site.website),
+        ("Fee:", &site.fee),
+        ("No flying:", &site.no_flight_time),
+        ("Description:", &site.description),
+    ] {
+        if let Some(text) = text {
+            labelled(block, label, text);
+        }
+    }
+    if let Some(outline) = &site.outline {
+        let points = format!("{} points", outline.points().len());
+        labelled(block, "Outline:", &points);
+    }
+}
+
+/// The fields in which two records of a site differ, by the names the
+/// API gives them.
+fn differing(before: &FlyingSite, after: &FlyingSite) -> Vec<&'static str> {
+    [
+        ("name", before.name != after.name),
+        ("position", before.position != after.position),
+        ("elevation_m", before.elevation_m != after.elevation_m),
+        ("uses", before.uses != after.uses),
+        (
+            "wind_directions",
+            before.wind_directions != after.wind_directions,
+        ),
+        ("paragliding", before.paragliding != after.paragliding),
+        ("hang_gliding", before.hang_gliding != after.hang_gliding),
+        ("website", before.website != after.website),
+        ("description", before.description != after.description),
+        ("fee", before.fee != after.fee),
+        (
+            "guest_guidelines",
+            before.guest_guidelines != after.guest_guidelines,
+        ),
+        (
+            "no_flight_time",
+            before.no_flight_time != after.no_flight_time,
+        ),
+        ("outline", before.outline != after.outline),
+    ]
+    .into_iter()
+    .filter_map(|(field, differs)| differs.then_some(field))
+    .collect()
+}
+
+/// One revision of a site as a line: its number, when, by whom and
+/// through what, what it did, in which fields the record then differed
+/// from the one before, and its comment.
+fn revision_line(revision: &SiteRevision, before: Option<&FlyingSite>) -> String {
+    let by = match revision.via {
+        SiteVia::Operator => "the operator".to_owned(),
+        SiteVia::Session => format!(
+            "{}, through a session",
+            site_pilot(revision.author.as_ref())
+        ),
+    };
+    let did = match revision.kind {
+        RevisionKind::Created => "made the site".to_owned(),
+        RevisionKind::Changed => "changed it".to_owned(),
+        RevisionKind::Restored(number) => format!("restored revision {number}"),
+        RevisionKind::Removed => "removed it".to_owned(),
+    };
+    let fields = before
+        .map(|before| differing(before, &revision.record))
+        .filter(|fields| !fields.is_empty())
+        .map(|fields| format!(" ({})", fields.join(", ")))
+        .unwrap_or_default();
+    let comment = revision
+        .comment
+        .as_deref()
+        .map(|comment| format!(": {}", quoted(comment)))
+        .unwrap_or_default();
+    format!(
+        "{:>4}  {}  {by} {did}{fields}{comment}",
+        revision.number,
+        day_and_time(revision.at),
+    )
+}
+
+/// One site that pilots made, as text: where it stands, what its record
+/// says, and every revision in a line.
+fn shown_site(seen: &PilotSite, revisions: &[SiteRevision]) -> String {
+    let mut said = format!("Site {}", seen.site.id);
+    record_lines(&mut said, &seen.site);
+    let made = format!(
+        "{} by {}",
+        day_and_time(seen.created_at),
+        site_pilot(seen.created_by.as_ref())
+    );
+    labelled(&mut said, "Made:", &made);
+    let stands = match (seen.removed_at, seen.taken_down) {
+        (None, _) => format!("at revision {}", seen.revision),
+        (Some(since), false) => format!(
+            "removed since {}, at revision {}; a pilot can bring it back",
+            day_and_time(since),
+            seen.revision
+        ),
+        (Some(since), true) => format!(
+            "taken down since {}, at revision {}; gone to everyone, and only revert-site \
+             brings it back",
+            day_and_time(since),
+            seen.revision
+        ),
+    };
+    labelled(&mut said, "Stands:", &stands);
+    let _ = write!(
+        said,
+        "\n\nHistory, {}, the first one first:",
+        counted(revisions.len(), "revision", "revisions")
+    );
+    let mut before: Option<&FlyingSite> = None;
+    for revision in revisions {
+        let _ = write!(said, "\n{}", revision_line(revision, before));
+        before = Some(&revision.record);
+    }
+    said.push_str(
+        "\n\nThe record is as it stands, or as it last stood. Nothing was changed: see \
+         `venti-server --help` for revert-site and remove-site.",
+    );
+    said
 }
 
 fn no_group_identifier(text: &str) -> String {

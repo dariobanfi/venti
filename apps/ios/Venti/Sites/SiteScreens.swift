@@ -374,11 +374,16 @@ struct SiteScreen: View {
             // the wind at heights, where the forecast knows the model's
             // ground to stand them on. Under what the site is and the wind
             // measured around it, and over the way to the whole forecast.
-            if let day, !day.hours.isEmpty, day.groundM != nil {
+            // Under it, what the layers and the wind near by are and are
+            // not, in the core's words.
+            let showsAir = day.map { !$0.hours.isEmpty && $0.groundM != nil } ?? false
+            if let day, showsAir {
                 Section {
                     AirChart(day: day, takeoffM: site.elevationM)
                 } header: {
                     Text("The air · \(day.name)")
+                } footer: {
+                    AirNotes(notes: [outlook?.layersNote, outlook?.nearbyNote])
                 }
             }
             if wind.server != nil {
@@ -389,6 +394,12 @@ struct SiteScreen: View {
                         Label("Forecast for this place", systemImage: "cloud.sun")
                     }
                     .accessibilityIdentifier("site-forecast")
+                } footer: {
+                    // Without the picture, the day's line about the wind
+                    // near by still stands at the head: its note is here.
+                    if !showsAir, let day, !day.nearby.isEmpty {
+                        AirNotes(notes: [outlook?.nearbyNote])
+                    }
                 }
             }
             Section {
@@ -561,6 +572,10 @@ struct SiteScreen: View {
                     Text(Self.words(of: day))
                         .foregroundStyle(.venti(.textSecondary))
                         .accessibilityIdentifier("site-outlook")
+                    // The wind near by where it is much stronger, under
+                    // the day's own line: a note, and no part of the status.
+                    NearbyLine(words: day.nearby, identifier: "site-nearby")
+                        .padding(.top, VentiSpace.s1)
                     if day.thermals != nil {
                         ThermalLine(day: day)
                             .padding(.top, VentiSpace.s1)
@@ -616,6 +631,25 @@ struct SiteScreen: View {
         let credit = ((credits ?? []) + sites.credits).first { $0.source == site.source }
         let parts = [Self.caution, credit?.notice, credit?.text]
         return parts.compactMap { $0 }.joined(separator: "\n\n")
+    }
+}
+
+/// What the layers of the picture and the wind near by are and are not,
+/// in the core's words, as a section's footer: each note that is not
+/// empty, one under the other.
+private struct AirNotes: View {
+    let notes: [String?]
+
+    var body: some View {
+        let said = notes.compactMap { $0 }.filter { !$0.isEmpty }
+        if !said.isEmpty {
+            VStack(alignment: .leading, spacing: VentiSpace.s2) {
+                ForEach(said, id: \.self) { note in
+                    Text(note)
+                }
+            }
+            .accessibilityIdentifier("site-air-notes")
+        }
     }
 }
 

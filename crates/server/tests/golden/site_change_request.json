@@ -1,0 +1,23 @@
+{
+  "site": {
+    "name": "Musterkogel West",
+    "position": {
+      "lat": 47.3,
+      "lon": 10.9
+    },
+    "elevation_m": 1871.0,
+    "uses": [
+      "takeoff"
+    ],
+    "wind_directions": [
+      {
+        "from_deg": 225.0,
+        "to_deg": 315.0
+      }
+    ],
+    "paragliding": true,
+    "description": "A made-up site of the development mode. No such place exists."
+  },
+  "revision": 2,
+  "comment": "Height from my own GPS."
+}

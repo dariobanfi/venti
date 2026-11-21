@@ -275,6 +275,15 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "plan_request.json",
         "plan.json",
         "maps.json",
+        "sites_venti.json",
+        "site.json",
+        "site_of_a_source.json",
+        "site_history.json",
+        "site_changes.json",
+        "site_add_request.json",
+        "site_change_request.json",
+        "site_written.json",
+        "site_restore_request.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -311,6 +320,34 @@ fn the_documentation_shows_the_answers_as_they_are() {
     }
     for plan in dev::DEMO_PLANS.iter().chain([&dev::DEMO_OTHER_PLAN]) {
         assert!(docs.contains(&format!("| `{plan}` |")), "{plan}");
+    }
+    // The sites that pilots made: the made-up ones, the licence as the
+    // server names it in one place, and the numbers that bound the layer.
+    use venti_server::pilot_sites;
+    for site in dev::DEMO_SITES {
+        assert!(docs.contains(&format!("| `{site}` |")), "{site}");
+    }
+    let licence = pilot_sites::LICENCE;
+    for stated in [
+        format!("[{}]({})", licence.name, licence.url),
+        format!("provider \"{}\"", licence.provider),
+        licence.notice.to_owned(),
+        format!("bbox={}", dev::DEMO_SITES_BBOX),
+        format!("less than {} m", pilot_sites::APART_M),
+        format!(
+            "adds at most {} sites a day",
+            pilot_sites::Limits::default().added_per_day
+        ),
+        format!(
+            "at most {} revisions a day",
+            pilot_sites::Limits::default().revisions_per_day
+        ),
+        format!(
+            "at most {} characters, kept with the revision",
+            venti_api_types::v1::MAX_SITE_COMMENT_LENGTH
+        ),
+    ] {
+        assert!(docs.contains(&stated), "docs/api.md does not say: {stated}");
     }
     // The numbers that bound groups are the ones the document states.
     let limits = venti_server::groups::Limits::default();

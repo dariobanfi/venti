@@ -149,7 +149,10 @@ async fn sites_come_in_a_layer_with_their_source_their_dates_and_their_credit() 
     assert!(answer.header(header::ETAG).starts_with("W/\""));
     let sites: SitesResponse = answer.json();
 
-    assert_eq!(sites.layers.len(), 1);
+    // OpenStreetMap's layer, and beside it the layer of the sites that
+    // pilots made, which the tests further down are about.
+    assert_eq!(sites.layers.len(), 2);
+    assert_eq!(sites.layers[1].source.as_str(), "venti");
     let layer = &sites.layers[0];
     assert_eq!(layer.source.as_str(), OSM);
     // Everything OpenStreetMap has for the first region.
@@ -169,7 +172,7 @@ async fn sites_come_in_a_layer_with_their_source_their_dates_and_their_credit() 
 
     // What a client has to show: the credit, the licence, and that anyone
     // can correct the data.
-    assert_eq!(sites.attributions.len(), 1);
+    assert_eq!(sites.attributions.len(), 2);
     let credit = &sites.attributions[0];
     assert_eq!(credit.source, layer.source);
     assert_eq!(credit.licence, "ODbL 1.0");
@@ -459,4 +462,556 @@ async fn a_run_that_fails_keeps_the_last_set_and_health_says_so() {
     // The store kept what it had through all of it.
     let held = store.site_sets(&[source(OSM)]).await.unwrap();
     assert_eq!(held[0].sites, 502);
+}
+
+// --- The sites that pilots make -------------------------------------------------
+
+mod of_pilots {
+    use axum::http::Method;
+    use venti_api_types::v1::{
+        AddSiteRequest, ChangeSiteRequest, RemoveSiteRequest, RestoreSiteRequest,
+        SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteResponse, SiteRevisionKind,
+        SiteVia,
+    };
+    use venti_domain::{SiteId, WindSector};
+    use venti_server::{dev, pilot_sites};
+    use venti_store::{SiteAct, SiteRevising, SiteWrite};
+
+    use super::common::{ask, recorded_with_its_store, server, sign_up};
+    use super::*;
+
+    fn box_of_the_made_up_sites() -> String {
+        format!("/v1/sites?bbox={}", dev::DEMO_SITES_BBOX)
+    }
+
+    fn site_path(id: &str) -> String {
+        format!("/v1/sites/{id}")
+    }
+
+    /// A take-off a pilot might add, at a place of the first region where
+    /// nothing stands.
+    fn draft(name: &str, lat: f64, lon: f64) -> SiteDraft {
+        SiteDraft {
+            name: name.to_owned(),
+            position: GeoPoint::new(lat, lon).unwrap(),
+            elevation_m: Some(1540.0),
+            uses: vec![SiteUse::Takeoff],
+            wind_directions: vec![WindSector {
+                from_deg: 135.0,
+                to_deg: 225.0,
+            }],
+            paragliding: Some(true),
+            hang_gliding: None,
+            website: None,
+            description: Some("Made up, for the documentation. No such place exists.".to_owned()),
+            fee: None,
+            guest_guidelines: None,
+            no_flight_time: None,
+            outline: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn the_sites_pilots_made_are_a_layer_of_their_own_under_their_own_licence() {
+        let router = recorded().await;
+        let sites: SitesResponse = get(&router, &box_of_the_made_up_sites()).await.json();
+        assert_golden(&golden("sites_venti.json"), &sites);
+
+        // In this box the recorded data of OpenStreetMap has nothing: its
+        // layer is there without sites, and the community's beside it.
+        assert_eq!(sites.layers.len(), 2);
+        assert!(sites.layers[0].sites.is_empty());
+        let layer = &sites.layers[1];
+        assert_eq!(layer.source.as_str(), pilot_sites::SOURCE);
+        // The three that stand, by identifier; the removed one is not
+        // among them. Each record is of this layer and no other.
+        let ids: Vec<String> = layer.sites.iter().map(|site| site.id.to_string()).collect();
+        assert_eq!(ids, dev::DEMO_SITES[..3]);
+        // Who made each and where it stands, in the same order.
+        let standing: Vec<(String, u32)> = layer
+            .standing
+            .iter()
+            .map(|standing| (standing.id.to_string(), standing.revision))
+            .collect();
+        assert_eq!(
+            standing,
+            [
+                (dev::DEMO_SITES[0].to_owned(), 2),
+                (dev::DEMO_SITES[1].to_owned(), 3),
+                (dev::DEMO_SITES[2].to_owned(), 1),
+            ]
+        );
+        assert_eq!(
+            layer.standing[0]
+                .created_by
+                .as_ref()
+                .unwrap()
+                .handle
+                .as_str(),
+            dev::DEMO_HANDLE
+        );
+        assert_eq!(
+            layer.standing[0]
+                .changed_by
+                .as_ref()
+                .unwrap()
+                .handle
+                .as_str(),
+            "mara"
+        );
+        // The layer says nowhere that it is whole.
+        assert!(layer.covers.is_empty());
+
+        // The licence is the one the server names in one place.
+        let credit = &sites.attributions[1];
+        assert_eq!(credit.source.as_str(), pilot_sites::SOURCE);
+        assert_eq!(credit.licence, pilot_sites::LICENCE.name);
+        assert_eq!(credit.licence, "CC0 1.0");
+        assert_eq!(credit.url, pilot_sites::LICENCE.url);
+        assert!(credit.notice.as_deref().unwrap().contains("not verified"));
+
+        // An older client reads the answer as before: a layer is a source
+        // with sites, and what it does not know it skips.
+        let plain: serde_json::Value = get(&router, &box_of_the_made_up_sites()).await.json();
+        assert!(plain["layers"][0].get("standing").is_none());
+        assert!(plain["layers"][1]["sites"][0]["id"].is_string());
+
+        // A box where no pilot made a site has no such layer.
+        let tegernsee: SitesResponse = get(&router, TEGERNSEE).await.json();
+        assert_eq!(tegernsee.layers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_site_has_an_address_and_says_what_the_address_promises() {
+        let router = recorded().await;
+
+        // A site that pilots made: the address is for good.
+        let answer = get(&router, &site_path(dev::DEMO_SITES[0])).await;
+        assert_eq!(answer.status, StatusCode::OK);
+        let site: SiteResponse = answer.json();
+        assert_golden(&golden("site.json"), &site);
+        assert!(site.lasting);
+        assert_eq!(site.site.name.as_deref(), Some("Musterkogel West"));
+        assert_eq!(site.standing.as_ref().unwrap().revision, 2);
+        assert_eq!(site.attributions[0].licence, "CC0 1.0");
+
+        // A source's site: the record of the set the server holds now.
+        let osm = "osm-free-flying:way/1080986173";
+        let site: SiteResponse = get(&router, &site_path(osm)).await.json();
+        assert_golden(&golden("site_of_a_source.json"), &site);
+        assert!(!site.lasting);
+        assert!(site.standing.is_none());
+        assert_eq!(site.attributions[0].licence, "ODbL 1.0");
+
+        // A removed site answers that it is gone; no site, that there is
+        // none; and so does what is no identifier at all.
+        get(&router, &site_path(dev::DEMO_SITES[3]))
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        for missing in [
+            "venti:0000000000000000000000s009",
+            "venti:short",
+            "osm-free-flying:node/1",
+            "club:1",
+            "nothing",
+        ] {
+            get(&router, &site_path(missing))
+                .await
+                .error(StatusCode::NOT_FOUND, ErrorCode::SiteNotFound);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_site_keeps_every_revision_and_the_layer_says_what_changed_since() {
+        let router = recorded().await;
+
+        // The second site: added, changed for the worse, put back.
+        let path = format!("{}/history", site_path(dev::DEMO_SITES[1]));
+        let history: SiteHistoryResponse = get(&router, &path).await.json();
+        assert_golden(&golden("site_history.json"), &history);
+        assert_eq!(
+            (history.revision, history.removed, history.more),
+            (3, false, false)
+        );
+        let kinds: Vec<(u32, SiteRevisionKind, Option<u32>)> = history
+            .revisions
+            .iter()
+            .map(|revision| (revision.number, revision.kind, revision.restores))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                (1, SiteRevisionKind::Created, None),
+                (2, SiteRevisionKind::Changed, None),
+                (3, SiteRevisionKind::Restored, Some(1)),
+            ]
+        );
+        assert!(history.revisions.iter().all(|r| r.via == SiteVia::Session));
+        assert_eq!(history.revisions[1].site.elevation_m, Some(1204.0));
+        assert_eq!(history.revisions[2].site, history.revisions[0].site);
+        // Page by page.
+        let page: SiteHistoryResponse = get(&router, &format!("{path}?limit=2")).await.json();
+        assert_eq!((page.revisions.len(), page.more), (2, true));
+        let rest: SiteHistoryResponse = get(&router, &format!("{path}?after=2")).await.json();
+        assert_eq!((rest.revisions[0].number, rest.more), (3, false));
+        // A removed site keeps its history.
+        let removed = format!("{}/history", site_path(dev::DEMO_SITES[3]));
+        let history: SiteHistoryResponse = get(&router, &removed).await.json();
+        assert!(history.removed);
+        assert_eq!(history.revisions[1].kind, SiteRevisionKind::Removed);
+
+        // What changed since the beginning: every site once, as it is
+        // now, and the removed one as removed.
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
+        assert_golden(&golden("site_changes.json"), &changes);
+        assert_eq!(changes.sites.len(), 3);
+        assert_eq!(
+            changes.removed,
+            [dev::DEMO_SITES[3].parse::<SiteId>().unwrap()]
+        );
+        assert_eq!(
+            (changes.cursor.as_str(), changes.more, changes.reset),
+            ("8", false, false)
+        );
+        // Since then: nothing, and the cursor stays.
+        let since: SiteChangesResponse = get(&router, "/v1/sites/changes?since=8").await.json();
+        assert!(since.sites.is_empty() && since.removed.is_empty());
+        assert_eq!(since.cursor, "8");
+        // In pages.
+        let page: SiteChangesResponse = get(&router, "/v1/sites/changes?limit=2").await.json();
+        assert_eq!((page.sites.len(), page.more), (2, true));
+        let next = format!("/v1/sites/changes?since={}&limit=2", page.cursor);
+        let page: SiteChangesResponse = get(&router, &next).await.json();
+        assert_eq!(
+            (page.sites.len(), page.removed.len(), page.more),
+            (1, 1, false)
+        );
+        // A cursor this server never gave out starts again, and says so.
+        let reset: SiteChangesResponse = get(&router, "/v1/sites/changes?since=99").await.json();
+        assert!(reset.reset);
+        assert_eq!(reset.sites.len(), 3);
+        get(&router, "/v1/sites/changes?since=x")
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidCursor);
+    }
+
+    #[tokio::test]
+    async fn a_pilot_adds_corrects_undoes_and_removes_a_site_and_reads_each_step_back() {
+        let (router, store) = recorded_with_its_store().await;
+        let token = dev::DEMO_TOKEN;
+        let other = sign_up(&router, "petra").await.token;
+
+        // Nobody adds a site without an account.
+        let request = AddSiteRequest {
+            site: draft("Beispielkopf Süd", 47.4, 11.2),
+            comment: Some("From where I stood on 14 November.".to_owned()),
+        };
+        assert_golden(&golden("site_add_request.json"), &request);
+        ask(Method::POST, "/v1/sites")
+            .json(&request)
+            .send(&router)
+            .await
+            .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+
+        // Added: the first revision, by the pilot, under a new identifier.
+        let added: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(token)
+            .json(&request)
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        let id = added.site.id.clone();
+        assert_eq!(id.source().as_str(), "venti");
+        assert_eq!(id.local().len(), 26);
+        let standing = added.standing.as_ref().unwrap();
+        assert_eq!(standing.revision, 1);
+        assert_eq!(
+            standing.created_by.as_ref().unwrap().handle.as_str(),
+            "demo"
+        );
+        assert!(added.lasting);
+        // What a pilot does not say is not in the record.
+        assert_eq!((added.site.official, added.site.discouraged), (None, false));
+        assert_eq!(added.site.url, None);
+        let read: SiteResponse = get(&router, &site_path(&id.to_string())).await.json();
+        assert_eq!(read, added);
+
+        // The same place again, by anyone: refused, naming the site that
+        // stands there.
+        let again = AddSiteRequest {
+            site: draft("Beispielkopf", 47.40005, 11.2),
+            comment: None,
+        };
+        let message = ask(Method::POST, "/v1/sites")
+            .token(&other)
+            .json(&again)
+            .send(&router)
+            .await
+            .error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+        assert!(message.contains(&id.to_string()), "{message}");
+
+        // What cannot be kept is refused, with the field's name.
+        let mut nameless = draft(" \u{200b} ", 47.5, 11.3);
+        for (what, code) in [
+            (nameless.clone(), ErrorCode::InvalidSite),
+            (
+                SiteDraft {
+                    uses: Vec::new(),
+                    ..draft("A", 47.5, 11.3)
+                },
+                ErrorCode::InvalidSite,
+            ),
+            (
+                SiteDraft {
+                    website: Some("ftp://example.com".to_owned()),
+                    ..draft("A", 47.5, 11.3)
+                },
+                ErrorCode::InvalidSite,
+            ),
+            (
+                SiteDraft {
+                    elevation_m: Some(12000.0),
+                    ..draft("A", 47.5, 11.3)
+                },
+                ErrorCode::InvalidSite,
+            ),
+            (
+                SiteDraft {
+                    description: Some("x".repeat(1001)),
+                    ..draft("A", 47.5, 11.3)
+                },
+                ErrorCode::InvalidSite,
+            ),
+            // On Earth, and in no region this server serves.
+            (draft("A", 0.5, 0.5), ErrorCode::SiteOutOfArea),
+        ] {
+            let request = AddSiteRequest {
+                site: what,
+                comment: None,
+            };
+            ask(Method::POST, "/v1/sites")
+                .token(token)
+                .json(&request)
+                .send(&router)
+                .await
+                .error(StatusCode::BAD_REQUEST, code);
+        }
+        nameless.name = "A".to_owned();
+        let long = AddSiteRequest {
+            site: nameless,
+            comment: Some("x".repeat(201)),
+        };
+        ask(Method::POST, "/v1/sites")
+            .token(token)
+            .json(&long)
+            .send(&router)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidSite);
+
+        // Corrected by another pilot: a new revision, made from the one
+        // the pilot read.
+        let first = dev::DEMO_SITES[0];
+        let before: SiteResponse = get(&router, &site_path(first)).await.json();
+        let change = ChangeSiteRequest {
+            site: SiteDraft {
+                elevation_m: Some(1871.0),
+                ..SiteDraft::of(&before.site)
+            },
+            revision: 2,
+            comment: Some("Height from my own GPS.".to_owned()),
+        };
+        assert_golden(&golden("site_change_request.json"), &change);
+        let changed: SiteResponse = ask(Method::PUT, &site_path(first))
+            .token(&other)
+            .json(&change)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert_golden(&golden("site_written.json"), &changed);
+        let standing = changed.standing.as_ref().unwrap();
+        assert_eq!(standing.revision, 3);
+        assert_eq!(
+            standing.created_by.as_ref().unwrap().handle.as_str(),
+            "demo"
+        );
+        assert_eq!(
+            standing.changed_by.as_ref().unwrap().handle.as_str(),
+            "petra"
+        );
+        assert_eq!(changed.site.elevation_m, Some(1871.0));
+        // Made from a revision the site no longer stands at: refused.
+        let stale = ChangeSiteRequest {
+            site: SiteDraft {
+                elevation_m: Some(1.0),
+                ..SiteDraft::of(&before.site)
+            },
+            ..change.clone()
+        };
+        ask(Method::PUT, &site_path(first))
+            .token(token)
+            .json(&stale)
+            .send(&router)
+            .await
+            .error(StatusCode::CONFLICT, ErrorCode::SiteChanged);
+        // A source's record is corrected at its source.
+        ask(Method::PUT, &site_path("osm-free-flying:way/1080986173"))
+            .token(token)
+            .json(&change)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesClosed);
+
+        // Undone: a revision that restores the one before, and names it.
+        let undo = RestoreSiteRequest {
+            restore: 2,
+            comment: Some("The height was right before.".to_owned()),
+        };
+        assert_golden(&golden("site_restore_request.json"), &undo);
+        let revisions = format!("{}/revisions", site_path(first));
+        let restored: SiteResponse = ask(Method::POST, &revisions)
+            .token(token)
+            .json(&undo)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert_eq!(restored.standing.as_ref().unwrap().revision, 4);
+        assert_eq!(restored.site, before.site);
+        let history: SiteHistoryResponse = get(&router, &format!("{}/history", site_path(first)))
+            .await
+            .json();
+        assert_eq!(history.revisions.len(), 4);
+        assert_eq!(history.revisions[3].restores, Some(2));
+        assert_eq!(history.revisions[2].site.elevation_m, Some(1871.0));
+        let none = RestoreSiteRequest {
+            restore: 9,
+            comment: None,
+        };
+        ask(Method::POST, &revisions)
+            .token(token)
+            .json(&none)
+            .send(&router)
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::SiteRevisionNotFound);
+
+        // Removed: gone at its address and from the map, its history
+        // kept, and listed as removed for whoever follows the changes.
+        let third = dev::DEMO_SITES[2];
+        let removal = RemoveSiteRequest {
+            comment: Some("The field is built on.".to_owned()),
+        };
+        let answer = ask(Method::DELETE, &site_path(third))
+            .token(&other)
+            .json(&removal)
+            .send(&router)
+            .await;
+        assert_eq!(answer.status, StatusCode::NO_CONTENT);
+        get(&router, &site_path(third))
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        let sites: SitesResponse = get(&router, &box_of_the_made_up_sites()).await.json();
+        assert_eq!(sites.layers[1].sites.len(), 2);
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes?since=8").await.json();
+        assert!(changes.removed.contains(&third.parse().unwrap()));
+        assert!(changes.sites.iter().any(|record| record.site.id == id));
+        // Removing it again, and changing it, find nothing to change.
+        ask(Method::DELETE, &site_path(third))
+            .token(token)
+            .send(&router)
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        // Any pilot brings it back.
+        let back = RestoreSiteRequest {
+            restore: 1,
+            comment: None,
+        };
+        let third_revisions = format!("{}/revisions", site_path(third));
+        let restored: SiteResponse = ask(Method::POST, &third_revisions)
+            .token(token)
+            .json(&back)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert_eq!(restored.standing.as_ref().unwrap().revision, 3);
+        get(&router, &site_path(third))
+            .await
+            .ok::<SiteResponse>(StatusCode::OK);
+
+        // Taken down by whoever runs the server: gone with its history,
+        // and no pilot brings it back.
+        let take_down = SiteRevising {
+            id: third.parse().unwrap(),
+            author_id: None,
+            at: adapters::recorded_at(),
+            via: venti_store::SiteVia::Operator,
+            act: SiteAct::Remove { take_down: true },
+            comment: None,
+            expects: None,
+        };
+        let taken = store
+            .revise_pilot_site(&take_down, pilot_sites::APART_M)
+            .await
+            .unwrap();
+        assert!(matches!(taken, SiteWrite::Written(_)));
+        get(&router, &format!("{}/history", site_path(third)))
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        ask(Method::POST, &third_revisions)
+            .token(token)
+            .json(&back)
+            .send(&router)
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+    }
+
+    #[tokio::test]
+    async fn a_server_takes_sites_from_pilots_only_when_it_is_told_to() {
+        // A server as it is configured unless told otherwise: it serves
+        // the first region and takes no site.
+        let clock = TestClock::new();
+        let mut closed = settings();
+        closed.sites.accept = false;
+        let (router, _) = server(closed, &clock);
+        let token = sign_up(&router, "petra").await.token;
+        let request = AddSiteRequest {
+            site: draft("Beispielkopf Süd", 47.4, 11.2),
+            comment: None,
+        };
+        ask(Method::POST, "/v1/sites")
+            .token(&token)
+            .json(&request)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesClosed);
+        // Reading is never off.
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
+        assert_eq!((changes.sites.len(), changes.cursor.as_str()), (0, "0"));
+
+        // A real server bounds what one account writes in a day; the
+        // numbers are the documented ones.
+        let limits = pilot_sites::Limits::default();
+        assert_eq!((limits.added_per_day, limits.revisions_per_day), (20, 100));
+        let mut open = settings();
+        open.sites.limits = pilot_sites::Limits {
+            added_per_day: 1,
+            revisions_per_day: 1,
+        };
+        let (router, _) = server(open, &clock);
+        let token = sign_up(&router, "petra").await.token;
+        ask(Method::POST, "/v1/sites")
+            .token(&token)
+            .json(&request)
+            .send(&router)
+            .await
+            .ok::<SiteResponse>(StatusCode::CREATED);
+        let second = AddSiteRequest {
+            site: draft("Beispielkopf Nord", 47.41, 11.2),
+            comment: None,
+        };
+        ask(Method::POST, "/v1/sites")
+            .token(&token)
+            .json(&second)
+            .send(&router)
+            .await
+            .error(StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited);
+    }
 }

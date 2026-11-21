@@ -182,7 +182,11 @@ pub async fn run_sites(
 
 /// Removes from a site what cannot be right, and puts its uses in order.
 /// Returns what was removed.
-fn check_site(site: &mut Site) -> Vec<SiteRejection> {
+///
+/// Every site record passes this, whoever it is from: a source's adapter
+/// has its records cleaned by it, and the server refuses a record a pilot
+/// sends if this would remove anything of it.
+pub fn check_site(site: &mut Site) -> Vec<SiteRejection> {
     let mut rejections = Vec::new();
     let mut reject = |field: &str, reason: String| {
         rejections.push(SiteRejection {

@@ -2,6 +2,7 @@ mod accounts;
 mod flights;
 mod groups;
 mod live;
+mod pilot_sites;
 mod reports;
 
 use std::collections::BTreeMap;
@@ -18,12 +19,13 @@ use crate::{
     Account, AccountCreation, AirspaceLayer, AirspaceSet, Coverage, Derived, Flight, FlightChanges,
     FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers, GroupRoom,
     KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved, LiveTrack,
-    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPlan, NewReport,
-    OutdatedFlight, Plan, PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving,
-    PublicFlights, PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey,
-    ReportListing, ReportSaved, RunRecord, SecretHash, Session, SiteDelivery, SiteLayer, SiteSet,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange, airspace, batch, forecast, site,
+    MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite, NewPlan,
+    NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
+    PlanRemoval, PlanRoom, PlanSaving, PublicFlights, PublicOrder, Ranked, RemovedGroup, Report,
+    ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord, SecretHash, Session,
+    SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus,
+    StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
+    airspace, batch, forecast, site,
 };
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -56,6 +58,7 @@ struct Inner {
     live: live::Live,
     groups: groups::Groups,
     reports: reports::Reports,
+    pilot_sites: pilot_sites::PilotSites,
 }
 
 #[derive(Debug)]
@@ -372,6 +375,68 @@ impl Store for MemoryStore {
             .filter(|(source, _)| sources.contains(source))
             .map(|(_, stored)| stored.set.clone())
             .collect())
+    }
+
+    async fn set_site(&self, id: &SiteId) -> Result<Option<Site>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .sites
+            .get(id.source())
+            .and_then(|stored| stored.sites.get(id))
+            .cloned())
+    }
+
+    async fn add_pilot_site(
+        &self,
+        new: &NewPilotSite,
+        apart_m: f64,
+    ) -> Result<SiteWrite, StoreError> {
+        let inner = &mut *self.lock();
+        inner.pilot_sites.add(new, apart_m, &inner.accounts)
+    }
+
+    async fn revise_pilot_site(
+        &self,
+        revising: &SiteRevising,
+        apart_m: f64,
+    ) -> Result<SiteWrite, StoreError> {
+        let inner = &mut *self.lock();
+        inner.pilot_sites.revise(revising, apart_m, &inner.accounts)
+    }
+
+    async fn pilot_sites_in(
+        &self,
+        area: &BoundingBox,
+        limit: usize,
+    ) -> Result<Vec<PilotSite>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.pilot_sites.in_box(area, limit, &inner.accounts))
+    }
+
+    async fn pilot_site(&self, id: &SiteId) -> Result<Option<PilotSite>, StoreError> {
+        let inner = self.lock();
+        Ok(inner.pilot_sites.one(id, &inner.accounts))
+    }
+
+    async fn pilot_site_revisions(
+        &self,
+        id: &SiteId,
+        after: u32,
+        limit: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .pilot_sites
+            .revisions(id, after, limit, &inner.accounts))
+    }
+
+    async fn pilot_site_changes(
+        &self,
+        since: i64,
+        limit: usize,
+    ) -> Result<PilotSiteChanges, StoreError> {
+        let inner = self.lock();
+        Ok(inner.pilot_sites.changes(since, limit, &inner.accounts))
     }
 
     async fn save_forecast_check(

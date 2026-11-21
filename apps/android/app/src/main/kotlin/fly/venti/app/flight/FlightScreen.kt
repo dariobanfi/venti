@@ -388,8 +388,9 @@ internal fun FlightDetail(
         if (aerial) {
             // Who made the photographs, by name, just above the panel.
             PhotosCredit(
+                // Clear of the map's own credits button in the corner.
                 Modifier.align(Alignment.BottomStart).padding(
-                    start = VentiSpace.s2,
+                    start = VentiSpace.s7,
                     bottom = with(density) { panelHeight.toDp() } + VentiSpace.s2,
                 ),
             )

@@ -58,6 +58,10 @@ use venti_core::{
     ThermalMapShapes, ThermalStripDay, TodayOrder, TodayStanding, TodayTakeoffs, TrackPoint,
     WindMap, WindSpan, WindStation,
 };
+use venti_core::{
+    SiteAdding, SiteConfirmFlight, SiteConfirmForm, SiteConfirmations, SiteDraftRebased,
+    SiteOffers, SiteRemovedLine, SiteRevisionView, SiteWords, SitesRemoved,
+};
 use venti_core::{TokenCreated, TokenForm, TokenScope, TokenView, TokenWithdrawal};
 use wasm_bindgen::prelude::*;
 
@@ -322,6 +326,108 @@ impl Core {
             .call(|core| core.sign_out_request())
             .map_err(thrown)?;
         request.as_ref().map(to_js).transpose()
+    }
+
+    /// The request that reads the account from the server, if this
+    /// browser is signed in: what the server says of it can change while
+    /// the browser stays signed in, as whether it is a partner of Venti
+    /// for flying sites. The answer goes to `accountRead`.
+    #[wasm_bindgen(js_name = accountRequest)]
+    pub fn account_request(&self) -> Result<Option<Ts<ServerRequest>>, JsValue> {
+        let request = self
+            .session
+            .call(|core| core.account_request())
+            .map_err(thrown)?;
+        request.as_ref().map(to_js).transpose()
+    }
+
+    /// Reads the server's answer to `accountRequest` and remembers what
+    /// it says of the account. The account as it is known now; nothing
+    /// when the browser was signed out meanwhile. A `401` is no error:
+    /// the account then says that the pilot has to sign in again.
+    #[wasm_bindgen(js_name = accountRead)]
+    pub fn account_read(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<Ts<AccountView>>, JsValue> {
+        let account = self
+            .session
+            .call(|core| core.account_read(status, body))
+            .map_err(thrown)?;
+        account.as_ref().map(to_js).transpose()
+    }
+
+    // What a shell may offer for a flying site, and confirming one. The
+    // rules are the core's (`venti_core::site_offers`), which reads the
+    // account this browser stores.
+
+    /// What the page may offer for a site to whoever is signed in: to
+    /// correct it, remove it, confirm it, report it and read its history,
+    /// each with its words, and whether this pilot has confirmed it.
+    /// `takes_sites_from_pilots` is the server's status; `confirmations`
+    /// is the site's list as `siteConfirmations` read it, when the page
+    /// has it.
+    #[wasm_bindgen(js_name = siteOffers)]
+    pub fn site_offers(
+        &self,
+        site: Ts<SiteView>,
+        takes_sites_from_pilots: bool,
+        confirmations: Option<Ts<SiteConfirmations>>,
+    ) -> Result<Ts<SiteOffers>, JsValue> {
+        let site = from_js(&site)?;
+        let confirmations = confirmations.as_ref().map(from_js).transpose()?;
+        let offers = self
+            .session
+            .call(|core| core.site_offers(site, takes_sites_from_pilots, confirmations))
+            .map_err(thrown)?;
+        to_js(&offers)
+    }
+
+    /// Whether the page may offer to add a site, into which tier it
+    /// would go, and what the entry and the form say for that tier.
+    #[wasm_bindgen(js_name = siteAdding)]
+    pub fn site_adding(&self, takes_sites_from_pilots: bool) -> Result<Ts<SiteAdding>, JsValue> {
+        let adding = self
+            .session
+            .call(|core| core.site_adding(takes_sites_from_pilots))
+            .map_err(thrown)?;
+        to_js(&adding)
+    }
+
+    /// The pilot's own flights to name with a confirmation of a site for
+    /// a day (`YYYY-MM-DD`): those that began on it within 500 m of the
+    /// site and are on the server. `utc_offset_s` is how far the
+    /// browser's clock is ahead of UTC on that day, in seconds.
+    #[wasm_bindgen(js_name = siteConfirmFlights)]
+    pub fn site_confirm_flights(
+        &self,
+        site: Ts<SiteView>,
+        day: String,
+        utc_offset_s: i32,
+    ) -> Result<Vec<Ts<SiteConfirmFlight>>, JsValue> {
+        let site = from_js(&site)?;
+        let flights = self
+            .session
+            .call(|core| core.site_confirm_flights(site, day, utc_offset_s))
+            .map_err(thrown)?;
+        flights.iter().map(to_js).collect()
+    }
+
+    /// The request that says of a site "I took off here and it was
+    /// good". `day` and `today` are `YYYY-MM-DD`; `note` may be empty;
+    /// `flight` is the identifier of one of the logbook's flights, from
+    /// `siteConfirmFlights`.
+    #[wasm_bindgen(js_name = siteConfirmRequest)]
+    pub fn site_confirm_request(
+        &self,
+        id: String,
+        day: String,
+        today: String,
+        note: String,
+        flight: Option<String>,
+    ) -> Result<Ts<ServerRequest>, JsValue> {
+        self.request(|core| core.site_confirm_request(id, day, today, note, flight))
     }
 
     /// Forgets the account in this browser. The flights in the logbook
@@ -1351,6 +1457,113 @@ pub fn site_in_the_way(status: u16, body: Vec<u8>) -> Result<Option<Ts<SiteInThe
 #[wasm_bindgen(js_name = siteHistory)]
 pub fn site_history(status: u16, body: Vec<u8>) -> Result<Ts<SiteHistory>, JsValue> {
     to_js(&venti_core::site_history(status, body).map_err(thrown)?)
+}
+
+/// The same for a page after the first: `before` is the last revision of
+/// the page before, so that this page's first revision says what it
+/// changed. The page reads a history's pages in order.
+#[wasm_bindgen(js_name = siteHistoryPage)]
+pub fn site_history_page(
+    status: u16,
+    body: Vec<u8>,
+    before: Option<Ts<SiteRevisionView>>,
+) -> Result<Ts<SiteHistory>, JsValue> {
+    let before = before.as_ref().map(from_js).transpose()?;
+    to_js(&venti_core::site_history_page(status, body, before).map_err(thrown)?)
+}
+
+/// Whether the server refused a correction because someone else changed
+/// the site meanwhile (`site_changed`).
+#[wasm_bindgen(js_name = siteWasChanged)]
+pub fn site_was_changed(status: u16, body: Vec<u8>) -> bool {
+    venti_core::site_was_changed(status, body)
+}
+
+/// Carries a draft onto a site that someone else changed while the pilot
+/// was editing it: `base` is the site the draft was made from, `edited`
+/// the draft as the pilot left it, `now` the site as it stands.
+#[wasm_bindgen(js_name = siteDraftRebased)]
+pub fn site_draft_rebased(
+    base: Ts<SiteView>,
+    edited: Ts<SiteDraftView>,
+    now: Ts<SiteView>,
+) -> Result<Ts<SiteDraftRebased>, JsValue> {
+    let rebased =
+        venti_core::site_draft_rebased(from_js(&base)?, from_js(&edited)?, from_js(&now)?)
+            .map_err(thrown)?;
+    to_js(&rebased)
+}
+
+/// The words of a site's page, its form and its history that are the
+/// same in the three apps.
+#[wasm_bindgen(js_name = siteWords)]
+pub fn site_words() -> Result<Ts<SiteWords>, JsValue> {
+    to_js(&venti_core::site_words())
+}
+
+/// The form for a confirmation: the days to choose from and the words.
+/// `today` is the browser's date as `YYYY-MM-DD`.
+#[wasm_bindgen(js_name = siteConfirmForm)]
+pub fn site_confirm_form(today: String) -> Result<Ts<SiteConfirmForm>, JsValue> {
+    to_js(&venti_core::site_confirm_form(today).map_err(thrown)?)
+}
+
+/// The request that takes the pilot's own confirmation of a site back.
+#[wasm_bindgen(js_name = siteWithdrawRequest)]
+pub fn site_withdraw_request(id: String) -> Result<Ts<ServerRequest>, JsValue> {
+    to_js(&venti_core::site_withdraw_request(id).map_err(thrown)?)
+}
+
+/// Reads the server's answer to `Core.siteConfirmRequest`: the site as it
+/// stands, and what to say after. `day` is the day that was sent.
+#[wasm_bindgen(js_name = siteConfirmed)]
+pub fn site_confirmed(status: u16, body: Vec<u8>, day: String) -> Result<Ts<SiteWritten>, JsValue> {
+    to_js(&venti_core::site_confirmed(status, body, day).map_err(thrown)?)
+}
+
+/// Reads the server's answer to `siteWithdrawRequest` and says what
+/// became of it.
+#[wasm_bindgen(js_name = siteWithdrawn)]
+pub fn site_withdrawn(status: u16, body: Vec<u8>) -> Result<String, JsValue> {
+    venti_core::site_withdrawn(status, body).map_err(thrown)
+}
+
+/// The path to `GET` for what pilots confirm of a site.
+#[wasm_bindgen(js_name = siteConfirmationsPath)]
+pub fn site_confirmations_path(id: String) -> Result<String, JsValue> {
+    venti_core::site_confirmations_path(id).map_err(thrown)
+}
+
+/// Reads the server's answer to `siteConfirmationsPath`: who says they
+/// took off at the site, each as a line.
+#[wasm_bindgen(js_name = siteConfirmations)]
+pub fn site_confirmations(status: u16, body: Vec<u8>) -> Result<Ts<SiteConfirmations>, JsValue> {
+    to_js(&venti_core::site_confirmations(status, body).map_err(thrown)?)
+}
+
+/// The path to `GET` for what happened to the sites of a tier, to find
+/// the removed ones: the crowdsourced tier with `from_pilots`, else the
+/// partners'. `since` is the cursor of the page before.
+#[wasm_bindgen(js_name = sitesRemovedPath)]
+pub fn sites_removed_path(from_pilots: bool, since: Option<String>) -> Result<String, JsValue> {
+    venti_core::sites_removed_path(from_pilots, since).map_err(thrown)
+}
+
+/// Reads the server's answer to `sitesRemovedPath`: the identifiers of
+/// the sites it says are removed.
+#[wasm_bindgen(js_name = sitesRemoved)]
+pub fn sites_removed(status: u16, body: Vec<u8>) -> Result<Ts<SitesRemoved>, JsValue> {
+    to_js(&venti_core::sites_removed(status, body).map_err(thrown)?)
+}
+
+/// A removed site as a line, from the last page of its history. Nothing
+/// for a site that stands.
+#[wasm_bindgen(js_name = siteRemovedLine)]
+pub fn site_removed_line(history: Ts<SiteHistory>) -> Result<Option<Ts<SiteRemovedLine>>, JsValue> {
+    venti_core::site_removed_line(from_js(&history)?)
+        .as_ref()
+        .map(to_js)
+        .transpose()
 }
 
 /// What differs between a site as one revision said it and as another

@@ -222,7 +222,7 @@ describe('a site a pilot adds or corrects', () => {
 		const { server, edits, written } = await signedIn();
 
 		expect(await edits.remove(KOGEL, 'Added twice.')).toBe(
-			'Removed from the map. Its history stays, and any pilot can bring it back.'
+			'Removed from the map. Its history stays, and any pilot who may correct the site can bring it back.'
 		);
 		const back = await edits.restore(KOGEL, 1, 'It is a take-off after all.');
 

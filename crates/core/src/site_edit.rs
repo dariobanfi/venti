@@ -265,7 +265,10 @@ pub struct SiteWritten {
 
 /// What a revision did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub enum SiteRevisionWas {
     /// It added the site.
@@ -280,9 +283,13 @@ pub enum SiteRevisionWas {
     Other,
 }
 
-/// One revision of a site, as its history shows it.
+/// One revision of a site, as its history shows it. A shell hands the
+/// last one of a page back with the next page ([`site_history_page`]).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteRevisionView {
     /// Its number. The first is 1.
@@ -304,25 +311,41 @@ pub struct SiteRevisionView {
     /// shell that shows the device's day beside it has `at_unix_s`.
     pub words: String,
     /// What it changed against the revision before, a line per field:
-    /// "Height: 1862 m → 1871 m". Empty for the first revision, for one
-    /// that removed the site, and for the first of a page whose
-    /// predecessor is on the page before ([`site_changes_between`] says
-    /// it for any two).
+    /// "Height: 1862 m → 1871 m". Empty for the first revision and for
+    /// one that removed the site. The first revision of a later page has
+    /// them when the page was read with the last revision of the page
+    /// before ([`site_history_page`]): a shell reads the pages in order
+    /// and hands that one on. Read without it ([`site_history`]), that
+    /// revision's are empty, and [`site_changes_between`] says them.
     pub changes: Vec<String>,
     /// The site as it stood from this revision on; for one that removed
     /// the site, as it stood until then.
     pub site: SiteView,
     /// Whether the site stands at this revision.
     pub is_current: bool,
-    /// Whether putting the site back to this revision would change
-    /// anything: it is not the one the site stands at, or the site is
-    /// removed.
+    /// Whether a shell offers to put the site back to this revision: it
+    /// is not the one the site stands at. Never for the revision that
+    /// removed a site: what brings a removed site back as it stood is
+    /// [`SiteHistory::bring_back_revision`]. On a removed site every
+    /// other revision can be put back, and that brings the site back as
+    /// it stood there.
     pub can_be_put_back: bool,
+    /// The offer as the words of a button: "Put back to this revision",
+    /// and on a removed site "Bring the site back as it stood here".
+    /// Empty when `can_be_put_back` is not.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub put_back_words: String,
 }
 
-/// One page of a site's history.
+/// One page of a site's history. A shell hands the last page of a
+/// removed site's back for its line among the removed
+/// ([`crate::site_removed_line`]).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(serde::Serialize, serde::Deserialize, tsify::Tsify)
+)]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 pub struct SiteHistory {
     /// The site.
@@ -339,12 +362,25 @@ pub struct SiteHistory {
     /// The revision that undoes the last change when it is put back: the
     /// one before the one the site stands at. Absent for a site at its
     /// first revision, where the last change is that it was added; when
-    /// the revision before is not on this page; and when it removed the
-    /// site, where the undoing is to remove it again.
+    /// the revision before is neither on this page nor the one handed in
+    /// with it; when it removed the site, where the undoing is to remove
+    /// it again; and for a site that is removed (`bring_back_revision`).
     pub undo_revision: Option<u32>,
     /// The same as the words of a button: "Undo the last change".
     /// Empty when `undo_revision` is absent.
     pub undo_words: String,
+    /// For a site that is removed: the revision that brings it back as it
+    /// stood before it was removed, to pass to [`site_restore_request`].
+    /// It need not be on this page. Absent for a site that stands. A
+    /// removed site has no `undo_revision`: this is the undoing.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub bring_back_revision: Option<u32>,
+    /// The same as the words of a button: "Bring this site back". Empty
+    /// when `bring_back_revision` is absent.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub bring_back_words: String,
     /// Whose data it is, with the licence every revision is under.
     pub credit: Option<Credit>,
 }
@@ -671,7 +707,7 @@ fn sectors_of(points: &[f64]) -> Vec<WindSector> {
     sectors
 }
 
-fn invalid(message: &str) -> CoreError {
+pub(crate) fn invalid(message: &str) -> CoreError {
     CoreError::Server {
         message: message.to_owned(),
     }
@@ -837,11 +873,11 @@ fn first(faults: Vec<SiteDraftFault>) -> CoreError {
 
 /// Whether a source is one of the two layers of sites that Venti holds
 /// itself: the partners' and the crowdsourced one.
-fn is_own_layer(source: &str) -> bool {
+pub(crate) fn is_own_layer(source: &str) -> bool {
     source == VENTI_SITES_SOURCE || source == venti_api_types::v1::VENTI_PILOTS_SITES_SOURCE
 }
 
-fn made_here(id: &str) -> Result<SiteId, CoreError> {
+pub(crate) fn made_here(id: &str) -> Result<SiteId, CoreError> {
     id.parse::<SiteId>()
         .ok()
         .filter(|id| is_own_layer(id.source().as_str()))
@@ -971,7 +1007,7 @@ pub fn site_history_path(id: String, after: Option<u32>) -> Result<String, CoreE
 // --- The answers -------------------------------------------------------------
 
 /// A refusal of a request about a site, in words for the pilot.
-fn site_refusal(status: u16, body: &[u8]) -> CoreError {
+pub(crate) fn site_refusal(status: u16, body: &[u8]) -> CoreError {
     let message = match (status, code(body).as_deref()) {
         (_, Some("invalid_site")) => {
             "The server does not accept this site. The app may be older than the server.".to_owned()
@@ -995,8 +1031,8 @@ fn site_refusal(status: u16, body: &[u8]) -> CoreError {
                 .to_owned()
         }
         (_, Some("site_gone")) => {
-            "This site was removed. Its history says by whom; if a pilot removed it, putting \
-             an earlier revision back brings it back."
+            "This site was removed. Its history says by whom; if a pilot removed it, a pilot \
+             who may correct it can bring it back from there."
                 .to_owned()
         }
         (_, Some("site_not_found")) => "There is no such site.".to_owned(),
@@ -1059,7 +1095,10 @@ pub fn site_in_the_way(status: u16, body: Vec<u8>) -> Option<SiteInTheWay> {
     })
 }
 
-fn read<T: serde::de::DeserializeOwned>(status: u16, body: &[u8]) -> Result<T, CoreError> {
+pub(crate) fn read<T: serde::de::DeserializeOwned>(
+    status: u16,
+    body: &[u8],
+) -> Result<T, CoreError> {
     if (200..300).contains(&status) {
         answer(status, body)
     } else {
@@ -1108,7 +1147,10 @@ pub fn site_written(status: u16, body: Vec<u8>) -> Result<SiteWritten, CoreError
         .standing
         .as_ref()
         .map_or(0, |standing| standing.revision);
-    let words = if status == 201 || revision <= 1 {
+    let from_pilots = site.by_pilots.as_ref().is_some_and(|by| by.from_pilots);
+    let words = if (status == 201 || revision <= 1) && from_pilots {
+        "Added. Pilots who switch on the places from pilots see it on the map now.".to_owned()
+    } else if status == 201 || revision <= 1 {
         "Added. The site is on the map for everyone now.".to_owned()
     } else {
         format!("Saved for everyone, as revision {revision} of this site.")
@@ -1125,7 +1167,11 @@ pub fn site_written(status: u16, body: Vec<u8>) -> Result<SiteWritten, CoreError
 #[uniffi::export]
 pub fn site_removed(status: u16, body: Vec<u8>) -> Result<String, CoreError> {
     if (200..300).contains(&status) {
-        Ok("Removed from the map. Its history stays, and any pilot can bring it back.".to_owned())
+        Ok(
+            "Removed from the map. Its history stays, and any pilot who may correct the site \
+             can bring it back."
+                .to_owned(),
+        )
     } else {
         Err(site_refusal(status, &body))
     }
@@ -1137,7 +1183,7 @@ fn day(at: venti_domain::Timestamp) -> String {
 }
 
 /// A pilot's line as a quotation: one line, between quotation marks.
-fn quoted(text: &str) -> String {
+pub(crate) fn quoted(text: &str) -> String {
     let line: String = text.chars().filter(|c| !c.is_control()).collect();
     format!("\u{201c}{}\u{201d}", line.trim())
 }
@@ -1314,8 +1360,34 @@ pub fn site_changes_between(before: SiteView, after: SiteView) -> Vec<String> {
 /// whoever runs Venti took it down, which shows nothing of it.
 #[uniffi::export]
 pub fn site_history(status: u16, body: Vec<u8>) -> Result<SiteHistory, CoreError> {
+    site_history_page(status, body, None)
+}
+
+/// The same for a page after the first: `before` is the last revision of
+/// the page before, as this reader gave it, so that the first revision
+/// of this page says what it changed and the undoing is found across the
+/// two. A shell reads a history's pages in order and hands the last
+/// revision on each time; with `None` this is [`site_history`].
+///
+/// # Errors
+///
+/// As [`site_history`].
+#[uniffi::export]
+pub fn site_history_page(
+    status: u16,
+    body: Vec<u8>,
+    before: Option<SiteRevisionView>,
+) -> Result<SiteHistory, CoreError> {
     let response: SiteHistoryResponse = read(status, &body)?;
     let mut revisions: Vec<SiteRevisionView> = Vec::with_capacity(response.revisions.len());
+    // The revision handed in stands before the page's first only when
+    // its number says so: a page asked for from elsewhere has none.
+    let handed_in = before;
+    let mut handed = handed_in.as_ref().and_then(|before| {
+        let first = response.revisions.first()?;
+        (before.number + 1 == first.number && first.kind != SiteRevisionKind::Removed)
+            .then(|| site_changes_between(before.site.clone(), site_view(&first.site, None)))
+    });
     let mut before: Option<&api::SiteRevision> = None;
     for revision in &response.revisions {
         let by = revision.by.as_ref().map(author);
@@ -1349,9 +1421,10 @@ pub fn site_history(status: u16, body: Vec<u8>) -> Result<SiteHistory, CoreError
             {
                 changes(&before.site, &revision.site)
             }
-            _ => Vec::new(),
+            _ => handed.take().unwrap_or_default(),
         };
         let is_current = revision.number == response.revision;
+        let can_be_put_back = !is_current && revision.kind != SiteRevisionKind::Removed;
         revisions.push(SiteRevisionView {
             number: revision.number,
             at_unix_s: revision.at.timestamp(),
@@ -1363,7 +1436,13 @@ pub fn site_history(status: u16, body: Vec<u8>) -> Result<SiteHistory, CoreError
             changes: changed,
             site: site_view(&revision.site, None),
             is_current,
-            can_be_put_back: !is_current || response.removed,
+            can_be_put_back,
+            put_back_words: match (can_be_put_back, response.removed) {
+                (false, _) => "",
+                (true, false) => "Put back to this revision",
+                (true, true) => "Bring the site back as it stood here",
+            }
+            .to_owned(),
         });
         before = Some(revision);
     }
@@ -1372,12 +1451,19 @@ pub fn site_history(status: u16, body: Vec<u8>) -> Result<SiteHistory, CoreError
     let undo_revision = response
         .revision
         .checked_sub(1)
-        .filter(|number| *number >= 1)
+        .filter(|number| *number >= 1 && !response.removed)
         .filter(|number| {
             revisions
                 .iter()
+                .chain(&handed_in)
                 .any(|one| one.number == *number && one.was != SiteRevisionWas::Removed)
         });
+    // A removed site stands at the revision that removed it, which holds
+    // the record as it stood until then: the one before it.
+    let bring_back_revision = response
+        .revision
+        .checked_sub(1)
+        .filter(|number| *number >= 1 && response.removed);
     Ok(SiteHistory {
         site_id: response.id.to_string(),
         revision: response.revision,
@@ -1392,8 +1478,168 @@ pub fn site_history(status: u16, body: Vec<u8>) -> Result<SiteHistory, CoreError
             String::new()
         },
         undo_revision,
+        bring_back_words: if bring_back_revision.is_some() {
+            "Bring this site back".to_owned()
+        } else {
+            String::new()
+        },
+        bring_back_revision,
         revisions,
         credit: response.attributions.first().map(credit),
+    })
+}
+
+/// Whether the server refused a correction because someone else changed
+/// the site while the pilot was editing it (`site_changed`): the site
+/// stands at another revision than the draft was made from. A shell then
+/// reads the site again ([`site_path`], [`site_page`]) and asks
+/// [`site_draft_rebased`] for the draft to go on with. `false` for every
+/// other answer.
+#[uniffi::export]
+pub fn site_was_changed(status: u16, body: Vec<u8>) -> bool {
+    if (200..300).contains(&status) {
+        return false;
+    }
+    serde_json::from_slice::<api::ErrorResponse>(&body)
+        .is_ok_and(|error| error.error.code == api::ErrorCode::SiteChanged)
+}
+
+/// A draft carried onto a site that someone else changed meanwhile.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct SiteDraftRebased {
+    /// The draft to go on with: made from the site as it stands now, with
+    /// what the pilot had entered laid over it. It names the revision the
+    /// site stands at, so the server takes it.
+    pub draft: SiteDraftView,
+    /// The fields the pilot had changed, which are carried over, in the
+    /// order of the form.
+    pub kept: Vec<SiteField>,
+    /// What the others changed meanwhile, a line per field as
+    /// [`site_changes_between`] gives them: "Height: 1862 m → 1871 m".
+    pub theirs: Vec<String>,
+    /// The fields both changed, and not to the same thing. The pilot's
+    /// entry is in the draft; a shell names these fields, so that the
+    /// pilot sees what sending again would overwrite.
+    pub clashes: Vec<SiteField>,
+    /// What happened, to show over the form: "Someone else changed this
+    /// site while you were editing it. Your entries are kept, and what
+    /// you left alone is as the site stands now."
+    pub words: String,
+}
+
+/// The title of a field, as the form has it.
+fn field_title(field: SiteField) -> &'static str {
+    match field {
+        SiteField::Name => "Name",
+        SiteField::Place => "Place",
+        SiteField::Height => "Height",
+        SiteField::Uses => "Used for",
+        SiteField::Wind => "Wind directions",
+        SiteField::Description => "Description",
+        SiteField::Fee => "Fee",
+        SiteField::Website => "Web page",
+        SiteField::NoFlightTime => "Not to be used",
+        SiteField::Guests => "Rules for guests",
+        SiteField::Comment => "Why",
+    }
+}
+
+/// Carries a draft onto a site that someone else changed while the pilot
+/// was editing it: the one rule for the three apps.
+///
+/// `base` is the site the draft was made from, `edited` the draft as the
+/// pilot left it, `now` the site as it stands. Field by field: what the
+/// pilot changed against `base` stays as the pilot entered it; what the
+/// pilot left alone is as the site stands now. A place the pilot moved
+/// goes through [`site_draft_moved`], so the outline of the old place
+/// goes with it. What the form does not edit (whether the site suits
+/// paragliders and hang gliders, and an outline the pilot did not move
+/// away from) is as the site stands now.
+///
+/// # Errors
+///
+/// When `base` or `now` is not a site of Venti's own layers
+/// ([`site_draft_of`]), or the two are not the same site.
+#[uniffi::export]
+pub fn site_draft_rebased(
+    base: SiteView,
+    edited: SiteDraftView,
+    now: SiteView,
+) -> Result<SiteDraftRebased, CoreError> {
+    if base.id != now.id {
+        return Err(invalid("These are two different sites."));
+    }
+    let theirs = site_changes_between(base.clone(), now.clone());
+    let was = site_draft_of(base)?;
+    let stands = site_draft_of(now)?;
+    let mut draft = stands.clone();
+    let mut kept = Vec::new();
+    let mut clashes = Vec::new();
+    // One field: whether the pilot changed it, whether the site changed
+    // in it, and whether both came to the same. Says whether the pilot's
+    // entry is the one to keep.
+    let mut note = |field: SiteField, mine: bool, others: bool, same: bool| {
+        if mine {
+            kept.push(field);
+            if others && !same {
+                clashes.push(field);
+            }
+        }
+        mine
+    };
+    macro_rules! carry {
+        ($field:expr, $member:ident) => {
+            if note(
+                $field,
+                edited.$member != was.$member,
+                stands.$member != was.$member,
+                edited.$member == stands.$member,
+            ) {
+                draft.$member.clone_from(&edited.$member);
+            }
+        };
+    }
+    // In the order of the form.
+    carry!(SiteField::Name, name);
+    let moved = note(
+        SiteField::Place,
+        edited.position != was.position,
+        stands.position != was.position,
+        edited.position == stands.position,
+    );
+    carry!(SiteField::Uses, uses);
+    carry!(SiteField::Height, elevation_m);
+    carry!(SiteField::Wind, wind_from_deg);
+    carry!(SiteField::Description, description);
+    carry!(SiteField::Fee, fee);
+    carry!(SiteField::Guests, guest_guidelines);
+    carry!(SiteField::NoFlightTime, no_flight_time);
+    carry!(SiteField::Website, website);
+    if moved {
+        draft = site_draft_moved(draft, edited.position);
+    }
+    let mut words = "Someone else changed this site while you were editing it.".to_owned();
+    words.push_str(match (kept.is_empty(), theirs.is_empty()) {
+        (true, _) => " The form shows the site as it stands now.",
+        (false, true) => " Your entries are kept.",
+        (false, false) => {
+            " Your entries are kept, and what you left alone is as the site stands now."
+        }
+    });
+    if !clashes.is_empty() {
+        let named: Vec<&str> = clashes.iter().map(|field| field_title(*field)).collect();
+        words.push_str(" You both changed: ");
+        words.push_str(&named.join(", "));
+        words.push_str(". Your entry stands in the form: look at it before you save.");
+    }
+    Ok(SiteDraftRebased {
+        draft,
+        kept,
+        theirs,
+        clashes,
+        words,
     })
 }
 
@@ -1771,7 +2017,8 @@ mod tests {
         );
         assert_eq!(
             site_removed(204, Vec::new()).unwrap(),
-            "Removed from the map. Its history stays, and any pilot can bring it back."
+            "Removed from the map. Its history stays, and any pilot who may correct the site \
+             can bring it back."
         );
 
         let request =
@@ -1904,7 +2151,219 @@ mod tests {
         assert!(history.revisions[2].is_current);
         assert_eq!(history.undo_revision, Some(2));
         assert_eq!(history.undo_words, "Undo the last change");
+        assert_eq!(history.bring_back_revision, None);
+        assert_eq!(history.bring_back_words, "");
+        let offers: Vec<&str> = history
+            .revisions
+            .iter()
+            .map(|one| one.put_back_words.as_str())
+            .collect();
+        assert_eq!(
+            offers,
+            ["Put back to this revision", "Put back to this revision", ""]
+        );
         assert_eq!(history.credit.unwrap().licence, "CC0 1.0");
+    }
+
+    /// The history of the documentation as the server would page it: the
+    /// revisions `from..to` of it, counted from 0.
+    fn page_of(from: usize, to: usize, edit: impl FnOnce(&mut serde_json::Value)) -> Vec<u8> {
+        let mut history = json(&golden("site_history.json"));
+        let all = history["revisions"].as_array().unwrap().clone();
+        history["more"] = (to < all.len()).into();
+        history["revisions"] = all[from..to].to_vec().into();
+        edit(&mut history);
+        history.to_string().into_bytes()
+    }
+
+    #[test]
+    fn a_later_page_says_what_its_first_revision_changed_when_handed_the_one_before() {
+        let whole = site_history(200, golden("site_history.json")).unwrap();
+        let first = site_history(200, page_of(0, 2, |_| {})).unwrap();
+        assert_eq!(first.next_after, Some(2));
+        // The one before the one it stands at is here, and not removed.
+        assert_eq!(first.undo_revision, Some(2));
+
+        // Read alone, the second page's first revision says nothing of
+        // what it changed, and the undoing is not found.
+        let alone = site_history(200, page_of(2, 3, |_| {})).unwrap();
+        assert!(alone.revisions[0].changes.is_empty());
+        assert_eq!(alone.undo_revision, None);
+        // Read in order, with the last revision of the page before, it
+        // says what the whole history says.
+        let handed = first.revisions.last().cloned();
+        let after = site_history_page(200, page_of(2, 3, |_| {}), handed).unwrap();
+        assert_eq!(after.revisions[0].changes, whole.revisions[2].changes);
+        assert!(!after.revisions[0].changes.is_empty());
+        assert_eq!(after.undo_revision, Some(2));
+        assert_eq!(after.undo_words, "Undo the last change");
+        // A revision that is not the one before is not compared with.
+        let wrong = first.revisions.first().cloned();
+        let skipped = site_history_page(200, page_of(2, 3, |_| {}), wrong).unwrap();
+        assert!(skipped.revisions[0].changes.is_empty());
+        assert_eq!(skipped.undo_revision, None);
+    }
+
+    #[test]
+    fn a_removed_site_is_brought_back_as_it_stood_and_not_by_its_removal() {
+        // The documentation's history, had its last revision removed the
+        // site.
+        let removed = page_of(0, 3, |history| {
+            history["removed"] = true.into();
+            history["revisions"][2]["kind"] = "removed".into();
+            history["revisions"][2]
+                .as_object_mut()
+                .unwrap()
+                .remove("restores");
+        });
+        let history = site_history(200, removed).unwrap();
+        assert!(history.is_removed);
+        assert!(history.revisions[2].words.starts_with("Removed by "));
+        // The revision that removed it is not one to put back: the offer
+        // is to bring the site back as it stood before.
+        let can: Vec<(bool, &str)> = history
+            .revisions
+            .iter()
+            .map(|one| (one.can_be_put_back, one.put_back_words.as_str()))
+            .collect();
+        assert_eq!(
+            can,
+            [
+                (true, "Bring the site back as it stood here"),
+                (true, "Bring the site back as it stood here"),
+                (false, "")
+            ]
+        );
+        assert_eq!(history.bring_back_revision, Some(2));
+        assert_eq!(history.bring_back_words, "Bring this site back");
+        assert_eq!(
+            (history.undo_revision, history.undo_words.as_str()),
+            (None, "")
+        );
+        // And the request for it is the restoring of that revision.
+        let request =
+            site_restore_request(history.site_id, 2, "Removed by mistake.".to_owned()).unwrap();
+        assert_eq!(body(&request)["restore"], 2);
+    }
+
+    #[test]
+    fn a_refusal_because_the_site_changed_is_told_apart_without_reading_words() {
+        let changed = br#"{"error":{"code":"site_changed","message":"x"}}"#.to_vec();
+        assert!(site_was_changed(409, changed.clone()));
+        assert!(!site_was_changed(200, changed));
+        assert!(!site_was_changed(409, golden("site_too_close.json")));
+        assert!(!site_was_changed(409, b"not json".to_vec()));
+        assert!(!site_was_changed(
+            403,
+            golden("error_sites_for_partners.json")
+        ));
+    }
+
+    #[test]
+    fn a_draft_is_carried_onto_a_site_that_changed_meanwhile() {
+        let base = site_page(200, golden("site.json")).unwrap().site;
+        let was = site_draft_of(base.clone()).unwrap();
+        // Someone else gave the site another height and another name,
+        // and a description; it stands at the next revision.
+        let mut now = base.clone();
+        now.elevation_m = Some(1871.0);
+        now.name = "Musterkogel".to_owned();
+        now.description = Some("Theirs.".to_owned());
+        now.by_pilots.as_mut().unwrap().revision += 1;
+        // The pilot changed the name too, to something else, the fee,
+        // the description to the very same, and moved the place.
+        let place = Coordinate {
+            lat: was.position.lat + 0.001,
+            lon: was.position.lon,
+        };
+        let edited = SiteDraftView {
+            name: "Musterkogel West (upper)".to_owned(),
+            fee: "no".to_owned(),
+            description: "Theirs.".to_owned(),
+            ..site_draft_moved(was.clone(), place)
+        };
+
+        let rebased = site_draft_rebased(base.clone(), edited.clone(), now.clone()).unwrap();
+        let draft = &rebased.draft;
+        // It names the revision the site stands at now.
+        assert_eq!(draft.revision, now.by_pilots.as_ref().map(|by| by.revision));
+        assert_eq!(draft.site_id.as_deref(), Some(base.id.as_str()));
+        // The pilot's entries stay; what the pilot left is as it stands.
+        assert_eq!(draft.name, "Musterkogel West (upper)");
+        assert_eq!(draft.fee, "no");
+        assert_eq!(draft.position, place);
+        assert_eq!(draft.elevation_m, Some(1871.0));
+        assert_eq!(draft.description, "Theirs.");
+        assert_eq!(draft.wind_from_deg, was.wind_from_deg);
+        assert_eq!(
+            rebased.kept,
+            [
+                SiteField::Name,
+                SiteField::Place,
+                SiteField::Description,
+                SiteField::Fee
+            ]
+        );
+        // Both changed the name, and not to the same: it is named. Both
+        // wrote the same description: no clash.
+        assert_eq!(rebased.clashes, [SiteField::Name]);
+        assert_eq!(
+            rebased.theirs,
+            site_changes_between(base.clone(), now.clone())
+        );
+        assert!(
+            rebased
+                .theirs
+                .iter()
+                .any(|line| line.starts_with("Height: "))
+        );
+        assert_eq!(
+            rebased.words,
+            "Someone else changed this site while you were editing it. Your entries are kept, \
+             and what you left alone is as the site stands now. You both changed: Name. Your \
+             entry stands in the form: look at it before you save."
+        );
+        // The server takes it as a correction of the revision it stands at.
+        let request = site_change_request(rebased.draft.clone(), String::new()).unwrap();
+        assert_eq!(
+            body(&request)["revision"],
+            now.by_pilots.as_ref().unwrap().revision
+        );
+
+        // Nothing entered: the form shows the site as it stands.
+        let untouched = site_draft_rebased(base.clone(), was.clone(), now.clone()).unwrap();
+        assert_eq!(untouched.draft, site_draft_of(now.clone()).unwrap());
+        assert!(untouched.kept.is_empty() && untouched.clashes.is_empty());
+        assert_eq!(
+            untouched.words,
+            "Someone else changed this site while you were editing it. The form shows the \
+             site as it stands now."
+        );
+        // Nothing of the record changed between: nothing of theirs.
+        let mut same = base.clone();
+        same.by_pilots.as_mut().unwrap().revision += 2;
+        let only_mine = site_draft_rebased(base.clone(), edited, same).unwrap();
+        assert!(only_mine.theirs.is_empty() && only_mine.clashes.is_empty());
+        assert!(only_mine.words.ends_with("Your entries are kept."));
+        // Two sites are not carried onto each other.
+        let mut other = now;
+        other.id = "venti:0000000000000000000000s003".to_owned();
+        assert!(site_draft_rebased(base, was, other).is_err());
+    }
+
+    #[test]
+    fn a_site_added_to_the_crowdsourced_tier_is_not_said_to_be_on_everyones_map() {
+        let text = String::from_utf8(golden("site_written.json")).unwrap();
+        let pilots = text.replace("\"venti:", "\"venti-pilots:");
+        let partners = text.replace("\"venti-pilots:", "\"venti:");
+        assert_eq!(
+            site_written(201, pilots.into_bytes()).unwrap().words,
+            "Added. Pilots who switch on the places from pilots see it on the map now."
+        );
+        assert_eq!(
+            site_written(201, partners.into_bytes()).unwrap().words,
+            "Added. The site is on the map for everyone now."
+        );
     }
 
     #[test]

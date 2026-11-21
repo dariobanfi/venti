@@ -204,6 +204,19 @@ pub struct SitesFiltered {
     /// Whether the filter asks anything: whether some site could be left
     /// out or shown apart by it.
     pub is_on: bool,
+    /// How many of the sites in `fitting` and `unsaid` are of the
+    /// crowdsourced layer: added by pilots, not official. `0` where the
+    /// shell did not ask the server for that layer.
+    #[uniffi(default = 0)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub from_pilots: u32,
+    /// The same as a line to show under `words`, so that a count never
+    /// passes places from pilots off as sites: "3 of them are places from
+    /// pilots: not official and not checked by anyone." Empty when there
+    /// are none.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub from_pilots_words: String,
 }
 
 /// The choices of the filter of sites, and what to say with them.
@@ -343,7 +356,28 @@ pub fn filter_sites(sites: Vec<SiteView>, filter: SitesFilter) -> SitesFiltered 
                 .to_owned(),
         )
     };
+    let from_pilots = fitting
+        .iter()
+        .chain(&unsaid)
+        .filter(|site| site.by_pilots.as_ref().is_some_and(|by| by.from_pilots))
+        .count();
+    let shown = fitting.len() + unsaid.len();
+    let from_pilots_words = match (from_pilots, shown) {
+        (0, _) => String::new(),
+        (1, 1) => "It is a place from pilots: not official and not checked by anyone.".to_owned(),
+        (all, shown) if all == shown => {
+            "All of them are places from pilots: not official and not checked by anyone.".to_owned()
+        }
+        (1, _) => {
+            "1 of them is a place from pilots: not official and not checked by anyone.".to_owned()
+        }
+        (some, _) => format!(
+            "{some} of them are places from pilots: not official and not checked by anyone."
+        ),
+    };
     SitesFiltered {
+        from_pilots: u32::try_from(from_pilots).unwrap_or(u32::MAX),
+        from_pilots_words,
         fitting,
         unsaid,
         words,
@@ -537,6 +571,110 @@ mod tests {
             .iter()
             .map(|site| site.id.rsplit('/').next().unwrap().parse().unwrap())
             .collect()
+    }
+
+    /// A layer of crowdsourced sites as the server answers it when it is
+    /// asked for: two take-offs and a landing that pilots added.
+    const FROM_PILOTS: &str = r#"{
+        "source": "venti-pilots",
+        "fetched_at": "2026-11-18T19:05:00Z",
+        "as_of": "2026-11-18T19:05:00Z",
+        "covers": [],
+        "sites": [
+          {"id": "venti-pilots:00000000000000000000000011", "name": "Pilots' west",
+           "position": {"lat": 47.15, "lon": 11.15}, "elevation_m": 1700.0, "uses": ["takeoff"],
+           "wind_directions": [{"from_deg": 270.0, "to_deg": 315.0}]},
+          {"id": "venti-pilots:00000000000000000000000012", "name": "Pilots' unsaid",
+           "position": {"lat": 47.25, "lon": 11.25}, "uses": ["takeoff"]},
+          {"id": "venti-pilots:00000000000000000000000013", "name": "Pilots' meadow",
+           "position": {"lat": 47.35, "lon": 11.35}, "uses": ["landing"]}
+        ],
+        "standing": [
+          {"id": "venti-pilots:00000000000000000000000011", "revision": 1,
+           "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"},
+          {"id": "venti-pilots:00000000000000000000000012", "revision": 1,
+           "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"},
+          {"id": "venti-pilots:00000000000000000000000013", "revision": 1,
+           "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"}
+        ]
+      }"#;
+
+    #[test]
+    fn the_counts_say_when_places_from_pilots_are_among_them() {
+        // Without the crowdsourced layer in the answer, nothing is said.
+        let plain = filter_sites(sites(), nothing());
+        assert_eq!(
+            (plain.from_pilots, plain.from_pilots_words.as_str()),
+            (0, "")
+        );
+
+        // With it: the sites are filtered as every site is, and the line
+        // under the count says how many of them are from pilots.
+        let answer = ANSWER.replacen(
+            "\"layers\": [{",
+            &format!("\"layers\": [{FROM_PILOTS}, {{"),
+            1,
+        );
+        let with = sites_map(47.0, 11.0, 48.0, 12.0, 200, answer.into_bytes())
+            .unwrap()
+            .sites;
+        assert_eq!(with.len(), 12);
+        let all = filter_sites(with.clone(), nothing());
+        assert_eq!(all.words, "12 sites");
+        assert_eq!(all.from_pilots, 3);
+        assert_eq!(
+            all.from_pilots_words,
+            "3 of them are places from pilots: not official and not checked by anyone."
+        );
+        // A wind from the north-west: one of the pilots' take-offs fits,
+        // the other does not say and is shown apart; both are counted.
+        let west = filter_sites(
+            with.clone(),
+            SitesFilter {
+                shown: SitesShown::Takeoffs,
+                wind_from_deg: Some(315.0),
+                ..nothing()
+            },
+        );
+        let from_pilots = |sites: &[SiteView]| {
+            sites
+                .iter()
+                .filter(|site| site.by_pilots.as_ref().is_some_and(|by| by.from_pilots))
+                .count()
+        };
+        assert_eq!(
+            (from_pilots(&west.fitting), from_pilots(&west.unsaid)),
+            (1, 1)
+        );
+        assert_eq!(west.from_pilots, 2);
+        assert!(
+            west.from_pilots_words
+                .starts_with("2 of them are places from pilots")
+        );
+        // One, and all of them.
+        let landings = filter_sites(
+            with.clone(),
+            SitesFilter {
+                shown: SitesShown::Landings,
+                ..nothing()
+            },
+        );
+        assert_eq!(
+            landings.from_pilots_words,
+            "1 of them is a place from pilots: not official and not checked by anyone."
+        );
+        let only: Vec<SiteView> = with
+            .into_iter()
+            .filter(|site| site.source == "venti-pilots")
+            .collect();
+        assert_eq!(
+            filter_sites(only.clone(), nothing()).from_pilots_words,
+            "All of them are places from pilots: not official and not checked by anyone."
+        );
+        assert_eq!(
+            filter_sites(only[..1].to_vec(), nothing()).from_pilots_words,
+            "It is a place from pilots: not official and not checked by anyone."
+        );
     }
 
     #[test]

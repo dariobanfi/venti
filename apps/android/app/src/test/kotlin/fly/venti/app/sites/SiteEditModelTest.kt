@@ -194,7 +194,7 @@ class SiteEditModelTest {
             if (request.method == "DELETE") HttpAnswer(204, ByteArray(0)) else HttpAnswer(200, recorded("site_written.json"))
         }
         assertEquals(
-            "Removed from the map. Its history stays, and any pilot can bring it back.",
+            "Removed from the map. Its history stays, and any pilot who may correct the site can bring it back.",
             edit.remove(ID, "added twice"),
         )
         val written = edit.restore(ID, 2u, "it is a take-off of its own")

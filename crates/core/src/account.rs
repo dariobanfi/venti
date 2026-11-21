@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 use venti_api_types::v1::{
-    self as api, CreateAccountRequest, DeleteAccountRequest, FlightChangesRequest,
+    self as api, AccountResponse, CreateAccountRequest, DeleteAccountRequest, FlightChangesRequest,
     FlightChangesResponse, FlightId, FlightResponse, Handle, Password, SignInRequest,
     SignInResponse, UpdateFlightRequest, UploadResponse, Visibility,
 };
@@ -99,6 +99,17 @@ pub struct AccountView {
     /// When the logbook was last brought in step, seconds since
     /// 1970-01-01 UTC.
     pub last_sync_unix_s: Option<i64>,
+    /// Whether the server says this account is one of Venti's partners
+    /// for flying sites: it adds sites to the partners' layer and
+    /// corrects sites of both layers. As the server said it last: at the
+    /// sign-in, or at the newest read of the account
+    /// ([`Core::account_request`]). `false` for every other account, and
+    /// for an account that an earlier build stored, until it is read
+    /// again. What a shell offers for a site is not worked out from this:
+    /// ask [`Core::site_offers`] and [`Core::site_adding`].
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", tsify(optional))]
+    pub may_edit_partner_sites: bool,
 }
 
 /// The result of signing in or creating an account.
@@ -228,6 +239,15 @@ struct Stored {
     full_since_unix_s: Option<i64>,
     #[serde(default)]
     last_sync_unix_s: Option<i64>,
+    /// Whether the server says the account is a partner for flying
+    /// sites, as it said last. Missing from a record an earlier build
+    /// stored, which reads as no.
+    #[serde(default)]
+    edits_sites: bool,
+    /// Whether the server says the account's publishing is suspended, as
+    /// it said last.
+    #[serde(default)]
+    publishing_suspended: bool,
 }
 
 /// A flight on the server.
@@ -325,12 +345,68 @@ impl Core {
         stored.server = server;
         stored.handle = handle;
         stored.display_name = response.account.display_name;
+        stored.edits_sites = response.account.edits_sites;
+        stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
         stored.session_id = response.session.id;
         self.store_account(&stored)?;
         Ok(SignedIn {
             account: self.account_view(&stored),
             token: response.token,
         })
+    }
+
+    /// The request that reads the account from the server, if this
+    /// device is signed in: `GET /v1/account`. What the server says of
+    /// the account can change while a device stays signed in: its name,
+    /// and whether it is a partner of Venti for flying sites. A shell
+    /// sends it when it starts and when the account's page opens, and
+    /// hands the answer to [`Core::account_read`].
+    pub fn account_request(&self) -> Result<Option<ServerRequest>, CoreError> {
+        Ok(self
+            .stored_account()?
+            .filter(|stored| !stored.session_id.is_empty())
+            .map(|_| ServerRequest {
+                method: "GET".to_owned(),
+                path: api::ACCOUNT_PATH.to_owned(),
+                body: None,
+                content_type: None,
+                needs_token: true,
+            }))
+    }
+
+    /// Reads the server's answer to [`Core::account_request`] and
+    /// remembers what it says of the account. The account as it is known
+    /// now; `None` when the device was signed out meanwhile.
+    ///
+    /// An answer that the session is no longer known (`401`) is no
+    /// error: the account then says that the pilot has to sign in again.
+    /// An answer about another account than the one this device is
+    /// signed in to changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// Any other refusal of the server, in words; what is stored stays.
+    pub fn account_read(
+        &self,
+        status: u16,
+        body: Vec<u8>,
+    ) -> Result<Option<AccountView>, CoreError> {
+        let Some(mut stored) = self.stored_account()? else {
+            return Ok(None);
+        };
+        if status == 401 {
+            stored.session_id.clear();
+            self.store_account(&stored)?;
+            return Ok(Some(self.account_view(&stored)));
+        }
+        let response: AccountResponse = answer(status, &body)?;
+        if response.account.handle.as_str() == stored.handle {
+            stored.display_name = response.account.display_name;
+            stored.edits_sites = response.account.edits_sites;
+            stored.publishing_suspended = response.account.publishing_suspended_at.is_some();
+            self.store_account(&stored)?;
+        }
+        Ok(Some(self.account_view(&stored)))
     }
 
     /// The request that signs this device out on the server, if it is
@@ -524,7 +600,31 @@ impl Core {
             flights_on_server: u32::try_from(on_server).unwrap_or(u32::MAX),
             flights_to_send: u32::try_from(to_send).unwrap_or(u32::MAX),
             last_sync_unix_s: stored.last_sync_unix_s,
+            may_edit_partner_sites: stored.edits_sites,
         }
+    }
+
+    /// Who would write a site from this device: for what a shell may
+    /// offer ([`crate::Core::site_offers`]).
+    pub(crate) fn site_actor(&self) -> Result<crate::site_offers::Actor, CoreError> {
+        use crate::site_offers::Actor;
+        Ok(match self.stored_account()? {
+            None => Actor::SignedOut,
+            Some(stored) if stored.session_id.is_empty() => Actor::SessionEnded,
+            Some(stored) => Actor::Pilot {
+                handle: stored.handle,
+                partner: stored.edits_sites,
+                suspended: stored.publishing_suspended,
+            },
+        })
+    }
+
+    /// The server's address of a flight of the logbook, if the server
+    /// has the flight.
+    pub(crate) fn flight_address(&self, id: &str) -> Result<Option<String>, CoreError> {
+        Ok(self
+            .stored_account()?
+            .and_then(|stored| stored.flights.get(id).map(|remote| remote.id.clone())))
     }
 
     /// The identifiers of the flights in the logbook.
@@ -1177,6 +1277,104 @@ mod tests {
         core.signed_out().unwrap();
         assert_eq!(core.account().unwrap(), None);
         assert_eq!(core.sign_out_request().unwrap(), None);
+    }
+
+    #[test]
+    fn whether_the_account_is_a_partner_is_kept_and_follows_the_server() {
+        let folder = TempFolder::new();
+        let core = core(&folder);
+        assert_eq!(core.account_request().unwrap(), None);
+        assert_eq!(
+            core.account_read(200, golden("account.json")).unwrap(),
+            None
+        );
+
+        // The development server's demo account is a partner, and its
+        // sign-in says so.
+        assert!(signed_in(&core).account.may_edit_partner_sites);
+        let asked = core.account_request().unwrap().unwrap();
+        assert_eq!(
+            (
+                asked.method.as_str(),
+                asked.path.as_str(),
+                asked.needs_token
+            ),
+            ("GET", "/v1/account", true)
+        );
+        assert_eq!(asked.body, None);
+
+        // The owner takes the trust back: the next read of the account
+        // says so, with whatever else changed, and it is kept.
+        let plain = json!({"account": {"handle": "demo", "display_name": "Demo P.",
+            "created_at": "2026-11-18T19:05:00Z"}})
+        .to_string()
+        .into_bytes();
+        let read = core.account_read(200, plain).unwrap().unwrap();
+        assert!(!read.may_edit_partner_sites);
+        assert_eq!(read.display_name, "Demo P.");
+        drop(core);
+        let core = self::core(&folder);
+        assert!(!core.account().unwrap().unwrap().may_edit_partner_sites);
+        // And gives it again.
+        let read = core.account_read(200, golden("account.json")).unwrap();
+        assert!(read.unwrap().may_edit_partner_sites);
+        assert!(matches!(
+            core.site_actor().unwrap(),
+            crate::site_offers::Actor::Pilot {
+                partner: true,
+                suspended: false,
+                ..
+            }
+        ));
+
+        // A record that an earlier build stored has neither fact: it
+        // reads, as an account that is no partner, with all it knew.
+        let path = folder.path().join("account.json");
+        let mut stored: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let fields = stored.as_object_mut().unwrap();
+        assert_eq!(fields.remove("edits_sites"), Some(json!(true)));
+        assert_eq!(fields.remove("publishing_suspended"), Some(json!(false)));
+        std::fs::write(&path, stored.to_string()).unwrap();
+        drop(core);
+        let core = self::core(&folder);
+        let earlier = core.account().unwrap().unwrap();
+        assert_eq!(earlier.handle, "demo");
+        assert!(!earlier.needs_sign_in && !earlier.may_edit_partner_sites);
+
+        // Another account's answer changes nothing; a refusal neither.
+        let other = json!({"account": {"handle": "mara", "display_name": "Mara",
+            "created_at": "2026-11-18T19:05:00Z", "edits_sites": true}})
+        .to_string()
+        .into_bytes();
+        assert!(
+            !core
+                .account_read(200, other)
+                .unwrap()
+                .unwrap()
+                .may_edit_partner_sites
+        );
+        assert!(core.account_read(503, Vec::new()).is_err());
+        assert!(!core.account().unwrap().unwrap().needs_sign_in);
+        // A suspended account is known as one.
+        let suspended = core
+            .account_read(200, golden("account_suspended.json"))
+            .unwrap();
+        assert!(suspended.is_some());
+        assert!(matches!(
+            core.site_actor().unwrap(),
+            crate::site_offers::Actor::Pilot {
+                suspended: true,
+                ..
+            }
+        ));
+        // The session is gone on the server: sign in again, and no request.
+        let ended = core.account_read(401, Vec::new()).unwrap().unwrap();
+        assert!(ended.needs_sign_in);
+        assert_eq!(core.account_request().unwrap(), None);
+        assert_eq!(
+            core.site_actor().unwrap(),
+            crate::site_offers::Actor::SessionEnded
+        );
     }
 
     #[test]

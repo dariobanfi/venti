@@ -144,9 +144,28 @@ async fn sites_come_in_a_layer_with_their_source_their_dates_and_their_credit() 
 
     assert_eq!(answer.status, StatusCode::OK);
     assert_eq!(answer.header(header::CONTENT_TYPE), "application/json");
-    // Sites change once a day at most.
-    assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=3600");
+    // An answer that may hold a layer of Venti's own, which changes
+    // whenever a partner or a pilot writes, is reused for a minute.
+    assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
+    // The sources' sites alone change once a day at most: an hour. And an
+    // answer that was asked for the crowdsourced layer: a minute.
+    let router = recorded().await;
+    for (layers, kept) in [
+        (OSM, "public, max-age=3600"),
+        ("default", "public, max-age=60"),
+        ("venti-pilots", "public, max-age=60"),
+        ("osm-free-flying,venti", "public, max-age=60"),
+    ] {
+        let only = get(
+            &router,
+            &format!("{}&layers={layers}", path(first_region())),
+        )
+        .await;
+        assert_eq!(only.status, StatusCode::OK, "{layers}");
+        assert_eq!(only.header(header::CACHE_CONTROL), kept, "{layers}");
+        assert!(only.header(header::ETAG).starts_with("W/\""), "{layers}");
+    }
     let sites: SitesResponse = answer.json();
 
     // OpenStreetMap's layer, and beside it the layer of the sites that

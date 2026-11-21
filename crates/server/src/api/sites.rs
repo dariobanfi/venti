@@ -87,7 +87,28 @@ pub(crate) async fn sites<S: Store>(
     })?;
 
     let answer = api.sites_in(&area, params.layers.as_deref()).await?;
-    Ok(cache::slow_json(&headers, &answer))
+    // A source's set changes once a day at most, and its answer may be
+    // reused for an hour. A layer of Venti's own changes whenever a
+    // partner or a pilot writes: an answer that was asked for one, whether
+    // it holds a site of it yet or not, is reused for a minute, as the
+    // other answers that change through the API are.
+    Ok(if asks_for_own_layer(params.layers.as_deref()) {
+        cache::json(&headers, &answer)
+    } else {
+        cache::slow_json(&headers, &answer)
+    })
+}
+
+/// Whether a request's `layers` asks for a layer of Venti's own sites:
+/// one that names none does, since the partners' layer is in an answer by
+/// default, and so does one that says `default` or names such a layer.
+/// What [`Api::sites_in`] refuses is no matter here.
+fn asks_for_own_layer(layers: Option<&str>) -> bool {
+    layers.is_none_or(|list| {
+        list.split(',')
+            .map(str::trim)
+            .any(|name| name == DEFAULT_LAYERS || Layer::named(name).is_some())
+    })
 }
 
 impl<S: Store> Api<S> {

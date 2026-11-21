@@ -17,7 +17,7 @@
 
 use venti_api_types::v1::{
     self as api, GroupId, MAX_REPORT_TEXT_LENGTH, PlanId, ReportRequest, ReportResponse,
-    VENTI_SITES_SOURCE, parse_report_text,
+    parse_report_text,
 };
 use venti_domain::SiteId;
 
@@ -358,7 +358,7 @@ pub fn report_request(
                 && site
                     .id
                     .parse::<SiteId>()
-                    .is_ok_and(|id| id.source().as_str() == VENTI_SITES_SOURCE)
+                    .is_ok_and(|id| crate::site_edit::is_own_layer(id.source().as_str()))
         }
     };
     if !names_something {
@@ -856,6 +856,34 @@ mod tests {
     }
 
     const SITE: &str = "venti:0000000000000000000000s001";
+
+    #[test]
+    fn a_site_of_the_crowdsourced_layer_is_reported_as_a_partners_is() {
+        let request = report_request(
+            ReportSubject::Site {
+                id: "venti-pilots:0000000000000000000000s002".to_owned(),
+            },
+            ReportReason::NotASite,
+            String::new(),
+        )
+        .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&request.body.unwrap()).unwrap();
+        assert_eq!(
+            body["subject"]["site"]["id"],
+            "venti-pilots:0000000000000000000000s002"
+        );
+        // A source's site still is not: it is corrected at its source.
+        assert!(
+            report_request(
+                ReportSubject::Site {
+                    id: "osm-free-flying:way/1080986173".to_owned(),
+                },
+                ReportReason::NotASite,
+                String::new(),
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn a_site_that_pilots_made_is_reported_with_the_reasons_of_a_site() {

@@ -3928,7 +3928,7 @@ class VentiUiTest {
         letTheMapDraw(1)
         keepScreenshot("site-edit-7-remove")
         tap(hasTestTag("site-why-send"))
-        waitFor(hasTestTag("site-said") and hasText("Removed from the map. Its history stays, and any pilot can bring it back."))
+        waitFor(hasTestTag("site-said") and hasText("Removed from the map. Its history stays, and any pilot who may correct the site can bring it back."))
         waitFor(hasTestTag("site-history"))
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             screen.onAllNodes(hasTestTag("site-revision-words")).fetchSemanticsNodes().size == 4

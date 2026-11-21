@@ -348,7 +348,10 @@ impl Core {
     ///
     /// Of the pilot's own, the sites that are places to take off from are
     /// listed, the six nearest. Of the others, the take-offs within 30 km
-    /// that their source does not mark as discouraged: those with a name
+    /// that their source does not mark as discouraged and that are not of
+    /// the crowdsourced layer (an unofficial place is not put forward as
+    /// one to fly from today; the pilot keeps it to have it here): those
+    /// with a name
     /// of their own first ("Take-off" tells a pilot nothing), then the
     /// nearest, six at most.
     ///
@@ -399,6 +402,11 @@ impl Core {
             .iter()
             .flat_map(|seen| &seen.sites)
             .filter(|site| site.uses.contains(&SiteKind::Takeoff) && !site.discouraged)
+            // A crowdsourced place is not official and checked by nobody:
+            // Today, which reads as "where to fly today", does not put it
+            // forward, whether the answer holds that layer or not. A pilot
+            // who kept one sees it among their own.
+            .filter(|site| !site.by_pilots.as_ref().is_some_and(|by| by.from_pilots))
             .filter(|site| !is_kept(&site.id))
             .filter_map(|site| {
                 let position = GeoPoint::new(site.position.lat, site.position.lon).ok()?;
@@ -1209,6 +1217,87 @@ mod tests {
                     .takeoffs
                     .iter()
                     .all(|takeoff| takeoff.distance_m.is_none())
+            );
+        });
+    }
+
+    #[test]
+    fn today_puts_no_place_from_pilots_forward_unless_the_pilot_kept_it() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            // An answer that was asked for the crowdsourced layer: a
+            // source's take-off and two that pilots added.
+            let pilots = |number: u32, name: &str, north_km: f64| {
+                format!(
+                    r#"{{"id": "venti-pilots:000000000000000000000000{number}", "name": "{name}",
+                        "position": {{"lat": {}, "lon": 11.7967}}, "uses": ["takeoff"]}}"#,
+                    47.6642 + north_km / 111.195
+                )
+            };
+            let standing = |number: u32| {
+                format!(
+                    r#"{{"id": "venti-pilots:000000000000000000000000{number}", "revision": 1,
+                        "created_at": "2026-11-06T19:05:00Z", "changed_at": "2026-11-06T19:05:00Z"}}"#
+                )
+            };
+            let answer = format!(
+                r#"{{"layers": [
+                     {{"source": "osm-free-flying", "fetched_at": "2026-11-20T06:00:00Z",
+                       "as_of": "2026-11-20T05:00:00Z", "covers": [], "sites": [{}]}},
+                     {{"source": "venti-pilots", "fetched_at": "2026-11-20T06:00:00Z",
+                       "as_of": "2026-11-20T06:00:00Z", "covers": [], "sites": [{}, {}],
+                       "standing": [{}, {}]}}],
+                   "attributions": []}}"#,
+                takeoff(1, Some("Official enough"), 4.0, ""),
+                pilots(21, "Pilots' nearest", 1.0),
+                pilots(22, "Pilots' other", 2.0),
+                standing(21),
+                standing(22),
+            );
+            let around = sites_map(40.0, 5.0, 50.0, 18.0, 200, answer.into_bytes()).unwrap();
+            assert_eq!(around.sites.len(), 3);
+
+            // Nearer than the source's take-off, and still not listed.
+            let plain = core
+                .today_takeoffs(Some(WALLBERG), Some(around.clone()))
+                .unwrap();
+            assert_eq!(ids(&plain), [("1", false)]);
+
+            // Kept as the pilot's own, one is listed, among the pilot's
+            // own, and says what it is; the other stays out.
+            let mine = around
+                .sites
+                .iter()
+                .find(|site| site.name == "Pilots' other")
+                .unwrap()
+                .clone();
+            core.keep_site(mine, around.credits.clone(), around.as_of_unix_s)
+                .unwrap();
+            let kept = core
+                .today_takeoffs(Some(WALLBERG), Some(around.clone()))
+                .unwrap();
+            let listed: Vec<(&str, bool)> = kept
+                .takeoffs
+                .iter()
+                .map(|takeoff| (takeoff.site.name.as_str(), takeoff.is_kept))
+                .collect();
+            assert_eq!(
+                listed,
+                [("Pilots' other", true), ("Official enough", false)]
+            );
+            let by = kept.takeoffs[0].site.by_pilots.as_ref().unwrap();
+            assert!(by.from_pilots);
+            assert_eq!(by.label, "From pilots");
+            // And without an answer, from the device alone.
+            let offline = core.today_takeoffs(Some(WALLBERG), None).unwrap();
+            assert_eq!(offline.takeoffs.len(), 1);
+            assert!(
+                offline.takeoffs[0]
+                    .site
+                    .by_pilots
+                    .as_ref()
+                    .unwrap()
+                    .from_pilots
             );
         });
     }

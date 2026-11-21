@@ -11,11 +11,22 @@
 //! most have no name and no wind directions. The views say what the source
 //! says and nothing more.
 //!
-//! Beside the sources' layers the server has one of its own, `venti`: the
-//! sites that pilots made on Venti. They are read by the same calls and
-//! are the same view, with one thing more: who added the site and who
-//! changed it last ([`SiteByPilots`]). They are added by pilots and not
-//! verified by anyone, and the view says so.
+//! Beside the sources' layers the server has two of its own: `venti`, the
+//! sites that partners of Venti added, and `venti-pilots`, the
+//! crowdsourced ones that any pilot added. They are read by the same
+//! calls and are the same view, with one thing more: who added the site,
+//! who changed it last, which of the two tiers it is of and how many
+//! pilots say they took off there ([`SiteByPilots`]). Nobody at Venti
+//! checked either, and the view says so.
+//!
+//! **A crowdsourced site is in a map only when the shell asked for it**
+//! ([`sites_path_with_pilots`]): the server leaves the layer out of every
+//! answer that does not name it, and [`sites_map`], [`site_at`] and
+//! [`crate::filter_sites`] show what the answer holds and add nothing. So
+//! the switch is the shell's choice of path, and with [`sites_path`] and
+//! [`site_at_path`] no such site is seen. Today lists none of them among
+//! the take-offs around a place, whichever path the answer came from:
+//! only one the pilot kept as their own ([`crate::Core::today_takeoffs`]).
 //!
 //! Beside this module: the filter of the sites, by use, wind and height
 //! (`site_filter`), and the sites a pilot keeps as their own, with which
@@ -240,6 +251,13 @@ pub struct SiteByPilots {
     #[uniffi(default = "")]
     #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
     pub confirmed_in_words: String,
+    /// The site's tier in a word or two, to put by its name on a map's
+    /// sheet and in a list: "From pilots" for a site of the crowdsourced
+    /// layer, "From a partner" for a partner's. `note` is the sentence
+    /// that goes with it on the site's page.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub label: String,
 }
 
 /// One flying site as a map and a sheet show it. A shell hands it back to
@@ -472,6 +490,12 @@ pub fn site_at_path(lat: f64, lon: f64) -> Result<String, CoreError> {
 /// site of identifier `id`, or without one the take-off nearest to the
 /// place within a kilometre. No site is said as none: most places pilots
 /// fly from are not in the source.
+///
+/// [`site_at_path`] does not ask for the crowdsourced layer, so no place
+/// from pilots is found here; and should a shell hand in an answer that
+/// holds that layer, such a place is found by its `id` and never as the
+/// nearest take-off. A crowdsourced site is opened by its identifier
+/// ([`crate::site_path`], [`crate::site_page`]).
 #[uniffi::export]
 pub fn site_at(
     lat: f64,
@@ -496,6 +520,10 @@ pub fn site_at(
             .sites
             .into_iter()
             .filter(|site| site.uses.contains(&SiteKind::Takeoff) && away(site) <= TAKEOFF_WITHIN_M)
+            // A place from pilots is not taken for the site of a place
+            // unasked, should an answer hold that layer: it is opened by
+            // its identifier.
+            .filter(|site| !site.by_pilots.as_ref().is_some_and(|by| by.from_pilots))
             .min_by(|one, two| away(one).total_cmp(&away(two))),
     };
     let credit = site.as_ref().and_then(|site| {
@@ -543,6 +571,12 @@ pub(crate) const BY_PILOTS_NOTE: &str = "Added by a partner of Venti and not che
 pub(crate) const FROM_PILOTS_NOTE: &str = "Added by pilots on Venti: not official and not checked by \
                                 anyone. A site on the map is not permission to fly there.";
 
+/// The tier of a crowdsourced site, by its name on a map and in a list.
+pub(crate) const FROM_PILOTS_LABEL: &str = "From pilots";
+
+/// The tier of a partner's site, by its name.
+pub(crate) const BY_PARTNER_LABEL: &str = "From a partner";
+
 /// "3 pilots took off here, last on 14 November 2026"; empty while nobody
 /// confirmed the site.
 pub(crate) fn confirmed_in_words(confirmed: &SiteConfirmed) -> String {
@@ -588,6 +622,12 @@ fn by_pilots(standing: &SiteStanding) -> SiteByPilots {
         }
         .to_owned(),
         from_pilots,
+        label: if from_pilots {
+            FROM_PILOTS_LABEL
+        } else {
+            BY_PARTNER_LABEL
+        }
+        .to_owned(),
         confirmed_pilots: standing.confirmed.pilots,
         confirmed_latest_day: standing
             .confirmed
@@ -1221,6 +1261,96 @@ mod tests {
             ]
         }"#
         .to_vec()
+    }
+
+    fn golden(name: &str) -> Vec<u8> {
+        let path = format!(
+            "{}/../server/tests/golden/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        std::fs::read(path).unwrap()
+    }
+
+    #[test]
+    fn a_crowdsourced_site_is_on_a_map_only_when_it_was_asked_for_and_says_its_tier() {
+        // What the server answers without `layers`, as its documentation
+        // has it: the sources' sites and the partners', and no place from
+        // pilots.
+        let default =
+            sites_map(47.25, 10.85, 47.32, 10.95, 200, golden("sites_venti.json")).unwrap();
+        assert!(!default.sites.is_empty());
+        assert!(
+            default
+                .sites
+                .iter()
+                .all(|site| site.source != "venti-pilots")
+        );
+        let partners = default
+            .sites
+            .iter()
+            .find_map(|site| site.by_pilots.as_ref())
+            .unwrap();
+        assert!(!partners.from_pilots);
+        assert_eq!(partners.label, "From a partner");
+        // The paths a map and a place ask with name no layer.
+        assert!(
+            !sites_path(47.25, 10.85, 47.32, 10.95)
+                .unwrap()
+                .contains("layers")
+        );
+        assert!(!site_at_path(47.29, 10.91).unwrap().contains("layers"));
+
+        // Asked for, the layer's sites are the same view and say what
+        // they are: the label by the name, and the notice.
+        let asked = sites_map(
+            47.25,
+            10.85,
+            47.32,
+            10.95,
+            200,
+            golden("sites_venti_pilots.json"),
+        )
+        .unwrap();
+        let site = &asked.sites[0];
+        assert_eq!(site.source, "venti-pilots");
+        let by = site.by_pilots.as_ref().unwrap();
+        assert!(by.from_pilots);
+        assert_eq!(by.label, "From pilots");
+        assert_eq!(
+            by.note,
+            "Added by pilots on Venti: not official and not checked by anyone. A site on the \
+             map is not permission to fly there."
+        );
+        assert_eq!(
+            by.confirmed_in_words,
+            "1 pilot took off here, last on 12 November 2026"
+        );
+        assert_eq!(asked.credits[0].source, "venti-pilots");
+        // No layer of the answer is whole anywhere: an empty map of it
+        // says nothing.
+        assert!(!asked.is_whole);
+
+        // Should an answer with the layer be read for a place: the place
+        // from pilots is found by its identifier, and is not taken for
+        // the take-off of the place unasked.
+        let (lat, lon) = (site.position.lat, site.position.lon);
+        let at = |id: Option<&str>| {
+            site_at(
+                lat,
+                lon,
+                id.map(str::to_owned),
+                200,
+                golden("sites_venti_pilots.json"),
+            )
+            .unwrap()
+        };
+        assert_eq!(at(None).site, None);
+        let found = at(Some(&site.id));
+        assert_eq!(
+            found.site.as_ref().map(|site| site.id.as_str()),
+            Some(site.id.as_str())
+        );
+        assert_eq!(found.credit.unwrap().source, "venti-pilots");
     }
 
     #[test]

@@ -207,7 +207,7 @@ test('a pilot adds a take-off, corrects its height, undoes that from its history
 	await removing.getByRole('textbox', { name: 'Why' }).fill('It was a test.');
 	await removing.getByRole('button', { name: 'Remove', exact: true }).click();
 	await expect(history.getByRole('status').first()).toHaveText(
-		'Removed from the map. Its history stays, and any pilot can bring it back.'
+		'Removed from the map. Its history stays, and any pilot who may correct the site can bring it back.'
 	);
 	await expect(revisions.getByRole('listitem')).toHaveCount(4);
 	await expect(revisions.getByRole('listitem').first()).toContainText('“It was a test.”');

@@ -1,7 +1,8 @@
 <!--
 	The map's pin for a flying site, drawn for a list or a heading: dark with
 	a cream dot for a place to take off from, cream with a dark dot for a
-	landing, a ring for the rest. It looks the same in both appearances, as
+	landing, a ring for the rest, and muted for one that stands apart from
+	those a filter leaves. It looks the same in both appearances, as
 	the map does. It only repeats what the text beside it says, so a screen
 	reader passes over it.
 -->
@@ -18,9 +19,15 @@
 		ringed
 	} from './symbols';
 
-	let { kind }: { kind: SiteKind } = $props();
+	interface Props {
+		kind: SiteKind;
+		/** Muted, for a take-off whose source does not say what the filter asks: as on the map. */
+		apart?: boolean;
+	}
 
-	const look = $derived(colours(kind));
+	let { kind, apart = false }: Props = $props();
+
+	const look = $derived(colours(kind, apart));
 </script>
 
 <svg

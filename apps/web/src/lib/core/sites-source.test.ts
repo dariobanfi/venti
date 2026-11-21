@@ -90,6 +90,86 @@ describe('flying sites from the server', () => {
 		expect((await sites.sites(europe))!.isWhole).toBe(false);
 	});
 
+	it('are filtered by the core, which says in words what a filter leaves', async () => {
+		const { asked, get } = server();
+		const sites = new SitesSource(async () => true, get);
+		const held = (await sites.sites(VALLEY))!.sites;
+		asked.length = 0;
+
+		const choices = sites.filterChoices();
+		expect(choices.shown.map((one) => [one.shown, one.words, one.asksTakeoffs])).toEqual([
+			['all', 'All sites', true],
+			['takeoffs', 'Take-offs', true],
+			['landings', 'Landings', false]
+		]);
+		expect(choices.winds).toHaveLength(16);
+		expect(choices.winds[14]).toEqual({ fromDeg: 315, words: 'NW' });
+		expect(choices.windsNow.map((one) => one.windIs)).toEqual(['forecastNow', 'measuredNow']);
+		// "Any" asks about no height: nothing, not a number.
+		expect(choices.heights.map((one) => [one.fromM, one.words])).toEqual([
+			[undefined, 'Any'],
+			[1000, '1000 m'],
+			[1500, '1500 m'],
+			[2000, '2000 m']
+		]);
+
+		// Nothing asked: every site, and the filter is not on.
+		const all = sites.filter(held, {
+			shown: 'all',
+			windIs: 'chosen',
+			windFromDeg: undefined,
+			takeoffsFromM: undefined
+		});
+		expect(all.fitting).toEqual(held);
+		expect(all).toMatchObject({
+			unsaid: [],
+			words: '5 sites',
+			filterWords: 'All sites',
+			isOn: false
+		});
+
+		// None of the valley's three take-offs names a wind: none fits, none is
+		// left out, and the landings are not shown.
+		const northWest = sites.filter(held, {
+			shown: 'takeoffs',
+			windIs: 'chosen',
+			windFromDeg: 315,
+			takeoffsFromM: undefined
+		});
+		expect(northWest.fitting).toEqual([]);
+		expect(northWest.unsaid.map((site) => site.id)).toEqual([
+			'osm-free-flying:node/5964676196',
+			'osm-free-flying:node/5964676197',
+			'osm-free-flying:way/1080986173'
+		]);
+		expect(northWest).toMatchObject({
+			words: '0 of 3 take-offs fit a wind from NW',
+			unsaidTitle: '3 take-offs give no wind directions',
+			filterWords: 'Take-offs for a wind from NW',
+			isOn: true
+		});
+		expect(northWest.unsaidNote).toContain('shown apart, not left out');
+
+		// One gives its height, 1560 m; the wind a station measured is worded as that.
+		const high = sites.filter(held, {
+			shown: 'all',
+			windIs: 'measuredNow',
+			windFromDeg: undefined,
+			takeoffsFromM: 1500
+		});
+		expect(high.fitting.map((site) => site.name)).toEqual([
+			'Landing',
+			'Fluggelände Jägerkamp/Nagelspitz',
+			'Landeplatz Jägerkamp/Nagelspitz'
+		]);
+		expect(high.words).toBe('1 of 3 take-offs lies at 1500 m or higher');
+		expect(high.unsaidTitle).toBe('2 take-offs give no height');
+		// The outline of a site mapped as an area comes through the filter.
+		expect(high.fitting.map((site) => site.outline.length)).toEqual([0, 5, 8]);
+		// The core decides by itself: the server is not asked.
+		expect(asked).toEqual([]);
+	});
+
 	it('are not asked for on a site without a server', async () => {
 		const { asked, get } = server();
 		const sites = new SitesSource(async () => false, get);

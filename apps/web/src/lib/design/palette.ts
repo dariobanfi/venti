@@ -32,6 +32,16 @@ export const INK_ON_MAP = light(tokens.map.light, 'track-casing');
 export const PAPER_ON_MAP = light(tokens.map.light, 'label-halo');
 
 /**
+ * A sign on the map that stands apart because nothing is said of it, as a
+ * take-off whose source does not say what the sites' filter asks: the
+ * pack's manner for a control that is disabled (`.v-btn[disabled]`), its
+ * muted text colour on its raised surface, in place of the ink and the
+ * paper.
+ */
+export const MUTED_INK_ON_MAP = light(tokens.theme.light, 'text-muted');
+export const MUTED_PAPER_ON_MAP = light(tokens.theme.light, 'surface-raised');
+
+/**
  * A second flight laid beside the one on screen: the pack's fourth series
  * colour, an ochre that neither the vario scale nor the wind has.
  */

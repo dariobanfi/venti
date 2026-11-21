@@ -224,6 +224,42 @@ describe('the core as the page calls it', () => {
 		await core.forgetFlightGround(1);
 	});
 
+	it('asks the core what a filter leaves of sites the page holds', async () => {
+		const { core } = await open();
+		const { sites } = sitesMap(
+			47,
+			11,
+			48,
+			12.5,
+			200,
+			readFileSync(new URL('../../../../../crates/server/tests/golden/sites.json', import.meta.url))
+		);
+
+		const choices = await core.sitesFilterChoices();
+		expect(choices.shownTitle).toBe('Show');
+		expect(choices.windTitle).toBe('Take-offs for a wind from');
+		expect(choices.heightTitle).toBe('Take-offs from');
+
+		// The sites and the filter cross to the worker and back as they are.
+		const landings = await core.filterSites(sites, {
+			shown: 'landings',
+			windIs: 'chosen',
+			windFromDeg: 315,
+			takeoffsFromM: undefined
+		});
+		expect(landings.fitting.map((site) => site.id)).toEqual([
+			'osm-free-flying:node/9908030941',
+			'osm-free-flying:way/1080988126'
+		]);
+		expect(landings.fitting[1].outline).toHaveLength(8);
+		expect(landings).toMatchObject({
+			unsaid: [],
+			words: '2 landings',
+			filterWords: 'Landings',
+			isOn: true
+		});
+	});
+
 	it('keeps a site as the pilot’s own, lists it, and forgets it', async () => {
 		const { core } = await open();
 		const map = sitesMap(

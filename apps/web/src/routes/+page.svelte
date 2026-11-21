@@ -54,8 +54,11 @@
 	} from '#lib/map/layers.ts';
 	import { problemText } from '#lib/map/position.ts';
 	import RadarCard from '#lib/radar/RadarCard.svelte';
+	import { measuredNow } from '#lib/sites/filter.ts';
 	import { countIn, flownFrom } from '#lib/sites/mark.ts';
 	import SiteList from '#lib/sites/SiteList.svelte';
+	import SitesFilterCard from '#lib/sites/SitesFilterCard.svelte';
+	import SitesFilterLine from '#lib/sites/SitesFilterLine.svelte';
 	import SitePage from '#lib/sites/SiteView.svelte';
 	import { NO_SITES } from '#lib/sites/watch.ts';
 	import { creditLine as sitesCreditLine } from '#lib/sites/words.ts';
@@ -193,6 +196,37 @@
 	// valley and not a country.
 	$effect(() => {
 		if (view) sites?.show(view.region, view.zoom);
+	});
+	/** The sites the pilot's filter leaves, and the take-offs that stand apart from them. */
+	const sitesFitting = $derived(sites?.shown.fitting ?? places.sites);
+	const sitesApart = $derived(sites?.shown.unsaid ?? NO_SITES.sites);
+	/** What the filter is and what it leaves, in the core's words. */
+	const sitesLeft = $derived(sites?.left);
+	/**
+	 * Whether a filter is on and the map is close enough to draw sites: then
+	 * the map says what the filter is and what it leaves. Further out, and
+	 * with the "Sites" layer off, there is nothing it leaves anything of.
+	 */
+	const sitesFiltered = $derived(
+		sitesLeft?.isOn && places.close && !off.includes('sites') ? sitesLeft : undefined
+	);
+	/** Whether the filter's choices are open: a pane at the map's side, or a sheet. */
+	let filtering = $state(false);
+	// "Measured now" is the wind of the station nearest to the map's middle.
+	$effect(() => {
+		if (!sites) return;
+		const middle = view && {
+			lat: (view.region.south + view.region.north) / 2,
+			lon: (view.region.west + view.region.east) / 2
+		};
+		const measuredDeg = measuredNow(current.stations, middle);
+		if (measuredDeg !== sites.windNow.measuredDeg) sites.windNow = { measuredDeg };
+	});
+	// The core is asked what the filter leaves whenever the sites or the filter change.
+	$effect(() => {
+		if (!sites) return;
+		void [sites.state.sites, sites.filter];
+		void sites.refilter();
 	});
 	// Who is in the air over what the pilot is looking at.
 	$effect(() => {
@@ -408,7 +442,8 @@
 		bind:following
 		outlines={app.logbook?.outlines ?? []}
 		stations={current.stations}
-		sites={places.sites}
+		sites={sitesFitting}
+		{sitesApart}
 		gliders={inTheAir.gliders}
 		followed={followedTrack}
 		{coveredByPage}
@@ -482,7 +517,9 @@
 	{/if}
 	{#if view && places.known}
 		<p class="visually-hidden">
-			Flying sites on this part of the map: {text.count(countIn(places.sites, view.region))}.
+			Flying sites on this part of the map: {text.count(
+				countIn([...sitesFitting, ...sitesApart], view.region)
+			)}.
 		</p>
 	{/if}
 	{#if view && inTheAir.known}
@@ -570,12 +607,41 @@
 		{/if}
 	{/snippet}
 
+	<!-- What the sites' filter is and what it leaves, while one is on: a row
+	     that opens its choices. -->
+	{#snippet filterOn(left: NonNullable<typeof sitesLeft>)}
+		<button class="forecast-pane filter-on" type="button" onclick={() => (filtering = true)}>
+			<Icon name="filter" />
+			<SitesFilterLine {left} />
+		</button>
+	{/snippet}
+
 	<div class="over">
 		<!-- On a wide screen the cards of the radar and of the forecast map are
 		     panes at the map's side, the radar's first, and a square chosen on
 		     the map is shown in the forecast's. -->
-		{#if (showRadar || showForecast) && wide.current}
+		{#if (showRadar || showForecast || (sites && filtering) || sitesFiltered) && wide.current}
 			<div class="panes">
+				<!-- The sites' filter: its choices while they are open, and else,
+				     while a filter is on, what it is and what it leaves. -->
+				{#if sites && filtering}
+					<aside class="forecast-pane" aria-label="Filter sites">
+						<header class="pane-head">
+							<h2>Filter sites</h2>
+							<button
+								type="button"
+								aria-label="Close"
+								title="Close"
+								onclick={() => (filtering = false)}
+							>
+								<Icon name="close" />
+							</button>
+						</header>
+						<SitesFilterCard {sites} />
+					</aside>
+				{:else if sitesFiltered}
+					{@render filterOn(sitesFiltered)}
+				{/if}
 				{#if showRadar && radar}
 					<aside class="forecast-pane" aria-label="Rain radar">
 						<RadarCard {radar} />
@@ -705,6 +771,9 @@
 	<div class="foot">
 		<!-- On a narrow screen the radar's card and the forecast map's stand
 		     over the credits. -->
+		{#if sitesFiltered && !wide.current}
+			{@render filterOn(sitesFiltered)}
+		{/if}
 		{#if showRadar && radar && !wide.current}
 			<div class="forecast-card">
 				<RadarCard {radar} compact />
@@ -740,6 +809,15 @@
 			     the map is close enough for signs: the list then says how to
 			     get them. -->
 			<MapButton label="Flying sites" icon="pin" onclick={() => (listingSites = true)} />
+			<!-- Which of the sites the map and the list show; lit while a filter is on. -->
+			{#if sites}
+				<MapButton
+					label="Filter sites"
+					icon="filter"
+					pressed={Boolean(sitesLeft?.isOn)}
+					onclick={() => (filtering = !filtering)}
+				/>
+			{/if}
 			<!-- Everyone the map shows in the air, as a list. -->
 			<MapButton label="In the air" icon="glider" onclick={() => (listingGliders = true)} />
 		{/if}
@@ -779,9 +857,25 @@
 	{/if}
 </Sheet>
 
+<!-- The sites' filter on a narrow screen: a sheet of half the screen, the
+     map staying in view above it while the pilot chooses. -->
+{#if sites}
+	<Sheet
+		open={filtering && !wide.current}
+		title="Filter sites"
+		half
+		onclose={() => (filtering = false)}
+	>
+		{#if filtering && !wide.current}
+			<SitesFilterCard {sites} compact />
+		{/if}
+	</Sheet>
+{/if}
+
 <SiteList
 	open={listingSites}
 	sites={places}
+	model={sites}
 	onchoose={(picked) => {
 		listingSites = false;
 		openSite(picked);
@@ -969,6 +1063,46 @@
 		background: var(--surface);
 		box-shadow: var(--shadow-float);
 		pointer-events: auto;
+	}
+
+	/* The head of a pane that the pilot opened and closes. */
+	.pane-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--space-2);
+	}
+
+	.pane-head h2 {
+		margin: 0;
+		font-size: var(--subheadline);
+		font-weight: 600;
+	}
+
+	.pane-head button {
+		display: grid;
+		place-items: center;
+		width: var(--target);
+		height: var(--target);
+		margin: calc(var(--space-2) * -1);
+		color: var(--text-secondary);
+	}
+
+	/* The filter that is on, as a row to press: a pane of its own on a wide
+	   screen, a short card over the credits on a narrow one. */
+	.filter-on {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+		max-width: 26rem;
+		text-align: left;
+	}
+
+	.filter-on :global(svg) {
+		flex: none;
+		width: 1.125rem;
+		height: 1.125rem;
+		color: var(--link);
 	}
 
 	.chosen-square {

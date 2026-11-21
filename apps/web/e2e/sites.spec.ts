@@ -243,6 +243,199 @@ test('a server that cannot be asked for sites is named in the list, and the map 
 	await keep('44-sites-unreachable');
 });
 
+/** What the map tab last drew of the sites, which a map cannot be asked itself. */
+const drawn = (page: Page) =>
+	page.evaluate(
+		() =>
+			(
+				globalThis as unknown as {
+					ventiSites: { signs: string[]; apart: string[]; areas: string[] };
+				}
+			).ventiSites
+	);
+
+const JAEGERKAMP_TAKEOFF = 'osm-free-flying:way/1080986173';
+const JAEGERKAMP_LANDING = 'osm-free-flying:way/1080988126';
+
+test('the sites are filtered by a wind: what fits, what stands apart, and what is left out', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	wide,
+	problems
+}) => {
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
+
+	// The filter's choices: a pane at the map's side on a wide screen, a sheet
+	// of half the screen on a narrow one, the map staying in view above it.
+	const opens = page.getByRole('button', { name: 'Filter sites', exact: true });
+	await expect(opens).toHaveAttribute('aria-pressed', 'false');
+	await opens.click();
+	const filter = page.getByRole(wide ? 'complementary' : 'dialog', { name: 'Filter sites' });
+	// Nothing is asked yet, and the core says so.
+	await expect(filter.getByRole('status')).toContainText('All sites');
+	await expect(filter.getByRole('status')).toContainText(/^All sites\s*\d+ sites\s*$/);
+	const show = filter.getByRole('radiogroup', { name: 'Show' });
+	await expect(show.getByRole('radio')).toHaveCount(3);
+	await expect(show.getByRole('radio', { name: 'All sites' })).toBeChecked();
+	// The sixteen points of the compass after "Any", and the wind a station
+	// measures now where the map has one; no forecast, which the page has not.
+	const winds = filter.getByRole('group', { name: 'Take-offs for a wind from' });
+	await expect(winds.getByRole('button', { name: 'Any' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(winds.getByRole('button', { name: 'NNW' })).toBeVisible();
+	await expect(winds.getByRole('button', { name: 'Forecast now' })).toHaveCount(0);
+	await expect(filter.getByRole('radiogroup', { name: 'Take-offs from' })).toContainText(
+		/Any\s*1000 m\s*1500 m\s*2000 m/
+	);
+	await expect(filter).toContainText('A site on the map is not permission to fly there.');
+
+	// Take-offs for a north-east wind: the Vogelsang's east side names it,
+	// the Jägerkamp and the Wallberg's ramps name no wind at all.
+	await show.getByText('Take-offs', { exact: true }).click();
+	await winds.getByRole('button', { name: 'NE', exact: true }).click();
+	const said = filter.getByRole('status');
+	await expect(said).toContainText('Take-offs for a wind from NE');
+	await expect(said).toContainText(/[1-9]\d* of \d+ take-offs fits? a wind from NE/);
+	await expect(said).toContainText(/[1-9]\d* take-offs give no wind directions/);
+	const [, fits, takeoffs] = /(\d+) of (\d+) take-offs/.exec(await said.innerText())!;
+	const [, unsaid] = /(\d+) take-offs give no wind directions/.exec(await said.innerText())!;
+	// Some fit, some say nothing, and the rest name another wind: left out.
+	expect(Number(fits) + Number(unsaid)).toBeLessThan(Number(takeoffs));
+
+	// The map draws those that fit as they were, those that say nothing as
+	// muted signs, and no landing.
+	await expect.poll(async () => (await drawn(page)).signs.length).toBe(Number(fits));
+	const onMap = await drawn(page);
+	expect(onMap.apart).toHaveLength(Number(unsaid));
+	expect(onMap.apart).toContain(JAEGERKAMP_TAKEOFF);
+	expect([...onMap.signs, ...onMap.apart]).not.toContain(JAEGERKAMP_LANDING);
+	// Three take-offs are in view, none of them names a wind; the two landings are gone.
+	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 3.');
+	await expect(opens).toHaveAttribute('aria-pressed', 'true');
+	await page.waitForTimeout(1500);
+	await keep('142-sites-filter');
+
+	// By height instead: the Jägerkamp's take-off gives its own, 1560 m, and
+	// fits; the Wallberg's ramps give none and stand apart, as muted signs.
+	await winds.getByRole('button', { name: 'Any' }).click();
+	const heights = filter.getByRole('radiogroup', { name: 'Take-offs from' });
+	await heights.getByText('1500 m', { exact: true }).click();
+	await expect(said).toContainText('Take-offs from 1500 m up');
+	await expect(said).toContainText(/[1-9]\d* of \d+ take-offs lies? at 1500 m or higher/);
+	await expect(said).toContainText(/[1-9]\d* take-offs give no height/);
+	await expect.poll(async () => (await drawn(page)).signs).toContain(JAEGERKAMP_TAKEOFF);
+	expect((await drawn(page)).apart).toContain('osm-free-flying:node/5964676196');
+	// The take-off is an area in its source, and has its outline with its sign.
+	expect((await drawn(page)).areas).toContain(JAEGERKAMP_TAKEOFF);
+	const close = filter.getByRole('button', { name: wide ? 'Close' : 'Done' });
+	await close.click();
+	await expect(filter).toBeHidden();
+	await page.waitForTimeout(1500);
+	await keep('143-map-sites-filtered');
+
+	// Closed, the filter stays said on the map, in the core's words, as a row
+	// that opens the choices again.
+	await page.getByRole('button', { name: /^Take-offs from 1500 m up/ }).click();
+	await heights.getByText('Any', { exact: true }).click();
+	await winds.getByRole('button', { name: 'NE', exact: true }).click();
+	await expect(said).toContainText(`${fits} of ${takeoffs} take-offs`);
+	await close.click();
+	await expect(filter).toBeHidden();
+	const on = page.getByRole('button', { name: /^Take-offs for a wind from NE/ });
+	await expect(on).toContainText(`${fits} of ${takeoffs} take-offs`);
+	await expect(on).toContainText(`${unsaid} take-offs give no wind directions`);
+
+	// The list has the same filter: those that fit first, then the take-offs
+	// whose source does not say, under the core's heading and sentence.
+	await page.getByRole('button', { name: 'Flying sites', exact: true }).click();
+	const list = page.getByRole('dialog', { name: 'Flying sites' });
+	await expect(list.getByRole('button', { name: 'Take-offs for a wind from NE' })).toBeVisible();
+	await expect(list.getByRole('status')).toHaveText(
+		new RegExp(`^${fits} of ${takeoffs} take-offs fits? a wind from NE$`)
+	);
+	const fitting = list.getByRole('list', { name: 'Flying sites' }).getByRole('listitem');
+	await expect(fitting).toHaveCount(Number(fits));
+	await expect(fitting.filter({ hasText: 'Vogelsang Ost' })).toContainText('wind NE');
+	const apartTitle = `${unsaid} take-offs give no wind directions`;
+	await expect(list.getByRole('heading', { name: apartTitle })).toBeVisible();
+	await expect(list).toContainText(
+		'Their source does not say, which says nothing about them: they may fit or not. They are shown apart, not left out.'
+	);
+	const apart = list.getByRole('list', { name: apartTitle }).getByRole('listitem');
+	await expect(apart).toHaveCount(Number(unsaid));
+	await expect(apart.filter({ hasText: 'Fluggelände Jägerkamp/Nagelspitz' })).toBeVisible();
+	await expect(list.getByText('Landeplatz Jägerkamp/Nagelspitz')).toHaveCount(0);
+	await keep('144-sites-list-filtered');
+
+	// The filter is changed from the list too. Landings are asked neither a
+	// wind nor a height, and neither is offered there.
+	await list.getByRole('button', { name: 'Take-offs for a wind from NE' }).click();
+	await list
+		.getByRole('radiogroup', { name: 'Show' })
+		.getByText('Landings', { exact: true })
+		.click();
+	await expect(list.getByRole('group', { name: 'Take-offs for a wind from' })).toHaveCount(0);
+	await expect(list.getByRole('radiogroup', { name: 'Take-offs from' })).toHaveCount(0);
+	await expect(list.getByRole('status')).toContainText(/Landings\s*[1-9]\d* landings\s*$/);
+	await expect(fitting.filter({ hasText: 'Landeplatz Jägerkamp/Nagelspitz' })).toBeVisible();
+	await expect(list.getByText('Fluggelände Jägerkamp/Nagelspitz')).toHaveCount(0);
+	await keep('145-sites-list-filter-open');
+
+	// The browser remembers the filter, as it does the map's layers.
+	await page.reload();
+	await mapTabDrawn(page, mapDrawn);
+	await expect(page.getByRole('button', { name: 'Filter sites', exact: true })).toBeVisible();
+	await showTheValley(page, mapDrawn, wide ? 1 : 2);
+	await expect(
+		page.getByRole('button', { name: /^Landings\s*[1-9]\d* landings\s*$/ })
+	).toBeVisible();
+	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 2.');
+
+	expect(problems).toEqual([]);
+});
+
+test('a landing field mapped as an area is drawn as its outline, under its sign', async ({
+	context,
+	page,
+	mapDrawn,
+	keep,
+	problems
+}) => {
+	// The pilot stands at the lower edge of the landing field of the
+	// Jägerkamp, which OpenStreetMap maps as an area of eight points.
+	await context.grantPermissions(['geolocation']);
+	await context.setGeolocation({ latitude: 47.6916, longitude: 11.8874 });
+	await page.goto('/');
+	await mapTabDrawn(page, mapDrawn);
+	await showMyPosition(page, mapDrawn);
+	await expect(shown(page)).toHaveText(/^Flying sites on this part of the map: [1-9]\d*\.$/);
+	// The field and the take-off above it, which is an area of five points;
+	// the ramps and the other landing are points and have no outline.
+	await expect
+		.poll(async () => (await drawn(page)).areas)
+		.toEqual(expect.arrayContaining([JAEGERKAMP_LANDING, JAEGERKAMP_TAKEOFF]));
+	expect((await drawn(page)).areas).not.toContain('osm-free-flying:node/9908030941');
+
+	// Closer, where a field is larger than its sign, the outline shows.
+	const map = page.locator('canvas.maplibregl-canvas');
+	await map.focus();
+	for (let step = 0; step < 3; step += 1) {
+		await page.keyboard.press('Equal');
+		await mapDrawn();
+	}
+	await map.blur();
+	await page.waitForTimeout(1500);
+	await keep('146-site-outline');
+
+	expect(problems).toEqual([]);
+});
+
 test('a site’s page shows its mapper’s description as text', async ({ page, keep, problems }) => {
 	// One of the Wallberg's two ramps, which OpenStreetMap describes.
 	await page.goto(

@@ -61,6 +61,9 @@ import type {
 	SiteAtPlace,
 	SiteOutlook,
 	ThermalMap,
+	SitesFilter,
+	SitesFilterChoices,
+	SitesFiltered,
 	SitesMap,
 	SiteView,
 	StationAir,
@@ -138,6 +141,13 @@ export interface Calls {
 	};
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites: { given: Bounds; answer: SitesMap | undefined };
+	/** The choices the filter of sites offers, with the core's words for them. */
+	sitesFilterChoices: { given: undefined; answer: SitesFilterChoices };
+	/**
+	 * What a filter leaves of sites the page holds: those that fit, the
+	 * take-offs whose source does not say, and the core's words for both.
+	 */
+	filterSites: { given: { sites: SiteView[]; filter: SitesFilter }; answer: SitesFiltered };
 	/** What the server's weather models say about a place. Nothing if this site has no server. */
 	forecast: { given: Coordinate; answer: ForecastView | undefined };
 	/**
@@ -406,6 +416,8 @@ export async function answer<Name extends CallName>(
 		stationDays: (utcOffsetS) => wind.days(utcOffsetS),
 		stationDay: ({ stationId, date, utcOffsetS }) => wind.day(stationId, date, utcOffsetS),
 		sites: (box) => sites.sites(box),
+		sitesFilterChoices: () => sites.filterChoices(),
+		filterSites: ({ sites: held, filter }) => sites.filter(held, filter),
 		forecast: (place) => forecast.forecast(place),
 		live: (box) => live.gliders(box),
 		followLive: (id) => live.follow(id),

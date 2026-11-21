@@ -9,7 +9,12 @@
  */
 
 import type { SiteKind } from '#lib/core/index.ts';
-import { INK_ON_MAP, PAPER_ON_MAP } from '#lib/design/palette.ts';
+import {
+	INK_ON_MAP,
+	MUTED_INK_ON_MAP,
+	MUTED_PAPER_ON_MAP,
+	PAPER_ON_MAP
+} from '#lib/design/palette.ts';
 import type { Picture } from '#lib/wind/symbols.ts';
 
 /** The pin's box, in points: a little narrower than tall. */
@@ -35,8 +40,12 @@ export const SITE_KINDS: readonly SiteKind[] = [
 	'other'
 ];
 
-export function pictureName(kind: SiteKind): string {
-	return `site-${kind}`;
+/**
+ * The name of a kind's picture. `apart` is the pin of a take-off whose
+ * source does not say what the filter asks: the same pin, muted.
+ */
+export function pictureName(kind: SiteKind, apart = false): string {
+	return apart ? `site-${kind}-apart` : `site-${kind}`;
 }
 
 /**
@@ -45,10 +54,12 @@ export function pictureName(kind: SiteKind): string {
  * round, cream with a dark dot; a training slope or a site of another kind
  * has a ring in place of the dot.
  */
-export function colours(kind: SiteKind): { ground: string; sign: string } {
-	return kind === 'landing'
-		? { ground: PAPER_ON_MAP, sign: INK_ON_MAP }
-		: { ground: INK_ON_MAP, sign: PAPER_ON_MAP };
+export function colours(kind: SiteKind, apart = false): { ground: string; sign: string } {
+	// Apart, the pack's muted pair stands in for the ink and the paper: the
+	// pin keeps its shape and says less.
+	const ink = apart ? MUTED_INK_ON_MAP : INK_ON_MAP;
+	const paper = apart ? MUTED_PAPER_ON_MAP : PAPER_ON_MAP;
+	return kind === 'landing' ? { ground: paper, sign: ink } : { ground: ink, sign: paper };
 }
 
 /** Whether the pin's head holds a ring rather than a dot. */
@@ -56,22 +67,27 @@ export function ringed(kind: SiteKind): boolean {
 	return kind === 'training' || kind === 'other';
 }
 
-/** The pictures of every kind of site, for the map, at the screen's pixel ratio. */
+/**
+ * The pictures of every kind of site, for the map, at the screen's pixel
+ * ratio: each as it is, and muted for one that stands apart.
+ */
 export function sitePictures(pixelRatio = 2): Picture[] {
-	return SITE_KINDS.map((kind) => ({
-		name: pictureName(kind),
-		image: draw(kind, pixelRatio),
-		pixelRatio
-	}));
+	return [false, true].flatMap((apart) =>
+		SITE_KINDS.map((kind) => ({
+			name: pictureName(kind, apart),
+			image: draw(kind, apart, pixelRatio),
+			pixelRatio
+		}))
+	);
 }
 
-function draw(kind: SiteKind, pixelRatio: number): ImageData {
+function draw(kind: SiteKind, apart: boolean, pixelRatio: number): ImageData {
 	const canvas = document.createElement('canvas');
 	canvas.width = PIN_WIDTH * pixelRatio;
 	canvas.height = PIN_HEIGHT * pixelRatio;
 	const context = canvas.getContext('2d', { willReadFrequently: true })!;
 	context.scale(pixelRatio, pixelRatio);
-	const { ground, sign } = colours(kind);
+	const { ground, sign } = colours(kind, apart);
 
 	const pin = new Path2D(PIN);
 	context.fillStyle = ground;

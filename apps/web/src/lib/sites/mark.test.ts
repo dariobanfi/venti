@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { countIn, flownFrom, listed, siteFeatures, sitesLayer, SITES_SOURCE } from './mark';
+import {
+	countIn,
+	flownFrom,
+	listed,
+	OUTLINES_FROM_ZOOM,
+	SITE_OUTLINE_LAYERS,
+	SITE_OUTLINES_SOURCE,
+	siteFeatures,
+	siteOutlineLayers,
+	siteOutlines,
+	sitesLayer,
+	SITES_SOURCE
+} from './mark';
 import { wedges } from './rose';
 import { colours, pictureName, ringed, SITE_KINDS } from './symbols';
 import { site } from './testing';
@@ -27,10 +39,10 @@ describe('flying sites on the map', () => {
 		const { features } = siteFeatures([JAEGERKAMP, LANDING, RAMP]);
 
 		expect(features.map((feature) => feature.properties)).toEqual([
-			{ id: 'test:way/1', picture: 'site-takeoff', label: 'Fluggelände Jägerkamp' },
-			{ id: 'test:way/2', picture: 'site-landing', label: 'Landeplatz Jägerkamp' },
+			{ id: 'test:way/1', picture: 'site-takeoff', label: 'Fluggelände Jägerkamp', apart: false },
+			{ id: 'test:way/2', picture: 'site-landing', label: 'Landeplatz Jägerkamp', apart: false },
 			// "Take-off" under every take-off sign would say nothing.
-			{ id: 'test:node/3', picture: 'site-takeoff', label: '' }
+			{ id: 'test:node/3', picture: 'site-takeoff', label: '', apart: false }
 		]);
 		expect(features[0].geometry).toEqual({ type: 'Point', coordinates: [11.905, 47.679] });
 	});
@@ -48,7 +60,7 @@ describe('flying sites on the map', () => {
 	});
 
 	it('have a pin for every kind, the landing light and the rest dark', () => {
-		expect(SITE_KINDS.map(pictureName)).toEqual([
+		expect(SITE_KINDS.map((kind) => pictureName(kind))).toEqual([
 			'site-takeoff',
 			'site-landing',
 			'site-towing',
@@ -60,6 +72,86 @@ describe('flying sites on the map', () => {
 		expect(colours('landing')).toEqual({ ground: '#FFF8E8', sign: '#221640' });
 		expect(colours('takeoff')).toEqual({ ground: '#221640', sign: '#FFF8E8' });
 		expect(colours('other')).toEqual(colours('takeoff'));
+	});
+
+	it('are muted signs without a name where their source does not say what a filter asks', () => {
+		const { features } = siteFeatures([LANDING], [JAEGERKAMP, RAMP]);
+
+		// Those that stand apart come first, so that the others lie over them.
+		expect(features.map((feature) => feature.properties)).toEqual([
+			{ id: 'test:way/1', picture: 'site-takeoff-apart', label: '', apart: true },
+			{ id: 'test:node/3', picture: 'site-takeoff-apart', label: '', apart: true },
+			{ id: 'test:way/2', picture: 'site-landing', label: 'Landeplatz Jägerkamp', apart: false }
+		]);
+		expect(sitesLayer('noto-sans-regular').layout).toMatchObject({
+			'symbol-sort-key': ['case', ['get', 'apart'], 0, 1]
+		});
+		// The pack's muted text on its raised surface, in place of the ink and the paper.
+		expect(colours('takeoff', true)).toEqual({ ground: '#6C5F8C', sign: '#F8ECD3' });
+		expect(colours('landing', true)).toEqual({ ground: '#F8ECD3', sign: '#6C5F8C' });
+	});
+
+	it('have their outline under the sign where the source maps them as an area', () => {
+		const ring = [
+			{ lat: 47.69, lon: 11.886 },
+			{ lat: 47.69, lon: 11.888 },
+			{ lat: 47.692, lon: 11.888 },
+			{ lat: 47.692, lon: 11.886 },
+			{ lat: 47.69, lon: 11.886 }
+		];
+		const field = { ...LANDING, outline: ring };
+		const slope = { ...JAEGERKAMP, outline: ring };
+		// Three points close no area.
+		const stub = { ...RAMP, outline: ring.slice(0, 3) };
+
+		const { features } = siteOutlines([field, RAMP, stub], [slope]);
+
+		// A landing and a take-off alike; a point has none.
+		expect(features.map((feature) => feature.properties)).toEqual([
+			{ id: 'test:way/1', apart: true },
+			{ id: 'test:way/2', apart: false }
+		]);
+		expect(features[1].geometry).toEqual({
+			type: 'Polygon',
+			coordinates: [
+				[
+					[11.886, 47.69],
+					[11.888, 47.69],
+					[11.888, 47.692],
+					[11.886, 47.692],
+					[11.886, 47.69]
+				]
+			]
+		});
+		expect(siteOutlines([JAEGERKAMP, LANDING, RAMP]).features).toEqual([]);
+	});
+
+	it('draw an area as the pack draws one: a thin outline and a faint fill in the sign’s ink', () => {
+		const [fill, line] = siteOutlineLayers();
+		const ink = ['case', ['get', 'apart'], '#6C5F8C', '#221640'];
+
+		expect([fill.id, line.id]).toEqual(SITE_OUTLINE_LAYERS);
+		// Named as the signs' layer begins, so that the "Sites" chip switches them too.
+		for (const layer of [fill, line]) {
+			expect(layer.id.startsWith(SITES_SOURCE)).toBe(true);
+			expect(layer).toMatchObject({ source: SITE_OUTLINES_SOURCE, minzoom: OUTLINES_FROM_ZOOM });
+		}
+		// It comes in over one step of zoom, once a field is larger than its sign.
+		expect(fill).toMatchObject({
+			type: 'fill',
+			paint: {
+				'fill-color': ink,
+				'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.12]
+			}
+		});
+		expect(line).toMatchObject({
+			type: 'line',
+			paint: {
+				'line-color': ink,
+				'line-width': 2,
+				'line-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 1]
+			}
+		});
 	});
 
 	it('are counted where the map shows them', () => {

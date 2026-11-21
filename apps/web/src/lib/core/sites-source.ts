@@ -13,12 +13,18 @@
 import {
 	type Bounds,
 	type Coordinate,
+	filterSites,
 	siteAt,
 	type SiteAtPlace,
 	siteAtPath,
+	type SitesFilter,
+	sitesFilterChoices,
+	type SitesFilterChoices,
+	type SitesFiltered,
 	sitesMap,
 	type SitesMap,
-	sitesPath
+	sitesPath,
+	type SiteView
 } from './pkg/venti_core_wasm.js';
 import { unreachable } from './protocol';
 import { type Get, getFromThisOrigin } from './wind-source';
@@ -64,5 +70,19 @@ export class SitesSource {
 		if (!(await this.#present())) return undefined;
 		const answer = await this.#get(siteAtPath(place.lat, place.lon));
 		return siteAt(place.lat, place.lon, id, answer.status, answer.body);
+	}
+
+	/** The choices the filter of sites offers, in the core's words. Asks no server. */
+	filterChoices(): SitesFilterChoices {
+		return sitesFilterChoices();
+	}
+
+	/**
+	 * What a filter leaves of the sites handed in, as the core decides it:
+	 * the ones that fit, the take-offs whose source does not say, and the
+	 * words for both. Asks no server.
+	 */
+	filter(sites: SiteView[], filter: SitesFilter): SitesFiltered {
+		return filterSites(sites, filter);
 	}
 }

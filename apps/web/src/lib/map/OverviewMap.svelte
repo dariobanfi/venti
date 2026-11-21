@@ -42,7 +42,14 @@
 	import type { Corners } from '#lib/radar/radar.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
-	import { siteFeatures, SITES_SOURCE, sitesLayer } from '#lib/sites/mark.ts';
+	import {
+		SITE_OUTLINES_SOURCE,
+		siteFeatures,
+		siteOutlineLayers,
+		siteOutlines,
+		SITES_SOURCE,
+		sitesLayer
+	} from '#lib/sites/mark.ts';
 	import { sitePictures } from '#lib/sites/symbols.ts';
 	import { stationFeatures } from '#lib/wind/mark.ts';
 	import { windPictures } from '#lib/wind/symbols.ts';
@@ -55,8 +62,13 @@
 		outlines: Coordinate[][];
 		/** The wind stations to draw. */
 		stations: WindStation[];
-		/** The flying sites to draw. */
-		sites: SiteView[];
+		/** The flying sites to draw: those the pilot's filter leaves. */
+		sites: readonly SiteView[];
+		/**
+		 * The take-offs whose source does not say what the filter asks: drawn
+		 * apart from the others, as muted signs.
+		 */
+		sitesApart?: readonly SiteView[];
 		/** The gliders of other pilots to draw. */
 		gliders: LiveGlider[];
 		/**
@@ -135,6 +147,7 @@
 		outlines,
 		stations,
 		sites,
+		sitesApart = [],
 		gliders,
 		followed,
 		coveredByPage,
@@ -245,6 +258,9 @@
 		for (const picture of sitePictures()) {
 			map.addImage(picture.name, picture.image, { pixelRatio: picture.pixelRatio });
 		}
+		// A site mapped as an area has its outline under its sign.
+		map.addSource(SITE_OUTLINES_SOURCE, { type: 'geojson', data: NOTHING });
+		for (const layer of siteOutlineLayers()) map.addLayer(layer);
 		map.addSource(SITES_SOURCE, { type: 'geojson', data: NOTHING });
 		map.addLayer(sitesLayer(module.LABEL_FONT));
 
@@ -434,10 +450,20 @@
 		}
 	});
 
-	// Draws the flying sites when they change.
+	// Draws the flying sites when they change: the signs, and under them the
+	// outlines of those mapped as areas.
 	$effect(() => {
 		if (!map || !setup) return;
-		setup.shapes(map, SITES_SOURCE)?.setData(siteFeatures(sites));
+		const signs = siteFeatures(sites, sitesApart);
+		const areas = siteOutlines(sites, sitesApart);
+		setup.shapes(map, SITES_SOURCE)?.setData(signs);
+		setup.shapes(map, SITE_OUTLINES_SOURCE)?.setData(areas);
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiSites?: unknown }).ventiSites = {
+			signs: sites.map((site) => site.id),
+			apart: sitesApart.map((site) => site.id),
+			areas: areas.features.map((area) => area.properties?.id)
+		};
 	});
 
 	// Draws the stations when they change.

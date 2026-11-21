@@ -3,37 +3,70 @@
 	looking one up by name, and for pilots who use the keyboard or a screen
 	reader, which cannot reach signs drawn on a map. The words are those of
 	the iPhone app's `SiteScreens.swift`.
+
+	The map's filter is the list's: over the list stands what the filter is,
+	as a row that unfolds its choices, and what it leaves; the sites that fit
+	come first, and the take-offs whose source does not say what was asked
+	come after them under the core's heading and sentence, apart and not
+	left out.
 -->
 <script lang="ts">
 	import type { SiteView } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
+	import Icon from '#lib/design/Icon.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import { listed } from './mark';
+	import type { SitesModel } from './model.svelte';
 	import SiteGlyph from './SiteGlyph.svelte';
+	import SitesFilterCard from './SitesFilterCard.svelte';
 	import type { SitesState } from './watch';
 	import { asOf, CAUTION, detail, nothingListed } from './words';
 
 	interface Props {
 		open: boolean;
 		sites: SitesState;
+		/** The sites with the pilot's filter, once the core has started. */
+		model: SitesModel | undefined;
 		/** Called with the site the pilot chose. */
 		onchoose: (site: SiteView) => void;
 		onclose: () => void;
 	}
 
-	let { open, sites, onchoose, onclose }: Props = $props();
+	let { open, sites, model, onchoose, onclose }: Props = $props();
 
 	const text = format();
 
 	let search = $state('');
 
-	// A list opened again starts with every site.
+	/** Whether the filter's choices are unfolded over the list. */
+	let choosing = $state(false);
+
+	// A list opened again starts with every site the filter leaves.
 	$effect(() => {
-		if (!open) search = '';
+		if (!open) {
+			search = '';
+			choosing = false;
+		}
 	});
 
-	const shown = $derived(listed(sites.sites, search));
+	/** What the filter leaves, in the core's words, once it has said so. */
+	const left = $derived(model?.left);
+	const shown = $derived(listed(model ? model.shown.fitting : sites.sites, search));
+	/** The take-offs whose source does not say what the filter asks. */
+	const apart = $derived(listed(model?.shown.unsaid ?? [], search));
 </script>
+
+{#snippet row(site: SiteView, isApart: boolean)}
+	<li>
+		<button type="button" onclick={() => onchoose(site)}>
+			<SiteGlyph kind={site.kind} apart={isApart} />
+			<span class="pair">
+				<span class="name">{site.name}</span>
+				<span class="lesser">{detail(site, text)}</span>
+			</span>
+		</button>
+	</li>
+{/snippet}
 
 <Sheet {open} title="Flying sites" {onclose}>
 	{#if sites.sites.length === 0}
@@ -49,25 +82,49 @@
 			autocomplete="off"
 			bind:value={search}
 		/>
-		{#if shown.length === 0}
+		{#if model && left}
+			<!-- What the filter is, where a list's title stands: the row unfolds its choices. -->
+			<button
+				class="fold"
+				type="button"
+				aria-expanded={choosing}
+				onclick={() => (choosing = !choosing)}
+			>
+				<Icon name="filter" />
+				<span class="filter-words">{left.filterWords}</span>
+				<span class="turn" class:up={choosing} aria-hidden="true"><Icon name="forward" /></span>
+			</button>
+			{#if choosing}
+				<div class="choices">
+					<SitesFilterCard sites={model} compact />
+				</div>
+			{:else}
+				<p class="left numeric" role="status">{left.words}</p>
+			{/if}
+		{/if}
+		{#if shown.length === 0 && apart.length === 0 && search.trim() !== ''}
 			<div class="nothing">
 				<h3>No results for “{search.trim()}”</h3>
 				<p>Check the spelling or try a new search.</p>
 			</div>
 		{:else}
-			<ul class="card" aria-label="Flying sites">
-				{#each shown as site (site.id)}
-					<li>
-						<button type="button" onclick={() => onchoose(site)}>
-							<SiteGlyph kind={site.kind} />
-							<span class="pair">
-								<span class="name">{site.name}</span>
-								<span class="lesser">{detail(site, text)}</span>
-							</span>
-						</button>
-					</li>
-				{/each}
-			</ul>
+			{#if shown.length > 0}
+				<ul class="card" aria-label="Flying sites">
+					{#each shown as site (site.id)}
+						{@render row(site, false)}
+					{/each}
+				</ul>
+			{/if}
+			{#if apart.length > 0 && left}
+				<!-- Neither a fit nor left out: apart, under the core's heading and sentence. -->
+				<h3 class="apart numeric">{left.unsaidTitle}</h3>
+				<p class="apart-note">{left.unsaidNote}</p>
+				<ul class="card" aria-label={left.unsaidTitle}>
+					{#each apart as site (site.id)}
+						{@render row(site, true)}
+					{/each}
+				</ul>
+			{/if}
 		{/if}
 		<!-- What a sign on a map is worth is said wherever sites are listed. -->
 		<p class="footnote">
@@ -107,7 +164,63 @@
 		box-shadow: inset 0 0.5px 0 var(--separator);
 	}
 
-	button {
+	/* The filter in a line, a row to press: the pack's link colour, as the
+	   forecast card's "Key and notes". */
+	.fold {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		width: 100%;
+		min-height: var(--target);
+		color: var(--link);
+		font-size: var(--subheadline);
+		font-weight: 600;
+		text-align: left;
+	}
+
+	.fold :global(svg) {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.filter-words {
+		flex: 1;
+		min-width: 0;
+	}
+
+	/* The pack's forward chevron, turned to point down, and up once unfolded. */
+	.turn {
+		display: grid;
+		transform: rotate(90deg);
+	}
+
+	.turn.up {
+		transform: rotate(-90deg);
+	}
+
+	.choices {
+		margin-bottom: var(--space-3);
+		padding: var(--space-3);
+		border-radius: var(--radius-card);
+		background: var(--surface);
+	}
+
+	.left,
+	.apart-note {
+		margin: 0 0 var(--space-2);
+		padding: 0 var(--space-1);
+		color: var(--text-secondary);
+		font-size: var(--footnote);
+	}
+
+	.apart {
+		margin: var(--space-4) 0 var(--space-1);
+		padding: 0 var(--space-1);
+		font-size: var(--subheadline);
+		font-weight: 600;
+	}
+
+	li button {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
@@ -118,16 +231,16 @@
 	}
 
 	@media (hover: hover) {
-		button:hover {
+		li button:hover {
 			background: var(--fill);
 		}
 	}
 
-	button:active {
+	li button:active {
 		background: var(--fill-strong);
 	}
 
-	button:focus-visible {
+	li button:focus-visible {
 		outline-offset: -0.1875rem;
 		border-radius: 0.5rem;
 	}

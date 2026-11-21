@@ -24,6 +24,8 @@
 		location: 'M20 4 4.5 10.3l6.6 2.6 2.6 6.6L20 4Z',
 		mountain: 'm2.5 19 7-12 3.8 6.5 2.4-3.4L21.5 19h-19Z',
 		triangle: 'M12 5 3.5 19h17L12 5Z',
+		// Lucide's "list-filter": the pack has no icon for a filter.
+		filter: 'M4 7h16M7 12h10M10 17h4',
 		settings: 'M4 7h8M16 7h4M4 12h2M10 12h10M4 17h10M18 17h2M14 4.5v5M8 9.5v5M16 14.5v5',
 		link: 'M10.5 13.5a4 4 0 0 0 5.66 0l2.84-2.84a4 4 0 0 0-5.66-5.66l-.84.84M13.5 10.5a4 4 0 0 0-5.66 0L5 13.34A4 4 0 0 0 10.66 19l.84-.84',
 		check: 'M5 12.5 10 17.5 19 7',

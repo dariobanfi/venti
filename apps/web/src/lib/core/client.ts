@@ -17,6 +17,7 @@ import type {
 	PlanDraft,
 	ReportReason,
 	ReportSubject,
+	SitesFilter,
 	SiteView,
 	TodayStanding,
 	WindStation
@@ -166,6 +167,16 @@ export class CoreClient {
 	/** The flying sites in a box of the map. Nothing if this site has no server. */
 	sites(box: Bounds) {
 		return this.#call('sites', box);
+	}
+
+	/** The choices the filter of sites offers, with the core's words. */
+	sitesFilterChoices() {
+		return this.#call('sitesFilterChoices', undefined);
+	}
+
+	/** What a filter leaves of sites the page holds, and the core's words for it. */
+	filterSites(sites: SiteView[], filter: SitesFilter) {
+		return this.#call('filterSites', { sites, filter });
 	}
 
 	/**

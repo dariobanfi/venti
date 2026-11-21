@@ -2797,6 +2797,148 @@ class VentiUiTest {
         assertFalse(exists(hasTestTag("forecast-table")))
     }
 
+    /**
+     * Choosing among the sites: the filter beside the list's button, a
+     * wind chosen, what the core says it leaves, the take-offs whose source
+     * names no wind dimmed on the map and apart in the list, and a site
+     * mapped as an area drawn as one. The development server's sites
+     * between the Tegernsee and the Achensee: a take-off on the
+     * Vorderunnutz that works in a south-west wind, three east of the
+     * Tegernsee that name none. In the dark appearance only the map is
+     * looked at. Skipped without a server.
+     */
+    private fun chooseAmongTheSites(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        // The wind's arrows and the gliders off, so that the signs are seen.
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.59, lon = 11.845, zoom = 10.0))
+        waitFor(described("Flying sites"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0) > 0
+        }
+        // No filter yet: no line about one on the map.
+        assertFalse(exists(hasTestTag("sites-filter-card")))
+        val before = TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: 0
+
+        // The filter, in the core's words: three groups of choices and its note.
+        tap(hasTestTag("sites-filter-open"))
+        waitFor(hasTestTag("sites-filter-note"))
+        for (words in listOf("Show", "All sites", "Take-offs", "Landings", "Take-offs for a wind from", "Take-offs from", "1000 m", "1500 m", "2000 m")) {
+            assertTrue(words, exists(hasText(words) and hasAnyAncestor(hasTestTag("sites-filter"))))
+        }
+        assertTrue(exists(hasTestTag("sites-wind-any") and isSelected()))
+        assertTrue(exists(hasTestTag("sites-filter-note") and hasText("not permission to fly there", substring = true)))
+        // The forecast's wind is not at hand on the map and is not offered.
+        assertFalse(exists(hasText("Forecast now")))
+        TestDevice.say("sites-measured-now", exists(hasTestTag("sites-wind-measured-now")).toString())
+        if (!dark) {
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-sites-filter-1-control")
+        }
+
+        // A wind from the south-west: what it leaves, in three lines.
+        tapChip("sites-wind-SW")
+        waitFor(hasTestTag("sites-wind-SW") and isSelected())
+        val inTheSheet = hasAnyAncestor(hasTestTag("sites-filter"))
+        waitFor(hasTestTag("sites-filter-words") and inTheSheet and hasText("All sites, take-offs for a wind from SW"))
+        val fits = Regex("[1-9]\\d* of \\d+ take-offs fits? a wind from SW")
+        val apart = Regex("\\d+ take-offs give no wind directions")
+        waitFor(hasTestTag("sites-filter-leaves") and inTheSheet and written(fits))
+        waitFor(hasTestTag("sites-filter-unsaid") and inTheSheet and written(apart))
+        TestDevice.say("sites-filter-leaves", textOf(hasTestTag("sites-filter-leaves") and inTheSheet))
+        TestDevice.say("sites-filter-unsaid", textOf(hasTestTag("sites-filter-unsaid") and inTheSheet))
+        if (!dark) {
+            letTheMapDraw(1)
+            keepScreenshot("$prefix-sites-filter-2-wind-chosen")
+            // Under "Landings" neither the wind nor the height is asked or offered.
+            tap(hasText("Landings") and inTheSheet)
+            waitFor(hasTestTag("sites-filter-words") and inTheSheet and hasText("Landings"))
+            waitFor(hasTestTag("sites-filter-leaves") and inTheSheet and written(Regex("\\d+ landings")))
+            assertFalse(exists(hasTestTag("sites-filter-winds")))
+            assertFalse(exists(hasTestTag("sites-filter-heights")))
+            assertFalse(exists(hasTestTag("sites-filter-unsaid") and inTheSheet))
+            // Back to all sites: the wind is as it was chosen.
+            tap(hasText("All sites") and inTheSheet)
+            waitFor(hasTestTag("sites-wind-SW") and isSelected())
+        }
+        tap(hasTestTag("sites-filter-done"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("sites-filter-note")) }
+
+        // The map: the line of the filter, the button as a chip that is
+        // on, the take-offs that fit as ever, those that do not say
+        // dimmed, and fewer signs than before.
+        waitFor(hasTestTag("sites-filter-card"))
+        // The card's lines are one element: the filter, what it leaves, what is shown apart.
+        val lines = hasTestTag("sites-filter-lines")
+        assertTrue(exists(lines and hasText("All sites, take-offs for a wind from SW")))
+        assertTrue(exists(lines and written(fits)))
+        assertTrue(exists(lines and written(apart)))
+        assertTrue(exists(hasTestTag("sites-filter-open") and isSelected()))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites") ?: before) < before
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-sites-filter-3-map")
+        if (dark) return
+
+        // The list: the filter where its title stands, what it leaves, the
+        // sites that fit first, and those whose source does not say apart
+        // under the core's heading and sentence.
+        tap(described("Flying sites"))
+        waitFor(hasTestTag("site-list-title") and hasText("All sites, take-offs for a wind from SW"))
+        assertTrue(exists(hasTestTag("site-list-leaves") and written(fits)))
+        val list = screen.onNode(hasTestTag("site-list"))
+        list.performScrollToNode(hasTestTag("site-row") and described("Startmöglichkeit Vorderunnutz"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-filter-4-list")
+        list.performScrollToNode(hasTestTag("site-list-unsaid"))
+        assertTrue(exists(written(apart) and hasAnyAncestor(hasTestTag("site-list-unsaid"))))
+        assertTrue(exists(hasText("They are shown apart, not left out.", substring = true)))
+        list.performScrollToNode(hasTestTag("site-row-unsaid") and described("Fluggelände Jägerkamp/Nagelspitz"))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-sites-filter-5-list-shown-apart")
+        // A take-off that faces another wind is in neither part.
+        assertTrue(runCatching { list.performScrollToNode(described("Startmöglichkeit Heuberg")) }.isFailure)
+        tap(hasText("Done"))
+        waitFor(hasTestTag("sites-filter-card"))
+
+        // A landing field as a field: its outline under its sign, close up.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6924, lon = 11.8865, zoom = 14.5))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites-areas") ?: 0) > 0
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-sites-filter-6-landing-field")
+        // And a take-off mapped as an area, one of those shown apart: dimmed, its outline too.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6791, lon = 11.9051, zoom = 14.5))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "flying-sites-areas") ?: 0) > 0
+        }
+        letTheMapDraw()
+        keepScreenshot("$prefix-sites-filter-7-takeoff-area-shown-apart")
+    }
+
+    /** Something whose text is all of what this pattern describes. */
+    private fun written(pattern: Regex) = SemanticsMatcher("is written as ${pattern.pattern}") { node ->
+        node.config.getOrNull(SemanticsProperties.Text)?.any { pattern.matches(it.text) } == true
+    }
+
+    /** The first text of the first thing that matches, for the test's log. */
+    private fun textOf(what: SemanticsMatcher): String =
+        screen.onAllNodes(what).fetchSemanticsNodes().firstOrNull()
+            ?.config?.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text.orEmpty()
+
+    @Test
+    fun thePilotChoosesAmongTheSites() = chooseAmongTheSites("light", dark = false)
+
+    @Test
+    fun choosingAmongTheSitesInDarkAppearance() = chooseAmongTheSites("dark", dark = true)
+
     @Test
     fun theMapShowsFlyingSitesFromAServer() = lookAtTheFlyingSites("light", dark = false)
 

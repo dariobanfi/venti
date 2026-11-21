@@ -14,6 +14,7 @@ import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
 import fly.venti.app.radar.RadarLayer
 import fly.venti.app.radar.RadarPicture
+import fly.venti.app.sites.SiteAreas
 import fly.venti.app.sites.SiteFeature
 import fly.venti.app.sites.SiteSymbols
 import fly.venti.app.wind.WindFeature
@@ -38,6 +39,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
@@ -112,6 +114,10 @@ class OverviewMap : MapContent {
     private var drawnAirspace: List<AirspaceShape>? = null
     private var sites: List<SiteView> = emptyList()
     private var drawnSites: List<SiteView>? = null
+
+    /** The sites shown apart from those that fit the pilot's filter: drawn dimmed. */
+    private var unsaidSites: List<SiteView> = emptyList()
+    private var drawnUnsaidSites: List<SiteView>? = null
     private var gliders: List<LiveGlider> = emptyList()
     private var drawnGliders: List<LiveGlider>? = null
     private var followed: List<TrailPointView> = emptyList()
@@ -218,7 +224,13 @@ class OverviewMap : MapContent {
         covered: Covered,
         /** Where the pilot's groups plan to fly today and tomorrow. */
         pins: List<PlanPin> = emptyList(),
+        /**
+         * The sites of which their source does not say what the pilot's
+         * filter asks: drawn dimmed, apart from `sites`, which fit.
+         */
+        unsaidSites: List<SiteView> = emptyList(),
     ) {
+        this.unsaidSites = unsaidSites
         this.pins = pins
         this.outlines = outlines
         this.stations = stations
@@ -487,6 +499,25 @@ class OverviewMap : MapContent {
         for ((name, picture) in SiteSymbols.all(view.context)) {
             style.addImage(name, picture)
         }
+        // A site mapped as an area, a landing field mostly: its outline
+        // under the signs, from the zoom at which it is more than a dot.
+        val dimmed = Expression.eq(Expression.get(SiteFeature.DIMMED), Expression.literal(true))
+        style.addSource(GeoJsonSource(SiteAreas.SOURCE))
+        style.addLayer(
+            FillLayer(SiteAreas.FILL, SiteAreas.SOURCE).withProperties(
+                PropertyFactory.fillColor(
+                    Expression.switchCase(dimmed, Expression.color(SiteAreas.dimmedColour), Expression.color(SiteAreas.colour)),
+                ),
+                PropertyFactory.fillOpacity(SiteAreas.FILL_OPACITY),
+            ).apply { minZoom = SiteAreas.FROM_ZOOM },
+        )
+        style.addLayer(
+            MapSetup.line(SiteAreas.EDGE, SiteAreas.SOURCE, SiteAreas.colour, SiteAreas.EDGE_WIDTH).withProperties(
+                PropertyFactory.lineColor(
+                    Expression.switchCase(dimmed, Expression.color(SiteAreas.dimmedColour), Expression.color(SiteAreas.colour)),
+                ),
+            ).apply { minZoom = SiteAreas.FROM_ZOOM },
+        )
         style.addSource(GeoJsonSource(SITES))
         style.addLayer(
             SymbolLayer(SITES, SITES).withProperties(
@@ -499,7 +530,10 @@ class OverviewMap : MapContent {
                 PropertyFactory.textSize(12f),
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
                 PropertyFactory.textOffset(arrayOf(0f, 0.2f)),
-                PropertyFactory.textColor(MapSetup.ink),
+                // The name of a site shown apart is dimmed with its sign.
+                PropertyFactory.textColor(
+                    Expression.switchCase(dimmed, Expression.color(SiteAreas.dimmedColour), Expression.color(MapSetup.ink)),
+                ),
                 PropertyFactory.textHaloColor(Palette.haloOnMap.toArgb()),
                 PropertyFactory.textHaloWidth(1.4f),
                 PropertyFactory.textOptional(true),
@@ -510,9 +544,12 @@ class OverviewMap : MapContent {
     /** Draws the flying sites, once the style is there and only when they have changed. */
     private fun drawSites() {
         val source = style?.getSourceAs<GeoJsonSource>(SITES) ?: return
-        if (sites == drawnSites) return
+        if (sites == drawnSites && unsaidSites == drawnUnsaidSites) return
         drawnSites = sites
-        source.setGeoJson(FeatureCollection.fromFeatures(sites.map(SiteFeature::of)))
+        drawnUnsaidSites = unsaidSites
+        source.setGeoJson(FeatureCollection.fromFeatures(SiteFeature.all(sites, unsaidSites)))
+        style?.getSourceAs<GeoJsonSource>(SiteAreas.SOURCE)
+            ?.setGeoJson(FeatureCollection.fromFeatures(SiteAreas.all(sites, unsaidSites)))
     }
 
     /**

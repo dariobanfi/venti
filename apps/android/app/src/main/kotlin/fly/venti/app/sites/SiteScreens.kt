@@ -120,6 +120,8 @@ fun SiteSheet(
     chosen: SiteView?,
     onChoose: (SiteView?) -> Unit,
     onDismiss: () -> Unit,
+    /** Opens the filter of the sites from their list; `null` where the list has none. */
+    onFilter: (() -> Unit)? = null,
     /** Everyone's flights on Venti, for what was flown from a site; `null` for none. */
     community: CommunityModel? = null,
     /** Opens a flight flown from the site, on its own page. */
@@ -190,7 +192,7 @@ fun SiteSheet(
                     actions = actions,
                 )
             } else {
-                SiteList(sites, onOpen = onChoose, onDone = onDismiss)
+                SiteList(sites, onOpen = onChoose, onDone = onDismiss, onFilter = onFilter)
             }
         }
     }
@@ -275,17 +277,35 @@ private sealed interface FromASite {
  * reach symbols drawn on a map.
  */
 @Composable
-private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -> Unit) {
+private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -> Unit, onFilter: (() -> Unit)?) {
     var search by rememberSaveable { mutableStateOf("") }
     val wanted = search.trim()
-    val shown = remember(sites.sites, wanted) { SiteWords.listed(sites.sites, wanted) }
+    // The map's filter is the list's: the sites that fit first, then those
+    // whose source does not say, under the core's heading and sentence.
+    val filtered = sites.filtered
+    val fitting = remember(filtered, wanted) { SiteWords.listed(filtered.fitting, wanted) }
+    val unsaid = remember(filtered, wanted) { SiteWords.listed(filtered.unsaid, wanted) }
 
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Flying sites", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            // While a filter is on, the filter in the core's line stands where the title stands.
+            Text(
+                if (filtered.isOn) filtered.filterWords else "Flying sites",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).testTag("site-list-title"),
+            )
+            if (onFilter != null && sites.sites.isNotEmpty()) {
+                IconButton(onClick = onFilter, modifier = Modifier.size(VentiSize.touch).testTag("site-list-filter")) {
+                    Icon(
+                        painterResource(R.drawable.ic_filter),
+                        contentDescription = SitesFilterWords.TITLE,
+                        tint = if (filtered.isOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             TextButton(onClick = onDone) { Text("Done") }
         }
         if (sites.sites.isEmpty()) {
@@ -294,6 +314,15 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 sites.problem ?: "Zoom the map in on an area, and the sites its source knows there are listed.",
             )
         } else {
+            if (filtered.isOn) {
+                // What the filter leaves of the sites on this part of the map.
+                Text(
+                    filtered.words,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp).testTag("site-list-leaves"),
+                )
+            }
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
@@ -307,19 +336,40 @@ private fun SiteList(sites: SitesModel, onOpen: (SiteView) -> Unit, onDone: () -
                 shape = MaterialTheme.shapes.extraLarge,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            if (shown.isEmpty()) {
+            if (fitting.isEmpty() && unsaid.isEmpty() && wanted.isNotEmpty()) {
                 EmptyList(
                     "No site of that name",
                     "None of the sites on this part of the map is called “$wanted”.",
                 )
             } else {
                 LazyColumn(modifier = Modifier.testTag("site-list"), contentPadding = PaddingValues(bottom = 32.dp)) {
-                    items(shown, key = { it.id }) { site ->
+                    items(fitting, key = { it.id }) { site ->
                         SiteRow(site, onClick = { onOpen(site) })
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 64.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                         )
+                    }
+                    if (unsaid.isNotEmpty()) {
+                        // Shown apart, not left out: the core's heading and what it means.
+                        item(key = "unsaid") {
+                            Column(Modifier.padding(horizontal = 16.dp).testTag("site-list-unsaid")) {
+                                SectionHeader(filtered.unsaidTitle)
+                                Text(
+                                    filtered.unsaidNote,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                                )
+                            }
+                        }
+                        items(unsaid, key = { it.id }) { site ->
+                            SiteRow(site, onClick = { onOpen(site) }, dimmed = true)
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 64.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                            )
+                        }
                     }
                     item {
                         SectionFooter(
@@ -359,12 +409,12 @@ private fun EmptyList(title: String, text: String) {
 
 /** One site in a line: its sign, its name, and what else is known of it. */
 @Composable
-private fun SiteRow(site: SiteView, onClick: () -> Unit) {
+private fun SiteRow(site: SiteView, onClick: () -> Unit, dimmed: Boolean = false) {
     val detail = SiteWords.detail(site)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("site-row")
+            .testTag(if (dimmed) "site-row-unsaid" else "site-row")
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 64.dp)
             .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -375,7 +425,7 @@ private fun SiteRow(site: SiteView, onClick: () -> Unit) {
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SiteGlyph(site.kind)
+        SiteGlyph(site.kind, dimmed = dimmed)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(site.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -100,6 +100,9 @@ interface Preferences {
     /** Whether the map tab shows the rain radar. Off until the pilot switches it on. */
     var mapShowsRadar: Boolean
 
+    /** What the pilot asks of the sites on the map, as `SitesFilterWords.kept` writes it; `null` for nothing. */
+    var mapSitesFilter: String?
+
     /** The folder Venti brings new flight files in from whenever it opens, as Android names it; empty for none. */
     var watchedFolder: String
 
@@ -234,6 +237,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsRadar", false)
         set(value) = store.edit { putBoolean("VentiMapShowsRadar", value) }
 
+    override var mapSitesFilter: String?
+        get() = store.getString("VentiMapSitesFilter", null)
+        set(value) = store.edit { putString("VentiMapSitesFilter", value) }
+
     override var watchedFolder: String
         get() = store.getString("VentiWatchedFolder", null).orEmpty()
         set(value) = store.edit { putString("VentiWatchedFolder", value) }
@@ -294,6 +301,7 @@ class MemoryPreferences : Preferences {
     override var mapShowsThermals = false
     override var mapShowsForecast = false
     override var mapShowsRadar = false
+    override var mapSitesFilter: String? = null
     override var watchedFolder = ""
     override var watchedSeen: Set<String> = emptySet()
 }

@@ -88,6 +88,10 @@ import fly.venti.app.radar.RadarModel
 import fly.venti.app.radar.RadarWords
 import kotlinx.coroutines.Job
 import fly.venti.app.sites.SiteSheet
+import fly.venti.app.sites.SitesFilterCard
+import fly.venti.app.sites.SitesFilterSheet
+import fly.venti.app.sites.SitesFilterWords
+import androidx.compose.runtime.SideEffect
 import fly.venti.app.sites.KeptSitesModel
 import fly.venti.app.sites.SitesModel
 import fly.venti.app.waypoints.WaypointsModel
@@ -168,6 +172,8 @@ fun MapScreen(
     // A plan whose mark on the map was tapped: the board opens at it.
     var planOnMap by remember { mutableStateOf<String?>(null) }
     var chosenSite by remember { mutableStateOf<SiteView?>(null) }
+    // The filter of the sites, open over the map or over the list.
+    var showsSitesFilter by remember { mutableStateOf(false) }
     var showsGliders by remember { mutableStateOf(false) }
     // The glider whose page is open, by its track's identifier: the page
     // shows it as the newest answer has it.
@@ -280,7 +286,21 @@ fun MapScreen(
     val airspaceInView = remember(region, all, airspaceCeiling) {
         region?.takeIf { showsAirspace && !hidesAirspace }?.let { airspace.shapes(it, airspaceCeiling) }.orEmpty()
     }
-    val flyingSites = if (hidesSites) emptyList() else sites.sites
+    // What the pilot asks of the sites, as they left it. The wind of
+    // "Measured now" is the station's nearest the middle of the map.
+    LaunchedEffect(sites, preferences) {
+        if (preferences != null) sites.filter = SitesFilterWords.read(preferences.mapSitesFilter)
+    }
+    val middle = region?.let { Coordinate(lat = (it.south + it.north) / 2, lon = (it.west + it.east) / 2) }
+    val windStations = wind.stations
+    val measuredNow = remember(windStations, middle) { middle?.let { SitesFilterWords.measuredNow(windStations, it) } }
+    SideEffect { sites.measuredNowDeg = measuredNow }
+    // The sites the filter leaves: those that fit as ever, those whose
+    // source does not say dimmed, the rest not drawn. Which is the core's.
+    val filtered = sites.filtered
+    val hasSites = !hidesSites && sites.sites.isNotEmpty()
+    val flyingSites = if (hidesSites) emptyList() else filtered.fitting
+    val unsaidSites = if (hidesSites) emptyList() else filtered.unsaid
     val gliders = if (hidesPilots) emptyList() else live.gliders
     // Where the pilot's groups plan to fly today and tomorrow.
     val pins = groups.pins()
@@ -334,7 +354,7 @@ fun MapScreen(
                 map.showForecast(squares)
                 map.showHours(hourShapes, hourLegend, byTheHour)
                 map.showRadar(if (showsRadar) radar.shown else null)
-                map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins)
+                map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
                 map.follow(isFollowing)
             },
         )
@@ -397,6 +417,15 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomStart),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         ) {
+            if (hasSites && filtered.isOn) {
+                // What the pilot asks of the sites and what that leaves,
+                // while a filter is on: a tap opens the filter.
+                SitesFilterCard(
+                    filtered,
+                    onOpen = { showsSitesFilter = true },
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
+                )
+            }
             if (showsRadar) {
                 // The frames and the key of the rain radar, over the
                 // forecast map's card when both layers show.
@@ -444,7 +473,7 @@ fun MapScreen(
                 // Clear of the map's own credits button on the left and of
                 // the round buttons on the right.
                 Credits(credits, Modifier.padding(start = 44.dp, end = 88.dp, bottom = 8.dp))
-            } else if (showsForecast || showsRadar) {
+            } else if (showsForecast || showsRadar || (hasSites && filtered.isOn)) {
                 // The card stands clear of the map's own credits button.
                 Spacer(Modifier.height(VentiSpace.s6))
             }
@@ -459,9 +488,19 @@ fun MapScreen(
                 // numbers side by side, and for pilots who use TalkBack.
                 MapButton(R.drawable.venti_wind, "Wind stations") { showsStations = true }
             }
-            if (flyingSites.isNotEmpty()) {
-                // The signs on the map, as a list.
+            if (hasSites) {
+                // The signs on the map, as a list; and beside it what the
+                // pilot asks of them, drawn as a selected chip while a
+                // filter is on. Both stay when a filter leaves no site.
                 MapButton(R.drawable.venti_site, "Flying sites") { showsSites = true }
+                RoundButton(
+                    R.drawable.ic_filter,
+                    SitesFilterWords.TITLE,
+                    Modifier.testTag("sites-filter-open"),
+                    isOn = filtered.isOn,
+                    fillsWhenOn = true,
+                    onClick = { showsSitesFilter = true },
+                )
             }
             if (gliders.isNotEmpty()) {
                 // Who is in the air on this part of the map, as a list.
@@ -521,6 +560,7 @@ fun MapScreen(
                 chosenSite = null
                 showsSites = false
             },
+            onFilter = { showsSitesFilter = true },
             community = community,
             onOpenFlight = { flight ->
                 chosenSite = null
@@ -544,6 +584,15 @@ fun MapScreen(
                     },
                 )
             },
+        )
+    }
+
+    // Over the map, or over the list of sites when it was opened from there.
+    if (showsSitesFilter) {
+        SitesFilterSheet(
+            sites,
+            onChange = { filter -> preferences?.mapSitesFilter = SitesFilterWords.kept(filter) },
+            onDismiss = { showsSitesFilter = false },
         )
     }
 

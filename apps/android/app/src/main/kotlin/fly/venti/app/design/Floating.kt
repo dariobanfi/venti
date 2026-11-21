@@ -85,16 +85,26 @@ fun RoundButton(
     tint: Color = Venti.colours.text,
     /** For a button that switches something on: then its sign is in the link colour, and it says it is selected. */
     isOn: Boolean? = null,
+    /**
+     * For a button that is on while a choice behind it is: then it is
+     * drawn as the selected chip is, the primary ground with its ink.
+     */
+    fillsWhenOn: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val filled = fillsWhenOn && isOn == true
     Surface(
         onClick = onClick,
         modifier = modifier.size(VentiSize.touch).then(
             if (isOn != null) Modifier.semantics { selected = isOn } else Modifier,
         ),
         shape = PillShape,
-        color = Venti.colours.surface,
-        contentColor = if (isOn == true) Venti.colours.link else tint,
+        color = if (filled) Venti.colours.primary else Venti.colours.surface,
+        contentColor = when {
+            filled -> Venti.colours.onPrimary
+            isOn == true -> Venti.colours.link
+            else -> tint
+        },
         shadowElevation = FloatElevation,
     ) {
         Box(contentAlignment = Alignment.Center) {

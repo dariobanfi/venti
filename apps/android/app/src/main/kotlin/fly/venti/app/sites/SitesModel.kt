@@ -1,5 +1,6 @@
 package fly.venti.app.sites
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -13,6 +14,10 @@ import fly.venti.core.Bounds
 import fly.venti.core.CoreException
 import fly.venti.core.Credit
 import fly.venti.core.SiteView
+import fly.venti.core.SitesFilter
+import fly.venti.core.SitesFiltered
+import fly.venti.core.SitesWindIs
+import fly.venti.core.filterSites
 import fly.venti.core.sitesMap
 import fly.venti.core.sitesPath
 import kotlinx.coroutines.CancellationException
@@ -45,6 +50,34 @@ class SitesModel(
     /** The sites around the part of the map in view. */
     var sites: List<SiteView> by mutableStateOf(emptyList())
         private set
+
+    /**
+     * What the pilot asks of the sites, on the map and in the list: one
+     * filter for both. With "Measured now" its direction is [measuredNowDeg],
+     * whatever it was when the pilot chose it.
+     */
+    var filter: SitesFilter by mutableStateOf(SitesFilterWords.NOTHING)
+
+    /**
+     * Where the wind comes from at the station the screen reads "Measured
+     * now" from, degrees; `null` while it has none to give.
+     */
+    var measuredNowDeg: Double? by mutableStateOf(null)
+
+    /** The filter as the core is asked it: with the wind of now, where that is what the pilot chose. */
+    val asked: SitesFilter
+        get() = when (filter.windIs) {
+            SitesWindIs.MEASURED_NOW -> filter.copy(windFromDeg = measuredNowDeg)
+            // No screen offers the forecast's wind: a filter kept with it asks about no wind.
+            SitesWindIs.FORECAST_NOW -> filter.copy(windFromDeg = null)
+            SitesWindIs.CHOSEN -> filter
+        }
+
+    /**
+     * What the filter leaves of the sites, and every word about it: the
+     * core's. Worked out again only when the sites or the filter change.
+     */
+    val filtered: SitesFiltered by derivedStateOf { filterSites(sites, asked) }
 
     /** Whose data they are. The licences ask for this next to the data. */
     var credits: List<Credit> by mutableStateOf(emptyList())

@@ -23,7 +23,8 @@
 //!    the instance holds, when that run began and when the instance had it
 //!    ready.
 //! 2. `{base}/v1/forecast` for the place and that one model, hour by hour
-//!    for today and the two days after, in UTC. Wind is asked for in m/s
+//!    for today and the days after that the model's runs reach, in UTC:
+//!    two more for ICON-D2, three more for ICON-EU. Wind is asked for in m/s
 //!    and times as seconds since 1970. `cell_selection=nearest` and
 //!    `elevation=nan` ask for the model's own value in the nearest cell:
 //!    without them Open-Meteo looks for a cell at a similar height and
@@ -105,13 +106,12 @@ pub const HEIGHTS_M: [u32; 3] = [80, 120, 180];
 /// all five.
 pub const PRESSURES_HPA: [u32; 5] = [950, 850, 700, 600, 500];
 
-/// The days a forecast is asked for: today and the two after, in UTC.
-const FORECAST_DAYS: u32 = 3;
-
-/// How many places one request asks for at most. The answer of one model
-/// for one place is about 19 kB (19.2 kB on average for 80 places of the
-/// first region on 2026-11-21), so 80 places are about 1.5 MB, under the
-/// manifest's limit of 2 MB for one answer with room for longer numbers.
+/// How many places one request asks for at most. Measured on 2026-11-21
+/// over the grid of the first region: ICON-D2's answers for the whole
+/// grid, 72 hours a place, were 1.10 to 1.55 MB (19.2 kB a place), and
+/// ICON-EU's for the first 80 places, 96 hours each, 1,981,505 bytes
+/// (24.8 kB a place). The manifest's limit for one answer is 4096 kB,
+/// twice that, with room for longer numbers elsewhere on the grid.
 pub const PLACES_PER_REQUEST: usize = 80;
 
 /// A weather model the adapter asks for.
@@ -128,6 +128,13 @@ struct Model {
     main_reach_h: i64,
     /// The same for a run that begins at 03, 09, 15 or 21 UTC.
     between_reach_h: i64,
+    /// How many days the model is asked for, today in UTC being the
+    /// first: as many as its longest run reaches into hour by hour. A run
+    /// of ICON-D2 ends on the day after tomorrow at the latest. A run of
+    /// ICON-EU from 18 UTC ends 78 hours later at midnight, with the
+    /// third day after today: four days hold all of it but that one
+    /// hour of the night.
+    days: u32,
 }
 
 /// The models, as Open-Meteo's own downloader takes them from Deutscher
@@ -141,6 +148,7 @@ const MODELS: [Model; 2] = [
         updraft: true,
         main_reach_h: 48,
         between_reach_h: 48,
+        days: 3,
     },
     Model {
         id: "icon-eu",
@@ -148,6 +156,7 @@ const MODELS: [Model; 2] = [
         updraft: false,
         main_reach_h: 78,
         between_reach_h: 30,
+        days: 4,
     },
 ];
 
@@ -183,8 +192,9 @@ const ALOFT: [(&str, &str, &str); 4] = [
 
 /// The fields in which a height of zero or less means "there is none".
 /// ICON writes -500 m where it has no convective cloud. In the answers
-/// recorded on 2026-11-19 an instance handed that on unchanged for ICON-EU
-/// and had turned it into 0 for ICON-D2. Neither is a height.
+/// recorded on 2026-11-19, and in those recorded on 2026-11-21, an
+/// instance handed that on unchanged for the hours of ICON-EU's run and
+/// had turned it into 0 for ICON-D2. Neither is a height.
 const NO_CLOUD: [&str; 2] = ["convective_cloud_base_m", "convective_cloud_top_m"];
 
 /// The fields the model counts the other way round. ICON's sensible heat
@@ -259,13 +269,14 @@ impl OpenMeteo {
         let heights = vec!["nan"; points.len()].join(",");
         format!(
             "{}/v1/forecast?latitude={}&longitude={}&models={}&hourly={}\
-             &forecast_days={FORECAST_DAYS}&wind_speed_unit=ms&timeformat=unixtime\
+             &forecast_days={}&wind_speed_unit=ms&timeformat=unixtime\
              &elevation={heights}&cell_selection=nearest",
             self.base,
             list(GeoPoint::lat),
             list(GeoPoint::lon),
             model.name,
-            variables.join(",")
+            variables.join(","),
+            model.days
         )
     }
 }
@@ -658,8 +669,9 @@ impl OpenMeteo {
             skipped.push(Skipped::new(
                 name,
                 format!(
-                    "the run of {} holds no hour of today and the two days after",
-                    run.began.format("%Y-%m-%d %H:%M UTC")
+                    "the run of {} holds no hour of today and the {} days after",
+                    run.began.format("%Y-%m-%d %H:%M UTC"),
+                    run.model.days - 1
                 ),
             ));
         }
@@ -852,6 +864,10 @@ mod tests {
         );
         assert!(url.ends_with(
             "&forecast_days=3&wind_speed_unit=ms&timeformat=unixtime&elevation=nan&cell_selection=nearest"
+        ));
+        // ICON-EU's main runs reach a day further, and it is asked for it.
+        assert!(source().series_url(&MODELS[1], &[point]).ends_with(
+            "&forecast_days=4&wind_speed_unit=ms&timeformat=unixtime&elevation=nan&cell_selection=nearest"
         ));
         assert!(url.contains(",updraft,"));
         assert!(url.contains("wind_speed_80m,wind_direction_80m,temperature_80m,wind_speed_120m"));

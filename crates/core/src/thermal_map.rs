@@ -245,7 +245,7 @@ fn day_note(whole: bool, coarser: Option<String>, finest: &str) -> String {
     if let Some(coarser) = coarser {
         note.push(format!(
             "This day is read from {coarser}: {finest} does not reach it. {coarser}'s cells \
-             are wider than {finest}'s, so the day is a coarser reading than the days before."
+             are wider than {finest}'s, so the day is a coarser reading than {finest}'s days."
         ));
     }
     if !whole {
@@ -556,13 +556,61 @@ mod tests {
         assert_eq!(
             map.days[2].note,
             "This day is read from ICON-EU: ICON-D2 does not reach it. ICON-EU's cells are \
-             wider than ICON-D2's, so the day is a coarser reading than the days before."
+             wider than ICON-D2's, so the day is a coarser reading than ICON-D2's days."
         );
         // Both things said of a day that is the coarser model's and not
         // whole.
         let note = day_note(false, Some("ICON-EU".to_owned()), "ICON-D2");
         assert!(note.starts_with("This day is read from ICON-EU"));
         assert!(note.ends_with("it can look worse here than it is."));
+    }
+
+    #[test]
+    fn a_fourth_day_has_its_weekday_and_says_that_it_is_coarser_and_not_whole() {
+        // The map as a server sends it after a run of ICON-EU of 00, 06,
+        // 12 or 18 UTC: the day after tomorrow and the day after that are
+        // ICON-EU's, and the last, which such a run seldom reaches the end
+        // of, is not whole.
+        let text = String::from_utf8(body()).unwrap();
+        let with_a_fourth = text.replace(
+            r#""cloud": [true, true, false]}"#,
+            r#""cloud": [true, true, false]},
+                {"date": "2026-07-15", "model": "icon-eu", "run": "2026-07-12T00:00:00Z",
+                 "whole": false,
+                 "verdict": ["flyable", "marginal", null],
+                 "why": [null, "gusts", null],
+                 "thermals": ["local", "weak", null],
+                 "climb_ms": [0.6, 0.2, null], "top_m": [2100, 1500, null],
+                 "cloud": [false, false, false]}"#,
+        );
+        assert_ne!(with_a_fourth, text);
+        let map = thermal_map(200, with_a_fourth.into_bytes(), 7200, NOON).unwrap();
+
+        let names: Vec<&str> = map.days.iter().map(|day| day.name.as_str()).collect();
+        assert_eq!(names, ["Today", "Tomorrow", "Tue", "Wed"]);
+        let last = &map.days[3];
+        assert_eq!(last.date, "2026-07-15");
+        assert_eq!(
+            (last.model.as_str(), last.run_unix_s),
+            ("ICON-EU", 1_783_814_400)
+        );
+        assert!(!last.whole);
+        // Both things are said of it, the model first.
+        assert_eq!(
+            last.note,
+            "This day is read from ICON-EU: ICON-D2 does not reach it. ICON-EU's cells are \
+             wider than ICON-D2's, so the day is a coarser reading than ICON-D2's days. Judged \
+             by the hours the model's runs at hand have of this day, which are not all of its \
+             daylight: it can look worse here than it is."
+        );
+        // It is drawn like any other day: the squares that have a verdict.
+        assert_eq!(last.cells.len(), 2);
+        assert_eq!(last.cells[1].status, "Marginal");
+        assert_eq!(last.cells[1].why, "Gusts");
+        // The day before is the coarser model's as well, and whole: it
+        // says the first thing alone.
+        assert!(map.days[2].whole);
+        assert!(map.days[2].note.ends_with("than ICON-D2's days."));
     }
 
     #[test]

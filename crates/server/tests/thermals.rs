@@ -3,8 +3,8 @@
 //! The development mode makes its map from answers recorded from an
 //! Open-Meteo instance for four places in one request, by the code a real
 //! server runs; its answer is kept as a golden file, which is also the
-//! example in `docs/api.md`. The recorded day is in November: weak
-//! thermals where there are any, and that is what the map says.
+//! example in `docs/api.md`. The recorded days are four of late November:
+//! weak thermals where there are any, and that is what the map says.
 
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ use axum::http::{StatusCode, header};
 use venti_api_types::v1::{
     ErrorCode, THERMALS_PATH, ThermalKind, ThermalMapResponse, ThermalVerdict,
 };
+use venti_domain::Timestamp;
 use venti_regions::RegionPack;
 use venti_server::adapters::{self, Providers};
 use venti_server::api::{Api, Cors};
@@ -58,31 +59,47 @@ async fn the_development_mode_serves_the_map_of_the_recorded_places() {
     assert_eq!(map.attributions.len(), 1);
     assert!(map.attributions[0].text.contains("Open-Meteo.com"));
 
-    // The run of midnight holds today and tomorrow, both whole.
-    let dates: Vec<String> = map.days.iter().map(|day| day.date.to_string()).collect();
-    assert_eq!(dates, ["2026-11-21", "2026-11-22"]);
+    // The runs of 06 UTC of both models hold four days between them.
+    // ICON-D2's reaches 48 hours, to 06 UTC of the 23rd: today and
+    // tomorrow, each with all of its daylight, and nothing of the 23rd by
+    // daylight. ICON-EU's is a main run and reaches 78 hours, to noon UTC
+    // of the 24th: it has the first two days whole as well, and they stay
+    // the finer model's; the 23rd, whole; and of the 24th the hours until
+    // noon, which is a day that is not whole.
+    let runs = adapters::thermal_map_recorded_runs();
+    let (icon_d2, icon_eu) = (runs[0].1, runs[1].1);
+    let days: Vec<(String, &str, Option<Timestamp>, bool)> = map
+        .days
+        .iter()
+        .map(|day| {
+            let model = day.model.as_ref().map_or("", |model| model.as_str());
+            (day.date.to_string(), model, day.run, day.whole)
+        })
+        .collect();
+    assert_eq!(
+        days,
+        [
+            ("2026-11-21".to_owned(), "icon-d2", Some(icon_d2), true),
+            ("2026-11-22".to_owned(), "icon-d2", Some(icon_d2), true),
+            ("2026-11-23".to_owned(), "icon-eu", Some(icon_eu), true),
+            ("2026-11-24".to_owned(), "icon-eu", Some(icon_eu), false),
+        ]
+    );
     for day in &map.days {
-        assert!(day.whole, "{}", day.date);
-        // ICON-EU's run of 21 UTC reaches 30 hours, into the night of the
-        // 22nd: ICON-D2 has both days whole, and has them.
-        assert_eq!(
-            day.model.as_ref().map(|model| model.as_str()),
-            Some("icon-d2")
-        );
-        assert_eq!(day.run, Some(map.run));
         assert_eq!(day.verdict.len(), 4);
+        assert_eq!(day.why.len(), 4);
         assert_eq!(day.thermals.len(), 4);
         assert_eq!(day.climb_ms.len(), 4);
         assert_eq!(day.top_m.len(), 4);
         assert_eq!(day.cloud.len(), 4);
         for cell in 0..4 {
-            // A day that is not flyable says nothing of thermals, and a
-            // November day has no thermals but weak ones.
+            // Every cell has a verdict on every day. A day that is not
+            // flyable says nothing of thermals, and a November day has no
+            // thermals but weak ones.
             match day.verdict[cell] {
-                Some(ThermalVerdict::NotFlyable) | None => {
-                    assert_eq!(day.thermals[cell], None);
-                }
+                Some(ThermalVerdict::NotFlyable) => assert_eq!(day.thermals[cell], None),
                 Some(_) => assert!(matches!(day.thermals[cell], Some(ThermalKind::Weak) | None)),
+                None => panic!("no verdict for cell {cell} on {}", day.date),
             }
             if let Some(climb) = day.climb_ms[cell] {
                 assert_eq!(climb, (climb * 10.0).round() / 10.0);
@@ -158,7 +175,8 @@ async fn a_look_that_sees_a_run_has_the_map_made() {
         .unwrap()
     };
     // The look asks the answers for single places, the map those for
-    // four: the two were recorded hours apart.
+    // four: two sets, each with its own answers about the runs, recorded
+    // together and of the same runs.
     let looked_at = service(adapters::recorded_payloads());
     let map = ThermalMap::on_grid(
         service(adapters::recorded_thermal_payloads()),

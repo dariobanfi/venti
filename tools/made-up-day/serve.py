@@ -2,20 +2,23 @@
 """A Venti server whose forecast is made up: a strong summer day, today.
 
 For UI tests and their screenshots, and for nothing else. The development
-server (`venti-server dev`) answers forecasts from what a weather model
-said on two days in late November: rain, cloud and nothing to climb in.
-The screens that show a cross-country day or a big day cannot be seen
-with it. This program stands in front of a development server and hands
-on everything that server answers, except `GET /v1/forecast`: there it
-keeps the real answer's place, grid cell, model ground and credit, and
-puts made-up hours in place of the model's, for three days from the
-midnight (UTC) of today by the development server's clock: 26 °C under
-cumulus at 3500 m with a light south wind, and by day as much heat from
-the ground as a summer noon gives. Those are the days its made-up map
-has, below: a square of the map and the forecast for its place speak of
-the same days. (Until 2026-11-21 the hours began at the real midnight,
-three days after that clock's, and the map's "Tomorrow" was a day no
-forecast had.)
+server (`venti-server dev`) answers forecasts from what the weather
+models said of four days in late November: rain, cloud and nothing to
+climb in. The screens that show a cross-country day or a big day cannot be
+seen with it. This program stands in front of a development server and
+hands on everything that server answers, except `GET /v1/forecast`: there
+it keeps the real answer's place, grid cell, model ground and credit, and
+puts made-up hours in place of the model's, for four days, 96 hours, from
+the midnight (UTC) of today by the development server's clock: 26 °C
+under cumulus at 3500 m with a light south wind, and by day as much heat
+from the ground as a summer noon gives. Those are the days its made-up
+map has, below: a square of the map and the forecast for its place speak
+of the same days. The forecast has every hour of the fourth day, and the
+map calls that day not whole: the forecast is one made-up series under
+ICON-D2's name, the map's fourth day stands for ICON-EU's. (Until
+2026-11-21 the hours began at the real midnight, three days after that
+clock's, and the map's "Tomorrow" was a day no forecast had; and there
+were three days of both, as the server then had.)
 
 How much heat depends on the place asked for, so that a list of take-offs
 shows more than one kind of day: 550, 300 or 70 W/m² at noon, which the
@@ -27,11 +30,15 @@ a big day in the north-west, a cross-country day beside it, local
 thermals in the south-west, weak ones beside those, a marginal band in the
 east (by gusts) and a corner there that is not flyable (by rain), as
 patches of whole cells.
-Three days from today by the development server's clock (the `time` of its
+Four days from today by the development server's clock (the `time` of its
 health answer, which is the clock the apps name "Today" by; its recorded
 forecasts are of other days), each a step weaker everywhere than the day
 before, with climbs and tops that fit each kind. The first two days are
-ICON-D2's and the third ICON-EU's, as on a real map. The grid is a small one of its own,
+ICON-D2's and the third and the fourth ICON-EU's, as on a real map after
+a run of ICON-EU of 00, 06, 12 or 18 UTC. The fourth is marked as not
+whole (`"whole": false`), as the last day of a real map mostly is, since
+such a run ends on it at 06, 12 or 18 UTC: the apps then show the note of
+a day that was judged without all of its daylight. The grid is a small one of its own,
 five rows by nine columns of a tenth of a degree from 47.5 N 11.5 E,
 unless the development server's map has a grid of 30 cells or more (the
 one recorded has four, too few for six patches); the source, model and
@@ -127,9 +134,10 @@ def made_up(answer, lat, lon, now, today=None):
             run = midnight - datetime.timedelta(hours=3)
             one["run"] = stamp(run)
             one["available_at"] = stamp(run + datetime.timedelta(minutes=70))
+            # Four days, as many as the made-up map has.
             one["hours"] = [
                 hour(midnight + datetime.timedelta(hours=ahead), heat, ground)
-                for ahead in range(72)
+                for ahead in range(96)
             ]
         layer["series"] = series
     return answer
@@ -177,10 +185,10 @@ def made_up_map(real, today=None):
     else:
         ground = [height if height is not None else 800 for height in real.get("ground_m", [])]
     rows, columns = grid["rows"], grid["columns"]
-    computed = real.get("computed_at") or "2026-11-21T03:25:00Z"
+    computed = real.get("computed_at") or "2026-11-21T09:30:00Z"
     today = today or datetime.date.fromisoformat(computed[:10])
     days = []
-    for ahead in range(3):
+    for ahead in range(4):
         verdicts, whys, kinds, climbs, tops, clouds = [], [], [], [], [], []
         for row in range(rows):
             for column in range(columns):
@@ -196,15 +204,18 @@ def made_up_map(real, today=None):
                 climbs.append(climb)
                 tops.append(top)
                 clouds.append(cloud)
-        # The first two days are ICON-D2's, of the map's run; the third is
-        # ICON-EU's, of a run three hours earlier, as a real map's is.
-        model, run_hour = ("icon-eu", -3) if ahead >= 2 else ("icon-d2", 0)
-        run = datetime.datetime.combine(today, datetime.time()) + datetime.timedelta(hours=run_hour)
+        # The first two days are ICON-D2's, of the map's run. The third and
+        # the fourth are ICON-EU's, of its run of the same hour: a run of
+        # midnight is one of ICON-EU's main runs, which reach 78 hours, to
+        # 06 UTC of the fourth day. So the fourth day is not whole, as the
+        # last day of a real map mostly is.
+        model = "icon-eu" if ahead >= 2 else "icon-d2"
+        run = datetime.datetime.combine(today, datetime.time())
         days.append({
             "date": (today + datetime.timedelta(days=ahead)).isoformat(),
             "model": model,
             "run": run.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "whole": True,
+            "whole": ahead < 3,
             "verdict": verdicts,
             "why": whys,
             "thermals": kinds,

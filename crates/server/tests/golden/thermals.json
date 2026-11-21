@@ -1,8 +1,8 @@
 {
   "source": "open-meteo",
   "model": "icon-d2",
-  "run": "2026-11-21T00:00:00Z",
-  "computed_at": "2026-11-21T03:25:00Z",
+  "run": "2026-11-21T06:00:00Z",
+  "computed_at": "2026-11-21T09:30:00Z",
   "grid": {
     "south": 47.6,
     "west": 11.8,
@@ -20,7 +20,7 @@
     {
       "date": "2026-11-21",
       "model": "icon-d2",
-      "run": "2026-11-21T00:00:00Z",
+      "run": "2026-11-21T06:00:00Z",
       "whole": true,
       "verdict": [
         "not_flyable",
@@ -62,7 +62,7 @@
     {
       "date": "2026-11-22",
       "model": "icon-d2",
-      "run": "2026-11-21T00:00:00Z",
+      "run": "2026-11-21T06:00:00Z",
       "whole": true,
       "verdict": [
         "flyable",
@@ -99,6 +99,90 @@
         false,
         false,
         true
+      ]
+    },
+    {
+      "date": "2026-11-23",
+      "model": "icon-eu",
+      "run": "2026-11-21T06:00:00Z",
+      "whole": true,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "not_flyable",
+        "not_flyable"
+      ],
+      "why": [
+        null,
+        null,
+        "rain",
+        "rain"
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        null,
+        null
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      "top_m": [
+        1900,
+        1850,
+        null,
+        null
+      ],
+      "cloud": [
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "date": "2026-11-24",
+      "model": "icon-eu",
+      "run": "2026-11-21T06:00:00Z",
+      "whole": false,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        1600,
+        1500,
+        1350,
+        1500
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
       ]
     }
   ],

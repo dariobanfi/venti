@@ -18,7 +18,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, a day after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -223,15 +223,15 @@ How the server and each of its data sources are doing.
   "registration": "open",
   "thermal_map": {
     "source": "open-meteo",
-    "computed_at": "2026-11-21T03:25:00Z",
+    "computed_at": "2026-11-21T09:30:00Z",
     "models": [
       {
         "model": "icon-d2",
-        "run": "2026-11-21T00:00:00Z"
+        "run": "2026-11-21T06:00:00Z"
       },
       {
         "model": "icon-eu",
-        "run": "2026-11-20T21:00:00Z"
+        "run": "2026-11-21T06:00:00Z"
       }
     ]
   },
@@ -264,14 +264,14 @@ How the server and each of its data sources are doing.
       "models": [
         {
           "model": "icon-d2",
-          "run": "2026-11-20T21:00:00Z",
-          "available_at": "2026-11-20T22:10:17Z",
+          "run": "2026-11-21T06:00:00Z",
+          "available_at": "2026-11-21T07:09:12Z",
           "checked_at": "2026-11-18T19:05:00Z"
         },
         {
           "model": "icon-eu",
-          "run": "2026-11-20T21:00:00Z",
-          "available_at": "2026-11-20T23:53:10Z",
+          "run": "2026-11-21T06:00:00Z",
+          "available_at": "2026-11-21T09:14:18Z",
           "checked_at": "2026-11-18T19:05:00Z"
         }
       ]
@@ -322,7 +322,7 @@ How the server and each of its data sources are doing.
 | `sources[].file_date` | The date of the oldest file that set was read from. Left out for a source that delivers no airspace |
 | `sources[].sites` | How many flying sites the server holds from the source: the set of its last successful run. Left out for a source that delivers no sites |
 | `sources[].sites_as_of` | The date the source's own data is of. Left out for a source that delivers no sites, and before its first set |
-| `sources[].models` | For a source of forecasts: the weather models it serves, each with the `run` it was at when the server last looked, when the source had that run ready (`available_at`) and when the server looked (`checked_at`). The server looks every ten minutes, by asking for one forecast. A run older than six hours means the forecast service has stopped fetching new ones. Left out for a source of anything else, and before the first look that worked. In the development mode the runs are dated after `checked_at`: its forecasts were recorded a day after its wind |
+| `sources[].models` | For a source of forecasts: the weather models it serves, each with the `run` it was at when the server last looked, when the source had that run ready (`available_at`) and when the server looked (`checked_at`). The server looks every ten minutes, by asking for one forecast. A run older than six hours means the forecast service has stopped fetching new ones. Left out for a source of anything else, and before the first look that worked. In the development mode the runs are dated after `checked_at`: its forecasts were recorded three days after its wind |
 
 The status code is `200` whenever the server can read its database, also when sources are stale: a monitor that only looks at the code learns whether the server works, and the body says whether its data is fresh. When the database cannot be reached the answer is `503` with the error body.
 
@@ -889,7 +889,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
     "lat": 47.7,
     "lon": 11.8
   },
-  "fetched_at": "2026-11-21T00:30:00Z",
+  "fetched_at": "2026-11-21T09:30:00Z",
   "layers": [
     {
       "source": "open-meteo",
@@ -897,8 +897,8 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
         {
           "source": "open-meteo",
           "model": "icon-d2",
-          "run": "2026-11-20T21:00:00Z",
-          "available_at": "2026-11-20T22:10:17Z",
+          "run": "2026-11-21T06:00:00Z",
+          "available_at": "2026-11-21T07:09:12Z",
           "point": {
             "lat": 47.7,
             "lon": 11.8
@@ -910,67 +910,67 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
           "cell_elevation_m": 1069.0,
           "hours": [
             {
-              "time": "2026-11-21T00:00:00Z",
-              "wind_speed_ms": 6.58,
-              "wind_direction_deg": 250.0,
-              "wind_gust_ms": 22.3,
-              "temperature_c": 3.9,
-              "dew_point_c": 0.7,
+              "time": "2026-11-21T07:00:00Z",
+              "wind_speed_ms": 2.59,
+              "wind_direction_deg": 242.0,
+              "wind_gust_ms": 15.5,
+              "temperature_c": 1.3,
+              "dew_point_c": 0.9,
               "cloud_cover_pct": 100.0,
-              "cloud_cover_low_pct": 64.0,
+              "cloud_cover_low_pct": 100.0,
               "cloud_cover_mid_pct": 100.0,
-              "cloud_cover_high_pct": 100.0,
-              "precipitation_mm": 0.0,
+              "cloud_cover_high_pct": 0.0,
+              "precipitation_mm": 0.5,
               "cape_j_kg": 0.0,
-              "freezing_level_m": 1670.0,
-              "updraft_ms": 1.41,
-              "heat_to_air_w_m2": -62.5,
+              "freezing_level_m": 1210.0,
+              "updraft_ms": 0.5,
+              "heat_to_air_w_m2": 0.0,
               "winds_aloft": [
                 {
                   "above_ground_m": 80.0,
-                  "wind_speed_ms": 11.8,
-                  "wind_direction_deg": 253.0,
-                  "temperature_c": 3.8
+                  "wind_speed_ms": 4.3,
+                  "wind_direction_deg": 252.0,
+                  "temperature_c": 0.6
                 },
                 {
                   "above_ground_m": 120.0,
-                  "wind_speed_ms": 13.46,
-                  "wind_direction_deg": 255.0,
-                  "temperature_c": 3.7
+                  "wind_speed_ms": 4.83,
+                  "wind_direction_deg": 257.0,
+                  "temperature_c": 0.3
                 },
                 {
                   "above_ground_m": 180.0,
-                  "wind_speed_ms": 14.92,
-                  "wind_direction_deg": 256.0,
-                  "temperature_c": 3.4
+                  "wind_speed_ms": 5.56,
+                  "wind_direction_deg": 262.0,
+                  "temperature_c": -0.1
                 },
                 {
                   "pressure_hpa": 850.0,
-                  "altitude_m": 1429.0,
-                  "wind_speed_ms": 19.87,
-                  "wind_direction_deg": 261.0,
-                  "temperature_c": 1.9
+                  "altitude_m": 1474.0,
+                  "wind_speed_ms": 8.99,
+                  "wind_direction_deg": 280.0,
+                  "temperature_c": -1.6
                 },
                 {
                   "pressure_hpa": 700.0,
-                  "altitude_m": 2963.0,
-                  "wind_speed_ms": 27.44,
-                  "wind_direction_deg": 277.0,
-                  "temperature_c": -9.0
+                  "altitude_m": 2993.0,
+                  "wind_speed_ms": 14.44,
+                  "wind_direction_deg": 282.0,
+                  "temperature_c": -11.1
                 },
                 {
                   "pressure_hpa": 600.0,
-                  "altitude_m": 4139.0,
-                  "wind_speed_ms": 24.44,
-                  "wind_direction_deg": 280.0,
-                  "temperature_c": -16.9
+                  "altitude_m": 4161.0,
+                  "wind_speed_ms": 17.08,
+                  "wind_direction_deg": 297.0,
+                  "temperature_c": -18.6
                 },
                 {
                   "pressure_hpa": 500.0,
-                  "altitude_m": 5481.0,
-                  "wind_speed_ms": 23.63,
-                  "wind_direction_deg": 286.0,
-                  "temperature_c": -26.6
+                  "altitude_m": 5495.0,
+                  "wind_speed_ms": 16.28,
+                  "wind_direction_deg": 305.0,
+                  "temperature_c": -27.8
                 }
               ]
             }
@@ -979,8 +979,8 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
         {
           "source": "open-meteo",
           "model": "icon-eu",
-          "run": "2026-11-20T21:00:00Z",
-          "available_at": "2026-11-20T23:53:10Z",
+          "run": "2026-11-21T06:00:00Z",
+          "available_at": "2026-11-21T09:14:18Z",
           "point": {
             "lat": 47.7,
             "lon": 11.8
@@ -992,68 +992,68 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
           "cell_elevation_m": 1100.0,
           "hours": [
             {
-              "time": "2026-11-21T00:00:00Z",
-              "wind_speed_ms": 5.25,
-              "wind_direction_deg": 252.0,
-              "wind_gust_ms": 24.1,
-              "temperature_c": 4.6,
-              "dew_point_c": -0.2,
-              "cloud_cover_pct": 81.0,
-              "cloud_cover_low_pct": 72.0,
-              "cloud_cover_mid_pct": 47.0,
+              "time": "2026-11-21T07:00:00Z",
+              "wind_speed_ms": 1.24,
+              "wind_direction_deg": 256.0,
+              "wind_gust_ms": 13.5,
+              "temperature_c": 1.4,
+              "dew_point_c": 1.1,
+              "cloud_cover_pct": 100.0,
+              "cloud_cover_low_pct": 100.0,
+              "cloud_cover_mid_pct": 98.0,
               "cloud_cover_high_pct": 0.0,
-              "precipitation_mm": 0.0,
+              "precipitation_mm": 1.5,
               "cape_j_kg": 0.0,
-              "freezing_level_m": 1720.0,
-              "convective_cloud_base_m": 2300.0,
-              "convective_cloud_top_m": 2460.0,
-              "heat_to_air_w_m2": -90.3,
+              "freezing_level_m": 1310.0,
+              "convective_cloud_base_m": 1160.0,
+              "convective_cloud_top_m": 1270.0,
+              "heat_to_air_w_m2": 0.0,
               "winds_aloft": [
                 {
                   "above_ground_m": 80.0,
-                  "wind_speed_ms": 10.92,
-                  "wind_direction_deg": 254.0,
-                  "temperature_c": 4.4
+                  "wind_speed_ms": 2.3,
+                  "wind_direction_deg": 268.0,
+                  "temperature_c": 0.5
                 },
                 {
                   "above_ground_m": 120.0,
-                  "wind_speed_ms": 12.95,
-                  "wind_direction_deg": 255.0,
-                  "temperature_c": 3.9
+                  "wind_speed_ms": 2.7,
+                  "wind_direction_deg": 272.0,
+                  "temperature_c": 0.3
                 },
                 {
                   "above_ground_m": 180.0,
-                  "wind_speed_ms": 14.84,
-                  "wind_direction_deg": 256.0,
-                  "temperature_c": 3.3
+                  "wind_speed_ms": 3.21,
+                  "wind_direction_deg": 275.0,
+                  "temperature_c": 0.0
                 },
                 {
                   "pressure_hpa": 850.0,
-                  "altitude_m": 1425.0,
-                  "wind_speed_ms": 17.9,
-                  "wind_direction_deg": 257.0,
-                  "temperature_c": 2.4
+                  "altitude_m": 1471.0,
+                  "wind_speed_ms": 4.82,
+                  "wind_direction_deg": 284.0,
+                  "temperature_c": -0.7
                 },
                 {
                   "pressure_hpa": 700.0,
-                  "altitude_m": 2961.0,
-                  "wind_speed_ms": 28.51,
-                  "wind_direction_deg": 274.0,
-                  "temperature_c": -8.4
+                  "altitude_m": 2995.0,
+                  "wind_speed_ms": 16.36,
+                  "wind_direction_deg": 288.0,
+                  "temperature_c": -10.3
                 },
                 {
                   "pressure_hpa": 600.0,
-                  "altitude_m": 4140.0,
-                  "wind_speed_ms": 25.5,
-                  "wind_direction_deg": 281.0,
-                  "temperature_c": -16.4
+                  "altitude_m": 4164.0,
+                  "wind_speed_ms": 19.26,
+                  "wind_direction_deg": 289.0,
+                  "temperature_c": -18.6
                 },
                 {
                   "pressure_hpa": 500.0,
-                  "altitude_m": 5484.0,
-                  "wind_speed_ms": 21.82,
-                  "wind_direction_deg": 289.0,
-                  "temperature_c": -26.4
+                  "altitude_m": 5498.0,
+                  "wind_speed_ms": 18.36,
+                  "wind_direction_deg": 299.0,
+                  "temperature_c": -28.0
                 }
               ]
             }
@@ -1074,7 +1074,7 @@ curl 'http://127.0.0.1:8080/v1/forecast?lat=47.7&lon=11.8'
 }
 ```
 
-The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 46 hours and ICON-EU 28.
+The place is the east shore of the Tegernsee. Each series is cut to its first hour here; in the whole answer ICON-D2 has 48 hours and ICON-EU 78.
 
 **The answer holds magnitudes and no judgement.** Nothing in it says whether a day can be flown, and a client that shows it adds none. The server's own reading of the days, cell by cell, is the thermal map ([`GET /v1/thermals`](#get-v1thermals)).
 
@@ -1099,7 +1099,7 @@ A series is the canonical forecast of the project, `venti_domain::ForecastSeries
 | `cell_elevation_m` | The height of the model's ground in that cell. **Show it beside the values.** A model's ground is smoothed: east of the Tegernsee, whose shore lies at 725 m, ICON-D2's ground is at 1069 m, and "10 m above ground" is 10 m above that. Left out where the cell is one the model counts as water, a cell of the sea or of a lake as large as the model's cells: the source has no height for it. The values are then the model's for the air over the water, and nothing can be placed above or under the ground |
 | `hours` | One record per hour, oldest first |
 
-**Only the hours the run computed.** A series holds the hours after its run began, as far as the run reaches: 48 hours for ICON-D2; for ICON-EU 78 hours after a run of 00, 06, 12 or 18 UTC and 30 hours after one in between. The source has older runs' values for other hours and does not say which run they are from, so they are left out. A series therefore never holds the hours of today that are over, and it can end before the day after tomorrow does: ICON-EU covers that day for about three hours out of every six. A client shows the hours it has and does not fill the rest.
+**Only the hours the run computed.** A series holds the hours after its run began, as far as the run reaches: 48 hours for ICON-D2; for ICON-EU 78 hours after a run of 00, 06, 12 or 18 UTC and 30 hours after one in between. The source has older runs' values for other hours and does not say which run they are from, so they are left out. A series therefore never holds the hours of today that are over, and where it ends is the run's doing. ICON-D2's ends tomorrow or on the day after. ICON-EU's ends on the third day after today, at 06, 12 or 18 UTC or with that day, while its newest run is one of 00, 06, 12 or 18 UTC, which is between two and three hours out of every six; after a run in between it ends tomorrow, or in the night after it. So what lies beyond ICON-D2's hours is ICON-EU's alone, and it is there only while ICON-EU's newest run is one of those four. A client shows the hours it has and does not fill the rest.
 
 An hour:
 
@@ -1112,7 +1112,7 @@ An hour:
 | `cloud_cover_pct` | Share of the sky covered, and `cloud_cover_low_pct`, `_mid_pct`, `_high_pct` by layer |
 | `precipitation_mm` | Rain, showers and snow in the hour before `time`, as water |
 | `cape_j_kg` | Convective available potential energy. High values mean showers and storms can grow, **not that thermals are good** |
-| `freezing_level_m` | Height of the 0 °C level above sea level. A value at or near `cell_elevation_m` means the air is below freezing down to the ground |
+| `freezing_level_m` | Height of the 0 °C level above sea level. A value at or under `cell_elevation_m` means the air is below freezing down to the ground: the model then gives a height under its own ground ([data-sources.md](data-sources.md#the-values)) |
 | `updraft_ms` | The strongest rising air the model has anywhere above the cell up to 10 km. ICON-D2 only. **It is not thermal strength**: it is what a model with 2 km cells resolves, which is showers, storms and flow over mountains |
 | `convective_cloud_base_m`, `convective_cloud_top_m` | Above sea level. Left out when the model has no convective cloud over the cell at that hour, which is most hours. The two models do not mean the same convection by it; [data-sources.md](data-sources.md#the-values) says what each means |
 | `heat_to_air_w_m2` | The heat the ground gives to the air above it, as the mean of the hour before `time`: the model's sensible heat flux, counted upward. Positive when the ground warms the air, which is what thermals are made of; negative when the air warms the ground, as on a clear night. The apps work out the height and strength of thermals from it ([design.md](design.md#thermals)); the server hands on the figure and no estimate |
@@ -1134,7 +1134,7 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 
 **Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like the stations. The server itself keeps an answer for up to half an hour, so asking more often than that brings the same answer and a `304`.
 
-**Size.** A whole answer for Tegernsee, two models and 74 hours, is 83 kB plain and 9 kB with gzip (measured 2026-11-21).
+**Size.** A whole answer for Tegernsee, two models and 126 hours, of which 78 are of a main run of ICON-EU, is 140 kB plain and 14 kB with gzip (measured 2026-11-21 over the recorded answers). After a run of ICON-EU in between, that model's series has 30 hours at most and the answer is smaller.
 
 **When there is no forecast.**
 
@@ -1150,7 +1150,7 @@ Every value but `time` may be missing, and a missing value is left out, never wr
 
 An answer in which one of the models is missing is still an answer: the server hands on what it has and asks again within two minutes.
 
-**In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-21 at 00:30 UTC, three days after that mode's wind, and that is the `fetched_at` of every answer: ICON-D2's hours run from 00:00 UTC on 21 November to 21:00 UTC on the 22nd, ICON-EU's from 00:00 UTC on the 21st to 03:00 UTC on the 22nd. The first day with daylight hours is 21 November.
+**In the development mode** there are recorded forecasts for five places: the east shore of the Tegernsee (47.70, 11.80), the take-off on the Wallberg (47.66, 11.80), the take-off and the landing below the Jägerkamp (47.68, 11.90 and 47.70, 11.88), and the middle of the first region (47.40, 13.30). A place anywhere in the first region is answered with the forecast of the nearest of them, **and `point` says which one that is**; a real server answers for the place asked. The forecasts were recorded on 2026-11-21 at 09:25 UTC, three days after that mode's wind, and the `fetched_at` of every answer is 09:30 UTC. Both models are at their runs of 06:00 UTC of that day, and ICON-EU's is one of its main runs. ICON-D2's hours run from 07:00 UTC on 21 November to 06:00 UTC on the 23rd, ICON-EU's from 07:00 UTC on the 21st to 12:00 UTC on the 24th. By daylight that is the 21st and the 22nd from both models, and from ICON-EU alone the 23rd and the 24th until noon UTC, a day that is not whole. The first day with daylight hours is 21 November.
 
 ## `GET /v1/thermals`
 
@@ -1168,8 +1168,8 @@ The answer of the development mode, whole:
 {
   "source": "open-meteo",
   "model": "icon-d2",
-  "run": "2026-11-21T00:00:00Z",
-  "computed_at": "2026-11-21T03:25:00Z",
+  "run": "2026-11-21T06:00:00Z",
+  "computed_at": "2026-11-21T09:30:00Z",
   "grid": {
     "south": 47.6,
     "west": 11.8,
@@ -1187,7 +1187,7 @@ The answer of the development mode, whole:
     {
       "date": "2026-11-21",
       "model": "icon-d2",
-      "run": "2026-11-21T00:00:00Z",
+      "run": "2026-11-21T06:00:00Z",
       "whole": true,
       "verdict": [
         "not_flyable",
@@ -1229,7 +1229,7 @@ The answer of the development mode, whole:
     {
       "date": "2026-11-22",
       "model": "icon-d2",
-      "run": "2026-11-21T00:00:00Z",
+      "run": "2026-11-21T06:00:00Z",
       "whole": true,
       "verdict": [
         "flyable",
@@ -1267,6 +1267,90 @@ The answer of the development mode, whole:
         false,
         true
       ]
+    },
+    {
+      "date": "2026-11-23",
+      "model": "icon-eu",
+      "run": "2026-11-21T06:00:00Z",
+      "whole": true,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "not_flyable",
+        "not_flyable"
+      ],
+      "why": [
+        null,
+        null,
+        "rain",
+        "rain"
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        null,
+        null
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        null,
+        null
+      ],
+      "top_m": [
+        1900,
+        1850,
+        null,
+        null
+      ],
+      "cloud": [
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "date": "2026-11-24",
+      "model": "icon-eu",
+      "run": "2026-11-21T06:00:00Z",
+      "whole": false,
+      "verdict": [
+        "flyable",
+        "flyable",
+        "flyable",
+        "flyable"
+      ],
+      "why": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "thermals": [
+        "weak",
+        "weak",
+        "weak",
+        "weak"
+      ],
+      "climb_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "top_m": [
+        1600,
+        1500,
+        1350,
+        1500
+      ],
+      "cloud": [
+        false,
+        false,
+        false,
+        false
+      ]
     }
   ],
   "attributions": [
@@ -1288,7 +1372,7 @@ The answer of the development mode, whole:
 | `computed_at` | When the server worked the map out |
 | `grid` | Where the cells are: see below |
 | `ground_m` | The height of the model's ground at each cell, whole metres above mean sea level, which is the height the cell is judged at. `null` where the model's answer for the cell is missing, and where the model's cell is water: such a cell is judged by the wind at the ground, the gusts and the rain alone, and has no thermals |
-| `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow, which is ICON-EU's |
+| `days` | The days the map has, oldest first: from yesterday, while the server has run for a day, to the day after tomorrow and, once a run of ICON-EU of 00, 06, 12 or 18 UTC has reached into its daylight, the day after that, which is ICON-EU's |
 
 **The grid.** Cell number `row * columns + column` is the square of `step_deg` degrees (0.1°: some 11 km north to south and 7.5 km east to west in the Alps) around the point at latitude `south + row * step_deg` and longitude `west + column * step_deg`. The first cell is the south-west one; cells run west to east, rows south to north. The points lie on multiples of the step, inside the area of the server's regions; the model's values for a cell are those of its own cell (about 2 km wide) nearest the point, one sample out of the twenty or so in the square. For the first region the grid has 23 rows of 79 cells, 1,817 in all, from 46.3 N 9.4 E to 48.5 N 17.2 E.
 
@@ -1297,9 +1381,9 @@ A day holds its values in lists as long as the grid has cells, in the grid's ord
 | Field | Meaning |
 |---|---|
 | `date` | The day, by the sun at the cells: from one midnight by the sun to the next |
-| `model` | The model the day is read from: `icon-d2` or `icon-eu`. A day is one model's, never a blend: the finest model's, unless a coarser one has more of the day's hours over the cells, which is the day the finest model's run ends in and the days after it. ICON-D2 reaches 48 hours, so the day after tomorrow is mostly ICON-EU's, whose cells are some 5 km wide where ICON-D2's are 2 km: a coarser reading. **Show the pilot the day's model and run.** Since 2026-11-21; a server older than that leaves it out, and the day is then the answer's `model`'s |
+| `model` | The model the day is read from: `icon-d2` or `icon-eu`. A day is one model's, never a blend: the finest model's, unless a coarser one has more of the day's hours over the cells, which is the day the finest model's run ends in and the days after it. ICON-D2 reaches 48 hours, so the day after tomorrow is mostly ICON-EU's and the day after that always: a coarser reading, from cells some 7 km wide where ICON-D2's are 2 km. **Show the pilot the day's model and run.** Since 2026-11-21; a server older than that leaves it out, and the day is then the answer's `model`'s |
 | `run` | When the newest run of the day's model began that the day holds hours of. Left out where `model` is: the answer's `run` |
-| `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of (the day both models' newest runs end in), and on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
+| `whole` | Whether every cell that has a verdict was judged with all of the day's daylight hours. `false` on a day the runs at hand do not reach the whole of, which is mostly the last day of the map: a run of ICON-EU of 00, 06 or 12 UTC ends on the third day after today at 06, 12 or 18 UTC, which can be before that day's daylight does, and the run of 18 UTC has all of it. And `false` on today after a start of the server, when the hours before the run began are missing. Such a day is judged by the hours there are, which can make it look worse than it is |
 | `verdict` | Per cell `flyable`, `marginal` or `not_flyable`, by the air alone; `null` where the day has no hours for the cell |
 | `why` | Per cell what speaks against the day: `rain`, `wind` (the mean wind 10 m above the model's ground), `gusts`, `wind_aloft` (the wind at the model's levels within 1,500 m above the ground), `cloud_base` (convective cloud with its base at or just above the ground) or `storms` (air in which showers or thunderstorms can grow). It is the thing met most often among the hours that are no better than the day's verdict, and of equally frequent ones the earliest. `null` on a flyable day and where the day has no hours. Since 2026-11-21; a server older than that leaves the list out, and a client then shows no reason |
 | `thermals` | Per cell the kind of day: `weak`, `local`, `cross_country` or `big`. `null` on a day that is not flyable, and where there is no estimate |
@@ -1315,7 +1399,7 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 
 **Caching.** `Cache-Control: public, max-age=60` and an `ETag`, like a forecast. The map changes with each run of the model, every three hours, so a client that asks again with `If-None-Match` mostly gets a `304`.
 
-**Size.** The map of the first region made from the run of ICON-D2 of 2026-11-21 00:00 UTC, 1,817 cells and two days, was 126 kB plain and 10 kB with gzip (measured 2026-11-21 from answers of an instance for the whole grid). A day more adds about a third: with ICON-EU's day after tomorrow and yesterday, four days, some 250 kB plain (an estimate from that measurement; ICON-EU's grid was not fetched whole). The server compresses it for a client that sends `Accept-Encoding: gzip`, as every answer of the API.
+**Size.** The map of the first region made from the run of ICON-D2 of 2026-11-21 00:00 UTC, 1,817 cells and two days, was 126 kB plain and 10 kB with gzip (measured 2026-11-21 from answers of an instance for the whole grid). A day more adds about a third: with ICON-EU's day after tomorrow and yesterday, four days, some 250 kB plain (an estimate from that measurement; ICON-EU's grid was not fetched whole). Since 2026-11-21 a map can hold a fifth day, the third after today; a map of five days has not been measured (*to verify* on an installation that has run for a day). The server compresses it for a client that sends `Accept-Encoding: gzip`, as every answer of the API.
 
 **When there is no map.**
 
@@ -1324,7 +1408,7 @@ A client expects values of `verdict` and `thermals` it does not know, and fields
 | `501` | `no_forecasts` | The server was not told where its forecast service is, so it has no map. Asking again does not help |
 | `503` | `unavailable` | The server has a forecast service and no map yet: after its first start, or while the service does not answer. `Retry-After` says when to ask again (60 seconds) |
 
-**In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 03:20 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 03:25 UTC. The runs are ICON-D2's of 00:00 UTC, newer than that of the mode's forecasts for a place, and ICON-EU's of 21:00 UTC the evening before. That run of ICON-EU reaches 30 hours, into the night of the 22nd, so both days are ICON-D2's and no day is ICON-EU's. It is a November day: not flyable on the 21st, weak thermals on the 22nd. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
+**In the development mode** the map is made, by the code a real server runs, from answers recorded on 2026-11-21 at 09:25 UTC for four points around the Tegernsee and the Spitzingsee, a grid of two rows of two cells from 47.6 N 11.8 E; the map's `computed_at` is 09:30 UTC. The runs are those of the mode's forecasts for a place: ICON-D2's and ICON-EU's of 06:00 UTC of that day. The map has four days. The 21st and the 22nd are ICON-D2's, whose run reaches 06:00 UTC on the 23rd, and both are whole. The 23rd and the 24th are ICON-EU's, whose run is a main run and reaches 12:00 UTC on the 24th: the 23rd is whole, and the 24th has the hours until noon and is not (`"whole": false`). They are days of late November: not flyable for rain on the 21st, weak thermals on the 22nd, on the 23rd weak thermals in the two southern cells and rain in the two northern, and weak thermals on the 24th. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint with a made-up map of all four kinds.
 
 ## Maps
 

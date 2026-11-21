@@ -215,10 +215,15 @@ pub struct OutlookDay {
     /// The verdict in words: "Flyable", "Marginal", "Not flyable".
     pub status: String,
     /// The day in a line: "Good from noon", "Good from 11:00 to 15:00",
-    /// "Marginal", "Not flyable".
+    /// "Marginal", "Not flyable". On a day the model's run ends in with
+    /// daylight left, a good stretch that lasts to the run's last hour is
+    /// not said to last all day: the line names the hour, "Good until
+    /// 14:00".
     pub headline: String,
     /// What limits the day, in words: "Gusts to 31 km/h after 15:00",
-    /// "Rain". Empty when nothing does.
+    /// "Rain", and where a good stretch lasts to the end of the model's
+    /// run and not of the day, "The forecast ends at 14:00". Empty when
+    /// nothing does.
     pub why: String,
     /// Its daylight hours still to come, the earliest first.
     pub hours: Vec<OutlookHour>,
@@ -262,7 +267,9 @@ pub struct OutlookDay {
     /// When that model's run began, seconds since 1970-01-01 UTC.
     pub run_unix_s: i64,
     /// What the reading of that model is and is not, for the foot of the
-    /// screen while this day is shown.
+    /// screen while this day is shown. On a day the model's run ends in
+    /// with daylight left it also says when: the day is judged by the
+    /// hours before, and nothing is known of those after.
     pub note: String,
 }
 
@@ -428,28 +435,44 @@ fn days(
     let offset = Duration::seconds(i64::from(utc_offset_s));
     // The current hour is still to come for as long as it lasts.
     let from = now_unix_s - now_unix_s.rem_euclid(3600);
+    // The first moment of the day that holds a moment, on the place's
+    // clock.
+    let start_of = |time: DateTime<Utc>| {
+        (time + offset)
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map_or(time, |midnight| midnight.and_utc() - offset)
+    };
+    // Whether an hour lies in the daylight of the day that holds it, an
+    // hour in from either end: the first and the last hour of the sun are
+    // not for a judgement by wind and cloud alone.
+    let in_daylight = |time: DateTime<Utc>| {
+        let light = sun::daylight_at(start_of(time) + Duration::hours(12), series.cell);
+        matches!(
+            (light.sunrise, light.sunset),
+            (Some(rise), Some(set))
+                if time >= rise + Duration::hours(1) && time + Duration::hours(1) <= set
+        )
+    };
+    // The day the model's run ends in with daylight left: the hour after
+    // its last would be one of that day's daylight hours. Such a day is
+    // judged by a part of its hours, and says where they end.
+    let cut_short = series
+        .hours
+        .last()
+        .map(|last| last.time + Duration::hours(1))
+        .filter(|next| in_daylight(*next))
+        .map(start_of);
     // Each day with its hours still to come, and whether the model had
     // daylight hours for it that are gone.
     let mut days: Vec<(DateTime<Utc>, Vec<Judged<'_>>, bool)> = Vec::new();
     for hour in &series.hours {
         let local = hour.time + offset;
-        let start = local
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .map_or(hour.time, |midnight| midnight.and_utc() - offset);
+        let start = start_of(hour.time);
         if days.last().is_none_or(|(day, _, _)| *day != start) {
             days.push((start, Vec::new(), false));
         }
-        // The daylight of the day that holds the hour, an hour in from
-        // either end: the first and the last hour of the sun are not for
-        // a judgement by wind and cloud alone.
-        let light = sun::daylight_at(start + Duration::hours(12), series.cell);
-        let in_daylight = matches!(
-            (light.sunrise, light.sunset),
-            (Some(rise), Some(set))
-                if hour.time >= rise + Duration::hours(1) && hour.time + Duration::hours(1) <= set
-        );
-        if !in_daylight {
+        if !in_daylight(hour.time) {
             continue;
         }
         if hour.time.timestamp() < from {
@@ -497,10 +520,21 @@ fn days(
                 _ => date.format("%a").to_string(),
             };
             listed.then(|| {
-                let mut day = day(start.timestamp(), name, &hours, ground);
+                // Where the model's hours of the day end, if that is
+                // before its daylight does.
+                let ends = (cut_short == Some(start))
+                    .then(|| hours.last().map(|judged| judged.local_hour + 1))
+                    .flatten();
+                let mut day = day(start.timestamp(), name, &hours, ground, ends.is_some());
                 day.model = crate::forecast::model_name(series.model.as_str());
                 day.run_unix_s = series.run.timestamp();
                 day.note = note(series, day.thermals.is_some());
+                if let Some(ends) = ends {
+                    day.note += &format!(
+                        " The model's run ends at {} on this day: the hours after are not judged.",
+                        clock(ends)
+                    );
+                }
                 day
             })
         })
@@ -643,7 +677,16 @@ fn winds(hour: &ForecastHour, ground_m: f64) -> Vec<OutlookWind> {
     winds
 }
 
-fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>], ground_m: Option<f64>) -> OutlookDay {
+/// A day from its hours still to come. `cut_short` says that the model's
+/// run ends after the last of them with daylight left: a stretch that
+/// lasts to that hour is then not said to last to the end of the day.
+fn day(
+    start_unix_s: i64,
+    name: String,
+    hours: &[Judged<'_>],
+    ground_m: Option<f64>,
+    cut_short: bool,
+) -> OutlookDay {
     let rated = rated(hours);
     let good = rating::stretch(&rated, Verdict::Flyable);
     let fair = rating::stretch(&rated, Verdict::Marginal);
@@ -675,7 +718,10 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>], ground_m: Option<f
         (Flyability::Flyable, Some((from, to))) => {
             let begins = hours[from].local_hour;
             let ends = hours[to].local_hour + 1;
-            let line = match (from == 0, to == hours.len() - 1) {
+            // To the end of the day: to its last hour, unless the model's
+            // run ends there and the day's light goes on.
+            let to_the_end = to == hours.len() - 1 && !cut_short;
+            let line = match (from == 0, to_the_end) {
                 (true, true) => "Good all day".to_owned(),
                 (true, false) => format!("Good until {}", clock(ends)),
                 (false, true) => format!("Good from {}", clock(begins)),
@@ -684,6 +730,8 @@ fn day(start_unix_s: i64, name: String, hours: &[Judged<'_>], ground_m: Option<f
             // What ends the stretch, else what delays it.
             let why = if let Some(after) = hours.get(to + 1) {
                 format!("{} after {}", after.why, clock(ends))
+            } else if cut_short {
+                format!("The forecast ends at {}", clock(ends))
             } else if from > 0 {
                 format!("{} until {}", hours[from - 1].why, clock(begins))
             } else {
@@ -779,9 +827,11 @@ mod tests {
     /// A summer day over the Tegernsee valley, where the clock is two
     /// hours ahead of UTC and the sun is up from about half past five to
     /// a quarter past nine: one hour of the model for every hour of the
-    /// clock from 8 to 19, each as the test wants it.
+    /// clock from 8 to 19, each as the test wants it. After them stands
+    /// the midnight that ends the day, with no values: the fine model's
+    /// run goes on into the night, as a run that has a whole day does.
     fn answer_with(hours: &[(u32, &str)]) -> Vec<u8> {
-        let hours: Vec<String> = hours
+        let mut hours: Vec<String> = hours
             .iter()
             .map(|(local, values)| {
                 format!(
@@ -791,6 +841,7 @@ mod tests {
                 )
             })
             .collect();
+        hours.push(r#"{"time": "2026-07-04T22:00:00Z"}"#.to_owned());
         format!(
             r#"{{
             "point": {{"lat": 47.7, "lon": 11.8}},
@@ -986,7 +1037,9 @@ mod tests {
     #[test]
     fn a_day_is_read_from_the_model_that_has_the_most_of_it() {
         // ICON-D2 has all of 4 July and the morning of the 5th, where its
-        // run ends. ICON-EU has the three days whole.
+        // run ends. ICON-EU's run of 00 UTC reaches 78 hours, to 06 UTC of
+        // the 7th: it has three days whole, and of the fourth the two
+        // hours of daylight before eight in the morning.
         let hours = |day: u32, local: std::ops::RangeInclusive<u32>| -> String {
             local
                 .map(|hour| {
@@ -999,7 +1052,13 @@ mod tests {
                 .join(",")
         };
         let fine = [hours(4, 8..=19), hours(5, 8..=10)].join(",");
-        let coarse = [hours(4, 8..=19), hours(5, 8..=19), hours(6, 8..=19)].join(",");
+        let coarse = [
+            hours(4, 8..=19),
+            hours(5, 8..=19),
+            hours(6, 8..=19),
+            hours(7, 7..=8),
+        ]
+        .join(",");
         let body = format!(
             r#"{{
             "point": {{"lat": 47.7, "lon": 11.8}},
@@ -1027,7 +1086,7 @@ mod tests {
 
         // Today is the fine model's: both have all of it, and the finer
         // one is believed. Tomorrow, of which it has three hours, and the
-        // day after, of which it has none, are the coarse model's.
+        // days after, of which it has none, are the coarse model's.
         let read: Vec<(&str, &str, usize)> = outlook
             .days
             .iter()
@@ -1038,7 +1097,8 @@ mod tests {
             [
                 ("Today", "ICON-D2", 12),
                 ("Tomorrow", "ICON-EU", 12),
-                ("Mon", "ICON-EU", 12)
+                ("Mon", "ICON-EU", 12),
+                ("Tue", "ICON-EU", 2)
             ]
         );
         // Each day says whose reading it is, with that model's own run and
@@ -1053,6 +1113,93 @@ mod tests {
             "Read from ICON-EU for its grid cell, whose ground lies at 900 m. It knows nothing of \
              the take-off itself; the take-off decides."
         );
+
+        // The fourth day is the one the coarse model's run ends in, with
+        // most of its daylight still to come. It is judged by the two
+        // hours there are, both fine; its line does not call that all day,
+        // and its line and the foot of the screen say where the hours end.
+        let last = &outlook.days[3];
+        assert_eq!(last.verdict, Flyability::Flyable);
+        assert_eq!(last.headline, "Good until 09:00");
+        assert_eq!(last.why, "The forecast ends at 09:00");
+        assert_eq!(
+            last.note,
+            "Read from ICON-EU for its grid cell, whose ground lies at 900 m. It knows nothing of \
+             the take-off itself; the take-off decides. The model's run ends at 09:00 on this \
+             day: the hours after are not judged."
+        );
+        // A day the run has to its end says no such thing.
+        assert_eq!(outlook.days[2].headline, "Good all day");
+        assert_eq!(outlook.days[2].why, "");
+        assert!(!outlook.days[2].note.contains("run ends"));
+    }
+
+    #[test]
+    fn a_day_the_run_ends_in_is_judged_by_its_hours_and_says_where_they_end() {
+        const RAIN: &str = r#""wind_speed_ms": 2.0, "precipitation_mm": 0.6"#;
+        // One model, whose run ends at 12 UTC of the day: 14:00 on the
+        // valley's clock, with six hours of daylight after it.
+        let outlook_of = |hour: &dyn Fn(u32) -> &'static str| {
+            let hours: Vec<String> = (8..=14)
+                .map(|local| {
+                    format!(
+                        r#"{{"time": "2026-07-04T{:02}:00:00Z", {}}}"#,
+                        local - 2,
+                        hour(local)
+                    )
+                })
+                .collect();
+            let body = format!(
+                r#"{{
+                "point": {{"lat": 47.7, "lon": 11.8}},
+                "fetched_at": "2026-07-04T05:40:00Z",
+                "layers": [{{"source": "open-meteo", "series": [
+                    {{"source": "open-meteo", "model": "icon-eu", "run": "2026-07-01T06:00:00Z",
+                      "point": {{"lat": 47.7, "lon": 11.8}},
+                      "cell": {{"lat": 47.6875, "lon": 11.8125}},
+                      "cell_elevation_m": 900.0, "hours": [{}]}}
+                ]}}],
+                "attributions": []
+            }}"#,
+                hours.join(",")
+            );
+            site_outlook(
+                200,
+                body.into_bytes(),
+                SUMMER_TIME_S,
+                north(),
+                Some(1550.0),
+                MORNING_S,
+            )
+            .unwrap()
+            .days
+            .remove(0)
+        };
+        const ENDS: &str =
+            " The model's run ends at 15:00 on this day: the hours after are not judged.";
+
+        // Rain until eleven and fine from noon to the run's last hour: the
+        // stretch has a beginning and, with the run, an end.
+        let day = outlook_of(&|hour| if hour < 12 { RAIN } else { FINE });
+        assert_eq!(day.hours.len(), 7);
+        assert_eq!(day.headline, "Good from noon to 15:00");
+        assert_eq!(day.why, "The forecast ends at 15:00");
+        assert!(day.note.ends_with(ENDS), "{}", day.note);
+
+        // A stretch that something ends before the run does is said as on
+        // any day; the foot still says where the hours end.
+        let day = outlook_of(&|hour| if hour < 12 { FINE } else { RAIN });
+        assert_eq!(day.headline, "Good until noon");
+        assert_eq!(day.why, "Rain after noon");
+        assert!(day.note.ends_with(ENDS), "{}", day.note);
+
+        // A morning of rain makes the day not flyable by the hours there
+        // are. Nothing is said of the afternoon, and the foot says so.
+        let day = outlook_of(&|_| RAIN);
+        assert_eq!(day.verdict, Flyability::NotFlyable);
+        assert_eq!(day.headline, "Not flyable");
+        assert_eq!(day.why, "Rain");
+        assert!(day.note.ends_with(ENDS), "{}", day.note);
     }
 
     #[test]

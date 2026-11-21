@@ -101,12 +101,12 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert_eq!(answer.header(header::CONTENT_TYPE), "application/json");
     assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
-    // A whole answer: two models, 74 hours, under 100 kB before compression.
-    assert!(answer.body.len() < 100_000, "{} bytes", answer.body.len());
+    // A whole answer: two models, 126 hours, 140 kB before compression.
+    assert!(answer.body.len() < 170_000, "{} bytes", answer.body.len());
     let forecast: ForecastResponse = answer.json();
 
     assert_eq!(forecast.point, GeoPoint::new(47.7, 11.8).unwrap());
-    // The forecasts were recorded some days after the wind; their clock
+    // The forecasts were recorded three days after the wind; their clock
     // stands at that moment.
     assert_eq!(forecast.fetched_at, adapters::forecasts_recorded_at());
     assert_eq!(forecast.layers.len(), 1);
@@ -126,8 +126,8 @@ async fn the_forecast_of_a_place_is_one_series_per_model_with_its_run_and_its_cr
     assert_eq!(
         series,
         [
-            ("icon-d2", "2026-11-20T21:00:00+00:00".to_owned(), 46),
-            ("icon-eu", "2026-11-20T21:00:00+00:00".to_owned(), 28),
+            ("icon-d2", "2026-11-21T06:00:00+00:00".to_owned(), 48),
+            ("icon-eu", "2026-11-21T06:00:00+00:00".to_owned(), 78),
         ]
     );
     for series in &layer.series {
@@ -197,13 +197,20 @@ async fn the_development_mode_answers_any_place_of_the_region_with_the_nearest_r
     assert_eq!(vienna.point, GeoPoint::new(47.4, 13.3).unwrap());
 
     // The hours a client finds: none of 18 November, the day the wind of
-    // this mode is of. All of the 21st, and of the 22nd what ICON-D2's
-    // run of the evening of the 20th reaches.
+    // this mode is of. Of ICON-D2 the 48 hours of its run of 06 UTC of the
+    // 21st: that day from 07 UTC on, the 22nd, and the 23rd until 06 UTC,
+    // which is before its daylight.
     let at = |day, hour| Utc.with_ymd_and_hms(2026, 11, day, hour, 0, 0).unwrap();
-    assert_eq!(icon_d2.hours.first().unwrap().time, at(21, 0));
-    assert_eq!(icon_d2.hours.last().unwrap().time, at(22, 21));
+    assert_eq!(icon_d2.hours.first().unwrap().time, at(21, 7));
+    assert_eq!(icon_d2.hours.last().unwrap().time, at(23, 6));
     let noon = icon_d2.hours.iter().find(|hour| hour.time == at(21, 11));
     assert!(noon.is_some_and(|hour| hour.temperature_c.is_some()));
+    // Of ICON-EU the 78 hours of its main run of the same hour: the days
+    // after ICON-D2's as well, the 23rd whole and the 24th until noon UTC.
+    let icon_eu = &wallberg.layers[0].series[1];
+    assert_eq!(icon_eu.model.as_str(), "icon-eu");
+    assert_eq!(icon_eu.hours.first().unwrap().time, at(21, 7));
+    assert_eq!(icon_eu.hours.last().unwrap().time, at(24, 12));
 }
 
 #[tokio::test]

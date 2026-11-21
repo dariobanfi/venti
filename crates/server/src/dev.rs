@@ -6,7 +6,8 @@
 //! the result goes into an in-memory store, and the real router serves it.
 //! The thermal map is made from answers recorded for four places around
 //! the Tegernsee, a grid of two by two cells, by the code a real server
-//! runs.
+//! runs. It has four days: two of ICON-D2, and two of ICON-EU, of which
+//! the last is not whole.
 //!
 //! Forecasts are answered from recorded answers as well: there are five
 //! places with one, and a place anywhere in the region gets the forecast of
@@ -745,8 +746,10 @@ pub async fn recorded_with_its_store(
 
     // The thermal map is made by the code a real server runs, from answers
     // recorded for four places in one request, by a forecast service of
-    // its own over them: they are of a later run than those for single
-    // places, and of a later moment, which is the map's clock.
+    // its own over them, with a clock of its own. The two sets were
+    // recorded together and are of the same runs, so the two clocks stand
+    // at the same moment; they are kept as two because each set has its
+    // own answers about the runs, under the same addresses.
     let map_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::thermal_map_recorded_at()));
     let map_forecasts = forecast::service_for(
         &jobs,

@@ -9,13 +9,20 @@ countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
 # models themselves start a new run every three hours.
 cadence_seconds = 600
 auth = "none"
-# A model's answer for one place, 72 hours of 44 values, was 19 kB on
-# 2026-11-19, and the answer about its run half a kilobyte. The server's
+# A model's answer for one place was about 19.5 kB of ICON-D2 (72 hours of
+# 45 values) and about 25.1 kB of ICON-EU (96 hours of 44 values) on
+# 2026-11-21, and the answer about its run half a kilobyte. The server's
 # thermal map asks for up to 80 places in one request (PLACES_PER_REQUEST in
-# src/lib.rs): such an answer of ICON-D2 was 1.5 MB on 2026-11-21, 19.2 kB a
-# place. The limit was 512 kB, room for 25 places, which would have made
-# the map of the first region 146 requests a run of the model instead of 46.
-max_response_kb = 2048
+# src/lib.rs). Measured on 2026-11-21 over the first region's grid: ICON-D2's
+# answers for the whole grid, 23 requests, were 1.10 to 1.55 MB, 19.2 kB a
+# place, and ICON-EU's answer for the first 80 places, with the four days it
+# is asked for, 1,981,505 bytes, 24.8 kB a place. The limit was 2048 kB
+# (2,097,152 bytes) while both models were asked for three days: that would
+# leave ICON-EU's answer 5 % of room. 4096 kB is twice the largest answer
+# measured. Before the map the limit was 512 kB, room for 25 places, which
+# would have made the map of the first region 146 requests a run of the model
+# instead of 46.
+max_response_kb = 4096
 
 # An instance that whoever runs the server runs themself imposes no limit.
 # These numbers keep the load on it small, and they are below what

@@ -1,7 +1,7 @@
 //! Runs the real pipeline over answers recorded from an Open-Meteo instance
-//! on 2026-11-19 and compares the result with golden files. Damaged and
-//! partial answers are made from the recorded ones, and each test says what
-//! it changes.
+//! on 2026-11-21 at 09:25 UTC and compares the result with golden files.
+//! Damaged and partial answers are made from the recorded ones, and each
+//! test says what it changes.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -201,7 +201,7 @@ fn a_recorded_run_matches_the_golden_file() {
     );
     assert!(output.report.is_healthy());
     assert_eq!(output.report.series, 2);
-    assert_eq!(output.report.newest_run, Some(at(20, 21)));
+    assert_eq!(output.report.newest_run, Some(at(21, 6)));
 
     for series in &output.series {
         assert_eq!(series.source.as_str(), "open-meteo");
@@ -214,34 +214,53 @@ fn a_recorded_run_matches_the_golden_file() {
 fn a_series_holds_the_hours_its_run_computed_and_no_others() {
     let output = recorded_run(tegernsee());
 
-    // ICON-D2: the run of 21 UTC of the evening before, ready at the
-    // instance 70 minutes later, reaches 48 hours. The answer began at
-    // midnight, as "today" does: the run's first two hours were yesterday's
-    // and not asked for, and from there every hour to the run's end is in
-    // the series.
+    // ICON-D2: the run of 06 UTC of the day, ready at the instance 69
+    // minutes later, reaches 48 hours. The answer began at midnight, as
+    // "today" does: its first seven hours are of runs before this one and
+    // are left out, and from the hour after the run began every hour to
+    // the run's end, on the morning of the day after tomorrow, is in the
+    // series. The answer's hours after that are empty.
     let icon_d2 = series(&output, "icon-d2");
-    assert_eq!(icon_d2.run, at(20, 21));
+    assert_eq!(icon_d2.run, at(21, 6));
     assert_eq!(
         icon_d2.available_at,
-        Some(Utc.with_ymd_and_hms(2026, 11, 20, 22, 10, 17).unwrap())
+        Some(Utc.with_ymd_and_hms(2026, 11, 21, 7, 9, 12).unwrap())
     );
-    assert_eq!(icon_d2.hours.len(), 46);
-    assert_eq!(icon_d2.hours[0].time, at(21, 0));
-    assert_eq!(icon_d2.hours[45].time, at(22, 21));
-
-    // ICON-EU: the run of 21 UTC is one between the main runs and reaches
-    // 30 hours. The instance answered all 72 hours it was asked for; those
-    // after the run's 30th are an earlier run's, and the instance does not
-    // say so. They are left out.
-    let icon_eu = series(&output, "icon-eu");
-    assert_eq!(icon_eu.run, at(20, 21));
-    assert_eq!(icon_eu.hours.len(), 28);
-    assert_eq!(icon_eu.hours[0].time, at(21, 0));
-    assert_eq!(icon_eu.hours[27].time, at(22, 3));
-    let answered: Value = serde_json::from_slice(&recorded(&urls()[3])).unwrap();
+    assert_eq!(icon_d2.hours.len(), 48);
+    assert_eq!(icon_d2.hours[0].time, at(21, 7));
+    assert_eq!(icon_d2.hours[47].time, at(23, 6));
+    let answered: Value = serde_json::from_slice(&recorded(&urls()[2])).unwrap();
     let values = answered["hourly"]["temperature_2m"].as_array().unwrap();
     assert_eq!(values.len(), 72);
+    assert!(values[..55].iter().all(|value| value.is_number()));
+    assert!(values[55..].iter().all(|value| value.is_null()));
+
+    // ICON-EU: the run of 06 UTC is a main run and reaches 78 hours hour
+    // by hour, to noon of the third day after today, which is why the
+    // model is asked for four days. The instance answered all 96 hours it
+    // was asked for: the first seven are of runs before this one, and
+    // those after the run's 78th are filled in from values three hours
+    // apart, and the instance says neither. They are left out.
+    let icon_eu = series(&output, "icon-eu");
+    assert_eq!(icon_eu.run, at(21, 6));
+    assert_eq!(
+        icon_eu.available_at,
+        Some(Utc.with_ymd_and_hms(2026, 11, 21, 9, 14, 18).unwrap())
+    );
+    assert_eq!(icon_eu.hours.len(), 78);
+    assert_eq!(icon_eu.hours[0].time, at(21, 7));
+    assert_eq!(icon_eu.hours[77].time, at(24, 12));
+    let answered: Value = serde_json::from_slice(&recorded(&urls()[3])).unwrap();
+    let values = answered["hourly"]["temperature_2m"].as_array().unwrap();
+    assert_eq!(values.len(), 96);
     assert!(values.iter().all(|value| value.is_number()));
+    // What "filled in" looks like: the sky of the last evening closes from
+    // 0 to 100 % between 18 and 21 UTC in steps of a third.
+    let cloud = &answered["hourly"]["cloud_cover"];
+    assert_eq!(
+        [&cloud[90], &cloud[91], &cloud[92], &cloud[93]],
+        [&json!(0), &json!(33), &json!(67), &json!(100)]
+    );
 
     // Every hour follows the one before.
     for series in &output.series {
@@ -270,19 +289,19 @@ fn what_the_instance_says_arrives_in_the_record() {
     // One hour of ICON-D2, value by value as the instance sent it: a wet
     // early afternoon under a closed sky.
     let afternoon = hour(icon_d2, at(21, 13));
-    assert_eq!(afternoon.wind_speed_ms, Some(1.88));
-    assert_eq!(afternoon.wind_direction_deg, Some(245.0));
-    assert_eq!(afternoon.wind_gust_ms, Some(8.9));
-    assert_eq!(afternoon.temperature_c, Some(1.7));
-    assert_eq!(afternoon.dew_point_c, Some(0.6));
+    assert_eq!(afternoon.wind_speed_ms, Some(1.21));
+    assert_eq!(afternoon.wind_direction_deg, Some(246.0));
+    assert_eq!(afternoon.wind_gust_ms, Some(10.3));
+    assert_eq!(afternoon.temperature_c, Some(1.5));
+    assert_eq!(afternoon.dew_point_c, Some(0.9));
     assert_eq!(afternoon.cloud_cover_pct, Some(100.0));
-    assert_eq!(afternoon.cloud_cover_low_pct, Some(100.0));
+    assert_eq!(afternoon.cloud_cover_low_pct, Some(92.0));
     assert_eq!(afternoon.cloud_cover_mid_pct, Some(100.0));
     assert_eq!(afternoon.cloud_cover_high_pct, Some(0.0));
-    assert_eq!(afternoon.precipitation_mm, Some(0.7));
+    assert_eq!(afternoon.precipitation_mm, Some(0.2));
     assert_eq!(afternoon.cape_j_kg, Some(0.0));
-    assert_eq!(afternoon.freezing_level_m, Some(1240.0));
-    assert_eq!(afternoon.updraft_ms, Some(0.21));
+    assert_eq!(afternoon.freezing_level_m, Some(1270.0));
+    assert_eq!(afternoon.updraft_ms, Some(0.17));
     // No convective cloud at this hour: the instance wrote 0 for ICON-D2
     // and -500 for ICON-EU, and neither is a height.
     assert_eq!(afternoon.convective_cloud_base_m, None);
@@ -292,10 +311,12 @@ fn what_the_instance_says_arrives_in_the_record() {
     assert_eq!(afternoon_eu.convective_cloud_top_m, None);
     // The heat the ground gives to the air. The model counts it towards
     // the ground: the instance wrote -13.9 for this hour of daylight and
-    // 62.5 for the first hour after midnight, when a mild wind warmed the
-    // ground. The record counts it upward.
+    // 20.8 for 02 UTC of the night after, under a clear sky, when the air
+    // warmed the ground. The record counts it upward.
     assert_eq!(afternoon.heat_to_air_w_m2, Some(13.9));
-    assert_eq!(hour(icon_d2, at(21, 0)).heat_to_air_w_m2, Some(-62.5));
+    let night = hour(icon_d2, at(22, 2));
+    assert_eq!(night.cloud_cover_pct, Some(0.0));
+    assert_eq!(night.heat_to_air_w_m2, Some(-20.8));
     assert!(
         icon_eu
             .hours
@@ -307,7 +328,7 @@ fn what_the_instance_says_arrives_in_the_record() {
     assert!(icon_d2.hours.iter().all(|hour| hour.updraft_ms.is_some()));
 
     // Higher up: three heights above the ground, then the pressure
-    // surfaces. The surface of 950 hPa lay at 589 m, far under the cell's
+    // surfaces. The surface of 950 hPa lay at 586 m, far under the cell's
     // ground at 1069 m, and is not in the record.
     let levels = &afternoon.winds_aloft;
     let places: Vec<(Option<f64>, Option<f64>)> = levels
@@ -326,19 +347,20 @@ fn what_the_instance_says_arrives_in_the_record() {
             (None, Some(500.0)),
         ]
     );
-    assert_eq!(levels[0].wind_speed_ms, Some(2.46));
-    assert_eq!(levels[0].wind_direction_deg, Some(243.0));
-    assert_eq!(levels[0].temperature_c, Some(0.8));
+    assert_eq!(levels[0].wind_speed_ms, Some(2.8));
+    assert_eq!(levels[0].wind_direction_deg, Some(272.0));
+    assert_eq!(levels[0].temperature_c, Some(1.0));
     assert_eq!(levels[0].altitude_m, None);
-    assert_eq!(levels[3].altitude_m, Some(1486.0));
-    assert_eq!(levels[3].wind_speed_ms, Some(6.46));
-    assert_eq!(levels[3].wind_direction_deg, Some(270.0));
-    assert_eq!(levels[3].temperature_c, Some(-1.4));
-    assert_eq!(levels[6].altitude_m, Some(5523.0));
+    assert_eq!(levels[3].altitude_m, Some(1483.0));
+    assert_eq!(levels[3].wind_speed_ms, Some(8.93));
+    assert_eq!(levels[3].wind_direction_deg, Some(277.0));
+    assert_eq!(levels[3].temperature_c, Some(-1.1));
+    assert_eq!(levels[6].altitude_m, Some(5518.0));
     assert_eq!(levels[6].temperature_c, Some(-25.7));
 
-    // An instance sometimes writes "-0.0": the first recording had it for
-    // a dew point. It arrives as plain zero.
+    // An instance sometimes writes "-0.0": this recording has it for the
+    // dew point of 01 UTC, an hour before the run began. Here the hour
+    // looked at is given one. It arrives as plain zero.
     let [_, _, series_d2, _] = urls();
     let output = run_with(vec![(
         series_d2.clone(),
@@ -374,7 +396,7 @@ fn every_recorded_place_gives_a_healthy_run() {
         assert!(output.report.rejected.is_empty(), "{place:?}");
         let icon_d2 = series(&output, "icon-d2");
         let icon_eu = series(&output, "icon-eu");
-        assert_eq!((icon_d2.hours.len(), icon_eu.hours.len()), (46, 28));
+        assert_eq!((icon_d2.hours.len(), icon_eu.hours.len()), (48, 78));
         // The nearest cell of a model is never far: ICON-D2's cells are
         // about 2 km wide, ICON-EU's about 6.
         assert!(icon_d2.cell.distance_m(place) < 2500.0, "{place:?}");
@@ -417,7 +439,7 @@ fn a_model_whose_run_cannot_be_read_delivers_no_series() {
     let error = failed(b"<html>404 Not Found</html>".to_vec());
     assert!(error.contains("does not say which run"), "{error}");
     let error = failed(changed(&run_d2, |meta| {
-        meta["last_run_initialisation_time"] = json!(1_795_208_460);
+        meta["last_run_initialisation_time"] = json!(at(21, 6).timestamp() + 60);
     }));
     assert!(error.contains("cannot have begun"), "{error}");
     // An instance that keeps a value every quarter of an hour under this
@@ -440,21 +462,38 @@ fn a_model_whose_run_cannot_be_read_delivers_no_series() {
     assert!(output.report.is_healthy());
     let icon_eu = series(&output, "icon-eu");
     assert_eq!(icon_eu.available_at, None);
-    assert_eq!(icon_eu.hours.len(), 28);
+    assert_eq!(icon_eu.hours.len(), 78);
 
     // An instance that says a run ends earlier than runs of its kind do is
-    // believed: the run of 21 UTC, cut off at eight the next morning.
+    // believed: the run of 06 UTC, cut off at three in the afternoon.
     let output = run_with(vec![(
         run_eu.clone(),
         changed(&run_eu, |meta| {
-            meta["data_end_time"] = json!(at(21, 8).timestamp());
+            meta["data_end_time"] = json!(at(21, 15).timestamp());
         }),
     )]);
     assert_eq!(series(&output, "icon-eu").hours.len(), 8);
 
-    // A main run of ICON-EU has every hour to the 78th: were the instance
-    // at the run of 18 UTC, the answer's hours to the end of the third day
-    // would all be its own.
+    // A run of ICON-EU between the main runs reaches 30 hours: were the
+    // instance still at the run of 03 UTC, the answer's hours from 04 UTC
+    // to 09 UTC of the next day would be its own, and no others, though
+    // the instance answers all 96.
+    let output = run_with(vec![(
+        run_eu.clone(),
+        changed(&run_eu, |meta| {
+            meta["last_run_initialisation_time"] = json!(at(21, 3).timestamp());
+            meta["data_end_time"] = json!((at(21, 3) + Duration::hours(31)).timestamp());
+        }),
+    )]);
+    let icon_eu = series(&output, "icon-eu");
+    assert_eq!(icon_eu.hours.len(), 30);
+    assert_eq!(icon_eu.hours[0].time, at(21, 4));
+    assert_eq!(icon_eu.hours[29].time, at(22, 9));
+
+    // The main run of 18 UTC ends 78 hours later at midnight. Were the
+    // instance at that of the evening before, the answer's four days
+    // would hold all that is left of it, to its last hour: 73 hours, the
+    // run's first five having been yesterday's.
     let output = run_with(vec![(
         run_eu.clone(),
         changed(&run_eu, |meta| {
@@ -463,8 +502,9 @@ fn a_model_whose_run_cannot_be_read_delivers_no_series() {
         }),
     )]);
     let icon_eu = series(&output, "icon-eu");
-    assert_eq!(icon_eu.hours.len(), 72);
-    assert_eq!(icon_eu.hours[71].time, at(23, 23));
+    assert_eq!(icon_eu.hours.len(), 73);
+    assert_eq!(icon_eu.hours[0].time, at(21, 0));
+    assert_eq!(icon_eu.hours[72].time, at(24, 0));
 
     // An instance that stopped fetching runs days ago has no hour of today
     // to give: no series, and the report says why.
@@ -488,8 +528,20 @@ fn a_model_whose_run_cannot_be_read_delivers_no_series() {
     assert!(output.series.is_empty());
     assert!(!output.report.is_healthy());
     assert_eq!(output.report.skipped.len(), 2);
-    let reason = &output.report.skipped[0].reason;
-    assert!(reason.contains("holds no hour of today"), "{reason}");
+    // Each model is told by the days it was asked for.
+    let reasons: Vec<&str> = output
+        .report
+        .skipped
+        .iter()
+        .map(|skipped| skipped.reason.as_str())
+        .collect();
+    assert_eq!(
+        reasons,
+        [
+            "the run of 2026-11-15 12:00 UTC holds no hour of today and the 2 days after",
+            "the run of 2026-11-15 12:00 UTC holds no hour of today and the 3 days after",
+        ]
+    );
     let _ = series_eu;
 }
 
@@ -526,7 +578,7 @@ fn a_damaged_answer_costs_what_cannot_be_read_and_no_more() {
     assert!(output.report.is_healthy());
     assert_eq!(output.series.len(), 2);
     let icon_d2 = series(&output, "icon-d2");
-    assert_eq!(icon_d2.hours.len(), 46);
+    assert_eq!(icon_d2.hours.len(), 48);
     let evening = hour(icon_d2, at(21, 20));
     assert_eq!(evening.wind_speed_ms, None);
     assert_eq!(evening.wind_gust_ms, None);
@@ -536,7 +588,7 @@ fn a_damaged_answer_costs_what_cannot_be_read_and_no_more() {
     assert_eq!(evening.precipitation_mm, None);
     assert_eq!(evening.cloud_cover_low_pct, None);
     // What could be read is there.
-    assert_eq!(evening.wind_direction_deg, Some(221.0));
+    assert_eq!(evening.wind_direction_deg, Some(256.0));
     assert_eq!(evening.cloud_cover_mid_pct, Some(0.0));
     assert_eq!(evening.winds_aloft.len(), 7);
     assert_eq!(

@@ -13,9 +13,10 @@
 //!   ([`grid_over`]). Each point is asked for as a place, and the model
 //!   answers from its own cell nearest it.
 //! - **Two models.** The source's finest, ICON-D2, and ICON-EU for the
-//!   days ICON-D2 does not have whole ([`MAP_MODELS`]). A day is one
-//!   model's, never a blend: the finest model's, unless the coarser one
-//!   has more of the day's hours, as a take-off's page decides it.
+//!   days ICON-D2 does not have whole ([`MAP_MODELS`]): the day after
+//!   tomorrow, and from a main run of ICON-EU the day after that. A day
+//!   is one model's, never a blend: the finest model's, unless the coarser
+//!   one has more of the day's hours, as a take-off's page decides it.
 //! - **Made with each run.** When the server's regular look at the source
 //!   sees a run of a model the map was not made from, the grid is
 //!   fetched in requests of many places, one request at a time
@@ -54,8 +55,12 @@ use crate::forecast::{Forecasts, Refusal};
 /// The models the map is made of, the finest first. ICON-D2: some 2 km a
 /// cell, a new run every three hours that reaches 48 hours. ICON-EU: some
 /// 7 km a cell, a run every three hours that reaches 78 hours from 00, 06,
-/// 12 and 18 UTC and 30 from the runs between; the adapter asks for three
-/// days, so it adds the day after tomorrow.
+/// 12 and 18 UTC and 30 from the runs between. The adapter asks ICON-D2
+/// for three days and ICON-EU for four, today being the first, which is
+/// as far as their runs reach hour by hour. So ICON-EU adds the day after
+/// tomorrow, and from a main run the day after that, as far as the run
+/// reaches: the runs of 00, 06 and 12 UTC end on it at 06, 12 and 18 UTC,
+/// and the run of 18 UTC with it, at midnight.
 pub const MAP_MODELS: [&str; 2] = ["icon-d2", "icon-eu"];
 
 /// The grid of points every [`THERMAL_GRID_DEG`] degrees inside an area,
@@ -913,7 +918,7 @@ mod stored {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use chrono::{TimeZone, Timelike, Utc};
+    use chrono::{Datelike, TimeZone, Timelike, Utc};
     use futures::FutureExt;
     use futures::future::BoxFuture;
     use venti_domain::ForecastHour;
@@ -944,7 +949,8 @@ mod tests {
     /// run it is told, two places a request, and refuses when told to.
     struct Made {
         run: Mutex<Timestamp>,
-        /// The run of ICON-EU, which reaches 72 hours here.
+        /// The run of ICON-EU, which reaches as far as the model's runs
+        /// do: 78 hours from 00, 06, 12 and 18 UTC, 30 from one between.
         eu_run: Mutex<Option<Timestamp>>,
         /// Requests answered.
         asked: AtomicUsize,
@@ -972,7 +978,8 @@ mod tests {
 
         fn series(&self, of: &ModelId, point: GeoPoint) -> ForecastSeries {
             let (run, reach) = if of.as_str() == "icon-eu" {
-                (self.eu_run.lock().unwrap().unwrap_or_default(), 72)
+                let run = self.eu_run.lock().unwrap().unwrap_or_default();
+                (run, if run.hour().is_multiple_of(6) { 78 } else { 30 })
             } else {
                 (*self.run.lock().unwrap(), 48)
             };
@@ -1223,11 +1230,11 @@ mod tests {
     #[tokio::test]
     async fn the_days_after_the_finest_model_are_the_coarser_ones() {
         let made = Made::at(at(12, 0));
-        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        *made.eu_run.lock().unwrap() = Some(at(11, 18));
         let map = map_of(&made, at(12, 4));
         let both = vec![
             (model("icon-d2"), at(12, 0)),
-            (model("icon-eu"), at(11, 21)),
+            (model("icon-eu"), at(11, 18)),
         ];
 
         map.update(&both).await;
@@ -1249,14 +1256,16 @@ mod tests {
             })
             .collect();
         // ICON-D2 has the 12th and the 13th whole, and nothing of the 14th
-        // by daylight; ICON-EU reaches into the 14th, and has it whole. Of
-        // the 11th ICON-EU has the evening, which has no daylight hour.
+        // by daylight; ICON-EU's main run of 18 UTC the evening before
+        // reaches 78 hours, to the midnight that ends the 14th, and has
+        // that day whole. Of the 11th it has the evening, which has no
+        // daylight hour.
         assert_eq!(
             days,
             [
                 ("2026-07-12".to_owned(), "icon-d2", Some(at(12, 0)), true),
                 ("2026-07-13".to_owned(), "icon-d2", Some(at(12, 0)), true),
-                ("2026-07-14".to_owned(), "icon-eu", Some(at(11, 21)), true),
+                ("2026-07-14".to_owned(), "icon-eu", Some(at(11, 18)), true),
             ]
         );
 
@@ -1265,7 +1274,7 @@ mod tests {
         *made.run.lock().unwrap() = at(12, 15);
         map.update(&[
             (model("icon-d2"), at(12, 15)),
-            (model("icon-eu"), at(11, 21)),
+            (model("icon-eu"), at(11, 18)),
         ])
         .await;
         assert_eq!(made.asked.load(Ordering::SeqCst), 9);
@@ -1282,13 +1291,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_main_run_of_the_coarser_model_reaches_a_fourth_day_that_is_not_whole() {
+        // Both models' runs of 06 UTC, as a forecast service holds them in
+        // the late morning. ICON-D2's reaches 48 hours, to 06 UTC of the
+        // 14th. ICON-EU's is a main run and reaches 78 hours, to noon UTC
+        // of the 15th: the fourth day the source is asked for.
+        let made = Made::at(at(12, 6));
+        *made.eu_run.lock().unwrap() = Some(at(12, 6));
+        let map = map_of(&made, at(12, 10));
+        map.update(&[(model("icon-d2"), at(12, 6)), (model("icon-eu"), at(12, 6))])
+            .await;
+
+        let days = |map: &ThermalMap| -> Vec<(String, String, Option<Timestamp>, bool)> {
+            let current = map.current().unwrap();
+            current
+                .days
+                .iter()
+                .map(|day| {
+                    let model = day.model.as_ref().map_or("", ModelId::as_str);
+                    (day.date.to_string(), model.to_owned(), day.run, day.whole)
+                })
+                .collect()
+        };
+        let day = |date: &str, model: &str, run, whole| {
+            (date.to_owned(), model.to_owned(), Some(run), whole)
+        };
+        // Daylight is from 05 to 18 UTC here. Today lacks the two hours
+        // before the runs began, in both models, and stays the finer
+        // one's. ICON-D2 has tomorrow whole and two hours of the 14th;
+        // ICON-EU has the 14th whole, and of the 15th the hours to noon.
+        assert_eq!(
+            days(&map),
+            [
+                day("2026-07-12", "icon-d2", at(12, 6), false),
+                day("2026-07-13", "icon-d2", at(12, 6), true),
+                day("2026-07-14", "icon-eu", at(12, 6), true),
+                day("2026-07-15", "icon-eu", at(12, 6), false),
+            ]
+        );
+        // A day that is not whole is judged by the hours it has: every
+        // cell has a verdict, from the eight hours to noon.
+        let current = map.current().unwrap();
+        assert!(current.days[3].verdict.iter().all(Option::is_some));
+        {
+            let state = map.lock();
+            let of_the_15th: Vec<u32> = state.models[1].cells[0]
+                .hours
+                .keys()
+                .filter(|time| time.day() == 15)
+                .map(Timelike::hour)
+                .collect();
+            assert_eq!(of_the_15th, [5, 6, 7, 8, 9, 10, 11, 12]);
+        }
+
+        // Three hours later ICON-EU's run of 09 UTC is there, one between
+        // the main runs, which reaches 30 hours, into the afternoon of the
+        // 13th. The map keeps the days it had from the main run: they are
+        // still its, and the fourth day is as far as it was.
+        *made.eu_run.lock().unwrap() = Some(at(12, 9));
+        map.update(&[(model("icon-d2"), at(12, 6)), (model("icon-eu"), at(12, 9))])
+            .await;
+        assert_eq!(
+            days(&map),
+            [
+                day("2026-07-12", "icon-d2", at(12, 6), false),
+                day("2026-07-13", "icon-d2", at(12, 6), true),
+                day("2026-07-14", "icon-eu", at(12, 6), true),
+                day("2026-07-15", "icon-eu", at(12, 6), false),
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn the_coarser_model_waits_for_room_like_the_finest() {
         let made = Made::at(at(12, 0));
-        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        *made.eu_run.lock().unwrap() = Some(at(11, 18));
         let map = map_of(&made, at(12, 4));
         let both = vec![
             (model("icon-d2"), at(12, 0)),
-            (model("icon-eu"), at(11, 21)),
+            (model("icon-eu"), at(11, 18)),
         ];
         *made.room.lock().unwrap() = Some(4);
 
@@ -1308,11 +1389,11 @@ mod tests {
     #[tokio::test]
     async fn what_was_judged_is_written_down_and_read_back_exactly() {
         let made = Made::at(at(12, 0));
-        *made.eu_run.lock().unwrap() = Some(at(11, 21));
+        *made.eu_run.lock().unwrap() = Some(at(11, 18));
         let map = map_of(&made, at(12, 4));
         map.update(&[
             (model("icon-d2"), at(12, 0)),
-            (model("icon-eu"), at(11, 21)),
+            (model("icon-eu"), at(11, 18)),
         ])
         .await;
         let state = map.lock();

@@ -1,15 +1,19 @@
-//! Answers recorded from an Open-Meteo instance on 2026-11-21, shortly
-//! after midnight UTC.
+//! Answers recorded from an Open-Meteo instance on 2026-11-21 at 09:25 UTC.
 //!
-//! The instance was one run for the purpose, from Open-Meteo's own
-//! container image, reading Open-Meteo's open data on AWS: the arrangement
-//! a server's operator runs. It held the runs of 21 UTC of the evening
-//! before, of ICON-D2 and of ICON-EU. (A first set, of 2026-11-19, was
-//! replaced when the adapter began to ask for the heat the ground gives to
-//! the air.) Each file is the answer to one of the adapter's own requests,
-//! unchanged: which run of a model the instance holds (two files), and what
-//! each model forecasts for five places. `tests/fixtures/NOTICE.txt` says
-//! how they were recorded and how to record them again.
+//! The instance was the forecast service of the owner's own installation,
+//! from Open-Meteo's own container image, reading Open-Meteo's open data
+//! on AWS: the arrangement a server's operator runs. It held the runs of
+//! 06 UTC of that day, of ICON-D2 and of ICON-EU. ICON-D2's reaches 48
+//! hours, to 2026-11-23 06:00 UTC. ICON-EU's is a main run, which reaches
+//! 78 hours hour by hour, to 2026-11-24 12:00 UTC: the third day after the
+//! day of the recording, and not the whole of it. (A first set, of
+//! 2026-11-19, was replaced when the adapter began to ask for the heat the
+//! ground gives to the air, and a second, of the night of 2026-11-21, when
+//! it began to ask ICON-EU for four days.) Each file is the answer to one
+//! of the adapter's own requests, unchanged: which run of a model the
+//! instance holds (two files), and what each model forecasts for five
+//! places. `tests/fixtures/NOTICE.txt` says how they were recorded and how
+//! to record them again.
 //!
 //! The data is Deutscher Wetterdienst's, processed by Open-Meteo: see the
 //! manifest for the credit.
@@ -37,7 +41,7 @@ pub const BASE: &str = "http://open-meteo:8080";
 ///
 /// Never: the date is a constant.
 pub fn recorded_at() -> Timestamp {
-    Utc.with_ymd_and_hms(2026, 11, 21, 0, 30, 0)
+    Utc.with_ymd_and_hms(2026, 11, 21, 9, 30, 0)
         .single()
         .expect("a valid date")
 }
@@ -135,27 +139,29 @@ pub fn recorded() -> Vec<(String, &'static [u8])> {
 }
 
 /// Answers to the adapter's requests for several places at once, recorded
-/// from the same kind of instance on 2026-11-21 at 03:20 UTC: which run of
-/// each model it held, and what each model forecasts for the four places
-/// of [`grid_places`] in one request. It then held the run of ICON-D2 of
-/// 2026-11-21 00:00 UTC, newer than the one of the answers for single
-/// places, and the run of ICON-EU of 2026-11-20 21:00 UTC, the same.
+/// from the same instance in the same minute as the answers for single
+/// places: which run of each model it held, and what each model forecasts
+/// for the four places of [`grid_places`] in one request. The runs are the
+/// same, both of 2026-11-21 06:00 UTC, and the two answers about them are
+/// byte for byte those of the single places.
 ///
-/// The address of the answers about the runs is the same as for single
-/// places, and the answers differ: the two sets are for two fetchers, and
-/// are never put into one.
+/// The two sets are still kept apart, each with its own answers about the
+/// runs, and are for two fetchers: sets recorded at different moments have
+/// answers about the runs that share an address and differ, as the sets
+/// these replace did.
 const PLACES_RUN_ICON_D2: &[u8] = include_bytes!("../tests/fixtures/places/meta_icon_d2.json");
 const PLACES_RUN_ICON_EU: &[u8] = include_bytes!("../tests/fixtures/places/meta_icon_eu.json");
 const PLACES_ICON_D2: &[u8] = include_bytes!("../tests/fixtures/places/icon_d2.json");
 const PLACES_ICON_EU: &[u8] = include_bytes!("../tests/fixtures/places/icon_eu.json");
 
-/// Shortly after the answers for several places were recorded.
+/// Shortly after the answers for several places were recorded: the same
+/// moment as [`recorded_at`], since the two sets were recorded together.
 ///
 /// # Panics
 ///
 /// Never: the date is a constant.
 pub fn places_recorded_at() -> Timestamp {
-    Utc.with_ymd_and_hms(2026, 11, 21, 3, 25, 0)
+    Utc.with_ymd_and_hms(2026, 11, 21, 9, 30, 0)
         .single()
         .expect("a valid date")
 }

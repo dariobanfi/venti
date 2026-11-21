@@ -71,7 +71,7 @@ pub const FORECAST_TOOLS: [Tool; 1] = [Tool {
         model has one, and an estimate of the thermals (the climb to expect and how high they \
         reach), from six in the morning to eight in the evening by the sun at the place. Give the place as coordinates; you may \
         use your own knowledge of where a mountain, town or flying site is. Give the date to \
-        look at another day than today; forecasts reach about two days ahead. Times are UTC. \
+        look at another day than today; forecasts reach two to three days ahead. Times are UTC. \
         Each model is given by itself with its run and the height it takes the ground to be: \
         say which model a number is from, pass on the caveats in the result, name the source, \
         and do not say whether the day can be flown.",

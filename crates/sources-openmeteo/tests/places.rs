@@ -1,5 +1,5 @@
 //! Runs the real pipeline for several places at once over answers recorded
-//! from an Open-Meteo instance on 2026-11-21 at 03:20 UTC, and compares the
+//! from an Open-Meteo instance on 2026-11-21 at 09:25 UTC, and compares the
 //! result with a golden file. Damaged answers are made from the recorded
 //! ones, and each test says what it changes.
 
@@ -142,20 +142,22 @@ fn a_recorded_run_for_four_places_matches_the_golden_file() {
         assert_eq!(points, fixtures::grid_places());
     }
 
-    // The instance held ICON-D2's run of midnight, which reaches 48 hours,
-    // and ICON-EU's of 21 UTC the evening before, which reaches 30.
+    // The instance held the runs of 06 UTC of both models. ICON-D2's
+    // reaches 48 hours. ICON-EU's is a main run and reaches 78, to noon of
+    // the third day after: the fourth day the model is asked for.
     for series in &icon_d2.series {
         assert_eq!(series.model.as_str(), "icon-d2");
-        assert_eq!(series.run, at(21, 0));
+        assert_eq!(series.run, at(21, 6));
         assert_eq!(series.hours.len(), 48);
-        assert_eq!(series.hours[0].time, at(21, 1));
+        assert_eq!(series.hours[0].time, at(21, 7));
+        assert_eq!(series.hours[47].time, at(23, 6));
     }
     for series in &icon_eu.series {
-        assert_eq!(
-            series.run,
-            Utc.with_ymd_and_hms(2026, 11, 20, 21, 0, 0).unwrap()
-        );
-        assert_eq!(series.hours.len(), 28);
+        assert_eq!(series.model.as_str(), "icon-eu");
+        assert_eq!(series.run, at(21, 6));
+        assert_eq!(series.hours.len(), 78);
+        assert_eq!(series.hours[0].time, at(21, 7));
+        assert_eq!(series.hours[77].time, at(24, 12));
     }
 
     // Each place has the cell nearest it and the height of the model's
@@ -189,6 +191,16 @@ fn the_request_names_every_place_and_a_height_for_each() {
     // 'elevation' must have the same number of elements as coordinates".
     // The choice of cell is one for all; it refuses a list.
     assert!(url.ends_with("&elevation=nan,nan,nan,nan&cell_selection=nearest"));
+    // Each model is asked for the days its runs reach: the recorded
+    // answers hold 72 hours a place of ICON-D2 and 96 of ICON-EU.
+    assert!(url.contains("&forecast_days=3&"));
+    assert!(series_url("icon-eu").contains("&forecast_days=4&"));
+    for (of, hours) in [("icon-d2", 72), ("icon-eu", 96)] {
+        let answer: Value = serde_json::from_slice(&recorded(&series_url(of))).unwrap();
+        for place in answer.as_array().unwrap() {
+            assert_eq!(place["hourly"]["time"].as_array().unwrap().len(), hours);
+        }
+    }
 }
 
 #[test]

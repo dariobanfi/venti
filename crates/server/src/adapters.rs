@@ -173,9 +173,11 @@ pub fn recorded_imagery() -> FixtureFetch {
 
 /// The answers recorded for the thermal map, as a fetcher of their own:
 /// one model's forecast for the four points of [`recorded_thermal_grid`]
-/// in one request, recorded hours after the answers for single places.
-/// The answers about the models' runs have the same addresses as those of
-/// [`recorded_payloads`] and differ, so the two are never one fetcher.
+/// in one request, recorded with the answers for single places and of the
+/// same runs. The answers about the models' runs have the same addresses
+/// as those of [`recorded_payloads`]; the two sets are kept as two
+/// fetchers, since two sets recorded at different moments answer those
+/// addresses differently.
 pub fn recorded_thermal_payloads() -> FixtureFetch {
     FixtureFetch::new().with_all(venti_sources_openmeteo::fixtures::recorded_places())
 }
@@ -210,9 +212,9 @@ pub fn thermal_map_recorded_at() -> Timestamp {
     venti_sources_openmeteo::fixtures::places_recorded_at()
 }
 
-/// The runs the answers of the thermal map are of: ICON-D2's of
-/// 2026-11-21 00:00 UTC and ICON-EU's of 2026-11-20 21:00 UTC. The
-/// development mode's map is made as if a look had seen them.
+/// The runs the answers of the thermal map are of: ICON-D2's and
+/// ICON-EU's of 2026-11-21 06:00 UTC. The development mode's map is made
+/// as if a look had seen them.
 ///
 /// # Panics
 ///
@@ -224,8 +226,8 @@ pub fn thermal_map_recorded_runs() -> Vec<(ModelId, Timestamp)> {
             .expect("a valid date")
     };
     vec![
-        (ModelId::new("icon-d2").expect("a model's name"), at(21, 0)),
-        (ModelId::new("icon-eu").expect("a model's name"), at(20, 21)),
+        (ModelId::new("icon-d2").expect("a model's name"), at(21, 6)),
+        (ModelId::new("icon-eu").expect("a model's name"), at(21, 6)),
     ]
 }
 

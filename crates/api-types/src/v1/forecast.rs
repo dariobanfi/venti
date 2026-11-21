@@ -6,8 +6,9 @@ use super::Attribution;
 /// The answer of `GET /v1/forecast`.
 ///
 /// What the weather models say about one place, hour by hour, for the
-/// hours of today and the next two days that the newest run of each model
-/// computed. The answer holds magnitudes and no judgement: it does not say
+/// hours of today and the days after it that the newest run of each model
+/// computed: two days after today, and a third of a model whose runs
+/// reach it. The answer holds magnitudes and no judgement: it does not say
 /// whether a day can be flown.
 ///
 /// Forecasts come in layers, one per data source, and within a layer in

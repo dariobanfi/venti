@@ -77,8 +77,8 @@ async fn health_reports_every_source_fresh() {
     let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
     assert_eq!(sites, [None, None, None, None, Some(502)]);
     // The forecast source says which run each of its models is at. The
-    // development mode's forecasts were recorded a day after its wind, so
-    // here the runs are dated after the look that found them.
+    // development mode's forecasts were recorded three days after its
+    // wind, so here the runs are dated after the look that found them.
     assert_eq!(
         health.forecasts,
         Some(venti_api_types::v1::ForecastsHealth::Available)
@@ -91,8 +91,8 @@ async fn health_reports_every_source_fresh() {
     assert_eq!(
         models,
         [
-            ("icon-d2", "2026-11-20T21:00:00+00:00".to_owned()),
-            ("icon-eu", "2026-11-20T21:00:00+00:00".to_owned())
+            ("icon-d2", "2026-11-21T06:00:00+00:00".to_owned()),
+            ("icon-eu", "2026-11-21T06:00:00+00:00".to_owned())
         ]
     );
     assert!(

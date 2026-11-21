@@ -7,15 +7,16 @@ https://open-meteo.com/en/licence. Credit: Weather data by Open-Meteo.com.
 Datenbasis: Deutscher Wetterdienst, aufbereitet von Open-Meteo. The files
 are not covered by the licence of the code around them.
 
-They were recorded on 2026-11-21 between 00:25 and 00:28 UTC from an
-Open-Meteo instance started for the purpose: the container image
+They were recorded on 2026-11-21 between 09:25:15 and 09:25:17 UTC from
+the forecast service of the owner's own installation, the stack in
+deploy/ on the owner's Mac: the container image
 ghcr.io/open-meteo/open-meteo:latest as built on 2026-11-03 (digest
 sha256:bf94e8b39761b59a91bd04bb926b3834cad00eaf71f1aa64b2fd17fbe987846a),
 with REMOTE_DATA_DIRECTORY pointing at Open-Meteo's open data on AWS,
-https://openmeteo.s3.amazonaws.com/data/, and API_SYNC_APIKEYS set. That is
-one of the two arrangements Open-Meteo documents for running an instance
-of one's own. Open-Meteo's public API was not used: it answered "Daily API
-request limit exceeded" to the address of the machine that recorded.
+https://openmeteo.s3.amazonaws.com/data/, which it reads when it is asked,
+and API_SYNC_APIKEYS set. That is one of the two arrangements Open-Meteo
+documents for running an instance of one's own. The instance was asked
+from inside its container with curl. Open-Meteo's public API was not used.
 
 Each file is the whole answer to one request of the adapter, unchanged:
 
@@ -25,17 +26,30 @@ Each file is the whole answer to one request of the adapter, unchanged:
                            &models=dwd_icon_d2_native&hourly=...
     icon_eu_LAT_LON.json   the same with models=dwd_icon_eu_native
 
-with the query the adapter builds (src/lib.rs, series_url): 45 hourly
-variables for ICON-D2 and 44 for ICON-EU, forecast_days=3,
-wind_speed_unit=ms, timeformat=unixtime, elevation=nan and
-cell_selection=nearest. The instance held the runs of 2026-11-20 21:00
-UTC of both models, ICON-D2's ready at 22:10 UTC and ICON-EU's at 23:53,
-and the two answers about the runs were the same before and after the
-forecasts were asked for.
+with the addresses the adapter builds (src/lib.rs, run_url and
+series_url), the host apart: 45 hourly variables and forecast_days=3 for
+ICON-D2, 44 hourly variables and forecast_days=4 for ICON-EU, and for
+both wind_speed_unit=ms, timeformat=unixtime, elevation=nan and
+cell_selection=nearest. An answer of ICON-D2 holds 72 hours and is about
+19.5 kB; one of ICON-EU holds 96 hours and is about 25.1 kB.
 
-They replace a first set, recorded the same way on 2026-11-19 with 44 and
-43 variables. The 45th is sensible_heat_flux, the heat the ground gives
-to the air, which the adapter began to ask for on 2026-11-21.
+The instance held the runs of 2026-11-21 06:00 UTC of both models,
+ICON-D2's ready at 07:09:12 UTC and ICON-EU's at 09:14:18 UTC. ICON-EU's
+is a main run, which reaches 78 hours hour by hour: to 2026-11-24 12:00
+UTC, on the fourth of the days asked for. The two answers about the runs
+were fetched again after the forecasts and were byte for byte the same.
+
+They replace two earlier sets. The first, of 2026-11-19, had 44 and 43
+variables; the 45th is sensible_heat_flux, the heat the ground gives to
+the air, which the adapter began to ask for on 2026-11-21. The second, of
+2026-11-21 between 00:25 and 00:28 UTC, was recorded with forecast_days=3
+for both models and held ICON-EU's run of 2026-11-20 21:00 UTC, which
+reaches 30 hours. It was replaced the same day, when the adapter began to
+ask ICON-EU for four days: a recording with three days is no answer to
+that request, and only a main run of ICON-EU has hours on the days after
+the day after tomorrow. The moment was chosen for the days it holds: of
+ICON-D2 all of the daylight of the 21st and the 22nd, of ICON-EU also the
+23rd whole and the 24th until 12:00 UTC.
 
 The five places: 47.70 N 11.80 E (east shore of the Tegernsee), 47.66 N
 11.80 E (take-off on the Wallberg), 47.70 N 11.88 E and 47.68 N 11.90 E
@@ -43,10 +57,13 @@ The five places: 47.70 N 11.80 E (east shore of the Tegernsee), 47.66 N
 middle of the first region).
 
 To record them again: run an Open-Meteo instance as deploy/README.md
-describes, make the adapter's requests for these places against it, replace
-the files, set the date and the runs in src/fixtures.rs, then run the tests
-with VENTI_UPDATE_GOLDEN=1 and review what changed. The tests pin the runs,
-the cells and a handful of values.
+describes, make the adapter's requests for these places and for the four
+places of places/ against it, all in one go while it holds one run of
+each model, replace the files, set the date and the runs in
+src/fixtures.rs, then run the tests with VENTI_UPDATE_GOLDEN=1 and review
+what changed. The tests pin the runs, the cells and a handful of values,
+and so do tests of the server and of the apps, which read these answers
+through the server's development mode and its golden files.
 
 No file here was written by hand. The tests that need a damaged or partial
 answer make one from these files and say what they change.
@@ -55,29 +72,34 @@ A value in these files is what a model computed for a grid cell. It is not
 a measurement and no statement that a place can be flown.
 
 The folder places/ holds answers to the adapter's requests for several
-places at once, recorded the same way on 2026-11-21 between 03:20 and
-03:21 UTC, from the same container image (the same digest), reading
-Open-Meteo's open data on AWS through a forwarder:
+places at once, recorded in the same go from the same instance, on
+2026-11-21 at 09:25:17 UTC:
 
     places/meta_icon_d2.json   GET /data/dwd_icon_d2_native/static/meta.json
     places/meta_icon_eu.json   GET /data/dwd_icon_eu_native/static/meta.json
     places/icon_d2.json        GET /v1/forecast?latitude=47.6000,47.6000,
                                47.7000,47.7000&longitude=11.8000,11.9000,
                                11.8000,11.9000&models=dwd_icon_d2_native
-                               &hourly=...&elevation=nan,nan,nan,nan
+                               &hourly=...&forecast_days=3
+                               &elevation=nan,nan,nan,nan
                                &cell_selection=nearest
     places/icon_eu.json        the same with models=dwd_icon_eu_native
+                               and forecast_days=4
 
-with the query the adapter builds (src/lib.rs, series_url) for the four
+with the address the adapter builds (src/lib.rs, series_url) for the four
 points of a grid of a tenth of a degree around the Tegernsee and the
-Spitzingsee. These are of a newer run of ICON-D2 than the files above:
-the instance then held ICON-D2's run of 2026-11-21 00:00 UTC, ready at
-01:10 UTC, and ICON-EU's of 2026-11-20 21:00 UTC, as above. The answers
-about the runs were the same before and after the forecasts were asked
-for. The two sets are not to be mixed: the answers about the runs have the
-same address and differ.
+Spitzingsee. They are of the same runs as the files above, and the two
+answers about the runs are byte for byte the same as those above; they
+were fetched again after the forecasts and had not changed. The third of
+the four places, 47.7 N 11.8 E, is the first of the five above, and its
+answer here is value for value its answer there, for both models. The set
+these replace, of 2026-11-21 between 03:20 and 03:21 UTC, was of a later
+run of ICON-D2 than the single places then were, and its answer about
+that run differed from theirs. The two sets are still kept as two, each
+with its own answers about the runs, for two fetchers.
 
-What was seen of the instance on that day, and is written down in
+What was seen of an instance from the same image on 2026-11-21, when the
+set before this one was recorded, and is written down in
 docs/data-sources.md: it answers several places with a JSON list, one
 answer per place in the order asked, each the same as the answer for that
 place alone (compared value for value for these four, ICON-D2), and every
@@ -86,6 +108,5 @@ elevation=nan for four places is refused (400, "Parameter 'elevation' must
 have the same number of elements as coordinates"); cell_selection takes
 one value for all places and refuses a list.
 
-These files are not to be recorded again with the others: the tests pin
-their run, cells and heights, and the server's development mode makes its
-thermal map from them.
+The server's development mode makes its thermal map from the files in
+places/, and its forecasts for a place from the files above.

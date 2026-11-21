@@ -24,6 +24,11 @@
 //! group that the demo account is not in. Client work and UI tests run
 //! against this.
 //!
+//! The rain radar has the two frames recorded from DWD on 2026-11-21, of
+//! 11:35 and 11:40 UTC, collected by the service a real server has, whose
+//! clock stands at 11:44 UTC of that day: the newest frame is four minutes
+//! old.
+//!
 //! Map imagery is answered from the tiles recorded from its providers, cut
 //! as a real server cuts them, and every other tile is "nothing here". With
 //! `--online-imagery` this one route asks the providers over the network
@@ -74,7 +79,7 @@ use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch};
 use crate::maps::Maps;
 use crate::thermals::ThermalMap;
-use crate::{plan, serve};
+use crate::{plan, radar, serve};
 
 /// The region the payloads were recorded for, compiled in so that the
 /// development mode needs no files.
@@ -778,11 +783,26 @@ pub async fn recorded_with_its_store(
         return Err("the recorded answers for several places no longer make a thermal map".into());
     }
 
+    // The rain radar is collected by the service a real server has, from
+    // the two frames recorded on 2026-11-21, with a clock of its own that
+    // stands shortly after them. It keeps the frames the recording holds
+    // and asks for no others.
+    let radar_clock: Arc<dyn Clock> = Arc::new(FixedClock(adapters::radar_recorded_at()));
+    let radar = radar::service_for(
+        &jobs,
+        adapters::radar_sources(),
+        adapters::recorded_radar_payloads(),
+        radar_clock,
+        adapters::radar_recorded_kept(),
+    )
+    .ok_or("the first region lists no radar source")?;
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs))
         .with_forecasts(forecasts.clone())
-        .with_thermal_map(Arc::new(map));
+        .with_thermal_map(Arc::new(map))
+        .with_radar(radar.clone());
 
     // Everything in the payloads is taken: a day of history per station.
     let collector = Collector::new(
@@ -793,7 +813,8 @@ pub async fn recorded_with_its_store(
         clock,
         None,
     )
-    .with_forecasts(forecasts);
+    .with_forecasts(forecasts)
+    .with_radar(radar);
     for job in &jobs {
         if !collector.collect(job).await {
             return Err(format!(

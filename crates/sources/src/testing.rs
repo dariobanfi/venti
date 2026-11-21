@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use venti_domain::Timestamp;
+use venti_domain::{RADAR_UNSEEN, RadarFrame, Timestamp};
 
 use crate::{Archive, ArchiveEntry, ArchiveError, Fetch, FetchError, Fetched, Request};
 
@@ -93,6 +93,52 @@ impl Archive for MemoryArchive {
         self.stored.lock().expect("archive lock").push(record);
         Ok(())
     }
+}
+
+/// A radar frame in a form a golden file can hold and a person can read:
+/// its time, its grid, how many cells are in each step, and every row as
+/// runs of equal cells.
+///
+/// A run is a count and a letter: `.` for dry, `1` to `6` for the steps of
+/// rain, `x` for a cell the radar did not see. `"310x 12. 12"` is a row of 310
+/// cells not seen, 12 dry ones and one of step 2.
+pub fn radar_golden(frame: &RadarFrame) -> serde_json::Value {
+    let letter = |value: u8| match value {
+        0 => '.',
+        RADAR_UNSEEN => 'x',
+        step @ 1..=6 => char::from(b'0' + step),
+        _ => '?',
+    };
+    let mut counts = [0usize; 8];
+    for value in &frame.cells {
+        counts[usize::from((*value).min(RADAR_UNSEEN))] += 1;
+    }
+    let rows: Vec<String> = frame
+        .cells
+        .chunks(frame.grid.columns.max(1) as usize)
+        .map(|row| {
+            let mut runs: Vec<String> = Vec::new();
+            let mut cells = row.iter().peekable();
+            while let Some(value) = cells.next() {
+                let mut length = 1;
+                while cells.next_if_eq(&value).is_some() {
+                    length += 1;
+                }
+                runs.push(format!("{length}{}", letter(*value)));
+            }
+            runs.join(" ")
+        })
+        .collect();
+    serde_json::json!({
+        "source": frame.source,
+        "time": frame.time,
+        "interval_s": frame.interval_s,
+        "grid": frame.grid,
+        "dry": counts[0],
+        "steps": &counts[1..7],
+        "unseen": counts[7],
+        "rows": rows,
+    })
 }
 
 /// Compares a value with a golden file of pretty-printed JSON.

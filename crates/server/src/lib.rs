@@ -58,5 +58,6 @@ pub mod maintenance;
 pub mod maps;
 pub mod moderation;
 pub mod plan;
+pub mod radar;
 pub mod serve;
 pub mod thermals;

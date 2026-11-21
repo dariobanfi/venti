@@ -43,6 +43,8 @@ pub enum ErrorCode {
     /// The server has no forecast service. Asking again does not help;
     /// `forecasts` in the health answer says the same.
     NoForecasts,
+    /// The server collects no rain radar. Asking again does not help.
+    NoRadar,
     /// A handle that is not written as handles are.
     InvalidHandle,
     /// A display name that is empty, too long or holds characters that do

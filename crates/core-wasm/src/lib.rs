@@ -49,7 +49,7 @@ use venti_core::{
     ForecastView, GroundUnderFlight, GroupDetail, GroupJoined, GroupMade, ImportedFlight,
     KeptAirspace, KeptSites, LeagueHandover, LiveFollowView, LiveMap, LogbookStatistics,
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
-    PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
+    PublicFlightsOrder, RadarView, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
     ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SiteView,
     SitesFilter, SitesFilterChoices, SitesFiltered, SitesMap, StagedStorage, StationAir,
     StationDay, StationDays, StationHistory, Storage, SyncStep, SyncSummary, Tendencies,
@@ -1086,6 +1086,46 @@ pub fn today_order(takeoffs: Vec<Ts<TodayStanding>>) -> Result<Ts<TodayOrder>, J
 
 // The thermal map: the kind of day, square by square, over the area the
 // server has forecasts for.
+
+/// The path to `GET` for the list of rain radar frames.
+#[wasm_bindgen(js_name = radarPath)]
+pub fn radar_path() -> String {
+    venti_core::radar_path()
+}
+
+/// Reads the server's answer to `radarPath`: the radar's layers, one for
+/// each source, each with its frames, their times and their ages in
+/// words; the key of the steps of rain; and what a radar does not see.
+/// `utc_offset_s` is how far the pilot's clock is ahead of UTC and
+/// `now_unix_s` the moment by the device's clock, against which the ages
+/// are counted.
+#[wasm_bindgen(js_name = radar)]
+pub fn radar(
+    status: u16,
+    body: Vec<u8>,
+    utc_offset_s: i32,
+    now_unix_s: f64,
+) -> Result<Ts<RadarView>, JsValue> {
+    to_js(
+        &venti_core::radar(status, body, utc_offset_s, whole_seconds(now_unix_s))
+            .map_err(thrown)?,
+    )
+}
+
+/// A frame's picture in the page's own colours. `picture` is what the
+/// server sent for a frame's `path`, a PNG whose pixels are steps;
+/// `rain` are the colours of the six steps of rain, the first step
+/// first, and `unseen` the colour of what the radar did not see, each as
+/// `0xRRGGBBAA`. The answer is the same picture with those colours, for
+/// a `Blob` of type `image/png`.
+#[wasm_bindgen(js_name = radarFrameImage)]
+pub fn radar_frame_image(
+    picture: Vec<u8>,
+    rain: Vec<u32>,
+    unseen: u32,
+) -> Result<Vec<u8>, JsValue> {
+    venti_core::radar_frame_image(picture, rain, unseen).map_err(thrown)
+}
 
 /// The path to `GET` for the thermal map.
 #[wasm_bindgen(js_name = thermalMapPath)]

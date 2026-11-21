@@ -23,7 +23,7 @@ use crate::imagery::{self, Imagery, TileCache};
 use crate::ingest::{Collector, DirArchive, HttpFetch, scheduler};
 use crate::maps::Maps;
 use crate::thermals::{InStore, ThermalMap};
-use crate::{adapters, groups, live, maintenance, plan};
+use crate::{adapters, groups, live, maintenance, plan, radar};
 
 /// How far back from the time of a run observations are taken. See
 /// [`Collector::new`].
@@ -118,9 +118,36 @@ pub async fn serve(config: Config) -> Result<(), String> {
         map.restore().await;
     }
 
+    // The rain radar of the regions that name a radar source: its last
+    // two hours of frames, kept in memory by a service of its own.
+    let radar = radar::service_for(
+        &jobs,
+        adapters::radar_sources(),
+        fetcher()?,
+        clock.clone(),
+        radar::KEPT,
+    );
+    match &radar {
+        Some(radar) => {
+            for layer in radar.layers() {
+                tracing::info!(
+                    "radar: {} on {} by {} pixels, the last {} hours kept in memory",
+                    layer.source,
+                    layer.grid.columns,
+                    layer.grid.rows,
+                    radar::KEPT.num_hours()
+                );
+            }
+        }
+        None => tracing::info!("no radar: none of the regions names a radar source"),
+    }
+
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let mut api = Api::new(store.clone(), clock.clone(), manifests, settings)
         .with_station_priority(plan::station_priority(&packs));
+    if let Some(radar) = &radar {
+        api = api.with_radar(radar.clone());
+    }
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
     }
@@ -185,6 +212,9 @@ pub async fn serve(config: Config) -> Result<(), String> {
     }
     if let Some(map) = thermal_map {
         collector = collector.with_thermal_map(map);
+    }
+    if let Some(radar) = radar {
+        collector = collector.with_radar(radar);
     }
     let collector = Arc::new(collector);
     let schedule = tokio::spawn(scheduler::run(

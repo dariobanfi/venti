@@ -16,7 +16,9 @@ mod schedule;
 pub mod scheduler;
 
 use venti_domain::Timestamp;
-use venti_sources::{AirspaceRunReport, ForecastRunReport, RunReport, SiteRunReport};
+use venti_sources::{
+    AirspaceRunReport, ForecastRunReport, RadarRunReport, RunReport, SiteRunReport,
+};
 
 pub use archive::DirArchive;
 pub use collect::Collector;
@@ -34,6 +36,23 @@ fn sites_summary(report: &SiteRunReport, as_of: Timestamp) -> String {
         report.skipped.len(),
         report.rejected.len(),
         report.duplicates,
+    )
+}
+
+/// What a radar run delivered, in one line for a person.
+fn radar_summary(report: &RadarRunReport) -> String {
+    let newest = report.newest_listed.map_or_else(
+        || "none".to_owned(),
+        |newest| format!("{} min old", (report.now - newest).num_minutes()),
+    );
+    format!(
+        "{} frames (the provider's newest {newest}), {} requests, {} failed, {} left out, \
+         {} rejected",
+        report.frames,
+        report.requests,
+        report.failures.len(),
+        report.skipped.len(),
+        report.rejected.len(),
     )
 }
 

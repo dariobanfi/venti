@@ -1,0 +1,73 @@
+The files in this folder are data of the Deutscher Wetterdienst (DWD),
+from its open-data server, https://opendata.dwd.de. DWD's legal notice,
+https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html,
+read on 2026-11-21, says of them: "Alle frei zugänglichen Geodaten und
+Geodatendienste sowie die als hochwertige Datensätze / high value datasets
+(HVD) festgelegten Leistungen des DWD dürfen unter den Bedingungen der
+Lizenz Creative Commons BY 4.0 (CC BY 4.0) unter Beigabe eines
+Quellenvermerks weiterverwendet werden."
+https://creativecommons.org/licenses/by/4.0/. Quelle: Deutscher
+Wetterdienst. They are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-21 from
+https://opendata.dwd.de/weather/radar/radolan/ry/, without a key, with
+curl. Each is the whole answer to one request of the adapter, unchanged:
+
+    list.html   GET /weather/radar/radolan/ry/
+                asked at 11:43:45 UTC, 85,577 bytes: the server's list of
+                the folder, 576 frames from 2026-11-19 11:45 to 2026-11-21
+                11:40 UTC, and the newest once more under the name
+                "latest"
+
+    raa01-ry_10000-2611211135-dwd---bin.hdf5   56,477 bytes
+    raa01-ry_10000-2611211140-dwd---bin.hdf5   57,348 bytes
+                GET /weather/radar/radolan/ry/<name>
+                asked at 11:55 UTC: the two frames the list names last,
+                the rain of 11:30 to 11:35 and of 11:35 to 11:40 UTC. The
+                server dated them 11:35:17 and 11:40:17 UTC
+                (Last-Modified): a frame is there some twenty seconds
+                after the five minutes it is of.
+
+A frame is one picture of the composite RY of DWD's RADOLAN routine: 1100
+by 1200 pixels of one kilometre, a rain rate in each or the mark that no
+radar saw the place. On that morning it rained lightly over the south of
+Bavaria and the north of Tirol, which is why these two were taken: the
+first region's box holds some 6,500 cells of rain in each. A frame names
+DWD's address for the product (radolan@dwd.de) in its attributes; it holds
+nothing about any person.
+
+The list names 576 frames and this folder holds two. A run over the
+recorded answers is therefore told that the frames up to 11:30 UTC are
+held already (fixtures::held_until), and asks for the two after it.
+
+The folder damaged/ holds what is NOT DWD's data as published:
+
+    damaged/cut_after_4096_bytes.hdf5   the first 4096 bytes of the frame
+                                        of 11:35, to test a file that is
+                                        cut short
+    damaged/not_a_frame.html            written by hand: the page a web
+                                        server sends for a file it does not
+                                        have, to test an answer that is no
+                                        frame
+
+Other damage is done to a recorded frame in memory by the tests that need
+it (another product's name, another projection, data that unpacks to more
+than the picture holds); each test says what it changes.
+
+Looked at on the same day and not kept here: the frame the server had as
+"latest" at 11:45:25 UTC (the one of 11:45, 57,432 bytes), and the frame of
+2026-11-19 12:35 UTC (434,915 bytes), from a morning of rain over most of
+Germany, to measure how large a frame of the first region is when it rains
+widely (docs/data-sources.md has the figures).
+
+To record them again: fetch the list, then the two frames it names last,
+within the same five minutes; replace the three files; set the moments in
+src/fixtures.rs (recorded_at, held_until, frames) and the names there; run
+the tests with VENTI_UPDATE_GOLDEN=1 and review what changed. The counts
+the tests pin (cells of rain, pixels nobody saw) are of that moment and
+will differ; a dry morning makes a poor recording. The server's
+development mode serves these frames, and its golden files change with
+them.
+
+A frame is what radars measured from afar. It is no statement that a place
+is dry, or that it can be flown.

@@ -43,6 +43,8 @@
 //! | [`plan_path`] | DELETE | | nothing |
 //! | [`plan_in_path`] | PUT, DELETE | | [`PlanResponse`] |
 //! | [`PLAN_BOARD_PATH`] | GET | [`PlanBoardRequest`] | [`PlanBoardResponse`] |
+//! | [`RADAR_PATH`] | GET | | [`RadarResponse`] |
+//! | [`radar_frame_path`] | GET | | the frame's picture, a PNG |
 //! | [`MAPS_PATH`] | GET | | [`MapsResponse`] |
 //! | [`map_file_path`] | GET | | the file, or the range of it asked for |
 //!
@@ -72,6 +74,7 @@ mod health;
 mod live;
 mod maps;
 mod observations;
+mod radar;
 mod report;
 mod request;
 mod sites;
@@ -103,7 +106,7 @@ pub use groups::{
     parse_group_name, parse_plan_note, parse_plan_place,
 };
 pub use health::{
-    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth,
+    ClientAddressesHealth, ForecastsHealth, HealthResponse, HealthStatus, ModelHealth, RadarHealth,
     RegistrationMode, SourceHealth, ThermalMapHealth, ThermalMapModelHealth,
 };
 pub use live::{
@@ -116,6 +119,10 @@ pub use maps::{
     is_map_name, map_file_path,
 };
 pub use observations::{ObservationsResponse, Reading};
+pub use radar::{
+    RADAR_PATH, RadarFrameRef, RadarLayer, RadarResponse, format_radar_time, parse_radar_time,
+    radar_frame_path,
+};
 pub use report::{
     MAX_REPORT_TEXT_LENGTH, ReportReason, ReportRequest, ReportResponse, ReportSubject,
     ReportTextError, ReportedPlan, parse_report_text,

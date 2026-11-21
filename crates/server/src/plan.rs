@@ -12,9 +12,10 @@ use venti_sources::{Kind, Manifest, Registry};
 pub struct Job {
     /// The source.
     pub source: SourceId,
-    /// What it is collected for: observations, airspace or flying sites.
-    /// For a source of forecasts the job is the regular look at the
-    /// forecast service, and the area is where forecasts are answered.
+    /// What it is collected for: observations, airspace, flying sites or
+    /// rain radar. For a source of forecasts the job is the regular look
+    /// at the forecast service, and the area is where forecasts are
+    /// answered.
     pub kind: Kind,
     /// The smallest box that covers every configured region listing the
     /// source.
@@ -144,6 +145,7 @@ pub fn plan(packs: &[RegionPack], registry: &Registry) -> Result<Vec<Job>, PlanE
             (Kind::Airspace, &pack.airspace.sources),
             (Kind::Sites, &pack.sites.sources),
             (Kind::Forecasts, &forecasts),
+            (Kind::Radar, &pack.radar.sources),
         ];
         for (kind, sources) in listed {
             for source in sources {
@@ -386,6 +388,7 @@ mod tests {
             [
                 "awc-metar",
                 "dwd-10min",
+                "dwd-radar-ry",
                 "geosphere-tawes",
                 "openaip",
                 "osm-free-flying",

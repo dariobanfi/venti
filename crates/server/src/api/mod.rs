@@ -41,6 +41,10 @@
 //! are files that whoever runs the server put in a folder, open data with
 //! the credits their descriptions name. Anyone may list and fetch them.
 //!
+//! **Rain radar** ([`radar`]) goes out as a list of the frames the server
+//! holds, in layers by source, and each frame as a picture: read from the
+//! server's memory, where the collector put it.
+//!
 //! **Map imagery** ([`imagery`]) is a provider's photographs from above,
 //! passed on tile by tile and cut where they may not be shown: the one
 //! other way a request can make the server ask a provider, for a tile at
@@ -68,6 +72,7 @@ mod maps;
 mod mcp;
 mod observations;
 mod pilots;
+mod radar;
 mod ranking;
 mod reports;
 mod same_place;
@@ -94,8 +99,8 @@ use venti_api_types::v1::{
     ACCOUNT_PASSWORD_PATH, ACCOUNT_PATH, ACCOUNTS_PATH, AIRSPACE_PATH, Attribution,
     FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH,
-    PUBLIC_FLIGHTS_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH, STATIONS_PATH,
-    THERMAL_HOURS_PATH, THERMALS_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITES_PATH,
+    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -111,6 +116,7 @@ use crate::flights::share::PublicUrl;
 use crate::forecast::Forecasts;
 use crate::imagery::Imagery;
 use crate::maps::Maps;
+use crate::radar::Radar;
 use crate::thermals::ThermalMap;
 
 pub use mcp::MCP_PATH;
@@ -242,6 +248,8 @@ pub struct Api<S> {
     forecasts: Option<Arc<dyn Forecasts>>,
     /// The thermal map, on a server that makes one.
     thermal_map: Option<Arc<ThermalMap>>,
+    /// The rain radar, on a server that collects some.
+    radar: Option<Arc<dyn Radar>>,
     /// Live tracking: its limits, and what each account has used of them.
     live: live::Live,
     /// Groups and plans: their limits, and what each account has used of
@@ -331,6 +339,7 @@ impl<S: Store> Api<S> {
             limits,
             forecasts: None,
             thermal_map: None,
+            radar: None,
             live: live::Live::new(settings.live, limits.watched_keys),
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
             maps: Maps::default(),
@@ -357,6 +366,15 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_thermal_map(mut self, map: Arc<ThermalMap>) -> Self {
         self.thermal_map = Some(map);
+        self
+    }
+
+    /// The same API, answering `/v1/radar` and its pictures from `radar`.
+    ///
+    /// Without this the server says that it collects no radar.
+    #[must_use]
+    pub fn with_radar(mut self, radar: Arc<dyn Radar>) -> Self {
+        self.radar = Some(radar);
         self
     }
 
@@ -460,6 +478,8 @@ impl<S: Store> Api<S> {
             .route(FORECAST_PATH, get(forecast::forecast::<S>))
             .route(THERMALS_PATH, get(thermals::thermals::<S>))
             .route(THERMAL_HOURS_PATH, get(thermals::thermal_hours::<S>))
+            .route(RADAR_PATH, get(radar::radar::<S>))
+            .route(radar::FRAME_ROUTE, get(radar::frame::<S>))
             .route(ACCOUNTS_PATH, post(account::create::<S>))
             .route(
                 ACCOUNT_PATH,

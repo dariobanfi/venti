@@ -43,3 +43,10 @@ sources = ["osm-free-flying"]
 # no forecasts and says so.
 [forecasts]
 sources = ["open-meteo"]
+
+# Rain radar: DWD's composite of the German radars, a frame every five
+# minutes. It sees Bavaria and the north of Tirol and Vorarlberg, and
+# nothing east of Passau or south of the main ridge: a layer of its own,
+# which says where it does not see.
+[radar]
+sources = ["dwd-radar-ry"]

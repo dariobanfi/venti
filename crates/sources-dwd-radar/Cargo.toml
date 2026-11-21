@@ -1,0 +1,20 @@
+[package]
+name = "venti-sources-dwd-radar"
+description = "Adapter for the rain radar composite RY of the Deutscher Wetterdienst."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+venti-sources.workspace = true
+chrono.workspace = true
+flate2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

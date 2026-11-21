@@ -2874,6 +2874,7 @@ dependencies = [
  "futures",
  "getrandom 0.4.3",
  "ipnet",
+ "png",
  "reqwest",
  "serde",
  "serde_json",
@@ -2898,6 +2899,7 @@ dependencies = [
  "venti-sources-awc",
  "venti-sources-basemapat",
  "venti-sources-dwd",
+ "venti-sources-dwd-radar",
  "venti-sources-geosphere",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
@@ -2950,6 +2952,17 @@ dependencies = [
  "venti-domain",
  "venti-sources",
  "zip",
+]
+
+[[package]]
+name = "venti-sources-dwd-radar"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "flate2",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
 ]
 
 [[package]]

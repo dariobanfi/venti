@@ -78,6 +78,8 @@ pub enum Kind {
     Forecasts,
     /// Flying sites: take-offs and landings.
     Sites,
+    /// Rain radar: pictures of the rain over an area, a few minutes apart.
+    Radar,
     /// Map imagery: raster tiles that the server passes on, or cuts and
     /// passes on, when a client asks for them. Not records, and not
     /// collected by the pipeline; see `ImagerySource`.

@@ -6,15 +6,16 @@ use chrono::Duration;
 use futures::FutureExt;
 use venti_domain::{Airspace, Observation, Site, SourceId, Station, Timestamp};
 use venti_sources::{
-    AirspaceRunReport, Archive, Fetch, ForecastRunReport, Kind, PlanCtx, Registry, RunOptions,
-    RunReport, SiteRunReport, run_airspace, run_observations, run_sites,
+    AirspaceRunReport, Archive, Fetch, ForecastRunReport, Kind, PlanCtx, RadarRunReport, Registry,
+    RunOptions, RunReport, SiteRunReport, run_airspace, run_observations, run_sites,
 };
 use venti_store::{Coverage, ForecastModel, RunRecord, SiteDelivery, Store};
 
-use super::{airspace_summary, forecast_summary, sites_summary, summary};
+use super::{airspace_summary, forecast_summary, radar_summary, sites_summary, summary};
 use crate::clock::Clock;
 use crate::forecast::Forecasts;
 use crate::plan::Job;
+use crate::radar::Radar;
 use crate::thermals::ThermalMap;
 
 /// How many of a run's problems are written to the log one by one. The run
@@ -37,6 +38,9 @@ pub struct Collector<S, F, A> {
     forecasts: Option<Arc<dyn Forecasts>>,
     /// The thermal map, which a look tells of the runs it sees.
     thermal_map: Option<Arc<ThermalMap>>,
+    /// The radar service, which runs the radar sources and keeps their
+    /// frames.
+    radar: Option<Arc<dyn Radar>>,
 }
 
 impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
@@ -66,7 +70,21 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             lookback,
             forecasts: None,
             thermal_map: None,
+            radar: None,
         }
+    }
+
+    /// The same collector, with the radar service it runs radar sources
+    /// through.
+    ///
+    /// Radar frames are not stored: the radar service fetches them and
+    /// keeps the last ones in memory, with a clock of its own. What the
+    /// collector does for a radar source is to ask the service for a run
+    /// at the source's cadence and to write the run down.
+    #[must_use]
+    pub fn with_radar(mut self, radar: Arc<dyn Radar>) -> Self {
+        self.radar = Some(radar);
+        self
     }
 
     /// The same collector, with the forecast service it looks at forecast
@@ -125,6 +143,7 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
             Kind::Airspace => self.collect_airspace(job).await,
             Kind::Sites => self.collect_sites(job).await,
             Kind::Forecasts => self.look_at_forecasts(job).await,
+            Kind::Radar => self.collect_radar(job).await,
             // No plan has such a job: imagery is fetched when a client
             // asks for a tile, never on a schedule.
             Kind::Imagery => {
@@ -198,6 +217,45 @@ impl<S: Store, F: Fetch, A: Archive> Collector<S, F, A> {
         }
         let record = self.record(&job.source, started_at, &Outcome::of_forecasts(report));
         self.save_forecast_check(&record, &models).await && healthy
+    }
+
+    /// Runs a radar source once, through the radar service, and writes the
+    /// run down. The frames stay with the service.
+    async fn collect_radar(&self, job: &Job) -> bool {
+        let Some(radar) = &self.radar else {
+            tracing::error!(source = %job.source, "no radar service to run the source through");
+            return false;
+        };
+        let started_at = self.clock.now();
+        let run = radar.collect(&job.source);
+        let Some(Some(report)) = unless_it_panics(&job.source, run).await else {
+            let failed = self.record(&job.source, started_at, &Outcome::default());
+            self.save(&failed, &[], &[]).await;
+            return false;
+        };
+
+        let healthy = report.is_healthy();
+        if healthy {
+            tracing::info!(source = %job.source, "{}", radar_summary(&report));
+        } else {
+            tracing::warn!(source = %job.source, "unhealthy run: {}", radar_summary(&report));
+        }
+        for failure in report.failures.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(source = %job.source, "failed {}: {}", failure.tag, failure.error);
+        }
+        for rejected in report.rejected.iter().take(LOGGED_PROBLEMS) {
+            tracing::warn!(
+                source = %job.source,
+                "rejected the frame of {}: {}",
+                rejected.time.format("%H:%M UTC"),
+                rejected.reason
+            );
+        }
+
+        // The run history is the store's; a radar run has no records to
+        // go with it.
+        let record = self.record(&job.source, started_at, &Outcome::of_radar(&report));
+        self.save(&record, &[], &[]).await && healthy
     }
 
     async fn collect_observations(&self, job: &Job) -> bool {
@@ -481,6 +539,19 @@ impl Outcome {
     /// Which run each model is at is not in the run history: what the
     /// store holds about the source's models says so.
     fn of_forecasts(report: &ForecastRunReport) -> Self {
+        Self {
+            healthy: report.is_healthy(),
+            requests: report.requests,
+            failed_requests: report.failures.len(),
+            skipped: report.skipped.len(),
+            rejected: report.rejected.len(),
+            ..Self::default()
+        }
+    }
+
+    /// How many frames are held, and how old the newest is, is not in the
+    /// run history: the radar service says so.
+    fn of_radar(report: &RadarRunReport) -> Self {
         Self {
             healthy: report.is_healthy(),
             requests: report.requests,

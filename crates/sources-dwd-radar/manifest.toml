@@ -1,0 +1,41 @@
+id = "dwd-radar-ry"
+provider = "Deutscher Wetterdienst"
+kinds = ["radar"]
+countries = ["DE"]
+# A frame every five minutes, on the server some twenty seconds after the
+# five minutes it is of (seen 2026-11-21).
+cadence_seconds = 300
+auth = "none"
+# The list of frames was 86 kB on 2026-11-21 and a frame 50 to 435 kB, the
+# larger the more it rains over Germany. A frame's values are 2.6 MB before
+# they are packed, which no packed frame should pass.
+max_response_kb = 3072
+
+# DWD publishes no limit for its open-data server and promises no level of
+# service. A run asks for the list and for the frames the server does not
+# hold: two requests every five minutes, 25 after a start. Two at a time.
+[rate_limit]
+per_second = 2
+
+[licence]
+name = "CC BY 4.0"
+commercial = true
+redistribution = true
+share_alike = false
+# Venti does not hand the product on as it is: it lays the composite on a
+# map's grid and turns its values into steps. For data that is changed
+# DWD's page on source credits gives this wording among its examples.
+attribution = "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben"
+link = "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
+constraints = [
+    "Place the credit directly at the DWD information shown.",
+    "The data is changed before it is shown (laid on another grid, turned into steps of rain rate): say so with the credit. DWD's examples: Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben.",
+    "The credit may link to a DWD web page; a link is not required.",
+    "DWD promises no level of service or availability for opendata.dwd.de.",
+]
+verified_on = "2026-11-21"
+verified_from = [
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html",
+    "https://www.dwd.de/DE/service/rechtliche_hinweise/vorlagen_quellenangabe.html",
+    "https://www.dwd.de/DE/leistungen/opendata/opendata.html",
+]

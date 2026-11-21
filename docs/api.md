@@ -18,7 +18,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The rain radar has two frames, recorded from DWD on 2026-11-21 at 11:35 and 11:40 UTC, and a clock of its own that stands four minutes after the second ([`GET /v1/radar`](#get-v1radar)). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -202,6 +202,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 422 | `fixes_out_of_time` | None of the live fixes sent has a time the server takes: all lie in the future, or are too old. The device's clock is probably wrong; `message` says what the server's shows |
 | 429 | `rate_limited` | Too many attempts. `Retry-After` says when to try again |
 | 501 | `no_forecasts` | The server has no forecast service. Asking again does not help |
+| 501 | `no_radar` | The server collects no rain radar: none of its regions names a radar source. Asking again does not help |
 | 503 | `unavailable` | The server cannot reach its database, is too busy for this request, or has no forecast for a place at hand and cannot fetch one now. `Retry-After` says when to try again |
 | 503 | `timeout` | The server could not answer within ten seconds |
 | 502 | `unavailable` | A [tile of map imagery](#get-v1imagerysourcezxy): its provider failed or sent what is not a tile. May be kept for a minute |
@@ -235,6 +236,15 @@ How the server and each of its data sources are doing.
       }
     ]
   },
+  "radar": [
+    {
+      "source": "dwd-radar-ry",
+      "frames": 2,
+      "newest_frame": "2026-11-21T11:40:00Z",
+      "newest_frame_age_s": 240,
+      "bytes": 9000
+    }
+  ],
   "sources": [
     {
       "source": "awc-metar",
@@ -253,6 +263,14 @@ How the server and each of its data sources are doing.
       "newest_observation": "2026-11-18T18:20:00Z",
       "stale": false,
       "stations": 3
+    },
+    {
+      "source": "dwd-radar-ry",
+      "provider": "Deutscher Wetterdienst",
+      "cadence_seconds": 300,
+      "last_success": "2026-11-18T19:05:00Z",
+      "stale": false,
+      "stations": 0
     },
     {
       "source": "geosphere-tawes",
@@ -330,9 +348,14 @@ How the server and each of its data sources are doing.
 | `thermal_map.source` | The forecast source the map is made from |
 | `thermal_map.computed_at` | When the server worked out the map it serves. Left out while it has none: after a first start, until the finest model's part was fetched whole, which is some minutes on a warm forecast service and a look or two longer on one that has just started. `/v1/thermals` answers `503` until then |
 | `thermal_map.models[]` | The models the map is made of, the finest first, each with the `run` its part of the map was last made from, every cell of it. `run` is left out until that was done once; the map then has no day of that model. The run the forecast service holds is the model's `run` under `sources[].models[]`: the map follows it some minutes after the server's look sees it. A map that stays behind for more than a few looks waits for something, and the server's log says for what. It does not make the server `degraded` |
+| `radar[]` | For whoever runs the server; an app asks for the frames themselves ([`GET /v1/radar`](#get-v1radar)). One entry for each radar source the server collects. Left out by a server that collects none, and by an older server |
+| `radar[].frames` | How many frames of the source the server holds: at most 25, two hours of a frame every five minutes |
+| `radar[].newest_frame` | The time of the newest frame held: the end of the five minutes it is of. Left out while the server holds none |
+| `radar[].newest_frame_age_s` | How old that frame is by the server's clock, in seconds. A source that publishes every five minutes is ordinarily one to six minutes behind; a quarter of an hour and more means the provider has stopped publishing, and the source's entry under `sources` turns `stale` with it. Left out while the server holds none |
+| `radar[].bytes` | What the pictures of the held frames weigh in the server's memory. Nothing else is kept of them |
 | `sources[].cadence_seconds` | How often the server asks the provider for new data |
 | `sources[].last_success` | When a run last delivered its data without trouble. Left out if none ever did |
-| `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. Left out if none ever did |
+| `sources[].last_failure` | When a run last failed. For a source of observations: it delivered nothing, or more than a tenth of its requests failed. For a source of airspace or of flying sites: any request failed, because a set with a part missing must not replace a whole one. For a source of rain radar: any request failed, or the provider's newest frame was older than three of its intervals; a run that found nothing new is no failure. Left out if none ever did |
 | `sources[].newest_observation` | The time of the newest observation the source has delivered. Left out for a source of anything else |
 | `sources[].stale` | `true` when no run has succeeded for too long. For a source the server asks every few minutes: three cadence intervals. For a source it asks once a day or less often, which is airspace and flying sites: two and a quarter intervals, 54 hours for a daily one. A failed daily run is tried again a day later, so one missed day is tolerated and the second is not |
 | `sources[].stations` | How many stations the last successful run delivered. `0` for a source of anything else |
@@ -1748,6 +1771,96 @@ A day in late November has half the hours and half the size. One answer with eve
 | `503` | `unavailable` | The server has no map yet. `Retry-After` says when to ask again (60 seconds) |
 
 **In the development mode** the hours are those of the recorded map's four days, by the code a real server runs: seven hours a day, from 08:00 to 14:00 UTC, on the 21st to the 23rd, and five on the 24th, which ends with ICON-EU's run at noon. The made-up summer day of the UI tests (`tools/made-up-day/serve.py`) answers this endpoint for each day of its made-up map, with eleven hours a day and something in every layer.
+
+## `GET /v1/radar`
+
+The rain radar frames the server holds: what a weather service's radars saw of the rain over the server's regions, a picture every few minutes, for the last two hours. The answer is the list; each frame's picture is at its `path` ([below](#get-v1radarsourcetimepng)).
+
+```json
+{
+  "time": "2026-11-21T11:44:00Z",
+  "steps_mm_h": [
+    0.1,
+    0.2,
+    1.0,
+    4.0,
+    10.0,
+    30.0
+  ],
+  "unseen": 7,
+  "layers": [
+    {
+      "source": "dwd-radar-ry",
+      "west": 9.4,
+      "south": 46.291984,
+      "east": 17.2,
+      "north": 48.5,
+      "columns": 624,
+      "rows": 261,
+      "cadence_seconds": 300,
+      "frames": [
+        {
+          "time": "2026-11-21T11:35:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1135Z.png",
+          "bytes": 4489
+        },
+        {
+          "time": "2026-11-21T11:40:00Z",
+          "interval_s": 300,
+          "path": "/v1/radar/dwd-radar-ry/20261121T1140Z.png",
+          "bytes": 4511
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "dwd-radar-ry",
+      "provider": "Deutscher Wetterdienst",
+      "licence": "CC BY 4.0",
+      "text": "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben",
+      "url": "https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | The server's clock when it answered. Count a frame's age against this, not against the device's clock, and write it on the map: a radar picture that is not dated is taken for the rain of now |
+| `steps_mm_h` | From how many millimetres an hour each step of rain begins, the first step first. The steps are Venti's and the same for every radar source: 0.1 is the least a product reports, 0.2, 1 and 4 are where the forecast map's light rain, rain and heavy rain begin, 10 and 30 are for the cores of showers and thunderstorms |
+| `unseen` | The value of a pixel the radar did not see |
+| `layers[]` | One layer for each radar source the server collects, sorted by source. **Layers are never merged**: two sources are two pictures, each with its own credit, and a client that shows both draws two layers. A source the server holds no frame of, after a start or while its provider does not answer, is a layer without frames |
+| `layers[].west`, `south`, `east`, `north` | The edges of every picture of the layer, in degrees |
+| `layers[].columns`, `rows` | The size of a picture in pixels. The pixels are square in Web Mercator, the projection web maps are drawn in, so a picture lies right on such a map when its four corners are pinned to the four edges: top left `west`, `north`; top right `east`, `north`; bottom right `east`, `south`; bottom left `west`, `south`. The first region's is 624 by 261, a pixel an eightieth of a degree of longitude wide, which is 0.94 km at 47.5° N and as fine as the radar products are. A larger area gets a coarser grid: no side has more than 2048 pixels. `south` lies a little beyond the regions' edge, where the last row ends |
+| `layers[].cadence_seconds` | How often the source publishes a frame |
+| `layers[].frames[]` | The frames held, the oldest first: at most 25, none older than two hours |
+| `layers[].frames[].time` | The end of the interval the frame is of |
+| `layers[].frames[].interval_s` | How long that interval is: a frame of 11:40 with 300 is the rain between 11:35 and 11:40 |
+| `layers[].frames[].path` | Where the frame's picture is, on this server |
+| `layers[].frames[].bytes` | The size of the picture |
+| `attributions[]` | The credit of every source that has a layer in the answer. Show it with the layer: DWD asks for its credit "unmittelbar an der verwendeten DWD-Information", directly at the data |
+
+The list may be kept for a minute (`Cache-Control: public, max-age=60`) and carries an `ETag`. A server that collects no radar answers `501` with `no_radar`.
+
+**What a radar does not see.** DWD's composite is what Germany's 17 radars see, 150 km around each. In the first region that is Bavaria and the north of Tirol and Vorarlberg; east of Passau and south of the main ridge of the Alps it sees nothing, and behind the first chains its beams are blocked by the mountains in front. Such places have the value `unseen` in every picture, which is not "no rain". And a frame is the rain that fell in its five minutes: it says nothing of a shower that has not formed yet.
+
+**In the development mode** the list has the two frames recorded from DWD's open-data server on 2026-11-21, of 11:35 and 11:40 UTC, a morning of light rain over the south of Bavaria. The radar's clock stands at 11:44 UTC of that day, three days after the clock of the observations: the newest frame is four minutes old.
+
+### `GET /v1/radar/{source}/{time}.png`
+
+One frame's picture, at the `path` the list gives: `time` is the frame's, written `20261121T1140Z`.
+
+The answer is a PNG with a palette, a byte a pixel, `columns` by `rows`, the first row the northernmost. **A pixel's value is a step, not a colour**: `0` where the radar saw no rain, `1` to `6` for the steps of `steps_mm_h`, `7` (`unseen`) where it did not see. The colours are a client's own. The palette in the file is a plain one, so that the picture can be looked at as it is: no rain is clear, the steps are greys from light to dark, and what was not seen is a faint veil. A client that draws rain in its own colours writes its palette over the file's, which changes two small chunks of the file and none of its pixels (Venti's apps do so in their core), or reads the pixels as numbers.
+
+A picture of the first region is 4 to 9 kB: 4.5 kB for each of the two recorded frames, and some 8 kB on 2026-11-19 at 12:35 UTC, with rain over half of what the radar sees there (the first measured by the server, the second with the same grid and steps outside it). Two hours of frames are 0.1 to 0.2 MB.
+
+A frame of a moment does not change, and may be kept for a day (`Cache-Control: public, max-age=86400, immutable`). The server itself drops a frame after two hours.
+
+| Status | `error.code` | When |
+|---|---|---|
+| `404` | `not_found` | No such source, not the name of a frame, or a frame the server does not hold, or no longer |
 
 ## Maps
 
@@ -4154,4 +4267,4 @@ One tile of the Web Mercator scheme every web map uses: zoom `z`, column `x` fro
 
 ## What is not here yet
 
-Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them about a flight, a pilot's page and a live track. A group and a plan can be reported since 2026-11-21, on the server and in the apps' shared core; no app offers it yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.
+Recovering a forgotten password, passkeys, changing a handle or a display name, flights visible to followers only, follows and a feed of the pilots one follows, a name for the place a flight took off from, forecast maps (of the thermal map the server's side is here since 2026-11-21, and no app draws it yet), a second radar source for what DWD's radars do not see (of the rain radar the server's side is here since 2026-11-21, with DWD's composite, and no app draws it yet), pages about a site with its rules and webcams and which airspace is active today are planned and not built; see [plan.md](plan.md). Of live tracks the server's side is here; since 2026-11-20 the iPhone and the Android app send them, and those two and the web app draw the public ones on their maps. Not built for them: a track only followers see, a track shown with a delay, a list of an account's own tracks, the positions of gliders that do not fly with Venti (the Open Glider Network and the trackers pilots carry; [data-sources.md](data-sources.md#live-tracking)). Of reports the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app send them about a flight, a pilot's page and a live track. A group and a plan can be reported since 2026-11-21, on the server and in the apps' shared core; no app offers it yet. Not built for them: an answer to the reporter, a way for a pilot to object to what the operator did, one pilot hiding another's flights from their own view, and anything the server does about a report by itself. Of groups and plans the server's side is here, and since 2026-11-20 the iPhone, the Android and the web app show them. Not built for them: a link that carries an invite code, finding a group by its name, a group that pilots nearby can see, chat, events, a plan posted to several groups at once, members seeing each other's flights or live tracks through a group, and any notice that something happened in a group: a client asks. The connector for a pilot's own assistant is built and is not part of this API: it is the endpoint `/mcp` beside it and has a document of its own, [mcp.md](mcp.md). Of map regions the server's side is here since 2026-11-20. Not built for them: two versions of a region side by side, so that a download of the older one could end while the newer is handed out; a way to fetch only what changed between two versions; and the label fonts, which the apps bundle. Station metadata is planned to move into downloadable region bundles ([architecture.md](architecture.md#api-and-offline-sync)); the station list will keep working when it does.

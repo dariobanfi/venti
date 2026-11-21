@@ -26,6 +26,7 @@ mod forecast;
 mod geo;
 mod ids;
 mod observation;
+mod radar;
 mod site;
 mod station;
 
@@ -38,6 +39,10 @@ pub use forecast::{ForecastHour, ForecastSeries, WindAloft};
 pub use geo::{BoundingBox, GeoError, GeoPoint};
 pub use ids::{AirspaceId, IdError, ModelId, SiteId, SourceId, StationId};
 pub use observation::Observation;
+pub use radar::{
+    RADAR_DRY, RADAR_MAX_SIDE, RADAR_STEP_DEG, RADAR_UNSEEN, RAIN_STEPS_MM_H, RadarFrame,
+    RadarGrid, rain_step,
+};
 pub use site::{Site, SiteOutline, SiteOutlineError, SiteUse, WindSector};
 pub use station::Station;
 

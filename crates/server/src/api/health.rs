@@ -120,6 +120,7 @@ pub(crate) async fn health<S: Store>(State(api): State<Arc<Api<S>>>) -> Result<R
                     .collect(),
             }
         }),
+        radar: api.radar_health(),
         sources,
     };
 

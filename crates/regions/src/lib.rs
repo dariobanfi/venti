@@ -6,8 +6,8 @@
 //! pack; nothing else changes.
 //!
 //! A pack has one section per kind of data: `[observations]`, which every
-//! region has, and `[airspace]`, `[sites]` and `[forecasts]`, which a region
-//! may leave out.
+//! region has, and `[airspace]`, `[sites]`, `[forecasts]` and `[radar]`,
+//! which a region may leave out.
 //!
 //! The area is a bounding box for now. A boundary polygon replaces it when a
 //! region needs a shape a box cannot express.
@@ -53,6 +53,13 @@ pub struct RegionPack {
     /// [`forecasts_without_adapter`](Self::forecasts_without_adapter).
     #[serde(default, skip_serializing_if = "SourceList::is_empty")]
     pub forecasts: SourceList,
+    /// The sources of rain radar. A region may have none.
+    ///
+    /// Radar from different sources is never merged into one picture: each
+    /// source stays a layer of its own, with its own credit and its own
+    /// frames.
+    #[serde(default, skip_serializing_if = "SourceList::is_empty")]
+    pub radar: SourceList,
 }
 
 /// The sources of one kind of data in a region.
@@ -115,6 +122,7 @@ impl RegionPack {
             &pack.airspace,
             &pack.sites,
             &pack.forecasts,
+            &pack.radar,
         ];
         for list in lists {
             let mut seen = BTreeSet::new();
@@ -139,7 +147,8 @@ impl RegionPack {
     }
 
     /// Checks that the build contains an adapter for every source the region
-    /// names, of observations, of airspace and of flying sites alike. A
+    /// names, of observations, of airspace, of flying sites and of rain
+    /// radar alike. A
     /// region whose airspace the server could not collect must stop it at
     /// start, not leave pilots with a map that silently has none.
     ///
@@ -162,6 +171,11 @@ impl RegionPack {
         }
         for source in &self.sites.sources {
             if registry.sites(source).is_none() {
+                return Err(unknown(source));
+            }
+        }
+        for source in &self.radar.sources {
+            if registry.radar(source).is_none() {
                 return Err(unknown(source));
             }
         }

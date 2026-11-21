@@ -8,10 +8,11 @@ use std::sync::Arc;
 use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
 use venti_domain::{GeoPoint, ModelId, Timestamp};
 use venti_sources::testing::FixtureFetch;
-use venti_sources::{ForecastSource, ImagerySource, Registry};
+use venti_sources::{ForecastSource, ImagerySource, RadarSource, Registry};
 use venti_sources_awc::AwcMetar;
 use venti_sources_basemapat::BasemapAt;
 use venti_sources_dwd::Dwd10Min;
+use venti_sources_dwd_radar::DwdRadarRy;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
@@ -144,7 +145,40 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
             .register_forecasts(forecasts)
             .expect("open-meteo registers once");
     }
+    for radar in radar_sources() {
+        registry
+            .register_radar(radar)
+            .expect("a radar source registers once");
+    }
     Ok(registry)
+}
+
+/// The adapters for rain radar. The radar service runs these; the
+/// registry holds adapters of its own for the same sources, made by
+/// [`registry_for`], for what a manifest says.
+pub fn radar_sources() -> Vec<Box<dyn RadarSource>> {
+    vec![Box::new(DwdRadarRy::new())]
+}
+
+/// The radar frames recorded from the providers, as a fetcher of their
+/// own: the radar is collected by a service with a clock of its own, which
+/// in the development mode stands at the moment these were recorded.
+pub fn recorded_radar_payloads() -> FixtureFetch {
+    FixtureFetch::new().with_all(venti_sources_dwd_radar::fixtures::recorded())
+}
+
+/// The moment the development mode's radar clock stands at: shortly after
+/// its frames were recorded, three days after the observations.
+pub fn radar_recorded_at() -> Timestamp {
+    venti_sources_dwd_radar::fixtures::recorded_at()
+}
+
+/// For how long the development mode's radar keeps a frame: from the
+/// moment up to which the recording holds none, to its clock. A real
+/// server keeps two hours; kept for as long here, the radar would ask for
+/// frames nobody recorded.
+pub fn radar_recorded_kept() -> chrono::Duration {
+    radar_recorded_at() - venti_sources_dwd_radar::fixtures::held_until()
 }
 
 /// The payloads recorded from every provider, as a fetcher that answers
@@ -314,6 +348,7 @@ mod tests {
                     Kind::Airspace => registry.airspace(&manifest.id).is_some(),
                     Kind::Forecasts => registry.forecasts(&manifest.id).is_some(),
                     Kind::Sites => registry.sites(&manifest.id).is_some(),
+                    Kind::Radar => registry.radar(&manifest.id).is_some(),
                     // Imagery sources are not in the registry.
                     Kind::Imagery => false,
                 };
@@ -321,7 +356,7 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 6);
+        assert_eq!(registry.manifests().count(), 7);
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
     }
 
@@ -337,7 +372,7 @@ mod tests {
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 7);
+        assert_eq!(told.manifests().count(), 8);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

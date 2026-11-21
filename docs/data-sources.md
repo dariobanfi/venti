@@ -95,6 +95,20 @@ A source that can answer for many places in one request says so: `places_per_req
 
 `ImagerySource` is not collected either, and holds no records. A client's map asks the server for one tile, and the adapter says whether the provider has it, where it lies against what may be shown (inside, outside, or on the edge), the address to fetch it at, and, for a tile on the edge, what of it may go out: it cuts the tile. The server fetches, keeps the answer on its disk and answers ([architecture.md](architecture.md#the-aerial-view-through-the-server)). The adapter does no I/O, like every other. Imagery sources are not in the registry: nothing schedules them and no region pack names them.
 
+`RadarSource` is collected for an area on a schedule, like observations, and what a run delivers is pictures: each frame the provider has that the server does not hold yet, laid by the adapter on the grid the run names and turned into Venti's steps of rain. So its `parse` is told what is wanted:
+
+```rust
+pub trait RadarSource: Send + Sync {
+    fn manifest(&self) -> &Manifest;
+    /// The requests that start a run: as a rule the provider's list of frames.
+    fn plan(&self, ctx: &PlanCtx) -> Vec<Request>;
+    fn parse(&self, request: &Request, body: &[u8], ctx: &PlanCtx, wanted: &RadarWanted)
+        -> Result<ParsedRadar, SourceError>;
+}
+```
+
+`RadarWanted` names the moment after which frames are wanted and the grid: squares of the web map over the run's area (`RadarGrid`, in `domain`). A `RadarFrame` is a source, the end of the interval it is of, how long that interval is, the grid, and one value a cell: no rain, a step from 1 to 6 by `RAIN_STEPS_MM_H` (0.1, 0.2, 1, 4, 10 and 30 mm/h; ours, and the same for every source), or "not seen". The provider's projection, units and file format end in the adapter. `run_radar` goes through the same fetcher and budget as every run; validation removes a frame whole that is of another source or another grid than was asked for, whose cells are not as many as its grid's or hold a value that is no step, or that is dated after the run. A run is healthy when every request worked and the provider's newest frame is no older than three of its intervals; one that found nothing new is healthy, and one of a provider that has stopped publishing is not. What the server keeps of the frames, and how it hands them out, is in [architecture.md](architecture.md#the-rain-radar).
+
 On-device instrument drivers follow the same idea in the `sensors` crate: one parser per protocol, fed bytes, tested from recorded streams.
 
 ### Manifest
@@ -163,13 +177,16 @@ sources = ["openaip"]
 
 [sites]
 sources = ["osm-free-flying"]
+
+[radar]
+sources = ["dwd-radar-ry"]
 ```
 
 Region packs live in `regions/<id>/region.toml`. The area is a bounding box for now; a boundary polygon replaces it when a region needs a shape a box cannot express. Sections for the other kinds (map layers and so on) are added as those kinds are built.
 
 A region may leave `[airspace]` out. Airspace from two sources is never merged, so `priority` there says which layer a client prefers where two cover the same air, not which fields win. A region's airspace sources are checked against the build's adapters like its observation sources: a server that cannot collect a region's airspace does not start.
 
-`[sites]` follows the rules of `[airspace]`: a region may leave it out, sources are never merged, and a server that cannot collect a region's sites does not start. `[forecasts]` is the one section whose sources a server may lack: a forecast comes from a service that whoever runs the server runs beside it, and a server that was not told where that service is starts all the same, says in its log which forecasts it goes without, and reports that it has none.
+`[sites]` follows the rules of `[airspace]`: a region may leave it out, sources are never merged, and a server that cannot collect a region's sites does not start. `[radar]` follows them too: each radar source is a layer of its own, with its own pictures and its own credit. `[forecasts]` is the one section whose sources a server may lack: a forecast comes from a service that whoever runs the server runs beside it, and a server that was not told where that service is starts all the same, says in its log which forecasts it goes without, and reports that it has none.
 
 A manifest needed nothing new for airspace beyond the kind. `cadence_seconds` is how often the provider publishes, a day for openAIP, and the request budget and the staleness rule follow from it as for any source.
 
@@ -274,7 +291,10 @@ As of 2026-11-19:
 | `ImagerySource` and the `Imagery` kind; `[[asset]]` in a manifest (`venti-sources`) | Built 2026-11-20 |
 | Adapter: `basemap-at` (`venti-sources-basemapat`): Austria's orthophoto, its tile addresses, and the cut along Austria's outline | Built 2026-11-20, with six tiles recorded that day and golden files of the cut |
 | Map imagery in the server: `GET /v1/imagery/{source}/{z}/{x}/{y}`, kept on the disk under a cap, the development mode over the recorded tiles | Built 2026-11-20; installed on no machine yet, and no app asks for it yet |
-| Every kind other than observations, airspace, sites, point forecasts and map imagery | Designed, not built |
+| `RadarSource`, `RadarFrame` and the `Radar` kind, their registry and their run (`venti-sources`, `venti-domain`); the `[radar]` section of a region pack | Built 2026-11-21 |
+| Adapter: `dwd-radar-ry` (`venti-sources-dwd-radar`): DWD's five-minute rain radar composite, with a reader for its HDF5 files and its projection | Built 2026-11-21, with the list of frames and two frames recorded that day, whole, and golden files; in the first region's pack |
+| Rain radar in the server: collected every five minutes, the last two hours kept in memory as pictures, served at `GET /v1/radar` and `GET /v1/radar/{source}/{time}.png`, health, the development mode over the recorded frames, `ingest` and with it the canary | Built 2026-11-21; installed on no machine yet, and no app draws it |
+| Every kind other than observations, airspace, sites, point forecasts, map imagery and rain radar | Designed, not built |
 
 A live run of the first region on 2026-11-18 delivered 50 DWD and 267 GeoSphere stations in under six seconds, using 104 and 2 requests.
 
@@ -288,6 +308,8 @@ On 2026-11-21 at 10:52 UTC the server's own fetcher ran the four station sources
 | `awc-metar` | 22, all with a wind | 22 | 22 min | 1 | |
 
 The two new sources have not run on a schedule against a database: *to verify* on the first installation, with everything else.
+
+On 2026-11-21 at 12:21 UTC the server's own fetcher ran the radar source once (`venti-server ingest regions/alps-de-at/region.toml --source dwd-radar-ry`): four requests, the list and the frames of 12:10, 12:15 and 12:20 UTC, none failed, nothing left out or rejected; DWD's newest frame was one minute old. On a schedule it has not run: *to verify* on the first installation.
 
 On 2026-11-19 openAIP's export files for Germany and Austria were fetched by hand from the address the adapter uses, without a key: 756 and 262 airspaces, 2.0 MB and 0.8 MB, both written that night. The adapter and the pipeline read both whole files from disk: 1,018 airspaces, none skipped, none rejected, no type the adapter does not know. Of them the cockpit's warning table marks 637 to avoid, 134 as a caution and 247 as free. The OpenAir exports of the same two countries, read by the OpenAir reader of `venti-airspace`, give the same name, class, type and limits for every one of the 1,018. `VENTI_OPENAIP_DIR=<folder> cargo test -p venti-sources-openaip --test pipeline whole -- --nocapture` repeats the check on freshly fetched files.
 
@@ -508,12 +530,25 @@ DWD's [announcement](https://www.dwd.de/DE/leistungen/opendata/neuigkeiten/opend
 
 | Source | Provides | Licence | Status |
 |---|---|---|---|
-| DWD radar composite | 5-minute precipitation, Germany, weak behind the main Alpine ridge | CC BY 4.0 | Open |
+| DWD radar composite RY | A rain rate on a 1 km grid over Germany every five minutes, from DWD's 17 radars, as HDF5; 150 km around each radar, so in the first region Bavaria and the north of Tirol and Vorarlberg, and weak behind the first chains of the Alps | CC BY 4.0, read on DWD's own page on 2026-11-21; see below | **Built** as `dwd-radar-ry`, a layer of its own |
 | GeoSphere Austria nowcast and INCA | 15-minute analysis and three-hour nowcast | CC BY 4.0 | Open |
 | RainViewer | Radar tiles | Free for small community use with credit; limits tightened in 2026 | Open with limits |
 | Blitzortung | Lightning | Use in apps needs written permission | Ask |
 
 No open real-time lightning source was found.
+
+**DWD's composite, as read on DWD's own pages and in its files on 2026-11-21:**
+
+- **Licence.** DWD's [legal notice](https://www.dwd.de/DE/service/rechtliche_hinweise/rechtliche_hinweise_node.html): "Alle frei zugänglichen Geodaten und Geodatendienste sowie die als hochwertige Datensätze / high value datasets (HVD) festgelegten Leistungen des DWD dürfen unter den Bedingungen der Lizenz Creative Commons BY 4.0 (CC BY 4.0) unter Beigabe eines Quellenvermerks weiterverwendet werden. Zu den Geodaten zählen alle bereitgestellten meteorologischen Wetter- und Klimainformationen mit Ortsbezug." Its [open data page](https://www.dwd.de/DE/leistungen/opendata/opendata.html) names radar data among what the open-data server holds, points to that notice as the terms of use, and says that no level of service or availability is promised for `opendata.dwd.de`.
+- **Credit.** DWD's [page on source credits](https://www.dwd.de/DE/service/rechtliche_hinweise/vorlagen_quellenangabe.html): the credit stands "unmittelbar an der verwendeten DWD-Information"; unchanged data, extracts and a changed format are credited "Quelle: Deutscher Wetterdienst"; for data changed further DWD expects at least to be named, and gives as wording of a notice of change, among others, "Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben". Venti lays the composite on another grid and turns its values into six steps, which is more than a change of format, so the manifest's credit is that sentence. *For the owner:* whether to ask DWD if "Quelle: Deutscher Wetterdienst" would do as well; nothing depends on it.
+- **Which product.** The open-data server has two folders of composites. `weather/radar/composite/` holds DMAX, HG, HX, HymecNG, PG, RS, RV, VII and WN; `weather/radar/radolan/` holds RW, RY, SF and YW. RY is the one built: "qualitätsgeprüfte Radardaten nach Anwendung der verfeinerten Z-R-Beziehungen in Niederschlagshöhen umgerechnet", every five minutes ([format description](https://www.dwd.de/DE/leistungen/radolan/radolan_info/radolan_radvor_op_komposit_format_pdf.pdf), version 2.6 of 2025-01-14). A file is named `raa01-ry_10000-YYMMDDhhmm-dwd---bin.hdf5`, 50 to 435 kB in the two days the folder held (the more rain over Germany, the larger), and the folder keeps two days of them, 576 files, with the newest once more as `…-latest-…`. RV is the same analysis with a nowcast of two hours in 25 files, a tar of 3 to 12.6 MB every five minutes; HX and WN are reflectivity; YW is RY adjusted to gauges and was not looked at. PG and HG are empty folders.
+- **The format.** Since a migration that began in 2023 the RADOLAN products are HDF5 by EUMETNET's ODIM_H5 2.3, on the WGS84 ellipsoid, 1200 km by 1100 km (the same format description, 1.3). A recorded frame: a superblock of version 0, object headers of version 2, one dataset `/dataset1/data1/data` of 1200 rows by 1100 columns of unsigned 16-bit integers in one chunk packed with deflate, and its meaning in attributes. `quantity` is `RATE`; `gain` 0.01, `offset` 0; `nodata` 65535 for what no radar saw (627,073 of the 1,320,000 pixels, 47.5 %) and `undetect` 0 for what was seen without an echo.
+- **The unit** is taken as millimetres an hour. ODIM defines `RATE` as a rain rate, and its own example of one is "0.1–0.5 mm/h"; the recorded frames agree: their smallest value that is not zero is 12, which is 0.12 mm/h, the 0.01 mm in five minutes that was the old format's smallest step; and the largest value of that morning of light rain is 24.9, which is a rate one can believe by the hour and not an amount in five minutes (the frame of 2026-11-19 12:35 UTC, rain over much of Germany, has 72 at its most). DWD's description still calls the values of RY "Niederschlagshöhen", amounts, as it did when they were hundredths of a millimetre in five minutes. If that were still so, every rate here would be twelve times too low. *To verify*: against DWD's own rain gauges of the same minutes, or by a question to DWD (opendata@dwd.de); and the unit in ODIM's table of quantities, which could not be read out of the PDF here.
+- **The time.** The file named `…2611211140…` says of itself that it is of 11:35:00 to 11:40:00 UTC with the nominal time 11:40:00, and the server dated it 11:40:17: a frame is published some twenty seconds after the five minutes it is of. Venti dates a frame by the end of its interval.
+- **The grid.** A frame's `/where` gives a polar stereographic projection as a PROJ definition (`+proj=stere +lat_0=90 +lat_ts=60 +lon_0=10 +a=6378137 +b=6356752.3142451802 +no_defs +x_0=543196.83521776402 +y_0=3622588.8619310018 +units=m`), a pixel of 1000 m, and the four corners in degrees, from 45.68° to 55.86° N. The adapter reads all of it from each frame and refuses a frame whose corners do not lie where its projection and size put them. Two checks that it reads them rightly: the four corners land on the grid's corners within a millimetre; and the edge of what is seen lies 150 km from the radars at Isen, Feldberg, Boostedt, Prötzel, Borkum and Rostock, whose places the format description gives, with the rows read from the north as ODIM says and only so.
+- **What it sees in the first region.** 150 km around Feldberg, Memmingen, Isen, Türkheim and the others: to 46.8° N on Isen's meridian. Of the first region's box 57 % is not seen in the recorded frames: everything east of about 14° E and south of the main ridge. The composite's own grid reaches to Vienna; no German radar does. Inside the range the beams are blocked behind the first chains, which the product does not mark: such a valley reads as dry. That is the limit the catalogue's "weak behind the main Alpine ridge" means, and the apps say it in words.
+
+**What the catalogue had wrong before 2026-11-21:** it named no product; the composite it described as "5-minute precipitation" is RY, which no longer comes in the RADOLAN binary format that descriptions of it give but as HDF5; and its values are a rate, not an amount.
 
 ### Airspace
 

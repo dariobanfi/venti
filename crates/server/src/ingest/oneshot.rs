@@ -1,7 +1,8 @@
 //! The `ingest` subcommand: runs the sources of a region once against the
-//! live providers, the sources of observations, of airspace and of flying
-//! sites alike. A source of forecasts, if the server was told where it is,
-//! is asked for the forecast of the middle of the region.
+//! live providers, the sources of observations, of airspace, of flying
+//! sites and of rain radar alike. A source of forecasts, if the server was
+//! told where it is, is asked for the forecast of the middle of the region.
+//! A radar source is asked for the frames of the last quarter of an hour.
 //!
 //! ```text
 //! venti-server ingest <region.toml> [--source ID] [--archive DIR] [--json]
@@ -19,14 +20,18 @@ use std::process::ExitCode;
 
 use chrono::Duration;
 use serde::Serialize;
-use venti_domain::{GeoPoint, SourceId};
+use venti_domain::{GeoPoint, RadarGrid, SourceId};
 use venti_regions::RegionPack;
 use venti_sources::{
-    AirspaceRunOutput, Failure, ForecastRunOutput, PlanCtx, RunOptions, RunOutput, SiteRunOutput,
-    Skipped, run_airspace, run_forecast, run_observations, run_sites,
+    AirspaceRunOutput, Failure, ForecastRunOutput, PlanCtx, RadarRunReport, RadarWanted,
+    RunOptions, RunOutput, SiteRunOutput, Skipped, run_airspace, run_forecast, run_observations,
+    run_radar, run_sites,
 };
 
-use super::{DirArchive, HttpFetch, airspace_summary, forecast_summary, sites_summary, summary};
+use super::{
+    DirArchive, HttpFetch, airspace_summary, forecast_summary, radar_summary, sites_summary,
+    summary,
+};
 use crate::adapters::{self, Providers};
 use crate::clock::{Clock, SystemClock};
 
@@ -50,6 +55,16 @@ struct Outputs {
     airspace: Vec<AirspaceRunOutput>,
     sites: Vec<SiteRunOutput>,
     forecasts: Vec<ForecastRunOutput>,
+    /// A radar run's report and, of each frame, its time: a frame's cells
+    /// are a picture, not something to print.
+    radar: Vec<RadarRun>,
+}
+
+/// What `--json` prints of a radar run.
+#[derive(Debug, Serialize)]
+struct RadarRun {
+    report: RadarRunReport,
+    frames: Vec<venti_domain::Timestamp>,
 }
 
 /// Prints the health line of one source, and its first problems below it.
@@ -196,6 +211,40 @@ pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCod
         outputs.forecasts.push(output);
     }
 
+    for id in pack.radar.sources.iter().filter(|id| wanted(id)) {
+        let source = registry
+            .radar(id)
+            .expect("region was checked against the registry");
+        let Some(grid) = RadarGrid::over(&pack.bounds) else {
+            eprintln!("FAIL {id}: the region has no radar grid on the map");
+            all_healthy = false;
+            continue;
+        };
+        // The last quarter of an hour: three frames of a source that
+        // publishes every five minutes, enough to see that it does.
+        let wanted_frames = RadarWanted {
+            after: now - Duration::minutes(15),
+            grid,
+        };
+        let output = run_radar(source, &fetch, &archive, &ctx, &options, &wanted_frames).await;
+
+        let run = &output.report;
+        let ok = run.is_healthy() && !output.frames.is_empty();
+        all_healthy &= ok;
+        report(id, ok, &radar_summary(run), &run.failures, &run.skipped);
+        for rejected in run.rejected.iter().take(5) {
+            eprintln!(
+                "     rejected the frame of {}: {}",
+                rejected.time.format("%H:%M UTC"),
+                rejected.reason
+            );
+        }
+        outputs.radar.push(RadarRun {
+            frames: output.frames.iter().map(|frame| frame.time).collect(),
+            report: output.report,
+        });
+    }
+
     if args.json {
         match serde_json::to_string_pretty(&outputs) {
             Ok(json) => println!("{json}"),
@@ -209,7 +258,8 @@ pub async fn run(args: Args, user_agent: &str, providers: &Providers) -> ExitCod
     let ran = outputs.observations.len()
         + outputs.airspace.len()
         + outputs.sites.len()
-        + outputs.forecasts.len();
+        + outputs.forecasts.len()
+        + outputs.radar.len();
     if ran == 0 {
         eprintln!("no source ran");
         return ExitCode::from(2);

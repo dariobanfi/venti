@@ -21,7 +21,10 @@
 //! area at all: a run fetches what the weather models say about one place,
 //! when somebody asks. Map imagery ([`ImagerySource`]) is not collected
 //! either: the server asks for one tile when a client's map does, and the
-//! adapter says what of it may be shown.
+//! adapter says what of it may be shown. Rain radar ([`RadarSource`],
+//! [`run_radar`]) arrives every few minutes as a picture of an area; a run
+//! delivers the frames the server does not hold yet, each on the grid the
+//! server asks for.
 //!
 //! See `docs/data-sources.md` for the design and the source catalogue.
 
@@ -30,6 +33,7 @@ mod fetch;
 mod forecast;
 mod imagery;
 mod manifest;
+mod radar;
 mod registry;
 mod run;
 mod sites;
@@ -46,6 +50,10 @@ pub use imagery::{Coverage, Cut, CutCounts, CutTile, ImagerySource, MAX_TILE_ZOO
 pub use manifest::{
     Asset, Auth, DEFAULT_MAX_RESPONSE_KB, Kind, Licence, LicenceFamily, Manifest, ManifestError,
     RateLimit,
+};
+pub use radar::{
+    ParsedRadar, RadarRejection, RadarRunOutput, RadarRunReport, RadarSource, RadarWanted,
+    run_radar,
 };
 pub use registry::{Registry, RegistryError};
 pub use run::{

@@ -110,6 +110,7 @@ pub(crate) fn refusal(status: u16, body: &[u8]) -> CoreError {
             "This place lies outside the area the server has forecasts for.".to_owned()
         }
         (_, Some("no_forecasts")) => "This server has no forecasts.".to_owned(),
+        (_, Some("no_radar")) => "This server has no rain radar.".to_owned(),
         (503, _) => "The server is busy or being restarted. Try again in a moment.".to_owned(),
         // A code this version has no words for is shown for a bug report,
         // if it looks like one of the API's codes. The address may be any

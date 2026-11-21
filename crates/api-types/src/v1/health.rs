@@ -34,10 +34,36 @@ pub struct HealthResponse {
     /// an older server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thermal_map: Option<ThermalMapHealth>,
+    /// Where the server's rain radar stands: for each radar source, the
+    /// newest frame it holds and how many. For whoever runs the server; an
+    /// app asks for the frames themselves. Left out by a server that
+    /// collects no radar, and by an older server.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub radar: Vec<RadarHealth>,
     /// One entry per data source the server collects, sorted by identifier:
-    /// the sources of observations, of airspace, of flying sites and of
-    /// forecasts alike.
+    /// the sources of observations, of airspace, of flying sites, of
+    /// forecasts and of rain radar alike.
     pub sources: Vec<SourceHealth>,
+}
+
+/// Where one radar source of a server stands.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RadarHealth {
+    /// The source.
+    pub source: SourceId,
+    /// How many frames the server holds of it.
+    pub frames: u32,
+    /// The time of the newest frame held: the end of the interval it is
+    /// of. Left out while the server holds none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_frame: Option<Timestamp>,
+    /// How old the newest frame is by the server's clock, in seconds.
+    /// Left out while the server holds none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_frame_age_s: Option<i64>,
+    /// How many bytes the pictures of the held frames take in the
+    /// server's memory.
+    pub bytes: u64,
 }
 
 /// The state of the whole server.
@@ -228,12 +254,14 @@ mod tests {
         assert_eq!(health.client_addresses, None);
         assert_eq!(health.registration, None);
         assert_eq!(health.thermal_map, None);
+        assert!(health.radar.is_empty());
         assert_eq!(health.sources[0].sites, None);
         assert!(health.sources[0].models.is_empty());
         let written = serde_json::to_value(&health).unwrap();
         assert!(written.get("forecasts").is_none());
         assert!(written.get("client_addresses").is_none());
         assert!(written.get("thermal_map").is_none());
+        assert!(written.get("radar").is_none());
         assert!(written["sources"][0].get("models").is_none());
     }
 

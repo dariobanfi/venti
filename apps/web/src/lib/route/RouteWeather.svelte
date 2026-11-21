@@ -2,10 +2,16 @@
 	The weather along the route, in the planner's card: the start, the mean
 	speed over the ground and the glide, then the core's line for the whole
 	route, each place's line with the height to leave it at, each leg's
-	line, and whose forecast it is. Every sentence is the core's.
+	line, and whose forecast it is. Every sentence is the core's. The
+	lines of the places and legs fold under "Each place and leg", open at
+	first on a wide screen and folded on a narrow one, where they often
+	say again what the route's line says.
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import type { ThermalMapDay } from '#lib/core/index.ts';
+	import Icon from '#lib/design/Icon.svelte';
 	import type { RouteWeatherModel } from './weather.svelte';
 
 	interface Props {
@@ -17,6 +23,9 @@
 	let { weather, days }: Props = $props();
 
 	const along = $derived(weather.along);
+	const wide = new MediaQuery('min-width: 56rem', false);
+	/** Whether the lines of each place and leg are unfolded. */
+	let unfolded = $state(untrack(() => wide.current));
 	const chosen = $derived(days.find((day) => day.date === weather.date) ?? days[0]);
 
 	function number(event: Event, set: (value: number) => void) {
@@ -85,19 +94,34 @@
 	{/if}
 	{#if along}
 		<p class="whole" role="status" data-route-weather>{along.words}</p>
-		<ol class="lines" aria-label="Along the route">
-			{#each along.points as point, index (index)}
-				<li>
-					<p>{point.words}</p>
-					{#if point.departureWords}
-						<p class="lesser">{point.departureWords}</p>
+		{#if along.points.length > 0}
+			<button
+				class="fold"
+				type="button"
+				aria-expanded={unfolded}
+				onclick={() => (unfolded = !unfolded)}
+			>
+				Each place and leg
+				<span class="turn" class:up={unfolded} aria-hidden="true">
+					<Icon name="forward" />
+				</span>
+			</button>
+		{/if}
+		{#if unfolded}
+			<ol class="lines" aria-label="Along the route">
+				{#each along.points as point, index (index)}
+					<li>
+						<p>{point.words}</p>
+						{#if point.departureWords}
+							<p class="lesser">{point.departureWords}</p>
+						{/if}
+					</li>
+					{#if along.legs[index]}
+						<li class="leg">{along.legs[index].words}</li>
 					{/if}
-				</li>
-				{#if along.legs[index]}
-					<li class="leg">{along.legs[index].words}</li>
-				{/if}
-			{/each}
-		</ol>
+				{/each}
+			</ol>
+		{/if}
 		{#if along.model || along.credits.length > 0}
 			<p class="credit">
 				{[along.model, ...along.credits.map((credit) => credit.provider)]
@@ -158,6 +182,31 @@
 
 	.problem {
 		color: var(--danger);
+	}
+
+	/* A row to press, as high as a finger needs, reaching into the gaps
+	   around it, as the radar card's "Key and notes". */
+	.fold {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		min-height: var(--target);
+		margin: calc(var(--space-2) * -1) 0;
+		color: var(--link);
+		font-size: var(--subheadline);
+		font-weight: 600;
+		text-align: left;
+	}
+
+	/* The pack's forward chevron, turned to point down, and up once unfolded. */
+	.turn {
+		display: grid;
+		transform: rotate(90deg);
+	}
+
+	.turn.up {
+		transform: rotate(-90deg);
 	}
 
 	.lines {

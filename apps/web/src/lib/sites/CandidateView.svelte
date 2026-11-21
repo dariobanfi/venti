@@ -1,8 +1,9 @@
 <!--
 	One place where pilots take off and no site stands, as its small sheet
-	on the map shows it under the core's title ("Pilots take off here"):
-	the core's line, its height and its season, and where the core offers
-	it to this pilot, the offer to add it. Every word is the core's.
+	on the map shows it under its height, which is the sheet's title: the
+	core's line ("Pilots take off here: …") and its season, and where the
+	core offers it to this pilot, the offer to add it. Every word is the
+	core's.
 -->
 <script lang="ts">
 	import type { CandidateOffer, SiteCandidateView } from '#lib/core/index.ts';
@@ -23,7 +24,6 @@
 <div class="candidate">
 	<div class="card">
 		<p class="row said">{candidate.words}</p>
-		<p class="row said numeric">{candidate.altitudeWords}</p>
 		{#if candidate.seasonWords}
 			<p class="row said">{candidate.seasonWords}</p>
 		{/if}

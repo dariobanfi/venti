@@ -146,12 +146,10 @@ test('a take-off’s page says what public flights began there, and the map offe
 		map.x + map.width / 2 + 4,
 		map.y + (map.height - covered) / 2 + RING_BELOW_PX - 4
 	);
-	const sheet = page.getByRole(wide ? 'complementary' : 'dialog', {
-		name: 'Pilots take off here'
-	});
+	// Titled by its height: the core's line begins with the core's title.
+	const sheet = page.getByRole(wide ? 'complementary' : 'dialog', { name: /^\d+ m$/ });
 	await expect(sheet).toContainText(/Pilots take off here: \d+ pilots/);
 	await expect(sheet).toContainText('No site names this place.');
-	await expect(sheet).toContainText(/\d+ m/);
 	await expect(sheet).toContainText(/You took off here on 7 Jul 2026\./);
 	await expect(sheet.getByRole('button', { name: 'Not this one' })).toBeVisible();
 	await keep('212-take-off-without-a-site');

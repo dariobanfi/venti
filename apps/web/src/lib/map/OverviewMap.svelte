@@ -196,6 +196,8 @@
 		onrouteat?: (at: Coordinate, siteId?: string) => void;
 		/** Called when a place of the route was dragged elsewhere, with its place in the route. */
 		onroutemove?: (index: number, to: Coordinate) => void;
+		/** Where the map opens, close enough to see the valleys; the northern Alps without one. Read once. */
+		around?: Coordinate;
 	}
 
 	let {
@@ -229,11 +231,14 @@
 		placing = false,
 		route,
 		onrouteat,
-		onroutemove
+		onroutemove,
+		around
 	}: Props = $props();
 
 	/** The northern Alps between Lake Constance and Salzburg. */
 	const START = { center: [11.6, 47.45] as [number, number], zoom: 7.4 };
+	/** How close the map goes to a place it is asked to show around. */
+	const AROUND_ZOOM = 10.5;
 	/** How close the map goes to a site's place that is to be moved. */
 	const PLACING_ZOOM = 15;
 	/** How close the map goes to a position it is asked to show. */
@@ -262,7 +267,12 @@
 		void import('./setup').then((module) => {
 			if (gone) return;
 			setup = module;
-			created = module.createMap(container, 'Map', START);
+			const at = untrack(() => around);
+			created = module.createMap(
+				container,
+				'Map',
+				at ? { center: [at.lon, at.lat], zoom: AROUND_ZOOM } : START
+			);
 			// Dragging the map away means the pilot wants to look elsewhere.
 			created.on('dragstart', () => (following = false));
 			const styled = created;
@@ -821,7 +831,7 @@
 	/** Brings a place to the middle of the map, close enough to see the valleys around it. */
 	export function showAround(at: { lat: number; lon: number }) {
 		following = false;
-		map?.easeTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), 10.5) });
+		map?.easeTo({ center: [at.lon, at.lat], zoom: Math.max(map.getZoom(), AROUND_ZOOM) });
 	}
 
 	/** One step closer or further away, for the buttons of a wide screen. */

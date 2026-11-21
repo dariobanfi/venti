@@ -6,14 +6,17 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { browser } from '$app/env';
+	import { page } from '$app/state';
 	import { creditLine } from '#lib/airspace/words.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { accountHref, placeHref } from '#lib/app/routes.ts';
+	import { accountHref, mapAroundIn, placeHref } from '#lib/app/routes.ts';
 	import type {
 		Bounds,
 		CandidateOffer,
 		Coordinate,
 		Credit,
+		SiteCandidateView,
 		SiteOutlook,
 		SiteView,
 		SiteWritten,
@@ -92,8 +95,12 @@
 
 	let following = $state(false);
 	let map = $state<OverviewMap>();
+	/** Where the map opens, where its address names a place: a site's page sent the pilot here. */
+	const around = browser ? untrack(() => mapAroundIn(page.url.searchParams)) : undefined;
 	/** How far the navigation reaches in from the bottom edge, measured in pixels. */
 	let navigationHeight = $state(0);
+	/** How high the map's foot is (the credits of what Venti draws), in pixels. */
+	let footHeight = $state(0);
 
 	/** The layers the pilot switched off with the chips, as this browser remembers them. */
 	let off = $state<MapLayer[]>(layersOff(globalThis.localStorage));
@@ -260,6 +267,14 @@
 	});
 	/** The candidate whose sheet is open, by its place (`candidateKey`). */
 	let chosenCandidate = $state.raw<string>();
+	/**
+	 * The title of a candidate's sheet: its height, and the core's title
+	 * after it only where the core's line does not begin with it already
+	 * ("Pilots take off here: 4 pilots, …").
+	 */
+	function candidateHeading(one: SiteCandidateView, title: string): string {
+		return one.words.startsWith(title) ? one.altitudeWords : `${one.altitudeWords} · ${title}`;
+	}
 	const candidate = $derived(
 		chosenCandidate === undefined
 			? undefined
@@ -791,7 +806,9 @@
 </svelte:head>
 
 <h1 class="visually-hidden">Map</h1>
-<div class="screen">
+<!-- The foot's height is set by the script once measured, never written
+     into the built page, whose policy allows no style attribute. -->
+<div class="screen" style:--foot-height={footHeight > 0 ? `${footHeight}px` : undefined}>
 	<OverviewMap
 		bind:this={map}
 		bind:following
@@ -827,6 +844,7 @@
 		onairspaceat={openAirspace}
 		{placing}
 		{route}
+		{around}
 		onrouteat={planAt}
 		onroutemove={(index, to) => planner.move(index, to)}
 	/>
@@ -1187,7 +1205,7 @@
 			<!-- A place where pilots take off and no site stands: a small sheet. -->
 			<MapPanel
 				shown={candidate ? chosenCandidate : undefined}
-				title={takeoffs.words.candidateTitle}
+				title={candidate ? candidateHeading(candidate, takeoffs.words.candidateTitle) : ''}
 				wide={wide.current}
 				half
 				onclose={() => (chosenCandidate = undefined)}
@@ -1217,7 +1235,7 @@
 	<!-- Whose wind, airspace and flying sites are on the map. Their licences
 	     ask for the credit next to the data; the full wording is on each
 	     station's page, on the airspace screen and on each site's page. -->
-	<div class="foot">
+	<div class="foot" bind:clientHeight={footHeight}>
 		{#if placing && siteForm && siteWords}
 			<!-- The map is moved under the mark; this says so and takes the place. -->
 			<div
@@ -1794,6 +1812,13 @@
 		/* The map's credits are written out in one line here, not behind a button. */
 		.foot {
 			bottom: 2.375rem;
+		}
+
+		/* The panes end above the foot, whose credits run to several lines:
+		   the foot's top lies 2.375 rem and its height above the screen's
+		   edge, the panes' room ends 4 rem above it. */
+		.panes {
+			max-height: min(100%, calc(100% + 1.625rem - var(--foot-height, 0px) - var(--space-3)));
 		}
 	}
 </style>

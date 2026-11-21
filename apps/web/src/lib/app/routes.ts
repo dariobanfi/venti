@@ -15,8 +15,20 @@ export function todayHref(): string {
 	return resolve('/today');
 }
 
-export function mapHref(): string {
-	return resolve('/');
+/** The map; with a place, opened around it (`?lat=…&lon=…`), as a site's page sends the pilot there. */
+export function mapHref(around?: { lat: number; lon: number }): string {
+	if (!around) return resolve('/');
+	const params = new URLSearchParams({ lat: around.lat.toFixed(5), lon: around.lon.toFixed(5) });
+	return `${resolve('/')}?${params}`;
+}
+
+/** The place the map's address opens it around, where it names one. */
+export function mapAroundIn(params: URLSearchParams): { lat: number; lon: number } | undefined {
+	const lat = Number(params.get('lat') ?? NaN);
+	const lon = Number(params.get('lon') ?? NaN);
+	if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+	if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return undefined;
+	return { lat, lon };
 }
 
 export function logbookHref(): string {

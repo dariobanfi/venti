@@ -117,6 +117,28 @@ describe('the route planner', () => {
 		expect(planner.places).toHaveLength(4);
 	});
 
+	it('takes no place closer than 150 m to the one before, but the start that closes it', () => {
+		const planner = new RoutePlanner(memory(), ask);
+		planner.startAt(WALLBERG);
+		// About 100 m east of the Wallberg: one place meant twice.
+		planner.add({ lat: WALLBERG.lat, lon: WALLBERG.lon + 0.0013 });
+		expect(planner.places).toHaveLength(1);
+		// About 200 m east: a place of its own.
+		const near = { lat: WALLBERG.lat, lon: WALLBERG.lon + 0.0027 };
+		planner.add(near);
+		expect(planner.places).toHaveLength(2);
+		planner.add(near);
+		expect(planner.places).toHaveLength(2);
+		// Out east and back to 100 m south of the start: then the start itself
+		// closes the route, however close it lies.
+		planner.add(EAST);
+		planner.add({ lat: WALLBERG.lat - 0.0009, lon: WALLBERG.lon });
+		expect(planner.places).toHaveLength(4);
+		planner.backToStart();
+		expect(planner.places).toHaveLength(5);
+		expect(planner.places[4]).toEqual(WALLBERG);
+	});
+
 	it('drops an answer for a route that has changed since it was asked', async () => {
 		const waiting: ((plan: ReturnType<typeof routePlan>) => void)[] = [];
 		const slow = (places: Coordinate[]) =>

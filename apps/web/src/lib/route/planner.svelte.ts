@@ -11,6 +11,24 @@ import { type KeptRoute, keepRoute, keptRoute, type RoutePlace } from './kept';
 /** Asks the core what a route through these places comes to. */
 export type AskPlan = (places: Coordinate[]) => Promise<RoutePlan | undefined>;
 
+/** Two places of a route lie at least this far apart, metres: the iPhone's `apartAtLeastM`. */
+export const APART_AT_LEAST_M = 150;
+
+function same(one: Coordinate, other: Coordinate): boolean {
+	return one.lat === other.lat && one.lon === other.lon;
+}
+
+/** How far apart two places are along the ground, metres, on a sphere of the Earth's mean radius. */
+function metresApart(one: Coordinate, other: Coordinate): number {
+	const radians = Math.PI / 180;
+	const dLat = (other.lat - one.lat) * radians;
+	const dLon = (other.lon - one.lon) * radians;
+	const a =
+		Math.sin(dLat / 2) ** 2 +
+		Math.cos(one.lat * radians) * Math.cos(other.lat * radians) * Math.sin(dLon / 2) ** 2;
+	return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined;
 
 export class RoutePlanner {
@@ -53,10 +71,19 @@ export class RoutePlanner {
 		this.#change([place]);
 	}
 
-	/** The next place of the route; the place it is at already adds nothing. */
+	/**
+	 * The next place of the route. A click closer than 150 m to the place
+	 * before adds nothing, as on the iPhone: a hand that clicks twice means
+	 * one place. The route's first place closes it, however close.
+	 */
 	add(place: RoutePlace): void {
 		const last = this.places.at(-1);
-		if (last && last.lat === place.lat && last.lon === place.lon) return;
+		if (last) {
+			if (same(last, place)) return;
+			const first = this.places[0];
+			const closes = this.places.length >= 2 && same(first, place);
+			if (!closes && metresApart(last, place) < APART_AT_LEAST_M) return;
+		}
 		this.#change([...this.places, place]);
 	}
 

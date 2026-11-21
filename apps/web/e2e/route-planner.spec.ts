@@ -10,6 +10,7 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	page,
 	mapDrawn,
 	keep,
+	wide,
 	problems
 }) => {
 	await page.goto('/');
@@ -40,15 +41,28 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await expect(words).toContainText('km along the route. Flown like this it scores as');
 	await expect(card.getByRole('heading', { level: 3 })).toBeVisible();
 	// The weather along it: the core's line for the whole route, at the
-	// planner's 20 km/h, and a line for each place and leg.
+	// planner's 20 km/h, and a line for each place and leg, unfolded at
+	// first on a wide screen and folded on a phone.
 	await expect(card.locator('[data-route-weather]')).toContainText('20 km/h');
-	await expect(
-		card.getByRole('list', { name: 'Along the route' }).getByRole('listitem')
-	).toHaveCount(5);
+	const each = card.getByRole('button', { name: 'Each place and leg' });
+	const along = card.getByRole('list', { name: 'Along the route' }).getByRole('listitem');
+	await expect(each).toHaveAttribute('aria-expanded', String(wide));
+	if (!wide) {
+		await expect(along).toHaveCount(0);
+		await each.click();
+	}
+	await expect(along).toHaveCount(5);
 	await expect
 		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
 		.toMatchObject({ places: 3 });
 	await mapDrawn();
+	if (wide) {
+		// The pane at the map's side ends above the credits at the map's foot.
+		await expect(page.locator('.credits')).toBeVisible();
+		const pane = (await page.getByRole('complementary', { name: 'Plan a route' }).boundingBox())!;
+		const credits = (await page.locator('.credits').boundingBox())!;
+		expect(pane.y + pane.height).toBeLessThanOrEqual(credits.y);
+	}
 	await keep('213-route-three-places');
 
 	// Back to the start: the core finds the triangle, closed.
@@ -80,5 +94,34 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await expect(words).toHaveText('Tap the map where the route begins.');
 	await expect(legs).toHaveCount(0);
 
+	expect(problems).toEqual([]);
+});
+
+test('a site’s page plans a route from the site, on the map around it', async ({
+	page,
+	mapDrawn,
+	problems
+}) => {
+	// The first of the Wallberg's two ramps.
+	const ramp = 'osm-free-flying:node/5964676196';
+	await page.goto(
+		`/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent(ramp)}`
+	);
+	await page
+		.getByRole('region', { name: 'The site' })
+		.getByRole('button', { name: 'Plan route' })
+		.click();
+
+	await expect(page).toHaveURL(/\/\?lat=47\.66\d+&lon=11\.79\d+$/);
+	await mapTabDrawn(page, mapDrawn);
+	await expect(page.getByRole('button', { name: 'Plan a route' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	const card = page.getByRole('region', { name: 'Plan a route' });
+	await expect(card.locator('[data-route-words]')).toHaveText('Tap the next place to fly to.');
+	await expect
+		.poll(() => page.evaluate(() => (globalThis as { ventiRoute?: { places: number } }).ventiRoute))
+		.toMatchObject({ places: 1 });
 	expect(problems).toEqual([]);
 });

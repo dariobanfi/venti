@@ -16,7 +16,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { everyoneHref, placeHref } from '#lib/app/routes.ts';
+	import { everyoneHref, mapHref, placeHref } from '#lib/app/routes.ts';
 	import { NOT_RANKED } from '#lib/community/model.svelte.ts';
 	import { NOT_LISTED, placeAskedIn, placeQuery, queryOf } from '#lib/community/pages.ts';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
@@ -33,6 +33,7 @@
 	import Segmented from '#lib/design/Segmented.svelte';
 	import Sheet from '#lib/design/Sheet.svelte';
 	import ForecastView from '#lib/forecast/ForecastView.svelte';
+	import { keepRoute } from '#lib/route/kept.ts';
 	import SiteView from '#lib/sites/SiteView.svelte';
 
 	const app = getApp();
@@ -66,6 +67,16 @@
 	}
 
 	const ORDERS = ['Newest', 'Best'] as const;
+
+	/**
+	 * "Plan route": the map, around the site, with the planner open on a
+	 * new route that begins there, as the site's page on the map does it.
+	 */
+	function planFrom(from: NonNullable<typeof site>) {
+		const { lat, lon } = from.position;
+		keepRoute(globalThis.localStorage, { places: [{ lat, lon, name: from.name }], open: true });
+		void goto(mapHref(from.position));
+	}
 
 	/** The place whose forecast is looked at. */
 	let forecastFor = $state.raw<{ place: Coordinate; name: string }>();
@@ -199,6 +210,7 @@
 						credit={found?.credit}
 						asOfUnixS={found?.asOfUnixS}
 						onforecast={() => (forecastFor = { place: site.position, name: site.name })}
+						onplan={() => planFrom(site)}
 					/>
 					<p class="footnote">{PLACE_APART}</p>
 				</section>

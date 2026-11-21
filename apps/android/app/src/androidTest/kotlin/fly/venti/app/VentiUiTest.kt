@@ -402,6 +402,21 @@ class VentiUiTest {
         tap(described("Follow the glider"))
         waitFor(described("Show the whole flight"))
 
+        // The aerial view, one choice with every other map: off until it
+        // is switched on, and the photographs' makers named on the map
+        // while it is on. The development server may have no photographs:
+        // the button's state is what is checked, not the picture.
+        val aerial = hasTestTag("cockpit-aerial")
+        waitFor(aerial and isSelected().not())
+        tap(aerial)
+        waitFor(aerial and isSelected())
+        waitFor(hasTestTag("photos-credit"))
+        letTheMapDraw(3)
+        if (!dark) keepScreenshot("cockpit-aerial")
+        tap(aerial)
+        waitFor(aerial and isSelected().not())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("photos-credit")) }
+
         // What lies ahead, seen from the side, from the second round
         // button: the ground of the region that comes with the app, the
         // glide drawn over it, and what the glide does over the ground

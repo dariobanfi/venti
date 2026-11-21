@@ -78,6 +78,23 @@ class CockpitMap : MapContent {
     /** Whether the thermal map shows, as the pilot switched it on the flight page. */
     private var thermals = false
 
+    /** Whether the map shows the aerial view, photographs from above, in place of the drawn ground. */
+    private var aerial = false
+
+    /**
+     * Switches between the drawn ground and the aerial view, one choice
+     * with every other map; at once if the style is there, else when it
+     * comes. Where photographs do not load the drawn ground under them shows.
+     */
+    fun showAerial(aerial: Boolean) {
+        if (aerial == this.aerial) return
+        this.aerial = aerial
+        val style = style ?: return
+        val view = mapView ?: return
+        MapSetup.showAerial(aerial, style, view)
+        MapSetup.showThermals(thermals, style, view)
+    }
+
     /** Shows or hides the thermal map; at once if the style is there, else when it comes. */
     fun showThermals(on: Boolean) {
         if (on == thermals) return
@@ -199,13 +216,19 @@ class CockpitMap : MapContent {
         // to next with a heavier line, and the shortest way still to fly
         // as a thin line through them.
         style.addSource(GeoJsonSource(TASK))
+        // Each dark line has a light casing under it while the photographs show.
+        val notNext = Expression.eq(Expression.get(NEXT), Expression.literal(0))
+        val next = Expression.eq(Expression.get(NEXT), Expression.literal(1))
+        style.addLayer(MapSetup.aerialCasing("cockpit-task-line", TASK, 1.5f).apply { setFilter(notNext) })
         val rings = MapSetup.line("cockpit-task-line", TASK, MapSetup.ink, 1.5f)
-        rings.setFilter(Expression.eq(Expression.get(NEXT), Expression.literal(0)))
+        rings.setFilter(notNext)
         style.addLayer(rings)
+        style.addLayer(MapSetup.aerialCasing("cockpit-task-next", TASK, 3.5f).apply { setFilter(next) })
         val nextRing = MapSetup.line("cockpit-task-next", TASK, MapSetup.ink, 3.5f)
-        nextRing.setFilter(Expression.eq(Expression.get(NEXT), Expression.literal(1)))
+        nextRing.setFilter(next)
         style.addLayer(nextRing)
         style.addSource(GeoJsonSource(TASK_WAY))
+        style.addLayer(MapSetup.aerialCasing("cockpit-task-way-line", TASK_WAY, 1.5f))
         val ahead = MapSetup.line("cockpit-task-way-line", TASK_WAY, MapSetup.ink, 1.5f)
         ahead.setProperties(PropertyFactory.lineOpacity(0.6f))
         style.addLayer(ahead)
@@ -216,6 +239,7 @@ class CockpitMap : MapContent {
         // The route the flight scores along: thin and dashed, as on a
         // finished flight's map.
         style.addSource(GeoJsonSource(ROUTE))
+        style.addLayer(MapSetup.aerialCasing("cockpit-route-line", ROUTE, 1.5f))
         val scored = MapSetup.line("cockpit-route-line", ROUTE, MapSetup.ink, 1.5f)
         scored.setProperties(PropertyFactory.lineOpacity(0.7f), PropertyFactory.lineDasharray(arrayOf(4f, 3f)))
         style.addLayer(scored)
@@ -223,6 +247,7 @@ class CockpitMap : MapContent {
         // The line to the place being flown to, under the track and the
         // glider.
         style.addSource(GeoJsonSource(COURSE))
+        style.addLayer(MapSetup.aerialCasing("cockpit-course-line", COURSE, 2f))
         val course = MapSetup.line("cockpit-course-line", COURSE, MapSetup.ink, 2f)
         course.setProperties(PropertyFactory.lineDasharray(arrayOf(2f, 2f)))
         style.addLayer(course)
@@ -360,6 +385,9 @@ class CockpitMap : MapContent {
             ),
         )
 
+        // The ground as the pilot chose it for every map, with the light
+        // casings under the dark lines while the photographs show.
+        MapSetup.showAerial(aerial, style, view)
         update()
     }
 

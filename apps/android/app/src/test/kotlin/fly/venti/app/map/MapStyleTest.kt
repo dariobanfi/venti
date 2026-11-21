@@ -286,6 +286,35 @@ class MapStyleTest {
     }
 
     @Test
+    fun aRegionKeptForFlyingWithoutANetworkKeepsTheAerialViewHiddenAndItsOwnGroundUnderIt() {
+        val kept = fly.venti.app.maps.KeptMap(
+            id = "alps",
+            version = "1",
+            basemap = region.resolve("basemap.pmtiles"),
+            terrain = region.resolve(MapStyle.BUNDLED_TERRAIN),
+        )
+        val text = MapStyle.json(MapStyle.Source.Online, template, region, kept, server = "https://venti.example")
+        val style = Json.parseToJsonElement(text).jsonObject
+        val layers = style.getValue("layers").jsonArray.map { it.jsonObject }
+        // The cockpit's map over a kept region can show the photographs
+        // when the pilot asks for them; until then nothing is fetched.
+        val views = MapStyle.views(text)
+        assertEquals(MapStyle.views(template).aerial, views.aerial)
+        for (name in views.aerial) {
+            val layer = layers.single { it.getValue("id").jsonPrimitive.content == name }
+            assertEquals(name, "none", layer["layout"]?.jsonObject?.get("visibility")?.jsonPrimitive?.content)
+        }
+        // Under the photographs the kept region's own ground, relief and
+        // names stay: where photographs do not load, that is what shows.
+        val names = layerNames(style)
+        for (ground in listOf("land", "hillshade", "water", "place")) {
+            assertTrue(ground, ground in names)
+            assertTrue(ground, names.indexOf(ground) < names.indexOf("aerial-world") || ground == "place")
+        }
+        assertTrue(names.indexOf("place") > names.indexOf("aerial-world"))
+    }
+
+    @Test
     fun aRegionKeptForFlyingWithoutANetworkNeverAsksForTheThermalMap() {
         val kept = fly.venti.app.maps.KeptMap(
             id = "alps",

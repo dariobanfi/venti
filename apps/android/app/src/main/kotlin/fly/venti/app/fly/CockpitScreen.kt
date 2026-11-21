@@ -36,6 +36,8 @@ import app.venti.design.VentiSize
 import app.venti.design.VentiTypeStyle
 import app.venti.design.VentiType
 import fly.venti.app.design.Venti
+import fly.venti.app.design.PhotosCredit
+import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -211,6 +213,8 @@ fun CockpitScreen(
     val context = LocalContext.current
     val offersThermals = remember(keptMap) { keptMap == null && MapSetup.offersThermals(context) }
     var thermals by remember { mutableStateOf(preferences.mapShowsThermals) }
+    // The ground: the drawn map or photographs from above, one choice with every other map.
+    var aerial by remember { mutableStateOf(preferences.mapShowsAerial) }
     val way = fly.way
     val route = fly.score?.route.orEmpty()
     // The airspace the loudest warning is about: the map steps back as far
@@ -293,7 +297,10 @@ fun CockpitScreen(
                                 // Beside the thermal view the map keeps to the glide:
                                 // the circle is looked at in the close-up.
                                 map.closeUp = page == CockpitPage.Instruments
-                            map.showThermals(thermals && offersThermals)
+                                // Not on the first page's small map beside the
+                                // thermal view, which the credit would cover.
+                                map.showAerial(aerial && page != CockpitPage.Instruments)
+                                map.showThermals(thermals && offersThermals)
                                 map.show(view, way, route, airspaceDistance, fai, showsWholeFlight, task, taskStatus)
                             },
                         )
@@ -330,13 +337,19 @@ fun CockpitScreen(
                                 view.lift?.centre?.let { centre -> LiftBadge(centre) }
                             }
                         }
-                        if (page == CockpitPage.Map) {
-                            Row(
-                                // Clear of the map's own credits in the corner.
-                                modifier = Modifier.align(Alignment.BottomStart).padding(
-                                    start = VentiSpace.s2,
-                                    bottom = VentiSpace.s6,
-                                ),
+                        Column(
+                            // Clear of the map's own credits in the corner.
+                            modifier = Modifier.align(Alignment.BottomStart).padding(
+                                start = VentiSpace.s2,
+                                bottom = VentiSpace.s6,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                        ) {
+                            // Who made the photographs, by name, while they show.
+                            if (aerial && page != CockpitPage.Instruments) {
+                                PhotosCredit()
+                            }
+                            if (page == CockpitPage.Map) Row(
                                 horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
                             ) {
                                 // The whole flight at a glance; again for the
@@ -350,6 +363,17 @@ fun CockpitScreen(
                                 // the side.
                                 if (fly.airspaceCheck != AirspaceCheck.NO_AIRSPACE || view.groundElevationM != null) {
                                     MapButton(AheadWords.TITLE, R.drawable.venti_glide) { isShowingAhead = true }
+                                }
+                                // The ground under everything: the drawn map,
+                                // or photographs from above.
+                                MapButton(
+                                    "Aerial view",
+                                    R.drawable.venti_layers,
+                                    Modifier.testTag("cockpit-aerial"),
+                                    isOn = aerial,
+                                ) {
+                                    aerial = !aerial
+                                    preferences.mapShowsAerial = aerial
                                 }
                             }
                         }
@@ -856,15 +880,29 @@ private fun HoldToEnd(onEnd: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** A round button over the map, as large as a finger in a glove needs. With an edge: flight mode has no shadows. */
+/**
+ * A round button over the map, as large as a finger in a glove needs. With
+ * an edge: flight mode has no shadows. One that switches something on has
+ * its sign in the link colour while on, and says it is selected.
+ */
 @Composable
-private fun MapButton(title: String, @DrawableRes icon: Int, onClick: () -> Unit) {
+private fun MapButton(
+    title: String,
+    @DrawableRes icon: Int,
+    modifier: Modifier = Modifier,
+    isOn: Boolean? = null,
+    onClick: () -> Unit,
+) {
     Surface(
         onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
+        contentColor = if (isOn == true) Venti.colours.link else MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        modifier = Modifier.size(VentiSize.touchFlight).semantics { contentDescription = title },
+        modifier = modifier.size(VentiSize.touchFlight).semantics {
+            contentDescription = title
+            if (isOn != null) selected = isOn
+        },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(VentiSize.icon))

@@ -22,7 +22,8 @@
           "uses": [
             "takeoff"
           ],
-          "url": "https://www.openstreetmap.org/node/5964676196"
+          "url": "https://www.openstreetmap.org/node/5964676196",
+          "description": "Startrampe (vermutlich für Drachenflieger)"
         },
         {
           "id": "osm-free-flying:node/5964676197",
@@ -33,7 +34,8 @@
           "uses": [
             "takeoff"
           ],
-          "url": "https://www.openstreetmap.org/node/5964676197"
+          "url": "https://www.openstreetmap.org/node/5964676197",
+          "description": "Startrampe (vermutlich für Drachenflieger)"
         },
         {
           "id": "osm-free-flying:node/9908030941",
@@ -60,7 +62,31 @@
           "paragliding": true,
           "hang_gliding": true,
           "official": true,
-          "url": "https://www.openstreetmap.org/way/1080986173"
+          "url": "https://www.openstreetmap.org/way/1080986173",
+          "website": "https://www.dhv.de/",
+          "fee": "yes",
+          "outline": [
+            [
+              11.9055085,
+              47.6789575
+            ],
+            [
+              11.9055532,
+              47.6793075
+            ],
+            [
+              11.9048395,
+              47.6794382
+            ],
+            [
+              11.9046533,
+              47.6788445
+            ],
+            [
+              11.9055085,
+              47.6789575
+            ]
+          ]
         },
         {
           "id": "osm-free-flying:way/1080988126",
@@ -72,7 +98,42 @@
           "uses": [
             "landing"
           ],
-          "url": "https://www.openstreetmap.org/way/1080988126"
+          "url": "https://www.openstreetmap.org/way/1080988126",
+          "website": "https://www.dhv.de/",
+          "outline": [
+            [
+              11.8880464,
+              47.6919322
+            ],
+            [
+              11.8875034,
+              47.6925871
+            ],
+            [
+              11.8879519,
+              47.692816
+            ],
+            [
+              11.8874492,
+              47.6933534
+            ],
+            [
+              11.8858179,
+              47.6933335
+            ],
+            [
+              11.8850491,
+              47.6925639
+            ],
+            [
+              11.8859455,
+              47.6914638
+            ],
+            [
+              11.8880464,
+              47.6919322
+            ]
+          ]
         }
       ]
     }

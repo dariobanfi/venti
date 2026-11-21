@@ -14,8 +14,17 @@
 //! `sport=free_flying` or one of the scheme's own keys: a tenth of the
 //! tagged places in the first region lack the `sport` tag, among them the
 //! two ramps on the Wallberg. The answer is asked for as JSON with the
-//! tags and, for an element that is an area, the centre Overpass computes
-//! for it (`out tags center`). No contributor names are asked for.
+//! tags and the geometry (`out tags geom`): a point comes with its
+//! position, a way with the box around it and the positions of its
+//! points, a relation with the box around it. No contributor names are
+//! asked for.
+//!
+//! By the page on Overpass QL
+//! (<https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL>, read on
+//! 2026-11-21) an `out` statement takes one of `geom`, `bb` and `center`,
+//! so an answer with the outlines has no centres: the answer recorded on
+//! 2026-11-21 has none. The adapter works the centre out itself, see
+//! [`Bounds::middle`].
 //!
 //! Which instance answers is a setting of whoever runs the server; see
 //! [`DEFAULT_INTERPRETER`] for the one used when nothing is set, and the
@@ -29,10 +38,26 @@
 //!   carry (`free_flying:site=takeoff;toplanding`).
 //! - `name`, and `ele`, which OpenStreetMap defines as metres above sea
 //!   level.
+//! - Where it is. A point is where it is. An area is at the middle of the
+//!   box around it, which is where Overpass puts its centre, and a way
+//!   that is closed gives its outline: the ring of its points, drawn with
+//!   fewer where it has more than an outline may have, see [`outline`]. A
+//!   relation has no outline: the answer has only the box around it.
 //! - The wind directions, from `direction` and from the deprecated
 //!   `free_flying:site_orientation`; see [`directions`].
 //! - `free_flying:paragliding`, `:hanggliding`, `:official`, and what marks
 //!   a place as unsafe or a use as discouraged.
+//! - What a page about the site says in its mapper's words: `website`
+//!   (and `contact:website` where there is no `website`), `description`,
+//!   `fee`, `free_flying:guest-guidelines` and the deprecated
+//!   `free_flying:no-flight-time`, a time in which the site may not be
+//!   used; its `no`, "the place might be used the whole year", is no such
+//!   time and is left out. The text is passed on as written. Nothing is
+//!   worked out from it.
+//!
+//! Never read: `operator`, which the scheme describes as the maintainer's
+//! name and which in the first region is a club or a school on most sites
+//! and a person on some; `phone`, `email` and the `contact:` keys for them.
 //!
 //! # What is left out, and said
 //!
@@ -57,7 +82,9 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, SourceId, Timestamp};
+use venti_domain::{
+    BoundingBox, GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, Timestamp,
+};
 use venti_sources::{Manifest, ParsedSites, PlanCtx, Request, SiteSource, Skipped, SourceError};
 
 pub use direction::directions;
@@ -67,7 +94,8 @@ pub use direction::directions;
 pub const DEFAULT_INTERPRETER: &str = "https://overpass-api.de/api/interpreter";
 
 /// How long the instance may work on the query, in seconds. The instance
-/// that recorded the fixtures took 53 seconds for the first region.
+/// that recorded the fixtures took 53 seconds for the first region on
+/// 2026-11-19 and 22 on 2026-11-21.
 const QUERY_TIMEOUT_S: u32 = 90;
 
 /// The keys of the tagging scheme that say what a place is used for, with
@@ -153,7 +181,7 @@ fn query(area: &BoundingBox) -> String {
         selectors.push_str(&format!(r#"nwr["{key}"];"#));
     }
     format!(
-        "[out:json][timeout:{QUERY_TIMEOUT_S}][bbox:{},{},{},{}];({selectors});out tags center qt;",
+        "[out:json][timeout:{QUERY_TIMEOUT_S}][bbox:{},{},{},{}];({selectors});out tags geom qt;",
         area.south(),
         area.west(),
         area.north(),
@@ -256,8 +284,16 @@ struct Element {
     id: u64,
     lat: Option<f64>,
     lon: Option<f64>,
-    /// For a way or a relation: the centre Overpass computes for it.
+    /// For a way or a relation in an answer asked for with `center`: the
+    /// centre Overpass computes for it.
     center: Option<Centre>,
+    /// For a way or a relation in an answer asked for with `geom`: the box
+    /// around it.
+    bounds: Option<Bounds>,
+    /// For a way in an answer asked for with `geom`: the positions of its
+    /// points, in the way's order. Read apart from the element, so that an
+    /// outline that cannot be read costs the outline and not the site.
+    geometry: Option<serde_json::Value>,
     #[serde(default)]
     tags: BTreeMap<String, String>,
 }
@@ -284,6 +320,136 @@ impl Kind {
 struct Centre {
     lat: f64,
     lon: f64,
+}
+
+/// The box around a way or a relation, as Overpass sends it.
+#[derive(Deserialize, Clone, Copy)]
+struct Bounds {
+    minlat: f64,
+    minlon: f64,
+    maxlat: f64,
+    maxlon: f64,
+}
+
+impl Bounds {
+    /// The middle of the box, which is what Overpass gives as the centre
+    /// of an element asked for with `center`: "the centre of the above
+    /// mentioned bounding box", by the page on Overpass QL.
+    ///
+    /// It is reckoned the way Overpass reckons it, so that an area lies
+    /// where it lay while the adapter asked for centres, to the last
+    /// digit. Overpass holds a latitude as a whole number of ten-millionths
+    /// of a degree counted from 91° south, turns both edges back into
+    /// degrees, halves their sum and writes seven decimals. Where the two
+    /// edges are an odd number of ten-millionths apart the middle falls
+    /// between two such steps, and which of them is written depends on
+    /// that arithmetic. Checked against the answer recorded on 2026-11-19,
+    /// which was asked for with `center`: the 210 areas of the first
+    /// region come out as recorded, in both coordinates. *To verify*
+    /// against Overpass's source; the tests keep a sample.
+    fn middle(self) -> Option<(f64, f64)> {
+        let held = |lat: f64| ((lat + 91.0) * 1e7).round() / 1e7 - 91.0;
+        // Seven decimals, rounded as a number is rounded when it is
+        // written.
+        let written = |degrees: f64| format!("{degrees:.7}").parse::<f64>().ok();
+        Some((
+            written(f64::midpoint(held(self.minlat), held(self.maxlat)))?,
+            written(f64::midpoint(self.minlon, self.maxlon))?,
+        ))
+    }
+}
+
+/// One point of a way's geometry.
+#[derive(Deserialize)]
+struct Vertex {
+    lat: f64,
+    lon: f64,
+}
+
+/// The outline of a way: its points as the answer has them, if the way is
+/// closed. `None` for a way that is a line and for an element without
+/// geometry; `Err` with the reason when the geometry cannot be read.
+///
+/// A way of more points than an outline may have is drawn with fewer, by
+/// the method of Ramer, Douglas and Peucker: points are left out that lie
+/// within a distance of the line between the points kept, and the
+/// distance is doubled from half a metre until the ring fits. Whether
+/// points were left out, and how far the farthest lay from the line that
+/// replaced it, is the second value.
+fn outline(geometry: &serde_json::Value) -> Result<Option<(SiteOutline, Option<f64>)>, String> {
+    let vertices: Vec<Vertex> = serde_json::from_value(geometry.clone())
+        .map_err(|error| format!("its outline cannot be read: {error}"))?;
+    let ring = vertices
+        .iter()
+        .map(|vertex| GeoPoint::new(vertex.lat, vertex.lon))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("its outline cannot be read: {error}"))?;
+    if ring.len() < 4 || ring.first() != ring.last() {
+        // A line, not an area.
+        return Ok(None);
+    }
+    let whole = ring.len();
+    let mut within_m = None;
+    let mut drawn = ring.clone();
+    let mut tolerance_m = 0.5;
+    while drawn.len() > SiteOutline::MAX_POINTS {
+        drawn = simplified(&ring, tolerance_m);
+        within_m = Some(tolerance_m);
+        tolerance_m *= 2.0;
+    }
+    SiteOutline::new(drawn)
+        .map(|outline| Some((outline, within_m)))
+        .map_err(|error| format!("its outline of {whole} points cannot be drawn: {error}"))
+}
+
+/// The points of a closed ring that lie farther than `tolerance_m` from
+/// the line between their kept neighbours, with the ring's first and last.
+fn simplified(ring: &[GeoPoint], tolerance_m: f64) -> Vec<GeoPoint> {
+    // Metres east and north of the first point, on a flat sheet: a flying
+    // site is a few hundred metres across.
+    const METRES_PER_DEGREE: f64 = 111_320.0;
+    let origin = ring[0];
+    let east = origin.lat().to_radians().cos() * METRES_PER_DEGREE;
+    let flat: Vec<(f64, f64)> = ring
+        .iter()
+        .map(|point| {
+            (
+                (point.lon() - origin.lon()) * east,
+                (point.lat() - origin.lat()) * METRES_PER_DEGREE,
+            )
+        })
+        .collect();
+    let away = |point: (f64, f64), from: (f64, f64), to: (f64, f64)| {
+        let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+        let length2 = dx * dx + dy * dy;
+        let along = if length2 == 0.0 {
+            0.0
+        } else {
+            (((point.0 - from.0) * dx + (point.1 - from.1) * dy) / length2).clamp(0.0, 1.0)
+        };
+        (point.0 - from.0 - along * dx).hypot(point.1 - from.1 - along * dy)
+    };
+
+    let mut kept = vec![false; ring.len()];
+    kept[0] = true;
+    kept[ring.len() - 1] = true;
+    let mut spans = vec![(0, ring.len() - 1)];
+    while let Some((first, last)) = spans.pop() {
+        let farthest = (first + 1..last)
+            .map(|index| (index, away(flat[index], flat[first], flat[last])))
+            .max_by(|one, two| one.1.total_cmp(&two.1));
+        if let Some((index, distance_m)) = farthest
+            && distance_m > tolerance_m
+        {
+            kept[index] = true;
+            spans.push((first, index));
+            spans.push((index, last));
+        }
+    }
+    ring.iter()
+        .zip(kept)
+        .filter_map(|(point, kept)| kept.then_some(*point))
+        .collect()
 }
 
 fn time(text: &str) -> Option<Timestamp> {
@@ -361,10 +527,16 @@ fn site(
     let tag = |key: &str| tags.get(key).map(String::as_str);
     let mut note = |reason: String| notes.push(Skipped::new(called, reason));
 
+    // A point is where it is. An area is at the centre the answer gives
+    // for it, if it was asked for with `center`, and else at the middle of
+    // the box around it.
     let position = match (element.lat, element.lon, &element.center) {
-        (Some(lat), Some(lon), _) => (lat, lon),
-        (_, _, Some(centre)) => (centre.lat, centre.lon),
-        _ => return Err("the element has no position".to_owned()),
+        (Some(lat), Some(lon), _) => Some((lat, lon)),
+        (_, _, Some(centre)) => Some((centre.lat, centre.lon)),
+        _ => element.bounds.and_then(Bounds::middle),
+    };
+    let Some(position) = position else {
+        return Err("the element has no position".to_owned());
     };
     let position = GeoPoint::new(position.0, position.1).map_err(|e| e.to_string())?;
 
@@ -460,6 +632,44 @@ fn site(
         })
         .unwrap_or_default();
 
+    let area = match element.geometry.as_ref().map(outline) {
+        Some(Ok(Some((area, within_m)))) => {
+            if let Some(within_m) = within_m {
+                note(format!(
+                    "its outline is drawn with {} points: OpenStreetMap has more than {}, and \
+                     those left out lie within {within_m} m of the line that stands for them",
+                    area.points().len(),
+                    SiteOutline::MAX_POINTS
+                ));
+            }
+            Some(area)
+        }
+        Some(Ok(None)) | None => None,
+        Some(Err(reason)) => {
+            note(reason);
+            None
+        }
+    };
+
+    // What its mapper wrote, as written, without the blanks around it.
+    let text = |key: &str| {
+        tag(key)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    let guest_guidelines =
+        tag("free_flying:guest-guidelines").and_then(|value| match verdict(value) {
+            Some(Verdict::Yes) => Some(true),
+            Some(Verdict::No) => Some(false),
+            _ => {
+                note(format!(
+                    "free_flying:guest-guidelines={value} is not a value of the scheme"
+                ));
+                None
+            }
+        });
+
     let local = format!("{}/{}", element.kind.name(), element.id);
     Ok(Site {
         url: Some(format!("https://www.openstreetmap.org/{local}")),
@@ -476,6 +686,14 @@ fn site(
         hang_gliding,
         official,
         discouraged,
+        website: text("website").or_else(|| text("contact:website")),
+        description: text("description"),
+        fee: text("fee"),
+        guest_guidelines,
+        // The scheme's `no` says that the place may be used the whole
+        // year: no time to pass on.
+        no_flight_time: text("free_flying:no-flight-time").filter(|time| time != "no"),
+        outline: area,
     })
 }
 
@@ -496,7 +714,7 @@ mod tests {
                 r#"(nwr["sport"~"free_flying"];nwr["free_flying:site"];"#,
                 r#"nwr["free_flying:takeoff"];nwr["free_flying:landing"];"#,
                 r#"nwr["free_flying:towing"];nwr["free_flying:training"];);"#,
-                "out tags center qt;"
+                "out tags geom qt;"
             )
         );
     }
@@ -520,7 +738,7 @@ mod tests {
             ),
             "{url}"
         );
-        assert!(url.ends_with("out%20tags%20center%20qt%3B"), "{url}");
+        assert!(url.ends_with("out%20tags%20geom%20qt%3B"), "{url}");
         // Nothing in it needs encoding a second time.
         assert!(
             url.bytes()
@@ -542,6 +760,83 @@ mod tests {
         ] {
             assert!(OsmFreeFlying::new(bad).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn an_area_lies_where_overpass_puts_its_centre() {
+        let middle = |minlat, minlon, maxlat, maxlon| {
+            Bounds {
+                minlat,
+                minlon,
+                maxlat,
+                maxlon,
+            }
+            .middle()
+            .unwrap()
+        };
+        // Three areas of the first region, with the boxes of the answer
+        // recorded on 2026-11-21 and the centres of the one recorded on
+        // 2026-11-19, which was asked for with `center`. Each has an edge
+        // an odd number of ten-millionths of a degree from the other, so
+        // that the middle falls between two steps.
+        assert_eq!(
+            middle(47.6788445, 11.9046533, 47.6794382, 11.9055532),
+            (47.6791413, 11.9051032)
+        );
+        assert_eq!(
+            middle(47.6914638, 11.8850491, 47.6933534, 11.8880464),
+            (47.6924086, 11.8865478)
+        );
+        // One of the 37 whose latitude comes out a step off when the
+        // edges are halved as they are written.
+        assert_eq!(
+            middle(46.4681908, 9.927252, 46.4712569, 9.9301115),
+            (46.4697238, 9.9286817)
+        );
+        // A box that is a point is that point.
+        assert_eq!(middle(47.5, 11.5, 47.5, 11.5), (47.5, 11.5));
+    }
+
+    #[test]
+    fn an_outline_of_many_points_is_drawn_with_fewer() {
+        // A circle of 200 points, 100 m across, closed.
+        let circle: Vec<serde_json::Value> = (0..=200)
+            .map(|step| {
+                let angle = f64::from(step % 200) / 200.0 * std::f64::consts::TAU;
+                serde_json::json!({
+                    "lat": 47.7 + 0.00045 * angle.sin(),
+                    "lon": 11.8 + 0.00067 * angle.cos(),
+                })
+            })
+            .collect();
+        let (drawn, within_m) = outline(&serde_json::Value::Array(circle.clone()))
+            .unwrap()
+            .unwrap();
+        assert!(drawn.points().len() <= SiteOutline::MAX_POINTS);
+        assert!(drawn.points().len() >= 16, "{}", drawn.points().len());
+        assert_eq!(drawn.points().first(), drawn.points().last());
+        assert_eq!(within_m, Some(0.5));
+
+        // A ring that fits is as it was sent.
+        let few = serde_json::Value::Array(
+            [0, 50, 100, 150, 200]
+                .map(|index| circle[index].clone())
+                .to_vec(),
+        );
+        let (drawn, within_m) = outline(&few).unwrap().unwrap();
+        assert_eq!(drawn.points().len(), 5);
+        assert_eq!(within_m, None);
+        // A line is no area, and neither is what is no list of points.
+        let line = serde_json::Value::Array(circle[..5].to_vec());
+        assert_eq!(outline(&line), Ok(None));
+        assert!(outline(&serde_json::json!([{"lat": 47.7}])).is_err());
+        assert!(
+            outline(&serde_json::json!([
+                {"lat": 147.7, "lon": 11.8}, {"lat": 47.7, "lon": 11.9},
+                {"lat": 47.8, "lon": 11.9}, {"lat": 147.7, "lon": 11.8}
+            ]))
+            .is_err()
+        );
     }
 
     #[test]

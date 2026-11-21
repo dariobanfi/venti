@@ -3,40 +3,68 @@ https://www.openstreetmap.org, © OpenStreetMap contributors, available under
 the Open Database License, https://opendatacommons.org/licenses/odbl/1-0/.
 It is not covered by the licence of the code around it.
 
-It was recorded on 2026-11-19 at 18:09 UTC from the Overpass instance
+It was recorded on 2026-11-21 at 11:45 UTC from the Overpass instance
 "Overpass Europe" at https://ovp.dresel.systems/api/interpreter, which
 holds Geofabrik's extract of Europe and said that its copy of OpenStreetMap
-was of 2026-11-18 21:21:02 UTC. The main public instance, overpass-api.de,
-and overpass.private.coffee did not accept connections from the machine
-that recorded it. The query was the adapter's own for the box of the first
-region, with a time limit of 60 seconds where the adapter asks for 90. The
-instance took 53 seconds:
+was of 2026-11-20 21:21:21 UTC. The main public instance, overpass-api.de,
+did not answer the machine that recorded it (its status page timed out), as
+on 2026-11-19. It was one request, sent by the server itself, which kept
+the answer as it came:
 
-    [out:json][timeout:60][bbox:46.3,9.4,48.5,17.2];
+    VENTI_OVERPASS_URL=https://ovp.dresel.systems/api/interpreter \
+      venti-server ingest regions/alps-de-at/region.toml \
+      --source osm-free-flying --archive <a folder outside the repository>
+
+So the query was the adapter's own for the box of the first region, and the
+User-Agent the server's, venti-server/0.1.0. The instance took 22 seconds:
+
+    [out:json][timeout:90][bbox:46.3,9.4,48.5,17.2];
     (nwr["sport"~"free_flying"];nwr["free_flying:site"];
      nwr["free_flying:takeoff"];nwr["free_flying:landing"];
      nwr["free_flying:towing"];nwr["free_flying:training"];);
-    out tags center qt;
+    out tags geom qt;
 
 All 517 elements of the answer are in the file, in the order of the
-answer, each with its type, number and position as the instance sent them.
-One thing was changed: of an element's tags only those the adapter reads
-are kept (name, ele, sport, direction, the free_flying:* keys for uses,
-orientation, official, paragliding, hanggliding, unsafe, school, shop,
-repair, club and tandem, and shop, office, amenity, tourism, craft and
-building). 89 other keys were removed, among them operator, phone, email
-and website: an operator is often a person, and this repository holds no
-personal data. The file is written with one element per line, which the
-instance does not do.
+answer, each with its type, number and geometry as the instance sent them:
+a point with its position, a way with the box around it and the positions
+of its points, the one relation with the box around it. An answer asked for
+with "geom" has no centres.
 
-To record it again: send the query above to an Overpass instance, keep the
-tags listed, then run the tests with VENTI_UPDATE_GOLDEN=1 and review what
-changed. The test "the_first_region_holds_what_was_measured" pins the
-counts that docs/data-sources.md quotes.
+One thing was changed: of an element's tags only those the adapter reads
+are kept, whatever the element. They are name, ele, sport, direction, the
+free_flying:* keys site, site_orientation, takeoff, landing, towing,
+training, official, paragliding, hanggliding, unsafe (and unsafe:*),
+school, shop, repair, club, tandem, guest-guidelines and no-flight-time,
+then shop, office, amenity, tourism, craft and building, and website,
+contact:website, description and fee. Every other key was removed, 83 of
+them, among them operator, operator:type, phone, email, contact:phone,
+contact:email, the addr:* keys, note, image and website_1 to website_3: an
+operator is on most sites a club or a school and on some a person, and this
+repository holds no personal data. The answer was 276,102 bytes as it came
+and the file is 214,769. The file is written with one element per line,
+which the instance does not do.
+
+What is kept was read through before it was kept, for names of people,
+telephone numbers and e-mail addresses. One description (node 11339203520)
+names the telephone number of an airfield, which a pilot is to tell before
+flying; it is an airfield's and not a person's, and is kept as written.
+A description is free text: read it through again at every new recording.
+
+The recording of 2026-11-19, which this one replaces, was asked for with
+"out tags center qt" and held the centre Overpass gives for an area. The
+adapter now works that centre out from the box around the area. Checked
+when this file was recorded: the same 517 elements, and each of the 502
+sites at the position it had in that recording, to the last digit.
+
+To record it again: run the command above (or send the query to an
+Overpass instance), keep the tags listed and remove every other, read the
+descriptions through, then run the tests with VENTI_UPDATE_GOLDEN=1 and
+review what changed. The test "the_first_region_holds_what_was_measured"
+pins the counts that docs/data-sources.md quotes.
 
 overpass_damaged.json is not OpenStreetMap's data as published: it is
-eleven elements of overpass_alps.json, ten of them deliberately broken or
-changed, to test how the adapter reports what it cannot read and what it
+eleven elements of the recording of 2026-11-19, which gave an area its
+centre, ten of them deliberately broken or changed, to test how the adapter reports what it cannot read and what it
 leaves out. The test that uses it says how each is broken.
 overpass_timeout.json is what an instance answers when it runs out of
 time: written from the Overpass API's documented behaviour, not recorded.

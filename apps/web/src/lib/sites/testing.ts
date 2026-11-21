@@ -21,6 +21,15 @@ export function site(given: Partial<SiteView> = {}): SiteView {
 		hangGliding: undefined,
 		source: 'test',
 		url: undefined,
+		website: undefined,
+		description: undefined,
+		fee: undefined,
+		feeInWords: '',
+		guestGuidelines: undefined,
+		guestsInWords: '',
+		noFlightTime: undefined,
+		noFlightInWords: '',
+		outline: [],
 		...given
 	};
 }

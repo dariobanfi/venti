@@ -797,7 +797,8 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
           "uses": [
             "takeoff"
           ],
-          "url": "https://www.openstreetmap.org/node/5964676196"
+          "url": "https://www.openstreetmap.org/node/5964676196",
+          "description": "Startrampe (vermutlich für Drachenflieger)"
         },
         {
           "id": "osm-free-flying:node/5964676197",
@@ -808,7 +809,8 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
           "uses": [
             "takeoff"
           ],
-          "url": "https://www.openstreetmap.org/node/5964676197"
+          "url": "https://www.openstreetmap.org/node/5964676197",
+          "description": "Startrampe (vermutlich für Drachenflieger)"
         },
         {
           "id": "osm-free-flying:node/9908030941",
@@ -835,7 +837,31 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
           "paragliding": true,
           "hang_gliding": true,
           "official": true,
-          "url": "https://www.openstreetmap.org/way/1080986173"
+          "url": "https://www.openstreetmap.org/way/1080986173",
+          "website": "https://www.dhv.de/",
+          "fee": "yes",
+          "outline": [
+            [
+              11.9055085,
+              47.6789575
+            ],
+            [
+              11.9055532,
+              47.6793075
+            ],
+            [
+              11.9048395,
+              47.6794382
+            ],
+            [
+              11.9046533,
+              47.6788445
+            ],
+            [
+              11.9055085,
+              47.6789575
+            ]
+          ]
         },
         {
           "id": "osm-free-flying:way/1080988126",
@@ -847,7 +873,42 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
           "uses": [
             "landing"
           ],
-          "url": "https://www.openstreetmap.org/way/1080988126"
+          "url": "https://www.openstreetmap.org/way/1080988126",
+          "website": "https://www.dhv.de/",
+          "outline": [
+            [
+              11.8880464,
+              47.6919322
+            ],
+            [
+              11.8875034,
+              47.6925871
+            ],
+            [
+              11.8879519,
+              47.692816
+            ],
+            [
+              11.8874492,
+              47.6933534
+            ],
+            [
+              11.8858179,
+              47.6933335
+            ],
+            [
+              11.8850491,
+              47.6925639
+            ],
+            [
+              11.8859455,
+              47.6914638
+            ],
+            [
+              11.8880464,
+              47.6919322
+            ]
+          ]
         }
       ]
     }
@@ -865,7 +926,7 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
 }
 ```
 
-The box is the valley of the apps' sample flight, the Tegernsee, with the Spitzingsee east of it. The first two records are the ramps on the Wallberg.
+The box is the valley of the apps' sample flight, the Tegernsee, with the Spitzingsee east of it. The first two records are the ramps on the Wallberg. The last two are areas, each with its outline: the take-off and the landing field of the Jägerkamp.
 
 **Layers.** Sites come in layers like airspace: one for each source the server holds sites of, sorted by source, each in every answer, also when it has nothing in the box. Layers are never merged, and a client that stores or draws sites keeps them apart and shows with each the credit and the notice of its source. OpenStreetMap's licence is share-alike: what is made from its layer and other data may be passed on only under the same licence.
 
@@ -883,7 +944,7 @@ A record is the canonical site of the project, `venti_domain::Site`:
 |---|---|
 | `id` | `source:local`. For OpenStreetMap the local part names the element: `node/5964676196` |
 | `name` | As the source gives it. Left out for the many sites that have none |
-| `position` | Latitude and longitude. For a site that the source draws as an area, a point in or near it |
+| `position` | Latitude and longitude. For a site that the source draws as an area, the middle of the box around the area: a point in or near it, which need not lie inside it |
 | `elevation_m` | Height above mean sea level. Left out if the source gives none |
 | `uses` | What the site is used for: any of `takeoff`, `landing`, `towing`, `training`, each once. **May be empty**: the place is tagged for free flying and the source does not say what it is. A client expects values it does not know |
 | `wind_directions` | The wind directions the site works in, as spans that run clockwise: `[{"from_deg": 135.0, "to_deg": 225.0}]` is south-east to south-west, and a single direction has both ends equal, `{"from_deg": 270.0, "to_deg": 270.0}`. A direction is where the wind comes from. Left out if the source gives none, **which says nothing about the site**: most sites have none |
@@ -891,12 +952,20 @@ A record is the canonical site of the project, `venti_domain::Site`:
 | `official` | Whether the source calls the site official: legal and looked after. Left out if it does not say |
 | `discouraged` | `true` if the source marks the site as unsafe or one of its uses as discouraged. Left out otherwise, which says only that the source marks nothing of the kind |
 | `url` | Where the source's record can be looked at, and corrected. Offer it to the pilot: a site that is wrong or missing is fixed there |
+| `website` | A web page about the site that the source names: its operator's, or one that says more about it. Always an `http` or `https` address; anything else is not passed on. It is somebody else's page: offer it as a link and take nothing from it. Left out if the source names none |
+| `description` | What the source says about the site in words, **as its author wrote it** and in the author's language, 1000 characters at most; it may hold line breaks (`\n`). Show it as a quotation of the source and read nothing out of it. Left out if there is none |
+| `fee` | Whether a payment is asked for using the site, as the source writes it: `yes`, `no`, or other words of its author's, 100 characters at most. Left out if the source does not say |
+| `guest_guidelines` | `true` if the source says that guests, pilots who do not know the site, have rules for guests to take notice of; `false` if it says they have none. Left out if it does not say. Where the rules are it does not say: the `website`, if there is one, is the place to look |
+| `no_flight_time` | A time in which the site may not be used, as the source writes it, 100 characters at most: `01.04-30.09` is its way of writing the first of April to the thirtieth of September. **Show it as written and work nothing out from it**: neither the server nor a client says from this field that a site is open or closed today. Left out if the source names no such time, which does not say that there is none |
+| `outline` | For a site that the source draws as an area, a landing field or a take-off meadow: one closed ring of points, each written `[longitude, latitude]` as GeoJSON and an airspace's rings write them, the last point the first again, 4 to 64 points. It is for drawing the field on a map. Where the source has more points the ring is drawn with fewer, and those left out lie within a few metres of the line that stands for them. Left out for a site drawn as a point |
+
+Every text in a record is the source's, and the source is a map that anyone can edit. A client shows `name`, `description`, `fee` and `no_flight_time` as text and never as markup, and opens `website` only as a link the pilot taps.
 
 **A site in the answer is no permission to fly there, and no site in the answer is not "no site".** OpenStreetMap holds what somebody entered. In the first region that is 252 take-offs and 142 landings, a fraction of the sites there are; well-known ones are missing, a fifth of the places do not say what they are used for, and fewer than half of the take-offs carry wind directions that can be read for certain. [data-sources.md](data-sources.md#flying-sites) has the count. `covers` says where the server's set is whole, which means "everything the source has", not "everything there is". Whether a pilot may fly at a site, and by which rules, is the business of whoever runs it.
 
 **Caching.** As for airspace: `Cache-Control: public, max-age=3600` and an `ETag`. The server asks its source once a day.
 
-**Size.** One answer carries the whole box; there are no pages. The first region whole is 502 sites, 110 kB plain and 17 kB with gzip (measured 2026-11-19). A box that holds more than 5000 sites is refused with `400` and `box_too_large`, as for airspace.
+**Size.** One answer carries the whole box; there are no pages. The first region whole is 502 sites, 205 of them with an outline: 168 kB plain and 37 kB with gzip (measured 2026-11-21; 110 kB and 17 kB before a record had outlines). A box that holds more than 5000 sites is refused with `400` and `box_too_large`, as for airspace.
 
 **When a source fails.** A run that could not fetch everything changes nothing: the server keeps serving the set of its last whole run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 

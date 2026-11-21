@@ -1,5 +1,5 @@
 //! Runs the real pipeline over an answer recorded from an Overpass instance
-//! on 2026-11-19 and compares the result with golden files. One test counts
+//! on 2026-11-21 and compares the result with golden files. One test counts
 //! what the first region holds: the numbers `docs/data-sources.md` quotes.
 
 use std::collections::BTreeMap;
@@ -107,6 +107,32 @@ fn line(site: &Site) -> String {
     if site.discouraged {
         parts.push("discouraged".to_owned());
     }
+    if let Some(website) = &site.website {
+        parts.push(format!("website {website}"));
+    }
+    if let Some(description) = &site.description {
+        parts.push(format!("description {description:?}"));
+    }
+    if let Some(fee) = &site.fee {
+        parts.push(format!("fee {fee:?}"));
+    }
+    parts.extend(said("rules for guests", site.guest_guidelines));
+    if let Some(time) = &site.no_flight_time {
+        parts.push(format!("no flying {time:?}"));
+    }
+    if let Some(outline) = &site.outline {
+        // The ring by its points and its length: a point that moved or
+        // went shows in the metres.
+        let around: f64 = outline
+            .points()
+            .windows(2)
+            .map(|pair| pair[0].distance_m(pair[1]))
+            .sum();
+        parts.push(format!(
+            "outline of {} points, {around:.1} m around",
+            outline.points().len()
+        ));
+    }
     parts.join("; ")
 }
 
@@ -151,7 +177,7 @@ fn a_recorded_run_matches_the_golden_file() {
     // answer names.
     assert_eq!(
         output.as_of,
-        Utc.with_ymd_and_hms(2026, 11, 18, 21, 21, 2).unwrap()
+        Utc.with_ymd_and_hms(2026, 11, 20, 21, 21, 21).unwrap()
     );
 
     for site in &output.sites {
@@ -169,7 +195,7 @@ fn a_recorded_run_matches_the_golden_file() {
 }
 
 /// What OpenStreetMap holds for the first region, by the instance's copy
-/// of 2026-11-18. `docs/data-sources.md` quotes these numbers; record the
+/// of 2026-11-20. `docs/data-sources.md` quotes these numbers; record the
 /// fixture again and they change here first.
 #[test]
 fn the_first_region_holds_what_was_measured() {
@@ -221,6 +247,58 @@ fn the_first_region_holds_what_was_measured() {
     assert_eq!(count(&|s| s.paragliding == Some(false)), 4);
     assert_eq!(count(&|s| s.hang_gliding == Some(false)), 8);
     assert_eq!(count(&|s| s.discouraged), 3);
+
+    // What a site's page gains: a web address on a fifth of the sites, a
+    // description on one in twelve, and the rest on fewer.
+    assert_eq!(count(&|s| s.website.is_some()), 107);
+    assert_eq!(count(&|s| takeoff(s) && s.website.is_some()), 55);
+    assert_eq!(count(&|s| landing(s) && s.website.is_some()), 38);
+    assert_eq!(count(&|s| s.description.is_some()), 43);
+    assert_eq!(count(&|s| s.fee.is_some()), 18);
+    assert_eq!(count(&|s| s.fee.as_deref() == Some("yes")), 17);
+    assert_eq!(count(&|s| s.guest_guidelines == Some(true)), 13);
+    assert_eq!(count(&|s| s.guest_guidelines == Some(false)), 21);
+    // 23 sites carry the key for a time without flying; 15 of them say
+    // `no`, which is no such time.
+    assert_eq!(count(&|s| s.no_flight_time.is_some()), 8);
+    assert!(
+        output
+            .sites
+            .iter()
+            .all(|s| s.no_flight_time.as_deref() != Some("no"))
+    );
+
+    // Every site that is a closed way has its outline: 205 of the 502,
+    // among them 82 of the 142 landings and 91 of the 252 take-offs. Two
+    // are drawn with fewer points than OpenStreetMap has for them.
+    assert_eq!(count(&|s| s.outline.is_some()), 205);
+    assert_eq!(count(&|s| landing(s) && s.outline.is_some()), 82);
+    assert_eq!(count(&|s| takeoff(s) && s.outline.is_some()), 91);
+    assert_eq!(left_out("its outline is drawn with"), 2);
+    for site in &output.sites {
+        let Some(outline) = &site.outline else {
+            assert!(!site.id.local().starts_with("way/") || site.id.local() == "way/40628824");
+            continue;
+        };
+        // A site lies in the box around its outline, at the middle; of
+        // the two outlines drawn with fewer points, within a few metres.
+        let drawn_with_fewer = ["way/628977468", "way/830382140"].contains(&site.id.local());
+        let near = if drawn_with_fewer { 1e-4 } else { 1e-6 };
+        let (lats, lons): (Vec<f64>, Vec<f64>) = outline
+            .points()
+            .iter()
+            .map(|point| (point.lat(), point.lon()))
+            .unzip();
+        let span = |values: &[f64]| {
+            (
+                values.iter().copied().fold(f64::INFINITY, f64::min),
+                values.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            )
+        };
+        let ((south, north), (west, east)) = (span(&lats), span(&lons));
+        assert!((site.position.lat() - f64::midpoint(south, north)).abs() < near);
+        assert!((site.position.lon() - f64::midpoint(west, east)).abs() < near);
+    }
 }
 
 #[test]
@@ -275,10 +353,55 @@ fn what_openstreetmap_says_arrives_in_the_record() {
         ]
     );
 
-    // A landing with its height, and a place to land at the top.
+    // A landing with its height, and a place to land at the top. It is an
+    // area of four corners, and `website` wins over `contact:website`.
     let blomberg = site(&output, "way/158434276");
     assert_eq!(blomberg.uses, [SiteUse::Landing]);
     assert_eq!(blomberg.elevation_m, Some(700.0));
+    assert_eq!(blomberg.outline.as_ref().unwrap().points().len(), 5);
+    assert_eq!(
+        blomberg.website.as_deref(),
+        Some("http://www.dc-isarwinkel.de/")
+    );
+
+    // An area lies where it lay while the adapter asked for centres: the
+    // position the answer of 2026-11-19 gave for this one.
+    assert_eq!(
+        (jaegerkamp.position.lat(), jaegerkamp.position.lon()),
+        (47.6791413, 11.9051032)
+    );
+    let field = site(&output, "way/1080988126");
+    assert_eq!(
+        (field.position.lat(), field.position.lon()),
+        (47.6924086, 11.8865478)
+    );
+    let ring = field.outline.as_ref().unwrap().points();
+    assert_eq!(ring.len(), 8);
+    assert_eq!(ring.first(), ring.last());
+    assert_eq!(field.website.as_deref(), Some("https://www.dhv.de/"));
+
+    // What its mapper wrote, as written: a fee, rules for guests, and a
+    // time in which the site may not be used.
+    assert_eq!(vogelsang.fee.as_deref(), Some("yes"));
+    assert_eq!(vogelsang.guest_guidelines, Some(true));
+    assert_eq!(vogelsang.website, None);
+    let diedamskopf = site(&output, "node/2484727698");
+    assert_eq!(diedamskopf.no_flight_time.as_deref(), Some("01.04-30.09"));
+    assert_eq!(diedamskopf.guest_guidelines, Some(false));
+    let start = site(&output, "way/1192157262");
+    assert_eq!(
+        start.description.as_deref(),
+        Some("Gleitschirm Startplatz. Bitte Gastflugregeln beachten. Siehe Webseite")
+    );
+    // A way that is a line has a place and no outline.
+    let line = site(&output, "way/40628824");
+    assert_eq!(line.outline, None);
+    // A point has none either.
+    assert_eq!(wallberg.outline, None);
+
+    // The two landing fields with more points than an outline may have.
+    let aich = site(&output, "way/628977468");
+    assert_eq!(aich.outline.as_ref().unwrap().points().len(), 58);
     let top = output
         .sites
         .iter()
@@ -365,6 +488,65 @@ fn an_answer_that_is_not_whole_delivers_nothing() {
     let output = run(&FixtureFetch::new(), &MemoryArchive::default());
     assert!(!output.report.is_healthy());
     assert_eq!(output.report.failures[0].error, "HTTP status 404");
+}
+
+#[test]
+fn an_area_whose_outline_cannot_be_read_is_kept_as_a_place() {
+    // A way with the box around it and a geometry that is damaged, one
+    // that is a line, and one with a tag for guests the scheme does not
+    // have and a web address that is none.
+    let body = br#"{"elements": [
+        {"type": "way", "id": 1, "bounds": {"minlat": 47.7, "minlon": 11.8, "maxlat": 47.701, "maxlon": 11.802},
+         "geometry": [{"lat": 47.7, "lon": 11.8}, null, {"lat": 47.701, "lon": 11.802}, {"lat": 47.7, "lon": 11.8}],
+         "tags": {"free_flying:site": "landing"}},
+        {"type": "way", "id": 2, "bounds": {"minlat": 47.7, "minlon": 11.8, "maxlat": 47.701, "maxlon": 11.802},
+         "geometry": [{"lat": 47.7, "lon": 11.8}, {"lat": 47.701, "lon": 11.802}],
+         "tags": {"free_flying:site": "landing", "free_flying:guest-guidelines": "maybe",
+                  "website": "www.example.org", "free_flying:no-flight-time": "no", "fee": " "}},
+        {"type": "way", "id": 3, "geometry": [{"lat": 47.7, "lon": 11.8}, {"lat": 47.701, "lon": 11.802}],
+         "tags": {"free_flying:site": "landing"}}
+    ]}"#;
+    let fetch = FixtureFetch::new().with(url(), body.to_vec());
+    let output = run(&fetch, &MemoryArchive::default());
+
+    let ids: Vec<&str> = output.sites.iter().map(|s| s.id.local()).collect();
+    assert_eq!(ids, ["way/1", "way/2"]);
+    for site in &output.sites {
+        assert_eq!(site.outline, None);
+        assert_eq!(
+            (site.position.lat(), site.position.lon()),
+            (47.7005, 11.801)
+        );
+    }
+    let said = &output.sites[1];
+    assert_eq!(
+        (
+            &said.guest_guidelines,
+            &said.no_flight_time,
+            &said.fee,
+            &said.website
+        ),
+        (&None, &None, &None, &None)
+    );
+    let reasons: Vec<&str> = output
+        .report
+        .skipped
+        .iter()
+        .map(|skipped| skipped.reason.as_str())
+        .collect();
+    assert!(
+        reasons[0].starts_with("its outline cannot be read"),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        reasons[1],
+        "free_flying:guest-guidelines=maybe is not a value of the scheme"
+    );
+    // Without the box around it, a way has no place.
+    assert_eq!(reasons[2], "the element has no position");
+    // The address that is none is the pipeline's to refuse.
+    assert_eq!(output.report.rejected.len(), 1);
+    assert_eq!(output.report.rejected[0].field, "website");
 }
 
 #[test]

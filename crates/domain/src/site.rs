@@ -11,8 +11,9 @@
 //! are its operator's.
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-use crate::{GeoPoint, SiteId};
+use crate::{GeoError, GeoPoint, SiteId};
 
 /// A place where free-flying pilots take off or land.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -23,7 +24,8 @@ pub struct Site {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Where the site is. For a site the source draws as an area, a point
-    /// inside or near it, as the source computes it.
+    /// inside or near it: for OpenStreetMap's, the middle of the box around
+    /// the area, which need not lie inside it.
     pub position: GeoPoint,
     /// Height above mean sea level in metres, if the source gives one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,6 +58,111 @@ pub struct Site {
     /// source is one that anyone can edit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// A web page about the site that the source names: its operator's,
+    /// or one that says more about it. An `http` or `https` address. It is
+    /// somebody else's page, and what it says is theirs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub website: Option<String>,
+    /// What the source says about the site in words, as its author wrote
+    /// it and in the author's language. It may have several lines. It is
+    /// shown as written; nothing is read out of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether a payment is asked for using the site, as the source writes
+    /// it: `yes`, `no`, or other words of its author's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee: Option<String>,
+    /// Whether pilots who are guests at the site have rules for guests to
+    /// take notice of. `None` when the source does not say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_guidelines: Option<bool>,
+    /// A time in which the site may not be used, as the source writes it:
+    /// `01.04-30.09`. It is shown as written and never reckoned with: no
+    /// code says from it that a site is open or closed today. `None` says
+    /// only that the source names no such time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub no_flight_time: Option<String>,
+    /// The outline of a site its source draws as an area: a landing field,
+    /// a take-off meadow. `None` for a site drawn as a point.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outline: Option<SiteOutline>,
+}
+
+/// The outline of a flying site: one closed ring of points, the last the
+/// first again, with [`SiteOutline::MAX_POINTS`] points at most. It is for
+/// drawing a field on a map. A source that draws a site with more points
+/// has it drawn with fewer by its adapter.
+///
+/// Written as a list of `[longitude, latitude]`, the order GeoJSON uses and
+/// the one an airspace's rings are written in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "Vec<[f64; 2]>", into = "Vec<[f64; 2]>")]
+pub struct SiteOutline(Vec<GeoPoint>);
+
+/// Why a list of points is no outline of a site.
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum SiteOutlineError {
+    /// Fewer points than a closed triangle has.
+    #[error("an outline needs at least 4 points, the last the first again, and has {0}")]
+    TooFewPoints(usize),
+    /// More points than an outline may have.
+    #[error("an outline has at most {max} points and this one has {0}", max = SiteOutline::MAX_POINTS)]
+    TooManyPoints(usize),
+    /// The last point is not the first.
+    #[error("the outline is not closed: its last point is not its first")]
+    NotClosed,
+    /// A point that is no place on the globe.
+    #[error("a point of the outline is no place: {0}")]
+    Point(#[from] GeoError),
+}
+
+impl SiteOutline {
+    /// The most points an outline has, the closing one included. Of the
+    /// 205 sites OpenStreetMap draws as areas in the first region, by its
+    /// data of 2026-11-20, half have 6 points or fewer and two have more
+    /// than this: 67 and 203.
+    pub const MAX_POINTS: usize = 64;
+
+    /// Creates an outline from a closed ring.
+    pub fn new(points: Vec<GeoPoint>) -> Result<Self, SiteOutlineError> {
+        if points.len() < 4 {
+            return Err(SiteOutlineError::TooFewPoints(points.len()));
+        }
+        if points.len() > Self::MAX_POINTS {
+            return Err(SiteOutlineError::TooManyPoints(points.len()));
+        }
+        if points.first() != points.last() {
+            return Err(SiteOutlineError::NotClosed);
+        }
+        Ok(Self(points))
+    }
+
+    /// The ring: its last point is its first again.
+    pub fn points(&self) -> &[GeoPoint] {
+        &self.0
+    }
+}
+
+impl TryFrom<Vec<[f64; 2]>> for SiteOutline {
+    type Error = SiteOutlineError;
+
+    fn try_from(ring: Vec<[f64; 2]>) -> Result<Self, Self::Error> {
+        let points = ring
+            .into_iter()
+            .map(|[lon, lat]| GeoPoint::new(lat, lon))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::new(points)
+    }
+}
+
+impl From<SiteOutline> for Vec<[f64; 2]> {
+    fn from(outline: SiteOutline) -> Self {
+        outline
+            .0
+            .into_iter()
+            .map(|point| [point.lon(), point.lat()])
+            .collect()
+    }
 }
 
 #[expect(
@@ -142,7 +249,25 @@ mod tests {
             official: None,
             discouraged: false,
             url: None,
+            website: None,
+            description: None,
+            fee: None,
+            guest_guidelines: None,
+            no_flight_time: None,
+            outline: None,
         }
+    }
+
+    fn field() -> Vec<GeoPoint> {
+        [
+            (47.6921, 11.8861),
+            (47.6927, 11.8862),
+            (47.6926, 11.887),
+            (47.6921, 11.8861),
+        ]
+        .into_iter()
+        .map(|(lat, lon)| GeoPoint::new(lat, lon).unwrap())
+        .collect()
     }
 
     #[test]
@@ -167,9 +292,24 @@ mod tests {
             official: Some(true),
             discouraged: true,
             url: Some("https://www.openstreetmap.org/way/1080986173".to_owned()),
+            website: Some("https://example.org/fluggebiet".to_owned()),
+            description: Some("Nicht im hohen Gras landen.\nWindsack vorhanden.".to_owned()),
+            fee: Some("yes".to_owned()),
+            guest_guidelines: Some(true),
+            no_flight_time: Some("01.04-30.09".to_owned()),
+            outline: Some(SiteOutline::new(field()).unwrap()),
             ..wallberg()
         };
         let json = serde_json::to_string(&site).unwrap();
+        // An outline is written as GeoJSON writes a ring: longitude first.
+        assert!(
+            json.contains(
+                r#""outline":[[11.8861,47.6921],[11.8862,47.6927],[11.887,47.6926],[11.8861,47.6921]]"#
+            ),
+            "{json}"
+        );
+        assert!(json.contains(r#""guest_guidelines":true"#), "{json}");
+        assert!(json.contains(r#""no_flight_time":"01.04-30.09""#), "{json}");
         assert!(json.contains(r#""uses":["takeoff","landing"]"#), "{json}");
         assert!(
             json.contains(r#""wind_directions":[{"from_deg":292.5,"to_deg":292.5},"#),
@@ -179,6 +319,45 @@ mod tests {
         assert_eq!(serde_json::from_str::<Site>(&json).unwrap(), site);
         assert!(site.is(SiteUse::Landing));
         assert!(!site.is(SiteUse::Towing));
+    }
+
+    #[test]
+    fn an_outline_is_a_closed_ring_of_a_bounded_size() {
+        let outline = SiteOutline::new(field()).unwrap();
+        assert_eq!(outline.points().len(), 4);
+        assert_eq!(outline.points().first(), outline.points().last());
+
+        let mut open = field();
+        open.pop();
+        assert_eq!(
+            SiteOutline::new(open.clone()),
+            Err(SiteOutlineError::TooFewPoints(3))
+        );
+        open.push(GeoPoint::new(47.6922, 11.8868).unwrap());
+        assert_eq!(SiteOutline::new(open), Err(SiteOutlineError::NotClosed));
+
+        // A ring of more points than an outline may have.
+        let mut long = field();
+        let corner = long[1];
+        long.splice(
+            1..1,
+            std::iter::repeat_n(corner, SiteOutline::MAX_POINTS - 3),
+        );
+        assert_eq!(
+            SiteOutline::new(long),
+            Err(SiteOutlineError::TooManyPoints(SiteOutline::MAX_POINTS + 1))
+        );
+
+        // A record with a damaged outline is no record.
+        for damaged in [
+            "[[11.8,47.6],[11.9,47.6]]",
+            "[[11.8,147.6],[11.9,47.6],[11.9,47.7],[11.8,147.6]]",
+        ] {
+            let text = format!(
+                r#"{{"id":"osm-free-flying:way/1","position":{{"lat":47.6,"lon":11.8}},"uses":[],"outline":{damaged}}}"#
+            );
+            assert!(serde_json::from_str::<Site>(&text).is_err(), "{damaged}");
+        }
     }
 
     #[test]

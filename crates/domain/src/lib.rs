@@ -38,7 +38,7 @@ pub use forecast::{ForecastHour, ForecastSeries, WindAloft};
 pub use geo::{BoundingBox, GeoError, GeoPoint};
 pub use ids::{AirspaceId, IdError, ModelId, SiteId, SourceId, StationId};
 pub use observation::Observation;
-pub use site::{Site, SiteUse, WindSector};
+pub use site::{Site, SiteOutline, SiteOutlineError, SiteUse, WindSector};
 pub use station::Station;
 
 /// A point in time, always UTC.

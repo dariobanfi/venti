@@ -281,6 +281,15 @@ class SitesModelTest {
         hangGliding = null,
         source = "test",
         url = null,
+        website = null,
+        description = null,
+        fee = null,
+        feeInWords = "",
+        guestGuidelines = null,
+        guestsInWords = "",
+        noFlightTime = null,
+        noFlightInWords = "",
+        outline = emptyList(),
     )
 
     @Test

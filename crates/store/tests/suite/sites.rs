@@ -2,7 +2,9 @@
 //! per source, replaced by a healthy run and by nothing else.
 
 use chrono::{TimeZone, Utc};
-use venti_domain::{BoundingBox, GeoPoint, Site, SiteUse, SourceId, Timestamp, WindSector};
+use venti_domain::{
+    BoundingBox, GeoPoint, Site, SiteOutline, SiteUse, SourceId, Timestamp, WindSector,
+};
 use venti_store::{Month, RunRecord, SiteDelivery, SiteLayer, SiteSet, Store, StoreError};
 
 use super::{alps, at, everything, run, source};
@@ -26,6 +28,12 @@ fn takeoff(id: &str, lat: f64, lon: f64) -> Site {
         official: None,
         discouraged: false,
         url: None,
+        website: None,
+        description: None,
+        fee: None,
+        guest_guidelines: None,
+        no_flight_time: None,
+        outline: None,
     }
 }
 
@@ -82,6 +90,25 @@ pub(crate) async fn a_site_set_is_stored_and_read_back_exactly(store: &impl Stor
         official: Some(true),
         discouraged: true,
         url: Some("https://www.openstreetmap.org/way/1080986173".to_owned()),
+        website: Some("https://example.org/fluggebiet?platz=ost".to_owned()),
+        description: Some("Nicht im hohen Gras landen.\nWindsack \"Ost\" vorhanden.".to_owned()),
+        fee: Some("yes".to_owned()),
+        guest_guidelines: Some(false),
+        no_flight_time: Some("01.04-30.09".to_owned()),
+        outline: Some(
+            SiteOutline::new(
+                [
+                    (47.678_844_5, 11.904_653_3),
+                    (47.679_438_2, 11.904_9 + 0.1 + 0.2 - 0.3),
+                    (47.679_1, 11.905_553_2),
+                    (47.678_844_5, 11.904_653_3),
+                ]
+                .into_iter()
+                .map(|(lat, lon)| GeoPoint::new(lat, lon).unwrap())
+                .collect(),
+            )
+            .unwrap(),
+        ),
         ..takeoff("osm-free-flying:way/1080986173", 47.0, 11.0)
     };
     let bare = Site {

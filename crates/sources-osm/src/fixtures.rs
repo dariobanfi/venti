@@ -1,13 +1,13 @@
-//! An answer recorded from an Overpass instance on 2026-11-19.
+//! An answer recorded from an Overpass instance on 2026-11-21.
 //!
 //! It is the answer to the adapter's own query for the first region
 //! (46.3 to 48.5° N, 9.4 to 17.2° E): every element of OpenStreetMap there
 //! that carries the free-flying tags, 517 of them, from the instance's
-//! copy of OpenStreetMap of 2026-11-18 21:21 UTC. Each element is as
-//! OpenStreetMap had it, with one exception: of its tags, only those the
-//! adapter reads are kept. The others are removed, among them the names,
-//! phone numbers and e-mail addresses of operators, because this
-//! repository holds no personal data. `tests/fixtures/NOTICE.txt` says
+//! copy of OpenStreetMap of 2026-11-20 21:21 UTC, each with its geometry.
+//! Each element is as OpenStreetMap had it, with one exception: of its
+//! tags, only those the adapter reads are kept. The others are removed,
+//! among them the names, phone numbers and e-mail addresses of operators,
+//! because this repository holds no personal data. `tests/fixtures/NOTICE.txt` says
 //! which instance answered and how to record it again.
 //!
 //! The data is OpenStreetMap's, available under the ODbL: see the
@@ -33,7 +33,7 @@ pub const INTERPRETER: &str = DEFAULT_INTERPRETER;
 ///
 /// Never: the date is a constant.
 pub fn recorded_at() -> Timestamp {
-    Utc.with_ymd_and_hms(2026, 11, 19, 18, 10, 0)
+    Utc.with_ymd_and_hms(2026, 11, 21, 11, 46, 0)
         .single()
         .expect("a valid date")
 }

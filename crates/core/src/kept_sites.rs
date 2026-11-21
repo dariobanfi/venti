@@ -34,7 +34,7 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 use venti_api_types::v1::Attribution;
-use venti_domain::{GeoPoint, Site, SiteId, SiteUse, SourceId, WindSector};
+use venti_domain::{GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, WindSector};
 use venti_flight::live::navigation::bearing_deg;
 
 use crate::sites::{SiteKind, SiteView, SitesMap, site_view};
@@ -621,6 +621,20 @@ fn site_of(view: &SiteView) -> Option<Site> {
         official: view.official,
         discouraged: view.discouraged,
         url: view.url.clone(),
+        website: view.website.clone(),
+        description: view.description.clone(),
+        fee: view.fee.clone(),
+        guest_guidelines: view.guest_guidelines,
+        no_flight_time: view.no_flight_time.clone(),
+        // An outline that is no closed ring of a size a site has is left
+        // out, and the site is kept as a place.
+        outline: view
+            .outline
+            .iter()
+            .map(|point| GeoPoint::new(point.lat, point.lon))
+            .collect::<Result<Vec<_>, _>>()
+            .ok()
+            .and_then(|ring| SiteOutline::new(ring).ok()),
     })
 }
 
@@ -693,6 +707,48 @@ mod tests {
             .iter()
             .map(|takeoff| (takeoff.site.id.rsplit('/').next().unwrap(), takeoff.is_kept))
             .collect()
+    }
+
+    #[test]
+    fn a_site_kept_by_an_earlier_version_is_still_read() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            // The file as the app wrote it before a record had a web
+            // page, a description or an outline.
+            let earlier = r#"{"source":"osm-free-flying","sites":[{"site":{
+                "id":"osm-free-flying:way/1080988126","name":"Landeplatz Jägerkamp/Nagelspitz",
+                "position":{"lat":47.6924086,"lon":11.8865478},"uses":["landing"],
+                "url":"https://www.openstreetmap.org/way/1080988126"},"as_of_unix_s":1763500862}]}"#;
+            core.storage
+                .write(
+                    &file_of(&SourceId::new("osm-free-flying").unwrap()),
+                    earlier.as_bytes(),
+                )
+                .unwrap();
+
+            let kept = core.kept_sites(None).unwrap();
+            assert_eq!(kept.sites.len(), 1);
+            let field = &kept.sites[0].site;
+            assert_eq!(field.name, "Landeplatz Jägerkamp/Nagelspitz");
+            assert_eq!(kept.sites[0].as_of_unix_s, Some(1_763_500_862));
+            assert!(field.outline.is_empty());
+            assert_eq!((&field.website, &field.description), (&None, &None));
+            assert!(core.is_site_kept(LANDING.to_owned()).unwrap());
+
+            // Kept anew from an answer of today's server, it has what the
+            // record has gained, and has it still after a restart.
+            let map = recorded();
+            keep(&core, &map, LANDING);
+            let again = Core::with_storage(backing.open()).unwrap();
+            let kept = again.kept_sites(None).unwrap();
+            assert_eq!(kept.sites.len(), 1);
+            assert_eq!(kept.sites[0].site, site(&map, LANDING));
+            assert_eq!(kept.sites[0].site.outline.len(), 8);
+            assert_eq!(
+                kept.sites[0].site.website.as_deref(),
+                Some("https://www.dhv.de/")
+            );
+        });
     }
 
     #[test]

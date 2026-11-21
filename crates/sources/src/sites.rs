@@ -19,6 +19,17 @@ const MAX_NAME_CHARS: usize = 200;
 /// a compass named one by one is a damaged record.
 const MAX_SECTORS: usize = 16;
 
+/// The longest web address a site may carry, in characters. OpenStreetMap
+/// keeps no value longer than 255.
+const MAX_WEBSITE_CHARS: usize = 500;
+
+/// The longest description a site may carry, in characters.
+const MAX_DESCRIPTION_CHARS: usize = 1000;
+
+/// The longest word about a fee or a time without flying a site may
+/// carry, in characters.
+const MAX_REMARK_CHARS: usize = 100;
+
 /// Something about a site that the pipeline refused to pass on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SiteRejection {
@@ -228,7 +239,93 @@ fn check_site(site: &mut Site) -> Vec<SiteRejection> {
         site.url = None;
     }
 
+    if site
+        .website
+        .as_ref()
+        .is_some_and(|website| !is_web_address(website))
+    {
+        reject("website", "not an http or https address".to_owned());
+        site.website = None;
+    }
+
+    // What somebody wrote about the site: it is shown as written, so what
+    // does not print is removed with the whole text, and nothing is cut.
+    let unfit = |text: &str, longest: usize, lines: bool| {
+        let length = text.chars().count();
+        let prints = |c: char| !c.is_control() || (lines && c == '\n');
+        (length > longest || !text.chars().all(prints))
+            .then(|| format!("{length} characters, or one that does not print"))
+    };
+    if let Some(reason) = site
+        .description
+        .as_ref()
+        .and_then(|text| unfit(text, MAX_DESCRIPTION_CHARS, true))
+    {
+        reject("description", reason);
+        site.description = None;
+    }
+    if let Some(reason) = site
+        .fee
+        .as_ref()
+        .and_then(|text| unfit(text, MAX_REMARK_CHARS, false))
+    {
+        reject("fee", reason);
+        site.fee = None;
+    }
+    if let Some(reason) = site
+        .no_flight_time
+        .as_ref()
+        .and_then(|text| unfit(text, MAX_REMARK_CHARS, false))
+    {
+        reject("no_flight_time", reason);
+        site.no_flight_time = None;
+    }
+    for text in [
+        &mut site.description,
+        &mut site.fee,
+        &mut site.no_flight_time,
+    ] {
+        if text.as_ref().is_some_and(|text| text.trim().is_empty()) {
+            *text = None;
+        }
+    }
+
     rejections
+}
+
+/// Whether a text is the address of a web page: `http://` or `https://`,
+/// then a host of letters, digits, dots and hyphens with a dot in it and,
+/// if it names one, a port, then nothing or a path that begins with `/`,
+/// `?` or `#`. No blanks, nothing that does not print, no name and
+/// password before the host. An address a browser would also open is
+/// refused where it is not of this plain form; that costs a site its link
+/// and nothing else.
+fn is_web_address(text: &str) -> bool {
+    let Some(rest) = text
+        .strip_prefix("https://")
+        .or_else(|| text.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    if text.chars().count() > MAX_WEBSITE_CHARS
+        || text.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
+        return false;
+    }
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (host, port) = match rest[..end].split_once(':') {
+        Some((host, port)) => (host, Some(port)),
+        None => (&rest[..end], None),
+    };
+    let label = |label: &str| {
+        !label.is_empty()
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label.chars().all(|c| c.is_alphanumeric() || c == '-')
+    };
+    host.contains('.')
+        && host.split('.').all(label)
+        && port.is_none_or(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -250,6 +347,12 @@ mod tests {
             official: Some(true),
             discouraged: false,
             url: Some("https://example.org/node/1".to_owned()),
+            website: Some("https://club.example.org/fluggebiet?id=3#start".to_owned()),
+            description: Some("Nicht im hohen Gras landen.\nWindsack vorhanden.".to_owned()),
+            fee: Some("yes".to_owned()),
+            guest_guidelines: Some(true),
+            no_flight_time: Some("01.04-30.09".to_owned()),
+            outline: None,
         }
     }
 
@@ -285,6 +388,78 @@ mod tests {
         // Each use once, in the order of the type.
         assert_eq!(checked.uses, [SiteUse::Takeoff, SiteUse::Landing]);
         assert_eq!(checked.position, site().position);
+    }
+
+    #[test]
+    fn what_somebody_wrote_is_kept_as_written_or_removed_whole() {
+        let mut checked = Site {
+            website: Some("javascript:alert(1)".to_owned()),
+            description: Some("x".repeat(1001)),
+            fee: Some("yes\u{7}".to_owned()),
+            no_flight_time: Some("01.04-30.09\n".to_owned()),
+            ..site()
+        };
+
+        let rejections = check_site(&mut checked);
+
+        let fields: Vec<&str> = rejections.iter().map(|r| r.field.as_str()).collect();
+        assert_eq!(fields, ["website", "description", "fee", "no_flight_time"]);
+        assert_eq!(
+            (
+                &checked.website,
+                &checked.description,
+                &checked.fee,
+                &checked.no_flight_time
+            ),
+            (&None, &None, &None, &None)
+        );
+        // What the source says of guests is a yes or a no and stays.
+        assert_eq!(checked.guest_guidelines, Some(true));
+
+        // Blank is nothing said, without a complaint.
+        let mut blank = Site {
+            description: Some(" \n".to_owned()),
+            fee: Some(String::new()),
+            ..site()
+        };
+        assert!(check_site(&mut blank).is_empty());
+        assert_eq!((blank.description, blank.fee), (None, None));
+    }
+
+    #[test]
+    fn a_web_address_is_http_or_https_with_a_host() {
+        for address in [
+            "https://www.gsc-hochries.de/fluggebiet/",
+            "http://www.dc-isarwinkel.de/",
+            "https://example.org",
+            "https://example.org:8443/a?b=c#d",
+            "https://www.syride.com//fr/sites/Alp_Tea",
+            "https://flugschule-münchen.example/",
+        ] {
+            assert!(is_web_address(address), "{address}");
+        }
+        for other in [
+            "",
+            "www.example.org",
+            "ftp://example.org/",
+            "javascript:alert(1)",
+            "https://",
+            "https:///path",
+            "https://localhost/",
+            "https://user:secret@example.org/",
+            "https://example.org /",
+            "https://example..org/",
+            "https://-example.org/",
+            "https://example.org:port/",
+            "https://example.org;https://example.com",
+            "mailto:someone@example.org",
+        ] {
+            assert!(!is_web_address(other), "{other}");
+        }
+        assert!(!is_web_address(&format!(
+            "https://example.org/{}",
+            "x".repeat(500)
+        )));
     }
 
     #[test]

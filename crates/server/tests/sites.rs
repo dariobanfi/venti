@@ -62,6 +62,12 @@ fn takeoff(id: &str, lat: f64, lon: f64) -> Site {
         official: None,
         discouraged: false,
         url: None,
+        website: None,
+        description: None,
+        fee: None,
+        guest_guidelines: None,
+        no_flight_time: None,
+        outline: None,
     }
 }
 

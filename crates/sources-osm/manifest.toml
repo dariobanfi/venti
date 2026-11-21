@@ -9,7 +9,7 @@ countries = ["AT", "CH", "DE", "HR", "HU", "IT", "LI", "SI", "SK"]
 cadence_seconds = 86400
 auth = "none"
 # The one answer of a run, every free-flying place of the first region with
-# all its tags, was 163 kB on 2026-11-19.
+# all its tags and the points of every area, was 276 kB on 2026-11-21.
 max_response_kb = 4096
 
 # The main public instance asks whoever uses it regularly to stay under 100
@@ -45,6 +45,7 @@ verified_from = [
     "https://wiki.openstreetmap.org/wiki/Key:direction",
     "https://wiki.openstreetmap.org/wiki/Key:ele",
     "https://wiki.openstreetmap.org/wiki/Overpass_API",
+    "https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL",
     "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
     "https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/",
 ]

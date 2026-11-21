@@ -206,6 +206,40 @@ pub struct SiteView {
     pub source: String,
     /// Where the source's record can be looked at and corrected.
     pub url: Option<String>,
+    /// A web page about the site that its source names: its operator's,
+    /// or one that says more. An `http` or `https` address, for a link
+    /// that opens in the browser. It is somebody else's page.
+    pub website: Option<String>,
+    /// What the source says about the site in words, as its author wrote
+    /// it and in the author's language; it may have several lines. Shown
+    /// as written, as a quotation of the source.
+    pub description: Option<String>,
+    /// Whether a payment is asked for using the site, as the source
+    /// writes it: "yes", "no", or other words of its author's.
+    pub fee: Option<String>,
+    /// The same as a line of the site's page: "A fee is asked for using
+    /// this site.", "No fee is asked for using this site.", or "Fee:" with
+    /// the source's words. Empty when the source does not say.
+    pub fee_in_words: String,
+    /// Whether guests have rules for guests to take notice of.
+    pub guest_guidelines: Option<bool>,
+    /// The same as a line of the site's page: "Guests have to read this
+    /// site's rules for guests before they fly here." Empty when the
+    /// source does not say.
+    pub guests_in_words: String,
+    /// A time in which the site may not be used, as the source writes it:
+    /// "01.04-30.09". Never reckoned with: the app does not say from it
+    /// that the site is open or closed today.
+    pub no_flight_time: Option<String>,
+    /// The same as a line of the site's page: "Not to be used in this
+    /// time, as its source writes it: 01.04-30.09". Empty when the source
+    /// names no such time, which does not say that there is none.
+    pub no_flight_in_words: String,
+    /// The outline of a site its source draws as an area, closed: the
+    /// last point is the first again, 4 to 64 points. Empty for a site
+    /// drawn as a point; `position` is then all there is, and with an
+    /// outline it is the middle of the box around it.
+    pub outline: Vec<Coordinate>,
 }
 
 /// The sites in a part of the map. A shell hands it back for Today's
@@ -417,6 +451,43 @@ pub(crate) fn site_view(site: &Site) -> SiteView {
         hang_gliding: site.hang_gliding,
         source: site.id.source().to_string(),
         url: site.url.clone(),
+        website: site.website.clone(),
+        description: site.description.clone(),
+        fee_in_words: site.fee.as_deref().map_or_else(String::new, fee_in_words),
+        fee: site.fee.clone(),
+        guest_guidelines: site.guest_guidelines,
+        guests_in_words: match site.guest_guidelines {
+            Some(true) => "Guests have to read this site's rules for guests before they fly here.",
+            Some(false) => "Its source names no rules for guests.",
+            None => "",
+        }
+        .to_owned(),
+        no_flight_in_words: site
+            .no_flight_time
+            .as_deref()
+            .map_or_else(String::new, |time| {
+                format!("Not to be used in this time, as its source writes it: {time}")
+            }),
+        no_flight_time: site.no_flight_time.clone(),
+        outline: site
+            .outline
+            .iter()
+            .flat_map(|outline| outline.points())
+            .map(|point| Coordinate {
+                lat: point.lat(),
+                lon: point.lon(),
+            })
+            .collect(),
+    }
+}
+
+/// What a source says of a fee, as a line: its `yes` and `no` in a
+/// sentence, anything else as its author wrote it.
+fn fee_in_words(fee: &str) -> String {
+    match fee {
+        "yes" => "A fee is asked for using this site.".to_owned(),
+        "no" => "No fee is asked for using this site.".to_owned(),
+        other => format!("Fee: {other}"),
     }
 }
 
@@ -572,6 +643,44 @@ mod tests {
                 .count(),
             2
         );
+
+        // A point has no outline. What its mapper wrote about it is
+        // passed on as written.
+        assert!(unnamed.outline.is_empty());
+        assert_eq!(
+            unnamed.description.as_deref(),
+            Some("Startrampe (vermutlich für Drachenflieger)")
+        );
+        assert_eq!((&unnamed.website, &unnamed.fee), (&None, &None));
+        assert_eq!(named.fee.as_deref(), Some("yes"));
+        assert_eq!(named.fee_in_words, "A fee is asked for using this site.");
+        assert_eq!(named.outline.len(), 5);
+        assert_eq!(
+            (
+                unnamed.fee_in_words.as_str(),
+                unnamed.guests_in_words.as_str(),
+                unnamed.no_flight_in_words.as_str()
+            ),
+            ("", "", "")
+        );
+        // The landing field of the Jägerkamp is an area: its outline is a
+        // closed ring around the place it is drawn at, and its source
+        // names a web page.
+        let field = map
+            .sites
+            .iter()
+            .find(|site| site.id == "osm-free-flying:way/1080988126")
+            .unwrap();
+        assert_eq!(field.outline.len(), 8);
+        assert_eq!(field.outline.first(), field.outline.last());
+        let (south, north) = field
+            .outline
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), point| {
+                (low.min(point.lat), high.max(point.lat))
+            });
+        assert!(south < field.position.lat && field.position.lat < north);
+        assert_eq!(field.website.as_deref(), Some("https://www.dhv.de/"));
 
         // Asked for more than the server's set is whole for, the answer is
         // not the whole truth about the box.
@@ -781,6 +890,52 @@ mod tests {
             "N, WNW to NNW"
         );
         assert_eq!(wind_in_words(&[span(0.0, 360.0)]), "any direction");
+    }
+
+    #[test]
+    fn what_a_source_writes_about_a_site_is_put_in_lines() {
+        let record = |more: &str| -> Site {
+            serde_json::from_str(&format!(
+                r#"{{"id":"osm-free-flying:node/1","position":{{"lat":47.5,"lon":9.77}},
+                    "uses":["takeoff"]{more}}}"#
+            ))
+            .unwrap()
+        };
+        let said = site_view(&record(
+            r#","fee":"yes","guest_guidelines":true,"no_flight_time":"01.05-30.09",
+               "website":"http://example.org/fluggebiet",
+               "description":"Nicht im hohen Gras landen.\nWindsack vorhanden.""#,
+        ));
+        assert_eq!(said.fee_in_words, "A fee is asked for using this site.");
+        assert_eq!(
+            said.guests_in_words,
+            "Guests have to read this site's rules for guests before they fly here."
+        );
+        assert_eq!(
+            said.no_flight_in_words,
+            "Not to be used in this time, as its source writes it: 01.05-30.09"
+        );
+        assert_eq!(
+            said.website.as_deref(),
+            Some("http://example.org/fluggebiet")
+        );
+        // A description is passed on as written, with its lines.
+        assert_eq!(
+            said.description.as_deref(),
+            Some("Nicht im hohen Gras landen.\nWindsack vorhanden.")
+        );
+
+        let other = site_view(&record(r#","fee":"no","guest_guidelines":false"#));
+        assert_eq!(other.fee_in_words, "No fee is asked for using this site.");
+        assert_eq!(
+            other.guests_in_words,
+            "Its source names no rules for guests."
+        );
+        assert_eq!(other.no_flight_in_words, "");
+        // Anything else a mapper wrote about a fee is shown as written.
+        let own = site_view(&record(r#","fee":"donation""#));
+        assert_eq!(own.fee_in_words, "Fee: donation");
+        assert_eq!(own.guests_in_words, "");
     }
 
     #[test]

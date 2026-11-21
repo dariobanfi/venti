@@ -96,6 +96,28 @@ mod tests {
             answer
         );
 
+        // What a record gained on 2026-11-21 is read, and a record
+        // without it reads as before.
+        let first = &answer.layers[0].sites[0];
+        assert_eq!(
+            (&first.website, &first.description, &first.outline),
+            (&None, &None, &None)
+        );
+        let field: Site = serde_json::from_str(
+            r#"{"id": "osm-free-flying:way/1080988126",
+                "position": {"lat": 47.6924086, "lon": 11.8865478}, "uses": ["landing"],
+                "website": "https://www.dhv.de/", "fee": "yes", "guest_guidelines": true,
+                "no_flight_time": "01.04-30.09", "description": "Nicht im hohen Gras landen.",
+                "outline": [[11.8880464, 47.6919322], [11.8875034, 47.6925871],
+                            [11.8850491, 47.6925639], [11.8880464, 47.6919322]]}"#,
+        )
+        .unwrap();
+        let ring = field.outline.as_ref().unwrap().points();
+        assert_eq!(ring.len(), 4);
+        assert_eq!((ring[0].lat(), ring[0].lon()), (47.6919322, 11.8880464));
+        assert_eq!(field.guest_guidelines, Some(true));
+        assert_eq!(field.no_flight_time.as_deref(), Some("01.04-30.09"));
+
         // An answer that says nothing about where it is whole covers nothing.
         let bare = r#"{"source": "osm-free-flying", "fetched_at": "2026-11-19T18:10:00Z",
                        "as_of": "2026-11-18T21:21:02Z", "sites": []}"#;

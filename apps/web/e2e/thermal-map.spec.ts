@@ -37,8 +37,8 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	wide
 }) => {
 	await madeUpMap(page);
-	// MADE UP: the stand-in's forecast too, which has the same three days
-	// as its map, by the development server's clock; the recorded
+	// MADE UP: the stand-in's forecast too, which has the same days as its
+	// map, by the development server's clock; the recorded
 	// forecast's days are others.
 	await page.route('**/v1/forecast**', async (route) => {
 		const asked = new URL(route.request().url());
@@ -71,7 +71,7 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	await expect(card(page).getByRole('link', { name: 'Today' })).toBeVisible();
 	await expect(page.getByText(/^Forecast: Open-Meteo/)).toBeVisible();
 	const days = card(page).getByRole('radiogroup', { name: 'Day' }).getByRole('radio');
-	await expect(days).toHaveCount(3);
+	await expect(days).toHaveCount(4);
 	await expect(days.first()).toBeChecked();
 	await mapDrawn();
 	await keep('112-map-forecast');
@@ -104,7 +104,7 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 
 	// The hours behind the day's verdict: the forecast for the square's middle,
 	// open on the day the map shows, the second, of the model the map read it
-	// from. The card shows all three of the stand-in's days, so its second is
+	// from. The card shows all four of the stand-in's days, so its second is
 	// the second of the stand-in's answer.
 	const shown = (await (await fetch(`${MADE_UP_DAY}/v1/thermals`)).json()).days[1];
 	await square.getByRole('button', { name: 'Forecast for this place' }).click();
@@ -162,11 +162,13 @@ test('the forecast layer reads the development server’s November map, and says
 	refusing = false;
 	await card(page).getByRole('button', { name: 'Try again' }).click();
 	await expect(card(page).getByRole('list', { name: 'Key' })).toBeVisible();
-	await expect(card(page)).toContainText('ICON-D2, run of Sat, 21 Nov at 01:00');
+	await expect(card(page)).toContainText('ICON-D2, run of Sat, 21 Nov at 07:00');
 	const days = card(page).getByRole('radiogroup', { name: 'Day' });
-	await expect(days.getByRole('radio')).toHaveCount(2);
+	await expect(days.getByRole('radio')).toHaveCount(4);
 	await expect(days).toContainText('Sat');
 	await expect(days).toContainText('Sun');
+	await expect(days).toContainText('Mon');
+	await expect(days).toContainText('Tue');
 
 	// A square of the first day, around the pilot: not flyable, for rain.
 	for (const name of ['Wind', 'Sites', 'Pilots']) {

@@ -42,7 +42,9 @@ describe('the thermal map from the server', () => {
 		expect(map.model).toBe('ICON-D2');
 		expect(map.days.map((day) => [day.date, day.name])).toEqual([
 			['2026-11-21', 'Today'],
-			['2026-11-22', 'Tomorrow']
+			['2026-11-22', 'Tomorrow'],
+			['2026-11-23', 'Mon'],
+			['2026-11-24', 'Tue']
 		]);
 		// A day that is not flyable has no kind of day: the veil.
 		expect(map.days[0].cells).toHaveLength(4);

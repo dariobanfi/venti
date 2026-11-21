@@ -1,8 +1,8 @@
 /**
  * The forecast for a place, from the Venti server in its development mode:
- * what ICON-D2 and ICON-EU computed on 19 November 2026 for five places
- * around the Tegernsee, recorded at 19:30 UTC. `playwright.config.ts`
- * starts the server.
+ * what ICON-D2 and ICON-EU computed in their runs of 06:00 UTC on
+ * 21 November 2026 for five places around the Tegernsee, recorded at
+ * 09:25 UTC. `playwright.config.ts` starts the server.
  */
 
 import type { Locator, Page } from '@playwright/test';
@@ -10,11 +10,11 @@ import { BETWEEN_THE_MOUNTAINS, expect, mapTabDrawn, showTheValley, test } from 
 import { madeUpSummer } from './made-up-summer';
 
 /**
- * The night the forecasts were recorded, half an hour after they were,
+ * The morning the forecasts were recorded, half an hour after they were,
  * so that "today" and the names of the days are the same whenever the
  * tests run.
  */
-const THAT_NIGHT = new Date('2026-11-21T01:00:00Z');
+const THAT_MORNING = new Date('2026-11-21T09:55:00Z');
 
 const forecastOf = (page: Page) => page.getByRole('dialog', { name: 'Forecast' });
 const table = (forecast: Locator) =>
@@ -48,7 +48,7 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	wide,
 	problems
 }) => {
-	await page.clock.setFixedTime(THAT_NIGHT);
+	await page.clock.setFixedTime(THAT_MORNING);
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
 	const site = await openTheTakeOff(page, mapDrawn, wide);
@@ -60,8 +60,7 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	await keep('107-site-air-recorded');
 	await site.getByRole('button', { name: 'Forecast for this place' }).click();
 
-	// The finest model first, and the first day with the sun up: the day
-	// that began an hour ago.
+	// The finest model first, and the first day with the sun up: today.
 	const forecast = forecastOf(page);
 	await expect(forecast).toContainText('Fluggelände Jägerkamp/Nagelspitz');
 	const days = forecast.getByRole('radiogroup', { name: 'Day' });
@@ -91,7 +90,7 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	);
 	await expect(forecast).toContainText('Nothing here says whether the day can be flown.');
 	// The run, the model's ground, and whose data it is.
-	await expect(forecast).toContainText('Fri, 20 Nov 2026, 22:00');
+	await expect(forecast).toContainText('Sat, 21 Nov 2026, 07:00');
 	await expect(forecast).toContainText('The model’s ground here');
 	await expect(
 		forecast.getByRole('link', { name: /^Weather data by Open-Meteo\.com/ })
@@ -104,12 +103,16 @@ test('a site’s page leads to the forecast for its place, a day and a model at 
 	await expect(hours.nth(1)).toHaveText('8');
 
 	// Another model: its own run, its own ground, its own reach. ICON-EU's
-	// run of the evening before ends in the night after this day, so
-	// there is one day.
+	// run reaches 78 hours, to noon of the 24th: four days, and the day
+	// chosen stays chosen.
 	await forecast.getByRole('combobox', { name: 'Weather model' }).selectOption('ICON-EU');
 	await expect(forecast).toContainText(/What the weather model ICON-EU computes .* \(7 km cells\)/);
-	await expect(forecast).toContainText('Fri, 20 Nov 2026, 22:00');
-	await expect(days).toBeHidden();
+	await expect(forecast).toContainText('Sat, 21 Nov 2026, 07:00');
+	await expect(days.getByRole('radio')).toHaveCount(4);
+	for (const name of ['Today', 'Sun 22', 'Mon 23', 'Tue 24']) {
+		await expect(days.getByRole('radio', { name })).toBeAttached();
+	}
+	await expect(days.getByRole('radio', { name: 'Sun 22' })).toBeChecked();
 	await table(forecast).scrollIntoViewIfNeeded();
 	await keep('50-forecast-other-model');
 
@@ -125,7 +128,7 @@ test('a wind station’s page leads to the forecast for its place too', async ({
 	mapDrawn,
 	wide
 }) => {
-	await page.clock.setFixedTime(THAT_NIGHT);
+	await page.clock.setFixedTime(THAT_MORNING);
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
 	await page.getByRole('button', { name: 'Wind stations' }).click();
@@ -150,7 +153,7 @@ test('a forecast the server cannot give is said in its words, and asked for agai
 	keep,
 	wide
 }) => {
-	await page.clock.setFixedTime(THAT_NIGHT);
+	await page.clock.setFixedTime(THAT_MORNING);
 	await context.route('**/v1/forecast**', (route) =>
 		route.fulfill({
 			status: 503,

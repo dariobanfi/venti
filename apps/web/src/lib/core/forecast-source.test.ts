@@ -46,7 +46,7 @@ describe('the forecast for a place, from the server', () => {
 		]);
 		const [d2] = forecast.models;
 		// Each model with its run, and how high it thinks the ground is.
-		expect(d2.runUnixS).toBe(Date.UTC(2026, 10, 20, 21) / 1000);
+		expect(d2.runUnixS).toBe(Date.UTC(2026, 10, 21, 6) / 1000);
 		expect(d2.cellElevationM).toBe(1069);
 		// The heights above ground first, then the pressure surfaces, lowest first.
 		expect(d2.levels.map((level) => level.name)).toEqual([
@@ -58,7 +58,7 @@ describe('the forecast for a place, from the server', () => {
 			'600 hPa',
 			'500 hPa'
 		]);
-		expect(d2.levels[3].aboutAltitudeM).toBe(1400);
+		expect(d2.levels[3].aboutAltitudeM).toBe(1500);
 	});
 
 	it('gives every wind with its strength as the map draws it, and its speeds as a label', async () => {
@@ -66,18 +66,18 @@ describe('the forecast for a place, from the server', () => {
 		const forecast = (await new ForecastSource(async () => true, get, CET).forecast(TEGERNSEE))!;
 
 		const hour = forecast.models[0].days[0].hours[0];
-		// 6.58 m/s from 250° with gusts of 22.3: fresh, written in km/h.
-		expect(hour.wind).toEqual({ speedMs: 6.58, fromDeg: 250, band: 'fresh', label: '24/80' });
+		// 2.59 m/s from 242° with gusts of 15.5: light, written in km/h.
+		expect(hour.wind).toEqual({ speedMs: 2.59, fromDeg: 242, band: 'light', label: '9/56' });
 		expect(hour.aloft).toHaveLength(7);
-		expect(hour.aloft[4]).toMatchObject({ band: 'strong', fromDeg: 277 });
+		expect(hour.aloft[4]).toMatchObject({ band: 'strong', fromDeg: 282 });
 		// A number, not a BigInt.
-		expect(hour.timeUnixS).toBe(Date.UTC(2026, 10, 21, 0) / 1000);
-		expect(hour.isDaylight).toBe(false);
+		expect(hour.timeUnixS).toBe(Date.UTC(2026, 10, 21, 7) / 1000);
+		expect(hour.isDaylight).toBe(true);
 	});
 
 	it('cuts the days by the clock it is given', async () => {
 		const { get } = server();
-		// Midnight UTC is 01:00 in Munich and 09:00 in Tokyo, both on the 21st.
+		// The first hour, 07:00 UTC, is 08:00 in Munich and 16:00 in Tokyo, both on the 21st.
 		const here = (await new ForecastSource(async () => true, get, CET).forecast(TEGERNSEE))!;
 		const tokyo = (await new ForecastSource(
 			async () => true,

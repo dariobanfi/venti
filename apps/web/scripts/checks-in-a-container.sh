@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Runs the web app's checks in a container, for a machine that cannot run
 # them all itself: on the owner's Mac the browser Playwright downloads is
-# not allowed to start, and the core cannot be built there while the Rust
-# mirror lacks the wasm-bindgen tool Cargo.lock names (see AGENTS.md beside
-# this folder). Needs Docker.
+# not allowed to start (see AGENTS.md beside this folder). Needs Docker.
 #
 # Capped at VENTI_CHECKS_CPUS processors (6) and 4 browser workers, so that the Mac's other work goes on.
 #

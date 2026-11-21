@@ -62,9 +62,9 @@
 	let chosen = $state<number>();
 	const dayIndex = $derived(chosen ?? firstDay(shown.places));
 
-	/** The days to choose from, by the first take-off that has a forecast. */
+	/** The days to choose from, by the first take-off that has a forecast: four at most. */
 	const days = $derived(
-		shown.places.find((place) => place.outlook)?.outlook?.days.slice(0, 3) ?? []
+		shown.places.find((place) => place.outlook)?.outlook?.days.slice(0, 4) ?? []
 	);
 	/** As the core names them by the calendar: "Today", "Tomorrow", "Sat". */
 	const dayNames = $derived(days.map((day) => day.name));

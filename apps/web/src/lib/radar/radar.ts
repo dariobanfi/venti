@@ -1,20 +1,22 @@
 /**
  * The "Radar" layer of the map tab: the last frames of rain a weather
- * service's radars saw, as pictures over the map.
+ * service's radars saw, and where there is one an analysis of the rain
+ * beside them, as pictures over the map, a layer for each source.
  *
- * Everything the layer says is the core's (`radar`): each frame's time and
- * age, when the newest is too old to be the rain of now, the key, the note
- * and the credit. This file only says which frame is shown, what the strip
- * of frames writes in its cells, which colours of the design pack the
- * core's key names, when the server is asked again, and holds the few
- * words of the app's own, for when there is nothing to read.
+ * Everything the layer says is the core's (`radar`): the moments of the
+ * strip and which frame of which layer lies on the map at each, every
+ * time and age, when the newest is too old to be the rain of now, the key,
+ * the note and the credits. This file only says which moment is looked
+ * at, what the strip writes in its cells, which colours of the design
+ * pack the core's key names, when the server is asked again, and holds
+ * the few words of the app's own, for when there is nothing to read.
  */
 
 import type {
 	RadarColours,
-	RadarFrameView,
 	RadarKey,
 	RadarLayerView,
+	RadarMoment,
 	RadarView
 } from '#lib/core/index.ts';
 import { keyColor, NOT_FLYABLE_ON_MAP } from '#lib/design/palette.ts';
@@ -23,10 +25,10 @@ import { keyColor, NOT_FLYABLE_ON_MAP } from '#lib/design/palette.ts';
 export const ASK_EVERY_MS = 5 * 60_000;
 /** How often the frames' ages are said again, and whether the list is due is looked at. */
 export const AGES_EVERY_MS = 60_000;
-/** How long a frame stands while the frames are played: four a second. */
+/** How long a moment stands while the moments are played: four a second. */
 export const PLAY_MS = 250;
 
-/** From how many frames on the strip writes the minutes in every third cell only. */
+/** From how many moments on the strip writes the minutes in every third cell only. */
 const ALL_LABELLED_UP_TO = 8;
 
 /** The app's own words, where the core has none. */
@@ -37,43 +39,105 @@ export const WORDS = {
 	noServer: 'This copy of the app is served without Venti behind it, so there is no rain radar.'
 } as const;
 
-/** The layer that is shown: the first, of the one radar source a server has today. */
-export function layerOf(view: RadarView | undefined): RadarLayerView | undefined {
-	return view?.layers[0];
-}
-
 /**
- * The frame to show: the one of the time the pilot chose, while the layer
- * still has it, and the newest otherwise.
+ * The moment to show: the one of the time the pilot chose, while the list
+ * still has it, and otherwise the one the core opens on, the newest.
  */
-export function frameOf(
-	layer: RadarLayerView | undefined,
+export function momentOf(
+	view: RadarView | undefined,
 	chosenTimeUnixS: number | undefined
-): RadarFrameView | undefined {
-	return layer?.frames.find((frame) => frame.timeUnixS === chosenTimeUnixS) ?? layer?.frames.at(-1);
+): RadarMoment | undefined {
+	return (
+		view?.moments.find((moment) => moment.timeUnixS === chosenTimeUnixS) ??
+		view?.moments[view.firstMoment]
+	);
 }
 
 /**
- * What choosing a cell of the strip is remembered as: the frame's time, and
- * nothing for the newest, so that the layer goes on to the next frame when
- * one arrives only if the pilot was looking at the newest.
+ * What choosing a cell of the strip is remembered as: the moment's time,
+ * and nothing for the one the core opens on, so that the layer goes on to
+ * the next moment when one arrives only if the pilot was looking at the
+ * newest.
  */
-export function chosenTime(layer: RadarLayerView, index: number): number | undefined {
-	return index >= layer.frames.length - 1 ? undefined : layer.frames[index]?.timeUnixS;
+export function chosenTime(view: RadarView, index: number): number | undefined {
+	return index === view.firstMoment ? undefined : view.moments[index]?.timeUnixS;
+}
+
+/** One layer's picture of a moment, as the map draws it. */
+export interface Drawn {
+	/** Which layer: its place in the view's layers, the lowest first. */
+	layer: number;
+	/** The path of the frame the picture is of. */
+	path: string;
+	/** Whether what the source did not see is drawn as the veil; clear in a picture that lies over another. */
+	drawsUnseen: boolean;
+	/** The corners the layer's pictures are pinned by. */
+	corners: Corners;
+	/** Whether the layer's newest frame is too old to be the rain of now: its picture is drawn fainter. */
+	faded: boolean;
 }
 
 /**
- * The cells of the strip of frames, the oldest first: the minutes of the
- * frame's time on the clock, "35", in every cell of a short strip and in
- * every third of a long one, counted from the newest; and for a screen
- * reader the time and the age, "11:35, 9 minutes ago".
+ * What a moment draws, the lowest first, as the core says: for each of its
+ * frames the layer's picture at that frame's path, with the veil of "not
+ * seen" only where the moment says so. A layer without a frame at the
+ * moment is not among them.
  */
-export function stripCells(frames: readonly RadarFrameView[]): { short: string; label: string }[] {
-	const last = frames.length - 1;
-	return frames.map((frame, index) => ({
+export function drawn(view: RadarView, moment: RadarMoment | undefined): Drawn[] {
+	return (moment?.frames ?? []).flatMap((at) => {
+		const layer = view.layers[at.layer];
+		const frame = layer?.frames[at.frame];
+		return layer && frame
+			? [
+					{
+						layer: at.layer,
+						path: frame.path,
+						drawsUnseen: at.drawsUnseen,
+						corners: corners(layer),
+						faded: layer.stale
+					}
+				]
+			: [];
+	});
+}
+
+/**
+ * What a picture is kept by for the visit: its frame's path, which names
+ * its layer, and whether the veil is drawn in it.
+ */
+export function pictureKey(picture: Pick<Drawn, 'path' | 'drawsUnseen'>): string {
+	return `${picture.path}${picture.drawsUnseen ? ' veiled' : ''}`;
+}
+
+/** The pictures of a moment in one word: two moments that draw the same have the same. */
+export function drawnKey(pictures: readonly Pick<Drawn, 'path' | 'drawsUnseen'>[]): string {
+	return pictures.map(pictureKey).join('\n');
+}
+
+/**
+ * The layer whose caution the card says, when it is behind: the topmost
+ * that has frames, and the topmost while none has, which then says that
+ * there is no picture yet.
+ */
+export function cautioned(view: RadarView | undefined): RadarLayerView | undefined {
+	return view?.layers.findLast((layer) => layer.frames.length > 0) ?? view?.layers.at(-1);
+}
+
+/**
+ * The cells of the strip, the oldest first, a cell a moment: the minutes
+ * of the moment's time on the clock, "15", in every cell of a short strip
+ * and in every third of a long one, counted from the newest; and for a
+ * screen reader the core's line for the moment, "Rain radar, 14:15, 4
+ * minutes ago. Austria's analysis is of 14:00."
+ */
+export function stripCells(moments: readonly RadarMoment[]): { short: string; label: string }[] {
+	const last = moments.length - 1;
+	return moments.map((moment, index) => ({
 		short:
-			frames.length <= ALL_LABELLED_UP_TO || (last - index) % 3 === 0 ? frame.clock.slice(-2) : '',
-		label: `${frame.clock}, ${frame.age}`
+			moments.length <= ALL_LABELLED_UP_TO || (last - index) % 3 === 0
+				? moment.clock.slice(-2)
+				: '',
+		label: moment.label
 	}));
 }
 
@@ -82,16 +146,21 @@ export function solid(colour: string): number {
 	return Number.parseInt(colour.slice(1, 7), 16) * 0x100 + 0xff;
 }
 
+/** No colour at all: what a picture did not see, where the picture lies over another. */
+export const CLEAR = 0;
+
 /**
  * The colours a picture is written in: for each step of rain the colour its
- * line of the key names, the first step first, and the forecast map's veil
- * for what the radar did not see. All solid: how much of the map shows
- * through is the layer's (`radar-layer.ts`).
+ * line of the key names, the first step first, and for what the source did
+ * not see the forecast map's veil where the picture draws it, and nothing
+ * where it lies over another, whose rain the veil would hide. The colours
+ * are solid: how much of the map shows through is the layer's
+ * (`radar-layer.ts`).
  */
-export function colours(key: readonly RadarKey[]): RadarColours {
+export function colours(key: readonly RadarKey[], drawsUnseen: boolean): RadarColours {
 	return {
 		rain: key.toSorted((one, other) => one.step - other.step).map((line) => solid(keyColor(line))),
-		unseen: solid(UNSEEN_ON_MAP)
+		unseen: drawsUnseen ? solid(UNSEEN_ON_MAP) : CLEAR
 	};
 }
 

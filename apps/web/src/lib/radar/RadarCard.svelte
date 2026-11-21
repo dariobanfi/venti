@@ -1,19 +1,21 @@
 <!--
 	The card of the map tab's "Radar" layer, in the manner of the forecast
-	layer's: the frames as the pack's strip of hours, a cell a frame with the
-	minutes of its time, the newest at the right; under it the core's line
-	for the picture that is on the map ("Rain radar, 11:40, 4 minutes ago")
-	and a button that plays the frames once; then the key with a mark in each
-	step's colour and the veil's line last, the core's note on what a radar
-	does not see, and the source's credit.
+	layer's: the moments as the pack's strip of hours, a cell a moment with
+	the minutes of its time, the newest at the right; under it the core's
+	line for the pictures that are on the map ("Rain radar, 14:15, 4 minutes
+	ago. Austria's analysis is of 14:00.") and a button that plays the
+	moments once; then what each layer is, a line a layer, the key with a
+	mark in each step's colour and the veil's line last, the core's note on
+	what a radar does not see, and the credit of every layer drawn.
 
-	When the newest picture is too old to be the rain of now, the core's
-	sentence stands over the line in the colour for caution. While the list
-	is asked for, or when there is none, the card says so, with "Try again".
+	When the newest picture of the topmost layer is too old to be the rain
+	of now, the core's sentence stands over the line in the colour for
+	caution. While the list is asked for, or when there is none, the card
+	says so, with "Try again".
 
 	On a narrow screen the card lies over the map, so it is short
-	(`compact`): the key, the note and the credit stand behind "Key and
-	notes", folded until the pilot asks for them.
+	(`compact`): the layers, the key, the note and the credits stand behind
+	"Key and notes", folded until the pilot asks for them.
 -->
 <script lang="ts">
 	import { tick } from 'svelte';
@@ -33,11 +35,10 @@
 	let { radar, compact = false }: Props = $props();
 
 	const view = $derived(radar.view);
-	const layer = $derived(radar.layer);
-	const frames = $derived(layer?.frames ?? []);
-	const cells = $derived(stripCells(frames));
-	/** The place of the frame the strip marks. */
-	const marked = $derived(Math.max(frames.indexOf(radar.frame!), 0));
+	const moments = $derived(radar.moments);
+	const cells = $derived(stripCells(moments));
+	/** The place of the moment the strip marks. */
+	const marked = $derived(Math.max(moments.indexOf(radar.moment!), 0));
 	/** Nothing moves by itself for a pilot who asked the system for less motion. */
 	const still = new MediaQuery('prefers-reduced-motion: reduce', false);
 
@@ -53,9 +54,14 @@
 	}
 </script>
 
-<!-- The key of the steps of rain, what a radar does not see, and whose pictures they are. -->
+<!-- What each layer is, the key of the steps of rain, what a radar does not see, and whose pictures they are. -->
 {#snippet key()}
-	{#if view && layer}
+	{#if view}
+		<ul class="layers" aria-label="Layers">
+			{#each view.layers as layer (layer.source)}
+				<li>{layer.what}</li>
+			{/each}
+		</ul>
 		<h3 class="label" id="radar-key">Key</h3>
 		<ul class="key" aria-labelledby="radar-key">
 			{#each view.key as entry (entry.step)}
@@ -70,15 +76,17 @@
 			</li>
 		</ul>
 		<p class="caption">{view.note}</p>
-		{#if layer.credit}
-			{@const credit = layer.credit}
-			<p class="caption credit">
-				{#if credit.url}
-					<a href={credit.url} target="_blank" rel="noopener noreferrer">
-						{credit.text || credit.provider}
-					</a>{:else}{credit.text || credit.provider}{/if}, {credit.licence}
-			</p>
-		{/if}
+		{#each radar.layersDrawn as layer (layer.source)}
+			{#if layer.credit}
+				{@const credit = layer.credit}
+				<p class="caption credit">
+					{#if credit.url}
+						<a href={credit.url} target="_blank" rel="noopener noreferrer">
+							{credit.text || credit.provider}
+						</a>{:else}{credit.text || credit.provider}{/if}, {credit.licence}
+				</p>
+			{/if}
+		{/each}
 	{/if}
 {/snippet}
 
@@ -87,7 +95,7 @@
 	{#if radar.pictureProblem && !radar.pictureAsking}
 		<p class="caption" role="status">
 			{radar.pictureProblem}
-			<button class="again" type="button" onclick={() => void radar.showFrame()}>Try again</button>
+			<button class="again" type="button" onclick={() => void radar.showMoment()}>Try again</button>
 		</p>
 	{/if}
 	{#if radar.problem && !radar.asking}
@@ -100,8 +108,8 @@
 
 <section class="radar" aria-labelledby="radar-title">
 	<h2 id="radar-title" class="visually-hidden">Rain radar</h2>
-	{#if view && layer}
-		{#if frames.length > 0}
+	{#if view && view.layers.length > 0}
+		{#if moments.length > 0}
 			<HourStrip
 				label="Radar picture"
 				{cells}
@@ -109,19 +117,19 @@
 				onchange={(index) => radar.choose(index)}
 			/>
 		{/if}
-		{#if layer.stale}
+		{#if radar.caution}
 			<p class="stale" role="status">
 				<Icon name="warning" />
-				{layer.staleWords}
+				{radar.caution}
 			</p>
 		{/if}
 		<div class="said">
-			{#if radar.shownFrame}
-				<p class="title numeric">{radar.shownFrame.label}</p>
+			{#if radar.shownMoment}
+				<p class="title numeric">{radar.shownMoment.label}</p>
 			{:else if radar.pictureAsking}
 				<p class="waiting" role="status">{WORDS.askingPicture}</p>
 			{/if}
-			{#if frames.length > 1 && !still.current}
+			{#if moments.length > 1 && !still.current}
 				<button
 					class="play"
 					type="button"
@@ -276,7 +284,8 @@
 		font-weight: 600;
 	}
 
-	/* One line a step: the words are long. */
+	/* One line a layer, and one line a step: the words are long. */
+	.layers,
 	.key {
 		display: grid;
 		gap: var(--space-1);

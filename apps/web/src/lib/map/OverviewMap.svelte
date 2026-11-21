@@ -38,8 +38,14 @@
 		thermalLayer
 	} from '#lib/forecast/thermal-layer.ts';
 	import { squareAt, squareFeatures } from '#lib/forecast/thermal-map.ts';
-	import { RADAR, radarLayer, radarOpacity } from '#lib/radar/radar-layer.ts';
-	import type { Corners } from '#lib/radar/radar.ts';
+	import {
+		isRadar,
+		radarBefore,
+		radarId,
+		radarLayer,
+		radarOpacity
+	} from '#lib/radar/radar-layer.ts';
+	import type { OnMap } from '#lib/radar/radar.svelte.ts';
 	import { gliderFeatures, LIVE_SOURCE, LIVE_TRACK_SOURCE, liveLayer } from '#lib/live/mark.ts';
 	import { gliderPictures } from '#lib/live/symbols.ts';
 	import {
@@ -123,11 +129,12 @@
 			legend: readonly ThermalMapKey[];
 		};
 		/**
-		 * The rain radar's picture, while the "Radar" layer is on and has one:
+		 * The rain radar's pictures, while the "Radar" layer is on and has
+		 * some, the lowest first: for each of the radar's layers that has one
 		 * an address the map loads it from, the corners it is pinned by, and
-		 * whether it is too old to be the rain of now and drawn fainter.
+		 * whether that layer is too old to be the rain of now and drawn fainter.
 		 */
-		radar?: { url: string; corners: Corners; faded: boolean };
+		radar?: readonly OnMap[];
 		/** Called with a place clicked while an hour is drawn, where nothing else is under the pointer. */
 		onhourat?: (at: { lat: number; lon: number }) => void;
 		/**
@@ -429,25 +436,42 @@
 		}
 	});
 
-	// Draws the radar's picture, another one when the frame changes, and
-	// none while the layer is off. An image source cannot be without a
-	// picture, so it comes and goes with the layer.
+	// Draws the radar's pictures, each of the radar's layers as a source and
+	// a layer of its own, others when the moment changes, and none while
+	// the radar is off. An image source cannot be without a picture, so it
+	// comes and goes with its layer's picture.
 	$effect(() => {
 		if (!map) return;
-		const source = map.getSource<ImageSource>(RADAR);
-		if (!radar) {
-			if (map.getLayer(RADAR)) map.removeLayer(RADAR);
-			if (source) map.removeSource(RADAR);
-			return;
+		const wanted = radar ?? [];
+		for (const id of map.getLayersOrder().filter(isRadar)) {
+			if (wanted.some((picture) => radarId(picture.layer) === id)) continue;
+			map.removeLayer(id);
+			map.removeSource(id);
 		}
-		if (source) {
-			source.updateImage({ url: radar.url, coordinates: radar.corners });
-			map.setPaintProperty(RADAR, 'raster-opacity', radarOpacity(radar.faded));
-		} else {
-			map.addSource(RADAR, { type: 'image', url: radar.url, coordinates: radar.corners });
-			// Over the forecast's squares, under what they lie under.
-			map.addLayer(radarLayer(radar.faded), layerAbove(map.getStyle().layers ?? []));
+		for (const picture of wanted) {
+			const id = radarId(picture.layer);
+			const source = map.getSource<ImageSource>(id);
+			if (source) {
+				// A picture that stays is not loaded again.
+				if (
+					source.url !== picture.url ||
+					source.coordinates.flat().join() !== picture.corners.flat().join()
+				) {
+					source.updateImage({ url: picture.url, coordinates: picture.corners });
+				}
+				map.setPaintProperty(id, 'raster-opacity', radarOpacity(picture.faded));
+				continue;
+			}
+			map.addSource(id, { type: 'image', url: picture.url, coordinates: picture.corners });
+			// Over the forecast's squares, under what they lie under, and
+			// under the radar's own layers that come above this one.
+			map.addLayer(
+				radarLayer(picture.layer, picture.faded),
+				radarBefore(picture.layer, map.getLayersOrder(), layerAbove(map.getStyle().layers ?? []))
+			);
 		}
+		// A map says nothing of what it draws; the browser tests read it here.
+		(globalThis as { ventiRadar?: unknown }).ventiRadar = map.getLayersOrder().filter(isRadar);
 	});
 
 	// Draws the flying sites when they change: the signs, and under them the

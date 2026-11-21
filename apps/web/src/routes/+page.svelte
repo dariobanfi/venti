@@ -166,12 +166,17 @@
 	$effect(() => {
 		if (showRadar) return radar?.keepCurrent();
 	});
-	// The picture of the frame the strip marks.
+	// The pictures of the moment the strip marks.
 	$effect(() => {
-		if (showRadar) void radar?.showFrame();
+		if (showRadar) void radar?.showMoment();
 	});
-	/** Whose radar pictures are on the map: the credit as the provider words it, at the data. */
-	const radarCredit = $derived(showRadar && radar?.onMap ? (radar.layer?.credit?.text ?? '') : '');
+	/**
+	 * Whose rain is on the map: the credit of each of the radar's layers
+	 * drawn, as its provider words it, at the data.
+	 */
+	const radarCredits = $derived(
+		showRadar ? (radar?.layersDrawn ?? []).flatMap((layer) => layer.credit?.text || []) : []
+	);
 
 	const CHIP_ICONS = {
 		wind: 'wind',
@@ -784,14 +789,14 @@
 				{@render thermalCard(false)}
 			</div>
 		{/if}
-		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredit}
+		{#if credits || airspaceCredit || sitesCredit || photosCredit || forecastCredit || radarCredits.length > 0}
 			<p class="credits">
 				{#if photosCredit}<span>{photosCredit}</span>{/if}
 				{#if credits}<span>Wind: {credits}</span>{/if}
 				{#if airspaceCredit}<span>{airspaceCredit}</span>{/if}
 				{#if sitesCredit}<span>{sitesCredit}</span>{/if}
 				{#if forecastCredit}<span>{forecastCredit}</span>{/if}
-				{#if radarCredit}<span>{radarCredit}</span>{/if}
+				{#each radarCredits as credit (credit)}<span>{credit}</span>{/each}
 			</p>
 		{/if}
 	</div>

@@ -110,6 +110,7 @@ export type {
 	RadarFrameView,
 	RadarKey,
 	RadarLayerView,
+	RadarMoment,
 	RadarView,
 	RankedPilot,
 	Ranking,

@@ -1,29 +1,46 @@
 /**
  * The rain radar as the map tab sees it: asks the core in its worker for
  * the list of frames and for each frame's picture, keeps the pictures of
- * this visit, and remembers which frame the pilot looks at.
+ * this visit, and remembers which moment the pilot looks at.
  *
- * What is on the map is always a picture with its own time: while another
- * frame's picture is asked for, or cannot be had, the one before stays, and
- * the card names that one. `radar.ts` holds the rules.
+ * A moment draws a picture for each layer that has one then, and they
+ * change together. What is on the map is always a moment whole, with its
+ * own time: while another moment's pictures are asked for, or one of them
+ * cannot be had, those before stay, and the card names that moment.
+ * `radar.ts` holds the rules.
  */
 
-import type { CoreClient, RadarView } from '#lib/core/index.ts';
+import type { CoreClient, RadarMoment, RadarView } from '#lib/core/index.ts';
 import { isInWords } from '#lib/core/index.ts';
 import {
 	AGES_EVERY_MS,
+	cautioned,
 	chosenTime,
 	colours,
-	corners,
-	frameOf,
+	type Corners,
+	type Drawn,
+	drawn,
+	drawnKey,
 	isDue,
-	layerOf,
+	momentOf,
 	pictureAddress,
+	pictureKey,
 	PLAY_MS,
 	WORDS
 } from './radar';
 
 type Core = Pick<CoreClient, 'radar' | 'radarAgain' | 'radarPicture'>;
+
+/** One layer's picture on the map: where the map loads it from, and how it is drawn. */
+export interface OnMap {
+	/** Which layer: its place in the view's layers. The map draws a higher one over a lower. */
+	layer: number;
+	/** The address the map loads the picture from. */
+	url: string;
+	corners: Corners;
+	/** Whether the layer is too old to be the rain of now: drawn at half its strength. */
+	faded: boolean;
+}
 
 const inFront = () => (globalThis.document?.visibilityState ?? 'visible') === 'visible';
 
@@ -36,42 +53,82 @@ export class RadarModel {
 	asking = $state(false);
 	/** Why the last asking brought no list, in words for the pilot. */
 	problem = $state<string>();
-	/** The time of the frame the pilot chose; nothing for the newest. */
+	/** The time of the moment the pilot chose; nothing for the one the core opens on, the newest. */
 	chosenTimeUnixS = $state<number>();
-	/** The picture on the map, by its frame's path. */
-	shown = $state.raw<{ path: string; url: string }>();
-	/** Whether the chosen frame's picture is being asked for. */
+	/**
+	 * The pictures on the map, the lowest first, with the moment they are
+	 * of as it was when they were fetched.
+	 */
+	shown = $state.raw<{ moment: RadarMoment; pictures: (Drawn & { url: string })[] }>();
+	/** Whether the chosen moment's pictures are being asked for. */
 	pictureAsking = $state(false);
-	/** Why the chosen frame's picture could not be had, in words. */
+	/** Why the chosen moment's pictures could not be had, in words. */
 	pictureProblem = $state<string>();
-	/** Whether the frames are being played. */
+	/** Whether the moments are being played. */
 	playing = $state(false);
 	/** Whether the pilot unfolded the card's key and notes: folded when the app opens. */
 	keyOpen = $state(false);
 
-	/** The layer shown. */
-	readonly layer = $derived(layerOf(this.view));
-	/** The frame the strip marks: the pilot's, or the newest. */
-	readonly frame = $derived(frameOf(this.layer, this.chosenTimeUnixS));
-	/** The frame whose picture is on the map, as the newest list words it. */
-	readonly shownFrame = $derived(
-		this.layer?.frames.find((frame) => frame.path === this.shown?.path)
+	/** The stops of the card's strip, the oldest first: one line of time for all layers. */
+	readonly moments = $derived(this.view?.moments ?? []);
+	/** The moment the strip marks: the pilot's, or the newest. */
+	readonly moment = $derived(momentOf(this.view, this.chosenTimeUnixS));
+	/**
+	 * The moment whose pictures are on the map, as the newest list words
+	 * it, so that its age is that of now. Where the list has other pictures
+	 * for that moment than the map, it is the moment as it was when the
+	 * map's were fetched.
+	 */
+	readonly shownMoment = $derived.by(() => {
+		const shown = this.shown;
+		const view = this.view;
+		if (!shown || !view) return shown?.moment;
+		const key = drawnKey(shown.pictures);
+		return (
+			view.moments.find(
+				(moment) =>
+					moment.timeUnixS === shown.moment.timeUnixS && drawnKey(drawn(view, moment)) === key
+			) ?? shown.moment
+		);
+	});
+	/**
+	 * What the map draws, the lowest first: each picture as a layer of its
+	 * own, with its corners, and whether its layer is too old to be the rain
+	 * of now, each by its own.
+	 */
+	readonly onMap = $derived.by((): OnMap[] => {
+		const layers = this.view?.layers ?? [];
+		return (this.shown?.pictures ?? []).map((picture) => ({
+			layer: picture.layer,
+			url: picture.url,
+			corners: picture.corners,
+			faded: layers[picture.layer]?.stale ?? picture.faded
+		}));
+	});
+	/** The layers that have a picture on the map, the lowest first: whose credits are shown. */
+	readonly layersDrawn = $derived(
+		this.onMap.flatMap((picture) => this.view?.layers[picture.layer] ?? [])
 	);
-	/** What the map draws: the picture, its corners, and whether it is too old to be the rain of now. */
-	readonly onMap = $derived(
-		this.layer && this.shown && this.shownFrame
-			? { url: this.shown.url, corners: corners(this.layer), faded: this.layer.stale }
-			: undefined
-	);
+	/**
+	 * The core's sentence when the rain shown is too old to be the rain of
+	 * now: that of the topmost layer that has frames. Nothing while it is not.
+	 */
+	readonly caution = $derived.by(() => {
+		const layer = cautioned(this.view);
+		return layer?.stale ? layer.staleWords : undefined;
+	});
 
 	#core: Core;
 	#clock: () => number;
 	#wait: (ms: number) => Promise<void>;
 	#askedMs: number | undefined;
-	/** The pictures fetched in this visit, by their frame's path, as addresses the map loads. */
+	/**
+	 * The pictures fetched in this visit as addresses the map loads: each
+	 * layer's frames by their paths, and by whether the veil is drawn in them.
+	 */
 	#pictures = new Map<string, Promise<string>>();
-	/** Counts the pictures asked for and the plays, so that a slow answer is dropped. */
-	#picturesAsked = 0;
+	/** Counts the moments asked for and the plays, so that a slow answer is dropped. */
+	#momentsAsked = 0;
 	#plays = 0;
 
 	constructor(
@@ -84,59 +141,70 @@ export class RadarModel {
 		this.#wait = wait;
 	}
 
-	/** Shows the frame of a cell of the strip; choosing by hand ends a play. */
+	/** Shows the moment of a cell of the strip; choosing by hand ends a play. */
 	choose(index: number): void {
 		this.stop();
-		if (this.layer) this.chosenTimeUnixS = chosenTime(this.layer, index);
+		if (this.view) this.chosenTimeUnixS = chosenTime(this.view, index);
 	}
 
 	/**
-	 * Asks for the picture of the frame the strip marks, unless it is at
-	 * hand, and puts it on the map. Call it again whenever that frame changes.
+	 * Asks for the pictures of the moment the strip marks, unless they are
+	 * at hand, and puts them on the map together. Call it again whenever
+	 * that moment changes.
 	 */
-	async showFrame(): Promise<void> {
-		const frame = this.frame;
+	async showMoment(): Promise<void> {
+		const moment = this.moment;
 		const view = this.view;
-		const mine = ++this.#picturesAsked;
-		if (!frame || !view) {
+		const mine = ++this.#momentsAsked;
+		if (!moment || !view) {
+			// No layer has a frame: nothing of an earlier list stays on the map.
+			if (view) this.shown = undefined;
 			this.pictureAsking = false;
+			this.pictureProblem = undefined;
 			return;
 		}
-		if (this.shown?.path === frame.path) {
+		const wanted = drawn(view, moment);
+		if (this.shown && drawnKey(this.shown.pictures) === drawnKey(wanted)) {
 			this.pictureAsking = false;
 			this.pictureProblem = undefined;
 			return;
 		}
 		this.pictureAsking = true;
 		try {
-			const url = await this.#picture(frame.path, view);
-			if (mine !== this.#picturesAsked) return;
-			this.shown = { path: frame.path, url };
+			const urls = await Promise.all(wanted.map((picture) => this.#picture(picture, view)));
+			if (mine !== this.#momentsAsked) return;
+			this.shown = {
+				moment,
+				pictures: wanted.map((picture, index) => ({ ...picture, url: urls[index] }))
+			};
 			this.pictureProblem = undefined;
 		} catch (error) {
-			if (mine !== this.#picturesAsked) return;
-			// The picture before stays on the map, under its own time.
+			if (mine !== this.#momentsAsked) return;
+			// The moment before stays on the map whole, under its own time.
 			this.pictureProblem = inWords(error);
 		} finally {
-			if (mine === this.#picturesAsked) this.pictureAsking = false;
+			if (mine === this.#momentsAsked) this.pictureAsking = false;
 		}
 	}
 
 	/**
-	 * Goes through the frames once, the oldest first, four a second, and
+	 * Goes through the moments once, the oldest first, four a second, and
 	 * stops at the newest. Every picture is fetched before the first step.
 	 */
 	async play(): Promise<void> {
 		const view = this.view;
-		const layer = this.layer;
-		if (!view || !layer || layer.frames.length < 2 || this.playing) return;
+		if (!view || view.moments.length < 2 || this.playing) return;
 		const mine = ++this.#plays;
 		this.playing = true;
-		await Promise.allSettled(layer.frames.map((frame) => this.#picture(frame.path, view)));
-		for (const [index] of layer.frames.entries()) {
+		await Promise.allSettled(
+			view.moments.flatMap((moment) =>
+				drawn(view, moment).map((picture) => this.#picture(picture, view))
+			)
+		);
+		for (const [index] of view.moments.entries()) {
 			if (mine !== this.#plays) return;
-			this.chosenTimeUnixS = chosenTime(layer, index);
-			if (index < layer.frames.length - 1) await this.#wait(PLAY_MS);
+			this.chosenTimeUnixS = chosenTime(view, index);
+			if (index < view.moments.length - 1) await this.#wait(PLAY_MS);
 		}
 		if (mine === this.#plays) this.playing = false;
 	}
@@ -205,21 +273,30 @@ export class RadarModel {
 
 	#take(read: RadarView): void {
 		this.view = read;
-		// A frame the server no longer holds cannot be chosen again: its picture is let go.
-		const held = new Set(read.layers.flatMap((layer) => layer.frames.map((frame) => frame.path)));
-		for (const path of this.#pictures.keys()) {
-			if (!held.has(path)) this.#pictures.delete(path);
+		// A frame the server no longer holds cannot be drawn again: its pictures are let go.
+		const held = new Set(
+			read.layers.flatMap((layer) =>
+				layer.frames.flatMap((frame) =>
+					[true, false].map((drawsUnseen) => pictureKey({ path: frame.path, drawsUnseen }))
+				)
+			)
+		);
+		for (const key of this.#pictures.keys()) {
+			if (!held.has(key)) this.#pictures.delete(key);
 		}
 	}
 
-	#picture(path: string, view: RadarView): Promise<string> {
-		let picture = this.#pictures.get(path);
+	#picture(wanted: Pick<Drawn, 'path' | 'drawsUnseen'>, view: RadarView): Promise<string> {
+		const key = pictureKey(wanted);
+		let picture = this.#pictures.get(key);
 		if (!picture) {
-			picture = this.#core.radarPicture(path, colours(view.key)).then(pictureAddress);
-			this.#pictures.set(path, picture);
+			picture = this.#core
+				.radarPicture(wanted.path, colours(view.key, wanted.drawsUnseen))
+				.then(pictureAddress);
+			this.#pictures.set(key, picture);
 			// A failure is not kept: "Try again" asks again.
 			picture.catch(() => {
-				if (this.#pictures.get(path) === picture) this.#pictures.delete(path);
+				if (this.#pictures.get(key) === picture) this.#pictures.delete(key);
 			});
 		}
 		return picture;

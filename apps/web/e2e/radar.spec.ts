@@ -1,15 +1,18 @@
 /**
- * The map's "Radar" layer: the last frames of rain a weather service's
- * radars saw, as pictures over the map.
+ * The map's "Radar" layer: the rain of the last hours as pictures over the
+ * map, a layer for each source along one line of time.
  *
- * The development server has two frames, recorded from DWD on 21 November
- * 2026 at 11:35 and 11:40 UTC, a morning with little rain: the pictures
- * are mostly "no rain" and the veil of what the radars did not see. Its
- * radar's clock stands at 11:44, so the newest frame is four minutes old.
- * The browser's clock is Berlin's: 12:35 and 12:40.
+ * The development server has a recording of both sources of the first
+ * region, made within minutes of each other on 21 November 2026: two
+ * frames of DWD's radars, five minutes apart, which see Bavaria and the
+ * north of Tirol, and two of GeoSphere Austria's analysis, a quarter of an
+ * hour apart and older, which sees the whole region. Its radar's clock
+ * stands four minutes after the radars' newer frame. Which frames those
+ * are is read from the server's list here, so that a new recording needs
+ * no new figures; the browser's clock is Berlin's.
  *
- * Outside the Tegernsee valley the test's map is blank, so the picture
- * lies over an empty ground here. That is the test's map, not the layer.
+ * Outside the Tegernsee valley the test's map is blank, so the pictures
+ * lie over an empty ground here. That is the test's map, not the layer.
  */
 
 import type { Page } from '@playwright/test';
@@ -25,11 +28,51 @@ const strip = (page: Page) => card(page).getByRole('slider', { name: 'Radar pict
 
 const keyAndNotes = (page: Page) => card(page).getByRole('button', { name: 'Key and notes' });
 
+interface Recorded {
+	time: string;
+	layers: { source: string; frames: { time: string; path: string }[] }[];
+}
+
 /** The list of frames as the development server answers it. */
 async function recordedList(page: Page) {
 	const response = await page.request.get('/v1/radar');
-	return (await response.json()) as { time: string; layers: { frames: { path: string }[] }[] };
+	return (await response.json()) as Recorded;
 }
+
+const RADARS = 'dwd-radar-ry';
+const ANALYSIS = 'geosphere-inca-rr';
+const RADARS_CREDIT = 'Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben';
+const ANALYSIS_CREDIT = 'Data source: GeoSphere Austria - https://data.hub.geosphere.at';
+
+/** A source's frames in the list, the oldest first. */
+const framesOf = (list: Recorded, source: string) =>
+	list.layers.find((layer) => layer.source === source)!.frames;
+
+/** A moment on the browser's clock, Berlin's: "14:15". */
+const clock = (time: string) =>
+	new Date(time).toLocaleTimeString('en-GB', {
+		timeZone: 'Europe/Berlin',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+
+/** The analysis' frame that lies under a moment: its newest that is not of a later one. */
+const analysisUnder = (list: Recorded, time: string) =>
+	framesOf(list, ANALYSIS).findLast((frame) => Date.parse(frame.time) <= Date.parse(time))!;
+
+/**
+ * The core's line for a moment of the radars' frame of `time`, whatever
+ * its age: "Rain radar, 14:15, 4 minutes ago. Austria's analysis is of
+ * 14:00."
+ */
+const lineOf = (list: Recorded, time: string, age = String.raw`\d+ minutes ago`) =>
+	new RegExp(
+		`Rain radar, ${clock(time)}, ${age}\\. Austria's analysis is of ${clock(analysisUnder(list, time).time)}\\.`
+	);
+
+/** The radar's layers the map draws, the lowest first, as the map tab leaves them for a test. */
+const drawnOnMap = (page: Page) =>
+	page.evaluate(() => (globalThis as { ventiRadar?: string[] }).ventiRadar);
 
 /** Opens the map tab with nothing of Venti's on it but the radar, and waits for its picture. */
 async function radarOn(page: Page, mapDrawn: () => Promise<void>) {
@@ -55,7 +98,7 @@ async function zoomOut(page: Page, mapDrawn: () => Promise<void>, steps: number)
 	await canvas.blur();
 }
 
-test('the radar layer shows the newest picture with its time, the frames, the key and whose it is', async ({
+test('the radar layer shows both layers at the newest moment with its time, the moments, the key and whose they are', async ({
 	page,
 	mapDrawn,
 	keep,
@@ -67,6 +110,10 @@ test('the radar layer shows the newest picture with its time, the frames, the ke
 		const { pathname } = new URL(request.url());
 		if (pathname.startsWith('/v1/radar/')) pictures.push(pathname);
 	});
+	const list = await recordedList(page);
+	const stops = framesOf(list, RADARS);
+	const newest = stops.at(-1)!;
+	const before = stops.at(-2)!;
 	await page.goto('/');
 	await mapTabDrawn(page, mapDrawn);
 
@@ -83,36 +130,46 @@ test('the radar layer shows the newest picture with its time, the frames, the ke
 	await radarChip(page).click();
 	await expect(radarChip(page)).toHaveAttribute('aria-pressed', 'true');
 
-	// It opens on the newest frame: the strip marks it, and the card says
-	// its time and its age in the core's words.
-	await expect(card(page)).toContainText('Rain radar, 12:40, 4 minutes ago');
-	await expect(strip(page)).toHaveAttribute('aria-valuemax', '1');
-	await expect(strip(page)).toHaveAttribute('aria-valuenow', '1');
-	await expect(strip(page)).toHaveAttribute('aria-valuetext', '12:40, 4 minutes ago');
-	// The newest frame's picture alone was fetched.
-	expect(pictures).toEqual(['/v1/radar/dwd-radar-ry/20261121T1140Z.png']);
-	// DWD asks for its credit at the data: on the map while the layer shows.
-	await expect(
-		page
-			.locator('.credits')
-			.getByText('Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben')
-	).toBeVisible();
+	// It opens on the newest moment, a stop for each of the radars' frames:
+	// the strip marks it, and the card says its time, its age and what lies
+	// under it, in the core's words.
+	await expect(card(page)).toContainText(lineOf(list, newest.time));
+	await expect(strip(page)).toHaveAttribute('aria-valuemax', String(stops.length - 1));
+	await expect(strip(page)).toHaveAttribute('aria-valuenow', String(stops.length - 1));
+	await expect(strip(page)).toHaveAttribute('aria-valuetext', lineOf(list, newest.time));
+	// The pictures of that moment alone were fetched: the radars', and the
+	// analysis' that lies under it.
+	expect(pictures.toSorted()).toEqual(
+		[analysisUnder(list, newest.time).path, newest.path].toSorted()
+	);
+	// Each is a layer of its own on the map, the analysis under the radars.
+	await expect.poll(() => drawnOnMap(page)).toEqual(['radar-0', 'radar-1']);
+	// Both ask for their credit at the data: on the map while they show.
+	await expect(page.locator('.credits').getByText(RADARS_CREDIT)).toBeVisible();
+	await expect(page.locator('.credits').getByText(ANALYSIS_CREDIT)).toBeVisible();
 
-	// Far enough out to see where the picture ends and what the radars do not see.
-	await zoomOut(page, mapDrawn, 2);
+	// Far enough out to see the whole region: the radars see its north-west,
+	// and the analysis fills what they do not see.
+	await zoomOut(page, mapDrawn, wide ? 2 : 3);
 	await keep('136-map-radar');
 
-	// The key is the core's: the steps from the most rain down, the veil
-	// last, then what a radar does not see and whose pictures they are. On
-	// a phone it is one tap away.
+	// What each layer is, a line a layer, then the core's key: the steps
+	// from the most rain down, the veil last, then what a radar does not
+	// see and whose pictures they are. On a phone it is one tap away.
+	const layers = card(page).getByRole('list', { name: 'Layers' });
 	const key = card(page).getByRole('list', { name: 'Key' });
 	if (wide) {
 		await expect(keyAndNotes(page)).toBeHidden();
 	} else {
 		await expect(key).toBeHidden();
+		await expect(layers).toBeHidden();
 		await keyAndNotes(page).click();
 		await expect(keyAndNotes(page)).toHaveAttribute('aria-expanded', 'true');
 	}
+	await expect(layers.getByRole('listitem')).toHaveText([
+		"Austria's analysis of radar and gauges, every 15 minutes",
+		"Germany's radars, every 5 minutes"
+	]);
 	await expect(key.getByRole('listitem')).toHaveText([
 		'Cloudburst, 30 mm an hour and more',
 		'Very heavy rain, 10 to 30 mm an hour',
@@ -124,11 +181,9 @@ test('the radar layer shows the newest picture with its time, the frames, the ke
 	]);
 	await expect(card(page)).toContainText('It is no forecast');
 	await expect(card(page)).toContainText('such places are marked as not seen, which is not dry');
-	await expect(
-		card(page).getByRole('link', {
-			name: 'Datenbasis: Deutscher Wetterdienst, Rasterdaten bildlich wiedergegeben'
-		})
-	).toBeVisible();
+	await expect(card(page)).toContainText("the radar's picture lies on top");
+	await expect(card(page).getByRole('link', { name: RADARS_CREDIT })).toBeVisible();
+	await expect(card(page).getByRole('link', { name: ANALYSIS_CREDIT })).toBeVisible();
 	await expect(card(page)).toContainText('CC BY 4.0');
 	await keep('137-map-radar-key-and-notes');
 	if (!wide) {
@@ -136,54 +191,67 @@ test('the radar layer shows the newest picture with its time, the frames, the ke
 		await expect(key).toBeHidden();
 	}
 
-	// A step to the frame before, with the keyboard: its picture is fetched
-	// and the card says its time.
+	// A step to the moment before, with the keyboard: the radars' picture of
+	// it is fetched and the card says its time. The analysis under it is the
+	// one already there, and is not asked for again.
 	await strip(page).focus();
 	await page.keyboard.press('ArrowLeft');
-	await expect(strip(page)).toHaveAttribute('aria-valuetext', '12:35, 9 minutes ago');
-	await expect(card(page)).toContainText('Rain radar, 12:35, 9 minutes ago');
-	expect(pictures).toEqual([
-		'/v1/radar/dwd-radar-ry/20261121T1140Z.png',
-		'/v1/radar/dwd-radar-ry/20261121T1135Z.png'
-	]);
+	await expect(strip(page)).toHaveAttribute('aria-valuetext', lineOf(list, before.time));
+	await expect(card(page)).toContainText(lineOf(list, before.time));
+	const fetched = [
+		...new Set([
+			analysisUnder(list, newest.time).path,
+			newest.path,
+			analysisUnder(list, before.time).path,
+			before.path
+		])
+	];
+	expect(pictures.toSorted()).toEqual(fetched.toSorted());
+	await expect.poll(() => drawnOnMap(page)).toEqual(['radar-0', 'radar-1']);
 	await strip(page).blur();
 	await mapDrawn();
 	await keep('138-map-radar-frame-before');
 
-	// Played, the frames run once and stop at the newest. Neither picture
-	// is asked for again: they are kept for the visit.
+	// Played, the moments run once and stop at the newest. No picture is
+	// asked for again: they are kept for the visit.
 	await card(page).getByRole('button', { name: 'Play' }).click();
-	await expect(strip(page)).toHaveAttribute('aria-valuenow', '1');
-	await expect(card(page)).toContainText('Rain radar, 12:40, 4 minutes ago');
+	await expect(strip(page)).toHaveAttribute('aria-valuenow', String(stops.length - 1));
+	await expect(card(page)).toContainText(lineOf(list, newest.time));
 	await expect(card(page).getByRole('button', { name: 'Play' })).toBeVisible();
-	expect(pictures).toHaveLength(2);
+	expect(pictures).toHaveLength(fetched.length);
 
 	// The layer is kept as the pilot left it.
 	await page.reload();
 	await mapTabDrawn(page, mapDrawn);
 	await expect(radarChip(page)).toHaveAttribute('aria-pressed', 'true');
-	await expect(card(page)).toContainText('Rain radar, 12:40, 4 minutes ago');
+	await expect(card(page)).toContainText(lineOf(list, newest.time));
 	await radarChip(page).click();
 	await expect(card(page)).toBeHidden();
 	await expect(
 		page.locator('.credits').getByText('Datenbasis: Deutscher Wetterdienst')
 	).toBeHidden();
+	await expect(page.locator('.credits').getByText(ANALYSIS_CREDIT)).toBeHidden();
+	await expect.poll(() => drawnOnMap(page)).toEqual([]);
 
 	expect(problems).toEqual([]);
 });
 
-test('an old picture is not shown as the rain of now, and a picture that cannot be had leaves the one before', async ({
+test('old rain is not shown as the rain of now, and a picture that cannot be had leaves the moment before', async ({
 	page,
 	mapDrawn,
-	keep
+	keep,
+	wide
 }) => {
 	// MADE UP: the recorded list, answered as if half an hour had gone by
-	// since its newest frame; and the server has lost the frame before.
+	// since the radars' newest frame; and the server has lost their frame
+	// before it.
 	const list = await recordedList(page);
-	await page.route('**/v1/radar', (route) =>
-		route.fulfill({ json: { ...list, time: '2026-11-21T12:10:00Z' } })
-	);
-	await page.route('**/v1/radar/dwd-radar-ry/20261121T1135Z.png', (route) =>
+	const stops = framesOf(list, RADARS);
+	const newest = stops.at(-1)!;
+	const before = stops.at(-2)!;
+	const later = new Date(Date.parse(newest.time) + 30 * 60_000).toISOString();
+	await page.route('**/v1/radar', (route) => route.fulfill({ json: { ...list, time: later } }));
+	await page.route(`**${before.path}`, (route) =>
 		route.fulfill({
 			status: 404,
 			json: { error: { code: 'not_found', message: 'no such frame' } }
@@ -191,21 +259,27 @@ test('an old picture is not shown as the rain of now, and a picture that cannot 
 	);
 	await radarOn(page, mapDrawn);
 
+	// The caution is the topmost layer's, the radars': a quarter of an hour
+	// is their patience. The analysis under them has three.
 	await expect(card(page)).toContainText(
 		'The newest radar picture is 30 minutes old. It is not the rain of now.'
 	);
-	// The picture keeps its own time under the warning.
-	await expect(card(page)).toContainText('Rain radar, 12:40, 30 minutes ago');
-	await zoomOut(page, mapDrawn, 1);
+	// The moment keeps its own time under the warning.
+	await expect(card(page)).toContainText(lineOf(list, newest.time, '30 minutes ago'));
+	await expect.poll(() => drawnOnMap(page)).toEqual(['radar-0', 'radar-1']);
+	await zoomOut(page, mapDrawn, wide ? 2 : 3);
 	await keep('139-map-radar-old');
 
-	// The frame before cannot be had: the card says so, and the picture on
-	// the map is still the one of 12:40, named as that.
+	// The radars' frame before cannot be had: the card says so, and what is
+	// on the map is still the newest moment whole, named as that.
 	await strip(page).focus();
 	await page.keyboard.press('ArrowLeft');
-	await expect(strip(page)).toHaveAttribute('aria-valuetext', '12:35, 35 minutes ago');
+	await expect(strip(page)).toHaveAttribute(
+		'aria-valuetext',
+		lineOf(list, before.time, '35 minutes ago')
+	);
 	await expect(card(page)).toContainText('The radar picture could not be read.');
-	await expect(card(page)).toContainText('Rain radar, 12:40, 30 minutes ago');
+	await expect(card(page)).toContainText(lineOf(list, newest.time, '30 minutes ago'));
 	await expect(card(page).getByRole('button', { name: 'Try again' })).toBeVisible();
 	await strip(page).blur();
 	await keep('140-map-radar-picture-missing');
@@ -248,5 +322,5 @@ test('a server that cannot be reached says so, and the radar comes when it can',
 	);
 	reachable = true;
 	await card(page).getByRole('button', { name: 'Try again' }).click();
-	await expect(card(page)).toContainText('Rain radar, 12:40, 4 minutes ago');
+	await expect(card(page)).toContainText(/Rain radar, \d\d:\d\d, \d+ minutes ago/);
 });

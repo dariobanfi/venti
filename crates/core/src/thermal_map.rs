@@ -29,10 +29,12 @@ const MAX_CELLS: usize = 200_000;
 
 /// The steps of the design language's thermal scale the kinds of day are
 /// drawn in, from weak thermals to a big day. The scale has six steps and
-/// is made for a climb in m/s; the kinds take four of them, spaced so that
-/// neighbours on a map can be told apart. Colours of their own for the
-/// kinds of day are the owner's to give.
-const SCALE_STEPS: [u8; 4] = [1, 2, 4, 6];
+/// is made for a climb in m/s; the kinds take four of them. Not the
+/// palest, which is the colour of the drawn map's land and would not be
+/// seen on it; and with a gap between local thermals and a cross-country
+/// day, the difference a pilot looks for first. Colours of their own for
+/// the kinds of day are the owner's to give.
+const SCALE_STEPS: [u8; 4] = [2, 3, 5, 6];
 
 /// One square of the thermal map on one day.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -53,8 +55,10 @@ pub struct ThermalMapCell {
     /// flyable, and where the model gives no estimate.
     pub thermals: Option<Thermals>,
     /// The step of the thermal scale to draw the square in, 1 to 6. None
-    /// where there is no kind of day: draw a day that is not flyable in
-    /// the status colour for it, and nothing where there is no estimate.
+    /// where there is no kind of day: draw a day that is not flyable as a
+    /// quiet veil, and nothing where there is no estimate. Not in the
+    /// status colour for danger, which is nearly the scale's darkest step:
+    /// the best day and the worst would look alike.
     pub scale_step: Option<u8>,
     /// The verdict in words: "Flyable", "Marginal", "Not flyable".
     pub status: String,
@@ -98,7 +102,7 @@ pub struct ThermalLegendEntry {
     /// What the colour stands for: "Big day".
     pub words: String,
     /// The step of the thermal scale it is drawn in. None for the line of
-    /// a day that is not flyable, which is drawn in the status colour.
+    /// a day that is not flyable, which is drawn as a quiet veil.
     pub scale_step: Option<u8>,
 }
 
@@ -398,13 +402,13 @@ mod tests {
         assert_eq!(today[0].thermals, Some(Thermals::CrossCountry));
         assert_eq!(today[0].thermal_words, "Cross-country day");
         assert_eq!(today[0].thermal_line, "1.8 m/s to a cloud base of 3250 m");
-        assert_eq!(today[0].scale_step, Some(4));
+        assert_eq!(today[0].scale_step, Some(5));
 
         let later = &map.days[2].cells;
         assert_eq!(later[0].thermal_line, "2.2 m/s to a cloud base of 3400 m");
         assert_eq!(later[0].scale_step, Some(6));
         assert_eq!(later[1].thermal_words, "Local thermals");
-        assert_eq!(later[1].scale_step, Some(2));
+        assert_eq!(later[1].scale_step, Some(3));
         assert_eq!(later[2].thermal_line, "2.6 m/s to 3600 m in the blue");
     }
 
@@ -428,7 +432,7 @@ mod tests {
         assert_eq!(tomorrow[0].status, "Marginal");
         assert_eq!(tomorrow[0].thermal_words, "Weak thermals");
         assert_eq!(tomorrow[0].thermal_line, "0.3 m/s to 1800 m at best");
-        assert_eq!(tomorrow[0].scale_step, Some(1));
+        assert_eq!(tomorrow[0].scale_step, Some(2));
         assert_eq!(tomorrow[1].thermal_line, "None to climb in");
         // Flyable, and the model gave no estimate: a verdict and no more.
         assert_eq!(tomorrow[2].status, "Flyable");
@@ -462,9 +466,9 @@ mod tests {
             key,
             [
                 ("Big day", Some(6)),
-                ("Cross-country day", Some(4)),
-                ("Local thermals", Some(2)),
-                ("Weak thermals", Some(1)),
+                ("Cross-country day", Some(5)),
+                ("Local thermals", Some(3)),
+                ("Weak thermals", Some(2)),
                 ("Not flyable", None),
             ]
         );

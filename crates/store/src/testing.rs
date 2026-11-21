@@ -17,12 +17,12 @@ use crate::{
     FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
     GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
     LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
-    PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
-    RemovedGroup, Report, ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange,
+    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
+    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
+    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
+    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
+    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange,
 };
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -153,6 +153,7 @@ impl Store for TroubledStore {
 
     async fn pilot_sites_in(
         &self,
+        _: &SourceId,
         _: &BoundingBox,
         _: usize,
     ) -> Result<Vec<PilotSite>, StoreError> {
@@ -172,7 +173,35 @@ impl Store for TroubledStore {
         self.fail().await
     }
 
-    async fn pilot_site_changes(&self, _: i64, _: usize) -> Result<PilotSiteChanges, StoreError> {
+    async fn pilot_site_changes(
+        &self,
+        _: &SourceId,
+        _: i64,
+        _: usize,
+    ) -> Result<PilotSiteChanges, StoreError> {
+        self.fail().await
+    }
+
+    async fn confirm_pilot_site(
+        &self,
+        _: &NewSiteConfirmation,
+    ) -> Result<SiteConfirming, StoreError> {
+        self.fail().await
+    }
+
+    async fn withdraw_site_confirmation(
+        &self,
+        _: &SiteId,
+        _: &str,
+    ) -> Result<Option<(PilotSite, bool)>, StoreError> {
+        self.fail().await
+    }
+
+    async fn site_confirmations(
+        &self,
+        _: &SiteId,
+        _: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError> {
         self.fail().await
     }
 
@@ -225,6 +254,18 @@ impl Store for TroubledStore {
     }
 
     async fn resume_publishing(&self, _: &str) -> Result<Option<bool>, StoreError> {
+        self.fail().await
+    }
+
+    async fn let_edit_sites(&self, _: &str, _: Timestamp) -> Result<Option<Timestamp>, StoreError> {
+        self.fail().await
+    }
+
+    async fn stop_editing_sites(&self, _: &str) -> Result<Option<bool>, StoreError> {
+        self.fail().await
+    }
+
+    async fn site_editors(&self) -> Result<Vec<Account>, StoreError> {
         self.fail().await
     }
 

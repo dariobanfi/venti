@@ -29,6 +29,7 @@ pub(crate) fn account(account: &Account) -> Result<v1::Account, ApiError> {
         display_name: account.display_name.clone(),
         created_at: account.created_at,
         publishing_suspended_at: account.publishing_suspended_at,
+        edits_sites: account.edits_sites_since.is_some(),
     })
 }
 

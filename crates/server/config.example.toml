@@ -88,10 +88,14 @@ log_level = "info"
 registration = "invite"
 
 # Whether the server takes flying sites from pilots.     VENTI_SITES_FROM_PILOTS
-# What they give is given under CC0 1.0 and stays when the account goes.
-# Off unless set: the terms that say so to a pilot are not written yet, so
-# turn it on only where every pilot is your own. Reading the sites pilots
-# made is always on.
+# It opens the crowdsourced layer (`venti-pilots`) to every signed-in
+# pilot, and lets pilots confirm a site ("I took off here and it was
+# good"). What they give is given under CC0 1.0 and stays when the account
+# goes. Off unless set: the terms that say so to a pilot are not written
+# yet, so turn it on only where every pilot is your own. The partners'
+# layer (`venti`) needs no setting: an account you name with
+# `venti-server grant-sites` writes to it whatever this says. Reading the
+# sites of both layers is always on.
 sites_from_pilots = false
 
 # The address people reach the server at, without a      VENTI_PUBLIC_URL

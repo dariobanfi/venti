@@ -470,9 +470,9 @@ mod of_pilots {
     use axum::http::Method;
     use venti_api_types::v1::ErrorResponse;
     use venti_api_types::v1::{
-        AddSiteRequest, ChangeSiteRequest, RemoveSiteRequest, RestoreSiteRequest,
-        SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteResponse, SiteRevisionKind,
-        SiteVia, SitesFromPilots,
+        Account as OwnAccount, AddSiteRequest, ChangeSiteRequest, ConfirmSiteRequest,
+        RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse, SiteConfirmationsResponse,
+        SiteDraft, SiteHistoryResponse, SiteResponse, SiteRevisionKind, SiteVia, SitesFromPilots,
     };
     use venti_domain::{SiteId, WindSector};
     use venti_server::{dev, pilot_sites};
@@ -519,15 +519,16 @@ mod of_pilots {
         assert_golden(&golden("sites_venti.json"), &sites);
 
         // In this box the recorded data of OpenStreetMap has nothing: its
-        // layer is there without sites, and the community's beside it.
+        // layer is there without sites, and the partners' beside it. The
+        // crowdsourced layer is not in an answer that did not ask for it.
         assert_eq!(sites.layers.len(), 2);
         assert!(sites.layers[0].sites.is_empty());
         let layer = &sites.layers[1];
         assert_eq!(layer.source.as_str(), pilot_sites::SOURCE);
-        // The three that stand, by identifier; the removed one is not
-        // among them. Each record is of this layer and no other.
+        // The two of the partners' layer, by identifier. Each record is
+        // of this layer and no other.
         let ids: Vec<String> = layer.sites.iter().map(|site| site.id.to_string()).collect();
-        assert_eq!(ids, dev::DEMO_SITES[..3]);
+        assert_eq!(ids, [dev::DEMO_SITES[0], dev::DEMO_SITES[2]]);
         // Who made each and where it stands, in the same order.
         let standing: Vec<(String, u32)> = layer
             .standing
@@ -538,10 +539,14 @@ mod of_pilots {
             standing,
             [
                 (dev::DEMO_SITES[0].to_owned(), 2),
-                (dev::DEMO_SITES[1].to_owned(), 3),
                 (dev::DEMO_SITES[2].to_owned(), 1),
             ]
         );
+        // How many pilots say they took off there, and when last; left
+        // out where nobody has.
+        assert_eq!(layer.standing[0].confirmed.pilots, 2);
+        assert!(layer.standing[0].confirmed.latest_day.is_some());
+        assert!(layer.standing[1].confirmed.is_nobody());
         assert_eq!(
             layer.standing[0]
                 .created_by
@@ -558,7 +563,7 @@ mod of_pilots {
                 .unwrap()
                 .handle
                 .as_str(),
-            "mara"
+            dev::DEMO_HANDLE
         );
         // The layer says nowhere that it is whole.
         assert!(layer.covers.is_empty());
@@ -566,10 +571,17 @@ mod of_pilots {
         // The licence is the one the server names in one place.
         let credit = &sites.attributions[1];
         assert_eq!(credit.source.as_str(), pilot_sites::SOURCE);
-        assert_eq!(credit.licence, pilot_sites::LICENCE.name);
+        let licence = pilot_sites::Layer::Partners.licence();
+        assert_eq!(credit.licence, licence.name);
         assert_eq!(credit.licence, "CC0 1.0");
-        assert_eq!(credit.url, pilot_sites::LICENCE.url);
-        assert!(credit.notice.as_deref().unwrap().contains("not verified"));
+        assert_eq!(credit.url, licence.url);
+        assert!(
+            credit
+                .notice
+                .as_deref()
+                .unwrap()
+                .contains("a partner of Venti")
+        );
 
         // An older client reads the answer as before: a layer is a source
         // with sites, and what it does not know it skips.
@@ -577,9 +589,54 @@ mod of_pilots {
         assert!(plain["layers"][0].get("standing").is_none());
         assert!(plain["layers"][1]["sites"][0]["id"].is_string());
 
-        // A box where no pilot made a site has no such layer.
+        // A box where no partner added a site has no such layer.
         let tegernsee: SitesResponse = get(&router, TEGERNSEE).await.json();
         assert_eq!(tegernsee.layers.len(), 1);
+
+        // The crowdsourced layer, for whoever asks for it: the one site
+        // of it that stands, under the same licence and with a notice of
+        // its own.
+        let asked = format!("{}&layers=venti-pilots", box_of_the_made_up_sites());
+        let crowd: SitesResponse = get(&router, &asked).await.json();
+        assert_golden(&golden("sites_venti_pilots.json"), &crowd);
+        assert_eq!(crowd.layers.len(), 1);
+        assert_eq!(crowd.layers[0].source.as_str(), pilot_sites::PILOTS_SOURCE);
+        let ids: Vec<String> = crowd.layers[0]
+            .sites
+            .iter()
+            .map(|site| site.id.to_string())
+            .collect();
+        assert_eq!(ids, [dev::DEMO_SITES[1]]);
+        assert_eq!(crowd.layers[0].standing[0].confirmed.pilots, 1);
+        let credit = &crowd.attributions[0];
+        assert_eq!(credit.licence, "CC0 1.0");
+        assert!(credit.notice.as_deref().unwrap().contains("not official"));
+        // Every layer by name; the order of the names does not matter,
+        // and one named twice is there once.
+        let all = format!(
+            "{}&layers=venti-pilots,venti,osm-free-flying,venti",
+            box_of_the_made_up_sites()
+        );
+        let all: SitesResponse = get(&router, &all).await.json();
+        let names: Vec<&str> = all.layers.iter().map(|l| l.source.as_str()).collect();
+        assert_eq!(names, ["osm-free-flying", "venti", "venti-pilots"]);
+        // `default` stands for what an answer holds without the list, for
+        // an app that wants the crowdsourced layer as well.
+        let with = format!("{}&layers=default,venti-pilots", box_of_the_made_up_sites());
+        let with: SitesResponse = get(&router, &with).await.json();
+        let names: Vec<&str> = with.layers.iter().map(|l| l.source.as_str()).collect();
+        assert_eq!(names, ["osm-free-flying", "venti", "venti-pilots"]);
+        // A layer the server does not have is refused, with those it has.
+        for wrong in ["nothing", "", "venti,,venti-pilots"] {
+            let asked = format!("{}&layers={wrong}", box_of_the_made_up_sites());
+            let said = get(&router, &asked)
+                .await
+                .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidLayers);
+            assert!(
+                said.contains("osm-free-flying, venti, venti-pilots"),
+                "{said}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -611,6 +668,9 @@ mod of_pilots {
             .error(StatusCode::GONE, ErrorCode::SiteGone);
         for missing in [
             "venti:0000000000000000000000s009",
+            // A site is found under its own layer's name only.
+            "venti:0000000000000000000000s002",
+            "venti-pilots:0000000000000000000000s001",
             "venti:short",
             "osm-free-flying:node/1",
             "club:1",
@@ -661,44 +721,62 @@ mod of_pilots {
         assert!(history.removed);
         assert_eq!(history.revisions[1].kind, SiteRevisionKind::Removed);
 
-        // What changed since the beginning: every site once, as it is
-        // now, and the removed one as removed.
+        // What changed since the beginning, a layer at a time: every
+        // site once, as it is now, and the removed one as removed. The
+        // partners' layer is the one a request that names none gets.
         let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
         assert_golden(&golden("site_changes.json"), &changes);
-        assert_eq!(changes.sites.len(), 3);
-        assert_eq!(
-            changes.removed,
-            [dev::DEMO_SITES[3].parse::<SiteId>().unwrap()]
-        );
+        let named: SiteChangesResponse = get(&router, "/v1/sites/changes?layer=venti").await.json();
+        assert_eq!(named, changes);
+        assert_eq!((changes.sites.len(), changes.removed.len()), (2, 0));
+        // The two layers share one count of changes: eight revisions and
+        // three confirmations, of which the partners' latest is the
+        // tenth.
         assert_eq!(
             (changes.cursor.as_str(), changes.more, changes.reset),
-            ("8", false, false)
+            ("10", false, false)
         );
+        let pilots = "/v1/sites/changes?layer=venti-pilots";
+        let crowd: SiteChangesResponse = get(&router, pilots).await.json();
+        assert_eq!(crowd.sites.len(), 1);
+        assert_eq!(
+            crowd.removed,
+            [dev::DEMO_SITES[3].parse::<SiteId>().unwrap()]
+        );
+        assert_eq!(crowd.cursor, "11");
+        assert_eq!(crowd.attributions[0].source.as_str(), "venti-pilots");
         // Since then: nothing, and the cursor stays.
-        let since: SiteChangesResponse = get(&router, "/v1/sites/changes?since=8").await.json();
+        let since: SiteChangesResponse = get(&router, &format!("{pilots}&since=11")).await.json();
         assert!(since.sites.is_empty() && since.removed.is_empty());
-        assert_eq!(since.cursor, "8");
+        assert_eq!(since.cursor, "11");
         // In pages.
-        let page: SiteChangesResponse = get(&router, "/v1/sites/changes?limit=2").await.json();
-        assert_eq!((page.sites.len(), page.more), (2, true));
-        let next = format!("/v1/sites/changes?since={}&limit=2", page.cursor);
+        let page: SiteChangesResponse = get(&router, &format!("{pilots}&limit=1")).await.json();
+        assert_eq!(
+            (page.sites.len() + page.removed.len(), page.more),
+            (1, true)
+        );
+        let next = format!("{pilots}&since={}&limit=1", page.cursor);
         let page: SiteChangesResponse = get(&router, &next).await.json();
         assert_eq!(
-            (page.sites.len(), page.removed.len(), page.more),
-            (1, 1, false)
+            (page.sites.len() + page.removed.len(), page.more),
+            (1, false)
         );
         // A cursor this server never gave out starts again, and says so.
         let reset: SiteChangesResponse = get(&router, "/v1/sites/changes?since=99").await.json();
         assert!(reset.reset);
-        assert_eq!(reset.sites.len(), 3);
+        assert_eq!(reset.sites.len(), 2);
         get(&router, "/v1/sites/changes?since=x")
             .await
             .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidCursor);
+        get(&router, "/v1/sites/changes?layer=osm-free-flying")
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidLayers);
     }
 
     #[tokio::test]
-    async fn a_pilot_adds_corrects_undoes_and_removes_a_site_and_reads_each_step_back() {
+    async fn a_partner_adds_corrects_undoes_and_removes_a_site_and_reads_each_step_back() {
         let (router, store) = recorded_with_its_store().await;
+        // The demo account is this mode's partner; `petra` is any pilot.
         let token = dev::DEMO_TOKEN;
         let other = sign_up(&router, "petra").await.token;
 
@@ -836,8 +914,8 @@ mod of_pilots {
             .await
             .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidSite);
 
-        // Corrected by another pilot: a new revision, made from the one
-        // the pilot read.
+        // Corrected: a new revision, made from the one that was read. A
+        // partner's site is corrected by a partner and by nobody else.
         let first = dev::DEMO_SITES[0];
         let before: SiteResponse = get(&router, &site_path(first)).await.json();
         let change = ChangeSiteRequest {
@@ -849,8 +927,17 @@ mod of_pilots {
             comment: Some("Height from my own GPS.".to_owned()),
         };
         assert_golden(&golden("site_change_request.json"), &change);
-        let changed: SiteResponse = ask(Method::PUT, &site_path(first))
+        let refused = ask(Method::PUT, &site_path(first))
             .token(&other)
+            .json(&change)
+            .send(&router)
+            .await;
+        let said = refused.error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
+        assert!(said.contains("reports it"), "{said}");
+        let error: ErrorResponse = refused.json();
+        assert_golden(&golden("error_sites_for_partners.json"), &error);
+        let changed: SiteResponse = ask(Method::PUT, &site_path(first))
+            .token(token)
             .json(&change)
             .send(&router)
             .await
@@ -864,7 +951,7 @@ mod of_pilots {
         );
         assert_eq!(
             standing.changed_by.as_ref().unwrap().handle.as_str(),
-            "petra"
+            "demo"
         );
         assert_eq!(changed.site.elevation_m, Some(1871.0));
         // Made from a revision the site no longer stands at: refused.
@@ -896,6 +983,12 @@ mod of_pilots {
         };
         assert_golden(&golden("site_restore_request.json"), &undo);
         let revisions = format!("{}/revisions", site_path(first));
+        ask(Method::POST, &revisions)
+            .token(&other)
+            .json(&undo)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
         let restored: SiteResponse = ask(Method::POST, &revisions)
             .token(token)
             .json(&undo)
@@ -927,8 +1020,14 @@ mod of_pilots {
         let removal = RemoveSiteRequest {
             comment: Some("The field is built on.".to_owned()),
         };
-        let answer = ask(Method::DELETE, &site_path(third))
+        ask(Method::DELETE, &site_path(third))
             .token(&other)
+            .json(&removal)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
+        let answer = ask(Method::DELETE, &site_path(third))
+            .token(token)
             .json(&removal)
             .send(&router)
             .await;
@@ -937,8 +1036,8 @@ mod of_pilots {
             .await
             .error(StatusCode::GONE, ErrorCode::SiteGone);
         let sites: SitesResponse = get(&router, &box_of_the_made_up_sites()).await.json();
-        assert_eq!(sites.layers[1].sites.len(), 2);
-        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes?since=8").await.json();
+        assert_eq!(sites.layers[1].sites.len(), 1);
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes?since=11").await.json();
         assert!(changes.removed.contains(&third.parse().unwrap()));
         assert!(changes.sites.iter().any(|record| record.site.id == id));
         // Removing it again, and changing it, find nothing to change.
@@ -947,7 +1046,7 @@ mod of_pilots {
             .send(&router)
             .await
             .error(StatusCode::GONE, ErrorCode::SiteGone);
-        // Any pilot brings it back.
+        // A partner brings it back.
         let back = RestoreSiteRequest {
             restore: 1,
             comment: None,
@@ -992,13 +1091,326 @@ mod of_pilots {
     }
 
     #[tokio::test]
+    async fn a_pilot_writes_to_the_crowdsourced_layer_and_a_partner_to_both() {
+        let (router, _) = recorded_with_its_store().await;
+        let partner = dev::DEMO_TOKEN;
+        let petra = sign_up(&router, "petra").await.token;
+        let quirin = sign_up(&router, "quirin").await.token;
+
+        // The account says which it is, and only when it is a partner.
+        let own: serde_json::Value = ask(Method::GET, "/v1/account")
+            .token(partner)
+            .send(&router)
+            .await
+            .json();
+        assert_eq!(own["account"]["edits_sites"], true);
+        let own: serde_json::Value = ask(Method::GET, "/v1/account")
+            .token(&petra)
+            .send(&router)
+            .await
+            .json();
+        assert!(own["account"].get("edits_sites").is_none(), "{own}");
+        let read: OwnAccount = serde_json::from_value(own["account"].clone()).unwrap();
+        assert!(!read.edits_sites);
+
+        // A pilot's site goes to the crowdsourced layer, whatever else
+        // the request says: who adds it decides.
+        let request = AddSiteRequest {
+            site: draft("Beispielkopf Süd", 47.4, 11.2),
+            comment: None,
+        };
+        let added: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(&petra)
+            .json(&request)
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        let id = added.site.id.clone();
+        assert_eq!(id.source().as_str(), "venti-pilots");
+        assert_eq!(id.local().len(), 26);
+        assert!(added.lasting);
+        assert_eq!(added.attributions[0].source.as_str(), "venti-pilots");
+        // It is at its address, in its layer for whoever asks for that,
+        // and not in an answer that did not.
+        let read: SiteResponse = get(&router, &site_path(&id.to_string())).await.json();
+        assert_eq!(read, added);
+        let around = "/v1/sites?bbox=11.1,47.35,11.3,47.45";
+        let default: SitesResponse = get(&router, around).await.json();
+        assert!(default.layers.iter().all(|l| l.sites.is_empty()));
+        let asked: SitesResponse = get(&router, &format!("{around}&layers=venti-pilots"))
+            .await
+            .json();
+        assert_eq!(asked.layers[0].sites[0].id, id);
+
+        // Any other pilot corrects it, and so does a partner: it stays a
+        // site of the crowdsourced layer.
+        let mut revision = 1;
+        for (token, handle, height) in [
+            (&quirin, "quirin", 1550.0),
+            (&partner.to_owned(), "demo", 1560.0),
+        ] {
+            let change = ChangeSiteRequest {
+                site: SiteDraft {
+                    elevation_m: Some(height),
+                    ..SiteDraft::of(&added.site)
+                },
+                revision,
+                comment: None,
+            };
+            let changed: SiteResponse = ask(Method::PUT, &site_path(&id.to_string()))
+                .token(token)
+                .json(&change)
+                .send(&router)
+                .await
+                .ok(StatusCode::OK);
+            revision += 1;
+            let standing = changed.standing.unwrap();
+            assert_eq!(standing.revision, revision);
+            assert_eq!(standing.changed_by.unwrap().handle.as_str(), handle);
+            assert_eq!(changed.site.id, id);
+        }
+
+        // A partner's site stands in a pilot's way, and a pilot's does
+        // not stand in a partner's: the official one is put there, and
+        // both stand.
+        let beside = AddSiteRequest {
+            site: draft("Beispielkopf", 47.40005, 11.2),
+            comment: None,
+        };
+        ask(Method::POST, "/v1/sites")
+            .token(&quirin)
+            .json(&beside)
+            .send(&router)
+            .await
+            .error(StatusCode::CONFLICT, ErrorCode::SiteTooClose);
+        let official: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(partner)
+            .json(&beside)
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        assert_eq!(official.site.id.source().as_str(), "venti");
+        let both: SitesResponse = get(&router, &format!("{around}&layers=venti,venti-pilots"))
+            .await
+            .json();
+        assert_eq!(both.layers.len(), 2);
+        // No pilot changes the partner's one.
+        ask(Method::DELETE, &site_path(&official.site.id.to_string()))
+            .token(&petra)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
+    }
+
+    #[tokio::test]
+    async fn a_pilot_says_they_took_off_at_a_site_and_takes_it_back() {
+        let (router, store) = recorded_with_its_store().await;
+        let first = dev::DEMO_SITES[0];
+        let confirmation = format!("{}/confirmation", site_path(first));
+        let confirmations = format!("{}/confirmations", site_path(first));
+        let today = adapters::recorded_at().date_naive();
+
+        // Who says so of the first made-up site: read by anyone.
+        let said: SiteConfirmationsResponse = get(&router, &confirmations).await.json();
+        assert_golden(&golden("site_confirmations.json"), &said);
+        assert_eq!(said.confirmed.pilots, 2);
+        let who: Vec<&str> = said
+            .confirmations
+            .iter()
+            .map(|c| c.by.handle.as_str())
+            .collect();
+        assert_eq!(who, ["mara", "jonas"]);
+        assert_eq!(said.confirmed.latest_day, Some(said.confirmations[0].day));
+        assert!(said.confirmations[0].note.is_some());
+
+        // Nobody confirms without an account.
+        let request = ConfirmSiteRequest {
+            day: today,
+            note: Some("  South-west,\n easy launch. ".to_owned()),
+            flight: None,
+        };
+        assert_golden(&golden("site_confirm_request.json"), &request);
+        ask(Method::PUT, &confirmation)
+            .json(&request)
+            .send(&router)
+            .await
+            .error(StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized);
+
+        // Any pilot confirms a partner's site: the site says one more,
+        // at the revision it stood at.
+        let petra = sign_up(&router, "petra").await.token;
+        let confirmed: SiteResponse = ask(Method::PUT, &confirmation)
+            .token(&petra)
+            .json(&request)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        let standing = confirmed.standing.unwrap();
+        assert_eq!((standing.confirmed.pilots, standing.revision), (3, 2));
+        assert_eq!(standing.confirmed.latest_day, Some(today));
+        let said: SiteConfirmationsResponse = get(&router, &confirmations).await.json();
+        assert_eq!(said.confirmations[0].by.handle.as_str(), "petra");
+        // The note is cleaned to one line, as a revision's comment is.
+        assert_eq!(
+            said.confirmations[0].note.as_deref(),
+            Some("South-west, easy launch.")
+        );
+        assert!(!said.confirmations[0].with_flight);
+        // Whoever follows the changes reads the site again.
+        let changes: SiteChangesResponse = get(&router, "/v1/sites/changes?since=11").await.json();
+        assert_eq!(changes.sites.len(), 1);
+        assert_eq!(changes.sites[0].standing.confirmed.pilots, 3);
+        assert_eq!(changes.cursor, "12");
+
+        // Saying it again moves the day and is still one.
+        let earlier = ConfirmSiteRequest {
+            day: today - chrono::Duration::days(3),
+            note: None,
+            flight: None,
+        };
+        let again: SiteResponse = ask(Method::PUT, &confirmation)
+            .token(&petra)
+            .json(&earlier)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert_eq!(again.standing.unwrap().confirmed.pilots, 3);
+
+        // What cannot be kept: a day to come or long gone, a note that
+        // is too long, a flight that is not the pilot's or did not take
+        // off there.
+        let flights: serde_json::Value = ask(Method::GET, "/v1/flights")
+            .token(dev::DEMO_TOKEN)
+            .send(&router)
+            .await
+            .json();
+        let demos_flight = flights["flights"][0]["id"].as_str().unwrap().to_owned();
+        for wrong in [
+            ConfirmSiteRequest {
+                day: today + chrono::Duration::days(2),
+                ..earlier.clone()
+            },
+            ConfirmSiteRequest {
+                day: today - chrono::Duration::days(91),
+                ..earlier.clone()
+            },
+            ConfirmSiteRequest {
+                note: Some("x".repeat(201)),
+                ..earlier.clone()
+            },
+            ConfirmSiteRequest {
+                flight: Some(demos_flight.clone()),
+                ..earlier.clone()
+            },
+            ConfirmSiteRequest {
+                flight: Some("nothing".to_owned()),
+                ..earlier.clone()
+            },
+        ] {
+            ask(Method::PUT, &confirmation)
+                .token(&petra)
+                .json(&wrong)
+                .send(&router)
+                .await
+                .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidConfirmation);
+        }
+        // The pilot's own flight, which took off somewhere else.
+        let far = ConfirmSiteRequest {
+            flight: Some(demos_flight.clone()),
+            ..earlier.clone()
+        };
+        let said = ask(Method::PUT, &confirmation)
+            .token(dev::DEMO_TOKEN)
+            .json(&far)
+            .send(&router)
+            .await
+            .error(StatusCode::BAD_REQUEST, ErrorCode::InvalidConfirmation);
+        assert!(said.contains("500 m"), "{said}");
+        // And one that took off there: a site where that flight began,
+        // which the partner adds, and confirms with the flight.
+        let takeoff = &flights["flights"][0]["takeoff"]["position"];
+        let (lat, lon) = (
+            takeoff["lat"].as_f64().unwrap(),
+            takeoff["lon"].as_f64().unwrap(),
+        );
+        let there = AddSiteRequest {
+            site: draft("Beispielstart", lat + 0.001, lon),
+            comment: None,
+        };
+        let added: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(dev::DEMO_TOKEN)
+            .json(&there)
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        let its = format!("{}/confirmation", site_path(&added.site.id.to_string()));
+        let with: SiteResponse = ask(Method::PUT, &its)
+            .token(dev::DEMO_TOKEN)
+            .json(&far)
+            .send(&router)
+            .await
+            .ok(StatusCode::OK);
+        assert_eq!(with.standing.unwrap().confirmed.pilots, 1);
+        let said: SiteConfirmationsResponse = get(&router, &format!("{its}s")).await.json();
+        assert!(said.confirmations[0].with_flight);
+        // Which flight is not said to anyone.
+        assert!(
+            !get(&router, &format!("{its}s"))
+                .await
+                .text()
+                .contains(&demos_flight)
+        );
+
+        // Taken back, by its pilot, and again without complaint.
+        for _ in 0..2 {
+            let answer = ask(Method::DELETE, &confirmation)
+                .token(&petra)
+                .send(&router)
+                .await;
+            assert_eq!(answer.status, StatusCode::NO_CONTENT);
+        }
+        let said: SiteConfirmationsResponse = get(&router, &confirmations).await.json();
+        assert_eq!(said.confirmed.pilots, 2);
+
+        // A site of a source, a site that is not there and one that is
+        // gone take none; reading the caller's own is no request.
+        let gone = format!("{}/confirmation", site_path(dev::DEMO_SITES[3]));
+        ask(Method::PUT, &gone)
+            .token(&petra)
+            .json(&request)
+            .send(&router)
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        get(&router, &format!("{gone}s"))
+            .await
+            .error(StatusCode::GONE, ErrorCode::SiteGone);
+        let nowhere = "/v1/sites/venti:0000000000000000000000s009/confirmation";
+        ask(Method::PUT, nowhere)
+            .token(&petra)
+            .json(&request)
+            .send(&router)
+            .await
+            .error(StatusCode::NOT_FOUND, ErrorCode::SiteNotFound);
+        get(&router, &confirmation)
+            .await
+            .error(StatusCode::METHOD_NOT_ALLOWED, ErrorCode::MethodNotAllowed);
+
+        // A confirmation goes with its account; the count follows.
+        let mara = store.account("mara").await.unwrap().unwrap();
+        store.delete_account(&mara.id).await.unwrap();
+        let said: SiteConfirmationsResponse = get(&router, &confirmations).await.json();
+        assert_eq!(said.confirmed.pilots, 1);
+        assert_eq!(said.confirmations[0].by.handle.as_str(), "jonas");
+    }
+
+    #[tokio::test]
     async fn a_server_takes_sites_from_pilots_only_when_it_is_told_to() {
         // A server as it is configured unless told otherwise: it serves
         // the first region and takes no site.
         let clock = TestClock::new();
         let mut closed = settings();
         closed.sites.accept = false;
-        let (router, _) = server(closed, &clock);
+        let (router, store) = server(closed, &clock);
         let token = sign_up(&router, "petra").await.token;
         let request = AddSiteRequest {
             site: draft("Beispielkopf Süd", 47.4, 11.2),
@@ -1026,6 +1438,43 @@ mod of_pilots {
         // Reading is never off.
         let changes: SiteChangesResponse = get(&router, "/v1/sites/changes").await.json();
         assert_eq!((changes.sites.len(), changes.cursor.as_str()), (0, "0"));
+        // The partners' layer needs no setting: the trust is its gate.
+        // Whoever runs the server names petra, and her next request adds
+        // a site to it.
+        let petra = store.account("petra").await.unwrap().unwrap();
+        store.let_edit_sites(&petra.id, clock.now()).await.unwrap();
+        let added: SiteResponse = ask(Method::POST, "/v1/sites")
+            .token(&token)
+            .json(&request)
+            .send(&router)
+            .await
+            .ok(StatusCode::CREATED);
+        assert_eq!(added.site.id.source().as_str(), "venti");
+        // Confirmations are pilots' words and are closed with the
+        // setting, a partner's too.
+        let confirmation = format!("/v1/sites/{}/confirmation", added.site.id);
+        let today = ConfirmSiteRequest {
+            day: clock.now().date_naive(),
+            note: None,
+            flight: None,
+        };
+        ask(Method::PUT, &confirmation)
+            .token(&token)
+            .json(&today)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesClosed);
+        // Withdrawn, the account is a pilot as any other: on this server
+        // it writes nothing, and what it added stays.
+        store.stop_editing_sites(&petra.id).await.unwrap();
+        ask(Method::DELETE, &format!("/v1/sites/{}", added.site.id))
+            .token(&token)
+            .send(&router)
+            .await
+            .error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
+        get(&router, &format!("/v1/sites/{}", added.site.id))
+            .await
+            .ok::<SiteResponse>(StatusCode::OK);
 
         // A real server bounds what one account writes in a day; the
         // numbers are the documented ones.
@@ -1035,6 +1484,7 @@ mod of_pilots {
         open.sites.limits = pilot_sites::Limits {
             added_per_day: 1,
             revisions_per_day: 1,
+            confirmations_per_day: 1,
         };
         let (router, _) = server(open, &clock);
         let token = sign_up(&router, "petra").await.token;

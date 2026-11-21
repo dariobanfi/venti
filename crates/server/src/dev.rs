@@ -140,8 +140,9 @@ pub fn settings(public_url: PublicUrl, analyser: Analyser, password_cost: Cost) 
         analyser,
         live: crate::live::Limits::none(),
         groups: crate::groups::Limits::none(),
-        // The development mode takes sites from pilots, in the first
-        // region: its data is made up, and an app is built against it.
+        // The development mode takes sites and confirmations from
+        // pilots, in the first region: its data is made up, and an app is
+        // built against it.
         sites: crate::pilot_sites::Settings {
             accept: true,
             regions: RegionPack::from_toml(FIRST_REGION)
@@ -384,24 +385,30 @@ async fn add_demo_groups(
     Ok(())
 }
 
-/// The identifiers of the sites the three pilots made, all of them made
-/// up: no such take-off or landing exists, and each record says so.
+/// The made-up sites of Venti's own two layers that the development mode
+/// starts with. They are fixed, so that a client or a test can ask for
+/// one without adding it first.
 ///
-/// - The first: a take-off the demo account added twenty days before the
-///   mode's clock; `mara` added its wind directions two days later.
-/// - The second: a take-off `jonas` added; `mara` gave it a wrong height,
-///   and the demo account put it back to the first revision.
-/// - The third: a landing field `mara` added, at its first revision.
-/// - The fourth: a take-off `jonas` added twice by mistake and removed
-///   again. Its address answers that it is gone.
+/// - The first, of the partners' layer: a take-off the demo account, the
+///   one partner of this mode, added twenty days ago by the mode's clock
+///   and gave its wind directions two days later. `mara` and `jonas` say
+///   they took off there.
+/// - The second, of the crowdsourced layer: a take-off `jonas` added;
+///   `mara` gave it a wrong height, and the demo account put it back to
+///   the first revision. `mara` says she took off there.
+/// - The third, of the partners' layer: a landing field the demo account
+///   added, at its first revision.
+/// - The fourth, of the crowdsourced layer: a take-off `jonas` added
+///   twice by mistake and removed again. Its address answers that it is
+///   gone.
 ///
 /// They lie in the Lechtal Alps, in a box of their own:
 /// [`DEMO_SITES_BBOX`].
 pub const DEMO_SITES: [&str; 4] = [
     "venti:0000000000000000000000s001",
-    "venti:0000000000000000000000s002",
+    "venti-pilots:0000000000000000000000s002",
     "venti:0000000000000000000000s003",
-    "venti:0000000000000000000000s004",
+    "venti-pilots:0000000000000000000000s004",
 ];
 
 /// A box that holds the sites of [`DEMO_SITES`] and nothing of another
@@ -503,7 +510,7 @@ async fn add_demo_sites(
     };
     let change = revise(
         first,
-        account("mara")?,
+        account(DEMO_HANDLE)?,
         days(18),
         SiteAct::Change(Box::new(with_wind)),
         "Wind directions added.",
@@ -551,7 +558,7 @@ async fn add_demo_sites(
     let wiese = site(third, "Musterwiese", 47.28, 10.89, 1010.0, SiteUse::Landing)?;
     let new = add(
         wiese,
-        account("mara")?,
+        account(DEMO_HANDLE)?,
         days(4),
         "Made up, for the development mode.",
     );
@@ -581,6 +588,29 @@ async fn add_demo_sites(
         "Added twice: the same take-off as Musterkogel West.",
     )?;
     must(store.revise_pilot_site(&removal, APART_M).await, "removed")?;
+
+    // What pilots say of them: two of the partner's take-off, one of the
+    // crowdsourced one.
+    for (id, handle, ago, note) in [
+        (first, "mara", 2, Some("North-west at noon, smooth.")),
+        (first, "jonas", 9, None),
+        (second, "mara", 6, None),
+    ] {
+        let confirmation = venti_store::NewSiteConfirmation {
+            site: id
+                .parse()
+                .map_err(|_| format!("{id} is no site identifier"))?,
+            account_id: account(handle)?,
+            day: days(ago).date_naive(),
+            note: note.map(str::to_owned),
+            with_flight: false,
+            at: days(ago),
+        };
+        match store.confirm_pilot_site(&confirmation).await {
+            Ok(venti_store::SiteConfirming::Confirmed(_)) => {}
+            other => return Err(format!("a made-up site could not be confirmed: {other:?}")),
+        }
+    }
     Ok(())
 }
 
@@ -909,8 +939,16 @@ async fn add_demo_account(
         display_name: DEMO_NAME.to_owned(),
         created_at: now,
         publishing_suspended_at: None,
+        edits_sites_since: None,
     };
     add_pilot(store, &account, demo_flights(), password_cost).await?;
+    // The demo account is this mode's one partner for flying sites: it
+    // writes to the partners' layer, and the other two pilots do not, so
+    // that both sides can be seen and tested.
+    store
+        .let_edit_sites(&account.id, now)
+        .await
+        .map_err(|error| format!("the demo account could not be trusted with sites: {error}"))?;
     let mut pilots = vec![account.clone()];
     for (pilot, flights) in DEMO_PILOTS.iter().zip(further_flights()) {
         let further = Account {
@@ -919,6 +957,7 @@ async fn add_demo_account(
             display_name: pilot.name.to_owned(),
             created_at: now,
             publishing_suspended_at: None,
+            edits_sites_since: None,
         };
         add_pilot(store, &further, flights, password_cost).await?;
         pilots.push(further);

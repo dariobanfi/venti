@@ -78,7 +78,8 @@ pub use live::{
 pub use memory::MemoryStore;
 pub use month::Month;
 pub use pilot_site::{
-    NewPilotSite, PilotSite, PilotSiteChanges, RevisionKind, SiteAct, SitePilot, SiteRevising,
+    NewPilotSite, NewSiteConfirmation, PARTNERS_LAYER, PilotSite, PilotSiteChanges, RevisionKind,
+    SiteAct, SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot, SiteRevising,
     SiteRevision, SiteVia, SiteWrite,
 };
 pub use postgres::PgStore;
@@ -387,11 +388,13 @@ pub trait Store: Send + Sync + 'static {
         apart_m: f64,
     ) -> impl Future<Output = Result<SiteWrite, StoreError>> + Send;
 
-    /// The standing sites that pilots made inside a box, edges included,
-    /// sorted by identifier, `limit` at most. A removed site is not among
-    /// them.
+    /// The standing sites of one layer of the server's own inside a box,
+    /// edges included, sorted by identifier, `limit` at most. A removed
+    /// site is not among them. The layer is the source its sites'
+    /// identifiers begin with.
     fn pilot_sites_in(
         &self,
+        layer: &SourceId,
         area: &BoundingBox,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<PilotSite>, StoreError>> + Send;
@@ -413,15 +416,50 @@ pub trait Store: Send + Sync + 'static {
         limit: usize,
     ) -> impl Future<Output = Result<Option<(PilotSite, Vec<SiteRevision>)>, StoreError>> + Send;
 
-    /// What changed among the sites that pilots made after the change
-    /// number `since`: every site whose latest revision took a later
-    /// number, by that number, `limit` at most. A site that changed
-    /// several times is listed once, as it is now.
+    /// What changed among the sites of one layer of the server's own after
+    /// the change number `since`: every site that took a later number, by
+    /// that number, `limit` at most. A site takes a number with every
+    /// revision, and with every confirmation that is given or withdrawn.
+    /// A site that changed several times is listed once, as it is now.
+    ///
+    /// The layers share one count, so `latest` may be a number that a site
+    /// of another layer took: it is still a place to ask from again.
     fn pilot_site_changes(
         &self,
+        layer: &SourceId,
         since: i64,
         limit: usize,
     ) -> impl Future<Output = Result<PilotSiteChanges, StoreError>> + Send;
+
+    /// Keeps a pilot's word that they took off at a site and that it was
+    /// good: one for an account and a site, so a second one takes the
+    /// place of the first. The site takes a new change number and no
+    /// revision. See [`SiteConfirming`].
+    fn confirm_pilot_site(
+        &self,
+        new: &NewSiteConfirmation,
+    ) -> impl Future<Output = Result<SiteConfirming, StoreError>> + Send;
+
+    /// Takes an account's confirmation of a site back. `None` if no site
+    /// ever had the identifier; otherwise the site as it stands now and
+    /// whether there was a confirmation. A site that had one takes a new
+    /// change number.
+    fn withdraw_site_confirmation(
+        &self,
+        site: &SiteId,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<(PilotSite, bool)>, StoreError>> + Send;
+
+    /// A site with the confirmations it has: the newest day first, then
+    /// by handle, `limit` at most. `None` if no site ever had the
+    /// identifier. A confirmation goes with its account
+    /// ([`Store::delete_account`]): it is the pilot's word, not a record
+    /// given to everyone.
+    fn site_confirmations(
+        &self,
+        site: &SiteId,
+        limit: usize,
+    ) -> impl Future<Output = Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError>> + Send;
 
     // --- Forecasts --------------------------------------------------------
 
@@ -548,6 +586,35 @@ pub trait Store: Send + Sync + 'static {
         &self,
         account_id: &str,
     ) -> impl Future<Output = Result<Option<bool>, StoreError>> + Send;
+
+    /// Names an account as trusted to add and correct flying sites of the
+    /// server's own layer, until [`Store::stop_editing_sites`] withdraws
+    /// it. Returns since when it is trusted: the moment of this call, or
+    /// of the earlier one if it was trusted already. `None` if there is no
+    /// such account.
+    ///
+    /// It is one fact about the account and changes nothing else. Whether
+    /// a write of a site is let through is the server's to decide with it;
+    /// the store writes a site for whichever account it is given.
+    fn let_edit_sites(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> impl Future<Output = Result<Option<Timestamp>, StoreError>> + Send;
+
+    /// Withdraws it. `None` if there is no such account; otherwise whether
+    /// it was trusted.
+    ///
+    /// Nothing else changes: every site the account added and every
+    /// revision it wrote stays as it is, with the account as its author.
+    fn stop_editing_sites(
+        &self,
+        account_id: &str,
+    ) -> impl Future<Output = Result<Option<bool>, StoreError>> + Send;
+
+    /// Every account that is trusted to add and correct sites, in the
+    /// order of the handles.
+    fn site_editors(&self) -> impl Future<Output = Result<Vec<Account>, StoreError>> + Send;
 
     /// Stores an invite that one account can be created with.
     fn create_invite(

@@ -169,7 +169,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 400 | `invalid_live_track_id` | The identifier sent for a live track is not 26 characters of its alphabet |
 | 400 | `invalid_fixes` | The fixes sent for a live track cannot be used as a whole: none, more than 120, not oldest first, or a value no glider has. `message` names the place of the fix in the request and never one of its values |
 | 400 | `invalid_kept_site` | What a request says about a [site to keep](#the-sites-a-pilot-keeps) cannot be kept: no site's record, another identifier than the path's, or a credit that is another source's or too long. `message` names the field |
-| 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-pilots-make) cannot be kept; the place is in no region this server serves |
+| 400 | `invalid_site`, `site_out_of_area` | What a request says about a [site](#sites-that-ventis-partners-and-pilots-add) cannot be kept; the place is in no region this server serves |
 | 400 | `invalid_report` | A [report](#reports) gives a reason the server does not know, has a text of more than 1,000 characters, or gives the reason `other` and no text |
 | 400 | `invalid_token_name`, `invalid_scopes`, `invalid_expiry` | Making a [token for a program](#post-v1accounttokens): its name, its scopes or its end cannot be used |
 | 400 | `invalid_group_name` | The name of a [group](#groups) is empty or has more than 60 characters |
@@ -186,25 +186,27 @@ A client that shows the data shows the credit of its source next to it, and the 
 | 403 | `invalid_group_invite` | The invite code lets nobody into a [group](#groups): mistyped, replaced, ended, or never one. Which of these is not said |
 | 403 | `group_full`, `too_many_groups`, `group_plans_full` | The group has as many members as a group may have; the account is in as many groups as an account may be in; the group holds as many plans as a group may hold at a time |
 | 403 | `not_group_keeper`, `not_plan_author` | A member of a group asked for what only its keeper may do; a member asked to change a plan they did not post, or to delete one without being its author or the keeper |
-| 403 | `sites_closed` | The server takes no [sites from pilots](#sites-that-pilots-make); or a site of a source was to be changed, which is corrected at its source |
+| 403 | `sites_closed` | The server takes no [sites and no confirmations from pilots](#sites-that-ventis-partners-and-pilots-add); or a site of a source was to be changed, which is corrected at its source |
+| 403 | `sites_for_partners` | The site is of the partners' layer, and the account is not one whoever runs the server named as a partner. A pilot who finds the site wrong reports it |
+| 400 | `invalid_layers`, `invalid_confirmation` | `layers` or `layer` names a layer of sites the server does not have; a [confirmation](#put-v1sitesidconfirmation) cannot be kept |
 | 404 | `station_not_found` | No station has this identifier |
 | 404 | `flight_not_found` | No flight has this address, or it is not the caller's to see. The two cannot be told apart |
 | 404 | `session_not_found`, `token_not_found`, `pilot_not_found` | The account has no such session; it has no such [token for a program](#tokens-for-other-programs); no pilot has this handle |
 | 404 | `live_track_not_found` | No live track has this identifier: none ever had, its pilot deleted it, or it ended long enough ago to have been removed. The three cannot be told apart |
 | 404 | `group_not_found` | No [group](#groups) has this identifier, or the caller is not in it. The two cannot be told apart, on any endpoint about a group |
-| 404 | `site_not_found`, `site_revision_not_found` | No [site](#sites-that-pilots-make) has this identifier; the site has no revision with this number |
+| 404 | `site_not_found`, `site_revision_not_found` | No [site](#sites-that-ventis-partners-and-pilots-add) has this identifier; the site has no revision with this number |
 | 404 | `group_member_not_found`, `plan_not_found` | Said to members of a group only: no member of it has this handle; it has no plan with this identifier, or none any more |
 | 404 | `map_not_found` | The server hands out no [map file](#get-and-head-v1mapsregionversionname) under this path: no region with this identifier, not in this version, or no file of this name. The three cannot be told apart |
 | 404 | `outside_region` | A forecast was asked for a place outside the area the server has forecasts for |
 | 404 | `not_found` | The path is not part of the API. For the hours of the thermal map: the map has no such day, and `message` lists the days it has |
 | 405 | `method_not_allowed` | The path exists, but not with this method |
 | 408 | `timeout` | An upload: the file stopped arriving, or took too long to arrive |
-| 409 | `site_too_close`, `site_changed` | A [site](#sites-that-pilots-make) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
+| 409 | `site_too_close`, `site_changed` | A [site](#sites-that-ventis-partners-and-pilots-add) would stand less than 20 m from another, which the error names in `error.site`; the site was changed since the revision the request names |
 | 409 | `handle_taken` | The handle belongs to another account or is not available |
 | 409 | `too_many_kept_sites` | The account keeps as many [sites as its own](#the-sites-a-pilot-keeps) as it may |
 | 409 | `too_many_tokens` | The account holds as many [tokens for programs](#tokens-for-other-programs) as it may |
 | 409 | `live_track_taken` | Fixes were sent under the identifier of another account's live track |
-| 410 | `site_gone` | The [site](#sites-that-pilots-make) was removed, or taken down. Its identifier is not used again |
+| 410 | `site_gone` | The [site](#sites-that-ventis-partners-and-pilots-add) was removed, or taken down. Its identifier is not used again |
 | 410 | `live_track_gone` | Fixes were sent under an identifier whose live track was deleted or removed, or that was taken out of use. An identifier is used once: begin a new track with a new one |
 | 413 | `payload_too_large` | The request carried a body of more than 16 kB, a batch of live fixes of more than 32 kB, or a flight file of more than 4 MB |
 | 415 | `unsupported_media_type` | A request whose body is JSON did not say so with `Content-Type: application/json` |
@@ -371,7 +373,7 @@ How the server and each of its data sources are doing.
 | `client_addresses` | For whoever runs the server; an app ignores it. `seen` when requests arrive from addresses of their own. `hidden` when, in the last hour, twenty or more requests and at least a tenth of all came from one private address and from no other private one: a proxy or a container network is hiding the visitors, and the server counts them as one ([deploy/README.md](../deploy/README.md#the-visitors-address)). Left out while fewer than twenty requests have arrived |
 | `forecasts` | Whether the server answers point forecasts at all: `available`, or `not_configured` for a server that was not told where its forecast service is. Such a server answers `/v1/forecast` with `501` and asks nobody else. Left out by a server older than forecasts, which has none |
 | `registration` | Who may create an account here: `open` (anyone), `invite` (whoever has an invite code, which `POST /v1/accounts` then needs) or `closed` (nobody; existing accounts sign in as before). An app shows the field for the invite code, or says that the server takes no new accounts, by this. Left out by a server older than this field, which may ask for a code: an app that reads nothing here offers the field. The development mode says `open` |
-| `sites_from_pilots` | Whether the server takes [sites from pilots](#sites-that-pilots-make): `open` (a signed-in pilot can add a site and correct one, inside the regions the server serves) or `closed` (every write is `403` with `sites_closed`). An app offers "add a site" and "correct this site" only where this says `open`, so that nobody fills in a form to be refused. Reading the sites that pilots made is never off, and an account whose publishing is suspended is refused on an open server too: that is the account's, and is not said here. Left out by a server older than this field (before 2026-11-21), which takes none or does not say: an app that reads nothing here offers neither. The development mode says `open` |
+| `sites_from_pilots` | Whether the server takes [sites from pilots](#sites-that-ventis-partners-and-pilots-add): `open` (a signed-in pilot can add a site to the crowdsourced layer `venti-pilots`, correct one of it and confirm a site, inside the regions the server serves) or `closed` (every such write is `403` with `sites_closed`). An app offers "add a site", "correct this site" and "I took off here" to a pilot only where this says `open`, so that nobody fills in a form to be refused. It says nothing of the partners' layer, which an account named as a partner writes to whatever this says: [`GET /v1/account`](#get-v1account) tells such an account. Reading the sites of either layer is never off, and an account whose publishing is suspended is refused on an open server too: that is the account's, and is not said here. Left out by a server older than this field (before 2026-11-21), which takes none or does not say: an app that reads nothing here offers neither. The development mode says `open` |
 | `thermal_map` | For whoever runs the server; an app asks for the map itself ([`GET /v1/thermals`](#get-v1thermals)). Where the server's thermal map stands. Left out by a server that makes none, which is one without forecasts, and by an older server |
 | `thermal_map.source` | The forecast source the map is made from |
 | `thermal_map.computed_at` | When the server worked out the map it serves. Left out while it has none: after a first start, until the finest model's part was fetched whole, which is some minutes on a warm forecast service and a look or two longer on one that has just started. `/v1/thermals` answers `503` until then |
@@ -815,9 +817,11 @@ A box that holds more than 5000 airspaces is refused with `400` and `box_too_lar
 
 ## `GET /v1/sites?bbox=west,south,east,north`
 
-The flying sites inside a box: take-offs, landings, training slopes and winch sites. They come in layers of two kinds that are never merged: a source's sites as the server last fetched them (today one source, OpenStreetMap), and, since 2026-11-21, the sites that pilots made on Venti, the layer `venti`, which is in the answer when it has a site in the box; see [Sites that pilots make](#sites-that-pilots-make). What follows describes a source's layer.
+The flying sites inside a box: take-offs, landings, training slopes and winch sites. They come in layers of two kinds that are never merged: a source's sites as the server last fetched them (today one source, OpenStreetMap), and, since 2026-11-21, the sites that Venti holds itself: the partners' layer `venti`, which is in the answer when it has a site in the box, and the crowdsourced layer `venti-pilots`, which is in the answer only when `layers` names it; see [Sites that pilots make](#sites-that-ventis-partners-and-pilots-add). What follows describes a source's layer.
 
 `bbox` is required and written as for stations. Sites on the edge are included.
+
+`layers` is optional: the names of the layers wanted, separated by commas, for example `layers=osm-free-flying,venti,venti-pilots`. Without it the answer holds every source's layer and `venti`, which is what a client from before the crowdsourced layer gets. With it the answer holds the layers named and no other; the word `default` in the list stands for the layers an answer holds without it, so `layers=default,venti-pilots` asks for everything without knowing a source's name. A name of no layer of this server is `400` with `invalid_layers`, and the message lists the names there are.
 
 ```bash
 curl 'http://127.0.0.1:8080/v1/sites?bbox=11.7,47.6,11.95,47.75'
@@ -1020,26 +1024,38 @@ Every text in a record is the source's, and the source is a map that anyone can 
 
 **When a source fails.** A run that could not fetch everything changes nothing: the server keeps serving the set of its last whole run, with that run's `fetched_at`. `/v1/health` then shows the source's `last_failure`, and `stale` once two runs in a row have failed.
 
-## Sites that pilots make
+## Sites that Venti's partners and pilots add
 
-Since 2026-11-21 the server keeps flying sites that pilots add themselves, beside the sites of its sources and never merged with them. They are the layer `venti`.
+The server keeps flying sites of its own, beside the sites of its sources and never merged with them, in two layers (the owner, 2026-11-21: take-offs "usually are … really official, and they don't change so much", so the server takes them from "trusted partners"; and beside that "a crowdsourced feature, which is less official … not maybe displayed by default … where someone can say, yes, I started here and it was good").
 
-- **An identifier that stays.** A site's identifier is `venti:` and 26 characters, made by the server and never used for another site. Its address is `/v1/sites/{id}` for good; a site that was removed answers `410` with `site_gone`.
+| Layer | Whose sites | Who writes | In `GET /v1/sites` |
+|---|---|---|---|
+| `venti` | The partners': official in manner | An account whoever runs the server named as a partner for flying sites, and a token of such an account with `sites:write` | Always, beside the sources' layers |
+| `venti-pilots` | The crowdsourced ones: less official | Any signed-in pilot, where the server takes sites from pilots; a partner as well | Only when the request names it: `layers=…,venti-pilots` |
+
+- **Which layer a site is of follows from who added it**, and never changes: a partner's `POST /v1/sites` adds to `venti`, every other pilot's to `venti-pilots`. The request does not choose. Moving a crowdsourced site into the partners' layer is not built.
+- **An identifier that stays.** A site's identifier is its layer's name, a colon and 26 characters (`venti:…`, `venti-pilots:…`), made by the server and never used for another site. Its address is `/v1/sites/{id}` for good; a site that was removed answers `410` with `site_gone`.
 - **Every change is a revision that is kept.** A revision holds the whole record as it stood from then on, who made it, when, through what it came in (`session`: a sign-in of the pilot's own; `token`: a [token the pilot gave to another program](#tokens-for-other-programs); `operator`: whoever runs the server), and a line saying why. Nothing is overwritten. A change is undone by a revision that restores an earlier one and names it; removing a site is a revision too.
-- **The licence: CC0 1.0.** What pilots give as sites is given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), by the owner's decision of 2026-11-21. Every answer that carries a site of the layer says so in `attributions`: source `venti`, provider "Venti contributors". The licence asks for no credit; the entry's `notice` is to be shown wherever a site of the layer is: "Added by pilots and not verified. A site on the map is not permission to fly there."
-- **Who may write.** Any signed-in pilot adds a site, and any signed-in pilot corrects, removes or restores any site of the layer, unless whoever runs the server has suspended the account's publishing (`403`, `publishing_suspended`). An account adds at most 20 sites a day and writes at most 100 revisions a day (`429`, `rate_limited`).
-- **Only where the server is told to take them.** A server takes sites from pilots when its configuration says `sites_from_pilots = true`; otherwise every write is `403` with `sites_closed`. [`GET /v1/health`](#get-v1health) says which in `sites_from_pilots`, before anything is sent. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. Reading is never off.
-- **A pilot's name on a site.** A site and each revision name the pilot who made them by handle and display name, to everyone. When an account is deleted, its sites and revisions stay and lose that name.
-- **Not permission to fly.** A site of this layer is what a pilot entered, checked by nobody.
+- **The licence: CC0 1.0, for both layers.** What a partner and what a pilot gives as a site is given under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), by the owner's decision of 2026-11-21. Every answer that carries a site says so in `attributions`. The licence asks for no credit; the entry's `notice` is to be shown wherever a site of the layer is:
+  - `venti`: provider "Venti partners", notice "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
+  - `venti-pilots`: provider "Venti contributors", notice "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+- **Who may write.** A partner adds to `venti` and corrects, removes and restores sites of both layers. Any other signed-in pilot adds to `venti-pilots` and corrects, removes and restores sites of that layer, and is refused at a partner's site with `403` `sites_for_partners`: a pilot who finds a partner's site wrong [reports it](#post-v1reports). Nobody whose publishing whoever runs the server has suspended writes anything (`403`, `publishing_suspended`). An account adds at most 20 sites a day and writes at most 100 revisions a day (`429`, `rate_limited`). [`GET /v1/account`](#get-v1account) says `"edits_sites": true` to an account that is a partner, and leaves it out for every other.
+- **From pilots only where the server is told to take them.** A server takes sites for `venti-pilots`, and [confirmations](#put-v1sitesidconfirmation), from pilots when its configuration says `sites_from_pilots = true`; otherwise a pilot's write is `403` with `sites_closed`. [`GET /v1/health`](#get-v1health) says which in `sites_from_pilots`, before anything is sent. It is off unless set, because the terms under which a pilot gives a site, which say that it is given under CC0 1.0 and stays when the account goes, are not written yet. The development mode takes them. The partners' layer needs no setting: the trust is its gate, and a partner writes on a server whose setting is off. Reading is never off.
+- **Less than 20 m apart.** A pilot's site keeps that distance from every standing site of both layers, a partner's from partners' sites only: where a partner's site stands, a pilot's is refused and the error names the partner's; a partner's is put where a pilot's stands, and both stand.
+- **Confirmations.** A signed-in pilot says of a site of either layer "I took off here and it was good", once, with the day; see [below](#put-v1sitesidconfirmation). A site's `standing` says how many pilots did and when last.
+- **A pilot's name on a site.** A site and each revision name the account that made them by handle and display name, to everyone. When an account is deleted, its sites and revisions stay and lose that name; its confirmations go with it.
+- **Not permission to fly.** A site of either layer is what a partner or a pilot entered, checked by nobody at Venti.
 
-The development mode starts with four made-up sites of its three pilots in the Lechtal Alps, in the box `10.85,47.25,10.95,47.32`; each record says that it is made up.
+The types and the store still say `pilot_sites` and `PilotSite`, and the apps' core `SiteByPilots`: names from before there were two layers, which stand for a site of either.
+
+The development mode starts with four made-up sites in the Lechtal Alps, in the box `10.85,47.25,10.95,47.32`; each record says that it is made up. Its demo account is a partner; `mara` and `jonas` are not.
 
 | Identifier | What it is |
 |---|---|
-| `venti:0000000000000000000000s001` | "Musterkogel West", a take-off the demo account added; `mara` added its wind directions. Revision 2 |
-| `venti:0000000000000000000000s002` | "Beispieljoch", a take-off `jonas` added; `mara` gave it a wrong height and the demo account restored revision 1. Revision 3 |
-| `venti:0000000000000000000000s003` | "Musterwiese", a landing `mara` added. Revision 1 |
-| `venti:0000000000000000000000s004` | A take-off `jonas` added twice by mistake and removed again. Its address answers `410` |
+| `venti:0000000000000000000000s001` | "Musterkogel West", a take-off the demo account added and gave its wind directions. Revision 2. `mara` and `jonas` confirmed it |
+| `venti-pilots:0000000000000000000000s002` | "Beispieljoch", a take-off `jonas` added; `mara` gave it a wrong height and the demo account restored revision 1. Revision 3. `mara` confirmed it |
+| `venti:0000000000000000000000s003` | "Musterwiese", a landing the demo account added. Revision 1 |
+| `venti-pilots:0000000000000000000000s004` | A take-off `jonas` added twice by mistake and removed again. Its address answers `410` |
 
 ### The layer in `GET /v1/sites`
 
@@ -1091,20 +1107,6 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32'
           "description": "A made-up site of the development mode. No such place exists."
         },
         {
-          "id": "venti:0000000000000000000000s002",
-          "name": "Beispieljoch",
-          "position": {
-            "lat": 47.29,
-            "lon": 10.91
-          },
-          "elevation_m": 2104.0,
-          "uses": [
-            "takeoff"
-          ],
-          "paragliding": true,
-          "description": "A made-up site of the development mode. No such place exists."
-        },
-        {
           "id": "venti:0000000000000000000000s003",
           "name": "Musterwiese",
           "position": {
@@ -1130,22 +1132,12 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32'
           },
           "changed_at": "2026-10-31T19:05:00Z",
           "changed_by": {
-            "handle": "mara",
-            "display_name": "Mara Muster"
-          }
-        },
-        {
-          "id": "venti:0000000000000000000000s002",
-          "revision": 3,
-          "created_at": "2026-11-06T19:05:00Z",
-          "created_by": {
-            "handle": "jonas",
-            "display_name": "Jonas Beispiel"
-          },
-          "changed_at": "2026-11-13T19:05:00Z",
-          "changed_by": {
             "handle": "demo",
             "display_name": "Demo Pilot"
+          },
+          "confirmed": {
+            "pilots": 2,
+            "latest_day": "2026-11-16"
           }
         },
         {
@@ -1153,13 +1145,13 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32'
           "revision": 1,
           "created_at": "2026-11-14T19:05:00Z",
           "created_by": {
-            "handle": "mara",
-            "display_name": "Mara Muster"
+            "handle": "demo",
+            "display_name": "Demo Pilot"
           },
           "changed_at": "2026-11-14T19:05:00Z",
           "changed_by": {
-            "handle": "mara",
-            "display_name": "Mara Muster"
+            "handle": "demo",
+            "display_name": "Demo Pilot"
           }
         }
       ]
@@ -1176,17 +1168,84 @@ curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32'
     },
     {
       "source": "venti",
-      "provider": "Venti contributors",
+      "provider": "Venti partners",
       "licence": "CC0 1.0",
-      "text": "Venti contributors",
+      "text": "Venti partners",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
     }
   ]
 }
 ```
 
 The layer `venti` is in the answer when pilots made a site that stands inside the box, and absent otherwise. Its `sites` are the same canonical records as every layer's, so a client that knows nothing of this layer draws them as it draws any other. Beside them, `standing` has one entry per site in the same order: the `revision` the site stands at, `created_at` and `created_by`, `changed_at` and `changed_by` (each a pilot's `handle` and `display_name`, left out where the account is gone or the revision was the operator's). `fetched_at` and `as_of` are the moment of the answer: the layer is read as it is. `covers` is empty: the layer holds what pilots added and is whole nowhere. A record of this layer never has `official`, `discouraged` or `url`: those are not one pilot's to say, and the record's address is `/v1/sites/{id}`. The sites of both kinds of layer count towards the 5000 of one answer.
+
+**The crowdsourced layer** is asked for by name; here alone:
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites?bbox=10.85,47.25,10.95,47.32&layers=venti-pilots'
+```
+
+```json
+{
+  "layers": [
+    {
+      "source": "venti-pilots",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [],
+      "sites": [
+        {
+          "id": "venti-pilots:0000000000000000000000s002",
+          "name": "Beispieljoch",
+          "position": {
+            "lat": 47.29,
+            "lon": 10.91
+          },
+          "elevation_m": 2104.0,
+          "uses": [
+            "takeoff"
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        }
+      ],
+      "standing": [
+        {
+          "id": "venti-pilots:0000000000000000000000s002",
+          "revision": 3,
+          "created_at": "2026-11-06T19:05:00Z",
+          "created_by": {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          },
+          "changed_at": "2026-11-13T19:05:00Z",
+          "changed_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "confirmed": {
+            "pilots": 1,
+            "latest_day": "2026-11-12"
+          }
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+    }
+  ]
+}
+```
+
+`standing[].confirmed` is how many pilots say they took off at the site and that it was good, with the newest day one of them speaks of; it is left out while nobody has. An app that shows this layer marks its sites as from pilots and shows its `notice`.
 
 ### `GET /v1/sites/{id}`
 
@@ -1228,19 +1287,23 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001'
     },
     "changed_at": "2026-10-31T19:05:00Z",
     "changed_by": {
-      "handle": "mara",
-      "display_name": "Mara Muster"
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "confirmed": {
+      "pilots": 2,
+      "latest_day": "2026-11-16"
     }
   },
   "lasting": true,
   "attributions": [
     {
       "source": "venti",
-      "provider": "Venti contributors",
+      "provider": "Venti partners",
       "licence": "CC0 1.0",
-      "text": "Venti contributors",
+      "text": "Venti partners",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
     }
   ]
 }
@@ -1320,7 +1383,7 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
 
 ```json
 {
-  "id": "venti:0000000000000000000000s002",
+  "id": "venti-pilots:0000000000000000000000s002",
   "revision": 3,
   "removed": false,
   "revisions": [
@@ -1335,7 +1398,7 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
       "kind": "created",
       "comment": "Made up, for the development mode.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -1360,7 +1423,7 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
       "kind": "changed",
       "comment": "Height corrected.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -1386,7 +1449,7 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
       "restores": 1,
       "comment": "The height was right before.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -1404,12 +1467,12 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
   "more": false,
   "attributions": [
     {
-      "source": "venti",
+      "source": "venti-pilots",
       "provider": "Venti contributors",
       "licence": "CC0 1.0",
       "text": "Venti contributors",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
     }
   ]
 }
@@ -1417,9 +1480,9 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s002/history'
 
 `kind` is `created`, `changed`, `restored` (with `restores`, the number of the revision it put back) or `removed`; a client expects kinds it does not know. `site` is the whole record as it stood from that revision on, and for a `removed` revision as it stood until then. `more` says that revisions follow. A site that a pilot removed keeps its history (`removed` is `true`), so that it can be restored. A site that whoever runs the server took down answers `410` with `site_gone` here too.
 
-### `GET /v1/sites/changes?since=&limit=`
+### `GET /v1/sites/changes?layer=&since=&limit=`
 
-What happened in the layer since a program last asked: for whoever keeps a copy of it. No token. It works as [`GET /v1/flights/changes`](#get-v1flightschangessincelimit) does: `since` is the `cursor` of the answer before, and none starts at the beginning.
+What happened in one of the two layers since a program last asked: for whoever keeps a copy of it. No token. `layer` is `venti` (the partners', and what a request that names none gets) or `venti-pilots`; anything else is `400` with `invalid_layers`. A mirror of both follows each with a cursor of its own: the two layers share one count of changes, so a cursor of one is a number the other may never have given out, and is still a place to ask from. A site is listed again when it has a new revision and when a [confirmation](#put-v1sitesidconfirmation) of it is given or taken back: its `standing.confirmed` is then the new count, at the revision it stood at. A confirmation that goes with its account's deletion gives the site no new number (to do): the count is right wherever the site is read, and a mirror has the old one until the site changes again. It works as [`GET /v1/flights/changes`](#get-v1flightschangessincelimit) does: `since` is the `cursor` of the answer before, and none starts at the beginning.
 
 ```bash
 curl 'http://127.0.0.1:8080/v1/sites/changes'
@@ -1428,6 +1491,36 @@ curl 'http://127.0.0.1:8080/v1/sites/changes'
 ```json
 {
   "sites": [
+    {
+      "site": {
+        "id": "venti:0000000000000000000000s003",
+        "name": "Musterwiese",
+        "position": {
+          "lat": 47.28,
+          "lon": 10.89
+        },
+        "elevation_m": 1010.0,
+        "uses": [
+          "landing"
+        ],
+        "paragliding": true,
+        "description": "A made-up site of the development mode. No such place exists."
+      },
+      "standing": {
+        "id": "venti:0000000000000000000000s003",
+        "revision": 1,
+        "created_at": "2026-11-14T19:05:00Z",
+        "created_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        },
+        "changed_at": "2026-11-14T19:05:00Z",
+        "changed_by": {
+          "handle": "demo",
+          "display_name": "Demo Pilot"
+        }
+      }
+    },
     {
       "site": {
         "id": "venti:0000000000000000000000s001",
@@ -1459,86 +1552,28 @@ curl 'http://127.0.0.1:8080/v1/sites/changes'
         },
         "changed_at": "2026-10-31T19:05:00Z",
         "changed_by": {
-          "handle": "mara",
-          "display_name": "Mara Muster"
-        }
-      }
-    },
-    {
-      "site": {
-        "id": "venti:0000000000000000000000s002",
-        "name": "Beispieljoch",
-        "position": {
-          "lat": 47.29,
-          "lon": 10.91
-        },
-        "elevation_m": 2104.0,
-        "uses": [
-          "takeoff"
-        ],
-        "paragliding": true,
-        "description": "A made-up site of the development mode. No such place exists."
-      },
-      "standing": {
-        "id": "venti:0000000000000000000000s002",
-        "revision": 3,
-        "created_at": "2026-11-06T19:05:00Z",
-        "created_by": {
-          "handle": "jonas",
-          "display_name": "Jonas Beispiel"
-        },
-        "changed_at": "2026-11-13T19:05:00Z",
-        "changed_by": {
           "handle": "demo",
           "display_name": "Demo Pilot"
-        }
-      }
-    },
-    {
-      "site": {
-        "id": "venti:0000000000000000000000s003",
-        "name": "Musterwiese",
-        "position": {
-          "lat": 47.28,
-          "lon": 10.89
         },
-        "elevation_m": 1010.0,
-        "uses": [
-          "landing"
-        ],
-        "paragliding": true,
-        "description": "A made-up site of the development mode. No such place exists."
-      },
-      "standing": {
-        "id": "venti:0000000000000000000000s003",
-        "revision": 1,
-        "created_at": "2026-11-14T19:05:00Z",
-        "created_by": {
-          "handle": "mara",
-          "display_name": "Mara Muster"
-        },
-        "changed_at": "2026-11-14T19:05:00Z",
-        "changed_by": {
-          "handle": "mara",
-          "display_name": "Mara Muster"
+        "confirmed": {
+          "pilots": 2,
+          "latest_day": "2026-11-16"
         }
       }
     }
   ],
-  "removed": [
-    "venti:0000000000000000000000s004"
-  ],
-  "cursor": "8",
+  "removed": [],
+  "cursor": "10",
   "more": false,
   "reset": false,
   "attributions": [
     {
       "source": "venti",
-      "provider": "Venti contributors",
+      "provider": "Venti partners",
       "licence": "CC0 1.0",
-      "text": "Venti contributors",
+      "text": "Venti partners",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
     }
   ]
 }
@@ -1548,7 +1583,7 @@ curl 'http://127.0.0.1:8080/v1/sites/changes'
 
 ### `POST /v1/sites`
 
-Needs a token. Adds a site, as its first revision.
+Needs a token. Adds a site, as its first revision: to the partners' layer `venti` when the account is a partner, to the crowdsourced layer `venti-pilots` when it is any other pilot's. The answer's `site.id` begins with the layer's name.
 
 ```json
 {
@@ -1585,7 +1620,7 @@ The answer is `201` with the site as [`GET /v1/sites/{id}`](#get-v1sitesid) answ
 |---|---|---|
 | 400 | `invalid_site` | A field cannot be kept; `message` names it and repeats nothing that was sent |
 | 400 | `site_out_of_area` | The place is in no region this server serves |
-| 403 | `sites_closed` | This server takes no sites from pilots |
+| 403 | `sites_closed` | The account is no partner, and this server takes no sites from pilots |
 | 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
 | 409 | `site_too_close` | A site of the layer stands less than 20 m from the place. The error names it in `site`: if it is the same place, correct that one |
 | 429 | `rate_limited` | The account has added 20 sites today |
@@ -1676,19 +1711,23 @@ The answer is `200` with the site as it now stands:
     },
     "changed_at": "2026-11-18T19:05:00Z",
     "changed_by": {
-      "handle": "petra",
-      "display_name": "Pilot petra"
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "confirmed": {
+      "pilots": 2,
+      "latest_day": "2026-11-16"
     }
   },
   "lasting": true,
   "attributions": [
     {
       "source": "venti",
-      "provider": "Venti contributors",
+      "provider": "Venti partners",
       "licence": "CC0 1.0",
-      "text": "Venti contributors",
+      "text": "Venti partners",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
     }
   ]
 }
@@ -1699,7 +1738,8 @@ A request that would change nothing writes no revision and answers `200` with th
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_site`, `site_out_of_area` | As for adding |
-| 403 | `sites_closed` | This server takes no sites from pilots; or the site is a source's, which is corrected at the source (its `url`) |
+| 403 | `sites_closed` | The site is of the crowdsourced layer, the account is no partner, and this server takes no sites from pilots; or the site is a source's, which is corrected at the source (its `url`) |
+| 403 | `sites_for_partners` | The site is of the partners' layer and the account is no partner. A pilot who finds it wrong [reports it](#post-v1reports) |
 | 404 | `site_not_found` | No site of the layer has this identifier |
 | 409 | `site_changed` | The site stands at another revision than `revision`: somebody changed it meanwhile. Read it again |
 | 409 | `site_too_close` | At its new place the site would stand less than 20 m from another |
@@ -1724,6 +1764,77 @@ The answer is `200` with the site as it now stands. `404` with `site_revision_no
 Needs a token. Removes a site of the layer, as a new revision. The body may be left out; one that is there is `{"comment": "…"}`, sent as JSON. The answer is `204` with no body. From then on the site is in no box, its address answers `410`, `GET /v1/sites/changes` lists it as removed, and its history stays, so that any pilot can restore it. `410` with `site_gone` if it is removed already.
 
 Only whoever runs the server takes a site down so that no pilot brings it back; see [deploy/README.md](../deploy/README.md).
+
+### `PUT /v1/sites/{id}/confirmation`
+
+"I took off here and it was good." Needs a token (`sites:write` for a token of another program). A signed-in pilot whose publishing is not suspended confirms a site of either layer, on a server that takes sites from pilots (`sites_from_pilots`); a partner's word counts as any pilot's. One confirmation for an account and a site: sending it again takes the place of the first, which is how its day is moved.
+
+```json
+{
+  "day": "2026-11-18",
+  "note": "  South-west,\n easy launch. "
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `day` | The day the pilot speaks of, `YYYY-MM-DD`: today, or one of the 90 days before it. The pilot's own day, so one day ahead of the server's clock is taken |
+| `note` | Optional. One line of at most 200 characters, cleaned as a revision's comment is. Everyone reads it |
+| `flight` | Optional. The address of one of the pilot's own flights. The server checks that it is theirs and that it took off within 500 m of the site as the site stands now, and keeps that it did (`with_flight`), not the address: a flight's address is the key to its page |
+
+The answer is `200` with the site as [`GET /v1/sites/{id}`](#get-v1sitesid) answers it, its `standing.confirmed` counting this pilot. A confirmation is no revision: the site's `revision` and `changed_at` stay, its history says nothing of it, and [`GET /v1/sites/changes`](#get-v1siteschangeslayersincelimit) lists the site again.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_confirmation` | The day is to come or more than 90 days back; the note is too long; the flight is not this account's, or did not take off within 500 m of the site |
+| 403 | `sites_closed` | This server takes no confirmations from pilots; or the site is a source's |
+| 403 | `publishing_suspended` | Whoever runs the server has suspended the account's publishing |
+| 404 | `site_not_found` | No site has this identifier |
+| 410 | `site_gone` | The site is removed or taken down |
+| 429 | `rate_limited` | The account gave or took back 50 confirmations today |
+
+### `DELETE /v1/sites/{id}/confirmation`
+
+Needs a token. Takes the caller's own confirmation of the site back. `204` with no body, whether there was one or not. Nobody takes back another pilot's; an account's confirmations go when the account is deleted, where its sites and revisions stay: a confirmation is the pilot's word, not a record given to everyone.
+
+### `GET /v1/sites/{id}/confirmations`
+
+Who says they took off at a site, the newest day first and then by handle: at most the newest 100. No token.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001/confirmations'
+```
+
+```json
+{
+  "id": "venti:0000000000000000000000s001",
+  "confirmed": {
+    "pilots": 2,
+    "latest_day": "2026-11-16"
+  },
+  "confirmations": [
+    {
+      "by": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "day": "2026-11-16",
+      "note": "North-west at noon, smooth."
+    },
+    {
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "day": "2026-11-09"
+    }
+  ]
+}
+```
+
+`confirmed` is the count and the newest day, as the site's `standing` has it: enough for "2 pilots took off here, last on 16 November". `with_flight` is there, and `true`, where the server found a flight of the pilot's that took off at the site; which flight is not said. `410` with `site_gone` for a site that is removed or taken down, `404` for one that never was.
+
+Confirmations cannot be reported by themselves yet (to do): a pilot reports the site, or the pilot's page.
 
 ## `GET /v1/forecast?lat=&lon=`
 
@@ -2878,7 +2989,8 @@ The answer is `201`. This is the development mode's, with the token and the sess
   "account": {
     "handle": "demo",
     "display_name": "Demo Pilot",
-    "created_at": "2026-11-18T19:05:00Z"
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true
   },
   "session": {
     "id": "3kq9x2m7r4t8v1w6y0a5b3c2d4",
@@ -2939,7 +3051,8 @@ Needs a token. The account the token belongs to.
   "account": {
     "handle": "demo",
     "display_name": "Demo Pilot",
-    "created_at": "2026-11-18T19:05:00Z"
+    "created_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true
   }
 }
 ```
@@ -2949,6 +3062,7 @@ Needs a token. The account the token belongs to.
 | `handle`, `display_name` | As the account was created with |
 | `created_at` | When it was created |
 | `publishing_suspended_at` | Since when the account may publish nothing, because whoever runs the server [suspended its publishing](#what-whoever-runs-the-server-can-do). Left out for every account that may, which is nearly every account |
+| `edits_sites` | `true` for an account whoever runs the server named as a [partner for flying sites](#sites-that-ventis-partners-and-pilots-add): it adds to the partners' layer `venti` and corrects sites of both layers. Left out for every other account, which is nearly every account. A token with `account:read` reads it too. The demo account of the development mode is one |
 
 The answers to creating an account and to signing in carry the same `account`. This is the demo account after its publishing was suspended:
 
@@ -2958,7 +3072,8 @@ The answers to creating an account and to signing in carry the same `account`. T
     "handle": "demo",
     "display_name": "Demo Pilot",
     "created_at": "2026-11-18T19:05:00Z",
-    "publishing_suspended_at": "2026-11-18T19:05:00Z"
+    "publishing_suspended_at": "2026-11-18T19:05:00Z",
+    "edits_sites": true
   }
 }
 ```
@@ -3018,7 +3133,7 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `flights:read` | The pilot's flights, the private ones among them: the list, what changed since, each flight and its file |
 | `flights:write` | Uploading flights, changing who may see one, deleting one |
 | `live:write` | Sending the positions of a live track, and ending one |
-| `sites:write` | Adding, correcting, removing and restoring [sites that pilots make](#sites-that-pilots-make) |
+| `sites:write` | Adding, correcting, removing and restoring [sites that pilots make](#sites-that-ventis-partners-and-pilots-add) |
 | `groups:read` | The pilot's groups, their members and their plans |
 | `groups:write` | Everything a pilot writes in groups: making, renaming and deleting a group, a new invite code, handing the keeping over, removing a member, joining and leaving, plans, and "I am in" |
 | `reports:write` | Sending a report |
@@ -3042,6 +3157,8 @@ A secret is `venti_pat_` and 52 characters, 62 in all; a session's token is `ven
 | `PUT /v1/sites/{id}` | `sites:write` |
 | `DELETE /v1/sites/{id}` | `sites:write` |
 | `POST /v1/sites/{id}/revisions` | `sites:write` |
+| `PUT /v1/sites/{id}/confirmation` | `sites:write` |
+| `DELETE /v1/sites/{id}/confirmation` | `sites:write` |
 | `GET /v1/groups` | `groups:read` |
 | `GET /v1/groups/{id}` | `groups:read` |
 | `GET /v1/groups/{id}/plans` | `groups:read` |
@@ -5505,7 +5622,7 @@ Need a token, and take no body. `PUT` says that the asker is in on the plan; `DE
 
 ## Reports
 
-A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, in a group the pilot is in, the group's name or one of its plans, and a [site that pilots made](#sites-that-pilots-make). That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
+A signed-in pilot can tell whoever runs the server that something should not be there: a flight, a pilot's page or a live track, in a group the pilot is in, the group's name or one of its plans, and a [site that pilots made](#sites-that-ventis-partners-and-pilots-add). That is all a report does. The server stores it and does nothing else: nothing is hidden, no account is touched, no group is changed, nobody is told. A person reads the reports and decides, with commands on the server's own machine; what those can do is said [below](#what-whoever-runs-the-server-can-do).
 
 What a client has to know:
 

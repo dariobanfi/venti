@@ -31,12 +31,12 @@ use crate::{
     FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
     GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
     LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
-    PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
-    RemovedGroup, Report, ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange, batch,
+    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
+    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
+    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
+    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
+    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -568,10 +568,11 @@ impl Store for PgStore {
 
     async fn pilot_sites_in(
         &self,
+        layer: &SourceId,
         area: &BoundingBox,
         limit: usize,
     ) -> Result<Vec<PilotSite>, StoreError> {
-        pilot_sites::in_box(&self.client().await?, area, limit).await
+        pilot_sites::in_box(&self.client().await?, layer, area, limit).await
     }
 
     async fn pilot_site(&self, id: &SiteId) -> Result<Option<PilotSite>, StoreError> {
@@ -589,10 +590,34 @@ impl Store for PgStore {
 
     async fn pilot_site_changes(
         &self,
+        layer: &SourceId,
         since: i64,
         limit: usize,
     ) -> Result<PilotSiteChanges, StoreError> {
-        pilot_sites::changes(&self.client().await?, since, limit).await
+        pilot_sites::changes(&self.client().await?, layer, since, limit).await
+    }
+
+    async fn confirm_pilot_site(
+        &self,
+        new: &NewSiteConfirmation,
+    ) -> Result<SiteConfirming, StoreError> {
+        pilot_sites::confirm(&mut self.client().await?, new).await
+    }
+
+    async fn withdraw_site_confirmation(
+        &self,
+        site: &SiteId,
+        account_id: &str,
+    ) -> Result<Option<(PilotSite, bool)>, StoreError> {
+        pilot_sites::withdraw(&mut self.client().await?, site, account_id).await
+    }
+
+    async fn site_confirmations(
+        &self,
+        site: &SiteId,
+        limit: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError> {
+        pilot_sites::confirmations(&self.client().await?, site, limit).await
     }
 
     async fn save_forecast_check(
@@ -654,6 +679,22 @@ impl Store for PgStore {
 
     async fn resume_publishing(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
         accounts::resume_publishing(&mut self.client().await?, account_id).await
+    }
+
+    async fn let_edit_sites(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Timestamp>, StoreError> {
+        accounts::let_edit_sites(&self.client().await?, account_id, now).await
+    }
+
+    async fn stop_editing_sites(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
+        accounts::stop_editing_sites(&mut self.client().await?, account_id).await
+    }
+
+    async fn site_editors(&self) -> Result<Vec<Account>, StoreError> {
+        accounts::site_editors(&self.client().await?).await
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {

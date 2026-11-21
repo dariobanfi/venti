@@ -2666,7 +2666,8 @@ async fn whoever_runs_the_server_looks_at_a_site_reverts_it_and_takes_it_down() 
     assert!(shown.found, "{}", shown.said);
     assert_golden_text("operator_site.txt", &format!("{}\n", shown.said));
     for expected in [
-        "Site venti:0s1te0s1te0s1te0s1te0s1te0\n  Name:         Nonsense?[2J\n",
+        "Site venti:0s1te0s1te0s1te0s1te0s1te0\n  Layer:        the partners' ",
+        "  Name:         Nonsense?[2J\n",
         "  Place:        46.90000, 13.10000\n  Height:       1862 m\n  Uses:         take-off\n",
         "  Wind from:    180° to 270°\n",
         "  Web page:     https://example.com/buy\n",
@@ -2798,7 +2799,11 @@ async fn whoever_runs_the_server_looks_at_a_site_reverts_it_and_takes_it_down() 
     assert_eq!(down.removed_at, Some(clock.now()));
     assert_eq!(down.site, corrected);
     let everywhere = venti_domain::BoundingBox::new(-90.0, -180.0, 90.0, 180.0).unwrap();
-    let standing = store.pilot_sites_in(&everywhere, 10_000).await.unwrap();
+    let layer = venti_server::pilot_sites::Layer::Partners.source();
+    let standing = store
+        .pilot_sites_in(&layer, &everywhere, 10_000)
+        .await
+        .unwrap();
     assert!(standing.iter().all(|site| site.site.id != down.site.id));
     // No pilot brings it back.
     let by_a_pilot = SiteRevising {
@@ -3188,4 +3193,123 @@ async fn a_pilot_reports_a_site_that_pilots_made_and_one_revision_of_it() {
     // The report that was made about it stays, and says what became of it.
     let listed = operator(&store, &clock, Action::Reports { all: false }).await;
     assert!(listed.said.contains("taken down"), "{}", listed.said);
+}
+
+// --- Who Venti's partners for flying sites are --------------------------------
+
+#[tokio::test]
+async fn whoever_runs_the_server_names_the_partners_for_flying_sites() {
+    let (router, store) = recorded_with_its_store().await;
+    let clock = TestClock::new();
+    let partners = || operator(&store, &clock, Action::SitePartners);
+    let grant = |handle: &str| Action::GrantSites {
+        handle: handle.to_owned(),
+    };
+    let withdraw = |handle: &str| Action::WithdrawSites {
+        handle: handle.to_owned(),
+    };
+    let add = |token: &'static str, lat: f64| {
+        let router = router.clone();
+        async move {
+            let request = serde_json::json!({
+                "site": {
+                    "name": "Beispielkopf",
+                    "position": { "lat": lat, "lon": 11.2 },
+                    "uses": ["takeoff"],
+                }
+            });
+            ask(Method::POST, "/v1/sites")
+                .token(token)
+                .json(&request)
+                .send(&router)
+                .await
+        }
+    };
+
+    // The development mode starts with one: its demo account.
+    let listed = partners().await;
+    assert!(listed.found);
+    assert!(listed.said.contains("demo (Demo Pilot)"), "{}", listed.said);
+    assert!(!listed.said.contains("mara"), "{}", listed.said);
+
+    // Named: the account says so to its apps, and what it adds from now
+    // on is a partner's site.
+    let mara = common::try_sign_in(&router, "mara", venti_server::dev::DEMO_PASSWORD).await;
+    let mara: venti_api_types::v1::SignInResponse = mara.ok(StatusCode::CREATED);
+    assert!(!mara.account.edits_sites);
+    let token: &'static str = Box::leak(mara.token.clone().into_boxed_str());
+    let before: venti_api_types::v1::SiteResponse = add(token, 47.40).await.ok(StatusCode::CREATED);
+    assert_eq!(before.site.id.source().as_str(), "venti-pilots");
+    let granted = operator(&store, &clock, grant("@Mara")).await;
+    assert!(granted.found, "{}", granted.said);
+    assert_golden_text("operator_grant_sites.txt", &format!("{}\n", granted.said));
+    let shown: AccountResponse = ask(Method::GET, ACCOUNT_PATH)
+        .token(token)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert!(shown.account.edits_sites);
+    let after: venti_api_types::v1::SiteResponse = add(token, 47.42).await.ok(StatusCode::CREATED);
+    assert_eq!(after.site.id.source().as_str(), "venti");
+    // Named again: nothing changes, and the moment is the first one.
+    let again = operator(&store, &clock, grant("mara")).await;
+    assert!(again.found);
+    assert!(
+        again.said.contains("already. Nothing changed."),
+        "{}",
+        again.said
+    );
+    let listed = partners().await;
+    assert_golden_text("operator_site_partners.txt", &format!("{}\n", listed.said));
+
+    // Withdrawn: what the account wrote stays, and it writes no
+    // partner's site any more.
+    let withdrawn = operator(&store, &clock, withdraw("mara")).await;
+    assert!(withdrawn.found);
+    assert_golden_text(
+        "operator_withdraw_sites.txt",
+        &format!("{}\n", withdrawn.said),
+    );
+    let kept = stored_site(&store, &after.site.id.to_string()).await;
+    assert!(kept.stands());
+    assert_eq!(kept.created_by.unwrap().handle, "mara");
+    ask(Method::DELETE, &format!("/v1/sites/{}", after.site.id))
+        .token(token)
+        .send(&router)
+        .await
+        .error(StatusCode::FORBIDDEN, ErrorCode::SitesForPartners);
+    let next: venti_api_types::v1::SiteResponse = add(token, 47.44).await.ok(StatusCode::CREATED);
+    assert_eq!(next.site.id.source().as_str(), "venti-pilots");
+    let once_more = operator(&store, &clock, withdraw("mara")).await;
+    assert!(once_more.found);
+    assert!(
+        once_more.said.contains("was not a partner"),
+        "{}",
+        once_more.said
+    );
+    let shown: AccountResponse = ask(Method::GET, ACCOUNT_PATH)
+        .token(token)
+        .send(&router)
+        .await
+        .ok(StatusCode::OK);
+    assert!(!shown.account.edits_sites);
+
+    // Nobody of that name; and a server on which nobody is one.
+    for action in [grant("nobody"), withdraw("nobody"), grant("no handle!")] {
+        let missing = operator(&store, &clock, action).await;
+        assert!(!missing.found, "{}", missing.said);
+        assert!(
+            missing.said.starts_with("There is no account"),
+            "{}",
+            missing.said
+        );
+    }
+    operator(&store, &clock, withdraw("demo")).await;
+    let nobody = partners().await;
+    assert!(nobody.found);
+    assert!(
+        nobody.said.starts_with("No account is a partner"),
+        "{}",
+        nobody.said
+    );
 }

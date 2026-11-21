@@ -963,7 +963,7 @@ mod tests {
             let by = own.and_then(|site| site.by_pilots.as_ref()).unwrap();
             assert_eq!(by.added_in_words, "Added by Max Mustermann (@demo)");
             assert_eq!(by.changed_in_words, "Last changed by Mara Beispiel (@mara)");
-            assert!(by.note.contains("not verified"), "{}", by.note);
+            assert!(by.note.contains("not checked"), "{}", by.note);
             // The two layers are two files, each with its own credit.
             let licences: Vec<&str> = kept
                 .credits

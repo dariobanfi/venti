@@ -282,11 +282,31 @@ ORDER BY g.created_at, g.id;
 
 No command takes a member out of a group either; that is its keeper's to do. Do not delete rows of `group_members` by hand: the database refuses to remove a group's keeper, and a member's plans go with the row. Neither the commands about groups nor this statement have been run through `docker compose exec` on a real server *(to verify)*.
 
-## Sites that pilots make
+## Sites that partners and pilots add
 
-Beside the flying sites of OpenStreetMap the server keeps the sites that pilots make on Venti: a layer of its own, `venti`, in the same answers ([api.md](../docs/api.md)). Every change to such a site is a revision that is kept, and every answer names the licence the layer is given under: CC0 1.0, which the owner decided on 2026-11-21 ([data-platform.md](../docs/data-platform.md)).
+Beside the flying sites of OpenStreetMap the server keeps sites of its own, in two layers ([api.md](../docs/api.md#sites-that-ventis-partners-and-pilots-add)): the partners' layer `venti`, which every app shows and only accounts you name write to, and the crowdsourced layer `venti-pilots`, which any signed-in pilot writes to where you let pilots, and which an app shows only when its pilot switches it on. Every change to such a site is a revision that is kept, and every answer names the licence the layer is given under: CC0 1.0, which the owner decided on 2026-11-21 ([data-platform.md](../docs/data-platform.md)).
 
-- **Reading is always on. Writing is off unless you turn it on**: `VENTI_SITES_FROM_PILOTS=true` in `.env` (`sites_from_pilots = true` in a configuration file), then `docker compose up -d`. Without it the server answers every attempt to add or change a site that it takes none, and hands out what it holds. The development mode has it on. **Leave it off on a server that others can sign up on.** The licence is decided; the terms for contributors, which tell a pilot before the first site that it is given under CC0 1.0 and stays when the account goes, are not written. Until they are, nobody but the owner should give a site to a public server.
+- **You name the partners.** `grant-sites <HANDLE>` makes an account one of Venti's partners for flying sites: it adds to the partners' layer and corrects sites of both layers, through its own sign-in and through a token of its own with `sites:write`. `withdraw-sites <HANDLE>` takes that back and leaves every site and revision the account wrote in place. `site-partners` lists who holds it. No setting is involved: the trust is the gate. What a partner adds is given under CC0 1.0 as well; how a partner is chosen and what a partner agrees to is the owner's to say and written nowhere yet. The commands print this:
+
+  ```text
+  mara (Mara Muster) is a partner for flying sites from now on.
+  The account adds sites to the partners' layer (`venti`), which every app shows beside the sources' sites, and corrects, restores and removes sites of that layer and of the crowdsourced one (`venti-pilots`), through its own sign-in and through a token of its own with the scope sites:write. What it adds is given under CC0 1.0, with its handle in the site's history. The server tells the account's apps that it is a partner; it tells nobody else.
+  Nothing else about the account changed. `venti-server withdraw-sites mara` undoes this.
+  ```
+
+  ```text
+  Partners for flying sites, 2 accounts, by handle:
+    demo (Demo Pilot)  since 2026-11-18 19:05 UTC
+    mara (Mara Muster)  since 2026-11-18 19:05 UTC
+  Changes nothing. `venti-server withdraw-sites <HANDLE>` takes one off.
+  ```
+
+  ```text
+  mara (Mara Muster) is no partner for flying sites any more: the account adds no site to the partners' layer and corrects none there. Where this server takes sites from pilots it adds to the crowdsourced layer, as any pilot.
+  Every site the account added and every revision it wrote stays as it is, with the account in its history. To undo one of them, `venti-server site`, then revert-site or remove-site.
+  ```
+
+- **Reading is always on. Writing by pilots is off unless you turn it on**: `VENTI_SITES_FROM_PILOTS=true` in `.env` (`sites_from_pilots = true` in a configuration file), then `docker compose up -d`. It opens the crowdsourced layer to every signed-in pilot and lets pilots confirm a site ("I took off here and it was good"). Without it the server answers a pilot's attempt to add or change a site, or to confirm one, that it takes none, and hands out what it holds; a partner writes all the same. The development mode has it on. **Leave it off on a server that others can sign up on.** The licence is decided; the terms for contributors, which tell a pilot before the first site that it is given under CC0 1.0 and stays when the account goes, are not written. Until they are, nobody but the owner should give a site to a public server.
 - **A history that anyone reads and any signed-in pilot can undo is the first line; you are the second.** `site` shows one site with every revision, who made each and through what. `revert-site` puts it back to what an earlier revision said, as a revision of yours that the history shows as the operator's, with your comment for everyone to read. `remove-site` takes it down: it is in no answer, its address and its history answer that it is gone, no pilot brings it back, and its identifier is never used for another site.
 - **Nothing is deleted.** A site that was taken down is kept with its whole history, `site` still shows it, and `revert-site` brings it back. A site also stays when the account that made it is deleted; its revisions then name no author.
 - **Two sites never stand within 20 m of each other**, so `revert-site` refuses to bring a site back onto a place where another one stands by now, and names that one.
@@ -303,6 +323,7 @@ This is what `site` prints, here for a made-up site that three pilots wrote to, 
 
 ```
 Site venti:0s1te0s1te0s1te0s1te0s1te0
+  Layer:        the partners' (added by an account trusted with sites)
   Name:         Nonsense?[2J
   Place:        46.90000, 13.10000
   Height:       1862 m

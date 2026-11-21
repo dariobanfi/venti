@@ -21,12 +21,13 @@ use crate::{
     FlightChanges, FlightKey, ForecastModel, Group, GroupCreation, GroupJoining, GroupMembers,
     GroupRoom, KeeperAct, Listing, LiveBatch, LiveFix, LiveFixAt, LiveRemoval, LiveRoom, LiveSaved,
     LiveTrack, MemberRemoval, Month, NewAccount, NewFlight, NewGroup, NewInvite, NewPilotSite,
-    NewPlan, NewReport, OutdatedFlight, PilotSite, PilotSiteChanges, Plan, PlanChange, PlanDetails,
-    PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights, PublicOrder, Ranked,
-    RemovedGroup, Report, ReportClosing, ReportKey, ReportListing, ReportSaved, RunRecord,
-    SecretHash, Session, SiteDelivery, SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite,
-    SourceStatus, StationLatest, Store, StoreError, Suspension, ThermalPart, Visibility,
-    VisibilityChange, airspace, batch, forecast, site,
+    NewPlan, NewReport, NewSiteConfirmation, OutdatedFlight, PilotSite, PilotSiteChanges, Plan,
+    PlanChange, PlanDetails, PlanRemoval, PlanRoom, PlanSaving, PublicFlightChanges, PublicFlights,
+    PublicOrder, Ranked, RemovedGroup, Report, ReportClosing, ReportKey, ReportListing,
+    ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
+    SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
+    StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, airspace, batch, forecast,
+    site,
 };
 use crate::{KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
@@ -409,11 +410,14 @@ impl Store for MemoryStore {
 
     async fn pilot_sites_in(
         &self,
+        layer: &SourceId,
         area: &BoundingBox,
         limit: usize,
     ) -> Result<Vec<PilotSite>, StoreError> {
         let inner = self.lock();
-        Ok(inner.pilot_sites.in_box(area, limit, &inner.accounts))
+        Ok(inner
+            .pilot_sites
+            .in_box(layer, area, limit, &inner.accounts))
     }
 
     async fn pilot_site(&self, id: &SiteId) -> Result<Option<PilotSite>, StoreError> {
@@ -435,11 +439,44 @@ impl Store for MemoryStore {
 
     async fn pilot_site_changes(
         &self,
+        layer: &SourceId,
         since: i64,
         limit: usize,
     ) -> Result<PilotSiteChanges, StoreError> {
         let inner = self.lock();
-        Ok(inner.pilot_sites.changes(since, limit, &inner.accounts))
+        Ok(inner
+            .pilot_sites
+            .changes(layer, since, limit, &inner.accounts))
+    }
+
+    async fn confirm_pilot_site(
+        &self,
+        new: &NewSiteConfirmation,
+    ) -> Result<SiteConfirming, StoreError> {
+        let inner = &mut *self.lock();
+        inner.pilot_sites.confirm(new, &inner.accounts)
+    }
+
+    async fn withdraw_site_confirmation(
+        &self,
+        site: &SiteId,
+        account_id: &str,
+    ) -> Result<Option<(PilotSite, bool)>, StoreError> {
+        let inner = &mut *self.lock();
+        Ok(inner
+            .pilot_sites
+            .withdraw(site, account_id, &inner.accounts))
+    }
+
+    async fn site_confirmations(
+        &self,
+        site: &SiteId,
+        limit: usize,
+    ) -> Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .pilot_sites
+            .confirmations(site, limit, &inner.accounts))
     }
 
     async fn save_forecast_check(
@@ -528,6 +565,7 @@ impl Store for MemoryStore {
     async fn delete_account(&self, account_id: &str) -> Result<(), StoreError> {
         let mut inner = self.lock();
         inner.accounts.delete(account_id);
+        inner.pilot_sites.delete_account(account_id);
         inner.flights.delete_account(account_id);
         inner.live.delete_account(account_id);
         inner.groups.delete_account(account_id);
@@ -556,6 +594,22 @@ impl Store for MemoryStore {
 
     async fn resume_publishing(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
         Ok(self.lock().accounts.resume(account_id))
+    }
+
+    async fn let_edit_sites(
+        &self,
+        account_id: &str,
+        now: Timestamp,
+    ) -> Result<Option<Timestamp>, StoreError> {
+        Ok(self.lock().accounts.let_edit_sites(account_id, now))
+    }
+
+    async fn stop_editing_sites(&self, account_id: &str) -> Result<Option<bool>, StoreError> {
+        Ok(self.lock().accounts.stop_editing_sites(account_id))
+    }
+
+    async fn site_editors(&self) -> Result<Vec<Account>, StoreError> {
+        Ok(self.lock().accounts.site_editors())
     }
 
     async fn create_invite(&self, invite: &NewInvite) -> Result<(), StoreError> {

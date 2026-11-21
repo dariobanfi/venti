@@ -1,0 +1,3 @@
+mara (Mara Muster) is a partner for flying sites from now on.
+The account adds sites to the partners' layer (`venti`), which every app shows beside the sources' sites, and corrects, restores and removes sites of that layer and of the crowdsourced one (`venti-pilots`), through its own sign-in and through a token of its own with the scope sites:write. What it adds is given under CC0 1.0, with its handle in the site's history. The server tells the account's apps that it is a partner; it tells nobody else.
+Nothing else about the account changed. `venti-server withdraw-sites mara` undoes this.

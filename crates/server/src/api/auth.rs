@@ -383,6 +383,7 @@ mod tests {
             display_name: "Dario".to_owned(),
             created_at: crate::adapters::recorded_at(),
             publishing_suspended_at: None,
+            edits_sites_since: None,
         }
     }
 

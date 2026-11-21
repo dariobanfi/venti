@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "sites_for_partners",
+    "message": "this site is one that Venti's partners add and correct, and this account is not one of them; a pilot who finds it wrong reports it (POST /v1/reports)"
+  }
+}

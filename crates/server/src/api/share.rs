@@ -268,6 +268,7 @@ mod tests {
             display_name: "Dario B.".to_owned(),
             created_at: now,
             publishing_suspended_at: None,
+            edits_sites_since: None,
         };
         let new = NewAccount {
             account: account.clone(),

@@ -29,6 +29,7 @@ pub(crate) fn account(handle: &str) -> Account {
         display_name: format!("Pilot {handle}"),
         created_at: at(9, 0),
         publishing_suspended_at: None,
+        edits_sites_since: None,
     }
 }
 

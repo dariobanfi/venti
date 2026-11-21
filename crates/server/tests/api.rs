@@ -298,6 +298,9 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "kept_site_changes.json",
         "kept_site_keep_request.json",
         "kept_site.json",
+        "sites_venti_pilots.json",
+        "site_confirm_request.json",
+        "site_confirmations.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(
@@ -341,11 +344,14 @@ fn the_documentation_shows_the_answers_as_they_are() {
     for site in dev::DEMO_SITES {
         assert!(docs.contains(&format!("| `{site}` |")), "{site}");
     }
-    let licence = pilot_sites::LICENCE;
+    let licence = pilot_sites::Layer::Partners.licence();
+    let pilots = pilot_sites::Layer::Pilots.licence();
     for stated in [
         format!("[{}]({})", licence.name, licence.url),
         format!("provider \"{}\"", licence.provider),
         licence.notice.to_owned(),
+        format!("provider \"{}\"", pilots.provider),
+        pilots.notice.to_owned(),
         format!("bbox={}", dev::DEMO_SITES_BBOX),
         format!("less than {} m", pilot_sites::APART_M),
         format!(

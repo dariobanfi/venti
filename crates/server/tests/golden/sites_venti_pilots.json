@@ -1,0 +1,56 @@
+{
+  "layers": [
+    {
+      "source": "venti-pilots",
+      "fetched_at": "2026-11-18T19:05:00Z",
+      "as_of": "2026-11-18T19:05:00Z",
+      "covers": [],
+      "sites": [
+        {
+          "id": "venti-pilots:0000000000000000000000s002",
+          "name": "Beispieljoch",
+          "position": {
+            "lat": 47.29,
+            "lon": 10.91
+          },
+          "elevation_m": 2104.0,
+          "uses": [
+            "takeoff"
+          ],
+          "paragliding": true,
+          "description": "A made-up site of the development mode. No such place exists."
+        }
+      ],
+      "standing": [
+        {
+          "id": "venti-pilots:0000000000000000000000s002",
+          "revision": 3,
+          "created_at": "2026-11-06T19:05:00Z",
+          "created_by": {
+            "handle": "jonas",
+            "display_name": "Jonas Beispiel"
+          },
+          "changed_at": "2026-11-13T19:05:00Z",
+          "changed_by": {
+            "handle": "demo",
+            "display_name": "Demo Pilot"
+          },
+          "confirmed": {
+            "pilots": 1,
+            "latest_day": "2026-11-12"
+          }
+        }
+      ]
+    }
+  ],
+  "attributions": [
+    {
+      "source": "venti-pilots",
+      "provider": "Venti contributors",
+      "licence": "CC0 1.0",
+      "text": "Venti contributors",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
+    }
+  ]
+}

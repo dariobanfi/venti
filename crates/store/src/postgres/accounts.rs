@@ -19,6 +19,7 @@ fn account_from(row: &Row) -> Account {
         display_name: row.get("display_name"),
         created_at: row.get("account_created_at"),
         publishing_suspended_at: row.get("publishing_suspended_at"),
+        edits_sites_since: row.get("edits_sites_since"),
     }
 }
 
@@ -34,7 +35,7 @@ fn session_from(row: &Row) -> Session {
 
 /// The columns [`account_from`] reads, for an `accounts` table named `a`.
 const ACCOUNT_COLUMNS: &str = "a.id AS account_id, a.handle, a.display_name, \
-     a.created_at AS account_created_at, a.publishing_suspended_at";
+     a.created_at AS account_created_at, a.publishing_suspended_at, a.edits_sites_since";
 
 pub(super) async fn create(
     client: &mut Client,
@@ -328,6 +329,60 @@ pub(super) async fn resume_publishing(
     Ok(Some(was_suspended))
 }
 
+pub(super) async fn let_edit_sites(
+    client: &Client,
+    account_id: &str,
+    now: Timestamp,
+) -> Result<Option<Timestamp>, StoreError> {
+    // One statement: an account that is trusted already keeps its moment.
+    let row = client
+        .query_opt(
+            "UPDATE accounts SET edits_sites_since = COALESCE(edits_sites_since, $2)
+             WHERE id = $1 RETURNING edits_sites_since",
+            &[&account_id, &now],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(row.map(|row| row.get(0)))
+}
+
+pub(super) async fn stop_editing_sites(
+    client: &mut Client,
+    account_id: &str,
+) -> Result<Option<bool>, StoreError> {
+    let tx = client.transaction().await.map_err(db_error)?;
+    let row = tx
+        .query_opt(
+            "SELECT edits_sites_since IS NOT NULL FROM accounts WHERE id = $1 FOR UPDATE",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let was_trusted: bool = row.get(0);
+    if was_trusted {
+        tx.execute(
+            "UPDATE accounts SET edits_sites_since = NULL WHERE id = $1",
+            &[&account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    }
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some(was_trusted))
+}
+
+pub(super) async fn site_editors(client: &Client) -> Result<Vec<Account>, StoreError> {
+    let query = format!(
+        "SELECT {ACCOUNT_COLUMNS} FROM accounts a
+         WHERE a.edits_sites_since IS NOT NULL ORDER BY a.handle"
+    );
+    let rows = client.query(&query, &[]).await.map_err(db_error)?;
+    Ok(rows.iter().map(account_from).collect())
+}
+
 pub(super) async fn create_invite(client: &Client, invite: &NewInvite) -> Result<(), StoreError> {
     client
         .execute(
@@ -392,7 +447,7 @@ const USE_SESSION: &str = "
     SELECT s.id, s.account_id, s.device, s.created_at,
            CASE WHEN s.last_used_at < $4 THEN $2 ELSE s.last_used_at END AS last_used_at,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at
+           a.publishing_suspended_at, a.edits_sites_since
     FROM sessions s
     JOIN accounts a ON a.id = s.account_id
     WHERE s.token_hash = $1 AND s.last_used_at >= $3";
@@ -556,7 +611,7 @@ const USE_ACCESS_TOKEN: &str = "
            CASE WHEN t.last_used_on IS NULL OR t.last_used_on < $3 THEN $3
                 ELSE t.last_used_on END AS last_used_on,
            a.handle, a.display_name, a.created_at AS account_created_at,
-           a.publishing_suspended_at
+           a.publishing_suspended_at, a.edits_sites_since
     FROM access_tokens t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.token_hash = $1 AND (t.expires_at IS NULL OR t.expires_at > $2)";

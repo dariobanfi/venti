@@ -1,0 +1,2 @@
+mara (Mara Muster) is no partner for flying sites any more: the account adds no site to the partners' layer and corrects none there. Where this server takes sites from pilots it adds to the crowdsourced layer, as any pilot.
+Every site the account added and every revision it wrote stays as it is, with the account in its history. To undo one of them, `venti-server site`, then revert-site or remove-site.

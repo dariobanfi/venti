@@ -1,5 +1,5 @@
 {
-  "id": "venti:0000000000000000000000s002",
+  "id": "venti-pilots:0000000000000000000000s002",
   "revision": 3,
   "removed": false,
   "revisions": [
@@ -14,7 +14,7 @@
       "kind": "created",
       "comment": "Made up, for the development mode.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -39,7 +39,7 @@
       "kind": "changed",
       "comment": "Height corrected.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -65,7 +65,7 @@
       "restores": 1,
       "comment": "The height was right before.",
       "site": {
-        "id": "venti:0000000000000000000000s002",
+        "id": "venti-pilots:0000000000000000000000s002",
         "name": "Beispieljoch",
         "position": {
           "lat": 47.29,
@@ -83,12 +83,12 @@
   "more": false,
   "attributions": [
     {
-      "source": "venti",
+      "source": "venti-pilots",
       "provider": "Venti contributors",
       "licence": "CC0 1.0",
       "text": "Venti contributors",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by pilots: not official and not checked by anyone. A site on the map is not permission to fly there."
     }
   ]
 }

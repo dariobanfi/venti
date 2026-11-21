@@ -106,6 +106,19 @@ usage: venti-server <command>
       identifier is never used again. Deletes nothing; revert-site brings
       it back.
 
+  grant-sites <HANDLE> [--config FILE]
+      Name an account as one of Venti's partners for flying sites: it
+      adds sites to the partners' layer, which every app shows, and
+      corrects sites of both layers. Nothing else about the account
+      changes.
+
+  withdraw-sites <HANDLE> [--config FILE]
+      Take that back. Every site and revision the account wrote stays.
+
+  site-partners [--config FILE]
+      List the accounts that are partners for flying sites, by handle,
+      with since when. Changes nothing.
+
   ingest <region.toml> [--source ID] [--archive DIR] [--json]
       Run a region's sources once against the live providers and print a
       health line for each. Stores nothing. Fails when a source delivers
@@ -141,8 +154,8 @@ pub enum Command {
     /// Make invite codes.
     Invite(invite::Args),
     /// Read the reports, or act on a flight, a live track, an account, a
-    /// group, a plan or a site that pilots made, as whoever runs the
-    /// server.
+    /// group, a plan or a site of Venti's own, or say who Venti's
+    /// partners for flying sites are, as whoever runs the server.
     Moderate(moderation::Args),
     /// Analyse the flight file on standard input.
     Derive,
@@ -163,9 +176,8 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         "invite" => parse_invite(args),
         "reports" | "close-report" | "take-down" | "release" | "remove-live-track"
         | "suspend-publishing" | "resume-publishing" | "group" | "rename-group" | "remove-plan"
-        | "remove-group" | "site" | "revert-site" | "remove-site" => {
-            parse_moderation(&command, args)
-        }
+        | "remove-group" | "site" | "revert-site" | "remove-site" | "grant-sites"
+        | "withdraw-sites" | "site-partners" => parse_moderation(&command, args),
         "derive" => match args.next() {
             None => Ok(Command::Derive),
             Some(other) => Err(format!("derive does not take {other:?}")),
@@ -313,7 +325,9 @@ fn parse_moderation(
             }
             "--comment" if about_a_site => comment = Some(value("--comment", &mut args)?),
             _ if arg.starts_with("--") => return Err(format!("{command} does not take {arg:?}")),
-            _ if command == "reports" => return Err(format!("reports does not take {arg:?}")),
+            _ if matches!(command, "reports" | "site-partners") => {
+                return Err(format!("{command} does not take {arg:?}"));
+            }
             _ if target.is_none() => target = Some(arg),
             _ => {
                 return Err(format!(
@@ -370,6 +384,13 @@ fn parse_moderation(
             site: target("a site's identifier")?,
             comment,
         },
+        "grant-sites" => Action::GrantSites {
+            handle: target("an account's handle")?,
+        },
+        "withdraw-sites" => Action::WithdrawSites {
+            handle: target("an account's handle")?,
+        },
+        "site-partners" => Action::SitePartners,
         other => return Err(format!("unknown command {other:?}")),
     };
     Ok(Command::Moderate(moderation::Args { config, action }))
@@ -738,6 +759,12 @@ mod tests {
             "remove-group",
             "remove-group a --all",
             "remove-member mara",
+            "grant-sites",
+            "grant-sites mara jonas",
+            "withdraw-sites",
+            "withdraw-sites mara --all",
+            "site-partners mara",
+            "site-partners --all",
         ] {
             assert!(parse_line(mistake).is_err(), "{mistake}");
         }
@@ -757,9 +784,25 @@ mod tests {
             "site <SITE>",
             "revert-site <SITE> --revision N [--comment TEXT]",
             "remove-site <SITE> [--comment TEXT]",
+            "grant-sites <HANDLE>",
+            "withdraw-sites <HANDLE>",
+            "site-partners [--config FILE]",
         ] {
             assert!(USAGE.contains(command), "{command}");
         }
+        assert_eq!(
+            action("grant-sites mara"),
+            Action::GrantSites {
+                handle: "mara".to_owned()
+            }
+        );
+        assert_eq!(
+            action("withdraw-sites @mara"),
+            Action::WithdrawSites {
+                handle: "@mara".to_owned()
+            }
+        );
+        assert_eq!(action("site-partners"), Action::SitePartners);
     }
 
     #[test]

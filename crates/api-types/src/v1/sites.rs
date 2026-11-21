@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use venti_domain::{
     BoundingBox, GeoPoint, Site, SiteFault, SiteId, SiteOutline, SiteUse, SourceId, Timestamp,
@@ -6,10 +7,38 @@ use venti_domain::{
 
 use super::{Attribution, Handle, text};
 
-/// The source of the sites that pilots make on Venti: the layer of the
-/// community's own sites, beside the layers of the sources Venti collects.
-/// Every such site's identifier is `venti:` and 26 characters.
+/// The source of the sites that Venti's partners add: the layer of
+/// Venti's own sites that is official in manner, beside the layers of the
+/// sources Venti collects. Only an account that whoever runs the server
+/// named as trusted writes to it. Every such site's identifier is
+/// `venti:` and 26 characters.
 pub const VENTI_SITES_SOURCE: &str = "venti";
+
+/// The source of the sites that any pilot adds: the crowdsourced layer,
+/// less official than the partners' and not in an answer unless it is
+/// asked for. Every such site's identifier is `venti-pilots:` and 26
+/// characters.
+pub const VENTI_PILOTS_SITES_SOURCE: &str = "venti-pilots";
+
+/// The word in the `layers` of a request for sites that stands for the
+/// layers an answer holds when the request names none: every source's and
+/// the partners'. `layers=default,venti-pilots` asks for those and the
+/// crowdsourced layer, without knowing a source's name.
+pub const DEFAULT_SITE_LAYERS: &str = "default";
+
+/// How many days back the day of a confirmation may lie: a pilot says "I
+/// took off here and it was good" of today or of a day of the last weeks,
+/// not of a season long gone (an estimate, the owner's to change).
+pub const CONFIRMATION_DAYS_BACK: i64 = 90;
+
+/// How far from a site the take-off of a flight may lie that is named
+/// with a confirmation of it, in metres. A site is one point, a take-off
+/// is a meadow, and where a flight is found to begin is some way down the
+/// slope (an estimate, the owner's to change).
+pub const CONFIRMATION_FLIGHT_WITHIN_M: f64 = 500.0;
+
+/// The most confirmations one answer lists: the newest.
+pub const MAX_SITE_CONFIRMATIONS: usize = 100;
 
 /// The licence every site of that layer is given under, by its name. The
 /// owner's decision of 2026-11-21 (the decision log in
@@ -109,6 +138,77 @@ pub struct SiteStanding {
     /// Who made that revision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changed_by: Option<SitePilot>,
+    /// How many pilots say they took off here and that it was good, and
+    /// when last. Left out while nobody has.
+    #[serde(default, skip_serializing_if = "SiteConfirmed::is_nobody")]
+    pub confirmed: SiteConfirmed,
+}
+
+/// How many pilots confirmed a site, and the newest day one of them
+/// speaks of: enough for "3 pilots took off here, last on 14 November".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct SiteConfirmed {
+    /// How many pilots have a confirmation of the site. Each pilot counts
+    /// once.
+    pub pilots: u32,
+    /// The newest day one of them speaks of.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_day: Option<NaiveDate>,
+}
+
+impl SiteConfirmed {
+    /// Whether nobody confirmed the site.
+    pub fn is_nobody(&self) -> bool {
+        self.pilots == 0
+    }
+}
+
+/// The body of `PUT /v1/sites/{id}/confirmation`: "I took off here and it
+/// was good."
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfirmSiteRequest {
+    /// The day the pilot speaks of: today, or a day of the last
+    /// [`CONFIRMATION_DAYS_BACK`].
+    pub day: NaiveDate,
+    /// What the pilot adds, in one line of at most
+    /// [`MAX_SITE_COMMENT_LENGTH`] characters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// One of the pilot's own flights that took off there, by its
+    /// address. The server checks that it is theirs and that its take-off
+    /// lies within [`CONFIRMATION_FLIGHT_WITHIN_M`] of the site, and keeps
+    /// that it did, not the address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flight: Option<String>,
+}
+
+/// One pilot's confirmation of a site.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SiteConfirmation {
+    /// Who says so.
+    pub by: SitePilot,
+    /// The day they speak of.
+    pub day: NaiveDate,
+    /// What they add.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// Whether the server found a flight of theirs that took off at the
+    /// site. Which flight is not said.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub with_flight: bool,
+}
+
+/// The answer of `GET /v1/sites/{id}/confirmations`: who says they took
+/// off at a site, the newest day first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SiteConfirmationsResponse {
+    /// The site.
+    pub id: SiteId,
+    /// How many pilots confirmed it, and when last.
+    pub confirmed: SiteConfirmed,
+    /// The confirmations, the newest day first and then by handle: at
+    /// most [`MAX_SITE_CONFIRMATIONS`].
+    pub confirmations: Vec<SiteConfirmation>,
 }
 
 /// The answer of `GET /v1/sites/{id}`, and of every request that writes a

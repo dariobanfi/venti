@@ -1138,6 +1138,17 @@ pub fn sites_path(south: f64, west: f64, north: f64, east: f64) -> Result<String
     venti_core::sites_path(south, west, north, east).map_err(thrown)
 }
 
+/// The path and query to `GET` for the flying sites of a box.
+#[wasm_bindgen(js_name = sitesPathWithPilots)]
+pub fn sites_path_with_pilots(
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+) -> Result<String, JsValue> {
+    venti_core::sites_path_with_pilots(south, west, north, east).map_err(thrown)
+}
+
 /// Reads the server's answer to `sitesPath` for the same box.
 #[wasm_bindgen(js_name = sitesMap)]
 pub fn sites_map(

@@ -280,6 +280,7 @@ mod tests {
             display_name: "Dario B.".to_owned(),
             created_at: now,
             publishing_suspended_at: None,
+            edits_sites_since: None,
         };
         let new = NewAccount {
             account: account.clone(),
@@ -356,6 +357,7 @@ mod tests {
             display_name: handle.to_owned(),
             created_at: noon(2026, 1, 1),
             publishing_suspended_at: None,
+            edits_sites_since: None,
         };
         for handle in ["dario", "anna"] {
             let new = NewAccount {
@@ -430,6 +432,7 @@ mod tests {
             display_name: "Dario B.".to_owned(),
             created_at: now,
             publishing_suspended_at: None,
+            edits_sites_since: None,
         };
         let new = NewAccount {
             account: account.clone(),

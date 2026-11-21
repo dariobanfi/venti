@@ -29,19 +29,23 @@
     },
     "changed_at": "2026-10-31T19:05:00Z",
     "changed_by": {
-      "handle": "mara",
-      "display_name": "Mara Muster"
+      "handle": "demo",
+      "display_name": "Demo Pilot"
+    },
+    "confirmed": {
+      "pilots": 2,
+      "latest_day": "2026-11-16"
     }
   },
   "lasting": true,
   "attributions": [
     {
       "source": "venti",
-      "provider": "Venti contributors",
+      "provider": "Venti partners",
       "licence": "CC0 1.0",
-      "text": "Venti contributors",
+      "text": "Venti partners",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notice": "Added by pilots and not verified. A site on the map is not permission to fly there."
+      "notice": "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
     }
   ]
 }

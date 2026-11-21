@@ -60,9 +60,11 @@ impl Accounts {
         self.handles
             .insert(new.account.handle.clone(), new.account.id.clone());
         let entry = Entry {
-            // Nobody is suspended before they exist.
+            // Nobody is suspended before they exist, and nobody trusted
+            // with the sites.
             account: Account {
                 publishing_suspended_at: None,
+                edits_sites_since: None,
                 ..new.account.clone()
             },
             password_hash: new.password_hash.clone(),
@@ -192,6 +194,34 @@ impl Accounts {
     pub(super) fn resume(&mut self, account_id: &str) -> Option<bool> {
         let entry = self.accounts.get_mut(account_id)?;
         Some(entry.account.publishing_suspended_at.take().is_some())
+    }
+
+    /// Marks an account as trusted with the sites since `now`, or leaves
+    /// the mark it has, and returns the moment it then carries. `None` for
+    /// an account that is not there.
+    pub(super) fn let_edit_sites(&mut self, account_id: &str, now: Timestamp) -> Option<Timestamp> {
+        let entry = self.accounts.get_mut(account_id)?;
+        Some(*entry.account.edits_sites_since.get_or_insert(now))
+    }
+
+    /// Takes the mark off, and says whether there was one. `None` for an
+    /// account that is not there.
+    pub(super) fn stop_editing_sites(&mut self, account_id: &str) -> Option<bool> {
+        let entry = self.accounts.get_mut(account_id)?;
+        Some(entry.account.edits_sites_since.take().is_some())
+    }
+
+    /// The accounts that are trusted with the sites, by handle.
+    pub(super) fn site_editors(&self) -> Vec<Account> {
+        let mut editors: Vec<Account> = self
+            .accounts
+            .values()
+            .map(|entry| &entry.account)
+            .filter(|account| account.edits_sites_since.is_some())
+            .cloned()
+            .collect();
+        editors.sort_by(|a, b| a.handle.cmp(&b.handle));
+        editors
     }
 
     /// The latest change number of an account's flights.

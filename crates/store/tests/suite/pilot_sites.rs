@@ -6,14 +6,15 @@
 
 use chrono::{TimeZone, Utc};
 use venti_domain::{
-    BoundingBox, GeoPoint, Site, SiteId, SiteOutline, SiteUse, Timestamp, WindSector,
+    BoundingBox, GeoPoint, Site, SiteId, SiteOutline, SiteUse, SourceId, Timestamp, WindSector,
 };
 use venti_store::{
-    Account, NewPilotSite, PilotSite, PilotSiteChanges, RevisionKind, SiteAct, SiteDelivery,
-    SitePilot, SiteRevising, SiteRevision, SiteVia, SiteWrite, Store, StoreError,
+    Account, NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, Session,
+    SiteAct, SiteConfirmed, SiteConfirming, SiteDelivery, SitePilot, SiteRevising, SiteRevision,
+    SiteVia, SiteWrite, Store, StoreError,
 };
 
-use super::accounts::{create, id};
+use super::accounts::{create, id, secret};
 use super::{alps, at, everything, run};
 
 // --- Helpers -------------------------------------------------------------
@@ -21,6 +22,11 @@ use super::{alps, at, everything, run};
 /// How near standing sites may not be to each other in these tests, in
 /// metres. A ten-thousandth of a degree of latitude is about 11 m.
 const APART_M: f64 = 20.0;
+
+/// The layer these tests write to unless they say otherwise.
+fn layer() -> SourceId {
+    SourceId::new("venti").unwrap()
+}
 
 fn site_id(name: &str) -> SiteId {
     format!("venti:{}", id(name)).parse().unwrap()
@@ -145,7 +151,7 @@ fn short(id: &SiteId) -> String {
 
 /// The standing sites in a box, by the ends of their identifiers.
 async fn standing_in(store: &impl Store, area: &BoundingBox) -> Vec<String> {
-    let sites = store.pilot_sites_in(area, 1000).await.unwrap();
+    let sites = store.pilot_sites_in(&layer(), area, 1000).await.unwrap();
     sites.iter().map(|site| short(&site.site.id)).collect()
 }
 
@@ -153,7 +159,10 @@ async fn standing_in(store: &impl Store, area: &BoundingBox) -> Vec<String> {
 /// whether each site stands, whether more is waiting, and the latest
 /// number.
 async fn changes(store: &impl Store, since: i64, limit: usize) -> (Vec<(String, bool)>, bool, i64) {
-    let page = store.pilot_site_changes(since, limit).await.unwrap();
+    let page = store
+        .pilot_site_changes(&layer(), since, limit)
+        .await
+        .unwrap();
     let sites = page
         .sites
         .iter()
@@ -226,12 +235,13 @@ pub(crate) async fn a_site_a_pilot_made_is_read_back_with_its_author_and_times(s
         removed_at: None,
         taken_down: false,
         change: 1,
+        confirmed: SiteConfirmed::default(),
     };
     assert_eq!(added, SiteWrite::Written(Box::new(expected.clone())));
     assert_eq!(read(store, "a").await, expected);
     assert!(expected.stands());
     assert_eq!(
-        store.pilot_sites_in(&alps(), 10).await.unwrap(),
+        store.pilot_sites_in(&layer(), &alps(), 10).await.unwrap(),
         std::slice::from_ref(&expected)
     );
     assert_eq!(
@@ -301,6 +311,7 @@ pub(crate) async fn a_change_to_a_site_is_a_new_revision_and_the_old_ones_stay(s
         removed_at: None,
         taken_down: false,
         change: 2,
+        confirmed: SiteConfirmed::default(),
     };
     assert_eq!(changed, expected);
     assert_eq!(read(store, "a").await, expected);
@@ -433,6 +444,7 @@ pub(crate) async fn a_removed_site_keeps_its_address_and_can_be_restored(store: 
             removed_at: Some(at(11, 0)),
             taken_down: false,
             change: 3,
+            confirmed: SiteConfirmed::default(),
         }
     );
     assert!(!removed.stands());
@@ -596,7 +608,14 @@ pub(crate) async fn standing_sites_keep_their_distance_from_each_other(store: &i
     assert_eq!(standing_in(store, &everything()).await, ["c", "e"]);
     // What was refused took no change number: n and its removal, c and
     // its change, a's removal, e.
-    assert_eq!(store.pilot_site_changes(0, 100).await.unwrap().latest, 7);
+    assert_eq!(
+        store
+            .pilot_site_changes(&layer(), 0, 100)
+            .await
+            .unwrap()
+            .latest,
+        7
+    );
 }
 
 pub(crate) async fn adds_racing_for_one_place_put_one_site_there(store: &impl Store) {
@@ -623,7 +642,7 @@ pub(crate) async fn adds_racing_for_one_place_put_one_site_there(store: &impl St
     assert_eq!((sites.len(), more, latest), (8, false, 8));
     assert_eq!(
         store
-            .pilot_sites_in(&everything(), 100)
+            .pilot_sites_in(&layer(), &everything(), 100)
             .await
             .unwrap()
             .len(),
@@ -688,7 +707,7 @@ pub(crate) async fn what_changed_among_the_sites_is_listed_once_per_site(store: 
     let now = [("c", true), ("a", true), ("b", false)];
     assert_eq!(changes(store, 0, 10).await, (names(&now), false, 5));
     let numbers: Vec<i64> = store
-        .pilot_site_changes(0, 10)
+        .pilot_site_changes(&layer(), 0, 10)
         .await
         .unwrap()
         .sites
@@ -766,7 +785,14 @@ pub(crate) async fn the_identifier_of_a_site_is_never_used_again(store: &impl St
     assert_eq!(store.pilot_site(&odd).await.unwrap(), None);
     assert_eq!(store.pilot_site_revisions(&odd, 0, 10).await.unwrap(), None);
     assert_eq!(store.set_site(&odd).await.unwrap(), None);
-    assert_eq!(store.pilot_site_changes(0, 10).await.unwrap().latest, 3);
+    assert_eq!(
+        store
+            .pilot_site_changes(&layer(), 0, 10)
+            .await
+            .unwrap()
+            .latest,
+        3
+    );
 }
 
 pub(crate) async fn a_deleted_account_leaves_its_sites_without_an_author(store: &impl Store) {
@@ -784,7 +810,7 @@ pub(crate) async fn a_deleted_account_leaves_its_sites_without_an_author(store: 
     add(store, record("b", 47.1, 11.0), &anna, at(12, 10)).await;
     add(store, record("c", 47.2, 11.0), &bernd, at(12, 20)).await;
     written(store, &by(&anna, "c", at(12, 30), REMOVE)).await;
-    let before = store.pilot_site_changes(0, 10).await.unwrap();
+    let before = store.pilot_site_changes(&layer(), 0, 10).await.unwrap();
 
     store.delete_account(&anna.id).await.unwrap();
 
@@ -821,7 +847,7 @@ pub(crate) async fn a_deleted_account_leaves_its_sites_without_an_author(store: 
     );
     assert_eq!(standing_in(store, &everything()).await, ["a", "b"]);
     // Nothing about the sites changed: no change number was taken.
-    let after = store.pilot_site_changes(0, 10).await.unwrap();
+    let after = store.pilot_site_changes(&layer(), 0, 10).await.unwrap();
     assert_eq!(after.latest, before.latest);
     let numbers = |page: &PilotSiteChanges| -> Vec<(SiteId, i64)> {
         page.sites
@@ -852,7 +878,7 @@ pub(crate) async fn sites_of_pilots_are_found_by_box_apart_from_a_sources(store:
     let tegernsee = BoundingBox::new(46.9, 10.9, 47.1, 11.1).unwrap();
     assert_eq!(standing_in(store, &tegernsee).await, ["b"]);
     // The limit keeps the first by identifier.
-    let first: Vec<_> = store.pilot_sites_in(&alps(), 2).await.unwrap();
+    let first: Vec<_> = store.pilot_sites_in(&layer(), &alps(), 2).await.unwrap();
     assert_eq!(
         first
             .iter()
@@ -860,7 +886,10 @@ pub(crate) async fn sites_of_pilots_are_found_by_box_apart_from_a_sources(store:
             .collect::<Vec<_>>(),
         ["a", "b"]
     );
-    assert_eq!(store.pilot_sites_in(&alps(), 0).await.unwrap(), []);
+    assert_eq!(
+        store.pilot_sites_in(&layer(), &alps(), 0).await.unwrap(),
+        []
+    );
 
     // A source's set is another matter: its sites are in no answer about
     // the pilots', and the pilots' are in none about a source's.
@@ -940,4 +969,309 @@ pub(crate) async fn a_revision_through_a_token_keeps_the_tokens_name(store: &imp
         .map(|revision| revision.via)
         .collect();
     assert_eq!(via, [logger, SiteVia::Session, vario]);
+}
+
+// --- Who is trusted with the sites ---------------------------------------
+
+pub(crate) async fn an_account_is_trusted_with_the_sites_until_it_is_not(store: &impl Store) {
+    let mara = create(store, "mara").await;
+    let anna = create(store, "anna").await;
+    let dario = create(store, "dario").await;
+    // Nobody is, until whoever runs the server names one.
+    assert_eq!(mara.edits_sites_since, None);
+    assert_eq!(store.site_editors().await.unwrap(), []);
+
+    let since = store.let_edit_sites(&mara.id, at(10, 0)).await.unwrap();
+    assert_eq!(since, Some(at(10, 0)));
+    // Named again, the account keeps the moment of the first time.
+    let again = store.let_edit_sites(&mara.id, at(11, 0)).await.unwrap();
+    assert_eq!(again, Some(at(10, 0)));
+    let anna_since = store.let_edit_sites(&anna.id, at(12, 0)).await.unwrap();
+    assert_eq!(anna_since, Some(at(12, 0)));
+
+    // The account says so wherever it is read, and is otherwise as it was.
+    let trusted = Account {
+        edits_sites_since: Some(at(10, 0)),
+        ..mara.clone()
+    };
+    assert_eq!(store.account("mara").await.unwrap(), Some(trusted.clone()));
+    let (with_hash, _) = store.password_hash("mara").await.unwrap().unwrap();
+    assert_eq!(with_hash, trusted);
+    let session = Session {
+        id: id("phone"),
+        account_id: mara.id.clone(),
+        device: None,
+        created_at: at(12, 0),
+        last_used_at: at(12, 0),
+    };
+    store
+        .create_session(&session, &secret(7), 100)
+        .await
+        .unwrap();
+    let long_ago = at(0, 0) - chrono::Duration::days(1);
+    let (_, signed_in) = store
+        .use_session(&secret(7), at(12, 1), long_ago)
+        .await
+        .unwrap()
+        .expect("the session");
+    assert_eq!(signed_in, trusted);
+    assert_eq!(store.account("dario").await.unwrap(), Some(dario.clone()));
+
+    // Who holds it, by handle.
+    let editors = store.site_editors().await.unwrap();
+    let handles: Vec<&str> = editors.iter().map(|a| a.handle.as_str()).collect();
+    assert_eq!(handles, ["anna", "mara"]);
+    assert_eq!(editors[1], trusted);
+
+    // What the account wrote stays when the trust is withdrawn.
+    let site = add(store, record("a", 47.60, 11.80), &trusted, at(13, 0)).await;
+    assert_eq!(
+        store.stop_editing_sites(&mara.id).await.unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        store.stop_editing_sites(&mara.id).await.unwrap(),
+        Some(false)
+    );
+    assert_eq!(store.account("mara").await.unwrap(), Some(mara.clone()));
+    let editors = store.site_editors().await.unwrap();
+    assert_eq!(editors.len(), 1);
+    assert_eq!(editors[0].handle, "anna");
+    let still = read(store, "a").await;
+    assert_eq!(still, site);
+    assert_eq!(still.created_by, pilot(&mara));
+    assert_eq!(history(store, "a").await.len(), 1);
+
+    // An account that is not there is neither.
+    let nobody = id("nobody");
+    assert_eq!(
+        store.let_edit_sites(&nobody, at(14, 0)).await.unwrap(),
+        None
+    );
+    assert_eq!(store.stop_editing_sites(&nobody).await.unwrap(), None);
+}
+
+// --- The two layers --------------------------------------------------------
+
+/// The layer any pilot writes to.
+fn pilots_layer() -> SourceId {
+    SourceId::new("venti-pilots").unwrap()
+}
+
+/// A take-off of the pilots' layer, under an identifier that ends in `name`.
+fn pilots_record(name: &str, lat: f64, lon: f64) -> Site {
+    Site {
+        id: format!("venti-pilots:{}", id(name)).parse().unwrap(),
+        ..record(name, lat, lon)
+    }
+}
+
+pub(crate) async fn the_two_layers_of_sites_are_kept_and_read_apart(store: &impl Store) {
+    let partner = create(store, "partner").await;
+    let anna = create(store, "anna").await;
+    // A partner's site, and a pilot's far from it.
+    let official = add(store, record("a", 47.60, 11.80), &partner, at(10, 0)).await;
+    let crowd = add(store, pilots_record("b", 47.70, 11.90), &anna, at(10, 1)).await;
+
+    // A pilot's site gives way to a partner's that stands there, and to
+    // another pilot's.
+    for (name, lat, lon, other) in [
+        ("c", 47.6001, 11.80, &official),
+        ("d", 47.7001, 11.90, &crowd),
+    ] {
+        let new = new_site(pilots_record(name, lat, lon), &anna, at(10, 2));
+        assert_eq!(
+            store.add_pilot_site(&new, APART_M).await.unwrap(),
+            SiteWrite::TooClose(other.site.id.clone())
+        );
+    }
+    // A partner's site gives way to a partner's only: one is put where a
+    // pilot's stands, and both stand.
+    let new = new_site(record("e", 47.6001, 11.80), &partner, at(10, 3));
+    assert_eq!(
+        store.add_pilot_site(&new, APART_M).await.unwrap(),
+        SiteWrite::TooClose(official.site.id.clone())
+    );
+    let beside = add(store, record("f", 47.7001, 11.90), &partner, at(10, 4)).await;
+
+    // Each layer is read by itself, in a box and in what changed.
+    let in_box = |layer: SourceId| async move {
+        let sites = store.pilot_sites_in(&layer, &alps(), 100).await.unwrap();
+        sites
+            .iter()
+            .map(|site| short(&site.site.id))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(in_box(layer()).await, ["a", "f"]);
+    assert_eq!(in_box(pilots_layer()).await, ["b"]);
+    let theirs = store.pilot_site_changes(&pilots_layer(), 0, 10).await;
+    let theirs = theirs.unwrap();
+    assert_eq!(theirs.sites, std::slice::from_ref(&crowd));
+    assert!(!theirs.more);
+    // The layers share one count of changes.
+    assert_eq!(theirs.latest, 3);
+    let ours = store.pilot_site_changes(&layer(), 1, 10).await.unwrap();
+    assert_eq!(ours.sites, [beside]);
+    // A site is found by its identifier whichever layer it is of.
+    assert_eq!(store.pilot_site(&crowd.site.id).await.unwrap(), Some(crowd));
+}
+
+// --- What pilots confirm of a site -----------------------------------------
+
+fn day(day: u32) -> chrono::NaiveDate {
+    chrono::NaiveDate::from_ymd_opt(2026, 11, day).unwrap()
+}
+
+fn confirming(name: &str, account: &Account, on: u32, at: Timestamp) -> NewSiteConfirmation {
+    NewSiteConfirmation {
+        site: site_id(name),
+        account_id: account.id.clone(),
+        day: day(on),
+        note: None,
+        with_flight: false,
+        at,
+    }
+}
+
+async fn confirm(store: &impl Store, new: &NewSiteConfirmation) -> PilotSite {
+    match store.confirm_pilot_site(new).await.unwrap() {
+        SiteConfirming::Confirmed(site) => *site,
+        other => panic!("the confirmation was not kept: {other:?}"),
+    }
+}
+
+pub(crate) async fn a_pilot_confirms_a_site_once_and_takes_it_back(store: &impl Store) {
+    let anna = create(store, "anna").await;
+    let bernd = create(store, "bernd").await;
+    let site = add(store, record("a", 47.60, 11.80), &anna, at(10, 0)).await;
+    assert_eq!(site.confirmed, SiteConfirmed::default());
+
+    // Two pilots say so. The site takes a change number each time and no
+    // revision: what it says is as it was.
+    let noted = NewSiteConfirmation {
+        note: Some("North-west, launched at noon".to_owned()),
+        with_flight: true,
+        ..confirming("a", &bernd, 14, at(11, 0))
+    };
+    let after = confirm(store, &noted).await;
+    assert_eq!(after.confirmed.pilots, 1);
+    assert_eq!(after.confirmed.latest_day, Some(day(14)));
+    assert_eq!((after.revision, after.change), (1, 2));
+    assert_eq!(after.changed_at, site.changed_at);
+    let after = confirm(store, &confirming("a", &anna, 10, at(11, 5))).await;
+    assert_eq!(after.confirmed.pilots, 2);
+    assert_eq!(after.confirmed.latest_day, Some(day(14)));
+    assert_eq!(read(store, "a").await, after);
+    assert_eq!(history(store, "a").await.len(), 1);
+
+    // Who said what: the newest day first.
+    let (read_site, list) = store
+        .site_confirmations(&site_id("a"), 10)
+        .await
+        .unwrap()
+        .expect("the site");
+    assert_eq!(read_site, after);
+    let said: Vec<_> = list
+        .iter()
+        .map(|c| {
+            (
+                c.pilot.handle.as_str(),
+                c.day,
+                c.note.as_deref(),
+                c.with_flight,
+            )
+        })
+        .collect();
+    assert_eq!(
+        said,
+        [
+            ("bernd", day(14), Some("North-west, launched at noon"), true),
+            ("anna", day(10), None, false),
+        ]
+    );
+    assert_eq!(list[0].at, at(11, 0));
+    let (_, first) = store
+        .site_confirmations(&site_id("a"), 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.len(), 1);
+
+    // Saying it again moves the day and is still one confirmation.
+    let again = confirm(store, &confirming("a", &anna, 16, at(12, 0))).await;
+    assert_eq!(again.confirmed.pilots, 2);
+    assert_eq!(again.confirmed.latest_day, Some(day(16)));
+    assert_eq!(again.change, 4);
+    // Whoever follows the changes reads the site again, as it is now.
+    let (changed, more, latest) = changes(store, 3, 10).await;
+    assert_eq!((changed, more, latest), (names(&[("a", true)]), false, 4));
+
+    // A pilot takes their own back, once.
+    let withdrawn = store
+        .withdraw_site_confirmation(&site_id("a"), &anna.id)
+        .await;
+    let (now, was) = withdrawn.unwrap().expect("the site");
+    assert!(was);
+    assert_eq!(now.confirmed.pilots, 1);
+    assert_eq!(now.confirmed.latest_day, Some(day(14)));
+    assert_eq!(now.change, 5);
+    let withdrawn = store
+        .withdraw_site_confirmation(&site_id("a"), &anna.id)
+        .await;
+    let (now, was) = withdrawn.unwrap().expect("the site");
+    assert!(!was);
+    assert_eq!(now.change, 5);
+
+    // No site, no account, and a site that is removed take none.
+    let nowhere = confirming("zz", &anna, 14, at(13, 0));
+    assert_eq!(
+        store.confirm_pilot_site(&nowhere).await.unwrap(),
+        SiteConfirming::NoSuchSite
+    );
+    assert_eq!(
+        store.site_confirmations(&site_id("zz"), 10).await.unwrap(),
+        None
+    );
+    let withdrawn = store
+        .withdraw_site_confirmation(&site_id("zz"), &anna.id)
+        .await;
+    assert_eq!(withdrawn.unwrap(), None);
+    let nobody = Account {
+        id: id("nobody"),
+        ..anna.clone()
+    };
+    assert_eq!(
+        store
+            .confirm_pilot_site(&confirming("a", &nobody, 14, at(13, 0)))
+            .await
+            .unwrap(),
+        SiteConfirming::NoSuchAccount
+    );
+    add(store, record("b", 47.70, 11.90), &anna, at(13, 1)).await;
+    written(
+        store,
+        &by(&anna, "b", at(13, 2), SiteAct::Remove { take_down: false }),
+    )
+    .await;
+    assert_eq!(
+        store
+            .confirm_pilot_site(&confirming("b", &bernd, 14, at(13, 3)))
+            .await
+            .unwrap(),
+        SiteConfirming::Removed
+    );
+
+    // A confirmation goes with its account; the site it made stays.
+    confirm(store, &confirming("a", &anna, 16, at(14, 0))).await;
+    store.delete_account(&bernd.id).await.unwrap();
+    store.delete_account(&anna.id).await.unwrap();
+    let (left, list) = store
+        .site_confirmations(&site_id("a"), 10)
+        .await
+        .unwrap()
+        .expect("the site");
+    assert_eq!(list, []);
+    assert_eq!(left.confirmed, SiteConfirmed::default());
+    assert!(left.stands());
+    assert_eq!(left.created_by, None);
 }

@@ -1,24 +1,29 @@
-//! Flying sites: the layers inside a box, one site by its address, and
-//! the sites that pilots make.
+//! Flying sites: the layers inside a box, one site by its address, the
+//! sites that Venti holds itself, and what pilots confirm of them.
 //!
 //! **Two kinds of layer, never merged.** A source's sites are its whole
-//! set, replaced with every run. The community's own sites are the layer
-//! [`pilot_sites::SOURCE`]: records with an author, a history and an
-//! identifier of the server's making, under the licence that
-//! [`pilot_sites::LICENCE`] names. Every answer says in its `attributions`
-//! under which licence its records are given.
+//! set, replaced with every run. Venti's own sites are two layers
+//! ([`Layer`]): the partners' (`venti`) and the crowdsourced one
+//! (`venti-pilots`), records with an author, a history and an identifier
+//! of the server's making, under the licence that [`Layer::licence`]
+//! names. Every answer says in its `attributions` under which licence its
+//! records are given. The crowdsourced layer is in an answer only when
+//! the request names it (`layers=`).
 //!
 //! **Reading is open to anyone**, by box, by identifier, a site's
-//! history, and what changed since.
+//! history, what changed since, and who confirmed a site.
 //!
 //! **Writing takes an account**: a session, or a token that has the scope
 //! `sites:write`, which every handler that writes says in its signature
 //! ([`May`]`<`[`WriteSites`]`>`). A revision keeps through which of the
-//! two it came in. Whether this server takes sites at all, who may write, and how
-//! much, is [`crate::pilot_sites`]'s to say; [`PilotSites::writer`] asks
-//! it for every write, in one place. Every write is a revision: nothing
-//! here overwrites or deletes, and no handler can take a site down, which
-//! only whoever runs the server does ([`crate::moderation`]).
+//! two it came in. Who may write to which layer, whether this server
+//! takes anything from pilots, and how much, is [`crate::pilot_sites`]'s
+//! to say; [`PilotSites::writer`] and [`PilotSites::confirmer`] ask it for
+//! every write, in one place. Every write of a site is a revision:
+//! nothing here overwrites or deletes, and no handler can take a site
+//! down, which only whoever runs the server does ([`crate::moderation`]).
+//! A confirmation is no revision: it is a pilot's word about a site, kept
+//! beside it.
 
 use std::sync::Arc;
 
@@ -28,21 +33,30 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use venti_api_types::v1::{
-    AddSiteRequest, ChangeSiteRequest, ErrorCode, ErrorSite, Handle, MAX_SITES, RemoveSiteRequest,
-    RestoreSiteRequest, SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
-    SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
-    parse_bbox, parse_site_comment,
+    AddSiteRequest, CONFIRMATION_DAYS_BACK, CONFIRMATION_FLIGHT_WITHIN_M, ChangeSiteRequest,
+    ConfirmSiteRequest, ErrorCode, ErrorSite, Handle, MAX_SITE_COMMENT_LENGTH,
+    MAX_SITE_CONFIRMATIONS, MAX_SITES, RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse,
+    SiteConfirmation, SiteConfirmationsResponse, SiteConfirmed, SiteDraft, SiteHistoryResponse,
+    SiteLayer, SitePilot, SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding,
+    SiteVia, SitesResponse, parse_bbox, parse_site_comment,
 };
 use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 use venti_sources::Kind;
-use venti_store::{NewPilotSite, PilotSite, RevisionKind, SiteAct, SiteRevising, SiteWrite, Store};
+use venti_store::{
+    NewPilotSite, NewSiteConfirmation, PilotSite, RevisionKind, SiteAct, SiteConfirming,
+    SiteRevising, SiteWrite, Store,
+};
 
 use super::auth::{May, Signed, WriteSites};
 use super::error::ApiError;
 use super::{Api, body, cache};
 use crate::accounts::secret;
 use crate::accounts::throttle::{Counted, Throttle};
-use crate::pilot_sites::{self, APART_M, Settings};
+use crate::pilot_sites::{self, APART_M, Layer, Refused, Settings};
+
+/// The word in `layers` that stands for the layers an answer holds when
+/// the request names none.
+const DEFAULT_LAYERS: &str = venti_api_types::v1::DEFAULT_SITE_LAYERS;
 
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=11.6,47.55,12.0,47.85";
@@ -50,10 +64,13 @@ const BBOX_HELP: &str =
 #[derive(Debug, Deserialize)]
 pub(crate) struct Params {
     bbox: Option<String>,
+    layers: Option<String>,
 }
 
-/// `GET /v1/sites?bbox=west,south,east,north`: the flying sites inside a
-/// box, one layer per source the server holds sites of.
+/// `GET /v1/sites?bbox=west,south,east,north[&layers=a,b]`: the flying
+/// sites inside a box, one layer per source the server holds sites of.
+/// Without `layers` the answer holds every layer but the crowdsourced
+/// one; with it, the layers named and no other.
 pub(crate) async fn sites<S: Store>(
     State(api): State<Arc<Api<S>>>,
     headers: HeaderMap,
@@ -69,7 +86,7 @@ pub(crate) async fn sites<S: Store>(
         ApiError::bad_request(ErrorCode::InvalidBbox, format!("{error}; {BBOX_HELP}"))
     })?;
 
-    let answer = api.sites_in(&area).await?;
+    let answer = api.sites_in(&area, params.layers.as_deref()).await?;
     Ok(cache::slow_json(&headers, &answer))
 }
 
@@ -81,22 +98,89 @@ impl<S: Store> Api<S> {
     /// is and where it is whole. Only sources this server is configured to
     /// serve sites of are asked for. A box that holds more than one answer
     /// carries is refused whole: see [`MAX_SITES`].
-    pub(crate) async fn sites_in(&self, area: &BoundingBox) -> Result<SitesResponse, ApiError> {
-        let sources: Vec<SourceId> = self
+    ///
+    /// `layers` is the request's list of the layers it wants, by name and
+    /// separated by commas. Without it the answer holds every source's
+    /// layer and the partners': what a client from before the
+    /// crowdsourced layer expects. A name of no layer of this server is
+    /// refused, and the refusal lists the names there are.
+    pub(crate) async fn sites_in(
+        &self,
+        area: &BoundingBox,
+        layers: Option<&str>,
+    ) -> Result<SitesResponse, ApiError> {
+        let served: Vec<SourceId> = self
             .sources
             .iter()
             .filter(|(_, served)| served.kinds.contains(&Kind::Sites))
             .map(|(source, _)| source.clone())
             .collect();
+        let (sources, own): (Vec<SourceId>, Vec<Layer>) = match layers {
+            None => (
+                served,
+                Layer::ALL
+                    .into_iter()
+                    .filter(|layer| layer.by_default())
+                    .collect(),
+            ),
+            Some(list) => {
+                let mut sources = Vec::new();
+                let mut own = Vec::new();
+                for name in list.split(',').map(str::trim) {
+                    if name == DEFAULT_LAYERS {
+                        // What a request that names none gets, for one
+                        // that wants the crowdsourced layer as well and
+                        // does not know the sources' names.
+                        for source in &served {
+                            if !sources.contains(source) {
+                                sources.push(source.clone());
+                            }
+                        }
+                        for layer in Layer::ALL.into_iter().filter(|l| l.by_default()) {
+                            if !own.contains(&layer) {
+                                own.push(layer);
+                            }
+                        }
+                    } else if let Some(layer) = Layer::named(name) {
+                        if !own.contains(&layer) {
+                            own.push(layer);
+                        }
+                    } else if let Some(source) = served.iter().find(|s| s.as_str() == name) {
+                        if !sources.contains(source) {
+                            sources.push(source.clone());
+                        }
+                    } else {
+                        let mut there: Vec<&str> = served.iter().map(SourceId::as_str).collect();
+                        there.extend(Layer::ALL.map(Layer::name));
+                        there.sort_unstable();
+                        return Err(ApiError::bad_request(
+                            ErrorCode::InvalidLayers,
+                            format!(
+                                "layers names the layers of sites wanted, separated by commas; \
+                                 this server has {}, and `{DEFAULT_LAYERS}` stands for those \
+                                 an answer holds without it",
+                                there.join(", ")
+                            ),
+                        ));
+                    }
+                }
+                (sources, own)
+            }
+        };
         // One more than an answer carries, to know whether the box holds more.
         let found = self.store.sites_in(&sources, area, MAX_SITES + 1).await?;
-        let count: usize = found.iter().map(|layer| layer.sites.len()).sum();
-        // The sites that pilots made count towards the same bound.
-        let made = self
-            .store
-            .pilot_sites_in(area, (MAX_SITES + 1).saturating_sub(count))
-            .await?;
-        let count = count + made.len();
+        let mut count: usize = found.iter().map(|layer| layer.sites.len()).sum();
+        // The sites that Venti holds itself count towards the same bound.
+        let mut made = Vec::new();
+        for layer in own {
+            let room = (MAX_SITES + 1).saturating_sub(count);
+            let sites = self
+                .store
+                .pilot_sites_in(&layer.source(), area, room)
+                .await?;
+            count += sites.len();
+            made.push((layer, sites));
+        }
         if count > MAX_SITES {
             return Err(ApiError::bad_request(
                 ErrorCode::BoxTooLarge,
@@ -119,24 +203,27 @@ impl<S: Store> Api<S> {
             })
             .collect();
         let mut attributions = self.attributions(layers.iter().map(|layer| &layer.source));
-        // The community's own layer, when it has a site in the box. It is
+        // A layer of Venti's own, when it has a site in the box. It is
         // read at this moment, so that is its date. It names no box in
-        // which it is whole: it holds what pilots added and is whole
+        // which it is whole: it holds what was added and is whole
         // nowhere.
-        if !made.is_empty() {
-            let now = self.clock.now();
+        let now = self.clock.now();
+        for (layer, sites) in made {
+            if sites.is_empty() {
+                continue;
+            }
             layers.push(SiteLayer {
-                source: pilot_sites::source(),
+                source: layer.source(),
                 fetched_at: now,
                 as_of: now,
                 covers: Vec::new(),
-                standing: made.iter().map(standing).collect::<Result<_, _>>()?,
-                sites: made.into_iter().map(|site| site.site).collect(),
+                standing: sites.iter().map(standing).collect::<Result<_, _>>()?,
+                sites: sites.into_iter().map(|site| site.site).collect(),
             });
-            attributions.push(pilot_sites::attribution());
-            layers.sort_by(|a, b| a.source.cmp(&b.source));
-            attributions.sort_by(|a, b| a.source.cmp(&b.source));
+            attributions.push(layer.attribution());
         }
+        layers.sort_by(|a, b| a.source.cmp(&b.source));
+        attributions.sort_by(|a, b| a.source.cmp(&b.source));
         Ok(SitesResponse {
             layers,
             attributions,
@@ -159,11 +246,11 @@ impl<S: Store> Api<S> {
         revision: Option<u32>,
     ) -> Result<(SiteId, u32), ApiError> {
         let id: SiteId = id.parse().map_err(|_| no_such_site())?;
-        if id.source().as_str() != pilot_sites::SOURCE {
+        if Layer::of(&id).is_none() {
             return Err(ApiError::bad_request(
                 ErrorCode::InvalidReport,
                 "a site of a source is its source's record and is corrected there; only a \
-                 site that pilots made on this server is reported here",
+                 site that a partner or a pilot added on this server is reported here",
             ));
         }
         if !is_made_here(&id) {
@@ -193,6 +280,8 @@ pub(crate) struct PilotSites {
     added: Throttle,
     /// Revisions written, by account.
     revised: Throttle,
+    /// Confirmations given and taken back, by account.
+    confirmed: Throttle,
 }
 
 /// Which count a write takes from.
@@ -200,6 +289,27 @@ pub(crate) struct PilotSites {
 enum Counts {
     Added,
     Revised,
+    Confirmed,
+}
+
+/// Why a write is not let through, as the API says it.
+fn refusal(refused: Refused) -> ApiError {
+    match refused {
+        Refused::Suspended => ApiError::forbidden(
+            ErrorCode::PublishingSuspended,
+            "whoever runs this server has suspended this account's publishing: it can add \
+             and change no site, and confirm none",
+        ),
+        Refused::ForPartners => ApiError::forbidden(
+            ErrorCode::SitesForPartners,
+            "this site is one that Venti's partners add and correct, and this account is \
+             not one of them; a pilot who finds it wrong reports it (POST /v1/reports)",
+        ),
+        Refused::Closed => ApiError::forbidden(
+            ErrorCode::SitesClosed,
+            "this server takes no sites and no confirmations from pilots",
+        ),
+    }
 }
 
 impl PilotSites {
@@ -209,33 +319,39 @@ impl PilotSites {
             settings,
             added: Throttle::new("accounts that added sites", a_day, watched_keys),
             revised: Throttle::new("accounts that revised sites", a_day, watched_keys),
+            confirmed: Throttle::new("accounts that confirmed sites", a_day, watched_keys),
         }
     }
 
-    /// Whether the server takes sites from pilots at all: what the health
-    /// answer says before an app offers to add one.
+    /// Whether the server takes sites for the crowdsourced layer, and
+    /// confirmations, from pilots: what the health answer says before an
+    /// app offers either.
     pub(crate) fn accepts(&self) -> bool {
         self.settings.accept
     }
 
-    /// Lets a write through or says why not: the one place every write of
-    /// a site passes. In this order: whether the server takes sites from
-    /// pilots at all, whether this account may write, and whether it has
+    /// Lets a write of a site of a layer through or says why not: the one
+    /// place every write of a site passes. In this order: whether this
+    /// account may write to the layer on this server, and whether it has
     /// written as much today as an account may.
-    fn writer(&self, signed: &Signed, counts: Counts, now: Timestamp) -> Result<(), ApiError> {
-        if !self.settings.accept {
-            return Err(ApiError::forbidden(
-                ErrorCode::SitesClosed,
-                "this server takes no sites from pilots",
-            ));
-        }
-        if !pilot_sites::may_write(&signed.account) {
-            return Err(ApiError::forbidden(
-                ErrorCode::PublishingSuspended,
-                "whoever runs this server has suspended this account's publishing: it can \
-                 add and change no site",
-            ));
-        }
+    fn writer(
+        &self,
+        signed: &Signed,
+        layer: Layer,
+        counts: Counts,
+        now: Timestamp,
+    ) -> Result<(), ApiError> {
+        pilot_sites::may_write(&signed.account, layer, self.settings.accept).map_err(refusal)?;
+        self.counted(signed, counts, now)
+    }
+
+    /// Lets a confirmation, or its withdrawal, through or says why not.
+    fn confirmer(&self, signed: &Signed, now: Timestamp) -> Result<(), ApiError> {
+        pilot_sites::may_confirm(&signed.account, self.settings.accept).map_err(refusal)?;
+        self.counted(signed, Counts::Confirmed, now)
+    }
+
+    fn counted(&self, signed: &Signed, counts: Counts, now: Timestamp) -> Result<(), ApiError> {
         let limits = self.settings.limits;
         let (throttle, limit, what) = match counts {
             Counts::Added => (
@@ -247,6 +363,11 @@ impl PilotSites {
                 &self.revised,
                 limits.revisions_per_day,
                 "this account has changed sites as often today as one account may",
+            ),
+            Counts::Confirmed => (
+                &self.confirmed,
+                limits.confirmations_per_day,
+                "this account has confirmed sites as often today as one account may",
             ),
         };
         throttle
@@ -293,16 +414,31 @@ fn standing(site: &PilotSite) -> Result<SiteStanding, ApiError> {
         created_by: pilot(site.created_by.as_ref())?,
         changed_at: site.changed_at,
         changed_by: pilot(site.changed_by.as_ref())?,
+        confirmed: confirmed(site),
     })
 }
 
-/// A site of the community's layer as its address answers it.
+fn confirmed(site: &PilotSite) -> SiteConfirmed {
+    SiteConfirmed {
+        pilots: site.confirmed.pilots,
+        latest_day: site.confirmed.latest_day,
+    }
+}
+
+/// The layer of Venti's own a site is of. An identifier is checked by
+/// [`is_made_here`] before a site is read, so one that comes back from
+/// the store is of one.
+fn layer_of(id: &SiteId) -> Result<Layer, ApiError> {
+    Layer::of(id).ok_or_else(ApiError::internal)
+}
+
+/// A site of one of Venti's own layers as its address answers it.
 fn answer(site: PilotSite) -> Result<SiteResponse, ApiError> {
     Ok(SiteResponse {
         standing: Some(standing(&site)?),
+        attributions: vec![layer_of(&site.site.id)?.attribution()],
         site: site.site,
         lasting: true,
-        attributions: vec![pilot_sites::attribution()],
     })
 }
 
@@ -310,16 +446,20 @@ fn answer(site: PilotSite) -> Result<SiteResponse, ApiError> {
 enum Target {
     /// A site of any layer.
     Site(SiteId),
-    /// The history of a site that pilots made.
+    /// The history of a site of Venti's own.
     History(SiteId),
     /// Where a revision that restores an earlier one is sent.
     Revisions(SiteId),
+    /// The caller's own confirmation of a site of Venti's own.
+    Confirmation(SiteId),
+    /// What pilots confirm of a site of Venti's own.
+    Confirmations(SiteId),
 }
 
 /// Whether an identifier has the form of one the server makes for a site
-/// of the community's layer.
+/// of one of its own layers.
 fn is_made_here(id: &SiteId) -> bool {
-    id.source().as_str() == pilot_sites::SOURCE && secret::is_id(id.local())
+    Layer::of(id).is_some() && secret::is_id(id.local())
 }
 
 /// Reads the rest of a path. A source's own key may hold a `/`, so the
@@ -329,6 +469,8 @@ fn target(rest: &str) -> Result<Target, ApiError> {
     for (ending, make) in [
         ("/history", Target::History as fn(SiteId) -> Target),
         ("/revisions", Target::Revisions),
+        ("/confirmations", Target::Confirmations),
+        ("/confirmation", Target::Confirmation),
     ] {
         if let Some(id) = rest.strip_suffix(ending).and_then(|id| id.parse().ok())
             && is_made_here(&id)
@@ -343,13 +485,11 @@ fn target(rest: &str) -> Result<Target, ApiError> {
 fn made_here(rest: &str) -> Result<SiteId, ApiError> {
     match target(rest)? {
         Target::Site(id) if is_made_here(&id) => Ok(id),
-        Target::Site(id) if id.source().as_str() != pilot_sites::SOURCE => {
-            Err(ApiError::forbidden(
-                ErrorCode::SitesClosed,
-                "this site is its source's record and is corrected at its source; the \
+        Target::Site(id) if Layer::of(&id).is_none() => Err(ApiError::forbidden(
+            ErrorCode::SitesClosed,
+            "this site is its source's record and is corrected at its source; the \
                  record's url says where",
-            ))
-        }
+        )),
         _ => Err(no_such_site()),
     }
 }
@@ -359,6 +499,7 @@ pub(crate) struct PageParams {
     after: Option<String>,
     since: Option<String>,
     limit: Option<String>,
+    layer: Option<String>,
 }
 
 /// `GET /v1/sites/{id}` and `GET /v1/sites/{id}/history`.
@@ -369,7 +510,7 @@ pub(crate) async fn show<S: Store>(
     Query(params): Query<PageParams>,
 ) -> Result<Response, ApiError> {
     match target(&rest)? {
-        Target::Site(id) if id.source().as_str() == pilot_sites::SOURCE => {
+        Target::Site(id) if Layer::of(&id).is_some() => {
             let site = match api.store.pilot_site(&id).await? {
                 Some(site) if is_made_here(&id) => site,
                 _ => return Err(no_such_site()),
@@ -456,7 +597,36 @@ pub(crate) async fn show<S: Store>(
                 removed: !site.stands(),
                 revisions,
                 more,
-                attributions: vec![pilot_sites::attribution()],
+                attributions: vec![layer_of(&site.site.id)?.attribution()],
+            };
+            Ok(cache::json(&headers, &answer))
+        }
+        Target::Confirmations(id) => {
+            let (site, list) = api
+                .store
+                .site_confirmations(&id, MAX_SITE_CONFIRMATIONS)
+                .await?
+                .ok_or_else(no_such_site)?;
+            // Nobody takes off at a site that is gone, and one that was
+            // taken down shows nothing.
+            if !site.stands() {
+                return Err(gone());
+            }
+            let confirmations = list
+                .into_iter()
+                .map(|said| {
+                    Ok(SiteConfirmation {
+                        by: pilot(Some(&said.pilot))?.ok_or_else(ApiError::internal)?,
+                        day: said.day,
+                        note: said.note,
+                        with_flight: said.with_flight,
+                    })
+                })
+                .collect::<Result<Vec<_>, ApiError>>()?;
+            let answer = SiteConfirmationsResponse {
+                id,
+                confirmed: confirmed(&site),
+                confirmations,
             };
             Ok(cache::json(&headers, &answer))
         }
@@ -465,11 +635,19 @@ pub(crate) async fn show<S: Store>(
             ErrorCode::MethodNotAllowed,
             "a revision is sent with POST; a site's revisions are read at its history",
         )),
+        Target::Confirmation(_) => Err(ApiError::new(
+            StatusCode::METHOD_NOT_ALLOWED,
+            ErrorCode::MethodNotAllowed,
+            "a pilot's confirmation is sent with PUT and taken back with DELETE; what pilots \
+             confirm of a site is read at its confirmations",
+        )),
     }
 }
 
-/// `GET /v1/sites/changes`: what happened to the sites that pilots made
-/// since a program last asked.
+/// `GET /v1/sites/changes[?layer=…]`: what happened to the sites of one
+/// of Venti's own layers since a program last asked. The partners' layer
+/// unless `layer` names the crowdsourced one: a mirror follows each with a
+/// cursor of its own.
 pub(crate) async fn changes<S: Store>(
     State(api): State<Arc<Api<S>>>,
     headers: HeaderMap,
@@ -489,14 +667,27 @@ pub(crate) async fn changes<S: Store>(
                 )
             })?,
     };
-    let mut changes = api.store.pilot_site_changes(asked, limit).await?;
+    let layer = match params.layer.as_deref() {
+        None => Layer::Partners,
+        Some(name) => Layer::named(name).ok_or_else(|| {
+            ApiError::bad_request(
+                ErrorCode::InvalidLayers,
+                format!(
+                    "layer names one layer of Venti's own sites: {}",
+                    Layer::ALL.map(Layer::name).join(" or ")
+                ),
+            )
+        })?,
+    };
+    let source = layer.source();
+    let mut changes = api.store.pilot_site_changes(&source, asked, limit).await?;
     // A cursor from beyond the layer's latest change was not given out by
     // this database as it is now. Start again from the beginning, and say
     // so.
     let reset = asked > changes.latest;
     let since = if reset { 0 } else { asked };
     if reset {
-        changes = api.store.pilot_site_changes(0, limit).await?;
+        changes = api.store.pilot_site_changes(&source, 0, limit).await?;
     }
     let cursor = changes.sites.last().map_or(since, |site| site.change);
     let mut sites = Vec::new();
@@ -517,7 +708,7 @@ pub(crate) async fn changes<S: Store>(
         cursor: cursor.to_string(),
         more: changes.more,
         reset,
-        attributions: vec![pilot_sites::attribution()],
+        attributions: vec![layer.attribution()],
     };
     Ok(cache::json(&headers, &answer))
 }
@@ -616,10 +807,12 @@ pub(crate) async fn add<S: Store>(
 ) -> Result<Response, ApiError> {
     body::must_say_json(&headers)?;
     let now = api.clock.now();
-    api.pilot_sites.writer(&signed, Counts::Added, now)?;
+    // Who adds a site decides its layer: a partner's goes to the
+    // partners', every other pilot's to the crowdsourced one.
+    let layer = pilot_sites::layer_for(&signed.account);
+    api.pilot_sites.writer(&signed, layer, Counts::Added, now)?;
     let request: AddSiteRequest = body::json(&headers, &body)?;
-    let id = SiteId::new(pilot_sites::source(), secret::random_id()?)
-        .map_err(|_| ApiError::internal())?;
+    let id = SiteId::new(layer.source(), secret::random_id()?).map_err(|_| ApiError::internal())?;
     let new = NewPilotSite {
         site: api.site_from(request.site, id)?,
         author_id: signed.account.id.clone(),
@@ -633,6 +826,7 @@ pub(crate) async fn add<S: Store>(
 }
 
 /// `PUT /v1/sites/{id}`: replaces what a site says, as a new revision.
+/// `PUT /v1/sites/{id}/confirmation` comes here too: see [`confirm`].
 pub(crate) async fn change<S: Store>(
     State(api): State<Arc<Api<S>>>,
     May(signed, ..): May<WriteSites>,
@@ -641,9 +835,13 @@ pub(crate) async fn change<S: Store>(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     body::must_say_json(&headers)?;
+    if let Target::Confirmation(id) = target(&rest)? {
+        return confirm(&api, &signed, id, &headers, &body).await;
+    }
     let id = made_here(&rest)?;
     let now = api.clock.now();
-    api.pilot_sites.writer(&signed, Counts::Revised, now)?;
+    api.pilot_sites
+        .writer(&signed, layer_of(&id)?, Counts::Revised, now)?;
     let request: ChangeSiteRequest = body::json(&headers, &body)?;
     let revising = SiteRevising {
         act: SiteAct::Change(Box::new(api.site_from(request.site, id.clone())?)),
@@ -676,7 +874,8 @@ pub(crate) async fn restore<S: Store>(
         ));
     };
     let now = api.clock.now();
-    api.pilot_sites.writer(&signed, Counts::Revised, now)?;
+    api.pilot_sites
+        .writer(&signed, layer_of(&id)?, Counts::Revised, now)?;
     let request: RestoreSiteRequest = body::json(&headers, &body)?;
     let revising = SiteRevising {
         id,
@@ -691,6 +890,8 @@ pub(crate) async fn restore<S: Store>(
     Ok(cache::private_json(StatusCode::OK, &answer(site)?))
 }
 
+/// `DELETE /v1/sites/{id}/confirmation` comes here too: see [`withdraw`].
+///
 /// `DELETE /v1/sites/{id}`: removes a site, as a new revision. A pilot's
 /// removal is never a take-down: the history stays, and any pilot brings
 /// the site back by restoring a revision.
@@ -701,9 +902,13 @@ pub(crate) async fn remove<S: Store>(
     Path(rest): Path<String>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
+    if let Target::Confirmation(id) = target(&rest)? {
+        return withdraw(&api, &signed, id).await;
+    }
     let id = made_here(&rest)?;
     let now = api.clock.now();
-    api.pilot_sites.writer(&signed, Counts::Revised, now)?;
+    api.pilot_sites
+        .writer(&signed, layer_of(&id)?, Counts::Revised, now)?;
     // The body may be left out; one that is there says why.
     let request: RemoveSiteRequest = if body.is_empty() {
         RemoveSiteRequest::default()
@@ -722,4 +927,118 @@ pub(crate) async fn remove<S: Store>(
     };
     api.revise(revising).await?;
     Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
+}
+
+// --- What pilots confirm of a site -------------------------------------------
+
+fn unconfirmable(message: impl Into<String>) -> ApiError {
+    ApiError::bad_request(ErrorCode::InvalidConfirmation, message)
+}
+
+/// `PUT /v1/sites/{id}/confirmation`: "I took off here and it was good."
+/// One confirmation an account and a site: a second one takes the place
+/// of the first. Answers the site as it stands with it.
+async fn confirm<S: Store>(
+    api: &Api<S>,
+    signed: &Signed,
+    id: SiteId,
+    headers: &HeaderMap,
+    body: &Bytes,
+) -> Result<Response, ApiError> {
+    let now = api.clock.now();
+    api.pilot_sites.confirmer(signed, now)?;
+    let request: ConfirmSiteRequest = body::json(headers, body)?;
+    // The day is the pilot's own, wherever on earth they are: it may be
+    // tomorrow by the server's clock, and no later.
+    let today = now.date_naive();
+    let ahead = (request.day - today).num_days();
+    if !(-CONFIRMATION_DAYS_BACK..=1).contains(&ahead) {
+        return Err(unconfirmable(format!(
+            "day is today or one of the {CONFIRMATION_DAYS_BACK} days before it"
+        )));
+    }
+    let note = parse_site_comment(request.note.as_deref()).map_err(|_| {
+        unconfirmable(format!(
+            "note has at most {MAX_SITE_COMMENT_LENGTH} characters"
+        ))
+    })?;
+    let with_flight = match request.flight.as_deref() {
+        None => false,
+        Some(flight) => {
+            api.took_off_at(flight, &signed.account.id, &id).await?;
+            true
+        }
+    };
+    let new = NewSiteConfirmation {
+        site: id,
+        account_id: signed.account.id.clone(),
+        day: request.day,
+        note,
+        with_flight,
+        at: now,
+    };
+    match api.store.confirm_pilot_site(&new).await? {
+        SiteConfirming::Confirmed(site) => Ok(cache::private_json(StatusCode::OK, &answer(*site)?)),
+        SiteConfirming::Removed => Err(gone()),
+        SiteConfirming::NoSuchSite => Err(no_such_site()),
+        SiteConfirming::NoSuchAccount => Err(ApiError::unauthorized(
+            "the account this session belonged to is gone",
+        )),
+    }
+}
+
+/// `DELETE /v1/sites/{id}/confirmation`: takes the caller's confirmation
+/// back. `204` whether there was one or not.
+async fn withdraw<S: Store>(
+    api: &Api<S>,
+    signed: &Signed,
+    id: SiteId,
+) -> Result<Response, ApiError> {
+    api.pilot_sites.confirmer(signed, api.clock.now())?;
+    api.store
+        .withdraw_site_confirmation(&id, &signed.account.id)
+        .await?
+        .ok_or_else(no_such_site)?;
+    Ok(cache::private(StatusCode::NO_CONTENT.into_response()))
+}
+
+impl<S: Store> Api<S> {
+    /// Checks the flight a confirmation names: it is this account's, and
+    /// it took off within [`CONFIRMATION_FLIGHT_WITHIN_M`] of the site as
+    /// the site stands now. A flight of another pilot is answered as one
+    /// that is not there: the address of a flight says nothing to whoever
+    /// may not see it.
+    async fn took_off_at(
+        &self,
+        flight: &str,
+        account_id: &str,
+        site: &SiteId,
+    ) -> Result<(), ApiError> {
+        let not_theirs = || unconfirmable("flight is the address of no flight of this account");
+        if !secret::is_id(flight) {
+            return Err(not_theirs());
+        }
+        let flight = self
+            .store
+            .flight(flight)
+            .await?
+            .filter(|flight| flight.account_id == account_id)
+            .ok_or_else(not_theirs)?;
+        let site = self
+            .store
+            .pilot_site(site)
+            .await?
+            .ok_or_else(no_such_site)?;
+        let near = flight.derived.takeoff.is_some_and(|takeoff| {
+            takeoff.position.distance_m(site.site.position) <= CONFIRMATION_FLIGHT_WITHIN_M
+        });
+        if near {
+            Ok(())
+        } else {
+            Err(unconfirmable(format!(
+                "the flight did not take off within {CONFIRMATION_FLIGHT_WITHIN_M} m of this \
+                 site; leave it out to confirm the site without it"
+            )))
+        }
+    }
 }

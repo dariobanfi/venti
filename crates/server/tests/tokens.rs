@@ -82,7 +82,10 @@ const ID: &str = "0123456789abcdefghjkmnpqrs";
 /// path, and the scope it needs. `docs/api.md` has the same table.
 fn scoped() -> Vec<(Method, String, Scope)> {
     let g = format!("{GROUPS_PATH}/{ID}");
-    let site = format!("{SITES_PATH}/venti:{ID}");
+    // A site of the crowdsourced layer, which any pilot writes to: a
+    // request for a partner's site is refused for who asks, whatever the
+    // token.
+    let site = format!("{SITES_PATH}/venti-pilots:{ID}");
     let flight = format!("{FLIGHTS_PATH}/{ID}");
     let kept = format!("{KEPT_SITES_PATH}/venti:{ID}");
     use Scope::{
@@ -102,6 +105,8 @@ fn scoped() -> Vec<(Method, String, Scope)> {
         (Method::PUT, site.clone(), SitesWrite),
         (Method::DELETE, site.clone(), SitesWrite),
         (Method::POST, format!("{site}/revisions"), SitesWrite),
+        (Method::PUT, format!("{site}/confirmation"), SitesWrite),
+        (Method::DELETE, format!("{site}/confirmation"), SitesWrite),
         (Method::GET, GROUPS_PATH.to_owned(), GroupsRead),
         (Method::GET, g.clone(), GroupsRead),
         (Method::GET, format!("{g}/plans"), GroupsRead),
@@ -589,6 +594,7 @@ fn the_documentation_lists_every_request_with_its_scope() {
         let path = path
             .replace(&format!("plans/{ID}"), "plans/{plan}")
             .replace("members/demo", "members/{handle}")
+            .replace(&format!("venti-pilots:{ID}"), "{id}")
             .replace(&format!("venti:{ID}"), "{id}")
             .replace(ID, "{id}");
         let row = format!("| `{method} {path}` | `{scope}` |");

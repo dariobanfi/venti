@@ -30,7 +30,8 @@ use venti_domain::{GeoPoint, Site, SiteId, SiteOutline, SiteUse, WindSector};
 use crate::account::json_request;
 use crate::server::{answer, code, refusal};
 use crate::sites::{
-    BY_PILOTS_NOTE, author, author_in_words, kind, site_view, uses_in_words, wind_in_words,
+    BY_PILOTS_NOTE, FROM_PILOTS_NOTE, author, author_in_words, kind, site_view, uses_in_words,
+    wind_in_words,
 };
 use crate::wind::credit;
 use crate::{
@@ -196,10 +197,21 @@ pub struct SiteForm {
     pub licence: String,
     /// The address of the licence's text.
     pub licence_url: String,
-    /// What is said wherever such a site is shown, and on the form:
-    /// "Added by pilots on Venti and not verified. A site on the map is
-    /// not permission to fly there."
+    /// What is said wherever a site that a pilot adds is shown, and on a
+    /// pilot's form: "Added by pilots on Venti: not official and not
+    /// checked by anyone. A site on the map is not permission to fly
+    /// there."
     pub note: String,
+    /// `giving`, as it speaks to a partner of Venti: an account that
+    /// adds to the partners' layer. A shell shows it in the place of
+    /// `giving` on the form of such an account.
+    #[uniffi(default = "")]
+    pub giving_as_partner: String,
+    /// `note`, for a site that a partner adds: "Added by a partner of
+    /// Venti and not checked by Venti. A site on the map is not
+    /// permission to fly there."
+    #[uniffi(default = "")]
+    pub note_as_partner: String,
     /// What to say where the place is chosen on the map.
     pub place_words: String,
     /// The title of a form for a new site: "Add a site".
@@ -480,11 +492,19 @@ pub fn site_form() -> SiteForm {
         giving: format!(
             "You give this site to everyone under {VENTI_SITES_LICENCE}, the public domain: \
              anyone may use it and change it, on Venti and anywhere else. It is shown with your \
-             handle, any pilot can correct it, and it stays on Venti when your account goes."
+             handle to pilots who switch on the sites from pilots, any pilot can correct it, \
+             and it stays on Venti when your account goes."
         ),
         licence: VENTI_SITES_LICENCE.to_owned(),
         licence_url: VENTI_SITES_LICENCE_URL.to_owned(),
-        note: BY_PILOTS_NOTE.to_owned(),
+        note: FROM_PILOTS_NOTE.to_owned(),
+        giving_as_partner: format!(
+            "As a partner of Venti you give this site to everyone under {VENTI_SITES_LICENCE}, \
+             the public domain: anyone may use it and change it, on Venti and anywhere else. \
+             It is shown to every pilot beside the official sites, with your handle; Venti's \
+             partners can correct it, and it stays on Venti when your account goes."
+        ),
+        note_as_partner: BY_PILOTS_NOTE.to_owned(),
         place_words: "Move the map until the mark is where pilots stand or touch down.".to_owned(),
         title_new: "Add a site".to_owned(),
         title_correct: "Correct this site".to_owned(),
@@ -529,7 +549,7 @@ pub fn site_draft_of(site: SiteView) -> Result<SiteDraftView, CoreError> {
     let Some(by_pilots) = site
         .by_pilots
         .as_ref()
-        .filter(|_| site.source == VENTI_SITES_SOURCE)
+        .filter(|_| is_own_layer(&site.source))
     else {
         return Err(invalid(
             "This site is its source's record and is corrected at its source. Only a site \
@@ -815,10 +835,16 @@ fn first(faults: Vec<SiteDraftFault>) -> CoreError {
     }
 }
 
+/// Whether a source is one of the two layers of sites that Venti holds
+/// itself: the partners' and the crowdsourced one.
+fn is_own_layer(source: &str) -> bool {
+    source == VENTI_SITES_SOURCE || source == venti_api_types::v1::VENTI_PILOTS_SITES_SOURCE
+}
+
 fn made_here(id: &str) -> Result<SiteId, CoreError> {
     id.parse::<SiteId>()
         .ok()
-        .filter(|id| id.source().as_str() == VENTI_SITES_SOURCE)
+        .filter(|id| is_own_layer(id.source().as_str()))
         .ok_or_else(|| {
             invalid(
                 "This site is its source's record and is corrected at its source. Only a \
@@ -978,6 +1004,11 @@ fn site_refusal(status: u16, body: &[u8]) -> CoreError {
         (_, Some("sites_closed")) => {
             "This server takes no sites from pilots. A site of another source is corrected at \
              its source."
+                .to_owned()
+        }
+        (_, Some("sites_for_partners")) => {
+            "This site was added by a partner of Venti, and only Venti's partners change it. \
+             If something about it is wrong, report the site."
                 .to_owned()
         }
         (_, Some("publishing_suspended")) => {
@@ -1623,13 +1654,22 @@ mod tests {
         // and for good.
         assert_eq!(
             form.giving,
-            "You give this site to everyone under CC0 1.0, the public domain: anyone may use it and change it, on Venti and anywhere else. It is shown with your handle, any pilot can correct it, and it stays on Venti when your account goes."
+            "You give this site to everyone under CC0 1.0, the public domain: anyone may use it and change it, on Venti and anywhere else. It is shown with your handle to pilots who switch on the sites from pilots, any pilot can correct it, and it stays on Venti when your account goes."
+        );
+        assert!(
+            form.giving_as_partner
+                .starts_with("As a partner of Venti you give this site")
+        );
+        assert!(form.giving_as_partner.contains("CC0 1.0"));
+        assert_eq!(
+            form.note_as_partner,
+            "Added by a partner of Venti and not checked by Venti. A site on the map is not permission to fly there."
         );
         assert_eq!(form.licence, "CC0 1.0");
         assert!(form.licence_url.starts_with("https://creativecommons.org/"));
         assert_eq!(
             form.note,
-            "Added by pilots on Venti and not verified. A site on the map is not permission to fly there."
+            "Added by pilots on Venti: not official and not checked by anyone. A site on the map is not permission to fly there."
         );
     }
 

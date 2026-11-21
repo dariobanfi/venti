@@ -27,6 +27,12 @@ pub struct Account {
     /// tracks are shown to those with their link only. Everything else
     /// about the account works. A new account is created with `None`.
     pub publishing_suspended_at: Option<Timestamp>,
+    /// Since when the account may add and correct flying sites of the
+    /// server's own layer, if whoever runs the server has named it as
+    /// trusted with that ([`crate::Store::let_edit_sites`]). It is the one
+    /// thing this says: nothing else about the account differs. A new
+    /// account is created with `None`.
+    pub edits_sites_since: Option<Timestamp>,
 }
 
 /// What became of suspending an account's publishing.

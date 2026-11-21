@@ -109,6 +109,30 @@ pub fn site_history_path(site: &SiteId) -> String {
     format!("{SITES_PATH}/{site}/history")
 }
 
+/// Path and query of the flying sites inside a box, of the layers named.
+/// Without a layer it is the path of [`SitesRequest`]: the server then
+/// answers the layers it hands out to whoever names none, which leaves
+/// the crowdsourced layer out.
+pub fn sites_path(bbox: &BoundingBox, layers: &[&str]) -> String {
+    let path = SitesRequest { bbox: *bbox }.path_and_query();
+    if layers.is_empty() {
+        path
+    } else {
+        format!("{path}&layers={}", layers.join(","))
+    }
+}
+
+/// Path of a pilot's own confirmation of a site: `PUT` says "I took off
+/// here and it was good", `DELETE` takes it back.
+pub fn site_confirmation_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}/confirmation")
+}
+
+/// Path of what pilots confirm of a site.
+pub fn site_confirmations_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}/confirmations")
+}
+
 /// Path that takes a revision restoring an earlier one.
 pub fn site_revisions_path(site: &SiteId) -> String {
     format!("{SITES_PATH}/{site}/revisions")

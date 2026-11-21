@@ -1,0 +1,4 @@
+Partners for flying sites, 2 accounts, by handle:
+  demo (Demo Pilot)  since 2026-11-18 19:05 UTC
+  mara (Mara Muster)  since 2026-11-18 19:05 UTC
+Changes nothing. `venti-server withdraw-sites <HANDLE>` takes one off.

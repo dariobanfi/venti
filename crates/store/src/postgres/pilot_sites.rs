@@ -22,13 +22,16 @@
 
 use deadpool_postgres::{Client, GenericClient, Transaction};
 use tokio_postgres::Row;
-use venti_domain::{BoundingBox, Site, SiteId};
+use venti_domain::{BoundingBox, Site, SiteId, SourceId};
 
 use super::{corrupt, db_error};
-use crate::pilot_site::{Decision, Writing, check_new, check_revising, decide, nearest_within};
+use crate::pilot_site::{
+    Decision, Writing, check_confirmation, check_new, check_revising, decide, nearest_within,
+};
 use crate::{
-    NewPilotSite, PilotSite, PilotSiteChanges, RevisionKind, SiteAct, SitePilot, SiteRevising,
-    SiteRevision, SiteVia, SiteWrite, StoreError,
+    NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, SiteAct,
+    SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot, SiteRevising, SiteRevision,
+    SiteVia, SiteWrite, StoreError,
 };
 
 /// Everything [`site_from`] reads: a site `s`, the account `c` that made
@@ -37,6 +40,8 @@ use crate::{
 const SITE: &str = "
     SELECT s.record, s.revision, s.created_at, s.changed_at, s.removed_at, s.taken_down,
            s.change,
+           (SELECT count(*) FROM site_confirmations k WHERE k.site_id = s.id) AS confirmed_by,
+           (SELECT max(k.day) FROM site_confirmations k WHERE k.site_id = s.id) AS confirmed_on,
            c.id AS created_id, c.handle AS created_handle, c.display_name AS created_name,
            h.id AS changed_id, h.handle AS changed_handle, h.display_name AS changed_name
     FROM pilot_sites s
@@ -110,6 +115,11 @@ fn site_from(row: &Row) -> Result<PilotSite, StoreError> {
         removed_at: row.get("removed_at"),
         taken_down: row.get("taken_down"),
         change: row.get("change"),
+        confirmed: SiteConfirmed {
+            pilots: u32::try_from(row.get::<_, i64>("confirmed_by"))
+                .map_err(|e| corrupt("count of confirmations", e))?,
+            latest_day: row.get("confirmed_on"),
+        },
     })
 }
 
@@ -438,8 +448,16 @@ pub(super) async fn revise(
     Ok(answer)
 }
 
+/// What every identifier of a layer begins with: the layer's name and
+/// the colon. No layer's is the beginning of another's, since a name
+/// holds no colon.
+fn beginning(layer: &SourceId) -> String {
+    format!("{layer}:")
+}
+
 pub(super) async fn in_box(
     client: &Client,
+    layer: &SourceId,
     area: &BoundingBox,
     limit: usize,
 ) -> Result<Vec<PilotSite>, StoreError> {
@@ -452,6 +470,7 @@ pub(super) async fn in_box(
                && ST_MakeEnvelope($1, $2, $3, $4, 4326)
            AND s.lon BETWEEN $1 AND $3
            AND s.lat BETWEEN $2 AND $4
+           AND starts_with(s.id, $6)
          ORDER BY s.id
          LIMIT $5"
     );
@@ -466,6 +485,7 @@ pub(super) async fn in_box(
                 &area.east(),
                 &area.north(),
                 &limit,
+                &beginning(layer),
             ],
         )
         .await
@@ -523,6 +543,7 @@ pub(super) async fn revisions(
 
 pub(super) async fn changes(
     client: &Client,
+    layer: &SourceId,
     since: i64,
     limit: usize,
 ) -> Result<PilotSiteChanges, StoreError> {
@@ -534,12 +555,13 @@ pub(super) async fn changes(
         .map_err(db_error)?
         .ok_or_else(|| corrupt("count of changes to the sites", "its row is missing"))?
         .get("latest");
-    let query = format!("{SITE} WHERE s.change > $1 ORDER BY s.change LIMIT $2");
+    let query =
+        format!("{SITE} WHERE s.change > $1 AND starts_with(s.id, $3) ORDER BY s.change LIMIT $2");
     let statement = client.prepare_cached(&query).await.map_err(db_error)?;
     // One more than was asked for, to know whether more are waiting.
     let one_more = i64::try_from(limit).unwrap_or(i64::MAX).saturating_add(1);
     let rows = client
-        .query(&statement, &[&since, &one_more])
+        .query(&statement, &[&since, &one_more, &beginning(layer)])
         .await
         .map_err(db_error)?;
     let mut sites = rows.iter().map(site_from).collect::<Result<Vec<_>, _>>()?;
@@ -552,6 +574,149 @@ pub(super) async fn changes(
         more,
         latest,
     })
+}
+
+/// Holds a site's row for the rest of the transaction and says whether it
+/// stands. `None` if no site ever had the identifier.
+async fn hold_site(tx: &Transaction<'_>, id: &str) -> Result<Option<bool>, StoreError> {
+    let row = tx
+        .query_opt(
+            "SELECT removed_at IS NULL FROM pilot_sites WHERE id = $1 FOR UPDATE",
+            &[&id],
+        )
+        .await
+        .map_err(db_error)?;
+    Ok(row.map(|row| row.get(0)))
+}
+
+/// Gives a site the next change number without a revision: what was said
+/// about it changed, and what it says did not.
+async fn touch(tx: &Transaction<'_>, id: &str, latest: i64) -> Result<(), StoreError> {
+    let change = next_change(tx, latest).await?;
+    tx.execute(
+        "UPDATE pilot_sites SET change = $2 WHERE id = $1",
+        &[&id, &change],
+    )
+    .await
+    .map_err(db_error)?;
+    Ok(())
+}
+
+pub(super) async fn confirm(
+    client: &mut Client,
+    new: &NewSiteConfirmation,
+) -> Result<SiteConfirming, StoreError> {
+    check_confirmation(new)?;
+    let tx = client.transaction().await.map_err(db_error)?;
+    // The counter first, then the account, then the site, as every write.
+    let latest = lock_layer(&tx).await?;
+    if !hold_account(&tx, &new.account_id).await? {
+        return Ok(SiteConfirming::NoSuchAccount);
+    }
+    let id = new.site.to_string();
+    match hold_site(&tx, &id).await? {
+        None => return Ok(SiteConfirming::NoSuchSite),
+        Some(false) => return Ok(SiteConfirming::Removed),
+        Some(true) => {}
+    }
+    tx.execute(
+        "INSERT INTO site_confirmations (site_id, account_id, day, note, with_flight, at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (site_id, account_id) DO UPDATE
+         SET day = EXCLUDED.day, note = EXCLUDED.note, with_flight = EXCLUDED.with_flight,
+             at = EXCLUDED.at",
+        &[
+            &id,
+            &new.account_id,
+            &new.day,
+            &new.note,
+            &new.with_flight,
+            &new.at,
+        ],
+    )
+    .await
+    .map_err(db_error)?;
+    touch(&tx, &id, latest).await?;
+    let site = read(&tx, &new.site)
+        .await?
+        .ok_or_else(|| corrupt("site", "it is gone while its row is held"))?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(SiteConfirming::Confirmed(Box::new(site)))
+}
+
+pub(super) async fn withdraw(
+    client: &mut Client,
+    site: &SiteId,
+    account_id: &str,
+) -> Result<Option<(PilotSite, bool)>, StoreError> {
+    if !can_name(site) || account_id.contains('\0') {
+        return Ok(None);
+    }
+    let tx = client.transaction().await.map_err(db_error)?;
+    let latest = lock_layer(&tx).await?;
+    let id = site.to_string();
+    if hold_site(&tx, &id).await?.is_none() {
+        return Ok(None);
+    }
+    let withdrawn = tx
+        .execute(
+            "DELETE FROM site_confirmations WHERE site_id = $1 AND account_id = $2",
+            &[&id, &account_id],
+        )
+        .await
+        .map_err(db_error)?;
+    if withdrawn > 0 {
+        touch(&tx, &id, latest).await?;
+    }
+    let read = read(&tx, site)
+        .await?
+        .ok_or_else(|| corrupt("site", "it is gone while its row is held"))?;
+    tx.commit().await.map_err(db_error)?;
+    Ok(Some((read, withdrawn > 0)))
+}
+
+pub(super) async fn confirmations(
+    client: &Client,
+    site: &SiteId,
+    limit: usize,
+) -> Result<Option<(PilotSite, Vec<SiteConfirmation>)>, StoreError> {
+    if !can_name(site) {
+        return Ok(None);
+    }
+    let statement = client
+        .prepare_cached(
+            "SELECT k.day, k.note, k.with_flight, k.at,
+                    a.id AS author_id, a.handle AS author_handle,
+                    a.display_name AS author_name
+             FROM site_confirmations k
+             JOIN accounts a ON a.id = k.account_id
+             WHERE k.site_id = $1
+             ORDER BY k.day DESC, a.handle
+             LIMIT $2",
+        )
+        .await
+        .map_err(db_error)?;
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let rows = client
+        .query(&statement, &[&site.to_string(), &limit])
+        .await
+        .map_err(db_error)?;
+    let Some(read) = read(client, site).await? else {
+        return Ok(None);
+    };
+    let list = rows
+        .iter()
+        .filter_map(|row| {
+            Some(SiteConfirmation {
+                pilot: pilot_from(row, "author_id", "author_handle", "author_name")?,
+                day: row.get("day"),
+                note: row.get("note"),
+                with_flight: row.get("with_flight"),
+                at: row.get("at"),
+            })
+        })
+        .collect();
+    Ok(Some((read, list)))
 }
 
 #[cfg(test)]

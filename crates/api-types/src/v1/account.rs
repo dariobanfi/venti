@@ -252,6 +252,14 @@ pub struct Account {
     /// sees a flight.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publishing_suspended_at: Option<Timestamp>,
+    /// Whether whoever runs the server named this account as one of
+    /// Venti's partners for flying sites: it adds sites to the partners'
+    /// layer and corrects them there. Left out otherwise, which is the
+    /// usual case: every other pilot adds to the crowdsourced layer, where
+    /// the server takes sites from pilots. An app offers a partner's form
+    /// to an account that says so and to no other.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub edits_sites: bool,
 }
 
 /// The body of `POST /v1/accounts`: creates an account and signs this
@@ -467,6 +475,7 @@ mod tests {
                 display_name: "Dario".to_owned(),
                 created_at: now,
                 publishing_suspended_at: None,
+                edits_sites: false,
             },
             session: Session {
                 id: "s".to_owned(),
@@ -489,6 +498,7 @@ mod tests {
             display_name: "Dario".to_owned(),
             created_at: now,
             publishing_suspended_at: None,
+            edits_sites: false,
         };
         let json = serde_json::to_value(&account).unwrap();
         assert!(

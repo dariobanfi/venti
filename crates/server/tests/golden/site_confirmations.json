@@ -1,0 +1,24 @@
+{
+  "id": "venti:0000000000000000000000s001",
+  "confirmed": {
+    "pilots": 2,
+    "latest_day": "2026-11-16"
+  },
+  "confirmations": [
+    {
+      "by": {
+        "handle": "mara",
+        "display_name": "Mara Muster"
+      },
+      "day": "2026-11-16",
+      "note": "North-west at noon, smooth."
+    },
+    {
+      "by": {
+        "handle": "jonas",
+        "display_name": "Jonas Beispiel"
+      },
+      "day": "2026-11-09"
+    }
+  ]
+}

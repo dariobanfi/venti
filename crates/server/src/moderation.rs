@@ -15,9 +15,13 @@
 //! - `group` shows one group with its members and its plans,
 //!   `rename-group` gives it another name, `remove-plan` removes one of
 //!   its plans and `remove-group` the group with everything in it;
-//! - `site` shows one site that pilots made with its whole history,
-//!   `revert-site` puts it back to what an earlier revision said, and
-//!   `remove-site` takes it down.
+//! - `site` shows one site of Venti's own two layers with its whole
+//!   history, `revert-site` puts it back to what an earlier revision
+//!   said, and `remove-site` takes it down;
+//! - `grant-sites` names an account as one of Venti's partners for flying
+//!   sites, which lets it add to the partners' layer and correct sites of
+//!   both layers; `withdraw-sites` takes that back, and `site-partners`
+//!   lists who holds it.
 //!
 //! There is no web page for any of this, and the API offers none of it:
 //! whoever can run this program on the server's machine, with the server's
@@ -51,8 +55,9 @@ use std::process::ExitCode;
 
 use chrono::NaiveDate;
 use venti_api_types::v1::{
-    FlightId, GroupId, GroupTextError, Handle, LiveTrackId, PlanId, VENTI_SITES_SOURCE, format_day,
-    live_page_path, parse_group_name, parse_site_comment, share_path,
+    FlightId, GroupId, GroupTextError, Handle, LiveTrackId, PlanId, VENTI_PILOTS_SITES_SOURCE,
+    VENTI_SITES_LICENCE, VENTI_SITES_SOURCE, format_day, live_page_path, parse_group_name,
+    parse_site_comment, share_path,
 };
 use venti_domain::{Site as FlyingSite, SiteId, SiteUse, Timestamp};
 use venti_store::{
@@ -76,7 +81,7 @@ const PAGE: usize = 100;
 
 /// How far apart, in metres, two sites that pilots made stand at least.
 /// A site that `revert-site` brings back is held to it as a new one is.
-use crate::pilot_sites::APART_M;
+use crate::pilot_sites::{APART_M, Layer};
 
 /// One thing the operator asks for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +170,19 @@ pub enum Action {
         /// operator reads the history of a site that is taken down.
         comment: Option<String>,
     },
+    /// Name an account as trusted to add and correct flying sites: one of
+    /// Venti's partners.
+    GrantSites {
+        /// The account's handle.
+        handle: String,
+    },
+    /// Take that back. What the account wrote stays.
+    WithdrawSites {
+        /// The account's handle.
+        handle: String,
+    },
+    /// List the accounts that are trusted with the sites.
+    SitePartners,
 }
 
 /// What `venti-server` was asked to do as the operator.
@@ -491,6 +509,100 @@ pub async fn perform(
                 )),
             })
         }
+        Action::GrantSites { handle } => {
+            let Some(account) = account(store, handle).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_account(handle)));
+            };
+            let granted = store.let_edit_sites(&account.id, clock.now()).await;
+            let Some(since) = granted.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_account(handle)));
+            };
+            let pilot = who(&account.handle, &account.display_name);
+            let what = if account.edits_sites_since.is_some() {
+                format!(
+                    "{pilot} is a partner for flying sites since {} already. Nothing changed.",
+                    day_and_time(since)
+                )
+            } else {
+                format!("{pilot} is a partner for flying sites from now on.")
+            };
+            let suspended = if account.publishing_suspended_at.is_some() {
+                format!(
+                    "\nThe account's publishing is suspended, and while it is the account \
+                     writes no site: `venti-server resume-publishing {}`.",
+                    account.handle
+                )
+            } else {
+                String::new()
+            };
+            Ok(Outcome::found(format!(
+                "{what}\n\
+                 The account adds sites to the partners' layer (`{VENTI_SITES_SOURCE}`), \
+                 which every app shows beside the sources' sites, and corrects, restores \
+                 and removes sites of that layer and of the crowdsourced one \
+                 (`{VENTI_PILOTS_SITES_SOURCE}`), through its own sign-in and through a \
+                 token of its own with the scope sites:write. What it adds is given under \
+                 {VENTI_SITES_LICENCE}, with its handle in the site's history. The server \
+                 tells the account's apps that it is a partner; it tells nobody else.\n\
+                 Nothing else about the account changed. `venti-server withdraw-sites {}` \
+                 undoes this.{suspended}",
+                account.handle,
+            )))
+        }
+        Action::WithdrawSites { handle } => {
+            let Some(account) = account(store, handle).await.map_err(failed)? else {
+                return Ok(Outcome::nothing(no_account(handle)));
+            };
+            let pilot = who(&account.handle, &account.display_name);
+            let withdrawn = store.stop_editing_sites(&account.id).await;
+            Ok(match withdrawn.map_err(failed)? {
+                None => Outcome::nothing(no_account(handle)),
+                Some(false) => Outcome::found(format!(
+                    "{pilot} was not a partner for flying sites. Nothing changed."
+                )),
+                Some(true) => Outcome::found(format!(
+                    "{pilot} is no partner for flying sites any more: the account adds no \
+                     site to the partners' layer and corrects none there. Where this server \
+                     takes sites from pilots it adds to the crowdsourced layer, as any \
+                     pilot.\n\
+                     Every site the account added and every revision it wrote stays as it \
+                     is, with the account in its history. To undo one of them, \
+                     `venti-server site`, then revert-site or remove-site."
+                )),
+            })
+        }
+        Action::SitePartners => {
+            let partners = store.site_editors().await.map_err(failed)?;
+            if partners.is_empty() {
+                return Ok(Outcome::found(
+                    "No account is a partner for flying sites: nobody adds to the partners' \
+                     layer. `venti-server grant-sites <HANDLE>` names one.",
+                ));
+            }
+            let mut said = format!(
+                "Partners for flying sites, {}, by handle:",
+                counted(partners.len(), "account", "accounts")
+            );
+            for partner in &partners {
+                let since = partner
+                    .edits_sites_since
+                    .map_or_else(String::new, day_and_time);
+                let suspended = if partner.publishing_suspended_at.is_some() {
+                    "; publishing suspended, so it writes no site now"
+                } else {
+                    ""
+                };
+                let _ = write!(
+                    said,
+                    "\n  {}  since {since}{suspended}",
+                    who(&partner.handle, &partner.display_name)
+                );
+            }
+            said.push_str(
+                "\nChanges nothing. `venti-server withdraw-sites <HANDLE>` takes one off.",
+            );
+            Ok(Outcome::found(said))
+        }
         Action::Group { group } => {
             let Ok(id) = group.trim().parse::<GroupId>() else {
                 return Ok(Outcome::nothing(no_group_identifier(group)));
@@ -766,14 +878,15 @@ pub async fn perform(
 /// source's, and nothing here acts on them.
 fn pilot_site_id(text: &str) -> Option<SiteId> {
     let id: SiteId = last_part(text).parse().ok()?;
-    (id.source().as_str() == VENTI_SITES_SOURCE && secret::is_id(id.local())).then_some(id)
+    (Layer::of(&id).is_some() && secret::is_id(id.local())).then_some(id)
 }
 
 fn no_site_identifier(text: &str) -> String {
     format!(
-        "{:?} is not the identifier of a site that pilots made: such an identifier is \
-         `{VENTI_SITES_SOURCE}:` and 26 characters. A site of another source is that \
-         source's to correct, and goes or changes with its next run.",
+        "{:?} is not the identifier of a site of Venti's own: such an identifier is \
+         `{VENTI_SITES_SOURCE}:` (a partner's) or `{VENTI_PILOTS_SITES_SOURCE}:` (a \
+         pilot's) and 26 characters. A site of another source is that source's to correct, \
+         and goes or changes with its next run.",
         on_one_line(text)
     )
 }
@@ -946,6 +1059,12 @@ fn revision_line(revision: &SiteRevision, before: Option<&FlyingSite>) -> String
 /// says, and every revision in a line.
 fn shown_site(seen: &PilotSite, revisions: &[SiteRevision]) -> String {
     let mut said = format!("Site {}", seen.site.id);
+    let layer = match Layer::of(&seen.site.id) {
+        Some(Layer::Partners) => "the partners' (added by an account trusted with sites)",
+        Some(Layer::Pilots) => "the crowdsourced one (added by a pilot, asked for to be shown)",
+        None => "none of Venti's own",
+    };
+    labelled(&mut said, "Layer:", layer);
     record_lines(&mut said, &seen.site);
     let made = format!(
         "{} by {}",
@@ -968,6 +1087,14 @@ fn shown_site(seen: &PilotSite, revisions: &[SiteRevision]) -> String {
         ),
     };
     labelled(&mut said, "Stands:", &stands);
+    if let Some(day) = seen.confirmed.latest_day {
+        let confirmed = format!(
+            "by {}, last of {}",
+            counted(seen.confirmed.pilots as usize, "pilot", "pilots"),
+            format_day(day)
+        );
+        labelled(&mut said, "Confirmed:", &confirmed);
+    }
     let _ = write!(
         said,
         "\n\nHistory, {}, the first one first:",

@@ -154,13 +154,17 @@ pub use request::{
     format_day, format_time, group_invite_path, group_keeper_path, group_member_path, group_path,
     group_plans_path, live_page_path, live_track_path, observations_path, parse_bbox, parse_day,
     parse_position, parse_time, pilot_path, plan_in_path, plan_path, session_path,
-    share_image_path, share_path, site_history_path, site_path, site_revisions_path,
+    share_image_path, share_path, site_confirmation_path, site_confirmations_path,
+    site_history_path, site_path, site_revisions_path, sites_path,
 };
 pub use sites::{
-    AddSiteRequest, ChangeSiteRequest, MAX_SITE_COMMENT_LENGTH, RemoveSiteRequest,
-    RestoreSiteRequest, SiteChangesResponse, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
+    AddSiteRequest, CONFIRMATION_DAYS_BACK, CONFIRMATION_FLIGHT_WITHIN_M, ChangeSiteRequest,
+    ConfirmSiteRequest, DEFAULT_SITE_LAYERS, MAX_SITE_COMMENT_LENGTH, MAX_SITE_CONFIRMATIONS,
+    RemoveSiteRequest, RestoreSiteRequest, SiteChangesResponse, SiteConfirmation,
+    SiteConfirmationsResponse, SiteConfirmed, SiteDraft, SiteHistoryResponse, SiteLayer, SitePilot,
     SiteRecord, SiteResponse, SiteRevision, SiteRevisionKind, SiteStanding, SiteVia, SitesResponse,
-    VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE, parse_site_comment,
+    VENTI_PILOTS_SITES_SOURCE, VENTI_SITES_LICENCE, VENTI_SITES_LICENCE_URL, VENTI_SITES_SOURCE,
+    parse_site_comment,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
 pub use thermals::{

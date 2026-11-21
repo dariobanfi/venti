@@ -21,7 +21,10 @@
 //! (`site_filter`), and the sites a pilot keeps as their own, with which
 //! Today begins (`kept_sites`).
 
-use venti_api_types::v1::{SitePilot, SiteStanding, SitesRequest, SitesResponse};
+use venti_api_types::v1::{
+    DEFAULT_SITE_LAYERS, SiteConfirmed, SitePilot, SiteStanding, SitesRequest, SitesResponse,
+    VENTI_PILOTS_SITES_SOURCE,
+};
 use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SiteUse, WindSector};
 use venti_flight::live::navigation::bearing_deg;
 
@@ -216,6 +219,27 @@ pub struct SiteByPilots {
     /// by Mara Beispiel (@mara)". The date beside it is `changed_unix_s`.
     /// Empty for a site nobody has changed since it was added.
     pub changed_in_words: String,
+    /// Whether the site is of the crowdsourced layer (`venti-pilots`):
+    /// added by a pilot, less official, and shown only where the pilot
+    /// switched that layer on. `false` for a site that a partner of Venti
+    /// added (`venti`). A shell marks a crowdsourced site as from pilots.
+    #[uniffi(default = false)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub from_pilots: bool,
+    /// How many pilots say they took off here and that it was good.
+    #[uniffi(default = 0)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub confirmed_pilots: u32,
+    /// The newest day one of them speaks of, as `YYYY-MM-DD`. Absent while
+    /// nobody has.
+    #[uniffi(default = None)]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub confirmed_latest_day: Option<String>,
+    /// The same as a line of the site's page: "3 pilots took off here,
+    /// last on 14 November 2026". Empty while nobody has.
+    #[uniffi(default = "")]
+    #[cfg_attr(feature = "wasm", serde(default), tsify(optional))]
+    pub confirmed_in_words: String,
 }
 
 /// One flying site as a map and a sheet show it. A shell hands it back to
@@ -334,6 +358,24 @@ pub fn sites_path(south: f64, west: f64, north: f64, east: f64) -> Result<String
         bbox: area(south, west, north, east)?,
     }
     .path_and_query())
+}
+
+/// The same for a pilot who switched the crowdsourced layer on: the
+/// layers an answer holds anyway, and the sites that pilots added
+/// (`venti-pilots`), which are in no answer that does not ask for them.
+/// [`sites_map`] reads the answer to either; a site of that layer says
+/// so in [`SiteByPilots::from_pilots`].
+#[uniffi::export]
+pub fn sites_path_with_pilots(
+    south: f64,
+    west: f64,
+    north: f64,
+    east: f64,
+) -> Result<String, CoreError> {
+    Ok(venti_api_types::v1::sites_path(
+        &area(south, west, north, east)?,
+        &[DEFAULT_SITE_LAYERS, VENTI_PILOTS_SITES_SOURCE],
+    ))
 }
 
 /// Reads the server's answer to [`sites_path`] for the same box.
@@ -492,10 +534,28 @@ fn area(south: f64, west: f64, north: f64, east: f64) -> Result<BoundingBox, Cor
     })
 }
 
-/// What to say wherever a site of Venti's own layer is shown as more than
-/// a mark.
-pub(crate) const BY_PILOTS_NOTE: &str = "Added by pilots on Venti and not verified. A site on the map is \
-                              not permission to fly there.";
+/// What to say wherever a site that a partner of Venti added is shown as
+/// more than a mark. The name is from before there were two layers.
+pub(crate) const BY_PILOTS_NOTE: &str = "Added by a partner of Venti and not checked by Venti. A site on \
+                              the map is not permission to fly there.";
+
+/// The same for a site of the crowdsourced layer.
+pub(crate) const FROM_PILOTS_NOTE: &str = "Added by pilots on Venti: not official and not checked by \
+                                anyone. A site on the map is not permission to fly there.";
+
+/// "3 pilots took off here, last on 14 November 2026"; empty while nobody
+/// confirmed the site.
+pub(crate) fn confirmed_in_words(confirmed: &SiteConfirmed) -> String {
+    let Some(day) = confirmed.latest_day.filter(|_| confirmed.pilots > 0) else {
+        return String::new();
+    };
+    let who = if confirmed.pilots == 1 {
+        "1 pilot".to_owned()
+    } else {
+        format!("{} pilots", confirmed.pilots)
+    };
+    format!("{who} took off here, last on {}", day.format("%-d %B %Y"))
+}
 
 pub(crate) fn author(pilot: &SitePilot) -> SiteAuthor {
     SiteAuthor {
@@ -516,11 +576,24 @@ pub(crate) fn author_in_words(author: &SiteAuthor) -> String {
 fn by_pilots(standing: &SiteStanding) -> SiteByPilots {
     let added_by = standing.created_by.as_ref().map(author);
     let changed_by = standing.changed_by.as_ref().map(author);
+    let from_pilots = standing.id.source().as_str() == VENTI_PILOTS_SITES_SOURCE;
     SiteByPilots {
         revision: standing.revision,
         added_unix_s: standing.created_at.timestamp(),
         changed_unix_s: standing.changed_at.timestamp(),
-        note: BY_PILOTS_NOTE.to_owned(),
+        note: if from_pilots {
+            FROM_PILOTS_NOTE
+        } else {
+            BY_PILOTS_NOTE
+        }
+        .to_owned(),
+        from_pilots,
+        confirmed_pilots: standing.confirmed.pilots,
+        confirmed_latest_day: standing
+            .confirmed
+            .latest_day
+            .map(|day| day.format("%Y-%m-%d").to_string()),
+        confirmed_in_words: confirmed_in_words(&standing.confirmed),
         added_in_words: added_by.as_ref().map_or_else(
             || "Added by a pilot who is no longer on Venti".to_owned(),
             |author| format!("Added by {}", author_in_words(author)),
@@ -560,6 +633,13 @@ pub(crate) fn standing_of(view: &SiteView) -> Option<SiteStanding> {
         created_by: pilot(&by.added_by),
         changed_at: chrono::DateTime::from_timestamp(by.changed_unix_s, 0)?,
         changed_by: pilot(&by.changed_by),
+        confirmed: SiteConfirmed {
+            pilots: by.confirmed_pilots,
+            latest_day: by
+                .confirmed_latest_day
+                .as_deref()
+                .and_then(|day| day.parse().ok()),
+        },
     })
 }
 
@@ -1168,8 +1248,33 @@ mod tests {
         assert_eq!(by.revision, 3);
         assert_eq!(
             by.note,
-            "Added by pilots on Venti and not verified. A site on the map is not permission to \
-             fly there."
+            "Added by a partner of Venti and not checked by Venti. A site on the map is not \
+             permission to fly there."
+        );
+        // A site of the partners' layer, which nobody confirmed.
+        assert!(!by.from_pilots);
+        assert_eq!(
+            (by.confirmed_pilots, by.confirmed_in_words.as_str()),
+            (0, "")
+        );
+        let said = SiteConfirmed {
+            pilots: 3,
+            latest_day: chrono::NaiveDate::from_ymd_opt(2026, 11, 14),
+        };
+        assert_eq!(
+            confirmed_in_words(&said),
+            "3 pilots took off here, last on 14 November 2026"
+        );
+        let one = SiteConfirmed { pilots: 1, ..said };
+        assert_eq!(
+            confirmed_in_words(&one),
+            "1 pilot took off here, last on 14 November 2026"
+        );
+        // The crowdsourced layer is asked for by name, beside what an
+        // answer holds anyway.
+        assert_eq!(
+            sites_path_with_pilots(47.55, 11.6, 47.85, 12.0).unwrap(),
+            "/v1/sites?bbox=11.6,47.55,12,47.85&layers=default,venti-pilots"
         );
         assert_eq!(by.added_in_words, "Added by Max Mustermann (@demo)");
         assert_eq!(by.changed_in_words, "Last changed by Mara Beispiel (@mara)");

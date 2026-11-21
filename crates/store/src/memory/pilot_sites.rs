@@ -2,13 +2,17 @@
 
 use std::collections::BTreeMap;
 
-use venti_domain::{BoundingBox, Site, SiteId, Timestamp};
+use chrono::NaiveDate;
+use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
 
 use super::accounts::Accounts;
-use crate::pilot_site::{Decision, check_new, check_revising, decide, nearest_within};
+use crate::pilot_site::{
+    Decision, check_confirmation, check_new, check_revising, decide, nearest_within,
+};
 use crate::{
-    NewPilotSite, PilotSite, PilotSiteChanges, RevisionKind, SiteAct, SitePilot, SiteRevising,
-    SiteRevision, SiteVia, SiteWrite, StoreError,
+    NewPilotSite, NewSiteConfirmation, PilotSite, PilotSiteChanges, RevisionKind, SiteAct,
+    SiteConfirmation, SiteConfirmed, SiteConfirming, SitePilot, SiteRevising, SiteRevision,
+    SiteVia, SiteWrite, StoreError,
 };
 
 #[derive(Debug, Default)]
@@ -29,6 +33,17 @@ struct Entry {
     change: i64,
     /// Every revision, the first one first. Never empty.
     revisions: Vec<Stored>,
+    /// By account: one confirmation each.
+    confirmations: BTreeMap<String, Confirmed>,
+}
+
+/// One account's confirmation of a site.
+#[derive(Debug)]
+struct Confirmed {
+    day: NaiveDate,
+    note: Option<String>,
+    with_flight: bool,
+    at: Timestamp,
 }
 
 /// A revision as it is kept: with its author's account, not the pilot.
@@ -70,6 +85,10 @@ impl Entry {
             removed_at: self.removed_at,
             taken_down: self.taken_down,
             change: self.change,
+            confirmed: SiteConfirmed {
+                pilots: u32::try_from(self.confirmations.len()).unwrap_or(u32::MAX),
+                latest_day: self.confirmations.values().map(|kept| kept.day).max(),
+            },
         })
     }
 }
@@ -109,6 +128,7 @@ impl PilotSites {
             removed_at: None,
             taken_down: false,
             change: self.latest,
+            confirmations: BTreeMap::new(),
             revisions: vec![Stored {
                 author_id: Some(new.author_id.clone()),
                 at: new.at,
@@ -189,13 +209,15 @@ impl PilotSites {
 
     pub(super) fn in_box(
         &self,
+        layer: &SourceId,
         area: &BoundingBox,
         limit: usize,
         accounts: &Accounts,
     ) -> Vec<PilotSite> {
         self.sites
-            .values()
-            .filter(|entry| entry.removed_at.is_none())
+            .iter()
+            .filter(|(id, entry)| id.source() == layer && entry.removed_at.is_none())
+            .map(|(_, entry)| entry)
             .filter_map(|entry| entry.read(accounts))
             .filter(|site| area.contains(site.site.position))
             .take(limit)
@@ -235,14 +257,16 @@ impl PilotSites {
 
     pub(super) fn changes(
         &self,
+        layer: &SourceId,
         since: i64,
         limit: usize,
         accounts: &Accounts,
     ) -> PilotSiteChanges {
         let mut changed: Vec<PilotSite> = self
             .sites
-            .values()
-            .filter(|entry| entry.change > since)
+            .iter()
+            .filter(|(id, entry)| id.source() == layer && entry.change > since)
+            .map(|(_, entry)| entry)
             .filter_map(|entry| entry.read(accounts))
             .collect();
         changed.sort_by_key(|site| site.change);
@@ -252,6 +276,90 @@ impl PilotSites {
             sites: changed,
             more,
             latest: self.latest,
+        }
+    }
+
+    pub(super) fn confirm(
+        &mut self,
+        new: &NewSiteConfirmation,
+        accounts: &Accounts,
+    ) -> Result<SiteConfirming, StoreError> {
+        check_confirmation(new)?;
+        if accounts.by_id(&new.account_id).is_none() {
+            return Ok(SiteConfirming::NoSuchAccount);
+        }
+        let Some(entry) = self.sites.get_mut(&new.site) else {
+            return Ok(SiteConfirming::NoSuchSite);
+        };
+        if entry.removed_at.is_some() {
+            return Ok(SiteConfirming::Removed);
+        }
+        self.latest += 1;
+        entry.change = self.latest;
+        entry.confirmations.insert(
+            new.account_id.clone(),
+            Confirmed {
+                day: new.day,
+                note: new.note.clone(),
+                with_flight: new.with_flight,
+                at: new.at,
+            },
+        );
+        entry
+            .read(accounts)
+            .map(|site| SiteConfirming::Confirmed(Box::new(site)))
+            .ok_or_else(|| StoreError::Failure("a site without a revision".to_owned()))
+    }
+
+    pub(super) fn withdraw(
+        &mut self,
+        site: &SiteId,
+        account_id: &str,
+        accounts: &Accounts,
+    ) -> Option<(PilotSite, bool)> {
+        let entry = self.sites.get_mut(site)?;
+        let was = entry.confirmations.remove(account_id).is_some();
+        if was {
+            self.latest += 1;
+            entry.change = self.latest;
+        }
+        Some((entry.read(accounts)?, was))
+    }
+
+    pub(super) fn confirmations(
+        &self,
+        site: &SiteId,
+        limit: usize,
+        accounts: &Accounts,
+    ) -> Option<(PilotSite, Vec<SiteConfirmation>)> {
+        let entry = self.sites.get(site)?;
+        let mut all: Vec<SiteConfirmation> = entry
+            .confirmations
+            .iter()
+            .filter_map(|(account_id, kept)| {
+                Some(SiteConfirmation {
+                    pilot: pilot(Some(account_id), accounts)?,
+                    day: kept.day,
+                    note: kept.note.clone(),
+                    with_flight: kept.with_flight,
+                    at: kept.at,
+                })
+            })
+            .collect();
+        all.sort_by(|a, b| {
+            b.day
+                .cmp(&a.day)
+                .then_with(|| a.pilot.handle.cmp(&b.pilot.handle))
+        });
+        all.truncate(limit);
+        Some((entry.read(accounts)?, all))
+    }
+
+    /// Takes what an account said of sites with it. Its sites and
+    /// revisions stay: they are found without their author from now on.
+    pub(super) fn delete_account(&mut self, account_id: &str) {
+        for entry in self.sites.values_mut() {
+            entry.confirmations.remove(account_id);
         }
     }
 }

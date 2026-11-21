@@ -214,9 +214,21 @@ pub enum ErrorCode {
     /// The site was changed since the revision the request names. Read it
     /// again and make the change from what it says now.
     SiteChanged,
-    /// This server takes no sites from pilots; `sites_from_pilots` in the
-    /// health answer says the same before anything is sent.
+    /// This server takes no sites and no confirmations from pilots;
+    /// `sites_from_pilots` in the health answer says the same before
+    /// anything is sent. Also the answer to a write of a site of a
+    /// source's set, which is corrected at its source.
     SitesClosed,
+    /// The site is one that Venti's partners add and correct, and this
+    /// account is not one whoever runs the server named for that. A pilot
+    /// who finds such a site wrong reports it.
+    SitesForPartners,
+    /// `layers` names a layer of sites this server does not have.
+    InvalidLayers,
+    /// A confirmation of a site cannot be kept: its day lies in the
+    /// future or too far back, its note is too long, or the flight it
+    /// names is not the pilot's or did not take off at the site.
+    InvalidConfirmation,
     /// The server hands out no map file under this path: no region with
     /// this identifier, not in this version, or no file of this name. A
     /// region whose files were renewed has a new version; the list of

@@ -21,6 +21,7 @@
 //! What both stores decide in the same way is decided here, in [`decide`]
 //! and [`nearest_within`]; a store reads, asks, and writes what it is told.
 
+use chrono::NaiveDate;
 use venti_domain::{Site, SiteId, Timestamp};
 
 use crate::StoreError;
@@ -171,6 +172,9 @@ pub struct PilotSite {
     /// The change number of the layer that the site's latest revision
     /// took.
     pub change: i64,
+    /// How many pilots say they took off here, and the newest day one of
+    /// them speaks of.
+    pub confirmed: SiteConfirmed,
 }
 
 impl PilotSite {
@@ -276,6 +280,96 @@ pub struct PilotSiteChanges {
     /// The largest change number the layer has used, zero if it has used
     /// none.
     pub latest: i64,
+}
+
+/// The layer of sites whose writers whoever runs the server names: the
+/// partners' sites. Every other layer of the table is one that any pilot
+/// writes to. The store knows the name for one thing, which site stands
+/// in the way of which ([`in_the_way`]); who may write where is the
+/// server's to decide.
+pub const PARTNERS_LAYER: &str = "venti";
+
+/// How many pilots confirmed a site, and when last.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SiteConfirmed {
+    /// How many accounts have a confirmation of the site.
+    pub pilots: u32,
+    /// The newest day one of them speaks of. `None` when nobody confirmed.
+    pub latest_day: Option<NaiveDate>,
+}
+
+/// One pilot's word that they took off at a site and that it was good.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SiteConfirmation {
+    /// Who says so.
+    pub pilot: SitePilot,
+    /// The day they speak of.
+    pub day: NaiveDate,
+    /// What they add, in one line.
+    pub note: Option<String>,
+    /// Whether the server found a flight of theirs that took off there.
+    pub with_flight: bool,
+    /// When it was said, or last said again.
+    pub at: Timestamp,
+}
+
+/// A confirmation to keep: the one of this account for this site, in the
+/// place of the one it had.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewSiteConfirmation {
+    /// The site.
+    pub site: SiteId,
+    /// Whose word it is.
+    pub account_id: String,
+    /// The day it speaks of.
+    pub day: NaiveDate,
+    /// What the pilot adds. The caller has cleaned it to one line.
+    pub note: Option<String>,
+    /// Whether the caller found a flight of the pilot's that took off
+    /// there.
+    pub with_flight: bool,
+    /// Now.
+    pub at: Timestamp,
+}
+
+/// What became of a confirmation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SiteConfirming {
+    /// It is kept; the site as it stands with it.
+    Confirmed(Box<PilotSite>),
+    /// The site is removed or taken down: nobody takes off there.
+    Removed,
+    /// No site ever had the identifier.
+    NoSuchSite,
+    /// The account is gone.
+    NoSuchAccount,
+}
+
+/// Whether a standing site stands in the way of a site that is written
+/// at less than the distance from it.
+///
+/// A partner's site gives way to partners' sites only: what pilots put on
+/// the map does not keep an official site off it. A site of any other
+/// layer gives way to every site, a partner's included: where a site
+/// stands already, a second one of the same place helps nobody.
+pub(crate) fn in_the_way(written: &SiteId, standing: &SiteId) -> bool {
+    written.source().as_str() != PARTNERS_LAYER || standing.source().as_str() == PARTNERS_LAYER
+}
+
+/// Checks a confirmation before it is kept: no text of it holds a zero
+/// byte, which the database cannot keep.
+pub(crate) fn check_confirmation(new: &NewSiteConfirmation) -> Result<(), StoreError> {
+    let texts = [
+        new.site.local(),
+        &new.account_id,
+        new.note.as_deref().unwrap_or_default(),
+    ];
+    if texts.iter().any(|text| text.contains('\0')) {
+        return Err(StoreError::Invalid(
+            "a confirmation with a zero byte in one of its texts".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// Refuses what no store keeps: text with a zero byte in it, which the
@@ -435,7 +529,7 @@ pub(crate) fn nearest_within<'a>(
 ) -> Option<SiteId> {
     standing
         .into_iter()
-        .filter(|other| other.id != record.id)
+        .filter(|other| other.id != record.id && in_the_way(&record.id, &other.id))
         .map(|other| (record.position.distance_m(other.position), &other.id))
         .filter(|(distance, _)| *distance < apart_m)
         .min_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(b.1)))
@@ -490,6 +584,7 @@ mod tests {
             removed_at: None,
             taken_down: false,
             change: 1,
+            confirmed: SiteConfirmed::default(),
         }
     }
 

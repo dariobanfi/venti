@@ -44,7 +44,7 @@ test('the map shows where the pilot is, on request', async ({
 
 test('the map says why when it may not use the position', async ({ page, keep }) => {
 	// Permission is not granted: the browser refuses.
-	await page.goto('/');
+	await page.goto('/map/');
 	const locate = page.getByRole('button', { name: 'Show my position' });
 	await expect(page.locator('canvas.maplibregl-canvas')).toBeVisible();
 	await locate.click();
@@ -58,7 +58,7 @@ test('the map says why when it may not use the position', async ({ page, keep })
 });
 
 test('the navigation leads to every section, and says where one is', async ({ page, wide }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	const navigation = page.getByRole('navigation', { name: 'Sections' });
 	await expect(navigation.getByRole('link', { name: 'Map', exact: true })).toHaveAttribute(
 		'aria-current',
@@ -86,7 +86,7 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 	await expect(page).toHaveTitle('Settings · Venti');
 
 	// A flight fills a narrow screen, so the bar steps aside there. A wide
-	// screen keeps its rail.
+	// screen keeps its bar.
 	await navigation.getByRole('link', { name: 'Logbook', exact: true }).click();
 	await page.getByRole('button', { name: 'Add a sample flight' }).click();
 	await expect(page.getByRole('heading', { name: 'Sat, 4 Jul 2026' })).toBeVisible();

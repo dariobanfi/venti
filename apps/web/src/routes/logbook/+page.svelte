@@ -198,7 +198,7 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		min-height: 100dvh;
+		min-height: calc(100dvh - var(--nav-top));
 		max-width: 60rem;
 		margin: 0 auto;
 		padding: calc(1rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))

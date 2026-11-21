@@ -212,7 +212,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.375rem;
-		min-height: 100dvh;
+		min-height: calc(100dvh - var(--nav-top));
 		max-width: 24rem;
 		margin: 0 auto;
 		padding: 2rem var(--gutter);

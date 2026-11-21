@@ -30,7 +30,7 @@ interface Fixtures {
 	mapDrawn: () => Promise<void>;
 	/** Keeps a screenshot of the screen under `name`, in this project's folder. */
 	keep: (name: string) => Promise<void>;
-	/** Whether the window is wide enough for the navigation to be at the side. */
+	/** Whether the window is wide enough for the navigation to be a bar across the top. */
 	wide: boolean;
 	/** What the page wrote to the console as errors. A test checks it is empty. */
 	problems: string[];
@@ -59,7 +59,7 @@ export const test = base.extend<Fixtures>({
 	},
 
 	wide: async ({ viewport }, use) => {
-		// 56rem, where the stylesheet moves the navigation to the side.
+		// 56rem, where the stylesheet moves the navigation to the top.
 		await use((viewport?.width ?? 0) >= 896);
 	},
 

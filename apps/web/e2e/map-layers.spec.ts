@@ -35,7 +35,7 @@ test('the chips switch the map’s layers, and the browser remembers them', asyn
 }) => {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
@@ -75,7 +75,7 @@ test('the layers button lays photographs from above under the map, and the brows
 
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 
@@ -140,7 +140,7 @@ test('a take-off’s sheet has the forecast’s status and its line, a landing h
 }) => {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 

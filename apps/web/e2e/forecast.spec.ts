@@ -30,7 +30,7 @@ async function openTheTakeOff(
 	mapDrawn: () => Promise<void>,
 	wide: boolean
 ): Promise<Locator> {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await page.getByRole('button', { name: 'Flying sites' }).click();
@@ -129,7 +129,7 @@ test('a wind station’s page leads to the forecast for its place too', async ({
 	wide
 }) => {
 	await page.clock.setFixedTime(THAT_MORNING);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const list = page.getByRole('dialog', { name: 'Wind stations' });

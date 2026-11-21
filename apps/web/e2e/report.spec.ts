@@ -142,7 +142,7 @@ test('a live track is reported from its glider’s page on the map', async ({
 	await signUp(page);
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 	await page.getByRole('button', { name: 'In the air' }).click();

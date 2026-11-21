@@ -15,11 +15,24 @@ export function todayHref(): string {
 	return resolve('/today');
 }
 
-/** The map; with a place, opened around it (`?lat=…&lon=…`), as a site's page sends the pilot there. */
-export function mapHref(around?: { lat: number; lon: number }): string {
-	if (!around) return resolve('/');
-	const params = new URLSearchParams({ lat: around.lat.toFixed(5), lon: around.lon.toFixed(5) });
-	return `${resolve('/')}?${params}`;
+/** The home page: what is going on, on Venti and in the air. */
+export function homeHref(): string {
+	return resolve('/');
+}
+
+/**
+ * The map; with a place, opened around it (`?lat=…&lon=…`), as a site's
+ * page sends the pilot there; with a layer, with that layer on (`?show=pilots`).
+ */
+export function mapHref(around?: { lat: number; lon: number }, show?: 'pilots'): string {
+	const params = new URLSearchParams();
+	if (around) {
+		params.set('lat', around.lat.toFixed(5));
+		params.set('lon', around.lon.toFixed(5));
+	}
+	if (show) params.set('show', show);
+	const query = params.toString();
+	return query ? `${resolve('/map')}?${query}` : resolve('/map');
 }
 
 /** The place the map's address opens it around, where it names one. */

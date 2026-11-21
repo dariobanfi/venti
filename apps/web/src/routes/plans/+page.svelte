@@ -41,9 +41,9 @@
 	<title>Flying plans · Venti</title>
 </svelte:head>
 
-<div class="settings-page" class:wide={wide.current}>
-	<header></header>
-	<div class="title">
+<div class={wide.current ? 'desk wide' : 'settings-page'}>
+	{#if !wide.current}<header></header>{/if}
+	<div class="title" class:page-head={wide.current}>
 		<h1>Flying plans</h1>
 		{#if canPlan}
 			<button class="new" type="button" onclick={() => (adding = true)}>
@@ -120,7 +120,7 @@
 					<p class="group-note">{CUT_SHORT}</p>
 				{/if}
 
-				<section class="group" aria-label="Groups">
+				<section class="group aside" aria-label="Groups">
 					<div class="group-card">
 						<a class="group-row" href={groupsHref()}>
 							<span>{board.groups.length === 0 ? 'Make or join a group' : 'Groups'}</span>
@@ -202,9 +202,37 @@
 		font-size: 0.75rem;
 	}
 
-	/* Wide: each day's plans as a table, rows 32 px high, on a wider page. */
+	/* Wide: the head across the page, each day's plans as a table, rows
+	   32 px high, in the main column, and the groups beside them. */
 	.wide {
-		max-width: 64rem;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+		grid-auto-flow: row dense;
+		column-gap: var(--space-6);
+		align-content: start;
+	}
+
+	.wide > :global(*) {
+		grid-column: 1;
+	}
+
+	.wide > .title {
+		grid-column: 1 / -1;
+		justify-content: flex-start;
+	}
+
+	.wide > .title h1 {
+		margin: 0 auto 0 0;
+	}
+
+	.wide > .aside {
+		grid-column: 2;
+		grid-row: 2 / span 40;
+		margin-top: 0;
+	}
+
+	.wide > .group:nth-child(1 of .group) {
+		margin-top: 0;
 	}
 
 	/* The same columns under every day. */

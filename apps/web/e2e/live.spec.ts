@@ -39,7 +39,7 @@ async function mapAt(
 ): Promise<void> {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(place);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 	await expect(shown(page)).toHaveText(`In the air on this part of the map: ${inView}.`);
@@ -318,7 +318,7 @@ test('a map of half a continent asks for nobody, and the list says how to get so
 	keep,
 	wide
 }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	// The northern Alps from Lake Constance to Salzburg: gliders are asked for.
 	await expect(shown(page)).toBeVisible();

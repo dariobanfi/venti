@@ -117,7 +117,7 @@ async function join(page: Page, code: string): Promise<Locator> {
 }
 
 test('signed out, the board says that plans need an account', async ({ page, keep, problems }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await openBoard(page);
 	await expect(page).toHaveTitle('Flying plans · Venti');
 

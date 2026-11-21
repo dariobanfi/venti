@@ -39,7 +39,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 }) => {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	// A map of the whole northern Alps draws no sites: they would be a
@@ -162,7 +162,7 @@ test('a site is opened by its sign, and a station still by its arrow', async ({
 	// The pilot stands at the take-off, and the map goes there.
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(JAEGERKAMP);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 	await expect(shown(page)).toHaveText(/^Flying sites on this part of the map: [1-9]\d*\.$/);
@@ -206,7 +206,7 @@ test('a site named in a script the app has no letters for is drawn all the same'
 	});
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
@@ -228,7 +228,7 @@ test('a server that cannot be asked for sites is named in the list, and the map 
 	await context.route('**/v1/sites**', (route) => route.abort());
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 
@@ -267,7 +267,7 @@ test('the sites are filtered by a wind: what fits, what stands apart, and what i
 }) => {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showTheValley(page, mapDrawn, wide ? 1 : 2);
 	await expect(shown(page)).toHaveText('Flying sites on this part of the map: 5.');
@@ -411,7 +411,7 @@ test('a landing field mapped as an area is drawn as its outline, under its sign'
 	// Jägerkamp, which OpenStreetMap maps as an area of eight points.
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation({ latitude: 47.6916, longitude: 11.8874 });
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 	await expect(shown(page)).toHaveText(/^Flying sites on this part of the map: [1-9]\d*\.$/);

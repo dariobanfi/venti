@@ -91,7 +91,7 @@ async function mapAt(
 ): Promise<void> {
 	await page.context().grantPermissions(['geolocation']);
 	await page.context().setGeolocation(place);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 }

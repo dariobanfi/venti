@@ -261,7 +261,7 @@
 	.list {
 		display: flex;
 		flex-direction: column;
-		height: 100dvh;
+		height: calc(100dvh - var(--nav-top));
 		padding: var(--space-3);
 		border-right: 1px solid var(--separator);
 		background: var(--background);
@@ -281,7 +281,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.375rem;
-		min-height: 100dvh;
+		min-height: calc(100dvh - var(--nav-top));
 		max-width: 24rem;
 		margin: 0 auto;
 		padding: 2rem var(--gutter);

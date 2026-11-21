@@ -35,7 +35,7 @@ test('a pilot imports the sample flight, inspects it and deletes it', async ({
 	const more = page.getByRole('button', { name: 'More' });
 
 	// The app opens on the map.
-	await page.goto('/');
+	await page.goto('/map/');
 	await expect(page).toHaveTitle('Map · Venti');
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
 	await mapTabDrawn(page, mapDrawn);

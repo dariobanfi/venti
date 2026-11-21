@@ -25,7 +25,7 @@ test('the map shows the wind, lists its stations and opens one', async ({
 	wide,
 	problems
 }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	// Whose data is on the map is written on the map.
@@ -129,7 +129,7 @@ test('a station’s page says what its readings tell of the air, and shows a pas
 	wide,
 	problems
 }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const list = page.getByRole('dialog', { name: 'Wind stations' });
@@ -209,7 +209,7 @@ test('a station is opened by its arrow, also one that gave way to a windier neig
 	// far windier. The pilot stands at the station, and the map goes there.
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(GARMISCH);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 	await page.waitForTimeout(800);
@@ -239,7 +239,7 @@ test('the map says so in words when the server cannot be reached', async ({
 	keep
 }) => {
 	await context.route('**/v1/**', (route) => route.abort());
-	await page.goto('/');
+	await page.goto('/map/');
 
 	await expect(page.getByRole('status')).toHaveText('Venti could not be reached for the wind.');
 	await expect(page.getByText(/^Wind: /)).toBeHidden();
@@ -254,7 +254,7 @@ test('the map says so in words when the server cannot be reached', async ({
 
 test('a server in trouble is reported with what it answered', async ({ context, page }) => {
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 502, body: 'Bad Gateway' }));
-	await page.goto('/');
+	await page.goto('/map/');
 
 	await expect(page.getByRole('status')).toHaveText('The server could not answer (status 502).');
 });
@@ -266,7 +266,7 @@ test('a site without a server has a map without wind and without sites, and says
 }) => {
 	// What a web server answers that only hands out the app's files.
 	await context.route('**/v1/**', (route) => route.fulfill({ status: 404, body: 'Not found' }));
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapDrawn();
 
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();

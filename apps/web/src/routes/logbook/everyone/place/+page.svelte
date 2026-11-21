@@ -230,7 +230,7 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		min-height: 100dvh;
+		min-height: calc(100dvh - var(--nav-top));
 		/* Room for the list's columns beside the site. */
 		max-width: 76rem;
 		margin: 0 auto;

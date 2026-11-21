@@ -81,7 +81,7 @@ test('a wind alarm is made from a station’s page, its fault shown and put righ
 	problems
 }) => {
 	await signUp(page);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await page.getByRole('button', { name: 'Wind stations' }).click();
 	const stations = page.getByRole('dialog', { name: 'Wind stations' });

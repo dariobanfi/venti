@@ -76,7 +76,7 @@ const drawnOnMap = (page: Page) =>
 
 /** Opens the map tab with nothing of Venti's on it but the radar, and waits for its picture. */
 async function radarOn(page: Page, mapDrawn: () => Promise<void>) {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	for (const name of ['Wind', 'Sites', 'Pilots']) {
 		await page
@@ -114,7 +114,7 @@ test('the radar layer shows both layers at the newest moment with its time, the 
 	const stops = framesOf(list, RADARS);
 	const newest = stops.at(-1)!;
 	const before = stops.at(-2)!;
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	// Off until the pilot switches it on, and nothing is asked before.

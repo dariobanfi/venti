@@ -95,7 +95,7 @@ test('a take-off’s page says what public flights began there, and the map offe
 
 	await page.context().grantPermissions(['geolocation']);
 	await page.context().setGeolocation(STANDING);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await showMyPosition(page, mapDrawn);
 

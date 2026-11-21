@@ -82,7 +82,7 @@ test('flights are imported with the file picker, several at once', async ({ page
 
 test('flights are imported by dropping files on the page', async ({ page, keep, mapDrawn }) => {
 	// On the map, with nothing in the logbook yet.
-	await page.goto('/');
+	await page.goto('/map/');
 	await expect(page.getByRole('button', { name: 'Show my position' })).toBeVisible();
 	await mapTabDrawn(page, mapDrawn);
 

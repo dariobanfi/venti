@@ -68,7 +68,7 @@ async function forecastAt(
 ) {
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(place);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	for (const name of ['Wind', 'Sites', 'Pilots']) {
 		await page
@@ -194,7 +194,7 @@ test('the forecast layer shows every kind of day, day by day, and what a square 
 	});
 	await context.grantPermissions(['geolocation']);
 	await context.setGeolocation(BETWEEN_THE_MOUNTAINS);
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	// Off until the pilot switches it on.
@@ -319,7 +319,7 @@ test('the forecast layer reads the development server’s November map, and says
 		if (refusing) await route.fulfill({ status: 503, body: '' });
 		else await route.fallback();
 	});
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await forecastChip(page).click();
 	await expect(card(page).getByRole('button', { name: 'Try again' })).toBeVisible();

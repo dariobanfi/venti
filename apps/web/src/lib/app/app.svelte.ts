@@ -39,6 +39,7 @@ import { RadarModel } from '#lib/radar/radar.svelte.ts';
 import { GroupsModel } from '#lib/groups/model.svelte.ts';
 import { KeptSitesModel } from '#lib/sites/kept.svelte.ts';
 import { TodayModel } from '#lib/today/model.svelte.ts';
+import { HomeModel } from '#lib/home/model.svelte.ts';
 import {
 	flightToShow,
 	importNotice,
@@ -71,6 +72,9 @@ export class App {
 
 	/** The take-offs around a place, and what the forecast says of each. */
 	today = $state.raw<TodayModel>();
+
+	/** What the home page shows of what is going on. Nothing until the core has started. */
+	home = $state.raw<HomeModel>();
 
 	/** Adding and correcting a site of Venti's own layer. Nothing until the core has started. */
 	siteEdits = $state.raw<SiteEditsModel>();
@@ -127,6 +131,7 @@ export class App {
 				this.live = new LiveModel(core);
 				this.everyone = new CommunityModel(core);
 				this.today = new TodayModel(core);
+				this.home = new HomeModel(core);
 				const kept = new KeptSitesModel(core);
 				this.kept = kept;
 				this.thermals = new ThermalMapModel(core);

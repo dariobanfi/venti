@@ -13,7 +13,7 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	wide,
 	problems
 }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	const planning = page.getByRole('button', { name: 'Plan a route' });

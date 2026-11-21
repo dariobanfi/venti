@@ -113,7 +113,7 @@ test('the map draws the airspace the server has for where the pilot looks, and s
 	keep,
 	problems
 }) => {
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 
 	// Fetched around what the map shows, kept, and drawn: no file was needed.
@@ -144,7 +144,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	wide
 }) => {
 	// The map fetches the server's airspace; the screen that lists it does not.
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
@@ -477,7 +477,7 @@ test('a server that cannot be asked for airspace is named on the airspace screen
 		asked += 1;
 		return route.abort();
 	});
-	await page.goto('/');
+	await page.goto('/map/');
 	await mapTabDrawn(page, mapDrawn);
 	// The map says nothing: it simply has no airspace.
 	await expect(page.getByText(/^Airspace: /)).toBeHidden();

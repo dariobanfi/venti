@@ -347,7 +347,7 @@
 	/* Narrow: the map is the screen; bar, buttons and panel float on it. */
 	.screen {
 		position: relative;
-		height: 100dvh;
+		height: calc(100dvh - var(--nav-top));
 		overflow: hidden;
 	}
 

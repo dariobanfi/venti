@@ -46,7 +46,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	problems
 }) => {
 	// The settings lead to the account.
-	await page.goto('/');
+	await page.goto('/map/');
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page).toHaveTitle('Settings · Venti');
 	const account = page.getByRole('link', { name: /^Account/ });

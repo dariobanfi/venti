@@ -559,7 +559,7 @@
 
 <style>
 	.page {
-		min-height: 100dvh;
+		min-height: calc(100dvh - var(--nav-top));
 		padding-bottom: calc(1.5rem + var(--nav-bottom));
 	}
 

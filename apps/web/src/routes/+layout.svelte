@@ -32,9 +32,8 @@
 
 <style>
 	main {
-		/* The page fills the window beside the rail of a wide screen. Each
+		/* The page fills the window under the bar of a wide screen. Each
 		   screen decides for itself whether it scrolls. */
-		min-height: 100dvh;
-		margin-left: var(--nav-side);
+		min-height: calc(100dvh - var(--nav-top));
 	}
 </style>

@@ -1,42 +1,86 @@
 <!--
-	The app's sections. More join as the product grows.
+	The app's sections.
 
 	On a narrow screen this is the design pack's tab bar along the bottom
-	edge. On a wide screen it is a slim column down the left side, part of
-	the page: Venti's mark and name, the sections as compact rows with the
-	icon beside the word, and the account at its foot, as a website's
-	navigation has it. It is one list of links either way; only the
-	stylesheet differs, and the account's line is the wide layout's alone,
-	the narrow one reaching it under Settings as the iPhone does.
+	edge: Home, Today, Map, Logbook, Plans and Settings, the others reached
+	from those. On a wide screen it is a website's bar across the top, as a
+	sports data site has it: Venti's logo, the sections as words, and
+	Settings and the account at the right. It is one list of links either
+	way; which of them a width shows, and how, is the stylesheet's.
 -->
 <script lang="ts">
 	import { page } from '$app/state';
 	import Icon, { type IconName } from '#lib/design/Icon.svelte';
-	// The app icon, from the design pack, where the repository keeps it.
-	import appIcon from '../../../../../design/assets/app-icon/icon-small.svg?url';
+	// The logo, from the design pack, where the repository keeps it: the
+	// lockup for paper and the one for the indigo slope.
+	import logoOnLight from '../../../../../design/assets/logo/lockup-on-light.svg?url';
+	import logoOnDark from '../../../../../design/assets/logo/lockup-on-dark.svg?url';
 	import { getApp } from './app.svelte.ts';
-	import { accountHref, logbookHref, mapHref, plansHref, settingsHref, todayHref } from './routes';
+	import {
+		accountHref,
+		everyoneHref,
+		homeHref,
+		logbookHref,
+		mapHref,
+		plansHref,
+		rankingHref,
+		settingsHref,
+		todayHref
+	} from './routes';
 
 	const app = getApp();
-	/** Who is signed in, for the foot of the wide column. */
+	/** Who is signed in, for the right of the wide bar. */
 	const account = $derived(app.account?.signedIn ? app.account.account : undefined);
 
-	const sections: { name: string; icon: IconName; href: () => string; root: string }[] = [
+	interface Section {
+		name: string;
+		icon: IconName;
+		href: () => string;
+		/** The route the section is: a page under it belongs to it, unless `exact`. */
+		root: string;
+		exact?: boolean;
+		/** Which widths show it: the phone's bar has room for six. */
+		on: 'both' | 'wide' | 'narrow';
+	}
+
+	const sections: Section[] = [
+		// What is going on: the day, who is in the air, the best flights.
+		{ name: 'Home', icon: 'mountain', href: homeHref, root: '/', exact: true, on: 'both' },
+		{ name: 'Map', icon: 'map', href: () => mapHref(), root: '/map', on: 'both' },
 		// What the forecast says about flying from the take-offs around.
-		{ name: 'Today', icon: 'forecast', href: todayHref, root: '/today' },
-		{ name: 'Map', icon: 'map', href: mapHref, root: '/' },
-		{ name: 'Logbook', icon: 'track', href: logbookHref, root: '/logbook' },
+		{ name: 'Today', icon: 'forecast', href: todayHref, root: '/today', on: 'both' },
+		{
+			name: 'Flights',
+			icon: 'glider',
+			href: () => everyoneHref(),
+			root: '/logbook/everyone',
+			on: 'wide'
+		},
+		{
+			name: 'Ranking',
+			icon: 'league',
+			href: () => rankingHref(),
+			root: '/logbook/ranking',
+			on: 'wide'
+		},
+		{ name: 'Logbook', icon: 'track', href: logbookHref, root: '/logbook', on: 'both' },
 		// Who means to fly where: the plans of the pilot's groups.
-		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans' },
-		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings' }
+		{ name: 'Plans', icon: 'calendar', href: plansHref, root: '/plans', on: 'both' },
+		{ name: 'Settings', icon: 'settings', href: settingsHref, root: '/settings', on: 'narrow' }
 	];
 
 	/** The section the current page belongs to: the one with the longest root its route is under. */
-	const current = $derived(
-		sections
-			.filter((section) => (page.route.id ?? '/').startsWith(section.root))
-			.toSorted((one, other) => other.root.length - one.root.length)[0]?.name
-	);
+	const current = $derived.by(() => {
+		const route = page.route.id ?? '/';
+		return sections
+			.filter((section) =>
+				section.exact ? route === section.root : route.startsWith(section.root)
+			)
+			.toSorted((one, other) => other.root.length - one.root.length)[0]?.name;
+	});
+
+	/** Whether the page is under Settings, for the wide bar's Settings link. */
+	const inSettings = $derived((page.route.id ?? '').startsWith('/settings'));
 
 	/**
 	 * A flight fills a narrow screen: the bar steps aside, as the iPhone's tab
@@ -48,13 +92,15 @@
 </script>
 
 <nav class:covered aria-label="Sections">
-	<a class="brand" href={mapHref()}>
-		<img src={appIcon} alt="" width="28" height="28" />
-		<span>Venti</span>
+	<a class="brand" href={homeHref()}>
+		<picture>
+			<source srcset={logoOnDark} media="(prefers-color-scheme: dark)" />
+			<img src={logoOnLight} alt="Venti" width="97" height="28" />
+		</picture>
 	</a>
 	<ul>
 		{#each sections as section (section.name)}
-			<li>
+			<li class={section.on}>
 				<a href={section.href()} aria-current={current === section.name ? 'page' : undefined}>
 					<span class="icon"><Icon name={section.icon} /></span>
 					<span>{section.name}</span>
@@ -62,10 +108,16 @@
 			</li>
 		{/each}
 	</ul>
-	<a class="account" href={accountHref()} class:here={page.route.id === '/settings/account'}>
-		<span class="icon"><Icon name="person" /></span>
-		<span>{account ? account.handle : 'Sign in'}</span>
-	</a>
+	<div class="end">
+		<a class="settings" href={settingsHref()} aria-current={inSettings ? 'page' : undefined}>
+			<span class="icon"><Icon name="settings" /></span>
+			<span>Settings</span>
+		</a>
+		<a class="account" href={accountHref()} class:here={page.route.id === '/settings/account'}>
+			<span class="icon"><Icon name="person" /></span>
+			<span>{account ? account.handle : 'Sign in'}</span>
+		</a>
+	</div>
 </nav>
 
 <style>
@@ -86,16 +138,17 @@
 	}
 
 	.brand,
-	.account {
+	.end,
+	li.wide {
 		display: none;
 	}
 
 	ul {
 		display: flex;
 		height: var(--nav-height);
-		/* Four sections fit a phone's width. On a narrower screen, or with
+		/* Six sections share a phone's width. On a narrower screen, or with
 		   larger text, they share what there is. */
-		max-width: 32rem;
+		max-width: 36rem;
 		margin: 0 auto;
 		padding: 0.25rem;
 	}
@@ -113,7 +166,7 @@
 		gap: 0.125rem;
 		height: 100%;
 		min-height: var(--target);
-		padding: 0 0.25rem;
+		padding: 0 0.125rem;
 		border-radius: var(--radius-m);
 		font-size: var(--caption);
 		font-weight: 500;
@@ -144,84 +197,96 @@
 		}
 	}
 
-	/* Wide: a slim column down the side, part of the page rather than
-	   floating on it, with compact rows: the icon beside the word. */
+	/* Wide: a bar across the top, part of the page, as a website has it:
+	   the logo, the sections as words, Settings and the account at the
+	   right. It stays at the top while the page scrolls under it. */
 	@media (min-width: 56rem) {
 		nav,
 		nav.covered {
+			position: sticky;
 			top: 0;
 			right: auto;
-			bottom: 0;
-			width: var(--nav-side);
+			bottom: auto;
 			display: flex;
-			flex-direction: column;
-			gap: var(--space-4);
-			padding: calc(var(--space-4) + var(--safe-top)) var(--space-2) var(--space-3);
+			align-items: center;
+			gap: var(--space-6);
+			height: var(--nav-top);
+			padding: var(--safe-top) calc(var(--space-6) + var(--safe-right)) 0
+				calc(var(--space-6) + var(--safe-left));
 			background: var(--surface);
 			border-top: 0;
-			border-right: 1px solid var(--separator);
+			border-bottom: 1px solid var(--separator);
 		}
 
 		.brand {
 			display: flex;
-			flex-direction: row;
-			justify-content: flex-start;
-			gap: var(--space-2);
+			flex: none;
 			height: auto;
-			min-height: 0;
-			padding: 0 var(--space-2);
-			font-size: var(--body);
-			font-weight: 700;
-			color: var(--text);
-		}
-
-		.brand img {
+			padding: 0;
 			border-radius: var(--radius-s);
 		}
 
+		.brand img {
+			display: block;
+			height: 1.75rem;
+			width: auto;
+		}
+
 		ul {
-			flex-direction: column;
-			gap: 0.125rem;
-			height: auto;
+			flex: 1;
+			align-items: center;
+			gap: var(--space-1);
+			height: 100%;
 			max-width: none;
 			margin: 0;
 			padding: 0;
 		}
 
-		li {
+		li,
+		li.wide {
+			display: block;
 			flex: none;
+		}
+
+		li.narrow {
+			display: none;
+		}
+
+		.end {
+			display: flex;
+			align-items: center;
+			gap: var(--space-1);
 		}
 
 		a {
 			flex-direction: row;
-			justify-content: flex-start;
 			gap: var(--space-2);
 			height: 2rem;
 			min-height: 2rem;
-			padding: 0 var(--space-2);
+			padding: 0 var(--space-3);
 			border-radius: var(--radius-s);
-			font-size: var(--subheadline);
+			font-size: var(--body);
+			color: var(--text-secondary);
 		}
 
-		a :global(svg) {
+		/* The bar is words; only Settings and the account keep their icon. */
+		ul .icon {
+			display: none;
+		}
+
+		.end a :global(svg) {
 			width: 1.125rem;
 			height: 1.125rem;
 		}
 
-		a[aria-current='page'] {
+		a[aria-current='page'],
+		.end a.here {
 			background: var(--fill);
+			color: var(--text);
 		}
 
 		.account {
-			display: flex;
-			margin-top: auto;
-		}
-
-		/* The account is under Settings, which is the section marked; its
-		   own line is marked too, without saying so twice to a reader. */
-		.account.here {
-			background: var(--fill);
-			color: var(--text);
+			border: 1px solid var(--separator);
 		}
 	}
 </style>

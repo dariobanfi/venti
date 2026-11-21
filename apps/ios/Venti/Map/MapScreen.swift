@@ -3,7 +3,8 @@ import VentiCore
 
 /// The map tab: terrain, live wind from the stations Venti knows, its
 /// flying sites, airspace, the pilots in the air, the pilot's own flights
-/// and the forecast map, the kind of day square by square. The chips
+/// the forecast map, the kind of day square by square, and the rain
+/// radar. The chips
 /// along the top switch its layers on and off. A long press shows the
 /// forecast for the place pressed.
 struct MapScreen: View {
@@ -17,6 +18,8 @@ struct MapScreen: View {
     @Environment(OfflineMapsModel.self) private var maps
     @Environment(AppNavigation.self) private var navigation
     @Environment(ThermalMapModel.self) private var thermals
+    @Environment(RadarModel.self) private var radar
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
     @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
@@ -24,6 +27,7 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
+    @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
     @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
 
     @State private var isFollowing = false
@@ -143,7 +147,8 @@ struct MapScreen: View {
                 forecastHour: hourDrawing,
                 onHourPlace: { place in
                     openHourSquare(at: place)
-                }
+                },
+                radar: isRadarOn ? radar.picture : nil
             )
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
@@ -211,6 +216,9 @@ struct MapScreen: View {
                 if isForecastOn {
                     forecastCard
                 }
+                if isRadarOn {
+                    radarCard
+                }
                 credits
             }
             // Under the row of layer chips, however high the card is with
@@ -227,6 +235,16 @@ struct MapScreen: View {
         .task(id: isForecastOn ? wind.address : "") {
             guard isForecastOn else { return }
             await thermals.keepCurrent()
+        }
+        // The rain radar: asked for when the layer is switched on, again
+        // every five minutes while it is on and the map in front, and when
+        // the app comes back to the front.
+        .task(id: RadarWatch(isOn: isRadarOn, address: wind.address, isInFront: scenePhase == .active)) {
+            guard isRadarOn, scenePhase == .active else {
+                radar.stop()
+                return
+            }
+            await radar.keepCurrent()
         }
         // The hours of the layer chosen, for the day chosen: asked for
         // when one of them changes, or a new map of the days comes.
@@ -400,6 +418,10 @@ struct MapScreen: View {
                         .accessibilityIdentifier("forecast-chip")
                     VentiChip(title: "Wind", icon: "icon-wind", isOn: shown($hidesWind))
                         .accessibilityIdentifier("layer-wind")
+                    // The rain the radars saw: off until the pilot
+                    // switches it on. The pack has no sign for rain.
+                    VentiChip(title: "Radar", isOn: $showsRadar)
+                        .accessibilityIdentifier("radar-chip")
                 }
                 VentiChip(title: "Airspace", icon: "icon-airspace", isOn: shown($hidesAirspace))
                     .accessibilityIdentifier("layer-airspace")
@@ -473,6 +495,11 @@ struct MapScreen: View {
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
         }
+        // The radar's source asks for its credit at the data: here by
+        // name, and in full behind the card's "Key and notes".
+        if isRadarOn, radar.picture != nil, let credit = radar.layer?.credit {
+            parts.append("Radar: \(credit.provider)")
+        }
         let line = parts.joined(separator: " · ")
         // Who made the photographs, on a line of its own while they show.
         guard showsAerial else { return line }
@@ -501,6 +528,26 @@ struct MapScreen: View {
     /// Whether the forecast map is on: switched on, with a Venti to ask.
     private var isForecastOn: Bool {
         showsForecast && wind.server != nil
+    }
+
+    /// Whether the rain radar is on: switched on, with a Venti to ask.
+    private var isRadarOn: Bool {
+        showsRadar && wind.server != nil
+    }
+
+    /// The rain radar's card, under the forecast map's where both are on.
+    private var radarCard: some View {
+        RadarCard(
+            radar: radar,
+            tryAgain: {
+                Task {
+                    await radar.load()
+                }
+            }
+        )
+        .padding(.leading, VentiSpace.s4)
+        .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
+        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
     }
 
     /// The day of the forecast map that is drawn, while the layer is on.
@@ -651,7 +698,7 @@ struct MapScreen: View {
         .padding(.trailing, VentiSize.touch + 2 * VentiSpace.s4)
         // Room under it for the map's credits button where there is no
         // line of credits beside that button.
-        .padding(.bottom, creditLine.isEmpty ? VentiSize.touch : 0)
+        .padding(.bottom, creditLine.isEmpty && !isRadarOn ? VentiSize.touch : 0)
     }
 
     /// "2 flying plans marked", or nothing where the map marks none.
@@ -715,6 +762,14 @@ struct ChosenStation: Identifiable {
 private struct HoursRequest: Hashable {
     let key: ThermalMapModel.HoursKey?
     let map: Int64?
+}
+
+/// What the rain radar is asked by: whether its layer is on, which Venti,
+/// and whether the app is in front.
+private struct RadarWatch: Hashable {
+    let isOn: Bool
+    let address: String
+    let isInFront: Bool
 }
 
 /// What the hours shown are, and how far they are there.

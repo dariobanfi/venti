@@ -92,23 +92,7 @@ struct ForecastCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("forecast-none-here")
                 }
-                Button {
-                    showsKey.toggle()
-                } label: {
-                    HStack(spacing: VentiSpace.s1) {
-                        Text("Key and notes")
-                            .font(.ventiType(.label))
-                        Image(systemName: showsKey ? "chevron.up" : "chevron.down")
-                            .font(.ventiType(.caption))
-                            .accessibilityHidden(true)
-                    }
-                    .foregroundStyle(.venti(.link))
-                    .frame(maxWidth: .infinity, minHeight: VentiSize.touch, alignment: .leading)
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityValue(showsKey ? "Shown" : "Hidden")
-                .accessibilityIdentifier("forecast-more")
+                KeyAndNotesButton(isShown: $showsKey, identifier: "forecast-more")
                 if showsKey {
                     // As high as it is where the screen has the room, and
                     // else scrolling in what room there is: a small phone
@@ -274,22 +258,7 @@ struct ForecastCard: View {
     /// What went wrong, in the core's words where it has them, and the one
     /// thing to do about it.
     private func problem(_ words: String, tryAgain: (() -> Void)? = nil) -> some View {
-        VStack(alignment: .leading, spacing: VentiSpace.s2) {
-            HStack(alignment: .top, spacing: VentiSpace.s2) {
-                Image("icon-caution")
-                    .resizable()
-                    .frame(width: 18, height: 18)
-                    .foregroundStyle(.venti(.caution))
-                    .accessibilityHidden(true)
-                Text(words)
-                    .font(.ventiType(.label))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("forecast-problem")
-            Button("Try again", action: tryAgain ?? self.tryAgain)
-                .buttonStyle(.venti(.quiet))
-        }
+        CardProblem(words: words, identifier: "forecast-problem", tryAgain: tryAgain ?? self.tryAgain)
     }
 }
 

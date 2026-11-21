@@ -62,6 +62,8 @@ struct OverviewMap: UIViewRepresentable {
     /// is drawn, where nothing else the app draws lies: the screen finds
     /// the square from the place, drawn or not.
     var onHourPlace: (Coordinate) -> Void = { _ in }
+    /// The rain radar's picture to draw; nothing while the layer is off.
+    var radar: RadarPicture?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -111,6 +113,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onHourPlace = onHourPlace
         coordinator.showForecast(forecast, on: map)
         coordinator.showHour(forecastHour, on: map)
+        coordinator.showRadar(radar, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, on: map)
         coordinator.show(gliders, on: map)
@@ -143,6 +146,10 @@ struct OverviewMap: UIViewRepresentable {
         private var hour: ForecastHourDrawing?
         /// What was drawn of an hour: its identity, `nil` for none.
         private var drawnHour: String??
+
+        private var radar: RadarPicture?
+        /// Which picture of the radar was drawn: `nil` inside for none.
+        private var drawnRadar: String??
 
         private var forecast: ThermalMapDay?
         private var drawnForecast: ThermalMapDay?
@@ -205,6 +212,21 @@ struct OverviewMap: UIViewRepresentable {
         func showHour(_ hour: ForecastHourDrawing?, on map: MLNMapView) {
             self.hour = hour
             drawHour(on: map)
+        }
+
+        func showRadar(_ picture: RadarPicture?, on map: MLNMapView) {
+            radar = picture
+            drawRadar(on: map)
+        }
+
+        /// Draws the radar's picture, once the style is there and only
+        /// when it is another picture.
+        private func drawRadar(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            let id = radar?.id
+            if let drawn = drawnRadar, drawn == id { return }
+            drawnRadar = .some(id)
+            RadarLayers.show(radar, in: style)
         }
 
         /// Draws an hour's squares and arrows, once the style is there and
@@ -287,6 +309,7 @@ struct OverviewMap: UIViewRepresentable {
             drawAirspace(on: mapView)
             drawForecast(on: mapView)
             drawHour(on: mapView)
+            drawRadar(on: mapView)
             tellRegion(of: mapView)
         }
 

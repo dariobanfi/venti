@@ -1584,6 +1584,156 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(window.contains(open), "The open card does not lie on the screen.")
     }
 
+    /// Where the map opens for the radar's screenshots: far enough out for
+    /// the whole of the development server's pictures (9.4 to 17.2 E,
+    /// 46.3 to 48.5 N), their edge and the veil over what the radar did
+    /// not see, in the part of the map the card leaves to be seen. The
+    /// map that comes with the app ends long before: beyond it the
+    /// picture lies on the map's bare ground.
+    private static let overTheRadar = "46.3,13.3,5"
+
+    /// Opens or closes "Key and notes" on the rain radar's card.
+    private func showRadarKeyAndNotes(_ shown: Bool, in app: XCUIApplication) {
+        let more = element("radar-more", in: app)
+        XCTAssertTrue(more.waitForExistence(timeout: 15))
+        if (more.value as? String == "Shown") != shown {
+            more.tap()
+            usleep(600_000)
+        }
+        XCTAssertEqual(more.value as? String, shown ? "Shown" : "Hidden")
+    }
+
+    /// Waits until the radar's line on the card ends with these words,
+    /// and says whether it came to that.
+    private func radarSays(_ ending: String, in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+        let words = element("radar-words", in: app)
+        let until = Date().addingTimeInterval(timeout)
+        while Date() < until {
+            if words.exists, words.label.hasSuffix(ending) {
+                return true
+            }
+            usleep(300_000)
+        }
+        return false
+    }
+
+    /// The rain radar on the map tab, against the development server,
+    /// which has two frames recorded from DWD on 2026-11-21, of 11:35 and
+    /// 11:40 UTC, a morning with little rain, and a radar's clock that
+    /// stands at 11:44: the layer switched on, the card with both frames
+    /// on the newest, the key and the notes behind their line, a step to
+    /// the frame before, and the frames played to the newest again. The
+    /// chip's choice is kept between launches: the test starts by looking
+    /// which way it stands and switches it off at its end.
+    func testTheMapShowsTheRainRadar() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, extra: ["--server", server, "--map-at", Self.overTheRadar])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        // An earlier run that stopped half-way may have left either on.
+        setLayer("forecast-chip", on: false, in: app)
+        let chip = element("radar-chip", in: app)
+        XCTAssertTrue(chip.waitForExistence(timeout: 30))
+        setLayer("radar-chip", on: false, in: app)
+        XCTAssertFalse(chip.isSelected)
+        XCTAssertFalse(element("radar-card", in: app).exists)
+
+        setLayer("radar-chip", on: true, in: app)
+        XCTAssertTrue(chip.isSelected)
+        // The card: both frames, on the newest, four minutes old by the
+        // radar's clock. The clock's time is the simulator's time zone's.
+        let strip = element("radar-frames", in: app)
+        XCTAssertTrue(strip.waitForExistence(timeout: 60))
+        XCTAssertTrue(radarSays(", 4 minutes ago", in: app, timeout: 60))
+        XCTAssertTrue(element("radar-words", in: app).label.hasPrefix("Rain radar, "))
+        XCTAssertEqual((strip.value as? String)?.hasSuffix(", 4 minutes ago"), true)
+        XCTAssertTrue(element("radar-play", in: app).exists)
+        // The card as it opens: the key and the notes are not on it.
+        XCTAssertFalse(element("radar-key", in: app).exists)
+        // The source's credit stands at the map while its picture does.
+        XCTAssertTrue(labelled(containing: "Radar: Deutscher Wetterdienst", in: app).waitForExistence(timeout: 30))
+        // Time for the picture to be drawn.
+        sleep(4)
+        keepScreenshot("map-radar-1-newest")
+
+        // Behind "Key and notes": the key from the most rain down, what
+        // the radar did not see, the note and the credit.
+        showRadarKeyAndNotes(true, in: app)
+        XCTAssertTrue(element("radar-key", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(labelled(containing: "Cloudburst", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Not seen by the radar", in: app).exists)
+        XCTAssertTrue(labelled(containing: "Datenbasis: Deutscher Wetterdienst", in: app).exists)
+        sleep(1)
+        keepScreenshot("map-radar-2-key-and-notes")
+        showRadarKeyAndNotes(false, in: app)
+
+        // The frame before: a tap on its cell, the strip's left half.
+        strip.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+        XCTAssertTrue(radarSays(", 9 minutes ago", in: app))
+        XCTAssertEqual((strip.value as? String)?.hasSuffix(", 9 minutes ago"), true)
+        sleep(2)
+        keepScreenshot("map-radar-3-the-frame-before")
+
+        // Played: through the frames, to stop at the newest.
+        element("radar-play", in: app).tap()
+        let played = radarSays(", 4 minutes ago", in: app)
+        sleep(1)
+        keepScreenshot("map-radar-4-played-to-the-newest")
+
+        // Off again, as the next test expects the map.
+        setLayer("radar-chip", on: false, in: app)
+        XCTAssertFalse(chip.isSelected)
+        XCTAssertFalse(element("radar-card", in: app).exists)
+        XCTAssertTrue(played, "The frames did not play to the newest.")
+    }
+
+    /// The rain radar's card in the dark appearance, over the map, which
+    /// stays light: closed and with "Key and notes" open, the map closer
+    /// in, over the south of Bavaria, where a pixel of the picture is to
+    /// be told from the next.
+    func testTheRainRadarsCardInTheDark() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let app = launch(bundledMap: true, dark: true, extra: ["--server", server, "--map-at", "47.2,11.6,7.4"])
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("forecast-chip", on: false, in: app)
+        setLayer("radar-chip", on: true, in: app)
+        XCTAssertTrue(element("radar-frames", in: app).waitForExistence(timeout: 60))
+        let shown = radarSays(", 4 minutes ago", in: app, timeout: 60)
+        sleep(4)
+        keepScreenshot("map-radar-dark-1-card")
+        showRadarKeyAndNotes(true, in: app)
+        let key = element("radar-key", in: app).waitForExistence(timeout: 15)
+        sleep(1)
+        keepScreenshot("map-radar-dark-2-key-and-notes")
+        showRadarKeyAndNotes(false, in: app)
+        setLayer("radar-chip", on: false, in: app)
+        XCTAssertFalse(element("radar-chip", in: app).isSelected)
+        XCTAssertTrue(shown, "The radar's line did not come.")
+        XCTAssertTrue(key, "The radar's key did not open.")
+    }
+
+    /// The rain radar when Venti is not reached: the card says so, with
+    /// the one thing to do about it.
+    func testTheRainRadarSaysWhenVentiIsNotReached() {
+        let app = launch(bundledMap: true)
+        XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+        setLayer("forecast-chip", on: false, in: app)
+        setLayer("radar-chip", on: true, in: app)
+        let problem = element("radar-problem", in: app)
+        let said = problem.waitForExistence(timeout: 60)
+        let words = said ? problem.label : ""
+        let again = app.buttons["Try again"].exists
+        sleep(1)
+        keepScreenshot("map-radar-not-reached")
+        setLayer("radar-chip", on: false, in: app)
+        XCTAssertFalse(element("radar-chip", in: app).isSelected)
+        XCTAssertTrue(words.hasPrefix("Venti could not be reached for the rain radar."), words)
+        XCTAssertTrue(again)
+    }
+
     /// The app's icon on the home screen: the design language's, which
     /// the screenshot is kept to show.
     func testTheAppHasItsIconOnTheHomeScreen() {

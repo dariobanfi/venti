@@ -164,30 +164,78 @@ struct ForecastHourStrip: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let cells = Cells(hours: hours.count, hasDay: hasDay, width: proxy.size.width)
-            HStack(spacing: Cells.gap) {
-                if hasDay {
-                    cell(words: "Day", isChosen: hour == nil, width: cells.dayWidth)
-                }
-                ForEach(hours.indices, id: \.self) { index in
-                    cell(words: String(hours[index].clockHour), isChosen: hour == index, width: cells.hourWidth)
-                }
-            }
-            .contentShape(.rect)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { drag in
-                        let chosen = cells.hour(at: drag.location.x)
-                        if chosen != hour {
-                            hour = chosen
-                        }
+        CellStrip(
+            cells: hours.map { String($0.clockHour) }, leading: hasDay ? "Day" : nil, chosen: $hour,
+            name: "Hour", spoken: spoken, identifier: "forecast-hours"
+        )
+    }
+
+    private var spoken: String {
+        guard let hour, hours.indices.contains(hour) else { return "The whole day" }
+        return hours[hour].label
+    }
+}
+
+/// The pack's hour strip (`.v-hours`) itself, for the hours of a day and
+/// for the frames of the rain radar: a cell for each with its words in it,
+/// the chosen one marked; a tap chooses a cell and a finger drawn along
+/// the strip chooses cell by cell. VoiceOver reads it as one value to
+/// adjust.
+struct CellStrip: View {
+    /// The words of each cell.
+    let cells: [String]
+    /// A word in a first cell before them, twice as wide: "Day".
+    var leading: String?
+    /// Where the cells are too many to hold their words: the places of
+    /// those whose words stand under the strip, each ending where its
+    /// cell ends. The cells are then empty. `nil` for words in every cell.
+    var named: Set<Int>?
+    /// The chosen cell by its place among `cells`; `nil` for the first
+    /// cell, where there is one.
+    @Binding var chosen: Int?
+    /// What VoiceOver calls the strip, and what it says is chosen.
+    let name: String
+    let spoken: String
+    let identifier: String
+
+    private typealias Cells = ForecastHourStrip.Cells
+
+    /// The gap between two cells, for what stands beside the strip.
+    static let gap = ForecastHourStrip.Cells.gap
+
+    var body: some View {
+        VStack(spacing: VentiSpace.s1) {
+            GeometryReader { proxy in
+                let cells = Cells(hours: self.cells.count, hasDay: leading != nil, width: proxy.size.width)
+                HStack(spacing: Cells.gap) {
+                    if let leading {
+                        cell(words: leading, isChosen: chosen == nil, width: cells.dayWidth)
                     }
-            )
+                    ForEach(self.cells.indices, id: \.self) { index in
+                        cell(
+                            words: named == nil ? self.cells[index] : "", isChosen: chosen == index,
+                            width: cells.hourWidth
+                        )
+                    }
+                }
+                .contentShape(.rect)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { drag in
+                            let under = cells.hour(at: drag.location.x)
+                            if under != chosen {
+                                chosen = under
+                            }
+                        }
+                )
+            }
+            .frame(height: VentiSize.touch)
+            if let named {
+                names(of: named)
+            }
         }
-        .frame(height: VentiSize.touch)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Hour")
+        .accessibilityLabel(name)
         .accessibilityValue(spoken)
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -196,10 +244,10 @@ struct ForecastHourStrip: View {
             @unknown default: break
             }
         }
-        .accessibilityIdentifier("forecast-hours")
+        .accessibilityIdentifier(identifier)
     }
 
-    /// One cell: the clock's hour, on the primary colour when chosen.
+    /// One cell: its words, on the primary colour when chosen.
     private func cell(words: String, isChosen: Bool, width: CGFloat) -> some View {
         Text(words)
             .font(.ventiType(.label))
@@ -215,16 +263,40 @@ struct ForecastHourStrip: View {
             .background(.venti(isChosen ? .primary : .surfaceRaised), in: .rect(cornerRadius: VentiRadius.s))
     }
 
-    /// One hour later or earlier, as VoiceOver's swipe asks.
-    private func step(by offset: Int) {
-        let places = (hasDay ? [nil] : []) + hours.indices.map { Optional($0) }
-        guard let now = places.firstIndex(of: hour) else { return }
-        hour = places[min(max(now + offset, 0), places.count - 1)]
+    /// The words of the named cells in a line under the strip, as high as
+    /// a line of them is, each ending where its cell ends.
+    private func names(of named: Set<Int>) -> some View {
+        Text(cells.last ?? "")
+            .font(.ventiType(.caption))
+            .monospacedDigit()
+            .lineLimit(1)
+            .hidden()
+            .frame(maxWidth: .infinity)
+            .overlay {
+                GeometryReader { proxy in
+                    let cells = Cells(hours: self.cells.count, hasDay: leading != nil, width: proxy.size.width)
+                    let start = leading == nil ? 0 : cells.dayWidth + Cells.gap
+                    ForEach(named.sorted().filter { self.cells.indices.contains($0) }, id: \.self) { index in
+                        Text(self.cells[index])
+                            .font(.ventiType(.caption))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .fixedSize()
+                            .foregroundStyle(.venti(.textSecondary))
+                            .frame(
+                                width: start + CGFloat(index) * (cells.hourWidth + Cells.gap) + cells.hourWidth,
+                                alignment: .trailing
+                            )
+                    }
+                }
+            }
     }
 
-    private var spoken: String {
-        guard let hour, hours.indices.contains(hour) else { return "The whole day" }
-        return hours[hour].label
+    /// One cell later or earlier, as VoiceOver's swipe asks.
+    private func step(by offset: Int) {
+        let places = (leading == nil ? [] : [nil]) + cells.indices.map { Optional($0) }
+        guard let now = places.firstIndex(of: chosen) else { return }
+        chosen = places[min(max(now + offset, 0), places.count - 1)]
     }
 }
 
@@ -249,22 +321,7 @@ struct ForecastHoursKey: View {
     private func column(_ lines: [ThermalMapKey]) -> some View {
         VStack(alignment: .leading, spacing: VentiSpace.s1) {
             ForEach(lines, id: \.step) { line in
-                HStack(alignment: .top, spacing: VentiSpace.s2) {
-                    Rectangle()
-                        .fill(ThermalKeyColour.onMap(line))
-                        .overlay {
-                            Rectangle()
-                                .strokeBorder(.venti(.borderStrong), lineWidth: 1)
-                        }
-                        .frame(width: 16, height: 12)
-                        .padding(.top, 3)
-                        .accessibilityHidden(true)
-                    Text(line.words)
-                        .font(.ventiType(.label))
-                        .foregroundStyle(.venti(.text))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .accessibilityElement(children: .combine)
+                MapKeyLine(colour: ThermalKeyColour.onMap(line), words: line.words)
             }
         }
     }

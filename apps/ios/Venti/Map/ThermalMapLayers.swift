@@ -191,12 +191,18 @@ enum ThermalMapLayers {
 /// in both appearances. The app chooses no colour of its own.
 enum ThermalKeyColour {
     static func onMap(_ key: ThermalMapKey) -> Color {
+        onMap(scale: key.scale, scaleStep: key.scaleStep)
+    }
+
+    /// The colour of a step of a scale, counted from 1; the rain radar's
+    /// key names its colours so too.
+    static func onMap(scale: ThermalMapScale, scaleStep: UInt8) -> Color {
         let theme = VentiTheme.light
-        let index = Int(key.scaleStep) - 1
+        let index = Int(scaleStep) - 1
         func pick(_ scale: [Color]) -> Color {
             scale[min(max(index, 0), scale.count - 1)]
         }
-        return switch key.scale {
+        return switch scale {
         case .thermal: pick(theme.thermal)
         case .wind: pick(theme.wind)
         case .vario: pick(theme.vario)

@@ -50,8 +50,8 @@ use venti_core::{
     LogbookView, PilotPage, PlanBoard, PlanDraft, PlanView, PublicFlight, PublicFlights,
     PublicFlightsOrder, Ranking, RankingSeason, ReportForm, ReportReason, ReportSubject,
     ServerRequest, ServerStatus, SignedIn, SiteAtPlace, SiteOutlook, SiteStatistics, SitesMap,
-    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, TerrainTile, ThermalMap,
-    TrackPoint, WindMap, WindSpan,
+    StagedStorage, StationHistory, Storage, SyncStep, SyncSummary, Tendencies, TerrainTile,
+    ThermalMap, TrackPoint, WindMap, WindSpan,
 };
 use wasm_bindgen::prelude::*;
 
@@ -159,6 +159,17 @@ impl Core {
             .iter()
             .map(to_js)
             .collect()
+    }
+
+    /// What the pilot's own tracks say about how they fly, over the whole
+    /// logbook. Flights imported before the core kept their figures are
+    /// worked out from their files; one whose file is not in memory is left
+    /// out and wanted, as after `refresh()`: the page fetches the wanted
+    /// files, hands them over and asks again.
+    pub fn tendencies(&self) -> Result<Ts<Tendencies>, JsValue> {
+        let tendencies = self.session.core.tendencies();
+        self.session.staged.release();
+        to_js(&tendencies)
     }
 
     /// One flight from the logbook, prepared for display.

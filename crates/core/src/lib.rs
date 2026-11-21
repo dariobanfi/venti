@@ -49,6 +49,7 @@ mod sites;
 mod statistics;
 mod storage;
 mod task;
+mod tendencies;
 mod terrain;
 #[cfg(test)]
 mod testing;
@@ -79,6 +80,7 @@ pub use route_plan::*;
 pub use sites::*;
 pub use statistics::*;
 pub use task::*;
+pub use tendencies::*;
 pub use terrain::*;
 pub use thermal_map::*;
 pub use today::*;

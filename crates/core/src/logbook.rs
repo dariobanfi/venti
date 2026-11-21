@@ -21,8 +21,9 @@ use std::io;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
+use venti_flight::habits::{self, FlightHabits};
 use venti_flight::igc::{self, IgcFile};
-use venti_flight::{analysis, scoring, summarise, track};
+use venti_flight::{analysis, summarise, track};
 
 use crate::storage::Storage;
 
@@ -34,6 +35,12 @@ const INDEX_FILE: &str = "logbook-index.json";
 
 /// Bump when [`Summary`] changes shape or meaning; older indexes are rebuilt.
 const INDEX_VERSION: u32 = 4;
+
+/// Bump when the rules of [`venti_flight::habits`] change what a figure
+/// means. Figures kept under another version count as not yet worked out
+/// and are worked out again the next time they are asked for, without the
+/// whole index being rebuilt.
+const HABITS_VERSION: u32 = 1;
 
 /// The most points an outline keeps. Enough for a recognisable thumbnail and
 /// an overview map, small enough to hold thousands of flights in memory.
@@ -70,6 +77,90 @@ pub(crate) struct Summary {
     pub outline: Vec<[f64; 2]>,
     /// How the flight scores as a cross-country flight.
     pub score: Option<StoredScore>,
+    /// How the flight was flown, in the figures of
+    /// [`venti_flight::habits`]. Missing from an index written before they
+    /// were kept, and then worked out the first time they are asked for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub habits: Option<StoredHabits>,
+}
+
+/// A flight's habits as the index keeps them: the figures of
+/// [`FlightHabits`], with the version of the rules they were counted by.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub(crate) struct StoredHabits {
+    pub version: u32,
+    pub thermals_left: u32,
+    pub thermals_right: u32,
+    pub thermals_both_ways: u32,
+    pub circling_left_s: i64,
+    pub circling_right_s: i64,
+    pub thermals_measured: u32,
+    pub thermals_ended_weak: u32,
+    pub after_the_top_s: i64,
+    pub height_gained_m: i64,
+    pub thermalling_s: i64,
+    pub best_climb_ms: Option<f64>,
+    pub glides: u32,
+    pub glide_distance_m: f64,
+    pub glide_height_lost_m: i64,
+    pub gliding_s: i64,
+    pub airtime_s: i64,
+}
+
+impl From<FlightHabits> for StoredHabits {
+    fn from(habits: FlightHabits) -> Self {
+        Self {
+            version: HABITS_VERSION,
+            thermals_left: habits.thermals_left,
+            thermals_right: habits.thermals_right,
+            thermals_both_ways: habits.thermals_both_ways,
+            circling_left_s: habits.circling_left_s,
+            circling_right_s: habits.circling_right_s,
+            thermals_measured: habits.thermals_measured,
+            thermals_ended_weak: habits.thermals_ended_weak,
+            after_the_top_s: habits.after_the_top_s,
+            height_gained_m: habits.height_gained_m,
+            thermalling_s: habits.thermalling_s,
+            best_climb_ms: habits.best_climb_ms,
+            glides: habits.glides,
+            glide_distance_m: habits.glide_distance_m,
+            glide_height_lost_m: habits.glide_height_lost_m,
+            gliding_s: habits.gliding_s,
+            airtime_s: habits.airtime_s,
+        }
+    }
+}
+
+impl StoredHabits {
+    /// The figures, if they were counted by the rules of this version.
+    fn current(&self) -> Option<FlightHabits> {
+        (self.version == HABITS_VERSION).then_some(FlightHabits {
+            thermals_left: self.thermals_left,
+            thermals_right: self.thermals_right,
+            thermals_both_ways: self.thermals_both_ways,
+            circling_left_s: self.circling_left_s,
+            circling_right_s: self.circling_right_s,
+            thermals_measured: self.thermals_measured,
+            thermals_ended_weak: self.thermals_ended_weak,
+            after_the_top_s: self.after_the_top_s,
+            height_gained_m: self.height_gained_m,
+            thermalling_s: self.thermalling_s,
+            best_climb_ms: self.best_climb_ms,
+            glides: self.glides,
+            glide_distance_m: self.glide_distance_m,
+            glide_height_lost_m: self.glide_height_lost_m,
+            gliding_s: self.gliding_s,
+            airtime_s: self.airtime_s,
+        })
+    }
+}
+
+/// One flight's habits, as [`Logbook::habits`] hands them out.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct FlightWithHabits {
+    pub id: String,
+    pub start_unix_s: i64,
+    pub habits: FlightHabits,
 }
 
 /// A flight's score as the index keeps it.
@@ -215,6 +306,57 @@ impl Logbook {
         flights
     }
 
+    /// The habits of every flight that has them, newest first.
+    ///
+    /// Flights imported before habits were kept have none in the index.
+    /// Theirs are worked out here, from their files, and stored, so that
+    /// this is done once for each. A flight whose file cannot be read now
+    /// is left out; storage that fetches files on request is then asked
+    /// for it, and the next call takes it in.
+    pub fn habits(&self) -> Vec<FlightWithHabits> {
+        let mut index = self.lock();
+        let missing: Vec<String> = index
+            .flights
+            .iter()
+            .filter(|(_, summary)| summary.habits.and_then(|kept| kept.current()).is_none())
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut changed = false;
+        for id in missing {
+            let Ok(text) = self.read_flight(&id) else {
+                continue;
+            };
+            let Ok(file) = igc::parse(&text) else {
+                continue;
+            };
+            let analysis = analysis::analyse(&file.fixes);
+            let figures = habits::habits(analysis::flown_part(&file.fixes), &analysis);
+            if let Some(summary) = index.flights.get_mut(&id) {
+                summary.habits = Some(figures.into());
+                changed = true;
+            }
+        }
+        // The figures are kept for the next time. If storing them fails
+        // they are worked out again then.
+        if changed {
+            let _ = self.write_index(&index);
+        }
+
+        let mut flights: Vec<FlightWithHabits> = index
+            .flights
+            .iter()
+            .filter_map(|(id, summary)| {
+                Some(FlightWithHabits {
+                    id: id.clone(),
+                    start_unix_s: summary.start_unix_s,
+                    habits: summary.habits?.current()?,
+                })
+            })
+            .collect();
+        flights.sort_by(|a, b| (b.start_unix_s, &b.id).cmp(&(a.start_unix_s, &a.id)));
+        flights
+    }
+
     fn lock(&self) -> MutexGuard<'_, Index> {
         // A panic while the lock was held cannot leave the index half
         // written: it is only replaced or changed by single inserts and
@@ -264,6 +406,7 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
     let file = igc::parse(igc_text).map_err(LogbookError::Invalid)?;
     let flown = analysis::flown_part(&file.fixes);
     let summary = summarise(flown).ok_or(LogbookError::Invalid(igc::IgcError::NoFixes))?;
+    let analysis = analysis::analyse(&file.fixes);
     let summary = Summary {
         start_unix_s: summary.start.timestamp(),
         duration_s: summary.duration_s(),
@@ -276,16 +419,17 @@ fn read(igc_text: &str) -> Result<(IgcFile, Summary), LogbookError> {
             .into_iter()
             .map(|point| [point.lat(), point.lon()])
             .collect(),
-        score: scoring::score(flown).map(|score| StoredScore {
+        score: analysis.score.as_ref().map(|score| StoredScore {
             kind: match score.kind {
-                scoring::RouteKind::FreeFlight => StoredKind::FreeFlight,
-                scoring::RouteKind::FreeTriangle => StoredKind::FreeTriangle,
-                scoring::RouteKind::FaiTriangle => StoredKind::FaiTriangle,
+                venti_flight::scoring::RouteKind::FreeFlight => StoredKind::FreeFlight,
+                venti_flight::scoring::RouteKind::FreeTriangle => StoredKind::FreeTriangle,
+                venti_flight::scoring::RouteKind::FaiTriangle => StoredKind::FaiTriangle,
             },
             closed: score.closed,
             distance_m: score.distance_m,
             points: score.points,
         }),
+        habits: Some(habits::habits(flown, &analysis).into()),
     };
     Ok((file, summary))
 }
@@ -531,6 +675,96 @@ mod tests {
             left,
             [format!("{id}.igc"), "flights".into(), INDEX_FILE.into()]
         );
+    }
+
+    #[test]
+    fn an_imported_flight_keeps_its_habits_in_the_index() {
+        on_every_storage(|backing| {
+            let (id, _) = open(backing).import(&sample()).unwrap();
+
+            let flights = open(backing).flights();
+            let kept = flights[0].1.habits.expect("worked out on import");
+            assert_eq!(kept.version, HABITS_VERSION);
+            assert_eq!(kept.thermals_right, 2);
+            let habits = open(backing).habits();
+            assert_eq!(habits.len(), 1);
+            assert_eq!(habits[0].id, id);
+            assert_eq!(Some(habits[0].habits), kept.current());
+        });
+    }
+
+    /// The index as a version that kept no habits wrote it.
+    fn without_habits(index: &[u8]) -> Vec<u8> {
+        let mut index: serde_json::Value = serde_json::from_slice(index).unwrap();
+        for summary in index["flights"].as_object_mut().unwrap().values_mut() {
+            summary.as_object_mut().unwrap().remove("habits").unwrap();
+        }
+        serde_json::to_vec(&index).unwrap()
+    }
+
+    #[test]
+    fn an_index_without_habits_opens_and_gets_them_the_first_time_they_are_asked_for() {
+        on_every_storage(|backing| {
+            let before = {
+                let logbook = open(backing);
+                logbook.import(&sample()).unwrap();
+                logbook.import(&sample_in_2025()).unwrap();
+                logbook.habits()
+            };
+            let storage = backing.open();
+            let old = without_habits(&storage.read(INDEX_FILE).unwrap().unwrap());
+            storage.write(INDEX_FILE, &old).unwrap();
+
+            // It opens as it is: the list is there and nothing is rebuilt.
+            let logbook = open(backing);
+            assert_eq!(logbook.flights().len(), 2);
+            assert!(logbook.flights().iter().all(|(_, s)| s.habits.is_none()));
+            assert_eq!(backing.open().read(INDEX_FILE).unwrap().unwrap(), old);
+
+            // Asked for, they are worked out from the files and kept.
+            assert_eq!(logbook.habits(), before);
+            let reopened = open(backing);
+            assert!(reopened.flights().iter().all(|(_, s)| s.habits.is_some()));
+            assert_eq!(reopened.habits(), before);
+        });
+    }
+
+    #[test]
+    fn habits_counted_by_older_rules_are_counted_again() {
+        on_every_storage(|backing| {
+            let before = {
+                let logbook = open(backing);
+                logbook.import(&sample()).unwrap();
+                logbook.habits()
+            };
+            let storage = backing.open();
+            let mut index: serde_json::Value =
+                serde_json::from_slice(&storage.read(INDEX_FILE).unwrap().unwrap()).unwrap();
+            for summary in index["flights"].as_object_mut().unwrap().values_mut() {
+                summary["habits"]["version"] = (HABITS_VERSION - 1).into();
+                summary["habits"]["thermals_right"] = 99.into();
+            }
+            storage
+                .write(INDEX_FILE, &serde_json::to_vec(&index).unwrap())
+                .unwrap();
+
+            assert_eq!(open(backing).habits(), before);
+        });
+    }
+
+    #[test]
+    fn a_flight_whose_file_cannot_be_read_is_left_out_of_the_habits() {
+        on_every_storage(|backing| {
+            let (id, _) = open(backing).import(&sample()).unwrap();
+            let storage = backing.open();
+            let old = without_habits(&storage.read(INDEX_FILE).unwrap().unwrap());
+            storage.write(INDEX_FILE, &old).unwrap();
+            let logbook = open(backing);
+            storage.write(&flight_file(&id), b"not a flight").unwrap();
+
+            assert!(logbook.habits().is_empty());
+            assert_eq!(logbook.flights().len(), 1);
+        });
     }
 
     /// What a browser's store holds after two flights were imported.

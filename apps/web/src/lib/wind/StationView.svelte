@@ -13,6 +13,8 @@
 		type WindStation
 	} from '#lib/core/index.ts';
 	import { age, compassPoint, format } from '#lib/design/format.ts';
+	import AlertMe from '#lib/alerts/AlertMe.svelte';
+	import { windDraft } from '#lib/alerts/model.svelte.ts';
 	import Metric from '#lib/design/Metric.svelte';
 	import type { WindModel } from './model.svelte';
 	import WindChart from './WindChart.svelte';
@@ -267,6 +269,8 @@
 	<!-- What the station measures is the wind now; what the models compute
 	     for its place is another screen. -->
 	<button class="card forecast" type="button" onclick={onforecast}>Forecast for this place</button>
+
+	<AlertMe look="card" start={() => windDraft(station)} />
 
 	{#if credit}
 		<section>

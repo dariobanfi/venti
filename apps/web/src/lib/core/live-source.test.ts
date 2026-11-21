@@ -154,12 +154,11 @@ describe('who is in the air, from the server', () => {
 	});
 
 	it('asks for the others in the same box, and puts them beside Venti’s pilots with the network’s credit', async () => {
-		const heard = json('live_others.json');
-		// The development server's network connects nowhere; a real one does.
-		heard.layers[0].connected = true;
 		const { asked, get } = server((path) => ({
 			status: 200,
-			body: path.startsWith('/v1/live/others') ? bytes(heard) : recorded('live.json'),
+			body: path.startsWith('/v1/live/others')
+				? recorded('live_others.json')
+				: recorded('live.json'),
 			etag: undefined
 		}));
 		const live = new LiveSource(async () => true, get);
@@ -183,7 +182,7 @@ describe('who is in the air, from the server', () => {
 		expect(answer.others!.countWords).toMatch(/^2 pilots of Venti, \d+ others in the air$/);
 	});
 
-	it('leaves out a network the server is not connected to, and counts none of it', async () => {
+	it('draws a network the server is not connected to now: it lists only what it heard lately', async () => {
 		const { get } = server((path) => ({
 			status: 200,
 			body: path.startsWith('/v1/live/others')
@@ -195,8 +194,12 @@ describe('who is in the air, from the server', () => {
 
 		const answer = (await live.gliders(VALLEY))!;
 
-		expect(answer.others?.networks).toEqual([]);
-		expect(answer.others?.countWords).toBe('');
+		expect(answer.others?.networks.map((network) => network.connected)).toEqual([false]);
+		expect(answer.others?.networks[0].aircraft.length).toBeGreaterThan(0);
+		expect(answer.others?.countWords).toMatch(/others? in the air$/);
+		expect(answer.others?.credits.map((credit) => credit.text)).toEqual([
+			'Positions: Open Glider Network, glidernet.org (ODbL)'
+		]);
 	});
 
 	it('keeps Venti’s pilots from a server that lists no others', async () => {

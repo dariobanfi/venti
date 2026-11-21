@@ -65,6 +65,14 @@ export function aircraft(given: Partial<OtherAircraftView> = {}): OtherAircraftV
 	};
 }
 
+const OGN_CREDIT = {
+	source: 'ogn',
+	provider: 'Open Glider Network',
+	text: 'Positions: Open Glider Network, glidernet.org (ODbL)',
+	licence: 'ODbL 1.0',
+	url: 'https://www.glidernet.org/ogn-data-usage/'
+};
+
 /** The network's answer as the worker hands it on; `heard` is its number. */
 export function others(
 	heard: number,
@@ -78,17 +86,12 @@ export function others(
 				connected: true,
 				aircraft: aircraftHeard,
 				truncated: false,
-				credit: {
-					source: 'ogn',
-					provider: 'Open Glider Network',
-					text: 'Positions: Open Glider Network, glidernet.org (ODbL)',
-					licence: 'ODbL 1.0',
-					url: 'https://www.glidernet.org/ogn-data-usage/'
-				},
+				credit: OGN_CREDIT,
 				...given
 			}
 		],
 		countWords: '1 pilot of Venti, 1 other in the air',
+		credits: aircraftHeard.length > 0 ? [OGN_CREDIT] : [],
 		heard
 	};
 }

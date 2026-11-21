@@ -56,6 +56,7 @@ describe('who is in the air over the part of the map in view', () => {
 			truncated: false,
 			others: [],
 			countWords: '',
+			othersCredits: [],
 			othersSaid: ''
 		});
 

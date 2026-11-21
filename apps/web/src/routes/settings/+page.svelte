@@ -23,6 +23,8 @@
 	const account = $derived(app.account);
 	const airspace = $derived(app.airspace);
 	const kept = $derived(app.kept);
+	/** What the alarms fired that no notification told of. */
+	const unseen = $derived(account?.signedIn ? (app.alerts?.unseen ?? 0) : 0);
 
 	/** The pilot's position, where Today was given it: the list then says how far each site is. */
 	const from = $derived.by(() => {
@@ -72,6 +74,9 @@
 				<a class="group-row" href={accountHref()}>
 					<span>Account</span>
 					<span class="trailing">
+						{#if unseen > 0}
+							<span class="badge numeric" aria-label="{unseen} new alerts">{unseen}</span>
+						{/if}
 						<span class="group-value">{accountSaid}</span>
 						<span class="chevron"><Icon name="forward" /></span>
 					</span>

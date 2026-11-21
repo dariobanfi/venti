@@ -83,24 +83,6 @@ export function otherFeatures(networks: readonly LiveOthersNetwork[]): GeoJSON.F
 	};
 }
 
-/** Whether the map draws an aircraft at a zoom. */
-export function drawnAt(aircraft: Pick<OtherAircraftView, 'isFreeFlight'>, zoom: number): boolean {
-	return aircraft.isFreeFlight || zoom >= OTHERS_FROM_ZOOM;
-}
-
-/**
- * The credits of the networks with an aircraft the map draws at a zoom:
- * a network's credit stands with the map's while any of its aircraft is
- * drawn.
- */
-export function drawnCredits(networks: readonly LiveOthersNetwork[], zoom: number) {
-	return networks.flatMap((network) =>
-		network.credit && network.aircraft.some((aircraft) => drawnAt(aircraft, zoom))
-			? [network.credit]
-			: []
-	);
-}
-
 /** An aircraft by its identifier, with its network's credit. */
 export function otherById(
 	networks: readonly LiveOthersNetwork[],

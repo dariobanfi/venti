@@ -36,6 +36,8 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import AlertMe from '#lib/alerts/AlertMe.svelte';
+	import { dayDraft } from '#lib/alerts/model.svelte.ts';
 	import { getApp } from '#lib/app/app.svelte.ts';
 	import type {
 		Credit,
@@ -377,6 +379,9 @@
 		</button>
 		{#if keepProblem}
 			<p class="row said" role="alert">{keepProblem}</p>
+		{/if}
+		{#if site.kind === 'takeoff' || site.uses.includes('takeoff')}
+			<AlertMe look="row" start={() => dayDraft(site)} />
 		{/if}
 		<button class="row link" type="button" onclick={onforecast}>Forecast for this place</button>
 		{#if flightsHref}

@@ -7,7 +7,8 @@
 	time of the last sync in the reader's own clock.
 -->
 <script lang="ts">
-	import { programsHref } from '#lib/app/routes.ts';
+	import { getApp } from '#lib/app/app.svelte.ts';
+	import { alertsHref, programsHref } from '#lib/app/routes.ts';
 	import type { AccountView } from '#lib/core/index.ts';
 	import ConfirmDialog from '#lib/design/ConfirmDialog.svelte';
 	import Dialog from '#lib/design/Dialog.svelte';
@@ -23,6 +24,9 @@
 	let { account, signedIn }: Props = $props();
 
 	const text = format();
+
+	/** What the alarms fired that no notification told of. */
+	const unseen = $derived(getApp().alerts?.unseen ?? 0);
 
 	/** The server as the pilot knows it: its host name. */
 	const host = $derived(hostOf(signedIn.server));
@@ -137,18 +141,27 @@
 </section>
 
 <!-- What else the account holds. The row's name is the core's, as the page's title is. -->
-{#await account.programsForm() then programs}
-	<section class="group" aria-label="Access">
-		<div class="group-card">
+<section class="group" aria-label="Access">
+	<div class="group-card">
+		<a class="group-row" href={alertsHref()}>
+			<span>Alerts</span>
+			<span class="trailing">
+				{#if unseen > 0}
+					<span class="badge numeric" aria-label="{unseen} new">{unseen}</span>
+				{/if}
+				<span class="chevron"><Icon name="forward" /></span>
+			</span>
+		</a>
+		{#await account.programsForm() then programs}
 			<a class="group-row" href={programsHref()}>
 				<span>{programs.title}</span>
 				<span class="chevron"><Icon name="forward" /></span>
 			</a>
-		</div>
-	</section>
-{:catch}
-	<!-- Without the core's words there is no row. -->
-{/await}
+		{:catch}
+			<!-- Without the core's words there is no row. -->
+		{/await}
+	</div>
+</section>
 
 <section class="group" aria-label="Leaving">
 	<div class="group-card">
@@ -235,6 +248,12 @@
 </Dialog>
 
 <style>
+	.trailing {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+	}
+
 	.chevron {
 		color: var(--icon-quiet);
 		font-size: 0.75rem;

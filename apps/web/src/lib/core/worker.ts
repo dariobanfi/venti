@@ -6,6 +6,7 @@
 
 import { AccountSource } from './account-source';
 import { AirspaceSource } from './airspace-source';
+import { AlertsSource } from './alerts-source';
 import { CommunitySource } from './community-source';
 import { ForecastSource } from './forecast-source';
 import { GroupsSource } from './groups-source';
@@ -54,6 +55,7 @@ const starting: Promise<Answering> = (async () => {
 		wind,
 		account: new AccountSource(session),
 		tokens: new TokensSource(session),
+		alerts: new AlertsSource(session),
 		airspace: new AirspaceSource(session, () => wind.present()),
 		sites,
 		siteEdits: new SiteEditSource(session, () => sites.wrote()),

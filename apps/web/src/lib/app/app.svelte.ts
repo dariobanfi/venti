@@ -13,6 +13,7 @@ import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { AccountModel } from '#lib/account/model.svelte.ts';
 import { AirspaceModel } from '#lib/airspace/model.svelte.ts';
+import { ALERTS_EVERY_MS, AlertsModel } from '#lib/alerts/model.svelte.ts';
 import { CommunityModel } from '#lib/community/model.svelte.ts';
 import {
 	askToKeepStorage,
@@ -47,7 +48,7 @@ import { SiteEditsModel } from '#lib/sites/edit.svelte.ts';
 import { SitesModel } from '#lib/sites/model.svelte.ts';
 import { TakeoffsModel } from '#lib/sites/takeoffs.svelte.ts';
 import { WindModel } from '#lib/wind/model.svelte.ts';
-import { flightHref } from './routes';
+import { alertsHref, flightHref } from './routes';
 
 export class App {
 	/** The logbook. Nothing until the core has started. */
@@ -87,6 +88,9 @@ export class App {
 	/** The pilot's account on the Venti server. Nothing until the core has started. */
 	account = $state.raw<AccountModel>();
 
+	/** The pilot's alarms and what they fired. Nothing until the core has started. */
+	alerts = $state.raw<AlertsModel>();
+
 	/**
 	 * The pilot's groups and their plans for a flying day. Nothing until
 	 * the core has started.
@@ -125,11 +129,16 @@ export class App {
 				this.thermals = new ThermalMapModel(core);
 				this.radar = new RadarModel(core);
 				const logbook = await LogbookModel.open(core);
+				const alerts = new AlertsModel(core, () => void goto(`${alertsHref()}#fired`));
+				this.alerts = alerts;
+				void alerts.reread();
 				// A sync may have fetched or removed flights, and take-offs the
-				// pilot keeps as their own.
+				// pilot keeps as their own; what the alarms fired is fetched
+				// with it.
 				const account = await AccountModel.open(core, async (keptSites) => {
 					await logbook.refresh();
 					await kept.synced(keptSites).catch(() => {});
+					void alerts.sync();
 				});
 				const airspace = await AirspaceModel.open(core);
 				// Another tab imported, deleted, synced or signed out: show
@@ -137,6 +146,7 @@ export class App {
 				core.onChangedElsewhere = () => {
 					void logbook.refresh();
 					void account.refresh();
+					void alerts.reread();
 					void airspace.reload();
 					kept.changedElsewhere();
 				};
@@ -299,7 +309,15 @@ export class App {
 		};
 		void this.#started?.then(sync);
 		document.addEventListener('visibilitychange', sync);
-		return () => document.removeEventListener('visibilitychange', sync);
+		// What the alarms fired, while a page is open; the account's sync
+		// fetches it too, but that pauses a minute between runs.
+		const alerts = setInterval(() => {
+			if (this.account?.signedIn) void this.alerts?.sync();
+		}, ALERTS_EVERY_MS);
+		return () => {
+			document.removeEventListener('visibilitychange', sync);
+			clearInterval(alerts);
+		};
 	}
 }
 

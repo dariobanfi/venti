@@ -2,8 +2,8 @@
  * Others in the air, from the Open Glider Network: the development server
  * lists made-up aircraft over the Tegernsee (paragliders, a hang glider, a
  * glider, a tow plane), one paraglider right by the Wallberg. Its network
- * connects nowhere and says so; this test answers that it is connected,
- * made up, so that the map draws what the server lists.
+ * connects nowhere and says so; the map draws what the server lists all
+ * the same, as the server lists only what it heard in the last ten minutes.
  */
 
 import { expect, mapTabDrawn, test } from './helpers';
@@ -15,16 +15,6 @@ test('the map draws the aircraft the Open Glider Network hears, and a click open
 	wide,
 	problems
 }) => {
-	await page.route(
-		(address) => address.pathname === '/v1/live/others',
-		async (route) => {
-			const response = await route.fetch();
-			const body = await response.json();
-			// Made up: the development server's network is never connected.
-			for (const layer of body.layers) layer.connected = true;
-			await route.fulfill({ response, json: body });
-		}
-	);
 	// The wind's arrows and the sites' signs stay off the map, so that the
 	// screenshot shows the aircraft.
 	await page.addInitScript(() =>

@@ -23,6 +23,7 @@
 
 import {
 	type Bounds,
+	type Credit,
 	liveAgeInWords,
 	LiveFollow,
 	type LiveFollowView,
@@ -101,17 +102,16 @@ export interface LiveAnswer {
 /** The aircraft other networks hear in a box, as the core puts them beside Venti's pilots. */
 export interface LiveOthersAnswer {
 	/**
-	 * The networks the server is connected to now, each with its aircraft
-	 * (paragliders and hang gliders first) and its credit. One it is not
-	 * connected to is left out: a map draws nothing of it and says nothing.
+	 * The networks the server lists, each with its aircraft (paragliders
+	 * and hang gliders first) and its credit. Drawn whether or not the
+	 * server is connected to them now: it lists only what it heard in the
+	 * last ten minutes, and each position says its age.
 	 */
 	networks: LiveOthersNetwork[];
-	/**
-	 * Who is in the air, in the core's words: "3 pilots of Venti, 5 others
-	 * in the air". Empty where the core would count aircraft of a network
-	 * that is left out.
-	 */
+	/** Who is in the air, in the core's words: "3 pilots of Venti, 5 others in the air". */
 	countWords: string;
+	/** The core's credits to show with the map: those of the networks with an aircraft in it. */
+	credits: Credit[];
 	/** As {@link LiveAnswer.heard}: the same number while neither answer has changed. */
 	heard: number;
 }
@@ -221,11 +221,10 @@ export class LiveSource {
 		const from = `${venti.heard}:${others.heard}`;
 		if (this.#layer?.from === from) return this.#layer.others;
 		const layer = liveLayer(200, venti.body, 200, others.body);
-		const networks = layer.others.filter((network) => network.connected);
-		const left = layer.others.some((network) => !network.connected && network.aircraft.length > 0);
 		const answer: LiveOthersAnswer = {
-			networks,
-			countWords: left ? '' : layer.countWords,
+			networks: layer.others,
+			countWords: layer.countWords,
+			credits: layer.credits,
 			heard: ++this.#heard
 		};
 		this.#layer = { from, others: answer };

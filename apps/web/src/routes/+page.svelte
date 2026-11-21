@@ -49,7 +49,7 @@
 	import LiveList from '#lib/live/LiveList.svelte';
 	import { countIn as glidersIn } from '#lib/live/mark.ts';
 	import OtherView from '#lib/live/OtherView.svelte';
-	import { drawnCredits, otherById } from '#lib/live/others.ts';
+	import { otherById } from '#lib/live/others.ts';
 	import { NO_LIVE } from '#lib/live/watch.ts';
 	import MapButton from '#lib/map/MapButton.svelte';
 	import MapPanel from '#lib/map/MapPanel.svelte';
@@ -378,8 +378,10 @@
 	);
 	/** The others the map draws: none while the "Pilots" layer is off. */
 	const othersShown = $derived(off.includes('pilots') ? NO_LIVE.others : inTheAir.others);
-	/** Whose the others drawn are: the network's credit, while any of its aircraft is drawn. */
-	const othersCredits = $derived(view ? drawnCredits(othersShown, view.zoom) : []);
+	/** Whose the others are, in the core's credits, while the "Pilots" layer is on. */
+	const othersCredits = $derived(
+		off.includes('pilots') ? NO_LIVE.othersCredits : inTheAir.othersCredits
+	);
 	const NO_TRACK: readonly never[] = [];
 	/** The flight of the chosen glider so far, for the map to draw as a line. */
 	const followedTrack = $derived(live?.followed.view?.track ?? NO_TRACK);

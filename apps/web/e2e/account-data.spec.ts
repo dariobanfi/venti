@@ -126,7 +126,7 @@ test('a pilot gives a program access, sees its secret once, and withdraws the ac
 	const form = page.getByRole('dialog', { name: 'Give access' });
 	const give = form.getByRole('button', { name: 'Give access' });
 	await expect(form.getByText('What it may do')).toBeVisible();
-	await expect(form.getByRole('switch')).toHaveCount(10);
+	await expect(form.getByRole('switch')).toHaveCount(12);
 	await expect(form.getByText(/^Leave empty for access that does not end/)).toBeVisible();
 	await expect(form.getByText(/^Asked for so that nobody who picks up this device/)).toBeVisible();
 	await give.click();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawnCredits, OTHERS_FROM_ZOOM, otherById, otherFeatures } from './others';
+import { otherById, otherFeatures } from './others';
 import { aircraft, others } from './testing';
 
 const towPlane = aircraft({
@@ -22,18 +22,6 @@ describe('the aircraft other networks hear, on the map', () => {
 			{ id: '06c45574ebec0149', heading: 0, label: 'Paraglider · 2140 m', free: false }
 		]);
 		expect(features[0].geometry).toEqual({ type: 'Point', coordinates: [11.7967, 47.664083] });
-	});
-
-	it('bring the network’s credit while any of them is drawn', () => {
-		const onlyTow = others(1, [towPlane]).networks;
-		const credit = 'Positions: Open Glider Network, glidernet.org (ODbL)';
-
-		// A tow plane is drawn only close up.
-		expect(drawnCredits(onlyTow, OTHERS_FROM_ZOOM - 1)).toEqual([]);
-		expect(drawnCredits(onlyTow, OTHERS_FROM_ZOOM).map((one) => one.text)).toEqual([credit]);
-		// A paraglider at every zoom.
-		expect(drawnCredits(others(1).networks, 6).map((one) => one.text)).toEqual([credit]);
-		expect(drawnCredits(others(1, []).networks, 12)).toEqual([]);
 	});
 
 	it('are found by their identifier, with their network', () => {

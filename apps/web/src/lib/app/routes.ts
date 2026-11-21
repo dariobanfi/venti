@@ -56,6 +56,11 @@ export function programsHref(): string {
 	return resolve('/settings/account/programs');
 }
 
+/** The pilot's alarms and what they fired, under the account. */
+export function alertsHref(): string {
+	return resolve('/settings/account/alerts');
+}
+
 export function airspaceHref(): string {
 	return resolve('/settings/airspace');
 }

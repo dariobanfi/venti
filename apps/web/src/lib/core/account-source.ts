@@ -383,7 +383,7 @@ export class AccountSource {
 }
 
 /** Runs a sync when no other tab of the site runs one. */
-function alone<T>(task: () => Promise<T>): Promise<T> {
+export function alone<T>(task: () => Promise<T>): Promise<T> {
 	const locks = globalThis.navigator?.locks;
 	return locks ? locks.request('venti-sync', task) : task();
 }

@@ -11,6 +11,7 @@
 
 import type {
 	Bounds,
+	Credit,
 	LiveAnswer,
 	LiveFollowAnswer,
 	LiveFollowView,
@@ -56,13 +57,12 @@ export interface LiveState {
 	answeredAt: number;
 	/** Whether the area holds more gliders than the server lists at once. */
 	truncated: boolean;
-	/**
-	 * The aircraft other networks hear around the part of the map in view,
-	 * network by network: only those the server is connected to now.
-	 */
+	/** The aircraft other networks hear around the part of the map in view, network by network. */
 	others: LiveOthersNetwork[];
 	/** Who is in the air, in the core's words ("3 pilots of Venti, 5 others in the air"), or empty. */
 	countWords: string;
+	/** Whose the others are, in the core's credits: the networks with an aircraft in view. */
+	othersCredits: Credit[];
 	/**
 	 * What the map says when it shows too much to ask for others, in the
 	 * core's words; empty while it does not, and while no network was
@@ -79,6 +79,7 @@ export const NO_LIVE: LiveState = {
 	truncated: false,
 	others: [],
 	countWords: '',
+	othersCredits: [],
 	othersSaid: ''
 };
 
@@ -101,8 +102,7 @@ export class LiveWatch {
 	#othersTooWide = false;
 	/**
 	 * What the map says when it shows too much for others, once a network
-	 * the server is connected to was heard of: a map says nothing of one
-	 * it is not.
+	 * was heard of.
 	 */
 	#tooWideWords = '';
 	/** Whether the site turned out to have no server. */
@@ -220,6 +220,7 @@ export class LiveWatch {
 			truncated: answered?.truncated ?? false,
 			others: this.#others?.networks ?? NO_LIVE.others,
 			countWords: this.#others?.countWords ?? '',
+			othersCredits: this.#others?.credits ?? NO_LIVE.othersCredits,
 			othersSaid:
 				!this.#absent && (this.#wanted === undefined || this.#othersTooWide)
 					? this.#tooWideWords
@@ -234,6 +235,7 @@ export class LiveWatch {
 			state.truncated === before.truncated &&
 			state.others === before.others &&
 			state.countWords === before.countWords &&
+			state.othersCredits === before.othersCredits &&
 			state.othersSaid === before.othersSaid
 		) {
 			return;

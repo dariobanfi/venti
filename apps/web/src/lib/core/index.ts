@@ -22,6 +22,7 @@
  *   and keeps the logbook and the pilot's own sites in step with it, also
  *   from the worker.
  * - `tokens-source.ts` talks to it about the programs a pilot gave access.
+ * - `alerts-source.ts` talks to it about the pilot's alarms and what they fired.
  * - `airspace-source.ts` fetches the airspace around a place from the Venti
  *   server when the core says it is time, for the core to keep.
  * - `community-source.ts` asks it for the flights other pilots share with
@@ -38,6 +39,12 @@
 
 export type {
 	AccountView,
+	AlertDayKind,
+	AlertDraft,
+	AlertFaultView,
+	AlertKind,
+	AlertView,
+	FiredLine,
 	AirspaceCover,
 	AirspaceCrossing,
 	AirspaceFile,
@@ -231,6 +238,7 @@ import { UNREACHABLE } from './protocol';
 
 export type { NewAccount, SyncOutcome } from './account-source';
 export type { AccessWanted, ProgramView } from './tokens-source';
+export type { AlertsHeld, AlertsSynced } from './alerts-source';
 export { CoreClient } from './client';
 export type { TodayAnswer } from './today-source';
 export type { RouteWeatherAnswer, RouteWeatherAsked } from './route-weather-source';

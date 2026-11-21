@@ -33,7 +33,9 @@ import type {
 	SiteStatistics,
 	Tendencies,
 	LogbookView,
-	SyncStep
+	SyncStep,
+	AlertsSync,
+	FiredLine
 } from './pkg/venti_core_wasm.js';
 import { type FileStore, StaleStoreError } from './store';
 
@@ -339,6 +341,26 @@ export class CoreSession {
 	 */
 	beginKeptSitesSync(): Promise<SyncRun> {
 		return this.beginSync((core) => core.keptSitesSync());
+	}
+
+	/**
+	 * Starts a run that fetches the account's alarms and what they fired
+	 * since the last run (`Core.alertsSync`), stored as the logbook's sync
+	 * is. Before it ends, the run says what it fetched that is new.
+	 */
+	async beginAlertsSync(): Promise<
+		SyncRun & { newLines(utcOffsetS: number): Promise<FiredLine[]> }
+	> {
+		let alerts: AlertsSync | undefined;
+		const run = await this.beginSync((core) => {
+			alerts = core.alertsSync();
+			// Its start takes no time; the logbook's does.
+			return alerts as unknown as CoreRun;
+		});
+		return {
+			...run,
+			newLines: (utcOffsetS) => this.#inTurn(async () => alerts?.newLines(utcOffsetS) ?? [])
+		};
 	}
 
 	/** Starts again from what is stored. */

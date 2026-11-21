@@ -13,6 +13,7 @@ import type { HoursAsked } from './thermal-map-source';
 import type { AccessWanted } from './tokens-source';
 import type { Box } from './takeoffs-source';
 import type {
+	AlertDraft,
 	Bounds,
 	Coordinate,
 	Credit,
@@ -604,6 +605,43 @@ export class CoreClient {
 	/** Withdraws a program's access, by its token's identifier. */
 	withdrawAccess(id: string) {
 		return this.#call('withdrawAccess', id);
+	}
+
+	/** The sixteen points of the compass an alarm's directions are chosen from. */
+	alertPoints() {
+		return this.#call('alertPoints', undefined);
+	}
+
+	/** What a draft of an alarm waits for, in the core's line. */
+	alertLine(draft: AlertDraft) {
+		return this.#call('alertLine', draft);
+	}
+
+	/** What is wrong with a draft of an alarm, field by field. */
+	alertCheck(draft: AlertDraft) {
+		return this.#call('alertCheck', draft);
+	}
+
+	/** The alarms and what they fired as this browser holds them, what fired the newest first. */
+	alertsHeld(nowUnixS: number, utcOffsetS: number) {
+		return this.#call('alertsHeld', { nowUnixS, utcOffsetS });
+	}
+
+	/** Fetches the alarms and what they fired; says what fired since the last time. */
+	alertsSync(utcOffsetS: number) {
+		return this.#call('alertsSync', utcOffsetS);
+	}
+
+	addAlert(draft: AlertDraft) {
+		return this.#call('addAlert', draft);
+	}
+
+	changeAlert(id: string, draft: AlertDraft) {
+		return this.#call('changeAlert', { id, draft });
+	}
+
+	removeAlert(id: string) {
+		return this.#call('removeAlert', id);
 	}
 
 	/** How a flight is shared, if the server has it. */

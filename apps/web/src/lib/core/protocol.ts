@@ -9,6 +9,7 @@
  */
 
 import type { AccountSource, NewAccount, SyncOutcome } from './account-source';
+import type { AlertsHeld, AlertsSource, AlertsSynced } from './alerts-source';
 import type { AirspaceSource } from './airspace-source';
 import type {
 	CommunitySource,
@@ -21,6 +22,9 @@ import type {
 import { flightFileText } from './flight-text';
 import type {
 	AccountView,
+	AlertDraft,
+	AlertFaultView,
+	AlertView,
 	AirspaceFile,
 	AirspaceHeightFilter,
 	AirspaceImport,
@@ -438,6 +442,23 @@ export interface Calls {
 	giveAccess: { given: AccessWanted; answer: TokenCreated };
 	/** Given a token's identifier: withdraws that program's access. */
 	withdrawAccess: { given: string; answer: undefined };
+	/** The sixteen points of the compass an alarm's directions are chosen from. */
+	alertPoints: { given: undefined; answer: string[] };
+	/** What a draft of an alarm waits for, in the core's line. */
+	alertLine: { given: AlertDraft; answer: string };
+	/** What is wrong with a draft of an alarm, field by field. */
+	alertCheck: { given: AlertDraft; answer: AlertFaultView[] };
+	/** The alarms and what they fired as the browser holds them, read by the clock given. */
+	alertsHeld: { given: { nowUnixS: number; utcOffsetS: number }; answer: AlertsHeld };
+	/**
+	 * Given how far the clock is ahead of UTC: fetches the alarms and what
+	 * they fired. Nothing in a browser that is not signed in.
+	 */
+	alertsSync: { given: number; answer: AlertsSynced | undefined };
+	addAlert: { given: AlertDraft; answer: AlertView };
+	changeAlert: { given: { id: string; draft: AlertDraft }; answer: AlertView };
+	/** Given an alarm's identifier: removes it. */
+	removeAlert: { given: string; answer: undefined };
 	/** Given a flight's identifier: how it is shared, if the server has it. */
 	flightSharing: { given: string; answer: FlightSharing | undefined };
 	shareFlight: { given: { id: string; visibility: FlightVisibility }; answer: FlightSharing };
@@ -527,6 +548,7 @@ export interface Answering {
 	wind: WindSource;
 	account: AccountSource;
 	tokens: TokensSource;
+	alerts: AlertsSource;
 	airspace: AirspaceSource;
 	sites: SitesSource;
 	siteEdits: SiteEditSource;
@@ -550,6 +572,7 @@ export async function answer<Name extends CallName>(
 		wind,
 		account,
 		tokens,
+		alerts,
 		airspace,
 		sites,
 		siteEdits,
@@ -671,6 +694,14 @@ export async function answer<Name extends CallName>(
 		programs: () => tokens.list(),
 		giveAccess: (wanted) => tokens.give(wanted),
 		withdrawAccess: (id) => tokens.withdraw(id),
+		alertPoints: () => alerts.points(),
+		alertLine: (draft) => alerts.line(draft),
+		alertCheck: (draft) => alerts.check(draft),
+		alertsHeld: ({ nowUnixS, utcOffsetS }) => alerts.held(nowUnixS, utcOffsetS),
+		alertsSync: (utcOffsetS) => alerts.sync(utcOffsetS),
+		addAlert: (draft) => alerts.add(draft),
+		changeAlert: ({ id, draft }) => alerts.change(id, draft),
+		removeAlert: (id) => alerts.remove(id),
 		flightSharing: (id) => account.sharing(id),
 		shareFlight: ({ id, visibility }) => account.share(id, visibility),
 		reportForm: (subject) => account.reportForm(subject),

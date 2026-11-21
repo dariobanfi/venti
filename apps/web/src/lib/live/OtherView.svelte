@@ -21,11 +21,8 @@
 		{#if aircraft.name}
 			<p class="row name">{aircraft.name}</p>
 		{/if}
+		<!-- The core's line ends with how old the position is. -->
 		<p class="row" data-other-line>{aircraft.line}</p>
-		<dl class="row">
-			<dt>Position</dt>
-			<dd class="numeric">{aircraft.ageWords}</dd>
-		</dl>
 	</div>
 	{#if credit}
 		<p class="footnote">
@@ -66,12 +63,6 @@
 
 	.name {
 		font-weight: 600;
-	}
-
-	dd {
-		color: var(--text-secondary);
-		text-align: right;
-		overflow-wrap: anywhere;
 	}
 
 	.footnote {

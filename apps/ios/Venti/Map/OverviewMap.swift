@@ -74,6 +74,8 @@ struct OverviewMap: UIViewRepresentable {
     /// The rain radar's pictures to draw, the first at the bottom; none
     /// while the layer is off.
     var radar: [RadarPicture] = []
+    /// What a glide reaches from a place pressed on, while it is shown.
+    var reach: GlideReachDrawing?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -129,6 +131,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.showForecast(forecast, on: map)
         coordinator.showHour(forecastHour, on: map)
         coordinator.showRadar(radar, on: map)
+        coordinator.showReach(reach, on: map)
         coordinator.show(plans, on: map)
         coordinator.show(sites, unsaid: unsaidSites, on: map)
         coordinator.show(candidates, on: map)
@@ -168,6 +171,12 @@ struct OverviewMap: UIViewRepresentable {
         /// Which pictures of the radar were drawn; `nil` before the first
         /// time.
         private var drawnRadar: [String]?
+
+        private var reach: GlideReachDrawing?
+        /// What was drawn of a glide's reach: its identity, `nil` for none.
+        private var drawnReach: String??
+        /// The place the reach drawn last starts from.
+        private var drawnReachPlace: Coordinate?
 
         private var forecast: ThermalMapDay?
         private var drawnForecast: ThermalMapDay?
@@ -253,6 +262,48 @@ struct OverviewMap: UIViewRepresentable {
             if drawnRadar == ids { return }
             drawnRadar = ids
             RadarLayers.show(radar, in: style)
+        }
+
+        func showReach(_ reach: GlideReachDrawing?, on map: MLNMapView) {
+            self.reach = reach
+            drawReach(on: map)
+        }
+
+        /// Draws the glide's reach, once the style is there and only when
+        /// another answer has come; a reach from another place is brought
+        /// into view above the card that lies over the lower half.
+        private func drawReach(on map: MLNMapView) {
+            guard isStyleLoaded, let style = map.style else { return }
+            let id = reach?.id
+            if let drawn = drawnReach, drawn == id { return }
+            let isNewPlace = reach != nil && reach?.place != drawnReachPlace
+            drawnReach = .some(id)
+            drawnReachPlace = reach?.place
+            GlideReachLayers.show(reach, in: style)
+            // Brought into view for a new place, and when a setting has
+            // grown the area past what is in view.
+            if let box = reach?.box, isNewPlace || !Self.isInView(box, on: map) {
+                let margin = 0.005
+                map.setVisibleCoordinateBounds(
+                    MLNCoordinateBounds(
+                        sw: CLLocationCoordinate2D(latitude: box.south - margin, longitude: box.west - margin),
+                        ne: CLLocationCoordinate2D(latitude: box.north + margin, longitude: box.east + margin)
+                    ),
+                    edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: map.bounds.height / 2 + 24, right: 40),
+                    animated: true,
+                    completionHandler: nil
+                )
+            }
+        }
+
+        /// Whether a box lies wholly in the part of the map that the chips
+        /// above and the card over the lower half leave in view.
+        private static func isInView(_ box: Bounds, on map: MLNMapView) -> Bool {
+            let open = map.bounds.inset(by: UIEdgeInsets(top: 90, left: 40, bottom: map.bounds.height / 2 + 24, right: 40))
+            return [
+                CLLocationCoordinate2D(latitude: box.south, longitude: box.west),
+                CLLocationCoordinate2D(latitude: box.north, longitude: box.east),
+            ].allSatisfy { open.contains(map.convert($0, toPointTo: map)) }
         }
 
         /// Draws an hour's squares and arrows, once the style is there and
@@ -343,6 +394,7 @@ struct OverviewMap: UIViewRepresentable {
             drawForecast(on: mapView)
             drawHour(on: mapView)
             drawRadar(on: mapView)
+            drawReach(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -464,6 +516,9 @@ struct OverviewMap: UIViewRepresentable {
             ThermalMapLayers.add(to: style)
             ThermalMapLayers.addHours(to: style)
             AirspaceLayers.add(to: style)
+            // What a glide reaches, over the airspace and under the
+            // flights, sites and wind.
+            GlideReachLayers.add(to: style)
             let empty = MLNShapeCollectionFeature(shapes: [])
 
             let tracks = MLNShapeSource(identifier: Self.tracks, shape: empty, options: nil)

@@ -6,7 +6,8 @@ import VentiCore
 /// the forecast map, the kind of day square by square, and the rain
 /// radar. The chips
 /// along the top switch its layers on and off. A long press shows the
-/// forecast for the place pressed.
+/// forecast for the place pressed, and from there what a glide reaches
+/// from it.
 struct MapScreen: View {
     @Environment(LogbookModel.self) private var logbook
     @Environment(WindModel.self) private var wind
@@ -20,6 +21,7 @@ struct MapScreen: View {
     @Environment(ThermalMapModel.self) private var thermals
     @Environment(RadarModel.self) private var radar
     @Environment(CandidatesModel.self) private var candidates
+    @Environment(TerrainModel.self) private var terrain
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
@@ -30,6 +32,8 @@ struct MapScreen: View {
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
     @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
     @AppStorage(Preferences.mapAirspaceCeilingM) private var airspaceCeilingM = 0.0
+    /// The pilot's glide, as the settings keep it: the reach starts with it.
+    @AppStorage(Preferences.glideRatio) private var pilotsGlide = Preferences.defaultGlideRatio
 
     @State private var isFollowing = false
     @State private var showsPlans = false
@@ -77,6 +81,14 @@ struct MapScreen: View {
     @State private var chosenAirspace: ChosenAirspacePlace?
     /// Who made the photographs in view on the map.
     @State private var photos = PhotoCredits()
+    /// What a glide reaches from a place pressed on, and its card.
+    @State private var reach = GlideReachModel()
+    @State private var showsReach = false
+    /// The place whose reach was asked for in the pressed place's sheet:
+    /// its card opens once that sheet has gone.
+    @State private var reachFrom: Coordinate?
+    /// How high the reach's card stands.
+    @State private var reachDetent = PresentationDetent.medium
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -165,7 +177,8 @@ struct MapScreen: View {
                 onHourPlace: { place in
                     openHourSquare(at: place)
                 },
-                radar: isRadarOn ? radar.pictures : []
+                radar: isRadarOn ? radar.pictures : [],
+                reach: reachDrawing
             )
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
@@ -396,15 +409,32 @@ struct MapScreen: View {
                 gliderFromList = id
             }
         }
-        .sheet(item: $pressed) { chosen in
-            // The forecast for the place, and from its bar "Add a site
-            // here", where Venti takes sites from pilots.
-            PressedPlaceSheet(place: chosen.place, isOnASite: chosen.isOnASite, detent: $pressedDetent) {
-                pressed = nil
-            }
+        .sheet(item: $pressed, onDismiss: showReach) { chosen in
+            // The forecast for the place, and from its bar what a glide
+            // reaches from here and "Add a site here", where Venti takes
+            // sites from pilots.
+            PressedPlaceSheet(
+                place: chosen.place, isOnASite: chosen.isOnASite, detent: $pressedDetent,
+                reach: {
+                    reachFrom = chosen.place
+                    pressed = nil
+                },
+                done: {
+                    pressed = nil
+                }
+            )
             // At half height first, like a site's and a station's page:
             // the place that was pressed stays in view above it.
             .presentationDetents([.medium, .large], selection: $pressedDetent)
+        }
+        // The glide's reach: its card at half height first, the area in
+        // view above it; lower, the map shows more. Closing it takes the
+        // area away.
+        .sheet(isPresented: $showsReach, onDismiss: { reach.clear() }) {
+            GlideReachCard(reach: reach) {
+                showsReach = false
+            }
+            .presentationDetents([.fraction(0.3), .medium, .large], selection: $reachDetent)
         }
         // A sheet of the map that sends the pilot to another tab, a site's
         // "Start flight" for one, closes behind them.
@@ -416,6 +446,7 @@ struct MapScreen: View {
                 chosenPlan = nil
                 chosenGlider = nil
                 pressed = nil
+                showsReach = false
                 chosenSquare = nil
                 chosenAirspace = nil
                 showsStations = false
@@ -441,6 +472,23 @@ struct MapScreen: View {
         } message: { problem in
             Text(problem)
         }
+    }
+
+    /// What a glide reaches, as the map draws it, while its card is up.
+    private var reachDrawing: GlideReachDrawing? {
+        guard showsReach, let place = reach.place, let answer = reach.answer else { return nil }
+        return GlideReachDrawing(answer, from: place)
+    }
+
+    /// Opens the reach's card once the pressed place's sheet has gone, if
+    /// the pilot asked for it there: one sheet at a time.
+    private func showReach() {
+        guard let place = reachFrom else { return }
+        reachFrom = nil
+        reach.ground = { [terrain] area in await terrain.ground(covering: area) }
+        reach.start(from: place, glideRatio: pilotsGlide)
+        reachDetent = .medium
+        showsReach = true
     }
 
     /// One of the round buttons over the map, as the design language has

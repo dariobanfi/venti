@@ -1263,6 +1263,9 @@ struct PressedPlaceSheet: View {
     /// top of one.
     let isOnASite: Bool
     @Binding var detent: PresentationDetent
+    /// Shows what a glide reaches from the place, on the map; `nil` where
+    /// the map offers it not.
+    var reach: (() -> Void)?
     let done: () -> Void
 
     @Environment(AccountModel.self) private var account
@@ -1283,30 +1286,26 @@ struct PressedPlaceSheet: View {
                         // Over the forecast, where it is seen at half
                         // height too: a bar has room for a sign alone.
                         .safeAreaInset(edge: .top, spacing: 0) {
-                            if let adding, !isOnASite, !adding.entryWords.isEmpty, !adding.asPartner {
-                                Button {
-                                    if adding.leadsToSignIn {
-                                        detent = .large
-                                        needsSignIn = true
-                                    } else {
-                                        isAdding = true
-                                    }
-                                } label: {
-                                    Group {
-                                        if adding.leadsToSignIn {
-                                            Text(adding.entryWords)
-                                        } else {
-                                            Label(adding.entryWords, systemImage: "plus")
+                            let offersAdding = adding.map { !isOnASite && !$0.entryWords.isEmpty && !$0.asPartner } ?? false
+                            if reach != nil || offersAdding {
+                                VStack(spacing: VentiSpace.s2) {
+                                    if let reach {
+                                        Button(action: reach) {
+                                            Label {
+                                                Text(GlideReachWords.entry)
+                                            } icon: {
+                                                Image("icon-glide")
+                                            }
+                                            .sentenceInAButton()
+                                            .frame(maxWidth: .infinity)
                                         }
+                                        .buttonStyle(.venti(.quiet))
+                                        .accessibilityIdentifier("glide-reach-here")
                                     }
-                                    .sentenceInAButton()
-                                    .frame(maxWidth: .infinity)
+                                    if let adding, offersAdding {
+                                        addButton(adding)
+                                    }
                                 }
-                                .buttonStyle(.venti(.quiet))
-                                // On the button itself: named after its
-                                // ground, the element reaches under the
-                                // bar, and a tap on its middle hits that.
-                                .accessibilityIdentifier(adding.leadsToSignIn ? "add-site-sign-in" : "add-site-here")
                                 .padding(.horizontal, VentiSpace.s4)
                                 .padding(.bottom, VentiSpace.s2)
                                 .background(.venti(.bg))
@@ -1331,5 +1330,32 @@ struct PressedPlaceSheet: View {
                 }
             }
         }
+    }
+
+    /// "Add a site here", or the way to sign in for it.
+    private func addButton(_ adding: SiteAdding) -> some View {
+        Button {
+            if adding.leadsToSignIn {
+                detent = .large
+                needsSignIn = true
+            } else {
+                isAdding = true
+            }
+        } label: {
+            Group {
+                if adding.leadsToSignIn {
+                    Text(adding.entryWords)
+                } else {
+                    Label(adding.entryWords, systemImage: "plus")
+                }
+            }
+            .sentenceInAButton()
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.venti(.quiet))
+        // On the button itself: named after its
+        // ground, the element reaches under the
+        // bar, and a tap on its middle hits that.
+        .accessibilityIdentifier(adding.leadsToSignIn ? "add-site-sign-in" : "add-site-here")
     }
 }

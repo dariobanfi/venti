@@ -2386,6 +2386,62 @@ final class VentiUITests: XCTestCase {
         }
     }
 
+    /// What a glide reaches from the Wallberg: a long press on the map,
+    /// "What a glide reaches from here" in what opens, and the area on the
+    /// map with the core's words on the card under it, light and dark.
+    func testAGlideReachesFromAPlacePressedOnTheMap() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        for dark in [false, true] {
+            let app = launch(
+                bundledMap: true, dark: dark, extra: ["--server", server, "--map-at", "47.6642,11.7967,12"]
+            )
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+            // The development server's demo glider stands in the map's
+            // middle, and the stations' arrows near it: off while pressing.
+            setLayer("layer-pilots", on: false, in: app)
+            setLayer("layer-wind", on: false, in: app)
+            sleep(3)
+            element("overview-map", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 1.3)
+            let entry = element("glide-reach-here", in: app)
+            XCTAssertTrue(entry.waitForExistence(timeout: 30))
+            entry.tap()
+            let words = element("glide-reach-words", in: app)
+            XCTAssertTrue(words.waitForExistence(timeout: 60))
+            XCTAssertTrue(words.label.hasPrefix("From"), words.label)
+            XCTAssertTrue(element("glide-reach-note", in: app).exists)
+            // A step of the glide asks the core again, and the card says so.
+            if !dark {
+                let before = words.label
+                let named = app.buttons["glide-reach-glide-Increment"]
+                (named.exists ? named : element("glide-reach-glide", in: app).buttons["Increment"]).tap()
+                for _ in 0..<20 where words.label == before {
+                    usleep(250_000)
+                }
+                XCTAssertNotEqual(words.label, before)
+            }
+            // A start 500 m over the ground, as from a launch higher up:
+            // a wider area for the screenshots.
+            let start = element("glide-reach-start", in: app)
+            let higher = app.buttons["glide-reach-start-Increment"]
+            for _ in 0..<10 {
+                (higher.exists ? higher : start.buttons["Increment"]).tap()
+                usleep(300_000)
+            }
+            XCTAssertTrue(words.label.hasPrefix("From"), words.label)
+            // Time for the map to bring the area into view above the card.
+            sleep(3)
+            keepScreenshot(dark ? "glide-reach-2-dark" : "glide-reach-1")
+            element("glide-reach-clear", in: app).tap()
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 10))
+            setLayer("layer-pilots", on: true, in: app)
+            setLayer("layer-wind", on: true, in: app)
+            app.terminate()
+        }
+    }
+
     /// Opens the map to draw a route on from the Fly tab, and draws three
     /// places on it.
     private func drawATriangle(in app: XCUIApplication) {

@@ -27,6 +27,14 @@ struct CockpitMap: UIViewRepresentable {
     /// Other pilots in the air around the glider, who show their flight
     /// to everyone.
     var gliders: [LiveGlider] = []
+    /// The cables around, as the core's layer has them.
+    var cables: [CableLine] = []
+    /// An open triangle's closing circle, while the score has one.
+    var closing: ClosingCircleView?
+    /// The take-offs around the glider, as the core gives them.
+    var takeoffs: [CockpitTakeoff] = []
+    /// The other networks' aircraft near, each with its track.
+    var others: [OtherNearView] = []
     /// Whether the map shows the whole flight, with the scored route and
     /// the FAI triangle areas, instead of following the glider closely.
     var showsWholeFlight = false
@@ -71,6 +79,10 @@ struct CockpitMap: UIViewRepresentable {
         context.coordinator.fai = fai
         context.coordinator.range = range
         context.coordinator.gliders = gliders
+        context.coordinator.cables = cables
+        context.coordinator.closing = closing
+        context.coordinator.takeoffs = takeoffs
+        context.coordinator.others = others
         context.coordinator.showsWholeFlight = showsWholeFlight
         context.coordinator.task = task
         context.coordinator.taskStatus = taskStatus
@@ -93,7 +105,9 @@ struct CockpitMap: UIViewRepresentable {
         private var aerial = false
         /// The light casings under the map's plain dark lines, shown while
         /// the photographs show, on which a dark line alone is lost.
-        private static let casings = ["cockpit-task-casing", "cockpit-task-way-casing", "cockpit-course-casing"]
+        private static let casings = [
+            "cockpit-task-casing", "cockpit-task-way-casing", "cockpit-course-casing", "cockpit-closing-casing",
+        ]
         private var shown: CockpitView?
         private var route: [Coordinate] = []
         private var drawnRoute: [Coordinate]?
@@ -115,6 +129,14 @@ struct CockpitMap: UIViewRepresentable {
         private var drawnRange: [Coordinate]?
         var gliders: [LiveGlider] = []
         private var drawnGliders: [LiveGlider]?
+        var cables: [CableLine] = []
+        private var drawnCables: [CableLine]?
+        var closing: ClosingCircleView?
+        private var drawnClosing: [Coordinate]??
+        var takeoffs: [CockpitTakeoff] = []
+        private var drawnTakeoffs: [CockpitTakeoff]?
+        var others: [OtherNearView] = []
+        private var drawnOthers: [OtherNearView]?
         var showsWholeFlight = false
         /// The box the map shows while it shows the whole flight.
         private var wholeFlight: Bounds?
@@ -159,6 +181,9 @@ struct CockpitMap: UIViewRepresentable {
             photos?.update(from: mapView)
             // Airspace lowest of all.
             AirspaceLayers.add(to: style)
+            // The cables over it, from the cockpit's closest zoom out to
+            // the widest it takes by itself.
+            CablesLayers.add(to: style, minimumZoom: Float(Self.widestZoom))
 
             // How far the glider glides: a green line around what a
             // straight glide still reaches with height to spare, over the
@@ -200,6 +225,41 @@ struct CockpitMap: UIViewRepresentable {
             )
             aheadLine.lineOpacity = NSExpression(forConstantValue: 0.6)
             style.addLayer(aheadLine)
+
+            // An open triangle's closing circle: a thin dashed ring in the
+            // map's ink, with the FAI areas.
+            let closingRing = MLNShapeSource(identifier: "cockpit-closing", shape: nil, options: nil)
+            style.addSource(closingRing)
+            style.addLayer(Self.casing("cockpit-closing-casing", from: closingRing, width: 1.5))
+            let closingLine = MapSetup.line("cockpit-closing-line", from: closingRing, color: Palette.inkOnMap, width: 1.5)
+            closingLine.lineDashPattern = NSExpression(forConstantValue: [3, 2])
+            closingLine.lineCap = NSExpression(forConstantValue: "butt")
+            style.addLayer(closingLine)
+
+            // The take-offs around, as the map tab's signs, named only
+            // close in.
+            for picture in SiteSymbols.all {
+                style.setImage(picture.image, forName: picture.name)
+            }
+            let takeoffSigns = MLNShapeSource(identifier: "cockpit-takeoffs", shape: nil, options: nil)
+            style.addSource(takeoffSigns)
+            let signs = MLNSymbolStyleLayer(identifier: "cockpit-takeoffs", source: takeoffSigns)
+            signs.iconImageName = NSExpression(forKeyPath: "picture")
+            signs.iconAllowsOverlap = NSExpression(forConstantValue: true)
+            signs.iconAnchor = NSExpression(forConstantValue: "bottom")
+            signs.iconScale = NSExpression(forConstantValue: 0.7)
+            style.addLayer(signs)
+            let signNames = MLNSymbolStyleLayer(identifier: "cockpit-takeoff-names", source: takeoffSigns)
+            signNames.text = NSExpression(forKeyPath: "label")
+            signNames.textFontNames = NSExpression(forConstantValue: ["noto-sans-regular"])
+            signNames.textFontSize = NSExpression(forConstantValue: 12)
+            signNames.textAnchor = NSExpression(forConstantValue: "top")
+            signNames.textColor = NSExpression(forConstantValue: Palette.inkOnMap)
+            signNames.textHaloColor = NSExpression(forConstantValue: Palette.haloOnMap)
+            signNames.textHaloWidth = NSExpression(forConstantValue: 1.6)
+            signNames.textOptional = NSExpression(forConstantValue: true)
+            signNames.minimumZoomLevel = 14
+            style.addLayer(signNames)
 
             // The route the flight scores along: a thin line in the accent
             // colour, under everything that moves.
@@ -299,6 +359,14 @@ struct CockpitMap: UIViewRepresentable {
                 )
             )
 
+            // The other networks' aircraft: each one's track of the last
+            // five minutes as a thin line in the muted ink, and its wing,
+            // under Venti's own pilots.
+            let otherTracks = MLNShapeSource(identifier: "cockpit-other-tracks", shape: nil, options: nil)
+            style.addSource(otherTracks)
+            style.addLayer(MapSetup.line("cockpit-other-tracks", from: otherTracks, color: Palette.otherOnMap, width: 1))
+            LiveLayers.add(to: style, named: "cockpit-others")
+
             // Other pilots in the air, as on the map tab: over everything
             // but the pilot's own glider.
             LiveLayers.add(to: style, named: "cockpit-gliders")
@@ -331,6 +399,10 @@ struct CockpitMap: UIViewRepresentable {
             drawnFaiSide = nil
             drawnRange = nil
             drawnGliders = nil
+            drawnCables = nil
+            drawnClosing = nil
+            drawnTakeoffs = nil
+            drawnOthers = nil
             drawnRoute = nil
             drawnTask = nil
             drawnTaskNext = nil
@@ -423,6 +495,7 @@ struct CockpitMap: UIViewRepresentable {
                 }
             }
 
+            drawAround(in: style)
             if gliders != drawnGliders {
                 drawnGliders = gliders
                 LiveLayers.show(gliders, in: style, named: "cockpit-gliders")
@@ -499,6 +572,51 @@ struct CockpitMap: UIViewRepresentable {
         }
 
         /// The smallest box that holds every one of these places.
+        /// Draws the cables, the closing circle, the take-offs and the
+        /// other networks' aircraft, each only when it has changed.
+        private func drawAround(in style: MLNStyle) {
+            if cables != drawnCables {
+                drawnCables = cables
+                CablesLayers.show(cables, in: style)
+            }
+            let ring = closing?.outline
+            if drawnClosing == nil || drawnClosing! != ring,
+               let source = style.source(withIdentifier: "cockpit-closing") as? MLNShapeSource
+            {
+                drawnClosing = .some(ring)
+                let points = (ring ?? []).map(\.location)
+                source.shape = points.count >= 2 ? MLNPolylineFeature(coordinates: points, count: UInt(points.count)) : nil
+            }
+            if takeoffs != drawnTakeoffs, let source = style.source(withIdentifier: "cockpit-takeoffs") as? MLNShapeSource {
+                drawnTakeoffs = takeoffs
+                source.shape = MLNShapeCollectionFeature(shapes: takeoffs.map(Self.takeoffFeature))
+            }
+            if others != drawnOthers {
+                drawnOthers = others
+                if let source = style.source(withIdentifier: "cockpit-others") as? MLNShapeSource {
+                    source.shape = MLNShapeCollectionFeature(shapes: others.map { LiveLayers.feature(for: $0.aircraft) })
+                }
+                if let source = style.source(withIdentifier: "cockpit-other-tracks") as? MLNShapeSource {
+                    let lines = others.compactMap { other -> MLNPolylineFeature? in
+                        let points = other.track.map(\.location)
+                        return points.count >= 2 ? MLNPolylineFeature(coordinates: points, count: UInt(points.count)) : nil
+                    }
+                    source.shape = MLNShapeCollectionFeature(shapes: lines)
+                }
+            }
+        }
+
+        static func takeoffFeature(for takeoff: CockpitTakeoff) -> MLNPointFeature {
+            let feature = MLNPointFeature()
+            feature.coordinate = takeoff.site.position.location
+            feature.attributes = [
+                "id": takeoff.site.id,
+                "picture": SiteSymbols.name(of: takeoff.site.kind, isUnsaid: false),
+                "label": takeoff.site.isNamed ? takeoff.site.name : "",
+            ]
+            return feature
+        }
+
         static func box(around places: [Coordinate]) -> Bounds {
             let (lats, lons) = (places.map(\.lat), places.map(\.lon))
             return Bounds(

@@ -85,6 +85,11 @@ struct OverviewMap: UIViewRepresentable {
     var radar: [RadarPicture] = []
     /// What a glide reaches from a place pressed on, while it is shown.
     var reach: GlideReachDrawing?
+    /// The cables around, as the core's layer has them; none while the
+    /// layer is off.
+    var cables: [CableLine] = []
+    /// Called with a cable's identifier when the pilot taps its line.
+    var onCable: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -139,6 +144,8 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.onSquare = onSquare
         coordinator.onAirspace = onAirspace
         coordinator.onHourPlace = onHourPlace
+        coordinator.onCable = onCable
+        coordinator.showCables(cables, on: map)
         coordinator.showForecast(forecast, on: map)
         coordinator.showHour(forecastHour, on: map)
         coordinator.showRadar(radar, on: map)
@@ -166,6 +173,9 @@ struct OverviewMap: UIViewRepresentable {
         var onRegion: (Bounds) -> Void = { _ in }
         var onStation: (String) -> Void = { _ in }
         var onSite: (String) -> Void = { _ in }
+        var onCable: (String) -> Void = { _ in }
+        private var cables: [CableLine] = []
+        private var drawnCables: [CableLine]?
         var onCandidate: (String) -> Void = { _ in }
         var onGlider: (String) -> Void = { _ in }
         var onOther: (String) -> Void = { _ in }
@@ -284,6 +294,17 @@ struct OverviewMap: UIViewRepresentable {
             if drawnRadar == ids { return }
             drawnRadar = ids
             RadarLayers.show(radar, in: style)
+        }
+
+        func showCables(_ cables: [CableLine], on map: MLNMapView) {
+            self.cables = cables
+            drawCables(on: map)
+        }
+
+        private func drawCables(on map: MLNMapView) {
+            guard isStyleLoaded, cables != drawnCables, let style = map.style else { return }
+            drawnCables = cables
+            CablesLayers.show(cables, in: style)
         }
 
         func showReach(_ reach: GlideReachDrawing?, on map: MLNMapView) {
@@ -418,6 +439,7 @@ struct OverviewMap: UIViewRepresentable {
             drawHour(on: mapView)
             drawRadar(on: mapView)
             drawReach(on: mapView)
+            drawCables(on: mapView)
             tellRegion(of: mapView)
         }
 
@@ -486,6 +508,12 @@ struct OverviewMap: UIViewRepresentable {
                     return
                 }
             }
+            // A cable's line under the finger, where nothing above it is.
+            let wires = map.visibleFeatures(in: reach, styleLayerIdentifiers: Set(CablesLayers.lineLayers))
+            if let id = wires.first?.attribute(forKey: "id") as? String {
+                onCable(id)
+                return
+            }
             // Nothing of those: the forecast map's square under the finger
             // itself, if one is drawn there.
             let under = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
@@ -542,6 +570,8 @@ struct OverviewMap: UIViewRepresentable {
             ThermalMapLayers.add(to: style)
             ThermalMapLayers.addHours(to: style)
             AirspaceLayers.add(to: style)
+            // The cables, over the airspace.
+            CablesLayers.add(to: style)
             // What a glide reaches, over the airspace and under the
             // flights, sites and wind.
             GlideReachLayers.add(to: style)

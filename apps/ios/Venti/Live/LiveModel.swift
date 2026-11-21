@@ -232,6 +232,18 @@ final class LiveModel {
         return map.gliders
     }
 
+    /// The other networks' aircraft around the glider, for the cockpit:
+    /// the core's path (30 km around it) and its reading of the answer.
+    /// `nil` when there is no answer.
+    func othersForCockpit(around place: Coordinate) async -> LiveOthers? {
+        guard let server = server(),
+              let path = cockpitOthersPath(lat: place.lat, lon: place.lon),
+              let url = URL(string: server.absoluteString + path),
+              let (status, body) = try? await transport(url)
+        else { return nil }
+        return try? liveOthers(status: UInt16(clamping: status), body: body)
+    }
+
     /// How often a followed flight is asked for again, seconds. The
     /// server asks for five to ten.
     static let followEvery = 10.0

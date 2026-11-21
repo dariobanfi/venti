@@ -2346,6 +2346,70 @@ final class VentiUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 15))
     }
 
+    /// The task page of the cockpit, in a replay of the sample flight
+    /// with the sample task: the next turnpoint's name and readings, and
+    /// on the map's page the closing circle where the flight makes one.
+    func testTheCockpitShowsTheTaskPage() {
+        let app = launch(bundledMap: true, extra: ["--sample-task"])
+        openTab("Fly", in: app)
+        XCTAssertTrue(app.buttons["Open the cockpit"].waitForExistence(timeout: 30))
+        choose("20 times faster", from: app.buttons["Replay the sample flight"], in: app)
+        // Instruments, map, flight, then the task's page.
+        for _ in 0..<3 {
+            nextPage(in: app)
+        }
+        XCTAssertTrue(element("task-next", in: app).waitForExistence(timeout: 60))
+        XCTAssertTrue(element("task-next-name", in: app).exists)
+        XCTAssertTrue(element("task-next-over", in: app).exists)
+        sleep(2)
+        keepScreenshot("cockpit-task-1-page")
+        // Later in the flight, on task.
+        _ = element("task-start-words", in: app).waitForNonExistence(timeout: 240)
+        sleep(2)
+        keepScreenshot("cockpit-task-2-on-task")
+        // The map's page, with the closing circle if the flight makes one.
+        nextPage(in: app)
+        nextPage(in: app)
+        if element("cockpit-closing-words", in: app).waitForExistence(timeout: 60) {
+            app.buttons["Show the whole flight"].tap()
+            sleep(2)
+        }
+        keepScreenshot("cockpit-task-3-map")
+        endTheCockpit(in: app)
+    }
+
+    /// Cables by the Tegernsee, which the development server has recorded:
+    /// the Wallberg's gondola drawn on the map, and a tap on it gives its
+    /// words, its credit and the core's sentence on what is not mapped.
+    func testTheMapShowsCablesByTheTegernsee() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        for dark in [false, true] {
+            let app = launch(
+                bundledMap: true, dark: dark, extra: ["--server", server, "--map-at", "47.6696709,11.7834441,14.5"]
+            )
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+            setLayer("layer-cables", on: true, in: app)
+            XCTAssertTrue(labelled(containing: "Cables: OpenStreetMap contributors", in: app).waitForExistence(timeout: 60))
+            sleep(2)
+            keepScreenshot(dark ? "map-cables-dark-1-drawn" : "map-cables-1-drawn")
+            // The line passes through the middle of the map.
+            let words = element("cable-words", in: app)
+            for _ in 0..<5 where !words.exists {
+                app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                _ = words.waitForExistence(timeout: 3)
+            }
+            XCTAssertTrue(words.exists)
+            XCTAssertTrue(words.label.contains("Gondola"), words.label)
+            XCTAssertTrue(element("cable-limits", in: app).exists)
+            sleep(1)
+            keepScreenshot(dark ? "map-cables-dark-2-tapped" : "map-cables-2-tapped")
+            app.buttons["Done"].tap()
+            app.terminate()
+        }
+    }
+
     /// A route of the pilot's own waypoints: tapped in the order to fly
     /// them and kept as the task.
     func testARouteIsPlannedFromWaypoints() {

@@ -26,6 +26,7 @@ enum Preferences {
     static let mapHidesAirspace = "VentiMapHidesAirspace"
     static let mapHidesSites = "VentiMapHidesSites"
     static let mapHidesPilots = "VentiMapHidesPilots"
+    static let mapHidesCables = "VentiMapHidesCables"
     /// Whether the maps show the aerial view, photographs from above, in
     /// place of the drawn ground. One choice for every map of the app.
     static let mapShowsAerial = "VentiMapShowsAerial"

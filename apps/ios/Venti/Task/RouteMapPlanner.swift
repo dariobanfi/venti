@@ -49,6 +49,7 @@ struct RouteMapPlanner: View {
                     places: places,
                     scored: plan.score?.route ?? [],
                     faiAreas: plan.faiAreas,
+                    closing: plan.closingCircle?.outline ?? [],
                     source: maps.browsingSource(at: nil),
                     aerial: showsAerial,
                     photos: photos
@@ -136,6 +137,14 @@ struct RouteMapPlanner: View {
                 .foregroundStyle(problem == nil ? Color.venti(.text) : Color.venti(.danger))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("route-words")
+            // A triangle's closing circle, in the core's words.
+            if problem == nil, let closing = plan.closingCircle {
+                Text(closing.words)
+                    .font(.venti(.footnote))
+                    .foregroundStyle(.venti(.textSecondary))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("route-closing-words")
+            }
             if !plan.legs.isEmpty {
                 Text(Self.legs(of: plan))
                     .font(.venti(.footnote))
@@ -218,6 +227,8 @@ struct RouteDrawingMap: UIViewRepresentable {
     /// With one leg drawn: the outlines of the areas in which a third
     /// place makes an FAI triangle of it.
     var faiAreas: [[Coordinate]] = []
+    /// A triangle's closing circle, closed, or nothing.
+    var closing: [Coordinate] = []
     /// What the map is drawn from. Read when the map is made.
     var source: MapStyle.Source = .standard
     /// Whether the ground is photographs from above instead of the drawn map.
@@ -258,6 +269,7 @@ struct RouteDrawingMap: UIViewRepresentable {
         context.coordinator.onTap = onTap
         context.coordinator.photos = photos
         context.coordinator.showAerial(aerial, on: map)
+        context.coordinator.closing = closing
         context.coordinator.show(places, scored: scored, faiAreas: faiAreas, on: map)
     }
 
@@ -269,6 +281,8 @@ struct RouteDrawingMap: UIViewRepresentable {
         private var scored: [Coordinate] = []
         private var faiAreas: [[Coordinate]] = []
         private var drawn: ([Coordinate], [Coordinate], [[Coordinate]])?
+        var closing: [Coordinate] = []
+        private var drawnClosing: [Coordinate]?
         private var isStyleLoaded = false
         private var aerial = false
 
@@ -314,6 +328,16 @@ struct RouteDrawingMap: UIViewRepresentable {
             edges.lineOpacity = NSExpression(forConstantValue: 0.85)
             style.addLayer(edges)
 
+            // A triangle's closing circle: a thin dashed ring in the map's
+            // ink over the pack's casing, as in the cockpit.
+            let ring = MLNShapeSource(identifier: "route-closing", shape: nil, options: nil)
+            style.addSource(ring)
+            style.addLayer(MapSetup.line("route-closing-casing", from: ring, color: Palette.haloOnMap, width: 4.5))
+            let ringLine = MapSetup.line("route-closing-line", from: ring, color: ink, width: 1.5)
+            ringLine.lineDashPattern = NSExpression(forConstantValue: [3, 2])
+            ringLine.lineCap = NSExpression(forConstantValue: "butt")
+            style.addLayer(ringLine)
+
             // The line through the places, with a white edge that keeps it
             // readable over any ground.
             let line = MLNShapeSource(identifier: "route-drawn", shape: nil, options: nil)
@@ -344,12 +368,18 @@ struct RouteDrawingMap: UIViewRepresentable {
 
             isStyleLoaded = true
             drawn = nil
+            drawnClosing = nil
             draw(on: mapView)
         }
 
         /// Draws the route when it has changed.
         private func draw(on map: MLNMapView) {
             guard isStyleLoaded, let style = map.style else { return }
+            if closing != drawnClosing, let source = style.source(withIdentifier: "route-closing") as? MLNShapeSource {
+                drawnClosing = closing
+                let points = closing.map(\.location)
+                source.shape = points.count >= 2 ? MLNPolylineFeature(coordinates: points, count: UInt(points.count)) : nil
+            }
             if let drawn, drawn.0 == places, drawn.1 == scored, drawn.2 == faiAreas {
                 return
             }

@@ -9,12 +9,17 @@ enum CockpitPage: CaseIterable {
     case map
     /// How the flight stands, and what can be switched.
     case flight
+    /// A competition task's readings, as an instrument's competition page
+    /// has them: there only while a task is flown.
+    case task
 
-    var next: CockpitPage {
+    /// The page after this one; the task's only while there is a task.
+    func next(hasTask: Bool) -> CockpitPage {
         switch self {
         case .instruments: .map
         case .map: .flight
-        case .flight: .instruments
+        case .flight: hasTask ? .task : .instruments
+        case .task: .instruments
         }
     }
 
@@ -24,6 +29,7 @@ enum CockpitPage: CaseIterable {
         case .instruments: "Instruments"
         case .map: "Map"
         case .flight: "Flight"
+        case .task: "Task"
         }
     }
 }
@@ -46,6 +52,7 @@ struct CockpitScreen: View {
     @Environment(AirspaceModel.self) private var airspace
     @Environment(TaskModel.self) private var tasks
     @Environment(OfflineMapsModel.self) private var maps
+    @Environment(CablesModel.self) private var cables
     @State private var page = CockpitPage.instruments
     @State private var isShowingTask = false
     @State private var isChoosingTarget = false
@@ -97,6 +104,10 @@ struct CockpitScreen: View {
                     }
                 case .map:
                     EmptyView()
+                case .task:
+                    if let readings = view.taskReadings {
+                        TaskReadingsPage(readings: readings)
+                    }
                 case .flight:
                     FlightPage(view: view, score: fly.score, isReplay: isReplay) {
                         isLocked = true
@@ -143,6 +154,19 @@ struct CockpitScreen: View {
             .task(id: view.position != nil) {
                 if let position = view.position {
                     await airspace.refresh(around: position)
+                }
+            }
+            // The cables around the glider, as the airspace is, and again
+            // once it has flown far from where they were asked for.
+            .task(id: Self.cablesKey(view.position)) {
+                if let position = view.position {
+                    await cables.refresh(around: position)
+                }
+            }
+            // Without a task its page is not there.
+            .onChange(of: view.taskReadings == nil) { _, hasNone in
+                if hasNone, page == .task {
+                    page = .instruments
                 }
             }
             // Locked: a clear sheet over everything takes the touches, and
@@ -232,6 +256,12 @@ struct CockpitScreen: View {
             AirspaceBanner(warnings: fly.airspaceWarnings, check: fly.airspaceCheck) {
                 isShowingAirspace = true
             }
+            // The cable ahead, under the airspace warning.
+            if let cable = fly.cableWarning {
+                CableBanner(warning: cable) {
+                    fly.acknowledgeCable(cable.id)
+                }
+            }
             if let warning = fly.windWarning {
                 GroundWindBanner(alert: warning) {
                     windsBeginOnTheGround = true
@@ -287,6 +317,10 @@ struct CockpitScreen: View {
             fai: hidesFaiAreas ? nil : fly.faiAreas,
             range: fly.range,
             gliders: fly.gliders,
+            cables: cables.lines,
+            closing: fly.score?.closing,
+            takeoffs: fly.takeoffsNear?.takeoffs ?? [],
+            others: fly.othersNear?.aircraft ?? [],
             showsWholeFlight: showsWholeFlight,
             task: fly.task == nil ? nil : tasks.task,
             taskStatus: fly.task,
@@ -400,8 +434,17 @@ struct CockpitScreen: View {
                     }
                     // Beside the large map, the distance so far and how it
                     // scores, as the third page has them.
-                    if page == .map, let score = fly.score {
+                    if page == .map || page == .task, let score = fly.score {
                         ScoreBadge(score: score)
+                        // An open triangle's closing circle, in the core's
+                        // words, under the score.
+                        if let closing = score.closing {
+                            MapWords(text: closing.words, identifier: "cockpit-closing-words")
+                        }
+                    }
+                    // How many of the other networks' aircraft are drawn.
+                    if page != .instruments, let near = fly.othersNear, !near.countWords.isEmpty {
+                        MapWords(text: near.countWords, identifier: "cockpit-others-count")
                     }
                 }
                 .padding(VentiSpace.s2)
@@ -441,6 +484,18 @@ struct CockpitScreen: View {
                             .padding(VentiSpace.s2)
                             .accessibilityIdentifier("cockpit-airspace-credit")
                     }
+                    // And whose cables, aircraft and take-offs it draws.
+                    if page != .instruments, let credit = otherCredits {
+                        Text(credit)
+                            .font(.ventiType(.label))
+                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, VentiSpace.s2)
+                            .padding(.vertical, VentiSpace.s1)
+                            .ventiFloating(in: .rect(cornerRadius: VentiRadius.s))
+                            .padding([.bottom, .horizontal], VentiSpace.s2)
+                            .accessibilityIdentifier("cockpit-map-credits")
+                    }
                 }
                 // Clear of the two round buttons side by side in the other
                 // corner.
@@ -452,7 +507,7 @@ struct CockpitScreen: View {
     private var foot: some View {
         HStack(spacing: VentiSpace.s3) {
             Button {
-                page = page.next
+                page = page.next(hasTask: fly.view?.taskReadings != nil)
             } label: {
                 Text("Next page")
                     .frame(maxWidth: .infinity)
@@ -469,6 +524,30 @@ struct CockpitScreen: View {
 
     private var isReplay: Bool {
         fly.mode != .live
+    }
+
+    /// The credits of the cables, the other networks' aircraft and the
+    /// take-offs the map draws, in a line; `nil` while it draws none.
+    private var otherCredits: String? {
+        var parts: [String] = []
+        if let words = cables.creditWords {
+            parts.append(words)
+        }
+        if let near = fly.othersNear {
+            parts.append(contentsOf: near.credits.map(\.text))
+        }
+        if let takeoffs = fly.takeoffsNear, !takeoffs.takeoffs.isEmpty, !takeoffs.credits.isEmpty {
+            parts.append("Sites: \(takeoffs.credits.map(\.provider).formatted(.list(type: .and)))")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// What the cables are asked for by: the glider's place to a tenth of
+    /// a degree, so that the model looks again as the glider goes on; it
+    /// asks only where its answer is far behind.
+    static func cablesKey(_ position: Coordinate?) -> String {
+        guard let position else { return "" }
+        return "\((position.lat * 10).rounded()),\((position.lon * 10).rounded())"
     }
 
     /// The credit for the airspace fetched from the server, in a line:
@@ -1032,12 +1111,15 @@ private struct Reading: View {
     /// What is worth knowing beside it, under the name.
     var note: String?
     var size = Size.large
+    /// The number's ink, where its colour says something.
+    var ink = VentiColor.Role.text
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: VentiSpace.s1) {
                 Text(value ?? "– –")
                     .font(numberFont)
+                    .foregroundStyle(.venti(ink))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
                 if !unit.isEmpty {
@@ -1416,5 +1498,117 @@ private struct StrongWindBadge: View {
         .accessibilityLabel("Strong wind")
         .accessibilityValue(words)
         .accessibilityIdentifier("strong-wind-badge")
+    }
+}
+
+/// A line of the core's words over the cockpit's map, as the badges are.
+private struct MapWords: View {
+    let text: String
+    let identifier: String
+
+    var body: some View {
+        Text(text)
+            .font(.ventiType(.label))
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, VentiSpace.s3)
+            .padding(.vertical, VentiSpace.s2)
+            .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+            .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The task page, as an instrument's competition page has it: the next
+/// turnpoint large (its name, distance, how far over or under the glide
+/// to it the glider is, the glide needed and the arrival), goal the same in
+/// a smaller row, before the start the start's words large, and the speed
+/// section's average. Every word and number is the core's.
+struct TaskReadingsPage: View {
+    let readings: TaskReadings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VentiSpace.s2) {
+            if let start = readings.start {
+                Text(start.words)
+                    .font(.ventiType(.heading))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("task-start-words")
+            }
+            if let next = readings.next {
+                Text(next.name)
+                    .font(.ventiType(.heading))
+                    .lineLimit(1)
+                    .accessibilityIdentifier("task-next-name")
+                HStack(alignment: .top, spacing: VentiSpace.s3) {
+                    Reading(
+                        name: next.isGoal ? "To goal" : "To next",
+                        value: Format.kilometres(metres: next.distanceM),
+                        unit: "km",
+                        note: next.arrivesInS.map { "in \(Format.hoursMinutes(seconds: $0))" }
+                    )
+                    OverNeeded(leg: next, isLarge: true, stillAir: !readings.windKnown)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("task-next")
+                HStack(alignment: .top, spacing: VentiSpace.s3) {
+                    Reading(
+                        name: "Glide needed",
+                        value: next.glideNeeded.map(Format.glideRatio),
+                        unit: "",
+                        size: .medium
+                    )
+                    Reading(
+                        name: "Arrival",
+                        value: next.arrivesUnixS.map { Format.time(unixSeconds: $0) },
+                        unit: "",
+                        size: .medium
+                    )
+                    Reading(
+                        name: "Speed section",
+                        value: readings.speedSectionAverageWords,
+                        unit: "",
+                        size: .medium
+                    )
+                }
+            }
+            if let goal = readings.goal, readings.next.map({ !$0.isGoal }) ?? true {
+                HStack(alignment: .top, spacing: VentiSpace.s3) {
+                    Reading(name: "Goal", value: Format.kilometres(metres: goal.distanceM), unit: "km", size: .medium)
+                    OverNeeded(leg: goal, isLarge: false, stillAir: !readings.windKnown)
+                    Reading(name: "Glide needed", value: goal.glideNeeded.map(Format.glideRatio), unit: "", size: .medium)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("task-goal")
+            }
+        }
+        .padding(.horizontal, VentiSpace.s4)
+        .padding(.bottom, VentiSpace.s2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// How far over or under the altitude needed the glider is, in the core's
+/// words: green over it, red under it, by the sign of the core's number.
+private struct OverNeeded: View {
+    let leg: TaskLegReading
+    let isLarge: Bool
+    /// Whether still air was assumed, the wind not being known.
+    let stillAir: Bool
+
+    var body: some View {
+        Reading(
+            name: "Over needed",
+            value: leg.overNeededWords,
+            unit: "",
+            note: stillAir ? "Still air" : nil,
+            size: isLarge ? .large : .medium,
+            ink: ink
+        )
+        .accessibilityIdentifier(isLarge ? "task-next-over" : "task-goal-over")
+    }
+
+    private var ink: VentiColor.Role {
+        guard let over = leg.overNeededM else { return .text }
+        return over >= 0 ? .good : .danger
     }
 }

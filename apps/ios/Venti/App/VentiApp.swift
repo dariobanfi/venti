@@ -18,7 +18,7 @@ struct VentiApp: App {
             case .ready(
                 let logbook, let fly, let chat, let wind, let waypoints, let airspace, let account, let sites, let tasks,
                 let live, let community, let ground, let groups, let maps, let today, let thermals, let own, let radar,
-                let candidates, let alerts
+                let candidates, let alerts, let cables
             ):
                 RootScreen()
                     .environment(logbook)
@@ -41,6 +41,7 @@ struct VentiApp: App {
                     .environment(radar)
                     .environment(candidates)
                     .environment(alerts)
+                    .environment(cables)
                     .ventiThemed()
                     .preferredColorScheme(LaunchOptions.forcedColorScheme)
             case .failed(let message):
@@ -64,7 +65,7 @@ enum Session {
     case ready(
         LogbookModel, FlySession, AssistantChat, WindModel, WaypointsModel, AirspaceModel, AccountModel, SitesModel,
         TaskModel, LiveModel, CommunityModel, TerrainModel, GroupsModel, OfflineMapsModel, TodayModel,
-        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel
+        ThermalMapModel, KeptSitesModel, RadarModel, CandidatesModel, AlertsModel, CablesModel
     )
     case failed(String)
 
@@ -162,6 +163,23 @@ enum Session {
             // Other pilots in the air around the glider, from the same
             // server as the map tab's.
             fly.others = { place in await live.around(place) }
+            // And the other networks' aircraft, whose tracks the cockpit's
+            // session keeps.
+            fly.otherNetworks = { place in await live.othersForCockpit(around: place) }
+            // The cables to warn of, asked for where the airspace is.
+            let cables = CablesModel()
+            cables.server = { wind.server }
+            fly.cables = { cables.set }
+            // The take-offs around the glider: the pilot's own and those
+            // the map holds.
+            fly.takeoffs = { glider in
+                try? core.cockpitTakeoffs(
+                    glider: glider,
+                    near: sites.sites.isEmpty
+                        ? nil
+                        : SitesMap(sites: sites.sites, credits: sites.credits, asOfUnixS: sites.asOfUnixS, isWhole: sites.isWhole)
+                )
+            }
             // And the wind on the ground, from the server's wind stations.
             fly.windOnTheGround = { place, landing in await wind.stations(around: place, andAround: landing) }
             // The ground under the glider, from the map's elevation tiles:
@@ -212,7 +230,7 @@ enum Session {
             UNUserNotificationCenter.current().delegate = AlertNotices.showsInFront
             return .ready(
                 logbook, fly, chat, wind, waypoints, airspace, account, sites, tasks, live, community, ground,
-                groups, maps, today, thermals, own, radar, candidates, alerts
+                groups, maps, today, thermals, own, radar, candidates, alerts, cables
             )
         } catch {
             return .failed(error.words)

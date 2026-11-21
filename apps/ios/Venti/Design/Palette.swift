@@ -35,6 +35,9 @@ enum Palette {
     /// within reach.
     static var goodOnMap: UIColor { UIColor(VentiTheme.light.good) }
 
+    /// What can hurt on the map: a cable, in the danger token.
+    static var dangerOnMap: UIColor { UIColor(VentiTheme.light.danger) }
+
     /// What is not flyable on the map: the forecast map's squares of
     /// such a day, and their line in its key, as a quiet veil in the
     /// muted ink. Not the danger colour, which is nearly the thermal

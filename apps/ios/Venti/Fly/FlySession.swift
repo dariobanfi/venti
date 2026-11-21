@@ -46,6 +46,22 @@ final class FlySession {
     /// The airspace to warn about, asked for when a session starts. The
     /// app sets this to the pilot's airspace files.
     @ObservationIgnored var airspace: () -> AirspaceSet? = { nil }
+    /// The cable ahead, by the core's rule, while there is one.
+    private(set) var cableWarning: CableWarning?
+    /// The cables to warn of, asked for when a session starts and handed
+    /// on whenever they change. The app sets this.
+    @ObservationIgnored var cables: () -> CableSet? = { nil }
+    /// The other networks' aircraft around the glider, with their tracks,
+    /// as the core's session keeps them.
+    private(set) var othersNear: OthersNear?
+    /// Asks the server for the other networks' aircraft around a place.
+    /// The app sets this; `nil` when there is no answer.
+    @ObservationIgnored var otherNetworks: (Coordinate) async -> LiveOthers? = { _ in nil }
+    /// The take-offs around the glider, for the cockpit's map.
+    private(set) var takeoffsNear: CockpitTakeoffs?
+    /// Works out the take-offs around the glider from what the app holds.
+    /// The app sets this.
+    @ObservationIgnored var takeoffs: (Coordinate) -> CockpitTakeoffs? = { _ in nil }
     /// The ground, as far as the iPhone has it. Without it the cockpit
     /// knows no height above ground.
     @ObservationIgnored var terrain: () -> Terrain? = { nil }
@@ -125,6 +141,14 @@ final class FlySession {
     @ObservationIgnored private let voice = AirspaceVoice()
     /// The airspace last handed to the core's session.
     @ObservationIgnored private var handedAirspace: AirspaceSet?
+    /// The cables last handed to it.
+    @ObservationIgnored private var handedCables: CableSet?
+    /// Refreshes since the other networks were asked for, and whether an
+    /// answer is still awaited.
+    @ObservationIgnored private var ticksSinceNetworks = 0
+    @ObservationIgnored private var isAskingForNetworks = false
+    /// Refreshes since the take-offs around were worked out.
+    @ObservationIgnored private var ticksSinceTakeoffs = 0
     /// Refreshes of the screen since the score was last asked for.
     @ObservationIgnored private var ticksSinceScore = 0
     /// Refreshes of the screen since the ground was last asked for.
@@ -153,6 +177,10 @@ final class FlySession {
     /// Who else is in the air is asked this many refreshes apart: every
     /// fifteen seconds, which is what the server asks for.
     private static let ticksBetweenOthers = 75
+
+    /// The take-offs around the glider are worked out again this many
+    /// refreshes apart: every half minute.
+    private static let ticksBetweenTakeoffs = 150
 
     /// The wind on the ground is asked for this many refreshes apart:
     /// every two minutes. Stations report every five to ten.
@@ -400,6 +428,13 @@ final class FlySession {
         airspaceWarnings = session?.airspaceWarnings() ?? []
     }
 
+    /// "I have seen it" for the cable ahead: quiet for ten minutes, as
+    /// the airspace warning's "Seen" is.
+    func acknowledgeCable(_ id: String) {
+        session?.acknowledgeCable(id: id, minutes: 10)
+        cableWarning = session?.cableWarning()
+    }
+
     func unsilenceAirspace(_ id: String) {
         session?.unsilenceAirspace(id: id)
         airspaceWarnings = session?.airspaceWarnings() ?? []
@@ -455,6 +490,13 @@ final class FlySession {
         airspaceWarnings = []
         airspaceCheck = .noAirspace
         handedAirspace = nil
+        handedCables = nil
+        cableWarning = nil
+        othersNear = nil
+        takeoffsNear = nil
+        ticksSinceNetworks = Self.ticksBetweenOthers
+        isAskingForNetworks = false
+        ticksSinceTakeoffs = Self.ticksBetweenTakeoffs
         return recording
     }
 
@@ -512,6 +554,10 @@ final class FlySession {
         self.mode = mode
         handedAirspace = airspace()
         session.useAirspace(airspace: handedAirspace)
+        handedCables = cables()
+        session.useCables(cables: handedCables)
+        ticksSinceNetworks = Self.ticksBetweenOthers
+        ticksSinceTakeoffs = Self.ticksBetweenTakeoffs
         // The ground, as far as the iPhone has it; more of it arrives
         // while the session runs.
         session.useTerrain(terrain: terrain())
@@ -636,6 +682,32 @@ final class FlySession {
             }
         }
 
+        // The other networks' aircraft, in flight only, as often as
+        // Venti's own pilots: the core keeps their tracks.
+        ticksSinceNetworks += 1
+        if ticksSinceNetworks >= Self.ticksBetweenOthers, !isAskingForNetworks, view.phase == .flying,
+           let position = view.position
+        {
+            ticksSinceNetworks = 0
+            isAskingForNetworks = true
+            Task { [weak self] in
+                guard let self else { return }
+                let found = await self.otherNetworks(position)
+                self.isAskingForNetworks = false
+                guard let found, self.mode != nil, let session = self.session else { return }
+                session.onOthers(others: found, nowUnixS: self.replay?.now() ?? Date().timeIntervalSince1970)
+            }
+        }
+        // The take-offs around the glider, whenever it has a position.
+        ticksSinceTakeoffs += 1
+        if ticksSinceTakeoffs >= Self.ticksBetweenTakeoffs, let position = view.position {
+            ticksSinceTakeoffs = 0
+            let found = takeoffs(position)
+            if found != takeoffsNear {
+                takeoffsNear = found
+            }
+        }
+
         // The wind on the ground, in flight only: around the glider, and
         // where the pilot means to land.
         ticksSinceWindBelow += 1
@@ -680,6 +752,12 @@ final class FlySession {
             if option != landing {
                 landing = option
             }
+            // The other networks' aircraft near, aged to now.
+            let near = session.othersNear(nowUnixS: now)
+            let shownNear = near.aircraft.isEmpty ? nil : near
+            if shownNear != othersNear {
+                othersNear = shownNear
+            }
             // And how far it glides, every way, over the ground as it is.
             let reach = session.glideRange(nowUnixS: now)
             if reach != range {
@@ -693,6 +771,11 @@ final class FlySession {
         if latest !== handedAirspace {
             handedAirspace = latest
             session.useAirspace(airspace: latest)
+        }
+        let latestCables = cables()
+        if latestCables !== handedCables {
+            handedCables = latestCables
+            session.useCables(cables: latestCables)
         }
         let check = session.airspaceCheck(nowUnixS: now)
         if check != airspaceCheck {
@@ -709,6 +792,14 @@ final class FlySession {
            let loudest = warnings.first(where: { !$0.silenced })
         {
             voice.say("Airspace. \(loudest.headline).")
+        }
+        // The cable ahead, sounded once as a new airspace warning is.
+        let cable = session.cableWarning()
+        if cable != cableWarning {
+            cableWarning = cable
+        }
+        if session.takeCableAlert(), !LaunchOptions.isUnderTest, let cable {
+            voice.say(cable.words)
         }
     }
 }

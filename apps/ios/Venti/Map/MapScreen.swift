@@ -22,12 +22,16 @@ struct MapScreen: View {
     @Environment(RadarModel.self) private var radar
     @Environment(CandidatesModel.self) private var candidates
     @Environment(TerrainModel.self) private var terrain
+    @Environment(CablesModel.self) private var cables
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(Preferences.mapHidesWind) private var hidesWind = false
     @AppStorage(Preferences.mapHidesAirspace) private var hidesAirspace = false
     @AppStorage(Preferences.mapHidesSites) private var hidesSites = false
     @AppStorage(Preferences.mapHidesPilots) private var hidesPilots = false
+    @AppStorage(Preferences.mapHidesCables) private var hidesCables = false
+    /// The cable the pilot tapped, while its words are shown.
+    @State private var chosenCable: ChosenCable?
     @AppStorage(Preferences.mapShowsAerial) private var showsAerial = false
     @AppStorage(Preferences.mapShowsForecast) private var showsForecast = false
     @AppStorage(Preferences.mapShowsRadar) private var showsRadar = false
@@ -127,6 +131,16 @@ struct MapScreen: View {
                             await airspace.refresh(around: centre)
                         }
                     }
+                    // The cables around it, close enough in for them to
+                    // be drawn.
+                    if !hidesCables, region.north - region.south < 0.5 {
+                        let centre = Coordinate(
+                            lat: (region.south + region.north) / 2, lon: (region.west + region.east) / 2
+                        )
+                        Task {
+                            await cables.refresh(around: centre)
+                        }
+                    }
                 },
                 onStation: { id in
                     if let station = wind.stations.first(where: { $0.id == id }) {
@@ -190,8 +204,16 @@ struct MapScreen: View {
                     openHourSquare(at: place)
                 },
                 radar: isRadarOn ? radar.pictures : [],
-                reach: reachDrawing
+                reach: reachDrawing,
+                cables: hidesCables ? [] : cables.lines,
+                onCable: { id in
+                    guard let layer = cables.layer, let line = layer.lines.first(where: { $0.id == id }) else { return }
+                    chosenCable = ChosenCable(line: line, credits: layer.credits, limits: layer.limits)
+                }
             )
+            .sheet(item: $chosenCable) { cable in
+                CableSheet(cable: cable)
+            }
             // Without a network the map is drawn from a region kept on
             // the iPhone, and from the network again when it is back: the
             // map is made anew when that changes.
@@ -556,6 +578,8 @@ struct MapScreen: View {
                         .accessibilityIdentifier("layer-sites")
                     VentiChip(title: "Pilots", icon: "icon-live", isOn: shown($hidesPilots))
                         .accessibilityIdentifier("layer-pilots")
+                    VentiChip(title: "Cables", isOn: shown($hidesCables))
+                        .accessibilityIdentifier("layer-cables")
                 }
             }
             .padding(.horizontal, 16)
@@ -653,6 +677,9 @@ struct MapScreen: View {
         // their aircraft is drawn: the core's layer holds those only.
         if !hidesPilots {
             parts.append(contentsOf: live.layer.credits.map(\.text))
+        }
+        if !hidesCables, let words = cables.creditWords, let region, region.north - region.south < 0.5 {
+            parts.append(words)
         }
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")

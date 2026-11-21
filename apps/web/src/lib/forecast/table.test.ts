@@ -33,6 +33,9 @@ function hour(at: number, given: Partial<ForecastHourView> = {}): ForecastHourVi
 		cloudBaseM: undefined,
 		freezingLevelM: 1840,
 		capeJKg: 0,
+		thermalClimbMs: undefined,
+		thermalTopM: undefined,
+		thermalCloud: false,
 		...given
 	};
 }

@@ -9,11 +9,13 @@
 //! run, the grid cell it speaks for and how high the model thinks the
 //! ground is there, because in the mountains that can be hundreds of
 //! metres from the truth; magnitudes, and no word on whether a day can be
-//! flown.
+//! flown. With them stands what the app works out of a model's heat and
+//! temperatures about thermals: an estimate, and named as one.
 
 use chrono::Duration;
 use venti_api_types::v1::{ForecastRequest, ForecastResponse};
 use venti_domain::{ForecastHour, ForecastSeries, GeoPoint, WindAloft};
+use venti_flight::convection::convection;
 use venti_flight::sun;
 
 use crate::server::answer;
@@ -97,6 +99,16 @@ pub struct ForecastHourView {
     /// Convective available potential energy, J/kg. High values mean that
     /// showers and thunderstorms can grow, not that thermals are good.
     pub cape_j_kg: Option<f64>,
+    /// The climb to expect of a paraglider in the hour's thermals, m/s to
+    /// a tenth; zero without thermals. Not a value of the model: the app's
+    /// estimate from the heat the model's ground gives to the air and from
+    /// its temperatures. `None` when the model does not give those.
+    pub thermal_climb_ms: Option<f64>,
+    /// How high the thermals go by the same estimate, metres above sea
+    /// level to the nearest fifty. `None` without thermals.
+    pub thermal_top_m: Option<f64>,
+    /// Whether cumulus caps them: `thermal_top_m` is then the cloud base.
+    pub thermal_cloud: bool,
 }
 
 /// One day of a model's forecast, by the clock of the place's own
@@ -315,7 +327,8 @@ fn model_forecast(series: &ForecastSeries, asked: GeoPoint, utc_offset_s: i32) -
                 (day.sunrise_unix_s, day.sunset_unix_s),
                 (Some(rise), Some(set)) if (rise..=set).contains(&hour.time.timestamp())
             );
-            day.hours.push(hour_view(hour, &keys, is_daylight));
+            day.hours
+                .push(hour_view(hour, &keys, is_daylight, series.cell_elevation_m));
         }
     }
 
@@ -340,7 +353,14 @@ fn model_forecast(series: &ForecastSeries, asked: GeoPoint, utc_offset_s: i32) -
     }
 }
 
-fn hour_view(hour: &ForecastHour, levels: &[LevelKey], is_daylight: bool) -> ForecastHourView {
+fn hour_view(
+    hour: &ForecastHour,
+    levels: &[LevelKey],
+    is_daylight: bool,
+    ground_m: Option<f64>,
+) -> ForecastHourView {
+    // The thermals over the model's cell, where its ground is known.
+    let air = ground_m.and_then(|ground| convection(hour, ground));
     ForecastHourView {
         time_unix_s: hour.time.timestamp(),
         is_daylight,
@@ -366,6 +386,11 @@ fn hour_view(hour: &ForecastHour, levels: &[LevelKey], is_daylight: bool) -> For
         cloud_base_m: hour.convective_cloud_base_m,
         freezing_level_m: hour.freezing_level_m,
         cape_j_kg: hour.cape_j_kg,
+        thermal_climb_ms: air.map(|air| crate::today::tenth(air.climb_ms)),
+        thermal_top_m: air
+            .filter(|air| air.depth_m > 0.0)
+            .map(|air| crate::today::fifty(air.top_m)),
+        thermal_cloud: air.is_some_and(|air| air.cloud_base_m.is_some()),
     }
 }
 
@@ -526,6 +551,36 @@ mod tests {
         assert!(night.aloft[0].is_none() && night.aloft[2].is_none());
         let level = night.aloft[1].as_ref().unwrap();
         assert_eq!((level.label.as_str(), level.from_deg), ("14", None));
+    }
+
+    #[test]
+    fn an_hour_carries_the_estimate_of_its_thermals_where_the_model_gives_what_it_takes() {
+        // The same answer with the air that makes thermals at midday: the
+        // heat from the ground, a dew point, and a temperature above it.
+        let answer = ANSWER
+            .replace(
+                r#""cape_j_kg": 180.0,"#,
+                r#""cape_j_kg": 180.0, "dew_point_c": 10.0, "heat_to_air_w_m2": 400.0,"#,
+            )
+            .replace(
+                r#"{"above_ground_m": 80.0, "wind_speed_ms": 3.6, "wind_direction_deg": 255.0}"#,
+                r#"{"above_ground_m": 80.0, "wind_speed_ms": 3.6, "wind_direction_deg": 255.0,
+                    "temperature_c": 22.5}"#,
+            );
+        let view = forecast(200, answer.into_bytes(), SUMMER_TIME_S).unwrap();
+        let hours = &view.models[0].days[0].hours;
+        // 400 W/m² into the 1640 m under the model's cumulus at 2450 m.
+        assert_eq!(hours[0].thermal_climb_ms, Some(1.7));
+        assert_eq!(hours[0].thermal_top_m, Some(2450.0));
+        assert!(hours[0].thermal_cloud);
+        // The hour of the night has no heat in the answer: no estimate.
+        assert_eq!(hours[1].thermal_climb_ms, None);
+        assert_eq!(hours[1].thermal_top_m, None);
+        assert!(!hours[1].thermal_cloud);
+
+        // And none anywhere in an answer without the heat.
+        let plain = forecast(200, ANSWER.as_bytes().to_vec(), SUMMER_TIME_S).unwrap();
+        assert_eq!(plain.models[0].days[0].hours[0].thermal_climb_ms, None);
     }
 
     #[test]

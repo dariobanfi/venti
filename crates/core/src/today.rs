@@ -408,12 +408,12 @@ fn thermals(air: &Convection, launch_m: f64, verdict: Flyability) -> Option<Ther
 }
 
 /// A height to the nearest fifty metres: the estimate is no finer.
-fn fifty(metres: f64) -> f64 {
+pub(crate) fn fifty(metres: f64) -> f64 {
     (metres / 50.0).round() * 50.0
 }
 
 /// A climb to a tenth of a metre per second.
-fn tenth(ms: f64) -> f64 {
+pub(crate) fn tenth(ms: f64) -> f64 {
     (ms * 10.0).round() / 10.0
 }
 

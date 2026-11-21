@@ -46,6 +46,7 @@ import app.venti.design.VentiSpace
 import fly.venti.app.design.Venti
 import fly.venti.core.RouteKind
 import fly.venti.core.RouteStatistics
+import fly.venti.core.SiteStatistics
 import fly.venti.core.SeasonStatistics
 import fly.venti.core.YearStatistics
 import fly.venti.app.design.Axis
@@ -99,6 +100,26 @@ object StatisticsWords {
         "farthest ${Format.kilometres(farthest.value)} km on ${Format.day(farthest.startUnixS)}",
     ).joinToString(" · ")
 
+    /** What a place is called: the pilot's name for it, or where it is: "47.4275° N, 11.6964° E". */
+    fun name(site: SiteStatistics): String = site.name ?: Format.place(site.lat, site.lon)
+
+    /** "5:48 h · farthest 44.3 km on Sun, 31 Aug 2025" */
+    fun of(site: SiteStatistics): String = listOfNotNull(
+        "${Format.hoursMinutes(site.airtimeS)} h",
+        site.farthest?.let { "farthest ${Format.kilometres(it.value)} km on ${Format.day(it.startUnixS)}" },
+    ).joinToString(" · ")
+
+    /** How many places are listed before the rest are asked for. */
+    const val SITES_SHOWN = 8
+
+    /** The places shown: the first [SITES_SHOWN], or all of them once asked for. */
+    fun shown(sites: List<SiteStatistics>, all: Boolean): List<SiteStatistics> =
+        if (all || sites.size <= SITES_SHOWN) sites else sites.take(SITES_SHOWN)
+
+    /** The row that shows the rest, where there is a rest: "All 12 take-offs". */
+    fun allSites(sites: List<SiteStatistics>, all: Boolean): String? =
+        if (all || sites.size <= SITES_SHOWN) null else "All ${sites.size} take-offs"
+
     fun name(kind: RouteKind): String = when (kind) {
         RouteKind.FREE_FLIGHT -> "Free flight"
         RouteKind.FREE_TRIANGLE -> "Triangle"
@@ -109,13 +130,15 @@ object StatisticsWords {
 /**
  * The logbook as a whole: the last twelve months, the years side by side,
  * the months of the year, a typical flight, the kinds of flight, the
- * gliders flown, and the pilot's best flights.
+ * places flown from, the gliders flown, and the pilot's best flights.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: () -> Unit) {
     // Worked out by the core from the logbook as it is now.
     val statistics = remember(logbook.view) { logbook.statistics() }
+    val sites = remember(logbook.view) { logbook.siteStatistics() }
+    var showsAllSites by rememberSaveable { mutableStateOf(false) }
     var measure by rememberSaveable { mutableStateOf(Measure.Airtime) }
 
     Scaffold(
@@ -224,6 +247,32 @@ fun StatisticsScreen(logbook: LogbookModel, onOpen: (String) -> Unit, onBack: ()
                                     Modifier.testTag("statistics-route"),
                                     onClick = { onOpen(farthest.flightId) },
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (sites.isNotEmpty()) {
+                item {
+                    SectionHeader("By take-off")
+                    Group(Modifier.testTag("statistics-sites")) {
+                        for (site in StatisticsWords.shown(sites, showsAllSites)) {
+                            val farthest = site.farthest
+                            row {
+                                WordsRow(
+                                    StatisticsWords.name(site),
+                                    Format.flights(site.flights),
+                                    StatisticsWords.of(site),
+                                    Modifier.testTag("statistics-site"),
+                                    // To the farthest flight from there, where one was scored.
+                                    onClick = farthest?.let { { onOpen(it.flightId) } },
+                                )
+                            }
+                        }
+                        StatisticsWords.allSites(sites, showsAllSites)?.let { all ->
+                            row {
+                                ValueRow(all, "", Modifier.testTag("statistics-sites-all"), onClick = { showsAllSites = true })
                             }
                         }
                     }

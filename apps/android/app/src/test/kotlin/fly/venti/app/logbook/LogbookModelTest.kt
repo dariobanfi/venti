@@ -1,6 +1,7 @@
 package fly.venti.app.logbook
 
 import fly.venti.app.TestSupport
+import fly.venti.app.design.Format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -38,6 +39,45 @@ class LogbookModelTest {
         val analysis = logbook.analysis(entry.id)
         assertTrue(analysis.thermals.isNotEmpty())
         assertEquals(entry.id, logbook.statistics().longest?.flightId)
+    }
+
+    @Test
+    fun theStatisticsByTakeOffNameAPlaceWithoutAWaypointByWhereItIs() = runBlocking {
+        val logbook = makeLogbook()
+        // An empty logbook has no places, and the screen no section.
+        assertTrue(logbook.siteStatistics().isEmpty())
+
+        logbook.addSample()
+        val site = logbook.siteStatistics().single()
+        assertNull(site.name)
+        val name = StatisticsWords.name(site)
+        assertTrue(name, Regex("\\d+\\.\\d{4}° [NS], \\d+\\.\\d{4}° [EW]").matches(name))
+        assertEquals("1 flight", Format.flights(site.flights))
+        // The airtime, and the farthest flight with its day where one was scored.
+        val words = StatisticsWords.of(site)
+        assertTrue(words, words.startsWith("0:29 h"))
+        assertEquals(site.farthest != null, words.contains(" · farthest "))
+
+        // A pilot's own name for the place is the row's name.
+        assertEquals("Wallberg", StatisticsWords.name(site.copy(name = "Wallberg")))
+        assertEquals("0:29 h", StatisticsWords.of(site.copy(farthest = null)))
+    }
+
+    @Test
+    fun moreThanEightTakeOffsShowEightAndARowForTheRest() = runBlocking {
+        val logbook = makeLogbook()
+        logbook.addSample()
+        val site = logbook.siteStatistics().single()
+        val eight = List(8) { site.copy(name = "Place $it") }
+        assertEquals(eight, StatisticsWords.shown(eight, all = false))
+        assertNull(StatisticsWords.allSites(eight, all = false))
+
+        val twelve = List(12) { site.copy(name = "Place $it") }
+        assertEquals(twelve.take(8), StatisticsWords.shown(twelve, all = false))
+        assertEquals("All 12 take-offs", StatisticsWords.allSites(twelve, all = false))
+        // Asked for, the rest show in place, and the row goes.
+        assertEquals(twelve, StatisticsWords.shown(twelve, all = true))
+        assertNull(StatisticsWords.allSites(twelve, all = true))
     }
 
     @Test

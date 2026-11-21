@@ -275,6 +275,12 @@ class VentiUiTest {
         assertTrue(exists(hasText("A typical flight")))
         letTheMapDraw(1)
         keepScreenshot("$prefix-6d-statistics-typical-and-kinds")
+        // The places flown from: the sample flight's, without a name.
+        list.performScrollToNode(hasTestTag("statistics-site"))
+        assertTrue(exists(hasText("By take-off")))
+        assertTrue(exists(hasTestTag("statistics-site") and hasText("1 flight")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-6e-statistics-by-take-off")
         list.performScrollToNode(hasText("Longest flight"))
         assertTrue(exists(hasText("Your bests")))
         letTheMapDraw(1)

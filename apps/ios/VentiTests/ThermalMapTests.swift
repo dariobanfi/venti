@@ -20,6 +20,7 @@ private enum ServerThermals {
              "cloud": [false, false, false, false]},
             {"date": "2026-07-12", "whole": false,
              "verdict": ["flyable", "not_flyable", null, "marginal"],
+             "why": [null, "rain", null, "gusts"],
              "thermals": ["cross_country", "big", null, null],
              "climb_ms": [1.8, 2.4, null, null], "top_m": [3250, 3400, null, null],
              "cloud": [true, false, false, false]},
@@ -199,6 +200,10 @@ final class ThermalMapTests: XCTestCase {
         // estimate of its thermals is not drawn.
         XCTAssertEqual(today.cells.count, 3)
         XCTAssertEqual(today.cells.map(\.status), ["Flyable", "Not flyable", "Marginal"])
+        // What speaks against a day, in the core's words; nothing on a
+        // flyable one, nor on a day the server gave no reasons for.
+        XCTAssertEqual(today.cells.map(\.why), ["", "Rain", "Gusts"])
+        XCTAssertTrue(map.days[1].cells.allSatisfy { $0.why.isEmpty })
         XCTAssertEqual(ThermalSquares.fill(of: today.cells[0]), 5)
         XCTAssertEqual(ThermalSquares.fill(of: today.cells[1]), 0)
         XCTAssertNil(ThermalSquares.fill(of: today.cells[2]))

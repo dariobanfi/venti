@@ -165,7 +165,7 @@ struct ChosenSquare: Identifiable {
 }
 
 /// A square of the forecast map, as the pack's sheet: the day; the status
-/// as sign, word and colour; the kind of day with its line; the height it
+/// as sign, word and colour, with what speaks against the day; the kind of day with its line; the height it
 /// was judged at; what the map is and whose data it is. The words are the
 /// core's.
 struct ForecastSquareSheet: View {
@@ -181,8 +181,20 @@ struct ForecastSquareSheet: View {
                             .font(.ventiType(.heading))
                             .accessibilityAddTraits(.isHeader)
                         Spacer(minLength: VentiSpace.s2)
-                        VentiStatus(square.cell)
-                            .accessibilityIdentifier("forecast-square-status")
+                        // The status, and under it what speaks against the
+                        // day where something does: read one after the other.
+                        VStack(alignment: .trailing, spacing: VentiSpace.s1) {
+                            VentiStatus(square.cell)
+                                .accessibilityIdentifier("forecast-square-status")
+                            if !square.cell.why.isEmpty {
+                                Text(square.cell.why)
+                                    .font(.ventiType(.label))
+                                    .foregroundStyle(.venti(.textSecondary))
+                                    .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("forecast-square-why")
+                            }
+                        }
                     }
                     if let step = square.cell.scaleStep, !square.cell.thermalWords.isEmpty {
                         ThermalLine(

@@ -133,6 +133,20 @@ pub fn site_confirmations_path(site: &SiteId) -> String {
     format!("{SITES_PATH}/{site}/confirmations")
 }
 
+/// Path of what the public flights that began at a site say about it.
+/// The site is one of any layer.
+pub fn site_flights_path(site: &SiteId) -> String {
+    format!("{SITES_PATH}/{site}/flights")
+}
+
+/// Path of the places where pilots take off and no site stands.
+pub const SITE_CANDIDATES_PATH: &str = "/v1/sites/candidates";
+
+/// Path and query of those places inside a box.
+pub fn site_candidates_path(bbox: &BoundingBox) -> String {
+    format!("{SITE_CANDIDATES_PATH}?bbox={}", format_bbox(bbox))
+}
+
 /// Path that takes a revision restoring an earlier one.
 pub fn site_revisions_path(site: &SiteId) -> String {
     format!("{SITES_PATH}/{site}/revisions")

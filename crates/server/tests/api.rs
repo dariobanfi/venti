@@ -301,6 +301,8 @@ fn the_documentation_shows_the_answers_as_they_are() {
         "sites_venti_pilots.json",
         "site_confirm_request.json",
         "site_confirmations.json",
+        "site_flights.json",
+        "site_candidates.json",
     ] {
         let answer = std::fs::read_to_string(golden(name)).unwrap();
         assert!(

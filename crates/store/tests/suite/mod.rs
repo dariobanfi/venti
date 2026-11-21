@@ -18,6 +18,7 @@ mod live;
 mod moderation;
 mod pilot_sites;
 mod sites;
+mod takeoffs;
 
 pub(crate) use accounts::*;
 pub(crate) use airspace::*;
@@ -29,6 +30,7 @@ pub(crate) use live::*;
 pub(crate) use moderation::*;
 pub(crate) use pilot_sites::*;
 pub(crate) use sites::*;
+pub(crate) use takeoffs::*;
 
 use chrono::{Duration, TimeZone, Utc};
 use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId, Timestamp};
@@ -140,6 +142,9 @@ macro_rules! store_suite {
             what_changed_for_the_public_is_told_with_withdrawals,
             the_public_changes_are_told_page_by_page_and_of_a_pilot,
             suspending_and_deleting_an_account_withdraws_flights,
+            the_public_flights_that_began_at_a_place_are_counted,
+            a_place_several_pilots_took_off_at_is_a_candidate,
+            candidates_come_by_pilots_and_a_cell_counts_alone,
             a_live_track_begins_with_its_first_fixes,
             the_same_live_fixes_again_change_nothing,
             live_fixes_that_arrive_late_reach_those_who_wait,

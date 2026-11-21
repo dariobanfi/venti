@@ -36,8 +36,9 @@ use venti_api_types::v1::{
     DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH, GEOJSON_MEDIA_TYPE,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, JSON_LINES_MEDIA_TYPE, KEPT_SITE_CHANGES_PATH,
     LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
-    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH,
-    SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH, THERMALS_PATH,
+    PUBLIC_FLIGHTS_PATH, RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH,
+    SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, Scope, THERMAL_HOURS_PATH,
+    THERMALS_PATH,
 };
 
 use super::cache;
@@ -321,6 +322,18 @@ fn operations() -> Vec<Op> {
             "Who says they took off at a site, the newest day first",
         )
         .json("SiteConfirmationsResponse"),
+        get(
+            "/v1/sites/{id}/flights",
+            "What the public flights that began at a site of any layer say about it",
+        )
+        .json("SiteFlightsResponse"),
+        get(
+            SITE_CANDIDATES_PATH,
+            "The places in a box where pilots take off and no site stands",
+        )
+        .docs("GET /v1/sites/candidates?bbox=west,south,east,north")
+        .query(&["bbox!"])
+        .json("SiteCandidatesResponse"),
         get(
             DUMPS_PATH,
             "The dumps of Venti's own two layers of sites: every file with its licence",

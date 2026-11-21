@@ -45,13 +45,15 @@ mod pilot_site;
 mod postgres;
 mod report;
 mod site;
+mod takeoff;
 pub mod testing;
 
 use std::future::Future;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
+    Timestamp,
 };
 
 pub use account::{
@@ -88,6 +90,10 @@ pub use report::{
     ReportSaved, ReportSubject,
 };
 pub use site::{SiteDelivery, SiteLayer, SiteSet};
+pub use takeoff::{
+    CANDIDATE_ALTITUDE_STEP_M, CANDIDATE_STEPS_PER_DEGREE, CELLS_PER_DEGREE, CandidateRule,
+    FlightsFrom, TakeoffCandidate, solar_day,
+};
 
 /// Why the store could not do what was asked.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -866,6 +872,42 @@ pub trait Store: Send + Sync + 'static {
         counted: usize,
         limit: usize,
     ) -> impl Future<Output = Result<Vec<Ranked>, StoreError>> + Send;
+
+    /// What the public flights that began within `within_m` metres of a
+    /// place say about it: how many, of how many pilots, the newest one's
+    /// day, how many in each month of the year, and the `best` best of
+    /// them by points. See [`FlightsFrom`]. A flight that began exactly
+    /// that far away is one of them.
+    ///
+    /// A flight that is private or unlisted is in none of it, not in a
+    /// count either; nor is one whose recording never shows the glider
+    /// flying, which took off nowhere.
+    fn flights_from(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        best: usize,
+    ) -> impl Future<Output = Result<FlightsFrom, StoreError>> + Send;
+
+    /// The places where pilots take off and no site stands: the cells of
+    /// a fixed grid ([`CELLS_PER_DEGREE`]) that `area` touches, in which
+    /// the public flights of at least `rule.min_pilots` different pilots
+    /// began, and from the middle of whose take-offs no standing site is
+    /// within `rule.clear_m` metres: no site of the sets of `sources`, and
+    /// none of either layer of the server's own. The place with the most
+    /// pilots comes first, then the one with the most flights; at most
+    /// `limit` are returned. See [`TakeoffCandidate`].
+    ///
+    /// A candidate names no pilot and no flight, and its position is
+    /// rounded. A flight that is private or unlisted counts for none, and
+    /// a site that pilots removed is in the way of none.
+    fn takeoff_candidates(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        rule: &CandidateRule,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<TakeoffCandidate>, StoreError>> + Send;
 
     /// What changed among an account's flights after change number `since`,
     /// oldest change first, at most `limit` changes. See [`FlightChanges`].

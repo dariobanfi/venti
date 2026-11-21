@@ -23,7 +23,7 @@ use crate::{
 };
 
 /// Everything [`flight_from`] reads: a flight `f` and its account `a`.
-const FLIGHT_COLUMNS: &str = "
+pub(super) const FLIGHT_COLUMNS: &str = "
     f.id, f.account_id, a.handle, a.display_name, f.identity, f.visibility, f.uploaded_at,
     f.change, f.file_bytes, f.analysis_version, f.started_at, f.airtime_s,
     f.takeoff_at, f.takeoff_lat, f.takeoff_lon, f.takeoff_altitude_m,
@@ -32,7 +32,7 @@ const FLIGHT_COLUMNS: &str = "
     f.score_kind, f.score_closed, f.score_distance_m, f.score_points,
     f.glider, f.outline, f.profile, f.taken_down_at, f.published_at, f.public_change";
 
-const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
+pub(super) const FLIGHT_FROM: &str = "FROM flights f JOIN accounts a ON a.id = f.account_id";
 
 fn place_from(row: &Row, end: &str) -> Result<Option<Place>, StoreError> {
     let column = |name: &str| format!("{end}_{name}");
@@ -86,7 +86,7 @@ fn pairs<T: Copy>(flat: &[T], what: &str) -> Result<Vec<[T; 2]>, StoreError> {
         .collect())
 }
 
-fn flight_from(row: &Row) -> Result<Flight, StoreError> {
+pub(super) fn flight_from(row: &Row) -> Result<Flight, StoreError> {
     let visibility: &str = row.get("visibility");
     let number = |name: &str| {
         u32::try_from(row.get::<_, i32>(name)).map_err(|_| corrupt(name, "a negative number"))

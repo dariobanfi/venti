@@ -1,0 +1,70 @@
+{
+  "id": "venti:0000000000000000000000s001",
+  "within_m": 500.0,
+  "takeoff": true,
+  "flights": 3,
+  "pilots": 2,
+  "latest_day": "2026-07-11",
+  "by_month": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "best": [
+    {
+      "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "day": "2026-05-09",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 12007.4,
+        "points": 12.01
+      }
+    },
+    {
+      "id": "kgqqjzfkynh9vgjxby3rx0snd8",
+      "pilot": {
+        "handle": "timo",
+        "display_name": "Timo Entwurf"
+      },
+      "day": "2025-07-19",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 12007.5,
+        "points": 12.01
+      }
+    },
+    {
+      "id": "hwj4105bnzcgcavngacrzjt3s4",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "day": "2026-07-11",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11472.1,
+        "points": 11.47
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

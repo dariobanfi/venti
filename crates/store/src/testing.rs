@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, BoundingBox, Observation, Site, SiteId, SourceId, Station, StationId, Timestamp,
+    Airspace, BoundingBox, GeoPoint, Observation, Site, SiteId, SourceId, Station, StationId,
+    Timestamp,
 };
 
 use crate::flight::{Room, Saved};
@@ -397,6 +398,25 @@ impl Store for TroubledStore {
         _: &PublicOrder,
         _: usize,
     ) -> Result<Vec<Flight>, StoreError> {
+        self.fail().await
+    }
+
+    async fn flights_from(
+        &self,
+        _: GeoPoint,
+        _: f64,
+        _: usize,
+    ) -> Result<crate::FlightsFrom, StoreError> {
+        self.fail().await
+    }
+
+    async fn takeoff_candidates(
+        &self,
+        _: &[SourceId],
+        _: &BoundingBox,
+        _: &crate::CandidateRule,
+        _: usize,
+    ) -> Result<Vec<crate::TakeoffCandidate>, StoreError> {
         self.fail().await
     }
 

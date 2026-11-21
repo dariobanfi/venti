@@ -47,7 +47,7 @@ use venti_store::{
     SiteRevising, SiteWrite, Store,
 };
 
-use super::auth::{May, Signed, WriteSites};
+use super::auth::{Client, May, Signed, WriteSites};
 use super::error::ApiError;
 use super::{Api, body, cache};
 use crate::accounts::secret;
@@ -130,12 +130,7 @@ impl<S: Store> Api<S> {
         area: &BoundingBox,
         layers: Option<&str>,
     ) -> Result<SitesResponse, ApiError> {
-        let served: Vec<SourceId> = self
-            .sources
-            .iter()
-            .filter(|(_, served)| served.kinds.contains(&Kind::Sites))
-            .map(|(source, _)| source.clone())
-            .collect();
+        let served = self.site_sources();
         let (sources, own): (Vec<SourceId>, Vec<Layer>) = match layers {
             None => (
                 served,
@@ -255,6 +250,33 @@ impl<S: Store> Api<S> {
 // --- The sites that pilots make ---------------------------------------------
 
 impl<S: Store> Api<S> {
+    /// A site of one of Venti's own layers as it stands: one that never
+    /// was is not found, and one that was removed is gone.
+    async fn standing(&self, id: &SiteId) -> Result<PilotSite, ApiError> {
+        let site = match self.store.pilot_site(id).await? {
+            Some(site) if is_made_here(id) => site,
+            _ => return Err(no_such_site()),
+        };
+        if !site.stands() {
+            return Err(gone());
+        }
+        Ok(site)
+    }
+
+    /// A source's site: the record of the set the server holds now, if
+    /// this server serves sites of that source.
+    async fn of_a_source(&self, id: &SiteId) -> Result<Option<Site>, ApiError> {
+        let served = self
+            .sources
+            .get(id.source())
+            .is_some_and(|served| served.kinds.contains(&Kind::Sites));
+        Ok(if served {
+            self.store.set_site(id).await?
+        } else {
+            None
+        })
+    }
+
     /// The site that pilots made a report is about, with the number of
     /// the revision it is about: the one named, or the one the site
     /// stands at. Found as the site's own addresses find it: a site of a
@@ -504,6 +526,9 @@ enum Target {
     Confirmation(SiteId),
     /// What pilots confirm of a site of Venti's own.
     Confirmations(SiteId),
+    /// What public flights say about a site of Venti's own. A source's
+    /// site has the same address, which [`flights_of_a_source`] reads.
+    Flights(SiteId),
 }
 
 /// Whether an identifier has the form of one the server makes for a site
@@ -521,6 +546,7 @@ fn target(rest: &str) -> Result<Target, ApiError> {
         ("/revisions", Target::Revisions),
         ("/confirmations", Target::Confirmations),
         ("/confirmation", Target::Confirmation),
+        (FLIGHTS_ENDING, Target::Flights),
     ] {
         if let Some(id) = rest.strip_suffix(ending).and_then(|id| id.parse().ok())
             && is_made_here(&id)
@@ -529,6 +555,23 @@ fn target(rest: &str) -> Result<Target, ApiError> {
         }
     }
     rest.parse().map(Target::Site).map_err(|_| no_such_site())
+}
+
+/// The ending of the address of what public flights say about a site.
+const FLIGHTS_ENDING: &str = "/flights";
+
+/// The site of a source whose flights a path asks for, if the path can be
+/// read so: an identifier of a source and [`FLIGHTS_ENDING`].
+///
+/// A source's own key may hold a `/`, and so could end in these very
+/// letters. The address of a site stays the site's: a path is read this
+/// way only when the set holds no site under the whole of it, which
+/// [`show`] asks first.
+fn flights_of_a_source(rest: &str) -> Option<SiteId> {
+    rest.strip_suffix(FLIGHTS_ENDING)?
+        .parse()
+        .ok()
+        .filter(|id| Layer::of(id).is_none())
 }
 
 /// The site of the community's layer a write is for.
@@ -555,34 +598,30 @@ pub(crate) struct PageParams {
 /// `GET /v1/sites/{id}` and `GET /v1/sites/{id}/history`.
 pub(crate) async fn show<S: Store>(
     State(api): State<Arc<Api<S>>>,
+    Client(client): Client,
     headers: HeaderMap,
     Path(rest): Path<String>,
     Query(params): Query<PageParams>,
 ) -> Result<Response, ApiError> {
     match target(&rest)? {
         Target::Site(id) if Layer::of(&id).is_some() => {
-            let site = match api.store.pilot_site(&id).await? {
-                Some(site) if is_made_here(&id) => site,
-                _ => return Err(no_such_site()),
-            };
-            if !site.stands() {
-                return Err(gone());
-            }
+            let site = api.standing(&id).await?;
             Ok(cache::json(&headers, &answer(site)?))
+        }
+        Target::Flights(id) => {
+            let site = api.standing(&id).await?;
+            api.flights_at(client, &headers, id, &site.site).await
         }
         Target::Site(id) => {
             // A source's site: the record of the set the server holds
             // now, if this server serves sites of that source.
-            let served = api
-                .sources
-                .get(id.source())
-                .is_some_and(|served| served.kinds.contains(&Kind::Sites));
-            let site = if served {
-                api.store.set_site(&id).await?
-            } else {
-                None
+            let Some(site) = api.of_a_source(&id).await? else {
+                // No site has this address. It may be the address of what
+                // flights say about one.
+                let of = flights_of_a_source(&rest).ok_or_else(no_such_site)?;
+                let site = api.of_a_source(&of).await?.ok_or_else(no_such_site)?;
+                return api.flights_at(client, &headers, of, &site).await;
             };
-            let site = site.ok_or_else(no_such_site)?;
             let answer = SiteResponse {
                 attributions: api.attributions([id.source()]),
                 site,

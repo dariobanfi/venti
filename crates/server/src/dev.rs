@@ -856,6 +856,129 @@ fn further_flights() -> [Vec<(Vec<u8>, Visibility)>; 2] {
     ]
 }
 
+/// The sample flight as [`sample`] makes it, flown from another place: every
+/// fix moved by `north` degrees of latitude and `east` of longitude.
+/// Nothing but the sample flight is shipped as a flight, and this is still
+/// that flight.
+fn sample_from(
+    date: NaiveDate,
+    seconds: Option<usize>,
+    (north, east): (f64, f64),
+) -> Result<Vec<u8>, String> {
+    let text = String::from_utf8(sample(date, Duration::zero(), seconds, 90))
+        .map_err(|e| e.to_string())?;
+    let mut file = igc::parse(&text).map_err(|e| format!("the sample flight is unusable: {e}"))?;
+    for fix in &mut file.fixes {
+        fix.position =
+            venti_domain::GeoPoint::new(fix.position.lat() + north, fix.position.lon() + east)
+                .map_err(|e| e.to_string())?;
+    }
+    Ok(igc::write(&file).into_bytes())
+}
+
+/// Three more made-up pilots, for [`add_demo_takeoffs`]. Each signs in
+/// with [`DEMO_PASSWORD`].
+pub const DEMO_TAKEOFF_PILOTS: [DemoPilot; 3] = [
+    DemoPilot {
+        id: "00000000000000000000000005",
+        handle: "lena",
+        name: "Lena Probe",
+    },
+    DemoPilot {
+        id: "00000000000000000000000006",
+        handle: "timo",
+        name: "Timo Entwurf",
+    },
+    DemoPilot {
+        id: "00000000000000000000000007",
+        handle: "ines",
+        name: "Ines Vorlage",
+    },
+];
+
+/// A box that holds the candidate of [`add_demo_takeoffs`] and nothing
+/// else that is one: `west,south,east,north`. It lies inside
+/// [`DEMO_SITES_BBOX`], 4 km from the nearest made-up site.
+pub const DEMO_CANDIDATE_BBOX: &str = "10.92,47.25,10.95,47.27";
+
+/// Made-up public flights that say something about where pilots take off
+/// (`GET /v1/sites/{id}/flights`, `GET /v1/sites/candidates`): the sample
+/// flight, flown by [`DEMO_TAKEOFF_PILOTS`] from two made-up places in
+/// the box of the made-up sites.
+///
+/// - From the first of [`DEMO_SITES`], the take-off "Musterkogel West":
+///   three public flights of two pilots, in May and in July, so that the
+///   site has flights, months and best flights.
+/// - From a place 4 km south-east of it where no site stands: one public
+///   flight each of three pilots, in April and June, so that the place is
+///   a candidate; and a fourth flight that is private and counts for
+///   nothing.
+///
+/// **The development mode does not start with these.** Its five public
+/// flights of three pilots are counted by the apps' tests (the list of
+/// everyone's flights has five rows, the ranking three pilots), and six
+/// more public flights of three more pilots change every one of those
+/// counts. The server's own tests call this on the recorded store; one
+/// call in [`add_demo_account`] gives them to `venti-server dev`, once
+/// the apps' tests count what is then there.
+pub async fn add_demo_takeoffs(store: &MemoryStore, password_cost: Cost) -> Result<(), String> {
+    let now = adapters::recorded_at();
+    // From the sample flight's own take-off (47.6642 N, 11.7967 E) to the
+    // made-up take-off at 47.3 N, 10.9 E, and to the place without a site
+    // at 47.2612 N, 10.9312 E.
+    let kogel = |north: f64, east: f64| (47.3 - 47.6642 + north, 10.9 - 11.7967 + east);
+    let nowhere = |north: f64, east: f64| (47.2612 - 47.6642 + north, 10.9312 - 11.7967 + east);
+    let public = Visibility::Public;
+    let [lena, timo, ines] = [
+        vec![
+            (
+                sample_from(day(2026, 5, 9), None, kogel(0.0004, 0.0))?,
+                public,
+            ),
+            (
+                sample_from(day(2026, 7, 11), Some(1500), kogel(0.0, 0.0003))?,
+                public,
+            ),
+            (
+                sample_from(day(2026, 6, 6), Some(600), nowhere(-0.0001, -0.0001))?,
+                public,
+            ),
+        ],
+        vec![
+            (
+                sample_from(day(2025, 7, 19), None, kogel(-0.0003, 0.0006))?,
+                public,
+            ),
+            (
+                sample_from(day(2026, 6, 7), Some(700), nowhere(0.0, 0.0001))?,
+                public,
+            ),
+        ],
+        vec![
+            (
+                sample_from(day(2026, 4, 25), Some(800), nowhere(0.0001, 0.0))?,
+                public,
+            ),
+            (
+                sample_from(day(2026, 6, 13), Some(900), nowhere(0.0, 0.0))?,
+                Visibility::Private,
+            ),
+        ],
+    ];
+    for (pilot, flights) in DEMO_TAKEOFF_PILOTS.iter().zip([lena, timo, ines]) {
+        let account = Account {
+            id: pilot.id.to_owned(),
+            handle: pilot.handle.to_owned(),
+            display_name: pilot.name.to_owned(),
+            created_at: now,
+            publishing_suspended_at: None,
+            edits_sites_since: None,
+        };
+        add_pilot(store, &account, flights, password_cost).await?;
+    }
+    Ok(())
+}
+
 /// Puts an account with the demo password and its flights into the store.
 async fn add_pilot(
     store: &MemoryStore,

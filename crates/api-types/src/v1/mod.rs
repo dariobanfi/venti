@@ -91,6 +91,7 @@ mod report;
 mod request;
 mod sites;
 mod stations;
+mod takeoffs;
 mod text;
 mod thermals;
 mod token;
@@ -164,13 +165,14 @@ pub use request::{
     LiveTracksRequest, ObservationsRequest, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH,
     PUBLIC_FLIGHTS_PATH, PilotRequest, PlanBoardRequest, PlanDays, PlansRequest, PositionError,
     PublicFlightChangesRequest, PublicFlightsRequest, RANKING_PATH, REPORTS_PATH, RankingRequest,
-    SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH, SitesRequest, StationsRequest,
-    TimeError, account_token_path, flight_file_path, flight_path, flight_track_path, format_bbox,
-    format_day, format_time, group_invite_path, group_keeper_path, group_member_path, group_path,
-    group_plans_path, live_page_path, live_track_path, observations_path, parse_bbox, parse_day,
-    parse_position, parse_time, pilot_path, plan_in_path, plan_path, session_path,
-    share_image_path, share_path, site_confirmation_path, site_confirmations_path,
-    site_history_path, site_path, site_revisions_path, sites_path,
+    SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH, SITES_PATH, STATIONS_PATH,
+    SitesRequest, StationsRequest, TimeError, account_token_path, flight_file_path, flight_path,
+    flight_track_path, format_bbox, format_day, format_time, group_invite_path, group_keeper_path,
+    group_member_path, group_path, group_plans_path, live_page_path, live_track_path,
+    observations_path, parse_bbox, parse_day, parse_position, parse_time, pilot_path, plan_in_path,
+    plan_path, session_path, share_image_path, share_path, site_candidates_path,
+    site_confirmation_path, site_confirmations_path, site_flights_path, site_history_path,
+    site_path, site_revisions_path, sites_path,
 };
 pub use sites::{
     AddSiteRequest, CONFIRMATION_DAYS_BACK, CONFIRMATION_FLIGHT_WITHIN_M, ChangeSiteRequest,
@@ -182,6 +184,12 @@ pub use sites::{
     VENTI_SITES_SOURCE, parse_site_comment,
 };
 pub use stations::{Station, StationWithLatest, StationsResponse};
+pub use takeoffs::{
+    CANDIDATE_CELL_DEG, CANDIDATE_CLEAR_OF_SITES_M, CANDIDATE_MIN_PILOTS,
+    CANDIDATE_POSITION_STEP_DEG, MAX_CANDIDATE_BOX_DEG, MAX_SITE_CANDIDATES, SITE_BEST_FLIGHTS,
+    SITE_FLIGHTS_WITHIN_M, SiteBestFlight, SiteCandidate, SiteCandidatesResponse,
+    SiteFlightsResponse,
+};
 pub use thermals::{
     THERMAL_GRID_DEG, THERMAL_HOURS_PATH, THERMALS_PATH, ThermalGrid, ThermalHoursRequest,
     ThermalHoursResponse, ThermalKind, ThermalLayer, ThermalMapDay, ThermalMapHour,

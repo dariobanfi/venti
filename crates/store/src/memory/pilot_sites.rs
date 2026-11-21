@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use chrono::NaiveDate;
-use venti_domain::{BoundingBox, Site, SiteId, SourceId, Timestamp};
+use venti_domain::{BoundingBox, GeoPoint, Site, SiteId, SourceId, Timestamp};
 
 use super::accounts::Accounts;
 use crate::pilot_site::{
@@ -103,6 +103,15 @@ impl PilotSites {
             .filter_map(|entry| entry.revisions.last())
             .map(|stored| &stored.record);
         nearest_within(record, standing, apart_m)
+    }
+
+    /// Where every standing site of either layer is.
+    pub(super) fn standing_positions(&self) -> impl Iterator<Item = GeoPoint> {
+        self.sites
+            .values()
+            .filter(|entry| entry.removed_at.is_none())
+            .filter_map(|entry| entry.revisions.last())
+            .map(|stored| stored.record.position)
     }
 
     pub(super) fn add(

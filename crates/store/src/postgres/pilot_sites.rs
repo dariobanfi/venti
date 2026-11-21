@@ -204,27 +204,10 @@ async fn hold_account(tx: &Transaction<'_>, id: &str) -> Result<bool, StoreError
 }
 
 /// West, south, east and north of a box that holds every place nearer to
-/// `record` than `apart_m` metres, drawn generously: a degree of latitude
-/// is taken as 100 km, which is less than it is anywhere, and a degree of
-/// longitude as what it is at the edge of the box that is nearest a pole.
-/// Near a pole, and across the line where east meets west, the box is the
-/// whole band around the globe.
+/// `record` than `apart_m` metres, drawn generously: see
+/// [`crate::takeoff::around`], which draws it.
 fn around(record: &Site, apart_m: f64) -> [f64; 4] {
-    let (lat, lon) = (record.position.lat(), record.position.lon());
-    let step = apart_m / 100_000.0;
-    let south = (lat - step).max(-90.0);
-    let north = (lat + step).min(90.0);
-    let narrowest = south.abs().max(north.abs()).to_radians().cos();
-    let wide = if narrowest > 1e-6 {
-        step / narrowest
-    } else {
-        f64::INFINITY
-    };
-    if wide.is_finite() && lon - wide >= -180.0 && lon + wide <= 180.0 {
-        [lon - wide, south, lon + wide, north]
-    } else {
-        [-180.0, south, 180.0, north]
-    }
+    crate::takeoff::around(record.position.lat(), record.position.lon(), apart_m)
 }
 
 /// The standing site that is too near to `record`, if one is. The caller

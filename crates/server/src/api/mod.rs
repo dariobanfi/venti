@@ -92,6 +92,7 @@ mod shape;
 mod share;
 mod sites;
 mod stations;
+mod takeoffs;
 mod thermals;
 mod wire;
 
@@ -115,8 +116,8 @@ use venti_api_types::v1::{
     AIRSPACE_PATH, Attribution, DUMPS_PATH, FLIGHT_CHANGES_PATH, FLIGHTS_PATH, FORECAST_PATH,
     GROUP_JOIN_PATH, GROUPS_PATH, HEALTH_PATH, LIVE_PATH, LIVE_POSITIONS_PATH, MAPS_PATH,
     MAX_LIVE_BODY_BYTES, PLAN_BOARD_PATH, PUBLIC_FLIGHT_CHANGES_PATH, PUBLIC_FLIGHTS_PATH,
-    RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CHANGES_PATH, SITES_PATH,
-    STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
+    RADAR_PATH, RANKING_PATH, REPORTS_PATH, SESSIONS_PATH, SITE_CANDIDATES_PATH, SITE_CHANGES_PATH,
+    SITES_PATH, STATIONS_PATH, THERMAL_HOURS_PATH, THERMALS_PATH,
 };
 use venti_domain::SourceId;
 use venti_sources::{Kind, Manifest};
@@ -539,6 +540,7 @@ impl<S: Store> Api<S> {
             .route(AIRSPACE_PATH, get(airspace::airspace::<S>))
             .route(SITES_PATH, get(sites::sites::<S>).post(sites::add::<S>))
             .route(SITE_CHANGES_PATH, get(sites::changes::<S>))
+            .route(SITE_CANDIDATES_PATH, get(takeoffs::candidates::<S>))
             .route(
                 "/v1/sites/{*rest}",
                 get(sites::show::<S>)

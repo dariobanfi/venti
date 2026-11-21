@@ -435,6 +435,18 @@ const GOLDEN: &[(&str, &str, &str, Part)] = &[
         "/v1/sites/{id}/history",
         Answer(200),
     ),
+    (
+        "site_flights.json",
+        "get",
+        "/v1/sites/{id}/flights",
+        Answer(200),
+    ),
+    (
+        "site_candidates.json",
+        "get",
+        "/v1/sites/candidates",
+        Answer(200),
+    ),
     ("site_changes.json", "get", "/v1/sites/changes", Answer(200)),
     (
         "site_changes_pilots.json",

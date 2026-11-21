@@ -2717,6 +2717,107 @@
       "uses"
     ]
   },
+  "SiteBestFlight": {
+    "description": "One of a site's best public flights: what names it. The rest of it is at `GET /v1/flights/{id}`.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "pilot": {
+        "$ref": "#/components/schemas/Pilot"
+      },
+      "day": {
+        "type": "string",
+        "format": "date"
+      },
+      "score": {
+        "$ref": "#/components/schemas/FlightScore"
+      }
+    },
+    "required": [
+      "id",
+      "pilot",
+      "day",
+      "score"
+    ]
+  },
+  "SiteCandidate": {
+    "description": "A place where the public flights of several pilots began and no site stands. It names no pilot and no flight; its position is the middle of the take-offs rounded to 0.0001 degrees, its height their mean rounded to 10 m.",
+    "type": "object",
+    "properties": {
+      "position": {
+        "$ref": "#/components/schemas/RawPoint"
+      },
+      "altitude_m": {
+        "description": "Satellite altitude, metres above mean sea level.",
+        "type": "integer"
+      },
+      "flights": {
+        "type": "integer"
+      },
+      "pilots": {
+        "type": "integer"
+      },
+      "latest_day": {
+        "type": "string",
+        "format": "date"
+      },
+      "by_month": {
+        "description": "Twelve numbers, January first: how many of the flights began in each month of the year, all years together.",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      }
+    },
+    "required": [
+      "position",
+      "altitude_m",
+      "flights",
+      "pilots",
+      "latest_day",
+      "by_month"
+    ]
+  },
+  "SiteCandidatesResponse": {
+    "description": "The places in a box where pilots take off and no site of any layer stands: something to show a pilot who flew there, who may add the site. The server makes no site of a candidate. The one with the most pilots comes first; `more` says that the box holds more than are listed.",
+    "type": "object",
+    "properties": {
+      "candidates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteCandidate"
+        }
+      },
+      "more": {
+        "type": "boolean"
+      },
+      "min_pilots": {
+        "description": "The least number of different pilots whose public flights began at a candidate.",
+        "type": "integer"
+      },
+      "cell_deg": {
+        "description": "The side of the cell of the grid in which a candidate's flights began, degrees of latitude and of longitude.",
+        "type": "number"
+      },
+      "clear_of_sites_m": {
+        "description": "How far from a candidate no site stands, metres.",
+        "type": "number"
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "candidates",
+      "more",
+      "min_pilots",
+      "cell_deg",
+      "clear_of_sites_m",
+      "terms"
+    ]
+  },
   "SiteChangesResponse": {
     "type": "object",
     "properties": {
@@ -2890,6 +2991,61 @@
       "name",
       "position",
       "uses"
+    ]
+  },
+  "SiteFlightsResponse": {
+    "description": "What the public flights that began within `within_m` metres of a site say about it. Made anew for every answer from flights their pilots made public and from nothing else: a flight that is private, shared by link, taken down or deleted is in no count. A day is the day at the site, by the sun.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "within_m": {
+        "description": "How far from the site's position a flight may have taken off to be counted, metres.",
+        "type": "number"
+      },
+      "takeoff": {
+        "description": "Whether the site is one to take off from by its own record: `takeoff` or `towing` among its uses, or no use named. For one that is not, nothing is counted: every count is 0 and `best` is empty.",
+        "type": "boolean"
+      },
+      "flights": {
+        "type": "integer"
+      },
+      "pilots": {
+        "type": "integer"
+      },
+      "latest_day": {
+        "description": "The day of the newest of the flights. Absent without a flight.",
+        "type": "string",
+        "format": "date"
+      },
+      "by_month": {
+        "description": "Twelve numbers, January first: how many of the flights began in each month of the year, all years together.",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "best": {
+        "description": "The best of them by points, the best first: at most five. A flight too short to score is not among them.",
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SiteBestFlight"
+        }
+      },
+      "terms": {
+        "$ref": "#/components/schemas/FlightTerms"
+      }
+    },
+    "required": [
+      "id",
+      "within_m",
+      "takeoff",
+      "flights",
+      "pilots",
+      "by_month",
+      "best",
+      "terms"
     ]
   },
   "SiteHistoryResponse": {

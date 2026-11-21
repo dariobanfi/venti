@@ -17,7 +17,7 @@ For the maker of a program that is not one of Venti's apps: a page, a script, an
 
 **The description.** [`GET /v1/openapi.json`](#get-v1openapijson) is an OpenAPI 3.1 document of everything under `/v1`: every path and method, its parameters, the shape of its answer and of its body, the one shape every error has, and for each request whether it needs nothing, the pilot's own sign-in, or a token with which scope. The same document is in the repository as [openapi.json](openapi.json). A client can be generated from it. What it does not say is here: what a field means, when which error comes, the bounds.
 
-**Reading without a key.** Everything anyone may read needs no account, no key and no registration: [stations](#get-v1stationsbboxwestsoutheastnorth) and [their observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth) with [their history](#get-v1sitesidhistoryafterlimit) and [who confirmed them](#get-v1sitesidconfirmations), [forecasts](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the rain radar](#get-v1radar), [public flights](#public-flights) with [their tracks](#get-v1flightsidtrack), [a pilot's page](#pilots), [the ranking](#ranking), [public live tracks](#live-tracks). Send no token with such a request: an answer to a request with a token is made for one account and is kept by nobody. From a browser, a page on any site may make these reads; [Browsers](#rules-that-hold-for-every-endpoint) says what exactly.
+**Reading without a key.** Everything anyone may read needs no account, no key and no registration: [stations](#get-v1stationsbboxwestsoutheastnorth) and [their observations](#get-v1stationsidobservationsfromto), [airspace](#get-v1airspacebboxwestsoutheastnorth), [sites](#get-v1sitesbboxwestsoutheastnorth) with [their history](#get-v1sitesidhistoryafterlimit), [who confirmed them](#get-v1sitesidconfirmations) and [what public flights say about them](#what-public-flights-say-about-a-site), [forecasts](#get-v1forecastlatlon), [the thermal map](#get-v1thermals), [the rain radar](#get-v1radar), [public flights](#public-flights) with [their tracks](#get-v1flightsidtrack), [a pilot's page](#pilots), [the ranking](#ranking), [public live tracks](#live-tracks). Send no token with such a request: an answer to a request with a token is made for one account and is kept by nobody. From a browser, a page on any site may make these reads; [Browsers](#rules-that-hold-for-every-endpoint) says what exactly.
 
 **Acting for a pilot.** A pilot makes a token for the program in their account, limited to scopes, and gives the program its secret; the program sends it as `Authorization: Bearer venti_pat_…`. The program never sees the pilot's password, and the pilot withdraws the token at any time. [Tokens for other programs](#tokens-for-other-programs) has the scopes, which request needs which, and the errors a program meets.
 
@@ -195,7 +195,7 @@ A client that shows the data shows the credit of its source next to it, and the 
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_bbox` | `bbox` is missing, is not four numbers, or the numbers do not form a box |
-| 400 | `box_too_large` | The box holds more airspaces, or more flying sites, than one answer carries. Ask for smaller boxes |
+| 400 | `box_too_large` | The box holds more airspaces, or more flying sites, than one answer carries, or is wider than [candidates](#get-v1sitescandidatesbboxwestsoutheastnorth) are asked for in. Ask for smaller boxes |
 | 400 | `invalid_position` | `lat` or `lon` is missing, is not a number, or the two are not a place on the globe |
 | 400 | `invalid_station_id` | The identifier in the path is not of the form `source:local` |
 | 400 | `invalid_time` | `from`, `to` or `after` is not an RFC 3339 time |
@@ -1959,6 +1959,181 @@ curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001/confirmati
 `confirmed` is the count and the newest day, as the site's `standing` has it: enough for "2 pilots took off here, last on 16 November". `with_flight` is there, and `true`, where the server found a flight of the pilot's that took off at the site; which flight is not said. `410` with `site_gone` for a site that is removed or taken down, `404` for one that never was.
 
 Confirmations cannot be reported by themselves yet (to do): a pilot reports the site, or the pilot's page.
+
+## What public flights say about a site
+
+A pilot says of a place from pilots "I took off here and it was good" ([above](#put-v1sitesidconfirmation)). A flight its pilot made public says the first half of that without anyone typing it. Two requests read it, both open to anyone without a token and to a page of any origin.
+
+**Public flights and nothing else.** Both are made anew for every answer from the flights that are public at that moment. A flight that is private, shared by link only, taken down or deleted is in no count, no month and no list, and a flight that leaves the public is gone from the next answer: nothing is kept between two.
+
+**A day** in these answers is the day at the place, by the sun: the time in UTC moved by four minutes for every degree of longitude. A flight is flown in daylight, so that is the day the pilot had on the calendar, in the Alps and in Australia, without a table of time zones. The months are counted by it.
+
+**The bound.** Both count as reads of public flights for the address that asks, with the list and the tracks: [600 an hour](#how-often-an-address-may-read).
+
+The examples are the answers the server's tests keep, over the development mode with a few more made-up flights (`dev::add_demo_takeoffs`: the sample flight, flown by three more made-up pilots from two made-up places). The development mode does not start with those, because they would change every count of its five public flights; as it starts, `curl 'http://127.0.0.1:8080/v1/sites/osm-free-flying:node/5964676196/flights'` shows those five, and no box holds a candidate.
+
+### `GET /v1/sites/{id}/flights`
+
+What the public flights that began at a site say about it: how many, by how many pilots, when last, in which months of the year, and the best of them. The site is one of any layer, by its identifier: a source's (`osm-free-flying:node/5964676196`, the `/` as it is), the partners' or the crowdsourced one.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/venti:0000000000000000000000s001/flights'
+```
+
+```json
+{
+  "id": "venti:0000000000000000000000s001",
+  "within_m": 500.0,
+  "takeoff": true,
+  "flights": 3,
+  "pilots": 2,
+  "latest_day": "2026-07-11",
+  "by_month": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "best": [
+    {
+      "id": "ww5qkxhxaedefvypb3wy3v6m3m",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "day": "2026-05-09",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 12007.4,
+        "points": 12.01
+      }
+    },
+    {
+      "id": "kgqqjzfkynh9vgjxby3rx0snd8",
+      "pilot": {
+        "handle": "timo",
+        "display_name": "Timo Entwurf"
+      },
+      "day": "2025-07-19",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 12007.5,
+        "points": 12.01
+      }
+    },
+    {
+      "id": "hwj4105bnzcgcavngacrzjt3s4",
+      "pilot": {
+        "handle": "lena",
+        "display_name": "Lena Probe"
+      },
+      "day": "2026-07-11",
+      "score": {
+        "kind": "free_flight",
+        "closed": false,
+        "distance_m": 11472.1,
+        "points": 11.47
+      }
+    }
+  ],
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+- `within_m`: a flight began at the site if it took off within this many metres of the site's position, **500**. It is the distance a flight may lie from a site it is named with to [confirm](#put-v1sitesidconfirmation) it: "this flight began at this site" means one thing on the server. A site is one point, a take-off is a meadow, and where a recording first shows the glider flying is some way down the slope. Where a flight took off is what the analysis of its file found, not its first fix. Two sites nearer to each other than that both count a flight that began between them.
+- `takeoff`: whether the site is one to take off from by its own record: `takeoff` or `towing` among its `uses`, or no use named. For a site that is not (a landing field, a training slope) nothing is counted, every count is `0` and `best` is empty: the flights that began within 500 m of a landing field are those of a take-off beside it.
+- `flights` and `pilots`: how many public flights began there, and how many different pilots flew them.
+- `latest_day`: the day of the newest. Left out without a flight.
+- `by_month`: twelve numbers, January first: how many of the flights began in each month of the year, all years together. They add up to `flights`.
+- `best`: the best of them by points, the best first, as [`sort=score`](#get-v1flightspublicpilotbboxfromtosortafterlimit) orders the list of public flights: at most five, each with its address, its pilot as that list names one, its day and its `score` (the distance and the points). A flight too short to score is not among them. Everything else of a flight is at [`GET /v1/flights/{id}`](#get-v1flightsid).
+- `terms`: under what the flights are given ([Flights](#flights)).
+
+The answer names flights and pilots, so it is kept as the list of public flights is: `Cache-Control: public, no-cache` with an `ETag`. A cache may keep it and asks before every reuse, and a flight that is made private is gone from it at once.
+
+`404` with `site_not_found` for a site that never was or that its source no longer delivers, `410` with `site_gone` for one of Venti's own that was removed. The site's own answer ([`GET /v1/sites/{id}`](#get-v1sitesid)) does not carry these numbers: they are asked for here.
+
+All of a site's flights, page by page, are the list of public flights in a box around it ([`bbox`](#get-v1flightspublicpilotbboxfromtosortafterlimit)).
+
+### `GET /v1/sites/candidates?bbox=west,south,east,north`
+
+The places in a box where pilots take off and no site of any layer stands. A candidate is not a site, and the server never makes a site of one: it is something to show a pilot who flew there ("pilots take off here and no site names it: add it?"), who then [adds the site](#post-v1sites) with the place and the height of their own flight, or does not.
+
+```bash
+curl 'http://127.0.0.1:8080/v1/sites/candidates?bbox=10.92,47.25,10.95,47.27'
+```
+
+```json
+{
+  "candidates": [
+    {
+      "position": {
+        "lat": 47.2612,
+        "lon": 10.9312
+      },
+      "altitude_m": 1620,
+      "flights": 3,
+      "pilots": 3,
+      "latest_day": "2026-06-07",
+      "by_month": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "more": false,
+  "min_pilots": 3,
+  "cell_deg": 0.0025,
+  "clear_of_sites_m": 500.0,
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}
+```
+
+**What makes a place a candidate.**
+
+- The public flights of at least `min_pilots` different pilots, **3**, began in one cell of a fixed grid of `cell_deg`, **0.0025** degrees of latitude and of longitude: 278 m from north to south, and 190 m from east to west at 47° north.
+- No standing site stands within `clear_of_sites_m`, **500** m, of the middle of those take-offs: no site of any source this server serves, none of the partners' layer and none of the crowdsourced one. Within that distance a flight began at that site ([above](#get-v1sitesidflights)). A site that was removed is in the way of nothing.
+
+**What a candidate says.** `position`: the middle of the take-offs, rounded to 0.0001 degrees (11 m). `altitude_m`: the mean of the heights the flights took off at, satellite altitude, rounded to 10 m. `flights`, `pilots`, `latest_day` and `by_month` as for a site. **Not who:** a candidate names no pilot and no flight.
+
+**Why three pilots.** One pilot's flights say where that pilot takes off, which may be the field behind their house; two may be a pilot and a friend. Three who each chose to make a flight from there public say that pilots take off there. Everything a candidate is made from is in the list of public flights already, with each flight's exact take-off and its pilot's name: a candidate adds no fact about a flight, only the word that the place is one where pilots take off, and the number of pilots is what guards that word. When one of three makes their flight private, the place is no candidate at the next answer.
+
+**At a cell's edge.** The grid is fixed, and an edge of it may run through a take-off. Its flights are then counted in two cells, each by itself: the take-off is offered twice, some hundred metres apart, or not at all where neither part has three pilots alone. The grid never makes a candidate that is none.
+
+**The box.** `bbox` as for [sites](#get-v1sitesbboxwestsoutheastnorth). A cell that the box touches is counted whole, so a place is the same candidate whichever box asks for it; its position may lie just outside the box. The box may span at most **2 degrees** of latitude and of longitude each, some 220 km by 150 km at 47° north: what an answer costs the server grows with the public flights in its box. A wider one is refused with `400` and `box_too_large`. An answer lists at most **200** candidates, the one with the most pilots first, then the one with the most flights; `more` says that the box holds more, and a smaller box shows them.
+
+An answer names nobody and may be reused for a minute: `Cache-Control: public, max-age=60` with an `ETag`. A flight that leaves the public, or a site that is added, shows a minute later at most.
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `invalid_bbox` | `bbox` is missing, is not four numbers, or the numbers do not form a box |
+| 400 | `box_too_large` | The box spans more than 2 degrees of latitude or of longitude |
+| 429 | `rate_limited` | The address has read public flights as often as one may in an hour |
 
 ## Dumps of Venti's own sites
 
@@ -4761,7 +4936,7 @@ The answer carries [`terms`](#flights), under what its flights are given.
 
 #### How often an address may read
 
-Three requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), and [a flight's track](#get-v1flightsidtrack). An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. A token does not change the count: it is the address's. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
+Five requests are open to anyone and counted together for the address that asks: a page of this list, a page of [what changed](#get-v1flightspublicchangessincepilotlimit), [a flight's track](#get-v1flightsidtrack), and [what flights say about a site](#what-public-flights-say-about-a-site), of one site and of the candidates in a box. An address may make **600 of them in an hour**; for an IPv6 client the address is its /64 network, and one /48 network together gets 2,400. Beyond that the answer is `429` with `rate_limited`, and `Retry-After` says when the hour is over. A token does not change the count: it is the address's. A page holds at most 100 flights or changes ([`limit`](#rules-that-hold-for-every-endpoint)), and a track at most 50,000 positions. One flight by its address, its file and a pilot's page are not counted. The numbers are estimates, counted in the server's memory as its other limits are.
 
 **A day** is asked for with its first moment as `from` and the first moment of the next day as `to`. The server knows no time zone: a client that means the pilots' own day writes its offset into both times (`2026-08-15T00:00:00+02:00`, with the `+` written as `%2B` in a URL). The best flights of 15 August 2026, by UTC:
 

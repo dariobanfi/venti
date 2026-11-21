@@ -1,0 +1,36 @@
+{
+  "candidates": [
+    {
+      "position": {
+        "lat": 47.2612,
+        "lon": 10.9312
+      },
+      "altitude_m": 1620,
+      "flights": 3,
+      "pilots": 3,
+      "latest_day": "2026-06-07",
+      "by_month": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "more": false,
+  "min_pilots": 3,
+  "cell_deg": 0.0025,
+  "clear_of_sites_m": 500.0,
+  "terms": {
+    "text": "These flights are their pilots'. They are shown here for reading. Reusing a flight (copying it elsewhere, publishing it, building on it) needs its pilot's leave until Venti's terms say otherwise, and a flight its pilot has withdrawn is to be removed from every copy.",
+    "decided": false
+  }
+}

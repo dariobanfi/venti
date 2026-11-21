@@ -2,17 +2,18 @@
 
 use std::collections::BTreeMap;
 
-use venti_domain::Timestamp;
+use venti_domain::{BoundingBox, GeoPoint, Timestamp};
 
 use super::accounts::Accounts;
 use crate::flight::{
     Kept, PublicEffect, Room, Saved, cut, cut_public, may_be_set, next_public_change, ranked_order,
     score_order,
 };
+use crate::takeoff::{Cell, Tally, cell_of, cells_of};
 use crate::{
-    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, Listing, NewFlight, OutdatedFlight,
-    PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey, StoreError, Visibility,
-    VisibilityChange, WithdrawnFlight,
+    DeletedFlight, Derived, Flight, FlightChanges, FlightKey, FlightsFrom, Listing, NewFlight,
+    OutdatedFlight, Place, PublicFlightChanges, PublicFlights, PublicOrder, Ranked, ScoreKey,
+    StoreError, Visibility, VisibilityChange, WithdrawnFlight,
 };
 
 #[derive(Debug, Default)]
@@ -271,6 +272,65 @@ impl Flights {
         ranked.sort_by(ranked_order);
         ranked.truncate(limit);
         ranked
+    }
+
+    /// The public flights that took off somewhere, each with where. A
+    /// flight that is not public is not among them: everything that
+    /// counts take-offs begins here.
+    fn public_takeoffs(&self) -> impl Iterator<Item = (&Entry, &Place)> {
+        self.flights
+            .values()
+            .filter(|entry| entry.flight.visibility == Visibility::Public)
+            .filter_map(|entry| Some((entry, entry.flight.derived.takeoff.as_ref()?)))
+    }
+
+    pub(super) fn began_at(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        best: usize,
+        accounts: &Accounts,
+    ) -> FlightsFrom {
+        let mut tally = Tally::default();
+        let mut scored: Vec<(ScoreKey, &Entry)> = Vec::new();
+        for (entry, takeoff) in self.public_takeoffs() {
+            if place.distance_m(takeoff.position) > within_m {
+                continue;
+            }
+            let flight = &entry.flight;
+            tally.add(&flight.account_id, flight.derived.start, takeoff);
+            if let Some(key) = flight.score_key() {
+                scored.push((key, entry));
+            }
+        }
+        scored.sort_by(|a, b| score_order(&b.0, &a.0));
+        let best = scored
+            .into_iter()
+            .take(best)
+            .map(|(_, entry)| Self::read(entry, accounts))
+            .collect();
+        tally.at_a_place(best)
+    }
+
+    /// The public flights that began in the cells a box touches, added
+    /// up cell by cell.
+    pub(super) fn takeoff_cells(&self, area: &BoundingBox) -> Vec<Cell> {
+        let [south, north, west, east] = cells_of(area);
+        let mut cells: BTreeMap<(i32, i32), Tally> = BTreeMap::new();
+        for (entry, takeoff) in self.public_takeoffs() {
+            let at = cell_of(takeoff.position);
+            if (south..=north).contains(&at.0) && (west..=east).contains(&at.1) {
+                let flight = &entry.flight;
+                cells
+                    .entry(at)
+                    .or_default()
+                    .add(&flight.account_id, flight.derived.start, takeoff);
+            }
+        }
+        cells
+            .into_iter()
+            .filter_map(|(at, tally)| tally.of_cell(at))
+            .collect()
     }
 
     pub(super) fn changes(

@@ -12,6 +12,7 @@ mod partitions;
 mod pilot_sites;
 mod reports;
 mod sites;
+mod takeoffs;
 
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ use crate::{
     SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
     StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, batch,
 };
+use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// Connections kept to the database. The API's queries take milliseconds,
@@ -840,6 +842,25 @@ impl Store for PgStore {
         limit: usize,
     ) -> Result<Vec<Flight>, StoreError> {
         flights::public(&self.client().await?, which, order, limit).await
+    }
+
+    async fn flights_from(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        best: usize,
+    ) -> Result<FlightsFrom, StoreError> {
+        takeoffs::began_at(&mut self.client().await?, place, within_m, best).await
+    }
+
+    async fn takeoff_candidates(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        rule: &CandidateRule,
+        limit: usize,
+    ) -> Result<Vec<TakeoffCandidate>, StoreError> {
+        takeoffs::candidates(&self.client().await?, sources, area, rule, limit).await
     }
 
     async fn ranking(

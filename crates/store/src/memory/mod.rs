@@ -11,8 +11,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use chrono::NaiveDate;
 use venti_domain::{
-    Airspace, AirspaceId, BoundingBox, ModelId, Observation, Site, SiteId, SourceId, Station,
-    StationId, Timestamp,
+    Airspace, AirspaceId, BoundingBox, GeoPoint, ModelId, Observation, Site, SiteId, SourceId,
+    Station, StationId, Timestamp,
 };
 
 use crate::flight::{Room, Saved};
@@ -27,8 +27,9 @@ use crate::{
     ReportSaved, RunRecord, SecretHash, Session, SiteConfirmation, SiteConfirming, SiteDelivery,
     SiteLayer, SiteRevising, SiteRevision, SiteSet, SiteWrite, SourceStatus, StationLatest, Store,
     StoreError, Suspension, ThermalPart, Visibility, VisibilityChange, airspace, batch, forecast,
-    site,
+    site, takeoff,
 };
+use crate::{CandidateRule, FlightsFrom, TakeoffCandidate};
 use crate::{Given, KeepingSite, KeptRoom, KeptSiteChanges, NewKeptSite};
 
 /// A store that lives in the process and forgets everything when it ends.
@@ -775,6 +776,38 @@ impl Store for MemoryStore {
     ) -> Result<Vec<Flight>, StoreError> {
         let inner = self.lock();
         Ok(inner.flights.public(which, order, limit, &inner.accounts))
+    }
+
+    async fn flights_from(
+        &self,
+        place: GeoPoint,
+        within_m: f64,
+        best: usize,
+    ) -> Result<FlightsFrom, StoreError> {
+        let inner = self.lock();
+        Ok(inner
+            .flights
+            .began_at(place, within_m, best, &inner.accounts))
+    }
+
+    async fn takeoff_candidates(
+        &self,
+        sources: &[SourceId],
+        area: &BoundingBox,
+        rule: &CandidateRule,
+        limit: usize,
+    ) -> Result<Vec<TakeoffCandidate>, StoreError> {
+        let inner = self.lock();
+        let cells = inner.flights.takeoff_cells(area);
+        let sites: Vec<GeoPoint> = inner
+            .sites
+            .iter()
+            .filter(|(source, _)| sources.contains(source))
+            .flat_map(|(_, stored)| stored.sites.values())
+            .map(|site| site.position)
+            .chain(inner.pilot_sites.standing_positions())
+            .collect();
+        Ok(takeoff::candidates(cells, &sites, rule, limit))
     }
 
     async fn ranking(

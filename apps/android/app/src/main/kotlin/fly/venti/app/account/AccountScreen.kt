@@ -194,15 +194,14 @@ private fun SignInForm(
 
     SectionHeader(host(server))
     if (offersGoogle) {
-        // The pack's primary button with the core's words. Google's own
-        // sheet, with its branding, opens over the screen.
-        Button(
+        // Google's button, drawn to its branding guidelines, with the core's
+        // words. Google's own sheet opens over the screen.
+        GoogleButton(
+            google.continueWithGoogle,
             onClick = { scope.launch { account.signInWithGoogle(server, account.googleIdTokens(context, server)) } },
             enabled = !account.isWorking,
-            modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("account-google"),
-        ) {
-            Text(google.continueWithGoogle)
-        }
+            modifier = Modifier.fillMaxWidth().testTag("account-google"),
+        )
         if (!showsPassword) {
             Spacer(Modifier.height(VentiSpace.s2))
             TextButton(
@@ -613,13 +612,11 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> U
                         .semantics { contentType = ContentType.Password },
                 )
                 if (withGoogle != null) {
-                    TextButton(
+                    GoogleButton(
+                        google.continueWithGoogle,
                         onClick = withGoogle,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.fillMaxWidth().testTag("account-delete-google"),
-                    ) {
-                        Text(google.continueWithGoogle)
-                    }
+                    )
                 }
             }
         },

@@ -69,5 +69,14 @@ final class CablesTests: XCTestCase {
         XCTAssertEqual(CockpitPage.flight.next(hasTask: false), .instruments)
         XCTAssertEqual(CockpitPage.task.next(hasTask: true), .instruments)
         XCTAssertEqual(CockpitPage.map.next(hasTask: true), .flight)
+        // A swipe the other way goes back the same way round.
+        for hasTask in [true, false] {
+            for page in CockpitPage.all(hasTask: hasTask) {
+                XCTAssertEqual(page.next(hasTask: hasTask).previous(hasTask: hasTask), page)
+            }
+        }
+        XCTAssertEqual(CockpitPage.instruments.previous(hasTask: true), .task)
+        XCTAssertEqual(CockpitPage.instruments.previous(hasTask: false), .flight)
+        XCTAssertEqual(CockpitPage.all(hasTask: false), [.instruments, .map, .flight])
     }
 }

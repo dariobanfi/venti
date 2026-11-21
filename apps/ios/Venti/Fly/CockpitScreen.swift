@@ -1,7 +1,9 @@
 import SwiftUI
 import VentiCore
 
-/// The pages of the cockpit. "Next page" goes around them.
+/// The pages of the cockpit. A swipe sideways goes from one to the next,
+/// as an instrument's pages do, and a tap on the dots in the top line goes
+/// around them.
 enum CockpitPage: CaseIterable {
     /// The readings over the map: what the pilot flies by.
     case instruments
@@ -23,6 +25,21 @@ enum CockpitPage: CaseIterable {
         }
     }
 
+    /// The page before this one: the way back of `next`.
+    func previous(hasTask: Bool) -> CockpitPage {
+        switch self {
+        case .instruments: hasTask ? .task : .flight
+        case .map: .instruments
+        case .flight: .map
+        case .task: .flight
+        }
+    }
+
+    /// The pages there are, in their order.
+    static func all(hasTask: Bool) -> [CockpitPage] {
+        hasTask ? [.instruments, .map, .flight, .task] : [.instruments, .map, .flight]
+    }
+
     /// The page in a word, for a pilot who has the screen read out.
     var name: String {
         switch self {
@@ -36,16 +53,19 @@ enum CockpitPage: CaseIterable {
 
 /// The cockpit: what the pilot looks at in the air, in the design
 /// language's flight theme: a white ground and near-black ink whatever the
-/// iPhone is set to, one very large reading, four large ones and two
-/// buttons.
+/// iPhone is set to, one very large reading and four large ones, and no
+/// button that is not a reading: the screen is the readings'.
 ///
 /// It has three pages: the readings over the map, the map with the way to
-/// the place flown to, and the flight with what can be switched. Warnings
-/// stand at the top of every page. Nothing needs to be touched in flight:
+/// the place flown to, and the flight with what can be switched. A swipe
+/// sideways changes the page; the dots in the top line say which it is,
+/// and a tap on them goes on. "End", held, at the end of the top line ends
+/// the session. Warnings stand at the top of every page. Nothing needs to
+/// be touched in flight:
 /// while the core says the glider is circling in lift the readings change
 /// from cruise numbers to thermal numbers and the map zooms in.
 struct CockpitScreen: View {
-    /// Called when the pilot has held the button that ends the session.
+    /// Called when the pilot has held "End" in the top line.
     let onFinish: () -> Void
 
     @Environment(FlySession.self) private var fly
@@ -93,7 +113,11 @@ struct CockpitScreen: View {
         if let view = fly.view {
             VStack(spacing: 0) {
                 StatusLine(
-                    view: view, mode: fly.mode, varioName: fly.vario.connectedName, mapIsKept: mapIsKept
+                    view: view, mode: fly.mode, varioName: fly.vario.connectedName, mapIsKept: mapIsKept,
+                    pages: CockpitPage.all(hasTask: hasTask), page: page,
+                    nextPage: { page = page.next(hasTask: hasTask) },
+                    previousPage: { page = page.previous(hasTask: hasTask) },
+                    end: onFinish
                 )
                 alerts(view)
                 switch page {
@@ -143,11 +167,22 @@ struct CockpitScreen: View {
                     }
                     MapReadings(view: view)
                 }
-                foot
-                    // Locked, the lock stands in the buttons' place.
-                    .opacity(isLocked ? 0 : 1)
             }
             .background(.venti(.bg))
+            // A swipe sideways, anywhere, changes the page: to the left
+            // the next, to the right the one before, as an instrument's
+            // pages go. One more up or down than sideways is not one.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: VentiSpace.s6)
+                    .onEnded { drag in
+                        guard !isLocked else { return }
+                        let sideways = drag.translation.width
+                        guard abs(sideways) >= VentiSpace.s7,
+                            abs(sideways) > 1.5 * abs(drag.translation.height)
+                        else { return }
+                        page = sideways < 0 ? page.next(hasTask: hasTask) : page.previous(hasTask: hasTask)
+                    }
+            )
             // With the first position, and a network, the airspace around
             // it is fetched if what the iPhone keeps is old or from
             // elsewhere. A change reaches the running session by itself.
@@ -169,8 +204,9 @@ struct CockpitScreen: View {
                     page = .instruments
                 }
             }
-            // Locked: a clear sheet over everything takes the touches, and
-            // a lock at the foot of the screen opens it when held. The
+            // Locked: a clear sheet over everything takes the touches,
+            // swipes and "End" among them, and a lock at the foot of the
+            // screen opens it when held. The
             // cockpit goes on showing and sounding as before.
             .overlay {
                 if isLocked {
@@ -503,23 +539,9 @@ struct CockpitScreen: View {
             }
     }
 
-    /// The two buttons of the cockpit, in the same place on every page.
-    private var foot: some View {
-        HStack(spacing: VentiSpace.s3) {
-            Button {
-                page = page.next(hasTask: fly.view?.taskReadings != nil)
-            } label: {
-                Text("Next page")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.venti(.quiet))
-            .accessibilityValue(page.name)
-            .accessibilityIdentifier("cockpit-next-page")
-
-            HoldToEnd(action: onFinish)
-        }
-        .padding(.horizontal, VentiSpace.s4)
-        .padding(.vertical, VentiSpace.s3)
+    /// Whether a task is flown, and so has its page.
+    private var hasTask: Bool {
+        fly.view?.taskReadings != nil
     }
 
     private var isReplay: Bool {
@@ -621,11 +643,12 @@ private struct CockpitAerialButton: View {
     }
 }
 
-/// The button that ends the session: held for a second, so that a glove, a
-/// line or a drop of rain ends nothing. It fills while the finger stays. A
-/// pilot who has the screen read out ends with the usual double tap, which
-/// is deliberate enough.
-private struct HoldToEnd: View {
+/// "End" at the end of the top line: the session ends when it is held for
+/// a second, so that a glove, a line or a drop of rain ends nothing. It
+/// fills while the finger stays. A pilot who has the screen read out ends
+/// with the usual double tap, which is deliberate enough. The landing ends
+/// a flight by itself; this is for the pilot who ends it first.
+private struct EndControl: View {
     let action: () -> Void
 
     /// How long the finger has to stay, in seconds.
@@ -636,11 +659,10 @@ private struct HoldToEnd: View {
     @State private var ended = 0
 
     var body: some View {
-        Text("Hold to end")
-            .font(.ventiType(.heading))
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, minHeight: VentiSize.touchInFlight)
+        Text("End")
             .foregroundStyle(.venti(.onPrimary))
+            .padding(.horizontal, VentiSpace.s3)
+            .padding(.vertical, VentiSpace.s1)
             .background {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -656,8 +678,12 @@ private struct HoldToEnd: View {
                 }
                 .clipShape(.capsule)
             }
-            .contentShape(.capsule)
-            .onLongPressGesture(minimumDuration: Self.hold, maximumDistance: 60) {
+            // A finger has more room than the word: the touch reaches past
+            // it without making the line taller.
+            .padding(VentiSpace.s3)
+            .contentShape(.rect)
+            .padding(-VentiSpace.s3)
+            .onLongPressGesture(minimumDuration: Self.hold, maximumDistance: VentiSpace.s7) {
                 isHeld = false
                 ended += 1
                 action()
@@ -666,11 +692,53 @@ private struct HoldToEnd: View {
             }
             .sensoryFeedback(.success, trigger: ended)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Hold to end")
-            .accessibilityHint("Ends the session")
+            .accessibilityLabel("End")
+            .accessibilityHint("Hold to end the session")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(.default, action)
             .accessibilityIdentifier("cockpit-end")
+    }
+}
+
+/// The cockpit's pages as dots in the top line, the one in front drawn
+/// long: the flight theme has one ink, so the page in front is told by its
+/// shape, not by a lighter colour of the others. A tap goes to the next
+/// page, for a gloved thumb that would rather not swipe; a pilot who has
+/// the screen read out swipes up or down on it.
+private struct PageDots: View {
+    let pages: [CockpitPage]
+    let page: CockpitPage
+    let next: () -> Void
+    let previous: () -> Void
+
+    var body: some View {
+        HStack(spacing: VentiSpace.s1) {
+            ForEach(pages, id: \.self) { each in
+                Capsule()
+                    .fill(.venti(.text))
+                    .frame(width: each == page ? VentiSpace.s5 : VentiSpace.s2, height: VentiSpace.s2)
+            }
+        }
+        // The touch reaches past the dots, which are small, without making
+        // the line taller.
+        .padding(VentiSpace.s3)
+        .contentShape(.rect)
+        .padding(-VentiSpace.s3)
+        .onTapGesture(perform: next)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page")
+        .accessibilityValue("\(page.name), \((pages.firstIndex(of: page) ?? 0) + 1) of \(pages.count)")
+        .accessibilityHint("Goes to the next page")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, next)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: next()
+            case .decrement: previous()
+            @unknown default: break
+            }
+        }
+        .accessibilityIdentifier("cockpit-pages")
     }
 }
 
@@ -818,8 +886,9 @@ private struct ReplaySpeedMenu: View {
     }
 }
 
-/// The line at the top: is it recording, how long, and are the sensors
-/// there. What is lost is said in words: "No GPS".
+/// The line at the top: is it recording, how long, which page is in
+/// front, and are the sensors there, with "End" at its end. What is lost
+/// is said in words: "No GPS".
 private struct StatusLine: View {
     let view: CockpitView
     let mode: FlySession.Mode?
@@ -827,6 +896,13 @@ private struct StatusLine: View {
     /// Whether the map is drawn from a region kept on the iPhone, and so
     /// stays when the network goes.
     var mapIsKept = false
+    /// The cockpit's pages, and the one in front.
+    let pages: [CockpitPage]
+    let page: CockpitPage
+    let nextPage: () -> Void
+    let previousPage: () -> Void
+    /// Ends the session, once "End" has been held.
+    let end: () -> Void
 
     var body: some View {
         HStack(spacing: VentiSpace.s2) {
@@ -847,6 +923,8 @@ private struct StatusLine: View {
                     .monospacedDigit()
             }
             Spacer(minLength: VentiSpace.s2)
+            PageDots(pages: pages, page: page, next: nextPage, previous: previousPage)
+            Spacer(minLength: VentiSpace.s2)
             if positionIsLost {
                 Label("No GPS", systemImage: "location.slash.fill")
                     .foregroundStyle(.venti(.danger))
@@ -859,6 +937,9 @@ private struct StatusLine: View {
             }
             Text(varioText)
                 .foregroundStyle(.venti(varioIsLost ? .danger : .text))
+                // The words of the vario give way first in a narrow line.
+                .layoutPriority(-1)
+            EndControl(action: end)
         }
         .font(.ventiType(.label))
         .lineLimit(1)

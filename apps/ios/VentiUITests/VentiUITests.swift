@@ -75,17 +75,38 @@ final class VentiUITests: XCTestCase {
         }
     }
 
-    /// Turns the cockpit to its next page: from the readings to the map,
-    /// to the flight with what can be switched, and around.
+    /// Turns the cockpit to its next page, with a tap on the dots in its
+    /// top line: from the readings to the map, to the flight with what can
+    /// be switched, and around.
     private func nextPage(in app: XCUIApplication) {
-        let next = element("cockpit-next-page", in: app)
-        XCTAssertTrue(next.waitForExistence(timeout: 15))
-        next.tap()
+        let dots = element("cockpit-pages", in: app)
+        XCTAssertTrue(dots.waitForExistence(timeout: 15))
+        dots.tap()
         usleep(500_000)
     }
 
-    /// Ends the session in the cockpit: its button is held, and nothing
-    /// asks again.
+    /// Turns the cockpit's page as a pilot does in flight: a swipe across
+    /// the middle of the screen, which on every page is the map. To the
+    /// left the next page, to the right the one before. Says which page is
+    /// then in front, as the dots say it.
+    @discardableResult
+    private func swipePage(toNext: Bool, in app: XCUIApplication) -> String {
+        let dots = element("cockpit-pages", in: app)
+        XCTAssertTrue(dots.waitForExistence(timeout: 15))
+        let before = dots.value as? String
+        if toNext {
+            app.swipeLeft()
+        } else {
+            app.swipeRight()
+        }
+        usleep(500_000)
+        let after = dots.value as? String ?? ""
+        XCTAssertNotEqual(after, before, "A swipe sideways turns the page.")
+        return after
+    }
+
+    /// Ends the session in the cockpit: "End" in its top line is held, and
+    /// nothing asks again.
     private func endTheCockpit(in app: XCUIApplication) {
         let end = element("cockpit-end", in: app)
         XCTAssertTrue(end.waitForExistence(timeout: 10))
@@ -513,8 +534,11 @@ final class VentiUITests: XCTestCase {
         // The second page: the map as large as it gets, and under it the
         // way to the place flown to. The cockpit shows the way back to the
         // take-off until the pilot chooses a place; the waypoints are
-        // listed nearest first.
-        nextPage(in: app)
+        // listed nearest first. Pages are turned by a swipe: there and back
+        // and there again.
+        XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Map"))
+        XCTAssertTrue(swipePage(toNext: false, in: app).hasPrefix("Instruments"))
+        XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Map"))
         let strip = element("target-strip", in: app)
         XCTAssertTrue(valued(containing: "Take-off", in: app).exists)
         strip.tap()
@@ -566,7 +590,7 @@ final class VentiUITests: XCTestCase {
         }
 
         // The third page: how the flight stands, and what can be switched.
-        nextPage(in: app)
+        XCTAssertTrue(swipePage(toNext: true, in: app).hasPrefix("Flight"))
         let lock = element("cockpit-lock", in: app)
         XCTAssertTrue(lock.waitForExistence(timeout: 10))
         XCTAssertTrue(element("Flight time", in: app).exists)
@@ -574,15 +598,19 @@ final class VentiUITests: XCTestCase {
         sleep(1)
         keepScreenshot("fly-5d-flight-page")
 
-        // Locked, the screen answers no touch: a press where the button
-        // for the next page is leaves the page where it is. Holding the
+        // Locked, the screen answers no touch: neither a tap on the dots
+        // nor a swipe turns the page, and "End" ends nothing. Holding the
         // lock opens it.
         lock.tap()
         let unlock = element("cockpit-unlock", in: app)
         XCTAssertTrue(unlock.waitForExistence(timeout: 10))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.92)).tap()
+        element("cockpit-pages", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.swipeLeft()
+        element("cockpit-end", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1.6)
         sleep(1)
         XCTAssertTrue(lock.exists)
+        XCTAssertTrue((element("cockpit-pages", in: app).value as? String)?.hasPrefix("Flight") == true)
         keepScreenshot("fly-5e-locked")
         unlock.press(forDuration: 1.6)
         sleep(1)

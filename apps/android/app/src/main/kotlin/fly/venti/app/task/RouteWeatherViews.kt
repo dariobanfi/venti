@@ -218,7 +218,7 @@ fun RouteWeatherSection(
 
 /** A setting with a button either side of it to make it less or more, by one step. */
 @Composable
-private fun Stepper(title: String, value: String, onStep: (Int) -> Unit) {
+internal fun Stepper(title: String, value: String, onStep: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.text, modifier = Modifier.weight(1f))
         IconButton(onClick = { onStep(-1) }) {

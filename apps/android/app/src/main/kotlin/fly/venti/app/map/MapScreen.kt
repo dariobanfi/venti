@@ -117,6 +117,8 @@ import fly.venti.core.Coordinate
 import fly.venti.core.SiteView
 import fly.venti.core.WindStation
 import kotlinx.coroutines.CoroutineScope
+import fly.venti.app.terrain.TerrainModel
+import androidx.compose.runtime.DisposableEffect
 
 /**
  * The map tab: terrain, live wind from the stations of the pilot's Venti
@@ -157,6 +159,8 @@ fun MapScreen(
     siteEdit: SiteEditModel? = null,
     /** Leads to the account, for a pilot who must sign in to add a site. */
     onSignIn: () -> Unit = {},
+    /** The ground, for what a glide reaches from a place pressed; `null` for none. */
+    terrain: TerrainModel? = null,
 ) {
     val context = LocalContext.current
     // The layers the chips switch, as the pilot left them.
@@ -228,6 +232,15 @@ fun MapScreen(
     var chosenCandidate by remember { mutableStateOf<SiteCandidateView?>(null) }
     var candidateOffer by remember { mutableStateOf<CandidateOffer?>(null) }
     val map = remember { OverviewMap() }
+    // What a glide reaches from a place the pilot pressed: the core asked
+    // again whenever a setting of its card changes.
+    val glideReach = remember(terrain) {
+        GlideReachModel(ground = terrain?.let { ground -> { area -> ground.covering(area) } })
+    }
+    DisposableEffect(glideReach) { onDispose { glideReach.close() } }
+    LaunchedEffect(glideReach, glideReach.place, glideReach.glide, glideReach.startHeightM, glideReach.wind) {
+        glideReach.ask()
+    }
     map.onFollowingEnded = { isFollowing = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
     map.onRegion = { shown ->
@@ -408,6 +421,7 @@ fun MapScreen(
                 map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
                 map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
+                map.showReach(glideReach.answer?.takeIf { glideReach.place != null }, glideReach.place)
                 map.follow(isFollowing)
             },
         )
@@ -501,6 +515,13 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.BottomStart),
             verticalArrangement = Arrangement.spacedBy(VentiSpace.s2),
         ) {
+            if (glideReach.place != null) {
+                GlideReachCard(
+                    glideReach,
+                    onClear = glideReach::clear,
+                    modifier = Modifier.padding(start = VentiSpace.s4, end = VentiSize.touch + VentiSpace.s4 * 2),
+                )
+            }
             if (hasSites && filtered.isOn) {
                 // What the pilot asks of the sites and what that leaves,
                 // while a filter or the places from pilots are on: a tap
@@ -789,19 +810,26 @@ fun MapScreen(
             place,
             wind,
             onDismiss = { pressed = null },
-            head = adding?.let { offered ->
-                {
-                    AddSiteEntry(
-                        adding = offered,
-                        onAdd = {
-                            pressed = null
-                            siteForm = SiteFormDraft.new(place, offered)
-                        },
-                        onSignIn = {
-                            pressed = null
-                            onSignIn()
-                        },
-                    )
+            head = {
+                Column(verticalArrangement = Arrangement.spacedBy(VentiSpace.s2)) {
+                    // What a glide reaches from the place: the area on the map, and its card under it.
+                    GlideReachEntry(onOpen = {
+                        pressed = null
+                        glideReach.show(place, preferences?.glideRatio ?: Preferences.DEFAULT_GLIDE_RATIO)
+                    })
+                    adding?.let { offered ->
+                        AddSiteEntry(
+                            adding = offered,
+                            onAdd = {
+                                pressed = null
+                                siteForm = SiteFormDraft.new(place, offered)
+                            },
+                            onSignIn = {
+                                pressed = null
+                                onSignIn()
+                            },
+                        )
+                    }
                 }
             },
         )

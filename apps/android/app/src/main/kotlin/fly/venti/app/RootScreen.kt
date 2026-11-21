@@ -467,6 +467,7 @@ private fun Sections(
                     radar = session.radar,
                     siteEdit = session.siteEdit,
                     onSignIn = { navigation.showAccount() },
+                    terrain = session.terrain,
                 )
             }
             AppTab.Fly -> when (navigation.flyRoute) {

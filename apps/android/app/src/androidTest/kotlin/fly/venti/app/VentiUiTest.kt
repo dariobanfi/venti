@@ -3012,6 +3012,41 @@ class VentiUiTest {
     }
 
     /**
+     * What a glide reaches from the Wallberg's top, over the ground of the
+     * region that comes with the app: a long press there, the entry over
+     * the forecast, the area on the map and the core's words on the card
+     * under it; "Clear" takes it away. Skipped without a server, which the
+     * long press needs for the forecast it opens.
+     */
+    private fun lookAtWhatAGlideReaches(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        val scenario = checkNotNull(app)
+        waitFor(described("Show my position"))
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.6642, lon = 11.7967, zoom = 11.0))
+        letTheMapDraw(2)
+        TestDevice.longPress(checkNotNull(TestDevice.onScreen(scenario, lat = 47.6642, lon = 11.7967)))
+        waitFor(hasTestTag("glide-reach-here"))
+        tap(hasTestTag("glide-reach-here"))
+        waitFor(hasTestTag("glide-reach-words") and hasText("From ", substring = true))
+        assertTrue(exists(hasTestTag("glide-reach-note")))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "glide-reach-area") ?: 0) > 0
+        }
+        letTheMapDraw(2)
+        keepScreenshot("$prefix-glide-reach")
+        tap(hasTestTag("glide-reach-clear"))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("glide-reach-card")) }
+    }
+
+    @Test
+    fun whatAGlideReachesFromAPlaceOnTheMap() = lookAtWhatAGlideReaches("light", dark = false)
+
+    @Test
+    fun whatAGlideReachesInDarkAppearance() = lookAtWhatAGlideReaches("dark", dark = true)
+
+    /**
      * Choosing among the sites: the filter beside the list's button, a
      * wind chosen, what the core says it leaves, the take-offs whose source
      * names no wind dimmed on the map and apart in the list, and a site

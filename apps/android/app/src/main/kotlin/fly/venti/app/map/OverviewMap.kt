@@ -22,6 +22,7 @@ import fly.venti.app.wind.WindSymbols
 import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
+import fly.venti.core.GlideReach
 import fly.venti.core.LiveGlider
 import fly.venti.core.SiteCandidateView
 import fly.venti.core.SiteView
@@ -51,6 +52,8 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.MultiLineString
 import org.maplibre.geojson.Point
+import org.maplibre.geojson.Polygon
+import app.venti.design.VentiLight
 import kotlin.math.hypot
 
 /**
@@ -135,6 +138,14 @@ class OverviewMap : MapContent {
     private var covered = Covered()
     private var isFollowing = false
 
+    /** What a glide reaches from a place the pilot chose, and the one drawn; compared by identity. */
+    private var reach: GlideReach? = null
+    private var drawnReach: GlideReach? = null
+
+    /** Where that glide starts, and the place whose area the map last moved to show, so that it moves once for each place. */
+    private var reachFrom: Coordinate? = null
+    private var reachShownAt: Coordinate? = null
+
     private var map: MapLibreMap? = null
     private var style: Style? = null
     private var view: MapView? = null
@@ -209,6 +220,7 @@ class OverviewMap : MapContent {
         // the flights over it, then the flying sites, the wind above them,
         // and other pilots above everything.
         AirspaceLayers.add(style)
+        addReach(style)
         addTracks(style)
         addFollowed(style)
         addSites(style, view)
@@ -227,6 +239,8 @@ class OverviewMap : MapContent {
         drawGliders()
         drawFollowed()
         drawAirspace()
+        drawnReach = null
+        drawReach()
         drawSquares()
         drawnHourShapes = null
         drawHours()
@@ -423,6 +437,79 @@ class OverviewMap : MapContent {
         if (airspace == drawnAirspace) return
         drawnAirspace = airspace
         AirspaceLayers.show(airspace, style)
+    }
+
+    /**
+     * What a glide reaches from the place the pilot chose, or `null` to
+     * take it away. The map moves once for each place to show all of the
+     * area above the card that lies over its lower half.
+     */
+    fun showReach(reach: GlideReach?, from: Coordinate?) {
+        this.reach = reach
+        reachFrom = from.takeIf { reach != null }
+        if (reach == null) reachShownAt = null
+        drawReach()
+    }
+
+    /**
+     * The layers of what a glide reaches, under the flights: the area in
+     * the pack's colour for "good" at an airspace's low opacity, its edge
+     * in that colour with the track's dark casing, dashed where the ground
+     * loaded ends, and the start as the map's smallest dot.
+     */
+    private fun addReach(style: Style) {
+        style.addSource(GeoJsonSource(REACH_AREA))
+        style.addSource(GeoJsonSource(REACH_EDGE))
+        style.addSource(GeoJsonSource(REACH_DASHED))
+        style.addSource(GeoJsonSource(REACH_START))
+        style.addLayer(
+            FillLayer(REACH_AREA, REACH_AREA).withProperties(
+                PropertyFactory.fillColor(REACH_COLOUR),
+                PropertyFactory.fillOpacity(REACH_FILL_OPACITY),
+            ),
+        )
+        style.addLayer(MapSetup.line("$REACH_EDGE-casing", REACH_EDGE, MapSetup.ink, REACH_LINE + REACH_CASING))
+        style.addLayer(MapSetup.line(REACH_EDGE, REACH_EDGE, REACH_COLOUR, REACH_LINE))
+        style.addLayer(
+            MapSetup.line(REACH_DASHED, REACH_DASHED, REACH_COLOUR, REACH_LINE)
+                .withProperties(PropertyFactory.lineDasharray(arrayOf(3f, 2f)), PropertyFactory.lineCap(Property.LINE_CAP_BUTT)),
+        )
+        style.addLayer(
+            CircleLayer(REACH_START, REACH_START).withProperties(
+                PropertyFactory.circleRadius(CANDIDATE_RADIUS),
+                PropertyFactory.circleColor(MapSetup.ink),
+                PropertyFactory.circleStrokeColor(MapSetup.halo),
+                PropertyFactory.circleStrokeWidth(CANDIDATE_RING),
+            ),
+        )
+    }
+
+    private fun drawReach() {
+        val style = style ?: return
+        if (reach === drawnReach) return
+        drawnReach = reach
+        val shown = reach
+        val outline = shown?.outline.orEmpty()
+        val edges = GlideReachWords.edges(shown?.rays.orEmpty())
+        fun set(source: String, features: List<Feature>) =
+            style.getSourceAs<GeoJsonSource>(source)?.setGeoJson(FeatureCollection.fromFeatures(features))
+        set(
+            REACH_AREA,
+            if (outline.size >= 4) listOf(Feature.fromGeometry(Polygon.fromLngLats(listOf(outline.map { it.point })))) else emptyList(),
+        )
+        set(REACH_EDGE, edges.solid.filter { it.size >= 2 }.map { Feature.fromGeometry(it.lineString()) })
+        set(REACH_DASHED, edges.dashed.filter { it.size >= 2 }.map { Feature.fromGeometry(it.lineString()) })
+        set(REACH_START, listOfNotNull(reachFrom?.let { Feature.fromGeometry(it.point) }))
+        // Once for each place, when its area first comes.
+        val from = reachFrom ?: return
+        val box = box(listOf(outline)) ?: return
+        if (from == reachShownAt) return
+        reachShownAt = from
+        val map = map ?: return
+        val view = view ?: return
+        view.post {
+            if (!view.isDestroyed) MapSetup.show(box, map, view, Covered(top = covered.top, bottom = view.height / 2))
+        }
     }
 
     /** The layers that draw the flights, empty at first. */
@@ -786,6 +873,18 @@ class OverviewMap : MapContent {
         private const val LIVE_TRACK = "live-track"
         private const val CANDIDATES = "site-candidates"
         private const val CANDIDATE_INDEX = "index"
+        private const val REACH_AREA = "glide-reach-area"
+        private const val REACH_EDGE = "glide-reach-edge"
+        private const val REACH_DASHED = "glide-reach-dashed"
+        private const val REACH_START = "glide-reach-start"
+
+        /** The area a glide reaches: the pack's "good", as the cockpit's own reach, under an airspace's fill opacity. */
+        private val REACH_COLOUR = VentiLight.good.toArgb()
+        private const val REACH_FILL_OPACITY = 0.14f
+
+        /** The edge's width and its casing, about 1.5 px either side, as a track has. */
+        private const val REACH_LINE = 2f
+        private const val REACH_CASING = 3f
 
         /** A calm station's dot, the map's smallest mark, and the width of the ring round it. */
         private const val CANDIDATE_RADIUS = 4.5f

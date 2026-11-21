@@ -2053,6 +2053,66 @@ final class VentiUITests: XCTestCase {
         keepScreenshot("assistant-2-answer")
     }
 
+    /// Others in the air, from the Open Glider Network, beside Venti's own
+    /// pilots: the development server's made-up aircraft over the
+    /// Tegernsee (paragliders, a hang glider, a glider, a tow plane), drawn
+    /// in the muted ink, and a tap on the paraglider at the map's middle
+    /// opens its sheet with the core's line and the network's credit. Light, then dark. Nothing else lies
+    /// over the place tapped: the wind, the airspace and the sites are
+    /// off, and switched on again at the end.
+    func testTheMapShowsOthersInTheAirFromTheGliderNetwork() throws {
+        guard let server = ProcessInfo.processInfo.environment["VENTI_SERVER"], !server.isEmpty else {
+            throw XCTSkip("No Venti server was named in VENTI_SERVER.")
+        }
+        let quiet = ["layer-wind", "layer-airspace", "layer-sites"]
+        for dark in [false, true] {
+            let app = launch(
+                bundledMap: true, dark: dark, extra: ["--server", server, "--map-at", "47.6642,11.7967,11"]
+            )
+            XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 90))
+            for layer in quiet {
+                setLayer(layer, on: false, in: app)
+            }
+            setLayer("layer-pilots", on: true, in: app)
+
+            // The count of the Pilots layer, in the core's words, and the
+            // network's credit with the map's credits.
+            let pilots = app.buttons["Pilots in the air"]
+            XCTAssertTrue(pilots.waitForExistence(timeout: 60))
+            let counted = NSPredicate(format: "value CONTAINS 'others in the air'")
+            expectation(for: counted, evaluatedWith: pilots)
+            waitForExpectations(timeout: 30)
+            XCTAssertTrue(labelled(containing: "Open Glider Network", in: app).waitForExistence(timeout: 15))
+            sleep(3)
+            keepScreenshot(dark ? "others-3-map-dark" : "others-1-map")
+
+            // The paraglider at the map's middle, which lies where the
+            // map's insets put it, some 11 points above the window's. Not
+            // the hang glider: the label of Venti's landed demo glider
+            // lies beside it, and Venti's pilots are on top for a tap.
+            let middle = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let line = element("other-line", in: app)
+            for nudge in [0.0, -8, 8] where !line.exists {
+                middle.withOffset(CGVector(dx: 0, dy: -11 + nudge)).tap()
+                _ = line.waitForExistence(timeout: 4)
+            }
+            XCTAssertTrue(line.waitForExistence(timeout: 5))
+            XCTAssertEqual(line.label, "Paraglider at 2,140 m, climbing 1.8 m/s, 20 s ago")
+            XCTAssertEqual(element("other-name", in: app).label, "WB, Paraglider")
+            XCTAssertTrue(element("other-age", in: app).exists)
+            XCTAssertTrue(element("other-credit", in: app).exists)
+            XCTAssertTrue(app.navigationBars["Paraglider"].exists)
+            sleep(1)
+            keepScreenshot(dark ? "others-4-sheet-dark" : "others-2-sheet")
+            app.buttons["Done"].tap()
+            XCTAssertTrue(pilots.waitForExistence(timeout: 15))
+            for layer in quiet {
+                setLayer(layer, on: true, in: app)
+            }
+            app.terminate()
+        }
+    }
+
     /// Live wind, from a Venti server running on the same machine in its
     /// development mode: six stations as they were on one evening. The CI
     /// workflow starts the server and names it; without one the test is

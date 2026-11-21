@@ -61,6 +61,11 @@ enum Palette {
     /// was heard of for a while.
     static var quietOnMap: UIColor { UIColor(VentiTheme.light.borderStrong) }
 
+    /// An aircraft another network hears (the Open Glider Network): the
+    /// muted ink, darker than what has gone quiet and not the green of
+    /// Venti's own pilots, so that the two are told apart at a glance.
+    static var otherOnMap: UIColor { UIColor(VentiTheme.light.textMuted) }
+
     /// The pilot's own glider on the map: cream with a dark ring, the
     /// pairing of the dot in the logo (`--map-own-position` and its ring).
     static var ownPositionOnMap: UIColor { UIColor(VentiBrand.cream) }

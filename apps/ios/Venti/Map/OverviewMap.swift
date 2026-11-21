@@ -22,6 +22,9 @@ struct OverviewMap: UIViewRepresentable {
     var candidates: [SiteCandidateView] = []
     /// Other pilots in the air, to draw.
     var gliders: [LiveGlider] = []
+    /// The aircraft other networks hear, to draw apart from Venti's
+    /// pilots: each network's, as the core's layer holds them.
+    var others: [LiveOthersNetwork] = []
     /// Where the pilot's groups plan to fly today and tomorrow, to mark.
     var plans: [GroupsModel.Pin] = []
     /// The track of the pilot whose flight is being followed, to draw.
@@ -42,6 +45,12 @@ struct OverviewMap: UIViewRepresentable {
     /// Called with a live track's identifier when the pilot taps its
     /// glider.
     var onGlider: (String) -> Void = { _ in }
+    /// Called with an aircraft's identifier when the pilot taps one of
+    /// another network.
+    var onOther: (String) -> Void = { _ in }
+    /// Called with the map's zoom whenever the part in view has changed,
+    /// just before `onRegion`.
+    var onZoom: (Double) -> Void = { _ in }
     /// Called with a plan's identifier when the pilot taps its mark.
     var onPlan: (String) -> Void = { _ in }
     /// Called with the place under the finger after a long press on the
@@ -123,6 +132,8 @@ struct OverviewMap: UIViewRepresentable {
             }
         }
         coordinator.onGlider = onGlider
+        coordinator.onOther = onOther
+        coordinator.onZoom = onZoom
         coordinator.onPlan = onPlan
         coordinator.onPlace = onPlace
         coordinator.onSquare = onSquare
@@ -136,6 +147,7 @@ struct OverviewMap: UIViewRepresentable {
         coordinator.show(sites, unsaid: unsaidSites, on: map)
         coordinator.show(candidates, on: map)
         coordinator.show(gliders, on: map)
+        coordinator.showOthers(others, on: map)
         coordinator.showFollowed(followed, on: map)
         coordinator.show(outlines, on: map)
         coordinator.show(stations, on: map)
@@ -156,6 +168,8 @@ struct OverviewMap: UIViewRepresentable {
         var onSite: (String) -> Void = { _ in }
         var onCandidate: (String) -> Void = { _ in }
         var onGlider: (String) -> Void = { _ in }
+        var onOther: (String) -> Void = { _ in }
+        var onZoom: (Double) -> Void = { _ in }
         var onPlan: (String) -> Void = { _ in }
         private var plans: [GroupsModel.Pin] = []
         private var drawnPlans: [GroupsModel.Pin]?
@@ -183,6 +197,8 @@ struct OverviewMap: UIViewRepresentable {
         private var isForecastDrawn = false
         private var gliders: [LiveGlider] = []
         private var drawnGliders: [LiveGlider]?
+        private var others: [LiveOthersNetwork] = []
+        private var drawnOthers: [LiveOthersNetwork]?
         private var followed: [TrailPointView] = []
         private var drawnFollowed: [TrailPointView]?
         private var outlines: [[Coordinate]] = []
@@ -209,12 +225,18 @@ struct OverviewMap: UIViewRepresentable {
         private static let sites = "flying-sites"
         private static let candidates = "site-candidates"
         private static let live = "live-gliders"
+        private static let others = "live-others"
         private static let plans = "plan-pins"
         private static let liveTrack = "live-track"
 
         func show(_ gliders: [LiveGlider], on map: MLNMapView) {
             self.gliders = gliders
             drawGliders(on: map)
+        }
+
+        func showOthers(_ others: [LiveOthersNetwork], on map: MLNMapView) {
+            self.others = others
+            drawOthers(on: map)
         }
 
         func show(_ plans: [GroupsModel.Pin], on map: MLNMapView) {
@@ -388,6 +410,7 @@ struct OverviewMap: UIViewRepresentable {
             drawSites(on: mapView)
             drawCandidates(on: mapView)
             drawPlans(on: mapView)
+            drawOthers(on: mapView)
             drawGliders(on: mapView)
             drawFollowed(on: mapView)
             drawAirspace(on: mapView)
@@ -448,10 +471,11 @@ struct OverviewMap: UIViewRepresentable {
             let point = recognizer.location(in: map)
             let reach = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
             // Gliders lie over the wind and the wind over the sites: what
-            // is on top wins where several are under the finger.
+            // is on top wins where several are under the finger. Venti's
+            // pilots lie over the other networks' aircraft.
             for (layer, open) in [
-                (Self.live, onGlider), (Self.plans, onPlan), (Self.wind, onStation), (Self.sites, onSite),
-                (Self.candidates, onCandidate),
+                (Self.live, onGlider), (Self.others, onOther), (Self.plans, onPlan), (Self.wind, onStation),
+                (Self.sites, onSite), (Self.candidates, onCandidate),
             ] {
                 let hits = map.visibleFeatures(in: reach, styleLayerIdentifiers: [layer])
                 let nearest = hits.min { first, second in
@@ -504,7 +528,9 @@ struct OverviewMap: UIViewRepresentable {
                 south: visible.sw.latitude, west: visible.sw.longitude,
                 north: visible.ne.latitude, east: visible.ne.longitude
             )
+            let zoom = map.zoomLevel
             Task { @MainActor in
+                onZoom(zoom)
                 onRegion(region)
             }
         }
@@ -631,7 +657,9 @@ struct OverviewMap: UIViewRepresentable {
 
             // Other pilots in the air, above everything: a wing turned the
             // way it flies, with the pilot's name and altitude where there
-            // is room. Gliders are never left out for want of room.
+            // is room. Gliders are never left out for want of room. The
+            // aircraft other networks hear lie under Venti's own pilots.
+            LiveLayers.add(to: style, named: Self.others)
             LiveLayers.add(to: style, named: Self.live)
         }
 
@@ -643,6 +671,16 @@ struct OverviewMap: UIViewRepresentable {
             else { return }
             drawnGliders = gliders
             source.shape = MLNShapeCollectionFeature(shapes: gliders.map(Self.gliderFeature))
+        }
+
+        /// Draws the other networks' aircraft, once the style is there and
+        /// only when they have changed.
+        private func drawOthers(on map: MLNMapView) {
+            guard isStyleLoaded, others != drawnOthers,
+                  let source = map.style?.source(withIdentifier: Self.others) as? MLNShapeSource
+            else { return }
+            drawnOthers = others
+            source.shape = MLNShapeCollectionFeature(shapes: LiveLayers.features(for: others))
         }
 
         /// Draws the followed flight, and when it first appears moves the

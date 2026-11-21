@@ -9,7 +9,8 @@ import VentiCore
 @MainActor
 enum LiveLayers {
     /// Adds a source and a symbol layer for gliders to a style, both
-    /// under one name, with nothing in them yet.
+    /// under one name, with nothing in them yet. The aircraft of other
+    /// networks go into such a layer of their own, under Venti's pilots.
     static func add(to style: MLNStyle, named name: String) {
         for picture in LiveSymbols.all {
             style.setImage(picture.image, forName: picture.name)
@@ -45,6 +46,27 @@ enum LiveLayers {
             "label": glider.label,
         ]
         return feature
+    }
+
+    /// An aircraft of another network as the layer reads it: the wing in
+    /// the colour of the other networks, turned the way it moves, with
+    /// the core's short label.
+    static func feature(for aircraft: OtherAircraftView) -> MLNPointFeature {
+        let feature = MLNPointFeature()
+        feature.coordinate = aircraft.position.location
+        feature.attributes = [
+            "id": aircraft.id,
+            "picture": LiveSymbols.other,
+            "heading": aircraft.courseDeg ?? 0,
+            "label": aircraft.label,
+        ]
+        return feature
+    }
+
+    /// The aircraft of every network a layer holds, as the layer reads
+    /// them.
+    static func features(for networks: [LiveOthersNetwork]) -> [MLNPointFeature] {
+        networks.flatMap(\.aircraft).map { feature(for: $0) }
     }
 
     /// Puts gliders into the source of that name.

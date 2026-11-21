@@ -117,6 +117,79 @@ final class LiveTests: XCTestCase {
         XCTAssertTrue(live.gliders.isEmpty)
     }
 
+    func testTheOtherNetworksAircraftAreDrawnBesideVentisPilots() async throws {
+        let asked = Asked()
+        let live = LiveModel { url in
+            await asked.add(url)
+            let answer = url.path.hasSuffix("/others") ? LiveAnswers.others : LiveAnswers.inTheAir
+            return (200, Data(answer.utf8))
+        }
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        live.server = { server }
+
+        await live.load(Bounds(south: 47.55, west: 11.6, north: 47.85, east: 12.0), from: server)
+        let addresses = await asked.addresses.map(\.absoluteString)
+        XCTAssertEqual(
+            addresses,
+            [
+                "http://127.0.0.1:8080/v1/live?bbox=11.6,47.55,12,47.85",
+                "http://127.0.0.1:8080/v1/live/others?bbox=11.6,47.55,12,47.85",
+            ]
+        )
+        // Far out, only the paraglider; the glider from zoom 10 on. Both
+        // lists side by side, each network with its credit, counted in
+        // the core's words.
+        XCTAssertEqual(live.layer.venti.count, 2)
+        XCTAssertEqual(live.layer.others.first?.aircraft.map(\.kindWords), ["Paraglider"])
+        XCTAssertEqual(live.layer.countWords, "2 pilots of Venti, 1 other in the air")
+        XCTAssertEqual(live.layer.credits.map(\.provider), ["Open Glider Network"])
+        live.zoomed(to: 11)
+        XCTAssertEqual(live.layer.others.first?.aircraft.map(\.kindWords), ["Paraglider", "Glider"])
+        XCTAssertEqual(live.layer.countWords, "2 pilots of Venti, 2 others in the air")
+
+        // A tap finds the aircraft as the newest answer has it, with the
+        // network's credit.
+        let found = try XCTUnwrap(live.other("4791c887c4a52d11"))
+        XCTAssertEqual(found.aircraft.line, "Paraglider at 2,140 m, climbing 1.8 m/s, 20 s ago")
+        XCTAssertEqual(found.aircraft.name, "WB, Paraglider")
+        XCTAssertEqual(found.credit?.text, "Positions: Open Glider Network, glidernet.org (ODbL)")
+        XCTAssertNil(live.other("nobody"))
+
+        // On the map: the same wing as Venti's pilots, in the muted ink,
+        // turned the way it moves, with the core's label.
+        let features = LiveLayers.features(for: live.layer.others)
+        XCTAssertEqual(features.count, 2)
+        XCTAssertEqual(features[0].attribute(forKey: "picture") as? String, LiveSymbols.other)
+        XCTAssertEqual(features[0].attribute(forKey: "heading") as? Double, 210)
+        XCTAssertEqual(features[0].attribute(forKey: "label") as? String, "Paraglider · 2140 m")
+        XCTAssertEqual(features[0].attribute(forKey: "id") as? String, "4791c887c4a52d11")
+        XCTAssertTrue(LiveSymbols.all.contains { $0.name == LiveSymbols.other })
+    }
+
+    func testAMapTooWideForTheOtherNetworksSaysSoAndAsksNothing() async throws {
+        let asked = Asked()
+        let live = LiveModel { url in
+            await asked.add(url)
+            return (200, Data(LiveAnswers.others.utf8))
+        }
+        let server = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        live.server = { server }
+        await live.load(Bounds(south: 47.55, west: 11.6, north: 47.85, east: 12.0), from: server, venti: false)
+        // Only the other networks were asked, and they answered.
+        let first = await asked.addresses.map(\.path)
+        XCTAssertEqual(first, ["/v1/live/others"])
+        XCTAssertEqual(live.layer.countWords, "1 other in the air")
+        XCTAssertFalse(live.othersTooWide)
+
+        // Half a continent: the core asks nothing, and the map says so.
+        live.show(Bounds(south: 40, west: 0, north: 55, east: 20))
+        XCTAssertTrue(live.othersTooWide)
+        XCTAssertTrue(live.layer.others.allSatisfy(\.aircraft.isEmpty))
+        XCTAssertEqual(live.layer.countWords, "")
+        XCTAssertTrue(live.layer.credits.isEmpty)
+        XCTAssertFalse(othersTooWideWords().isEmpty)
+    }
+
     func testAnAnswerThatDoesNotComeLeavesTheGlidersWhereTheyWere() async throws {
         let answers = Asked()
         let live = LiveModel { url in
@@ -225,6 +298,26 @@ private enum LiveAnswers {
            "latest": {"time": "2026-11-18T18:56:00Z", "position": {"lat": 47.6922, "lon": 11.7675},
                       "altitude_m": 786, "ground_speed_ms": 0.0, "climb_ms": 0.0},
            "fixes": 660, "expires_at": "2026-11-20T18:56:00Z"}]}
+        """
+
+    /// The aircraft the Open Glider Network hears: a paraglider whose
+    /// owner lets its competition number be shown, and a glider, from the
+    /// server's golden answer.
+    static let others = """
+        {"time": "2026-11-21T19:09:10Z", "listed_minutes": 10, "layers": [
+          {"source": "ogn", "connected": true, "truncated": false, "aircraft": [
+            {"id": "4791c887c4a52d11", "aircraft": "paraglider", "time": "2026-11-21T19:08:50Z", "age_s": 20,
+             "position": {"lat": 47.664083, "lon": 11.7967}, "altitude_m": 2140.0, "ground_speed_ms": 7.2,
+             "climb_ms": 1.8, "course_deg": 210.0, "competition_id": "WB", "model": "Paraglider"},
+            {"id": "1f6311db029664cb", "aircraft": "glider", "time": "2026-11-21T19:09:00Z", "age_s": 10,
+             "position": {"lat": 47.640033, "lon": 11.735083}, "altitude_m": 2500.0, "ground_speed_ms": 28.29,
+             "climb_ms": 0.1, "course_deg": 70.0, "registration": "D-0000", "competition_id": "TG",
+             "model": "ASK 21"}]}],
+         "attributions": [
+          {"source": "ogn", "provider": "Open Glider Network", "licence": "ODbL 1.0",
+           "text": "Positions: Open Glider Network, glidernet.org (ODbL)",
+           "url": "https://www.glidernet.org/ogn-data-usage/",
+           "notice": "Positions of the Open Glider Network, available under the Open Database License."}]}
         """
 
     /// The flying one's track: its last three positions.

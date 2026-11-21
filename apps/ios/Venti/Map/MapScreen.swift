@@ -51,6 +51,11 @@ struct MapScreen: View {
     @State private var showsGliders = false
     /// The glider chosen in the list, to open once the list has closed.
     @State private var gliderFromList: String?
+    /// An aircraft of another network, tapped on the map or chosen in the
+    /// list.
+    @State private var chosenOther: ChosenOther?
+    /// The aircraft chosen in the list, to open once the list has closed.
+    @State private var otherFromList: String?
     /// A place the pilot pressed on, to show its forecast.
     @State private var pressed: ChosenPlace?
     /// How high that sheet stands: at half height first, and whole once
@@ -100,6 +105,7 @@ struct MapScreen: View {
                 unsaidSites: hidesSites ? [] : sites.filtered.unsaid,
                 candidates: hidesSites ? [] : candidates.candidates,
                 gliders: hidesPilots ? [] : live.gliders,
+                others: hidesPilots ? [] : live.layer.others,
                 plans: groups.pins(),
                 followed: live.followed?.track ?? [],
                 isFollowing: $isFollowing,
@@ -139,6 +145,12 @@ struct MapScreen: View {
                 },
                 onGlider: { id in
                     chosenGlider = ChosenGlider(id: id)
+                },
+                onOther: { id in
+                    chosenOther = ChosenOther(id: id)
+                },
+                onZoom: { zoom in
+                    live.zoomed(to: zoom)
                 },
                 onPlan: { id in
                     chosenPlan = ChosenPlan(id: id)
@@ -224,11 +236,13 @@ struct MapScreen: View {
                     .accessibilityValue(sites.filtered.isOn ? sites.filtered.filterWords : "")
                     .accessibilityIdentifier("sites-filter")
                 }
-                if !live.gliders.isEmpty {
-                    // Who is in the air on this part of the map, as a list.
+                if !hidesPilots, !live.layer.countWords.isEmpty {
+                    // Who is in the air on this part of the map, as a list,
+                    // and how many in the core's words.
                     mapButton("Pilots in the air", icon: Image("icon-live")) {
                         showsGliders = true
                     }
+                    .accessibilityValue(live.layer.countWords)
                 }
                 if account.isSignedIn || wind.server != nil {
                     // Who flies where today and on the days ahead: the
@@ -251,6 +265,7 @@ struct MapScreen: View {
                 layerChips
                 notice
                 candidatesNotice
+                othersNotice
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -377,10 +392,16 @@ struct MapScreen: View {
                 tellSitesTheWind(in: region)
             }
         }
-        // Other pilots are asked for again every quarter of a minute
-        // while the map is on screen, and not when it is not.
-        .task(id: wind.address) {
+        // Other pilots and the other networks' aircraft are asked for
+        // again every quarter of a minute while the map is on screen and
+        // the app in front, and not when it is not.
+        .task(id: LiveWatch(address: wind.address, isInFront: scenePhase == .active)) {
+            guard scenePhase == .active else { return }
             await live.keepCurrent()
+        }
+        .sheet(item: $chosenOther) { chosen in
+            OtherAircraftSheet(id: chosen.id)
+                .presentationDetents([.medium, .large])
         }
         .sheet(item: $chosenGlider) { chosen in
             NavigationStack {
@@ -403,11 +424,17 @@ struct MapScreen: View {
                     gliderFromList = nil
                     chosenGlider = ChosenGlider(id: id)
                 }
+                if let id = otherFromList {
+                    otherFromList = nil
+                    chosenOther = ChosenOther(id: id)
+                }
             }
         ) {
-            LiveList { id in
+            LiveList(choose: { id in
                 gliderFromList = id
-            }
+            }, chooseOther: { id in
+                otherFromList = id
+            })
         }
         .sheet(item: $pressed, onDismiss: showReach) { chosen in
             // The forecast for the place, and from its bar what a glide
@@ -445,6 +472,7 @@ struct MapScreen: View {
                 chosenCandidate = nil
                 chosenPlan = nil
                 chosenGlider = nil
+                chosenOther = nil
                 pressed = nil
                 showsReach = false
                 chosenSquare = nil
@@ -590,6 +618,20 @@ struct MapScreen: View {
         }
     }
 
+    /// What the Pilots layer says over the map when the map shows too
+    /// much for the other networks to be asked: the core's words.
+    @ViewBuilder private var othersNotice: some View {
+        if live.othersTooWide, !hidesPilots, wind.server != nil {
+            Text(othersTooWideWords())
+                .font(.venti(.footnote))
+                .padding(.horizontal, VentiSpace.s3)
+                .padding(.vertical, VentiSpace.s2)
+                .ventiFloating(in: .rect(cornerRadius: VentiRadius.m))
+                .padding(.horizontal, VentiSpace.s4)
+                .accessibilityIdentifier("others-notice")
+        }
+    }
+
     /// Whose wind and airspace are on the map. Their licences ask for the
     /// credit next to the data; the full wording is on each station's page
     /// and on the airspace screen.
@@ -606,6 +648,11 @@ struct MapScreen: View {
         }
         if !sites.credits.isEmpty, !sites.sites.isEmpty, !hidesSites, let region, region.east - region.west <= SitesModel.widestMap {
             parts.append("Sites: \(sites.credits.map(\.provider).formatted(.list(type: .and)))")
+        }
+        // The other networks' credit, worded as each asks, while any of
+        // their aircraft is drawn: the core's layer holds those only.
+        if !hidesPilots {
+            parts.append(contentsOf: live.layer.credits.map(\.text))
         }
         if forecastDay != nil, let map = thermals.map, !map.credits.isEmpty {
             parts.append("Forecast: \(map.credits.map(\.provider).formatted(.list(type: .and)))")
@@ -930,4 +977,11 @@ private struct RadarWatch: Hashable {
 private struct HoursShown: Equatable {
     let key: ThermalMapModel.HoursKey?
     let state: ThermalMapModel.HoursState
+}
+
+/// What the asking for who is in the air hangs on: the server, and
+/// whether the app is in front.
+private struct LiveWatch: Equatable {
+    let address: String
+    let isInFront: Bool
 }

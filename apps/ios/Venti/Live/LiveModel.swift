@@ -5,10 +5,12 @@ import VentiCore
 
 /// Who is in the air: the gliders whose pilots show their flight to
 /// everyone, from the Venti server the pilot has set, for the part of the
-/// map in view.
+/// map in view, and beside them the aircraft another network hears (the
+/// Open Glider Network), never one record of both.
 ///
-/// What to ask the server and how to read its answer is the core's. This
-/// class sends the request, and again every quarter of a minute while the
+/// What to ask the server and how to read its answers is the core's, and
+/// so is the layer that puts the two side by side (`liveLayer`). This
+/// class sends the requests, and again every quarter of a minute while the
 /// map is on screen.
 @MainActor
 @Observable
@@ -31,6 +33,13 @@ final class LiveModel {
     private(set) var answeredAt = Date()
     /// Whether the server has more than it lists at once.
     private(set) var isTruncated = false
+    /// Venti's pilots and the other networks' aircraft as the map draws
+    /// them, each network with its credit, and how many in words: the
+    /// core's `liveLayer` over what is drawn at the map's zoom.
+    private(set) var layer = LiveModel.emptyLayer
+    /// Whether the map shows too much for the other networks to be asked:
+    /// the map then says the core's `othersTooWideWords()`.
+    private(set) var othersTooWide = false
     /// The flight being followed: the glider whose page is open, with its
     /// track so far.
     private(set) var followed: LiveFollowView?
@@ -44,21 +53,53 @@ final class LiveModel {
 
     @ObservationIgnored private let transport: Transport
     /// The area last asked for, and from which server.
-    @ObservationIgnored private var asked: (area: Bounds, server: URL)?
+    @ObservationIgnored private var asked: (area: Bounds, server: URL, venti: Bool)?
     @ObservationIgnored private var waiting: Task<Void, Never>?
+    /// What the other networks answered last, all of it.
+    @ObservationIgnored private var heard = LiveOthers(networks: [], listedMinutes: 10)
+    /// The map's zoom, as it last reported it.
+    @ObservationIgnored private var zoom = 0.0
+
+    /// From this zoom on the map draws every kind of aircraft of the
+    /// other networks; below it only paragliders and hang gliders.
+    static let everyKindFromZoom = 10.0
+
+    static let emptyLayer = LiveLayer(venti: [], others: [], credits: [], truncated: false, countWords: "")
 
     init(transport: @escaping Transport = LiveModel.fetch) {
         self.transport = transport
     }
 
+    /// The map says at which zoom it is: what of the other networks it
+    /// draws hangs on it.
+    func zoomed(to zoom: Double) {
+        guard zoom != self.zoom else { return }
+        self.zoom = zoom
+        relayer()
+    }
+
     /// The map says which part of it is in view.
     func show(_ region: Bounds) {
-        guard let server = server(), region.east - region.west <= Self.widestMap else {
+        // The core says how much of the map the other networks are asked
+        // for; Venti's own pilots are asked for on a smaller one.
+        let tooWide = liveOthersPath(
+            south: region.south, west: region.west, north: region.north, east: region.east
+        ) == nil
+        if tooWide != othersTooWide {
+            othersTooWide = tooWide
+        }
+        let asksVenti = region.east - region.west <= Self.widestMap
+        guard let server = server(), asksVenti || !tooWide else {
             forget()
             return
         }
+        if !asksVenti, !gliders.isEmpty {
+            gliders = []
+            isTruncated = false
+            relayer()
+        }
         // Inside what was asked for: the next round brings it up to date.
-        if let asked, asked.server == server, asked.area.contains(region) {
+        if let asked, asked.server == server, asked.venti == asksVenti, asked.area.contains(region) {
             return
         }
         waiting?.cancel()
@@ -67,8 +108,10 @@ final class LiveModel {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             // A little more than is in view, so that a small drag needs no
-            // new request.
-            await self?.load(region.grown(by: 0.25), from: server)
+            // new request; on a map too wide for Venti's own pilots only
+            // what is in view, which the core may still ask the other
+            // networks for.
+            await self?.load(asksVenti ? region.grown(by: 0.25) : region, from: server, venti: asksVenti)
         }
     }
 
@@ -79,15 +122,25 @@ final class LiveModel {
             try? await Task.sleep(for: .seconds(Self.askEvery))
             guard !Task.isCancelled else { return }
             if let asked, let server = server(), asked.server == server {
-                await load(asked.area, from: server)
+                await load(asked.area, from: server, venti: asked.venti)
             }
         }
     }
 
-    /// Asks the server who is in the air in an area. An answer that does
-    /// not come leaves the gliders where they were: their ages go on
-    /// counting, which is what is known about them.
-    func load(_ area: Bounds, from server: URL) async {
+    /// Asks the server who is in the air in an area: Venti's own pilots,
+    /// unless `venti` is false, and the aircraft of the other networks.
+    /// An answer that does not come leaves the gliders where they were:
+    /// their ages go on counting, which is what is known about them.
+    func load(_ area: Bounds, from server: URL, venti: Bool = true) async {
+        if venti {
+            await loadVenti(area, from: server)
+        }
+        asked = (area, server, venti)
+        await loadOthers(area, from: server)
+        relayer()
+    }
+
+    private func loadVenti(_ area: Bounds, from server: URL) async {
         do {
             let path = try liveMapPath(south: area.south, west: area.west, north: area.north, east: area.east)
             guard let url = URL(string: server.absoluteString + path) else { return }
@@ -98,12 +151,68 @@ final class LiveModel {
             gliders = map.gliders
             isTruncated = map.truncated
             answeredAt = Date()
-            asked = (area, server)
         } catch {
             // A server from before live tracks, or none in reach: nothing
             // new is known.
-            asked = asked ?? (area, server)
         }
+    }
+
+    /// Asks the server which aircraft the other networks hear in an area.
+    /// An answer that does not come leaves them as they were; a box the
+    /// core asks nothing for has none.
+    private func loadOthers(_ area: Bounds, from server: URL) async {
+        guard let path = liveOthersPath(south: area.south, west: area.west, north: area.north, east: area.east)
+        else {
+            heard = LiveOthers(networks: [], listedMinutes: heard.listedMinutes)
+            return
+        }
+        do {
+            guard let url = URL(string: server.absoluteString + path) else { return }
+            let (status, body) = try await transport(url)
+            let others = try liveOthers(status: UInt16(clamping: status), body: body)
+            guard server == self.server() else { return }
+            heard = others
+        } catch {
+            // A Venti without the other networks, or none in reach.
+        }
+    }
+
+    /// The layer anew, from Venti's pilots and what the other networks
+    /// heard, at the map's zoom.
+    private func relayer() {
+        let drawn = Self.drawn(heard, atZoom: zoom)
+        let next = liveLayer(venti: LiveMap(gliders: gliders, truncated: isTruncated), others: drawn)
+        if next != layer {
+            layer = next
+        }
+    }
+
+    /// What of the other networks' aircraft a map draws at a zoom: the
+    /// paragliders and hang gliders always, the other kinds from
+    /// `everyKindFromZoom` on. A network the server is not connected to
+    /// just now lists only what it heard in the last `listedMinutes`,
+    /// each with its age in words: that is drawn too.
+    static func drawn(_ others: LiveOthers, atZoom zoom: Double) -> LiveOthers {
+        var drawn = others
+        drawn.networks = others.networks.map { network in
+            var network = network
+            if zoom < everyKindFromZoom {
+                network.aircraft = network.aircraft.filter(\.isFreeFlight)
+            }
+            return network
+        }
+        return drawn
+    }
+
+    /// An aircraft of another network as the newest answer has it, with
+    /// that network's credit.
+    func other(_ id: String) -> (aircraft: OtherAircraftView, credit: Credit?)? {
+        for network in heard.networks {
+            if let aircraft = network.aircraft.first(where: { $0.id == id }) {
+                return (aircraft, network.credit)
+            }
+        }
+        return nil
     }
 
     /// Who is in the air around a place: for the cockpit, which asks by
@@ -186,6 +295,8 @@ final class LiveModel {
             gliders = []
             isTruncated = false
         }
+        heard = LiveOthers(networks: [], listedMinutes: heard.listedMinutes)
+        relayer()
     }
 
     /// Fetches with the system's networking, and never an answer kept from
@@ -207,6 +318,8 @@ enum LiveSymbols {
     static let flying = "live-flying"
     static let quiet = "live-quiet"
     static let landed = "live-landed"
+    /// An aircraft of another network: the same wing, in its own colour.
+    static let other = "live-other"
 
     /// A picture with the name the map knows it by.
     struct Picture {
@@ -222,6 +335,7 @@ enum LiveSymbols {
             Picture(name: flying, image: wing(color: Palette.goodOnMap)),
             Picture(name: quiet, image: wing(color: Palette.quietOnMap)),
             Picture(name: landed, image: disc(color: Palette.quietOnMap)),
+            Picture(name: other, image: wing(color: Palette.otherOnMap)),
         ]
     }
 

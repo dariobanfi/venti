@@ -17,20 +17,24 @@ import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.style.sources.ImageSource
 
 /**
- * How the rain radar is drawn: one image source, a frame's picture pinned
- * to the map by the layer's four corners, and one raster layer over it,
- * drawn without smoothing so that a step of rain stays a step. The picture
- * is the core's, in the colours its key names from the light theme's
- * tokens (the map is light in both appearances) and the forecast map's
- * veil for what the radar did not see; the layer is as see-through as the
- * forecast map's squares and lies where they lie: over the ground and the
- * photographs, under the base map's names, borders and cable cars, and
- * under everything else this map draws: airspace, tracks, sites, wind and
- * pilots.
+ * How the rain radar is drawn: for each of the radar's layers that has a
+ * picture at the moment shown, an image source of its own, the picture
+ * pinned to the map by the layer's four corners, and a raster layer over
+ * it, drawn without smoothing so that a step of rain stays a step; the
+ * radar's layers lie in the core's order, the first lowest, and are never
+ * merged into one picture. A picture is the core's, in the colours its key
+ * names from the light theme's tokens (the map is light in both
+ * appearances) and, in the lowest, the forecast map's veil for what was
+ * not seen; each layer is as see-through as the forecast map's squares and
+ * lies where they lie: over the ground and the photographs, under the base
+ * map's names, borders and cable cars, and under everything else this map
+ * draws: airspace, tracks, sites, wind and pilots.
  */
 object RadarLayer {
-    const val SOURCE = "rain-radar"
-    const val LAYER = "rain-radar"
+    private const val NAME = "rain-radar-"
+
+    /** The map's source and its layer for one of the radar's layers, by its place in the core's list. */
+    fun name(layer: Int): String = NAME + layer
 
     /** The colour of a line of the key, from the light theme: the scale and the step the core names. */
     fun colour(key: RadarKey): Color = ThermalHoursLayers.colour(key.scale, key.scaleStep.toInt())
@@ -68,45 +72,58 @@ object RadarLayer {
         )
 
     /**
-     * Draws a picture in place of the one before, or takes the layer away.
-     * The source and its layer are added with the first picture, over the
-     * forecast map's squares; after that a change of frame only swaps the
-     * source's picture.
+     * Draws a moment's pictures in place of those before, or takes the
+     * radar away. A source and its layer are added with a layer's first
+     * picture, over the forecast map's squares and over the radar's layers
+     * below it; after that a change of moment only swaps a source's
+     * picture, and leaves a source alone whose picture stays (`before` is
+     * what this style was last given). A layer of the radar without a
+     * picture at the moment is hidden.
      */
-    fun show(picture: RadarPicture?, style: Style) {
-        val layer = style.getLayerAs<RasterLayer>(LAYER)
-        if (picture == null) {
-            layer?.setProperties(PropertyFactory.visibility(Property.NONE))
-            return
+    fun show(shown: RadarShown?, before: RadarShown?, style: Style) {
+        val pictures = shown?.pictures.orEmpty()
+        for (layer in style.layers) {
+            if (layer.id.startsWith(NAME) && pictures.none { name(it.layer) == layer.id }) {
+                layer.setProperties(PropertyFactory.visibility(Property.NONE))
+            }
         }
-        val bitmap = bitmap(picture.png) ?: return
-        val source = style.getSourceAs<ImageSource>(SOURCE)
-        if (source == null) {
-            style.addSource(ImageSource(SOURCE, corners(picture), bitmap))
-        } else {
-            source.setCoordinates(corners(picture))
-            source.setImage(bitmap)
-        }
-        if (layer != null) {
-            layer.setProperties(PropertyFactory.visibility(Property.VISIBLE))
-            return
-        }
-        val added = RasterLayer(LAYER, SOURCE).withProperties(
-            // A pixel is a kilometre: a step stays a step, not smoothed into its neighbours.
-            PropertyFactory.rasterResampling(Property.RASTER_RESAMPLING_NEAREST),
-            // As see-through as the forecast map's squares, by the zoom.
-            PropertyFactory.rasterOpacity(
-                Expression.interpolate(
-                    Expression.linear(),
-                    Expression.zoom(),
-                    Expression.stop(ThermalMapLayer.REGION_ZOOM, ThermalMapLayer.OPACITY_REGION),
-                    Expression.stop(ThermalMapLayer.VALLEY_ZOOM, ThermalMapLayer.OPACITY_VALLEY),
+        for (picture in pictures) {
+            val name = name(picture.layer)
+            val layer = style.getLayerAs<RasterLayer>(name)
+            val source = style.getSourceAs<ImageSource>(name)
+            val isThere = source != null && before?.pictures?.any { it.layer == picture.layer && it.png === picture.png } == true
+            if (!isThere) {
+                val bitmap = bitmap(picture.png) ?: continue
+                if (source == null) {
+                    style.addSource(ImageSource(name, corners(picture), bitmap))
+                } else {
+                    source.setCoordinates(corners(picture))
+                    source.setImage(bitmap)
+                }
+            }
+            if (layer != null) {
+                layer.setProperties(PropertyFactory.visibility(Property.VISIBLE))
+                continue
+            }
+            val added = RasterLayer(name, name).withProperties(
+                // A pixel is a kilometre: a step stays a step, not smoothed into its neighbours.
+                PropertyFactory.rasterResampling(Property.RASTER_RESAMPLING_NEAREST),
+                // As see-through as the forecast map's squares, by the zoom.
+                PropertyFactory.rasterOpacity(
+                    Expression.interpolate(
+                        Expression.linear(),
+                        Expression.zoom(),
+                        Expression.stop(ThermalMapLayer.REGION_ZOOM, ThermalMapLayer.OPACITY_REGION),
+                        Expression.stop(ThermalMapLayer.VALLEY_ZOOM, ThermalMapLayer.OPACITY_VALLEY),
+                    ),
                 ),
-            ),
-            // A frame takes the place of the one before at once: two times are never mixed.
-            PropertyFactory.rasterFadeDuration(0f),
-        )
-        val under = style.getLayer(ThermalHoursLayers.SQUARES)
-        if (under != null) style.addLayerAbove(added, under.id) else style.addLayer(added)
+                // A moment takes the place of the one before at once: two times are never mixed.
+                PropertyFactory.rasterFadeDuration(0f),
+            )
+            // Directly over the nearest of the radar's layers below it, or over the forecast's squares.
+            val under = (picture.layer - 1 downTo 0).firstNotNullOfOrNull { style.getLayer(name(it)) }
+                ?: style.getLayer(ThermalHoursLayers.SQUARES)
+            if (under != null) style.addLayerAbove(added, under.id) else style.addLayer(added)
+        }
     }
 }

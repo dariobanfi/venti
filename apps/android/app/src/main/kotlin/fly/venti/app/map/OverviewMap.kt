@@ -13,7 +13,7 @@ import fly.venti.app.forecast.ThermalMapLayer
 import fly.venti.app.live.GliderFeature
 import fly.venti.app.live.LiveSymbols
 import fly.venti.app.radar.RadarLayer
-import fly.venti.app.radar.RadarPicture
+import fly.venti.app.radar.RadarShown
 import fly.venti.app.sites.SiteAreas
 import fly.venti.app.sites.SiteFeature
 import fly.venti.app.sites.SiteSymbols
@@ -93,9 +93,9 @@ class OverviewMap : MapContent {
     private var drawnHourShapes: ThermalMapShapes? = null
     private var hoursOn = false
 
-    /** The rain radar's picture to draw, and the one drawn; compared by identity. */
-    private var radar: RadarPicture? = null
-    private var drawnRadar: RadarPicture? = null
+    /** The rain radar's pictures to draw, and those drawn; compared by identity. */
+    private var radar: RadarShown? = null
+    private var drawnRadar: RadarShown? = null
 
     /** A tap where airspace is drawn and nothing else of Venti's lies: the place tapped. */
     var onAirspace: (Coordinate) -> Unit = {}
@@ -198,7 +198,7 @@ class OverviewMap : MapContent {
         drawSquares()
         drawnHourShapes = null
         drawHours()
-        // The rain radar's picture over the forecast's squares, under all the rest.
+        // The rain radar's pictures over the forecast's squares, under all the rest.
         drawnRadar = null
         drawRadar()
         if (isFollowing) {
@@ -274,20 +274,22 @@ class OverviewMap : MapContent {
     }
 
     /**
-     * The rain radar: a frame's picture in the app's colours, pinned by
-     * its four corners, or `null` to take it away. A change of frame hands
-     * another picture, which takes the place of the one before.
+     * The rain radar: a moment's pictures in the app's colours, one for
+     * each of the radar's layers that has one, each pinned by its four
+     * corners, or `null` to take them away. A change of moment hands other
+     * pictures, which take the place of those before.
      */
-    fun showRadar(picture: RadarPicture?) {
-        radar = picture
+    fun showRadar(shown: RadarShown?) {
+        radar = shown
         drawRadar()
     }
 
     private fun drawRadar() {
         val style = style ?: return
         if (radar === drawnRadar) return
+        val before = drawnRadar
         drawnRadar = radar
-        RadarLayer.show(radar, style)
+        RadarLayer.show(radar, before, style)
     }
 
     fun showForecast(cells: List<ThermalMapCell>) {

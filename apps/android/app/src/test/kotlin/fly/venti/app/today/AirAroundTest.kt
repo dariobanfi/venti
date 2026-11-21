@@ -84,7 +84,7 @@ class AirAroundTest {
         assertEquals("14:00", AirAroundWords.clock(strong))
         assertEquals(
             listOf(
-                AirAroundWords.WIND_NEAR_BY to "14 km/h at the place over ground at 812 m",
+                AirAroundWords.WIND_NEAR_BY to "14 km/h in the square around the place over ground at 812 m",
                 AirAroundWords.GUSTS_NEAR_BY to "55 km/h 20 km to the south over ground at 2400 m",
             ),
             AirAroundWords.figures(strong.nearby),

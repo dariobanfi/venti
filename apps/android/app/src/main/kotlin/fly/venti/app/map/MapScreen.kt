@@ -261,10 +261,10 @@ fun MapScreen(
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { radar.keepCurrent() }
         }
     }
-    // The picture of the frame looked at: fetched when the frame changes,
-    // and again when the pilot asks.
+    // The pictures of the moment looked at: fetched when the moment or
+    // what it draws changes, and again when the pilot asks.
     var pictureAttempt by remember { mutableIntStateOf(0) }
-    LaunchedEffect(showsRadar, radar?.frame?.path, pictureAttempt) {
+    LaunchedEffect(showsRadar, radar?.moment?.timeUnixS, radar?.picturesWanted, pictureAttempt) {
         if (showsRadar) radar.showFrame()
     }
     // The frames played through, until they end or the pilot stops them.
@@ -318,9 +318,9 @@ fun MapScreen(
         photos.takeIf { aerial },
         MapSetup.THERMALS_CREDIT.takeIf { thermals && offersThermals },
         thermalMap?.creditLine?.takeIf { showsForecast },
-        // The radar's source asks for its credit directly at the data.
-        radar?.creditLine?.takeIf { showsRadar },
-    )
+    ) +
+        // Each of the radar's sources asks for its credit directly at the data.
+        radar?.creditLines?.takeIf { showsRadar }.orEmpty()
     // The forecast map by the hour: the layer and the level as the pilot
     // left them, the hour not.
     val hours = thermalMap?.hours

@@ -98,6 +98,11 @@ import fly.venti.app.design.Palette
 import fly.venti.core.SiteWritten
 import fly.venti.app.sites.SitesFilterCard
 import fly.venti.app.sites.SitesFilterSheet
+import fly.venti.app.sites.CandidateSheet
+import fly.venti.app.sites.CandidatesModel
+import fly.venti.app.sites.CandidatesSwitch
+import fly.venti.core.CandidateOffer
+import fly.venti.core.SiteCandidateView
 import fly.venti.app.sites.SitesFilterWords
 import androidx.compose.runtime.SideEffect
 import fly.venti.app.sites.KeptSitesModel
@@ -214,6 +219,14 @@ fun MapScreen(
     var airspaceOver by remember { mutableStateOf<AirspaceOverPlace?>(null) }
     // The height the maps draw airspace up to: one choice for the maps.
     var airspaceCeiling by remember { mutableStateOf(preferences?.mapAirspaceCeilingM) }
+    // The layer "Take-offs without a site", as the pilot left it: off until switched on.
+    val candidates = remember(siteEdit) { siteEdit?.let { CandidatesModel(asking, it) } }
+    LaunchedEffect(candidates, preferences) {
+        if (candidates != null && preferences != null) candidates.switch(preferences.mapShowsCandidates)
+    }
+    // A place of that layer the pilot tapped, with the core's offer to add it where it makes one.
+    var chosenCandidate by remember { mutableStateOf<SiteCandidateView?>(null) }
+    var candidateOffer by remember { mutableStateOf<CandidateOffer?>(null) }
     val map = remember { OverviewMap() }
     map.onFollowingEnded = { isFollowing = false }
     var region by remember { mutableStateOf<Bounds?>(null) }
@@ -221,6 +234,7 @@ fun MapScreen(
         region = shown
         wind.show(shown)
         sites.show(shown)
+        candidates?.show(shown)
         live.show(shown)
         // The airspace around what the pilot is looking at, unless it is
         // the whole continent. The model asks only when it is due.
@@ -232,6 +246,10 @@ fun MapScreen(
     }
     map.onStation = { id -> chosen = wind.stations.firstOrNull { it.id == id } }
     map.onSite = { id -> chosenSite = sites.sites.firstOrNull { it.id == id } }
+    map.onCandidate = { place ->
+        candidateOffer = null
+        chosenCandidate = place
+    }
     map.onGlider = { id -> chosenGlider = id }
     map.onSquare = { cell -> square = cell }
     map.onHourSquare = { place, cell ->
@@ -389,6 +407,7 @@ fun MapScreen(
                 map.showHours(hourShapes, hourLegend, byTheHour)
                 map.showRadar(if (showsRadar) radar.shown else null)
                 map.show(outlines, stations, airspaceInView, flyingSites, gliders, followed, Covered(top = statusBar), pins, unsaidSites)
+                map.showCandidates(if (hidesSites || !hasServer) emptyList() else candidates?.candidates.orEmpty())
                 map.follow(isFollowing)
             },
         )
@@ -468,6 +487,14 @@ fun MapScreen(
             }
             wind.notice?.takeIf { !hidesWind }?.let { text ->
                 Notice(text, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4))
+            }
+            // Over the map in the core's words, while the layer of the places no site names is on:
+            // zoom in, more than one answer lists, or why they could not be read.
+            candidates?.notice?.takeIf { candidates.isOn && !hidesSites && hasServer }?.let { text ->
+                Notice(
+                    text,
+                    Modifier.align(Alignment.CenterHorizontally).padding(horizontal = VentiSpace.s4).testTag("candidates-notice"),
+                )
             }
         }
         Column(
@@ -678,6 +705,39 @@ fun MapScreen(
             sites,
             onChange = { filter -> preferences?.mapSitesFilter = SitesFilterWords.kept(filter) },
             onDismiss = { showsSitesFilter = false },
+            candidates = if (candidates != null && siteEdit != null) {
+                CandidatesSwitch(siteEdit.flightsWords.layer, siteEdit.flightsWords.layerAbout, candidates.isOn) { on ->
+                    candidates.switch(on)
+                    preferences?.mapShowsCandidates = on
+                }
+            } else {
+                null
+            },
+        )
+    }
+
+    val tappedCandidate = chosenCandidate
+    if (tappedCandidate != null && siteEdit != null && candidates != null) {
+        // The core offers the place to a pilot who took off there, as the account is now.
+        LaunchedEffect(tappedCandidate, account.account) {
+            candidateOffer = candidates.answer?.let { answer ->
+                siteEdit.candidateOffers(answer.copy(candidates = listOf(tappedCandidate))).firstOrNull()
+            }
+        }
+        CandidateSheet(
+            candidate = tappedCandidate,
+            words = siteEdit.flightsWords,
+            offer = candidateOffer,
+            onAdd = { offer ->
+                chosenCandidate = null
+                siteEdit.adding()?.let { adding -> siteForm = SiteFormDraft.offered(offer, adding) }
+            },
+            onSetAside = { offer ->
+                chosenCandidate = null
+                candidateOffer = null
+                requests.launch { siteEdit.setAside(offer.candidate.position) }
+            },
+            onDismiss = { chosenCandidate = null },
         )
     }
 

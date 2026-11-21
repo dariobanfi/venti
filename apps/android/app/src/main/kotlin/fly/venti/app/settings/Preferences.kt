@@ -100,6 +100,9 @@ interface Preferences {
     /** Whether the map tab shows the rain radar. Off until the pilot switches it on. */
     var mapShowsRadar: Boolean
 
+    /** Whether the map tab shows the places where pilots take off and no site stands. Off until the pilot switches it on. */
+    var mapShowsCandidates: Boolean
+
     /** What the pilot asks of the sites on the map, the places from pilots among it, as `SitesFilterWords.kept` writes it; `null` for nothing. */
     var mapSitesFilter: String?
 
@@ -233,6 +236,10 @@ class StoredPreferences(context: Context) : Preferences {
         get() = store.getBoolean("VentiMapShowsForecast", false)
         set(value) = store.edit { putBoolean("VentiMapShowsForecast", value) }
 
+    override var mapShowsCandidates: Boolean
+        get() = store.getBoolean("VentiMapShowsCandidates", false)
+        set(value) = store.edit { putBoolean("VentiMapShowsCandidates", value) }
+
     override var mapShowsRadar: Boolean
         get() = store.getBoolean("VentiMapShowsRadar", false)
         set(value) = store.edit { putBoolean("VentiMapShowsRadar", value) }
@@ -301,6 +308,7 @@ class MemoryPreferences : Preferences {
     override var mapShowsThermals = false
     override var mapShowsForecast = false
     override var mapShowsRadar = false
+    override var mapShowsCandidates = false
     override var mapSitesFilter: String? = null
     override var watchedFolder = ""
     override var watchedSeen: Set<String> = emptySet()

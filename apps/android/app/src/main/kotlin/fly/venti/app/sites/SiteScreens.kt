@@ -3,7 +3,7 @@ package fly.venti.app.sites
 import kotlinx.coroutines.CancellationException
 import fly.venti.core.SiteKind
 import fly.venti.core.PublicFlight
-import fly.venti.app.community.PublicFlightRow
+import fly.venti.core.SiteFlights
 import fly.venti.app.community.CommunityModel
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
@@ -297,6 +297,7 @@ fun SiteSheet(
                     community = community,
                     onOpenFlight = onOpenFlight,
                     actions = actions,
+                    edit = editing?.model,
                 )
             } else {
                 SiteList(sites, onOpen = onChoose, onDone = onDismiss, onFilter = onFilter)
@@ -688,6 +689,8 @@ private fun SitePage(
     actions: SiteActions?,
     /** What the core offers for the site and where each leads; `null` where the page asks for none of it. */
     edits: SitePageEdits? = null,
+    /** Where what public flights say about the site is asked for; `null` where the page asks for none of it. */
+    edit: SiteEditModel? = null,
 ) {
     val links = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -707,20 +710,34 @@ private fun SitePage(
         if (isForTakingOff && actions != null) outlook = actions.outlook(site)
     }
     val day = outlook?.let(SiteWords::firstFlyingDay)
-    // What was flown from a place to take off from; a landing field has no
-    // flights that began there. A site nobody shared a flight from has no
-    // such section, and neither has one whose flights could not be asked for.
-    var flown by remember(site.id) { mutableStateOf(emptyList<PublicFlight>()) }
+    // What the public flights that began here say about the site, as the
+    // core reads the server's count: shown only for a take-off, and not
+    // at all while it is not read or could not be.
+    var flights by remember(site.id) { mutableStateOf<SiteFlights?>(null) }
     LaunchedEffect(site.id) {
-        if (community == null || community.server() == null) return@LaunchedEffect
-        if (site.kind != SiteKind.TAKEOFF && site.kind != SiteKind.TOWING) return@LaunchedEffect
-        flown = try {
-            community.flightsNear(site.position).take(SiteWords.FLOWN_AT_MOST)
+        val model = edit ?: return@LaunchedEffect
+        flights = try {
+            model.flights(site.id)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            emptyList()
+            null
         }
+    }
+    // A best flight opens as a public flight opens, once the list of
+    // everyone's flights knows it.
+    var opening by remember(site.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(opening) {
+        val id = opening ?: return@LaunchedEffect
+        val known = community ?: return@LaunchedEffect
+        try {
+            onOpenFlight(known.publicFlightById(id))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The flight's own page says why it cannot be shown; without it, nothing opens.
+        }
+        opening = null
     }
     // The wind measured around the site now, from the stations the map
     // already has, and for each whether it comes from a direction the site
@@ -807,6 +824,11 @@ private fun SitePage(
                     item { SiteConfirmedRows(by, edits) }
                 }
             }
+            // What public flights say about it, under the confirmations: for a take-off of any layer.
+            val read = flights
+            if (read != null && read.isTakeoff && edit != null) {
+                item { SiteFlightsSection(read, edit.flightsWords, onOpen = { line -> opening = line.id }) }
+            }
             if (site.official == true || site.discouraged || site.paragliding == false) {
                 item {
                     Group {
@@ -837,17 +859,6 @@ private fun SitePage(
                         }
                     }
                     SectionFooter(SiteWords.NEARBY_CAUTION)
-                }
-            }
-            if (flown.isNotEmpty()) {
-                item {
-                    SectionHeader(SiteWords.FLOWN_FROM_HERE)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for (flight in flown) {
-                            PublicFlightRow(flight, MaterialTheme.shapes.medium, tag = "site-flight") { onOpenFlight(flight) }
-                        }
-                    }
-                    SectionFooter(SiteWords.FLOWN_FOOTER)
                 }
             }
             item {
@@ -1167,14 +1178,6 @@ object SiteWords {
     /** "Today: Good from noon. Gusts to 26 km/h after 15:00", with the day as the core names it. */
     fun outlook(day: OutlookDay): String =
         if (day.why.isEmpty()) "${day.name}: ${day.headline}" else "${day.name}: ${day.headline}. ${day.why}"
-
-    const val FLOWN_FROM_HERE = "Flown from here"
-    const val FLOWN_FOOTER =
-        "The newest flights that pilots share with everyone on Venti and that took off within a kilometre and " +
-            "a half of this place."
-
-    /** The most flights a site's page lists. */
-    const val FLOWN_AT_MOST = 5
 
     /** What a site on the map is worth, said wherever sites are listed. */
     const val CAUTION =

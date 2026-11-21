@@ -60,6 +60,7 @@ import fly.venti.app.sites.KeptSitesScreen
 import fly.venti.app.sites.SiteActions
 import fly.venti.app.sites.SiteEditing
 import fly.venti.app.sites.SiteFormDraft
+import fly.venti.app.sites.TodayCandidateOffer
 import fly.venti.app.sites.SiteFormSheet
 import fly.venti.app.sites.SiteSources
 import fly.venti.app.sites.SiteSheet
@@ -352,6 +353,15 @@ private fun Sections(
                         onOpenSettings = { navigation.showSettings() },
                         onOpenAssistant = { navigation.todayRoute = TodayRoute.Assistant },
                         bars = bars,
+                        underTakeoffs = {
+                            TodayCandidateOffer(
+                                takeoffs = session.today.places.map { it.site.position },
+                                edit = session.siteEdit,
+                                account = session.account,
+                                requests = session.scope,
+                                onAdd = { draft -> todaySiteForm = draft },
+                            )
+                        },
                     )
                     todaySite?.let { site ->
                         SiteSheet(

@@ -3813,6 +3813,130 @@ class VentiUiTest {
     }
 
     /** Makes a new account from the form that is open, and goes back to the map. */
+    /**
+     * What public flights say about where pilots take off: the section of
+     * the made-up take-off "Musterkogel West" with the core's line and its
+     * months; the layer "Take-offs without a site" switched on in the
+     * sites' filter, with the place near 47.2612 N 10.9312 E as a ring; its
+     * sheet, and the core's offer to add it to a pilot who took off there,
+     * which a copy of the sample flight moved to that place makes this
+     * test's pilot; and the section once in dark appearance. Against the
+     * development server's made-up flights. Skipped without a server.
+     */
+    @Test
+    fun whatPublicFlightsSayOfATakeoffAndOfThePlacesNoSiteNames() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        // A flight of this pilot's that began at the place no site names.
+        val folder = File(context.cacheDir, "candidate-${System.nanoTime()}").apply { mkdirs() }
+        val flight = File(folder, "candidate.igc").apply { writeText(movedTo(CANDIDATE_LAT, CANDIDATE_LON)) }
+        launch {
+            putExtra(LaunchOptions.SERVER, server)
+            action = Intent.ACTION_SEND_MULTIPLE
+            type = "application/octet-stream"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(Uri.fromFile(flight)))
+        }
+        // One flight opens by itself; behind it, the logbook.
+        waitFor(described("Flight details"))
+        tap(described("Back"))
+        waitFor(hasTestTag("logbook-row"))
+        tap(tab("Map"))
+        val scenario = checkNotNull(app)
+        val page = hasTestTag("site-page")
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        lookAtTheMadeUpSites(scenario)
+        signInFromTheMap(scenario, "c${System.currentTimeMillis() % 1_000_000_000}")
+
+        // The take-off's page: under the confirmations, the core's title, its line and the months.
+        openFromTheListOfSites("Musterkogel West")
+        screen.onNode(page).performScrollToNode(hasTestTag("site-flights"))
+        waitFor(hasText("Public flights from here"))
+        waitFor(hasTestTag("site-flights-words") and hasText("began here", substring = true))
+        screen.onNode(page).performScrollToNode(hasTestTag("site-flights-months"))
+        assertTrue(exists(hasText("When it is flown")))
+        assertTrue(exists(hasContentDescription("July:", substring = true)))
+        letTheMapDraw(1)
+        keepScreenshot("takeoffs-1-site")
+        screen.onNode(page).performScrollToNode(hasTestTag("site-flights-terms"))
+        letTheMapDraw(1)
+        keepScreenshot("takeoffs-2-site-best")
+        tap(hasText("Done"))
+        waitFor(described("Show my position"))
+
+        // The layer's switch beside the places from pilots, off until switched on.
+        tap(hasTestTag("sites-filter-open"))
+        waitFor(hasTestTag("sites-filter"))
+        val layer = hasTestTag("sites-candidates")
+        screen.onNode(layer).performScrollTo()
+        assertTrue(exists(layer and isOff() and hasText("Take-offs without a site")))
+        tap(layer)
+        waitFor(layer and isOn())
+        tap(hasTestTag("sites-filter-done"))
+
+        // The place as a ring, where the part of the map is small enough to ask about.
+        assertTrue(TestDevice.lookAt(scenario, lat = 47.26, lon = 10.935, zoom = 13.0))
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            (TestDevice.drawnOnTheMap(scenario, "site-candidates") ?: 0) >= 1
+        }
+        letTheMapDraw(2)
+        keepScreenshot("takeoffs-3-layer")
+
+        // Its sheet: the core's title, line and height; and the offer, since this pilot took off there.
+        TestDevice.tap(checkNotNull(TestDevice.onScreen(scenario, lat = CANDIDATE_LAT, lon = CANDIDATE_LON)))
+        waitFor(hasTestTag("candidate-sheet"))
+        assertTrue(exists(hasText("Pilots take off here")))
+        assertTrue(exists(hasTestTag("candidate-words") and hasText("No site names this place.", substring = true)))
+        waitFor(hasTestTag("candidate-offer-words") and hasText("You took off here on", substring = true))
+        assertTrue(exists(hasTestTag("candidate-add") and hasText("Add this place")))
+        assertTrue(exists(hasTestTag("candidate-set-aside") and hasText("Not this one")))
+        letTheMapDraw(1)
+        keepScreenshot("takeoffs-4-candidate")
+        // "Add this place" opens the add form on the core's draft.
+        tap(hasTestTag("candidate-add"))
+        waitFor(hasText("A place pilots take off from"))
+        letTheMapDraw(1)
+        keepScreenshot("takeoffs-5-form")
+        folder.deleteRecursively()
+
+        // The section once in dark appearance, from a new start of the app.
+        scenario.close()
+        launch(dark = true) { putExtra(LaunchOptions.SERVER, server) }
+        val dark = checkNotNull(app)
+        tapChip("layer-wind")
+        tapChip("layer-pilots")
+        lookAtTheMadeUpSites(dark)
+        openFromTheListOfSites("Musterkogel West")
+        screen.onNode(page).performScrollToNode(hasTestTag("site-flights-months"))
+        waitFor(hasTestTag("site-flights-words") and hasText("began here", substring = true))
+        letTheMapDraw(1)
+        keepScreenshot("dark-takeoffs-1-site")
+    }
+
+    /** The development server's made-up place where pilots take off and no site stands. */
+    private val CANDIDATE_LAT = 47.2612
+    private val CANDIDATE_LON = 10.9312
+
+    /** The sample flight with each fix moved by as much as takes its first to a place. */
+    private fun movedTo(lat: Double, lon: Double): String {
+        val sample = context.assets.open(AppFiles.SAMPLE_FLIGHT).use { it.readBytes() }.decodeToString()
+        fun latOf(line: String) = line.substring(7, 9).toInt() + line.substring(9, 14).toInt() / 60_000.0
+        fun lonOf(line: String) = line.substring(15, 18).toInt() + line.substring(18, 23).toInt() / 60_000.0
+        val first = sample.lineSequence().first { it.startsWith("B") }
+        val (byLat, byLon) = lat - latOf(first) to lon - lonOf(first)
+        fun written(degrees: Double, width: Int): String {
+            val thousandths = Math.round(degrees * 60_000)
+            return "%0${width}d%05d".format(thousandths / 60_000, thousandths % 60_000)
+        }
+        return sample.lines().joinToString("\n") { line ->
+            if (!line.startsWith("B") || line.length < 24) {
+                line
+            } else {
+                line.substring(0, 7) + written(latOf(line) + byLat, 2) + "N" + written(lonOf(line) + byLon, 3) + "E" + line.substring(24)
+            }
+        }
+    }
+
     private fun makeAnAccountAndGoBackToTheMap(handle: String) {
         waitFor(hasTestTag("account-handle"))
         tap(hasTestTag("account-new"))

@@ -23,6 +23,7 @@ import fly.venti.core.AirspaceShape
 import fly.venti.core.Bounds
 import fly.venti.core.Coordinate
 import fly.venti.core.LiveGlider
+import fly.venti.core.SiteCandidateView
 import fly.venti.core.SiteView
 import fly.venti.core.ThermalMapCell
 import fly.venti.core.ThermalMapKey
@@ -40,6 +41,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -71,6 +73,9 @@ class OverviewMap : MapContent {
 
     /** Told a live track's identifier when the pilot taps its glider. */
     var onGlider: (String) -> Unit = {}
+
+    /** Told a place where pilots take off and no site stands, when the pilot taps its ring. */
+    var onCandidate: (SiteCandidateView) -> Unit = {}
 
     /** Told the place under the finger after a long press on the map. */
     var onPlace: (Coordinate, Boolean) -> Unit = { _, _ -> }
@@ -115,6 +120,10 @@ class OverviewMap : MapContent {
     private var drawnAirspace: List<AirspaceShape>? = null
     private var sites: List<SiteView> = emptyList()
     private var drawnSites: List<SiteView>? = null
+
+    /** The places where pilots take off and no site stands: a small ring each, while their layer is on. */
+    private var candidates: List<SiteCandidateView> = emptyList()
+    private var drawnCandidates: List<SiteCandidateView>? = null
 
     /** The sites shown apart from those that fit the pilot's filter: drawn dimmed. */
     private var unsaidSites: List<SiteView> = emptyList()
@@ -203,6 +212,7 @@ class OverviewMap : MapContent {
         addTracks(style)
         addFollowed(style)
         addSites(style, view)
+        addCandidates(style)
         addPlans(style)
         // The forecast's arrows under the stations' arrows.
         ThermalHoursLayers.addArrows(style)
@@ -211,6 +221,8 @@ class OverviewMap : MapContent {
         draw()
         drawStations()
         drawSites()
+        drawnCandidates = null
+        drawCandidates()
         drawPins()
         drawGliders()
         drawFollowed()
@@ -310,6 +322,45 @@ class OverviewMap : MapContent {
         val before = drawnRadar
         drawnRadar = radar
         RadarLayer.show(radar, before, style)
+    }
+
+    /** The places where pilots take off and no site stands; none while their layer is off. */
+    fun showCandidates(places: List<SiteCandidateView>) {
+        candidates = places
+        drawCandidates()
+    }
+
+    /**
+     * The layer of those places, empty at first, over the sites' signs: a
+     * small ring in the pack's muted ink, as small as the map's smallest
+     * mark (a calm station's dot), so that it is not taken for a site. No
+     * pin and no picture of the pack: the owner's to draw.
+     */
+    private fun addCandidates(style: Style) {
+        style.addSource(GeoJsonSource(CANDIDATES))
+        style.addLayer(
+            CircleLayer(CANDIDATES, CANDIDATES).withProperties(
+                PropertyFactory.circleRadius(CANDIDATE_RADIUS),
+                PropertyFactory.circleOpacity(0f),
+                PropertyFactory.circleStrokeColor(SiteAreas.dimmedColour),
+                PropertyFactory.circleStrokeWidth(CANDIDATE_RING),
+            ).apply { minZoom = SITES_FROM_ZOOM },
+        )
+    }
+
+    private fun drawCandidates() {
+        val source = style?.getSourceAs<GeoJsonSource>(CANDIDATES) ?: return
+        if (candidates == drawnCandidates) return
+        drawnCandidates = candidates
+        source.setGeoJson(
+            FeatureCollection.fromFeatures(
+                candidates.mapIndexed { index, place ->
+                    Feature.fromGeometry(Point.fromLngLat(place.position.lon, place.position.lat)).apply {
+                        addStringProperty(CANDIDATE_INDEX, index.toString())
+                    }
+                },
+            ),
+        )
     }
 
     fun showForecast(cells: List<ThermalMapCell>) {
@@ -687,6 +738,10 @@ class OverviewMap : MapContent {
             onSite(id)
             return true
         }
+        nearest(CANDIDATES, CANDIDATE_INDEX)?.toIntOrNull()?.let(drawnCandidates.orEmpty()::getOrNull)?.let { place ->
+            onCandidate(place)
+            return true
+        }
         // While a layer of hours is on: its square under the finger, or the
         // place, whose square the core finds.
         if (hoursOn) {
@@ -729,6 +784,12 @@ class OverviewMap : MapContent {
         private const val PLAN_ID = "id"
         private const val PLAN_LABEL = "label"
         private const val LIVE_TRACK = "live-track"
+        private const val CANDIDATES = "site-candidates"
+        private const val CANDIDATE_INDEX = "index"
+
+        /** A calm station's dot, the map's smallest mark, and the width of the ring round it. */
+        private const val CANDIDATE_RADIUS = 4.5f
+        private const val CANDIDATE_RING = 2.5f
 
         /** The zoom from which the sites' signs are drawn, as on the iPhone and the web. */
         private const val SITES_FROM_ZOOM = 9f

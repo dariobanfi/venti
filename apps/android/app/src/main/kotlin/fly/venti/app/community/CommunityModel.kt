@@ -1,7 +1,5 @@
 package fly.venti.app.community
 
-import fly.venti.core.publicFlightsNearPath
-import fly.venti.core.Coordinate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -20,6 +18,8 @@ import fly.venti.core.flightAnalysisFromFile
 import fly.venti.core.flightFromFile
 import fly.venti.core.pilotPage
 import fly.venti.core.pilotPagePath
+import fly.venti.core.publicFlight
+import fly.venti.core.publicFlightPath
 import fly.venti.core.publicFlights
 import fly.venti.core.publicFlightsPath
 import fly.venti.core.RankedPilot
@@ -251,20 +251,23 @@ class CommunityModel(
         return page.flights
     }
 
-    /**
-     * The public flights that took off near a place, the newest first: what
-     * was flown from a flying site. The first page of them.
-     */
-    suspend fun flightsNear(place: Coordinate, withinM: Double = 1500.0): List<PublicFlight> {
-        val server = server() ?: throw NoLongerPublic()
-        val answer = transport(server + publicFlightsNearPath(place.lat, place.lon, withinM))
-        val page = withContext(background) { publicFlights(answer.status16, answer.body) }
-        known += page.flights.associateBy { it.id }
-        return page.flights
-    }
-
     /** A flight one of the lists has shown, by its address on the server. */
     fun flight(id: String): PublicFlight? = known[id]
+
+    /**
+     * A public flight by its address on the server, as a list shows it:
+     * the one a list has shown, or asked for alone. Kept like those of a
+     * list, so that its page can open. What goes wrong is thrown, to be put
+     * into words by [words].
+     */
+    suspend fun publicFlightById(id: String): PublicFlight {
+        known[id]?.let { return it }
+        val server = server() ?: throw NoLongerPublic()
+        val answer = transport(server + withContext(background) { publicFlightPath(id) })
+        val flight = withContext(background) { publicFlight(answer.status16, answer.body) }
+        known[flight.id] = flight
+        return flight
+    }
 
     /**
      * Shows a pilot's public flights from their top, unless they are there

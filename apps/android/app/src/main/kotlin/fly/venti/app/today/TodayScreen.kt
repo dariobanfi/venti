@@ -109,6 +109,8 @@ fun TodayScreen(
     onOpenSettings: () -> Unit,
     onOpenAssistant: () -> Unit,
     bars: PaddingValues,
+    /** What stands under the list of take-offs: the core's offer to add a place the pilot took off at, if any. */
+    underTakeoffs: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -218,6 +220,7 @@ fun TodayScreen(
                             })
                         }
                         Takeoffs(today, shown, chosen, onOpen)
+                        underTakeoffs()
                         if (!(nearPilot && position.place != null) && !position.isDenied) {
                             OutlinedButton(
                                 onClick = ::useMyPosition,

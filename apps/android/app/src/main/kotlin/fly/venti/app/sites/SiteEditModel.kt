@@ -8,11 +8,14 @@ import fly.venti.app.HttpAnswer
 import fly.venti.app.account.AccountModel
 import fly.venti.app.pilotMessage
 import fly.venti.app.wind.WindTransport
+import fly.venti.core.Bounds
+import fly.venti.core.CandidateOffer
 import fly.venti.core.Coordinate
 import fly.venti.core.Core
 import fly.venti.core.CoreException
 import fly.venti.core.ServerRequest
 import fly.venti.core.SiteAdding
+import fly.venti.core.SiteCandidates
 import fly.venti.core.SiteConfirmFlight
 import fly.venti.core.SiteConfirmForm
 import fly.venti.core.SiteConfirmations
@@ -20,6 +23,8 @@ import fly.venti.core.SiteCorrecting
 import fly.venti.core.SiteDraftFault
 import fly.venti.core.SiteDraftView
 import fly.venti.core.SiteField
+import fly.venti.core.SiteFlights
+import fly.venti.core.SiteFlightsWords
 import fly.venti.core.SiteForm
 import fly.venti.core.SiteHistory
 import fly.venti.core.SiteHistoryOffers
@@ -29,6 +34,8 @@ import fly.venti.core.SitePage
 import fly.venti.core.SiteView
 import fly.venti.core.SiteWritten
 import fly.venti.core.siteAddRequest
+import fly.venti.core.siteCandidates
+import fly.venti.core.siteCandidatesPath
 import fly.venti.core.siteChangeRequest
 import fly.venti.core.siteConfirmForm
 import fly.venti.core.siteConfirmationsOf
@@ -39,6 +46,9 @@ import fly.venti.core.siteDraftMoved
 import fly.venti.core.siteDraftNew
 import fly.venti.core.siteDraftOf
 import fly.venti.core.siteDraftRebased
+import fly.venti.core.siteFlights
+import fly.venti.core.siteFlightsPath
+import fly.venti.core.siteFlightsWords
 import fly.venti.core.siteForm
 import fly.venti.core.siteHistoryPage
 import fly.venti.core.siteHistoryPath
@@ -235,6 +245,49 @@ class SiteEditModel(
     suspend fun withdraw(id: String): String =
         write({ siteWithdrawRequest(id) }) { status, body -> siteWithdrawn(status, body) }
 
+    // What public flights say about where pilots take off
+
+    /** The words around a site's public flights and the places no site names: the core's. */
+    val flightsWords: SiteFlightsWords by lazy { siteFlightsWords() }
+
+    /** What the public flights that began at a site say about it, which anyone may read. */
+    suspend fun flights(siteId: String): SiteFlights {
+        val answer = look(withContext(background) { siteFlightsPath(siteId) })
+        return withContext(background) { siteFlights(answer.status16, answer.body) }
+    }
+
+    /**
+     * The places in a part of the map where pilots take off and no site
+     * stands, which anyone may read. A part larger than the server answers
+     * for is refused by the core before it is asked, in the words to show
+     * over the map.
+     */
+    suspend fun candidates(area: Bounds): SiteCandidates {
+        val answer = look(withContext(background) { siteCandidatesPath(area.south, area.west, area.north, area.east) })
+        return withContext(background) { siteCandidates(answer.status16, answer.body) }
+    }
+
+    /**
+     * The places of an answer this pilot took off at and may add, as the
+     * core offers them, the newest flight's place first. None for a
+     * partner: the phone shows a partner no entry to add, as it shows
+     * none on the map. None when the core cannot say.
+     */
+    suspend fun candidateOffers(candidates: SiteCandidates, today: LocalDate = LocalDate.now()): List<CandidateOffer> {
+        if (candidates.candidates.isEmpty()) return emptyList()
+        if (adding()?.asPartner != false) return emptyList()
+        return withContext(background) {
+            // How far this phone's clock is ahead of UTC, for the day and hour of the pilot's flight.
+            val ahead = ZoneId.systemDefault().rules.getOffset(today.atTime(12, 0)).totalSeconds
+            runCatching { core.candidateForPilot(candidates, takesSites(), ahead) }.getOrDefault(emptyList())
+        }
+    }
+
+    /** "Not this one": the place is not offered to this pilot again, on this phone. */
+    suspend fun setAside(place: Coordinate) {
+        withContext(background) { runCatching { core.candidateSetAside(place) } }
+    }
+
     /** What went wrong, in words for the pilot. */
     fun words(error: Exception): String = account.words(error)
 
@@ -346,6 +399,14 @@ class SiteFormDraft private constructor(
         /** A draft for a new site at a place, with nothing said yet, for the tier the core names. */
         fun new(place: Coordinate, adding: SiteAdding): SiteFormDraft =
             SiteFormDraft(siteDraftNew(place), null, SiteFormWords(adding))
+
+        /**
+         * A draft for a place pilots take off from that the core offered
+         * this pilot: at their own take-off, with its height and the use,
+         * as the offer's draft has it.
+         */
+        fun offered(offer: CandidateOffer, adding: SiteAdding): SiteFormDraft =
+            SiteFormDraft(offer.draft, null, SiteFormWords(adding))
 
         /**
          * A draft that corrects a site of Venti's own layers, under the

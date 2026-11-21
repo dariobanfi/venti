@@ -183,6 +183,12 @@ fun SitesFilterSheet(
     /** Told the filter after every choice, the switch of the places from pilots too, to keep it for the next run. */
     onChange: (SitesFilter) -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * The map's layer of the places where pilots take off and no site
+     * stands, beside the places from pilots: whether it is on, and the
+     * core's name and sentence for it; `null` where the sheet has no such switch.
+     */
+    candidates: CandidatesSwitch? = null,
 ) {
     val colours = Venti.colours
     val choices = remember { sitesFilterChoices() }
@@ -279,25 +285,14 @@ fun SitesFilterSheet(
             // and the core's sentence of what it is.
             Group(Modifier.padding(top = VentiSpace.s3)) {
                 row {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .toggleable(
-                                value = filter.withPilots,
-                                role = Role.Switch,
-                                onValueChange = { on -> choose(filter.copy(withPilots = on)) },
-                            )
-                            .testTag("sites-from-pilots")
-                            .heightIn(min = VentiSize.touch)
-                            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(choices.withPilotsWords, style = MaterialTheme.typography.bodyLarge)
-                            Text(choices.withPilotsAbout, style = MaterialTheme.typography.bodyMedium, color = colours.textSecondary)
-                        }
-                        Spacer(Modifier.width(VentiSpace.s3))
-                        Switch(checked = filter.withPilots, onCheckedChange = null)
+                    LayerSwitchRow(choices.withPilotsWords, choices.withPilotsAbout, filter.withPilots, "sites-from-pilots") { on ->
+                        choose(filter.copy(withPilots = on))
+                    }
+                }
+                // Not a part of the core's filter: a layer of the map, kept on this phone.
+                candidates?.let { layer ->
+                    row {
+                        LayerSwitchRow(layer.words, layer.about, layer.isOn, "sites-candidates", layer.onChange)
                     }
                 }
             }
@@ -315,6 +310,30 @@ fun SitesFilterSheet(
                 modifier = Modifier.testTag("sites-filter-note"),
             )
         }
+    }
+}
+
+/** The switch of the map's layer "Take-offs without a site", in the core's words. */
+class CandidatesSwitch(val words: String, val about: String, val isOn: Boolean, val onChange: (Boolean) -> Unit)
+
+/** A switch of a row of the sheet's group: its name, the sentence under it, and the switch at its end. */
+@Composable
+private fun LayerSwitchRow(words: String, about: String, isOn: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = isOn, role = Role.Switch, onValueChange = onChange)
+            .testTag(tag)
+            .heightIn(min = VentiSize.touch)
+            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(words, style = MaterialTheme.typography.bodyLarge)
+            Text(about, style = MaterialTheme.typography.bodyMedium, color = Venti.colours.textSecondary)
+        }
+        Spacer(Modifier.width(VentiSpace.s3))
+        Switch(checked = isOn, onCheckedChange = null)
     }
 }
 

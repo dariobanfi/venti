@@ -162,12 +162,17 @@ struct ChosenSquare: Identifiable {
     let note: String
     let credits: [Credit]
     let id: String
+
+    /// The middle of the square: the mean of its edges.
+    var middle: Coordinate {
+        Coordinate(lat: (cell.south + cell.north) / 2, lon: (cell.west + cell.east) / 2)
+    }
 }
 
 /// A square of the forecast map, as the pack's sheet: the day; the status
 /// as sign, word and colour, with what speaks against the day; the kind of day with its line; the height it
-/// was judged at; what the map is and whose data it is. The words are the
-/// core's.
+/// was judged at; the way to the forecast for its place; what the map is
+/// and whose data it is. The words are the core's.
 struct ForecastSquareSheet: View {
     let square: ChosenSquare
     @Environment(\.dismiss) private var dismiss
@@ -207,6 +212,18 @@ struct ForecastSquareSheet: View {
                             .foregroundStyle(.venti(.textSecondary))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    // The forecast for the middle of the square, as a
+                    // site's page leads to it.
+                    NavigationLink {
+                        ForecastScreen(
+                            place: square.middle, title: Format.place(lat: square.middle.lat, lon: square.middle.lon)
+                        )
+                    } label: {
+                        Label("Forecast for this place", systemImage: "cloud.sun")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.venti(.quiet))
+                    .accessibilityIdentifier("forecast-square-forecast")
                     VStack(alignment: .leading, spacing: VentiSpace.s2) {
                         Text(square.note)
                         ForEach(square.credits, id: \.source) { credit in

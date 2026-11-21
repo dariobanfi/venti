@@ -877,6 +877,19 @@ final class VentiUITests: XCTestCase {
             XCTAssertTrue(["Flyable", "Marginal", "Not flyable"].contains(status.label), status.label)
             sleep(1)
             keepScreenshot("map-forecast-3-square")
+            // The forecast for the square's place, kept when it comes.
+            let toForecast = element("forecast-square-forecast", in: app)
+            if toForecast.exists, toForecast.isHittable {
+                toForecast.tap()
+                if element("forecast-table", in: app).waitForExistence(timeout: 60) {
+                    sleep(1)
+                    keepScreenshot("map-forecast-4-forecast")
+                }
+                // Back to the square's sheet, which has the button to close it.
+                for _ in 0..<2 where !app.buttons["Done"].waitForExistence(timeout: 5) {
+                    app.navigationBars.buttons.firstMatch.tap()
+                }
+            }
             app.buttons["Done"].tap()
             XCTAssertTrue(app.buttons["Show my position"].waitForExistence(timeout: 15))
         } else if !chip.isHittable {

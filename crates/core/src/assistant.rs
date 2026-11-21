@@ -1438,9 +1438,12 @@ mod tests {
         assert_eq!(summit["gusts_km_h"], 93.0);
         assert_eq!(summit["age_min"], 45);
         assert!(summit.get("too_old").is_none());
-        assert_eq!(
-            wind["sources"][0],
-            "Quelle: Deutscher Wetterdienst (CC BY 4.0)"
+        // The credit of every source in the answer goes with it; the
+        // summit's is among them.
+        let sources = wind["sources"].as_array().unwrap();
+        assert!(
+            sources.contains(&json!("Quelle: Deutscher Wetterdienst (CC BY 4.0)")),
+            "{sources:?}"
         );
 
         let statistics: Value =

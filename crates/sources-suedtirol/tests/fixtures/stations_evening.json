@@ -1,0 +1,63 @@
+{
+	"type" : "FeatureCollection",
+	"name" : "station",
+	"crs" : {
+		"type" : "name",
+		"properties" : {
+			"name" : "EPSG:25832"
+		}
+	},
+	"features" : [
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 685789.7670918732, 5195271.728883142 ]
+			},
+			"properties" : {
+				"SCODE" : "37100MS",
+				"NAME_D" : "Sterzing",
+				"NAME_I" : "Vipiteno",
+				"NAME_L" : "Sterzing",
+				"NAME_E" : "Sterzing",
+				"ALT" : 943,
+				"LONG" : 11.4386,
+				"LAT" : 46.885
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 676779.811438235, 5190004.87560029 ]
+			},
+			"properties" : {
+				"SCODE" : "35100WS",
+				"NAME_D" : "Jaufenkamm",
+				"NAME_I" : "Cresta del Giovo",
+				"NAME_L" : "Jaufenkamm",
+				"NAME_E" : "Jaufenkamm",
+				"ALT" : 2145,
+				"LONG" : 11.3184,
+				"LAT" : 46.8401
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 677470.5360380183, 5151946.593559685 ]
+			},
+			"properties" : {
+				"SCODE" : "83200MS",
+				"NAME_D" : "Bozen",
+				"NAME_I" : "Bolzano",
+				"NAME_L" : "Bulsan",
+				"NAME_E" : "Bolzano",
+				"ALT" : 245,
+				"LONG" : 11.3128,
+				"LAT" : 46.4977
+			}
+		}
+	]
+}

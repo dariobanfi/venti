@@ -21,6 +21,8 @@ venti-sources-openaip = { path = "crates/sources-openaip" }
 venti-sources-osm = { path = "crates/sources-osm" }
 venti-sources-basemapat = { path = "crates/sources-basemapat" }
 venti-sources-openmeteo = { path = "crates/sources-openmeteo" }
+venti-sources-suedtirol = { path = "crates/sources-suedtirol" }
+venti-sources-awc = { path = "crates/sources-awc" }
 venti-regions = { path = "crates/regions" }
 venti-flight = { path = "crates/flight" }
 venti-sensors = { path = "crates/sensors" }

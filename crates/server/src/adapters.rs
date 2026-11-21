@@ -9,12 +9,14 @@ use venti_api_types::v1::{THERMAL_GRID_DEG, ThermalGrid};
 use venti_domain::{GeoPoint, ModelId, Timestamp};
 use venti_sources::testing::FixtureFetch;
 use venti_sources::{ForecastSource, ImagerySource, Registry};
+use venti_sources_awc::AwcMetar;
 use venti_sources_basemapat::BasemapAt;
 use venti_sources_dwd::Dwd10Min;
 use venti_sources_geosphere::Tawes10Min;
 use venti_sources_openaip::OpenAip;
 use venti_sources_openmeteo::OpenMeteo;
 use venti_sources_osm::OsmFreeFlying;
+use venti_sources_suedtirol::SuedtirolMeteo;
 
 /// What whoever runs the server tells it about the services behind some of
 /// its sources.
@@ -124,6 +126,12 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
         .register_observations(Box::new(Tawes10Min::new()))
         .expect("geosphere-tawes registers once");
     registry
+        .register_observations(Box::new(SuedtirolMeteo::new()))
+        .expect("suedtirol-meteo registers once");
+    registry
+        .register_observations(Box::new(AwcMetar::new()))
+        .expect("awc-metar registers once");
+    registry
         .register_airspace(Box::new(OpenAip::new()))
         .expect("openaip registers once");
     let sites = OsmFreeFlying::new(&providers.overpass_url)
@@ -142,10 +150,21 @@ pub fn registry_for(providers: &Providers) -> Result<Registry, String> {
 /// The payloads recorded from every provider, as a fetcher that answers
 /// from them instead of the network. The development mode runs on these,
 /// with the adapters made for [`Providers::recorded`].
+///
+/// South Tyrol's stations and the airfield reports joined three days after
+/// the first recordings. What answers for them is a sample of the evening
+/// the clock stands at, three stations each, made from what their services
+/// gave for that evening when asked later: see the `fixtures` of the two
+/// crates. The airfield reports are asked for by area, and their sample
+/// answers for the first region's box as it is; should the box change, the
+/// development mode says at its start that the reports no longer give a
+/// healthy run.
 pub fn recorded_payloads() -> FixtureFetch {
     FixtureFetch::new()
         .with_all(venti_sources_dwd::fixtures::recorded())
         .with_all(venti_sources_geosphere::fixtures::recorded())
+        .with_all(venti_sources_suedtirol::fixtures::evening())
+        .with_all(venti_sources_awc::fixtures::evening())
         .with_all(venti_sources_openaip::fixtures::recorded())
         .with_all(venti_sources_osm::fixtures::recorded())
         .with_all(venti_sources_openmeteo::fixtures::recorded())
@@ -247,12 +266,16 @@ pub fn forecasts_recorded_at() -> Timestamp {
 }
 
 /// The moment the development mode's clock stands at: the latest recording
-/// time of the observations.
+/// time of the first two sources of observations.
 ///
 /// Wind is what ages by the minute, so the clock stays with the wind. The
 /// airspace files and the flying sites were recorded the day after; both
 /// change slowly, and the development mode serves them as fetched at this
-/// moment.
+/// moment. The sources of observations that came later have samples made
+/// for this moment, and a test of this module holds them to it: an
+/// observation dated after the clock would be refused as one from the
+/// future, and to move the clock is to move what every app's tests are
+/// written against.
 pub fn recorded_at() -> Timestamp {
     venti_sources_dwd::fixtures::recorded_at().max(venti_sources_geosphere::fixtures::recorded_at())
 }
@@ -298,14 +321,23 @@ mod tests {
             }
         }
         // A server that was told nothing has no forecast source.
-        assert_eq!(registry.manifests().count(), 4);
+        assert_eq!(registry.manifests().count(), 6);
         assert!(forecast_sources(&Providers::default()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_samples_of_the_later_sources_are_for_the_moment_of_the_clock() {
+        assert_eq!(
+            venti_sources_suedtirol::fixtures::evening_at(),
+            recorded_at()
+        );
+        assert_eq!(venti_sources_awc::fixtures::evening_at(), recorded_at());
     }
 
     #[test]
     fn forecasts_are_there_only_when_the_server_is_told_where_from() {
         let told = registry_for(&Providers::recorded()).unwrap();
-        assert_eq!(told.manifests().count(), 5);
+        assert_eq!(told.manifests().count(), 7);
         let open_meteo = venti_domain::SourceId::new("open-meteo").unwrap();
         let manifest = told.manifest(&open_meteo, Kind::Forecasts).unwrap();
         assert_eq!(manifest.kinds, [Kind::Forecasts]);

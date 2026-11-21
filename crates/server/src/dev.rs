@@ -722,7 +722,8 @@ pub async fn recorded_with_its_store(
     let registry = adapters::registry_for(&Providers::recorded())?;
     let pack = RegionPack::from_toml(FIRST_REGION).map_err(|e| e.to_string())?;
     pack.check_against(&registry).map_err(|e| e.to_string())?;
-    let jobs = plan::plan(&[pack], &registry).map_err(|e| e.to_string())?;
+    let packs = [pack];
+    let jobs = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
 
     let store = Arc::new(MemoryStore::new());
     let now = adapters::recorded_at();
@@ -779,6 +780,7 @@ pub async fn recorded_with_its_store(
 
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
     let api = Api::new(store.clone(), clock.clone(), manifests, settings)
+        .with_station_priority(plan::station_priority(&packs))
         .with_forecasts(forecasts.clone())
         .with_thermal_map(Arc::new(map));
 

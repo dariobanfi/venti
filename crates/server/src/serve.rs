@@ -33,7 +33,8 @@ const LOOKBACK: Duration = Duration::hours(3);
 /// source at its cadence, cleans up old data, and answers the API.
 pub async fn serve(config: Config) -> Result<(), String> {
     let registry = adapters::registry_for(&config.providers)?;
-    let jobs = plan::load(&config.regions, &registry).map_err(|e| e.to_string())?;
+    let packs = plan::read(&config.regions, &registry).map_err(|e| e.to_string())?;
+    let jobs = plan::plan(&packs, &registry).map_err(|e| e.to_string())?;
     let store = PgStore::connect(config.database_url.expose())
         .await
         .map_err(|e| format!("cannot open the database: {e}"))?;
@@ -118,7 +119,8 @@ pub async fn serve(config: Config) -> Result<(), String> {
     }
 
     let manifests = jobs.iter().map(|job| job.manifest(&registry));
-    let mut api = Api::new(store.clone(), clock.clone(), manifests, settings);
+    let mut api = Api::new(store.clone(), clock.clone(), manifests, settings)
+        .with_station_priority(plan::station_priority(&packs));
     if let Some(forecasts) = &forecasts {
         api = api.with_forecasts(forecasts.clone());
     }

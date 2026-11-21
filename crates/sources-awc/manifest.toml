@@ -1,0 +1,42 @@
+id = "awc-metar"
+provider = "Aviation Weather Center"
+kinds = ["observations"]
+# The service has the reports of the whole world. These are the countries
+# whose airfields answered for the first region's box on 2026-11-21.
+countries = ["AT", "CH", "DE", "HU", "IT", "SI"]
+# An airfield reports every half hour, a few once an hour, but not all at the
+# same minutes, and a special report can come in between: the answer for an
+# area changes several times an hour. Asked every ten minutes, a half-hourly
+# report is replaced before it is an hour old, which is when the apps grey a
+# reading. The service renews its answers once a minute and allows 100
+# requests in one.
+cadence_seconds = 600
+auth = "none"
+# The answer for the first region's box was 9.6 kB on 2026-11-21: 22 reports.
+max_response_kb = 1024
+
+# "All requests are rate limited to 100 requests per minute." A run makes one.
+[rate_limit]
+per_second = 1
+per_hour = 6000
+
+[licence]
+name = "Public domain, U.S. Government"
+commercial = true
+redistribution = true
+share_alike = false
+# The centre asks for no credit. The source is named all the same, as every
+# source is, without the name "National Weather Service", which the service
+# reserves for its content unaltered.
+attribution = "Data source: Aviation Weather Center, aviationweather.gov"
+link = "https://aviationweather.gov/data/api/"
+constraints = [
+    "Do not claim the information as your own, imply an endorsement by or an affiliation with NOAA or the National Weather Service, or present changed content as official government material.",
+    "The name \"National Weather Service\" and its emblem are trademarks and are not used without permission, except to identify its unaltered content or to link to its sites.",
+    "At most 100 requests a minute, limited in scope and frequency; a user agent of the client's own; query parameters outside the documentation are refused.",
+]
+verified_on = "2026-11-21"
+verified_from = [
+    "https://www.weather.gov/disclaimer",
+    "https://aviationweather.gov/data/api/",
+]

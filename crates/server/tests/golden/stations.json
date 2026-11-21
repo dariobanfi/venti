@@ -1,6 +1,54 @@
 {
   "stations": [
     {
+      "id": "awc-metar:EDJA",
+      "source": "awc-metar",
+      "name": "Memmingerberg Arpt, BY, DE",
+      "position": {
+        "lat": 47.989,
+        "lon": 10.239
+      },
+      "elevation_m": 625.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 8.75,
+        "wind_gust_ms": 15.95,
+        "wind_direction_deg": 230.0,
+        "temperature_c": 8.0
+      }
+    },
+    {
+      "id": "awc-metar:LOWI",
+      "source": "awc-metar",
+      "name": "Innsbruck Arpt, TI, AT",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.344
+      },
+      "elevation_m": 570.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 2.06,
+        "wind_direction_deg": 320.0,
+        "temperature_c": 7.0
+      }
+    },
+    {
+      "id": "awc-metar:LSZS",
+      "source": "awc-metar",
+      "name": "Samedan Arpt, GR, CH",
+      "position": {
+        "lat": 46.526,
+        "lon": 9.879
+      },
+      "elevation_m": 1708.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 1.54,
+        "temperature_c": 1.0
+      }
+    },
+    {
       "id": "dwd-10min:01550",
       "source": "dwd-10min",
       "name": "Garmisch-Partenkirchen",
@@ -116,10 +164,71 @@
         "humidity_pct": 92.0,
         "pressure_hpa": 681.6
       }
+    },
+    {
+      "id": "suedtirol-meteo:35100WS",
+      "source": "suedtirol-meteo",
+      "name": "Jaufenkamm",
+      "position": {
+        "lat": 46.8401,
+        "lon": 11.3184
+      },
+      "elevation_m": 2145.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 4.5,
+        "wind_gust_ms": 6.3,
+        "wind_direction_deg": 215.0,
+        "temperature_c": 0.1,
+        "humidity_pct": 99.9
+      }
+    },
+    {
+      "id": "suedtirol-meteo:37100MS",
+      "source": "suedtirol-meteo",
+      "name": "Sterzing",
+      "position": {
+        "lat": 46.885,
+        "lon": 11.4386
+      },
+      "elevation_m": 943.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 0.8,
+        "wind_gust_ms": 3.0,
+        "wind_direction_deg": 161.6,
+        "temperature_c": 3.2,
+        "humidity_pct": 98.2
+      }
+    },
+    {
+      "id": "suedtirol-meteo:83200MS",
+      "source": "suedtirol-meteo",
+      "name": "Bozen",
+      "position": {
+        "lat": 46.4977,
+        "lon": 11.3128
+      },
+      "elevation_m": 245.0,
+      "latest": {
+        "time": "2026-11-18T18:50:00Z",
+        "wind_speed_ms": 0.5,
+        "wind_gust_ms": 1.7,
+        "wind_direction_deg": 69.5,
+        "temperature_c": 6.0,
+        "humidity_pct": 90.8
+      }
     }
   ],
   "truncated": false,
   "attributions": [
+    {
+      "source": "awc-metar",
+      "provider": "Aviation Weather Center",
+      "licence": "Public domain, U.S. Government",
+      "text": "Data source: Aviation Weather Center, aviationweather.gov",
+      "url": "https://aviationweather.gov/data/api/"
+    },
     {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
@@ -133,6 +242,13 @@
       "licence": "CC BY 4.0",
       "text": "Data source: GeoSphere Austria - https://data.hub.geosphere.at",
       "url": "https://data.hub.geosphere.at"
+    },
+    {
+      "source": "suedtirol-meteo",
+      "provider": "Autonome Provinz Bozen - Südtirol",
+      "licence": "CC0 1.0",
+      "text": "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz",
+      "url": "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"
     }
   ]
 }

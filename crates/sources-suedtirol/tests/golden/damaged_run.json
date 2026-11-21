@@ -1,0 +1,103 @@
+{
+  "stations": [
+    {
+      "id": "suedtirol-meteo:35100WS",
+      "name": "Jaufenkamm",
+      "position": {
+        "lat": 46.8401,
+        "lon": 11.3184
+      },
+      "elevation_m": 2145.0
+    },
+    {
+      "id": "suedtirol-meteo:37100MS",
+      "name": "Sterzing",
+      "position": {
+        "lat": 46.885,
+        "lon": 11.4386
+      },
+      "elevation_m": 943.0
+    },
+    {
+      "id": "suedtirol-meteo:83200MS",
+      "name": "Bozen",
+      "position": {
+        "lat": 46.4977,
+        "lon": 11.3128
+      },
+      "elevation_m": 245.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "suedtirol-meteo:35100WS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 4.5,
+      "wind_gust_ms": 6.3,
+      "wind_direction_deg": 215.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:37100MS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 3.2,
+      "humidity_pct": 98.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:83200MS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.7,
+      "wind_direction_deg": 69.5,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "suedtirol-meteo",
+    "requests": 2,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "37100MS WG",
+        "reason": "the unit is \"km/h\", not \"m/s\""
+      },
+      {
+        "what": "37100MS WR 2026-11-18T19:50:00MEZ",
+        "reason": "time stamp cannot be read"
+      },
+      {
+        "what": "35100WS LF",
+        "reason": "row cannot be read: invalid type: string \"99.9\", expected f64"
+      },
+      {
+        "what": " LF",
+        "reason": "a value without a station"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "suedtirol-meteo:35100WS",
+        "time": "2026-11-18T18:50:00Z",
+        "field": "temperature_c",
+        "value": 999.0,
+        "reason": "outside -80..=60"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

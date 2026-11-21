@@ -11,7 +11,7 @@ use venti_domain::BoundingBox;
 use venti_store::Store;
 
 use super::error::ApiError;
-use super::{Api, cache};
+use super::{Api, cache, same_place};
 
 const BBOX_HELP: &str =
     "give bbox as west,south,east,north in degrees, for example bbox=10.5,47.2,11.9,47.8";
@@ -46,19 +46,40 @@ impl<S: Store> Api<S> {
     /// The stations inside a box, each with its newest observation, as the
     /// API answers them. The connector's wind tool is answered from this
     /// too.
+    ///
+    /// Where two sources have a station at the same place, one of the two
+    /// is in the answer: see [`same_place`]. The other is still collected,
+    /// and its own observations still answer by its identifier.
     pub(crate) async fn stations_in(
         &self,
         area: &BoundingBox,
     ) -> Result<StationsResponse, ApiError> {
-        // One more than a response lists, to know whether the box holds more.
-        let mut found = self.store.stations_in(area, MAX_STATIONS + 1).await?;
-        let truncated = found.len() > MAX_STATIONS;
-        found.truncate(MAX_STATIONS);
+        // The stations of the box and of a little room around it, so that a
+        // station at the edge is judged against its neighbour outside. One
+        // more than a response lists, to know whether there are more.
+        let around = self
+            .store
+            .stations_in(&same_place::with_room(area), MAX_STATIONS + 1)
+            .await?;
+        let (mut found, truncated) = if around.len() > MAX_STATIONS {
+            // More than a response lists. The box is asked for by itself
+            // and cut as it always was; a station at its edge may then be
+            // listed beside the one that stands for it outside.
+            let mut found = self.store.stations_in(area, MAX_STATIONS + 1).await?;
+            let truncated = found.len() > MAX_STATIONS;
+            found.truncate(MAX_STATIONS);
+            (found, truncated)
+        } else {
+            (around, false)
+        };
+        found.retain(|entry| self.serves(entry.station.id.source()));
+        let left_out = same_place::left_out(&found, &self.station_priority, self.clock.now());
 
         let stations: Vec<StationWithLatest> = found
             .iter()
-            .filter(|entry| self.serves(entry.station.id.source()))
-            .map(|entry| StationWithLatest {
+            .zip(left_out)
+            .filter(|(entry, left_out)| !left_out && area.contains(entry.station.position))
+            .map(|(entry, _)| StationWithLatest {
                 station: Station::from(&entry.station),
                 latest: entry.latest.as_ref().map(Reading::from),
             })

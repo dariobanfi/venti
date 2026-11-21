@@ -2895,12 +2895,14 @@ dependencies = [
  "venti-mcp",
  "venti-regions",
  "venti-sources",
+ "venti-sources-awc",
  "venti-sources-basemapat",
  "venti-sources-dwd",
  "venti-sources-geosphere",
  "venti-sources-openaip",
  "venti-sources-openmeteo",
  "venti-sources-osm",
+ "venti-sources-suedtirol",
  "venti-store",
  "venti-tools",
 ]
@@ -2916,6 +2918,17 @@ dependencies = [
  "thiserror",
  "toml",
  "venti-domain",
+]
+
+[[package]]
+name = "venti-sources-awc"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
 ]
 
 [[package]]
@@ -2975,6 +2988,17 @@ dependencies = [
 
 [[package]]
 name = "venti-sources-osm"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "venti-domain",
+ "venti-sources",
+]
+
+[[package]]
+name = "venti-sources-suedtirol"
 version = "0.1.0"
 dependencies = [
  "chrono",

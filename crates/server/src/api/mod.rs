@@ -70,6 +70,7 @@ mod observations;
 mod pilots;
 mod ranking;
 mod reports;
+mod same_place;
 mod shape;
 mod share;
 mod sites;
@@ -251,6 +252,9 @@ pub struct Api<S> {
     maps: Maps,
     /// The map imagery the server passes on, if it passes any on.
     imagery: Option<Arc<Imagery>>,
+    /// The sources of observations in the order they are preferred where
+    /// two of them have a station at the same place.
+    station_priority: Vec<SourceId>,
 }
 
 impl<S: Store> Api<S> {
@@ -331,6 +335,7 @@ impl<S: Store> Api<S> {
             groups: groups::Groups::new(settings.groups, limits.watched_keys),
             maps: Maps::default(),
             imagery: None,
+            station_priority: Vec::new(),
         }
     }
 
@@ -371,6 +376,18 @@ impl<S: Store> Api<S> {
     #[must_use]
     pub fn with_imagery(mut self, imagery: Arc<Imagery>) -> Self {
         self.imagery = Some(imagery);
+        self
+    }
+
+    /// The same API, handing out one station where two sources have one at
+    /// the same place: the one whose source comes first in `priority`, the
+    /// regions' order of their sources of observations
+    /// ([`station_priority`](crate::plan::station_priority)).
+    ///
+    /// Without this every station of every source is handed out.
+    #[must_use]
+    pub fn with_station_priority(mut self, priority: Vec<SourceId>) -> Self {
+        self.station_priority = priority;
         self
     }
 

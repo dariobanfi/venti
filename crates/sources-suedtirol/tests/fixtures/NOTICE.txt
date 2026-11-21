@@ -1,0 +1,78 @@
+The files in this folder are data of the Autonomous Province of Bolzano -
+South Tyrol, measured by the stations of its Agency for Civil Protection
+(Agentur für Bevölkerungsschutz) and published as the dataset "Webservice
+der meteorologischen und hydrographischen Messungen",
+https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche, under
+Creative Commons CC0 1.0,
+https://creativecommons.org/publicdomain/zero/1.0/deed.de. The province's
+documentation of the service calls the values raw data that have not been
+validated. They are not covered by the licence of the code around them.
+
+They were recorded on 2026-11-21 from
+https://geoservices.buergernetz.bz.it/services/meteo/v1/, without a key,
+with curl.
+
+stations.json and sensors.json are the whole answers to the adapter's two
+requests, unchanged, both asked at 10:36:37 UTC:
+
+    stations.json   GET /stations   94,632 bytes: 230 stations, of which 97
+                                    measure weather and 133 water
+    sensors.json    GET /sensors    184,034 bytes: 993 rows, the newest
+                                    value of every sensor of every station
+
+The newest values in sensors.json are of 11:20 local time, 10:20 UTC, and
+so were 17 minutes old. The answer was asked for twice before, at 10:30:48
+and 10:31:58 UTC; the newest values were then of 10:10 and of 10:20 UTC.
+stations.json ends its lines with CR LF, as the service sent it.
+
+The folder evening/ holds fifteen answers of the service's third part, the
+time series, whole and unchanged, asked between 10:36:38 and 10:36:46 UTC:
+
+    evening/STATION_SENSOR.json   GET /timeseries?station_code=STATION
+                                  &sensor_code=SENSOR&date_from=202611181900
+                                  &date_to=202611182010
+
+for the stations 37100MS (Sterzing), 35100WS (Jaufenkamm) and 83200MS
+(Bozen) and the sensors WG, WG.BOE, WR, LT and LF: what each measured
+between 19:00 and 20:10 local time on 2026-11-18, eight values each. The
+adapter does not ask for time series. They are here for the next two files.
+
+stations_evening.json and sensors_evening.json are NOT answers of the
+service as it gave them. They are a sample for the server's development
+mode, whose clock stands at 19:05 UTC on 2026-11-18, three days before
+this source was recorded; the service answers with the newest values only
+and cannot be asked for an earlier moment.
+
+    stations_evening.json   stations.json cut down to the three stations
+                            above, each byte for byte as the service
+                            wrote it, between the first ten lines and the
+                            last two of the answer
+    sensors_evening.json    the fifteen rows of sensors.json for those
+                            three stations and five sensors, in the
+                            answer's form, each with its "DATE" and
+                            "VALUE" replaced by the entry of
+                            evening/STATION_SENSOR.json for
+                            2026-11-18T19:50:00CET
+
+So every value in the sample is one the service gave, for the station, the
+sensor and the moment the sample says: 18:50 UTC on 2026-11-18, which is
+fifteen minutes before the development mode's clock. What the service
+answered at that moment is not known. A test of this crate holds every
+row of the sample against the time series.
+
+sensors_damaged.json is not the service's data: it is sensors_evening.json
+with seven rows changed by hand, to test how the adapter reports what it
+cannot read. The test that uses it says what was changed.
+
+To record them again: fetch /stations and /sensors in one go and replace
+the two files; set the moment in tests/pipeline.rs; run the tests with
+VENTI_UPDATE_GOLDEN=1 and review what changed. The counts the test pins
+(stations, anemometers with a value, what validation removed) are of that
+moment and will differ. The evening sample stays as it is for as long as
+the development mode's clock does; should the clock move, make the sample
+again for the new moment from time series asked for it, as above. The
+service keeps them: the ones here were asked three days after the evening
+they are of.
+
+A value in these files is what an instrument reported. It is no statement
+that a place can be flown.

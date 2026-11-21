@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "awc-metar:EDJA",
+      "name": "Memmingerberg Arpt, BY, DE",
+      "position": {
+        "lat": 47.989,
+        "lon": 10.239
+      },
+      "elevation_m": 625.0
+    },
+    {
+      "id": "awc-metar:LOWI",
+      "name": "Innsbruck Arpt, TI, AT",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.344
+      },
+      "elevation_m": 570.0
+    },
+    {
+      "id": "awc-metar:LSZS",
+      "name": "Samedan Arpt, GR, CH",
+      "position": {
+        "lat": 46.526,
+        "lon": 9.879
+      },
+      "elevation_m": 1708.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "awc-metar:EDJA",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 8.75,
+      "wind_gust_ms": 15.95,
+      "wind_direction_deg": 230.0,
+      "gust_direction_deg": null,
+      "temperature_c": 8.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWI",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 2.06,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 320.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LSZS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 1.54,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "awc-metar",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

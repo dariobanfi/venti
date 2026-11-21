@@ -1,0 +1,1947 @@
+{
+  "stations": [
+    {
+      "id": "suedtirol-meteo:00390SF",
+      "name": "Graun Schöneben",
+      "position": {
+        "lat": 46.8064,
+        "lon": 10.4979
+      },
+      "elevation_m": 2040.0
+    },
+    {
+      "id": "suedtirol-meteo:00700WS",
+      "name": "Graun Elferspitze",
+      "position": {
+        "lat": 46.7767,
+        "lon": 10.4878
+      },
+      "elevation_m": 2926.0
+    },
+    {
+      "id": "suedtirol-meteo:01080SF",
+      "name": "Melag Pratznerberg",
+      "position": {
+        "lat": 46.8468,
+        "lon": 10.6247
+      },
+      "elevation_m": 2450.0
+    },
+    {
+      "id": "suedtirol-meteo:01110MS",
+      "name": "Langtaufers Grub",
+      "position": {
+        "lat": 46.8365,
+        "lon": 10.633
+      },
+      "elevation_m": 1842.0
+    },
+    {
+      "id": "suedtirol-meteo:02200MS",
+      "name": "St. Valentin a.d. Haide",
+      "position": {
+        "lat": 46.7759,
+        "lon": 10.5289
+      },
+      "elevation_m": 1499.0
+    },
+    {
+      "id": "suedtirol-meteo:02500MS",
+      "name": "Marienberg",
+      "position": {
+        "lat": 46.7057,
+        "lon": 10.5213
+      },
+      "elevation_m": 1310.0
+    },
+    {
+      "id": "suedtirol-meteo:02700SF",
+      "name": "Schleis Kloangruebes",
+      "position": {
+        "lat": 46.7004,
+        "lon": 10.4324
+      },
+      "elevation_m": 2460.0
+    },
+    {
+      "id": "suedtirol-meteo:06040WS",
+      "name": "Sulden Schöntaufspitze",
+      "position": {
+        "lat": 46.5029,
+        "lon": 10.6286
+      },
+      "elevation_m": 3328.0
+    },
+    {
+      "id": "suedtirol-meteo:06090SF",
+      "name": "Sulden Madritsch",
+      "position": {
+        "lat": 46.4938,
+        "lon": 10.6144
+      },
+      "elevation_m": 2825.0
+    },
+    {
+      "id": "suedtirol-meteo:06400MS",
+      "name": "Sulden",
+      "position": {
+        "lat": 46.5159,
+        "lon": 10.5953
+      },
+      "elevation_m": 1907.0
+    },
+    {
+      "id": "suedtirol-meteo:07740WS",
+      "name": "Trafoi Zaufenkofel",
+      "position": {
+        "lat": 46.5556,
+        "lon": 10.5397
+      },
+      "elevation_m": 2475.0
+    },
+    {
+      "id": "suedtirol-meteo:08200MS",
+      "name": "Laas Eyrs",
+      "position": {
+        "lat": 46.6249,
+        "lon": 10.6496
+      },
+      "elevation_m": 874.0
+    },
+    {
+      "id": "suedtirol-meteo:09700MS",
+      "name": "Schlanders",
+      "position": {
+        "lat": 46.6238,
+        "lon": 10.7803
+      },
+      "elevation_m": 698.0
+    },
+    {
+      "id": "suedtirol-meteo:11400MS",
+      "name": "Hintermartell",
+      "position": {
+        "lat": 46.5169,
+        "lon": 10.7269
+      },
+      "elevation_m": 1720.0
+    },
+    {
+      "id": "suedtirol-meteo:15000SF",
+      "name": "Schnals Teufelsegg",
+      "position": {
+        "lat": 46.7847,
+        "lon": 10.7647
+      },
+      "elevation_m": 3035.0
+    },
+    {
+      "id": "suedtirol-meteo:15050WS",
+      "name": "Schnals Grawand",
+      "position": {
+        "lat": 46.7703,
+        "lon": 10.7966
+      },
+      "elevation_m": 3220.0
+    },
+    {
+      "id": "suedtirol-meteo:15590SF",
+      "name": "Schnals Finail",
+      "position": {
+        "lat": 46.7412,
+        "lon": 10.8224
+      },
+      "elevation_m": 1950.0
+    },
+    {
+      "id": "suedtirol-meteo:15800MS",
+      "name": "Schnals Vernagt",
+      "position": {
+        "lat": 46.7357,
+        "lon": 10.8493
+      },
+      "elevation_m": 1700.0
+    },
+    {
+      "id": "suedtirol-meteo:19300MS",
+      "name": "Naturns",
+      "position": {
+        "lat": 46.6477,
+        "lon": 10.9912
+      },
+      "elevation_m": 541.0
+    },
+    {
+      "id": "suedtirol-meteo:20050SF",
+      "name": "Timmelsalm",
+      "position": {
+        "lat": 46.9136,
+        "lon": 11.1487
+      },
+      "elevation_m": 2230.0
+    },
+    {
+      "id": "suedtirol-meteo:20500MS",
+      "name": "Pfelders",
+      "position": {
+        "lat": 46.7965,
+        "lon": 11.0883
+      },
+      "elevation_m": 1640.0
+    },
+    {
+      "id": "suedtirol-meteo:20690SF",
+      "name": "Pfelders Grünboden",
+      "position": {
+        "lat": 46.792,
+        "lon": 11.1016
+      },
+      "elevation_m": 2015.0
+    },
+    {
+      "id": "suedtirol-meteo:20720WS",
+      "name": "Pfelders Rauhjoch",
+      "position": {
+        "lat": 46.8289,
+        "lon": 11.1146
+      },
+      "elevation_m": 2926.0
+    },
+    {
+      "id": "suedtirol-meteo:20910MS",
+      "name": "Platt in Passeier",
+      "position": {
+        "lat": 46.8215,
+        "lon": 11.1762
+      },
+      "elevation_m": 1145.0
+    },
+    {
+      "id": "suedtirol-meteo:22210MS",
+      "name": "St. Martin in Passeier",
+      "position": {
+        "lat": 46.7822,
+        "lon": 11.2294
+      },
+      "elevation_m": 588.0
+    },
+    {
+      "id": "suedtirol-meteo:23200MS",
+      "name": "Meran",
+      "position": {
+        "lat": 46.688,
+        "lon": 11.1366
+      },
+      "elevation_m": 330.0
+    },
+    {
+      "id": "suedtirol-meteo:24170WS",
+      "name": "Ulten Weißbrunnspitz",
+      "position": {
+        "lat": 46.494,
+        "lon": 10.774
+      },
+      "elevation_m": 3253.0
+    },
+    {
+      "id": "suedtirol-meteo:24300SF",
+      "name": "Ulten Rossbänke",
+      "position": {
+        "lat": 46.4693,
+        "lon": 10.8194
+      },
+      "elevation_m": 2255.0
+    },
+    {
+      "id": "suedtirol-meteo:24400MS",
+      "name": "Ulten Weißbrunn",
+      "position": {
+        "lat": 46.4868,
+        "lon": 10.8318
+      },
+      "elevation_m": 1900.0
+    },
+    {
+      "id": "suedtirol-meteo:25900MS",
+      "name": "St. Walburg",
+      "position": {
+        "lat": 46.5417,
+        "lon": 10.9898
+      },
+      "elevation_m": 1142.0
+    },
+    {
+      "id": "suedtirol-meteo:27100MS",
+      "name": "Gargazon",
+      "position": {
+        "lat": 46.5767,
+        "lon": 11.2008
+      },
+      "elevation_m": 254.0
+    },
+    {
+      "id": "suedtirol-meteo:31410MS",
+      "name": "Pflersch",
+      "position": {
+        "lat": 46.9557,
+        "lon": 11.3793
+      },
+      "elevation_m": 1154.0
+    },
+    {
+      "id": "suedtirol-meteo:31810SF",
+      "name": "Ladurns",
+      "position": {
+        "lat": 46.9348,
+        "lon": 11.3663
+      },
+      "elevation_m": 1960.0
+    },
+    {
+      "id": "suedtirol-meteo:33500MS",
+      "name": "Pfitsch St. Jakob",
+      "position": {
+        "lat": 46.9656,
+        "lon": 11.5981
+      },
+      "elevation_m": 1440.0
+    },
+    {
+      "id": "suedtirol-meteo:34200WS",
+      "name": "Signalgipfel Wilder Freiger",
+      "position": {
+        "lat": 46.9684,
+        "lon": 11.1929
+      },
+      "elevation_m": 3399.0
+    },
+    {
+      "id": "suedtirol-meteo:34500MS",
+      "name": "Ridnaun",
+      "position": {
+        "lat": 46.9091,
+        "lon": 11.3068
+      },
+      "elevation_m": 1364.0
+    },
+    {
+      "id": "suedtirol-meteo:35100WS",
+      "name": "Jaufenkamm",
+      "position": {
+        "lat": 46.8401,
+        "lon": 11.3184
+      },
+      "elevation_m": 2145.0
+    },
+    {
+      "id": "suedtirol-meteo:35205SF",
+      "name": "Ratschings Wasserfaller Alm",
+      "position": {
+        "lat": 46.8456,
+        "lon": 11.2987
+      },
+      "elevation_m": 1907.0
+    },
+    {
+      "id": "suedtirol-meteo:37100MS",
+      "name": "Sterzing",
+      "position": {
+        "lat": 46.885,
+        "lon": 11.4386
+      },
+      "elevation_m": 943.0
+    },
+    {
+      "id": "suedtirol-meteo:37700MS",
+      "name": "Franzensfeste Grasstein",
+      "position": {
+        "lat": 46.8125,
+        "lon": 11.5488
+      },
+      "elevation_m": 850.0
+    },
+    {
+      "id": "suedtirol-meteo:39100MS",
+      "name": "Brixen - Vahrn",
+      "position": {
+        "lat": 46.731,
+        "lon": 11.6451
+      },
+      "elevation_m": 585.0
+    },
+    {
+      "id": "suedtirol-meteo:41000MS",
+      "name": "Toblach",
+      "position": {
+        "lat": 46.7299,
+        "lon": 12.2191
+      },
+      "elevation_m": 1219.0
+    },
+    {
+      "id": "suedtirol-meteo:42700MS",
+      "name": "St. Veit in Prags",
+      "position": {
+        "lat": 46.7119,
+        "lon": 12.1
+      },
+      "elevation_m": 1285.0
+    },
+    {
+      "id": "suedtirol-meteo:42830SF",
+      "name": "Prags Rossalm",
+      "position": {
+        "lat": 46.6712,
+        "lon": 12.1115
+      },
+      "elevation_m": 2340.0
+    },
+    {
+      "id": "suedtirol-meteo:43200MS",
+      "name": "Welsberg",
+      "position": {
+        "lat": 46.7431,
+        "lon": 12.1289
+      },
+      "elevation_m": 1131.0
+    },
+    {
+      "id": "suedtirol-meteo:44500MS",
+      "name": "St. Magdalena in Gsies",
+      "position": {
+        "lat": 46.8353,
+        "lon": 12.2427
+      },
+      "elevation_m": 1412.0
+    },
+    {
+      "id": "suedtirol-meteo:45100WS",
+      "name": "Gsies Regelspitze",
+      "position": {
+        "lat": 46.8561,
+        "lon": 12.2005
+      },
+      "elevation_m": 2747.0
+    },
+    {
+      "id": "suedtirol-meteo:45200SF",
+      "name": "Gsies Pfinnalm",
+      "position": {
+        "lat": 46.8417,
+        "lon": 12.2096
+      },
+      "elevation_m": 2152.0
+    },
+    {
+      "id": "suedtirol-meteo:47400MS",
+      "name": "Antholz Obertal",
+      "position": {
+        "lat": 46.8704,
+        "lon": 12.1166
+      },
+      "elevation_m": 1320.0
+    },
+    {
+      "id": "suedtirol-meteo:50360SF",
+      "name": "Prettau Merbalm",
+      "position": {
+        "lat": 47.0362,
+        "lon": 12.1221
+      },
+      "elevation_m": 2006.0
+    },
+    {
+      "id": "suedtirol-meteo:50400WS",
+      "name": "Prettau Lengspitze",
+      "position": {
+        "lat": 47.0159,
+        "lon": 12.131
+      },
+      "elevation_m": 3105.0
+    },
+    {
+      "id": "suedtirol-meteo:50500MS",
+      "name": "Prettau",
+      "position": {
+        "lat": 47.0366,
+        "lon": 12.0991
+      },
+      "elevation_m": 1450.0
+    },
+    {
+      "id": "suedtirol-meteo:53200SF",
+      "name": "Weissenbach Fadner Alm",
+      "position": {
+        "lat": 46.9256,
+        "lon": 11.8614
+      },
+      "elevation_m": 2155.0
+    },
+    {
+      "id": "suedtirol-meteo:54100SF",
+      "name": "Rein i.T. Tristenboden",
+      "position": {
+        "lat": 46.9209,
+        "lon": 12.1069
+      },
+      "elevation_m": 2450.0
+    },
+    {
+      "id": "suedtirol-meteo:54500MS",
+      "name": "Rein in Taufers",
+      "position": {
+        "lat": 46.9428,
+        "lon": 12.0825
+      },
+      "elevation_m": 1562.0
+    },
+    {
+      "id": "suedtirol-meteo:56500MS",
+      "name": "Mühlwald",
+      "position": {
+        "lat": 46.8901,
+        "lon": 11.8744
+      },
+      "elevation_m": 1141.0
+    },
+    {
+      "id": "suedtirol-meteo:56900MS",
+      "name": "Sand i.T. Mühlen",
+      "position": {
+        "lat": 46.9003,
+        "lon": 11.9474
+      },
+      "elevation_m": 851.0
+    },
+    {
+      "id": "suedtirol-meteo:59700MS",
+      "name": "Bruneck",
+      "position": {
+        "lat": 46.8043,
+        "lon": 11.9315
+      },
+      "elevation_m": 828.0
+    },
+    {
+      "id": "suedtirol-meteo:61300MS",
+      "name": "Corvara",
+      "position": {
+        "lat": 46.5504,
+        "lon": 11.8733
+      },
+      "elevation_m": 1530.0
+    },
+    {
+      "id": "suedtirol-meteo:61690SF",
+      "name": "Abtei Piz La Ila",
+      "position": {
+        "lat": 46.565,
+        "lon": 11.9036
+      },
+      "elevation_m": 2050.0
+    },
+    {
+      "id": "suedtirol-meteo:61720WS",
+      "name": "Abtei Piz Pisciadù",
+      "position": {
+        "lat": 46.5314,
+        "lon": 11.825
+      },
+      "elevation_m": 2985.0
+    },
+    {
+      "id": "suedtirol-meteo:62270SF",
+      "name": "Campill Kreuzkofeljoch",
+      "position": {
+        "lat": 46.6377,
+        "lon": 11.8122
+      },
+      "elevation_m": 2297.0
+    },
+    {
+      "id": "suedtirol-meteo:62600MS",
+      "name": "St. Martin in Thurn",
+      "position": {
+        "lat": 46.6792,
+        "lon": 11.8979
+      },
+      "elevation_m": 1150.0
+    },
+    {
+      "id": "suedtirol-meteo:65350MS",
+      "name": "Obervintl",
+      "position": {
+        "lat": 46.8111,
+        "lon": 11.7534
+      },
+      "elevation_m": 746.0
+    },
+    {
+      "id": "suedtirol-meteo:65600MS",
+      "name": "Terenten",
+      "position": {
+        "lat": 46.8345,
+        "lon": 11.7856
+      },
+      "elevation_m": 1349.0
+    },
+    {
+      "id": "suedtirol-meteo:66000WS",
+      "name": "Pfunders Dannelspitz",
+      "position": {
+        "lat": 46.9434,
+        "lon": 11.6871
+      },
+      "elevation_m": 2808.0
+    },
+    {
+      "id": "suedtirol-meteo:66100SF",
+      "name": "Pfunders Stutzenalm",
+      "position": {
+        "lat": 46.9254,
+        "lon": 11.6882
+      },
+      "elevation_m": 2050.0
+    },
+    {
+      "id": "suedtirol-meteo:66500MS",
+      "name": "Pfunders",
+      "position": {
+        "lat": 46.8872,
+        "lon": 11.7029
+      },
+      "elevation_m": 1168.0
+    },
+    {
+      "id": "suedtirol-meteo:68600MS",
+      "name": "Vals",
+      "position": {
+        "lat": 46.8483,
+        "lon": 11.6272
+      },
+      "elevation_m": 1410.0
+    },
+    {
+      "id": "suedtirol-meteo:69900MS",
+      "name": "Plose",
+      "position": {
+        "lat": 46.6986,
+        "lon": 11.7338
+      },
+      "elevation_m": 2472.0
+    },
+    {
+      "id": "suedtirol-meteo:71510MS",
+      "name": "Villnöss",
+      "position": {
+        "lat": 46.6479,
+        "lon": 11.6894
+      },
+      "elevation_m": 1327.0
+    },
+    {
+      "id": "suedtirol-meteo:73500MS",
+      "name": "Wolkenstein",
+      "position": {
+        "lat": 46.5456,
+        "lon": 11.7684
+      },
+      "elevation_m": 1594.0
+    },
+    {
+      "id": "suedtirol-meteo:74200MS",
+      "name": "Seiser Alm Zallinger",
+      "position": {
+        "lat": 46.5119,
+        "lon": 11.6888
+      },
+      "elevation_m": 2055.0
+    },
+    {
+      "id": "suedtirol-meteo:74900MS",
+      "name": "Barbian Kollmann",
+      "position": {
+        "lat": 46.5951,
+        "lon": 11.5291
+      },
+      "elevation_m": 490.0
+    },
+    {
+      "id": "suedtirol-meteo:75600MS",
+      "name": "Völs am Schlern",
+      "position": {
+        "lat": 46.5134,
+        "lon": 11.506
+      },
+      "elevation_m": 840.0
+    },
+    {
+      "id": "suedtirol-meteo:78110MS",
+      "name": "Karerpass",
+      "position": {
+        "lat": 46.4092,
+        "lon": 11.6017
+      },
+      "elevation_m": 1715.0
+    },
+    {
+      "id": "suedtirol-meteo:78305MS",
+      "name": "Welschnofen",
+      "position": {
+        "lat": 46.4289,
+        "lon": 11.5366
+      },
+      "elevation_m": 1128.0
+    },
+    {
+      "id": "suedtirol-meteo:78480SF",
+      "name": "Deutschnofen Obereggen",
+      "position": {
+        "lat": 46.3636,
+        "lon": 11.5467
+      },
+      "elevation_m": 2125.0
+    },
+    {
+      "id": "suedtirol-meteo:79300MS",
+      "name": "Ritten Siffian",
+      "position": {
+        "lat": 46.529,
+        "lon": 11.4638
+      },
+      "elevation_m": 987.0
+    },
+    {
+      "id": "suedtirol-meteo:80100SF",
+      "name": "Pens Tramintal",
+      "position": {
+        "lat": 46.795,
+        "lon": 11.4774
+      },
+      "elevation_m": 2100.0
+    },
+    {
+      "id": "suedtirol-meteo:80300MS",
+      "name": "Pens",
+      "position": {
+        "lat": 46.78078,
+        "lon": 11.4166
+      },
+      "elevation_m": 1453.0
+    },
+    {
+      "id": "suedtirol-meteo:82200MS",
+      "name": "Sarnthein",
+      "position": {
+        "lat": 46.6406,
+        "lon": 11.3551
+      },
+      "elevation_m": 970.0
+    },
+    {
+      "id": "suedtirol-meteo:82500WS",
+      "name": "Rittner Horn",
+      "position": {
+        "lat": 46.6156,
+        "lon": 11.4604
+      },
+      "elevation_m": 2260.0
+    },
+    {
+      "id": "suedtirol-meteo:82910MS",
+      "name": "Jenesien",
+      "position": {
+        "lat": 46.5304,
+        "lon": 11.3319
+      },
+      "elevation_m": 970.0
+    },
+    {
+      "id": "suedtirol-meteo:83200MS",
+      "name": "Bozen",
+      "position": {
+        "lat": 46.4977,
+        "lon": 11.3128
+      },
+      "elevation_m": 245.0
+    },
+    {
+      "id": "suedtirol-meteo:85120MS",
+      "name": "Deutschnofen",
+      "position": {
+        "lat": 46.4205,
+        "lon": 11.4269
+      },
+      "elevation_m": 1470.0
+    },
+    {
+      "id": "suedtirol-meteo:85700MS",
+      "name": "Branzoll",
+      "position": {
+        "lat": 46.4065,
+        "lon": 11.3111
+      },
+      "elevation_m": 226.0
+    },
+    {
+      "id": "suedtirol-meteo:86600MS",
+      "name": "Laimburg",
+      "position": {
+        "lat": 46.3825,
+        "lon": 11.2887
+      },
+      "elevation_m": 224.0
+    },
+    {
+      "id": "suedtirol-meteo:86900MS",
+      "name": "Auer",
+      "position": {
+        "lat": 46.3469,
+        "lon": 11.305
+      },
+      "elevation_m": 250.0
+    },
+    {
+      "id": "suedtirol-meteo:87300MS",
+      "name": "Radein",
+      "position": {
+        "lat": 46.3465,
+        "lon": 11.3968
+      },
+      "elevation_m": 1551.0
+    },
+    {
+      "id": "suedtirol-meteo:89190MS",
+      "name": "Kaltern Oberplanitzing",
+      "position": {
+        "lat": 46.4423,
+        "lon": 11.2525
+      },
+      "elevation_m": 495.0
+    },
+    {
+      "id": "suedtirol-meteo:90005SF",
+      "name": "Proveis Samerberg",
+      "position": {
+        "lat": 46.4956,
+        "lon": 10.9987
+      },
+      "elevation_m": 2142.0
+    },
+    {
+      "id": "suedtirol-meteo:90200MS",
+      "name": "Gantkofel",
+      "position": {
+        "lat": 46.4939,
+        "lon": 11.209
+      },
+      "elevation_m": 1860.0
+    },
+    {
+      "id": "suedtirol-meteo:91180SF",
+      "name": "Sexten Rotwandwiesen",
+      "position": {
+        "lat": 46.6636,
+        "lon": 12.3704
+      },
+      "elevation_m": 1910.0
+    },
+    {
+      "id": "suedtirol-meteo:91210WS",
+      "name": "Toblach Hochebenkofel",
+      "position": {
+        "lat": 46.6802,
+        "lon": 12.2573
+      },
+      "elevation_m": 2906.0
+    },
+    {
+      "id": "suedtirol-meteo:91510MS",
+      "name": "Sexten",
+      "position": {
+        "lat": 46.6915,
+        "lon": 12.3577
+      },
+      "elevation_m": 1322.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "suedtirol-meteo:00390SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.3,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 11.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.7,
+      "humidity_pct": 76.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:00700WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 8.1,
+      "wind_gust_ms": 9.9,
+      "wind_direction_deg": 316.0,
+      "gust_direction_deg": null,
+      "temperature_c": -9.0,
+      "humidity_pct": 95.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:01080SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.7,
+      "wind_gust_ms": 2.7,
+      "wind_direction_deg": 278.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.1,
+      "humidity_pct": 73.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:01110MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.7,
+      "wind_gust_ms": 1.1,
+      "wind_direction_deg": 42.8,
+      "gust_direction_deg": null,
+      "temperature_c": 0.6,
+      "humidity_pct": 79.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:02200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.2,
+      "wind_gust_ms": 4.7,
+      "wind_direction_deg": 2.3,
+      "gust_direction_deg": null,
+      "temperature_c": 3.0,
+      "humidity_pct": 83.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:02500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 5.6,
+      "humidity_pct": 69.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:02700SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.0,
+      "wind_gust_ms": 2.8,
+      "wind_direction_deg": 149.0,
+      "gust_direction_deg": null,
+      "temperature_c": -4.1,
+      "humidity_pct": 88.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:06040WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 13.0,
+      "wind_gust_ms": 14.8,
+      "wind_direction_deg": 319.0,
+      "gust_direction_deg": null,
+      "temperature_c": -11.3,
+      "humidity_pct": 94.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:06090SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.2,
+      "wind_gust_ms": 5.4,
+      "wind_direction_deg": 276.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.3,
+      "humidity_pct": 72.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:06400MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.4,
+      "humidity_pct": 67.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:07740WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.9,
+      "wind_gust_ms": 8.4,
+      "wind_direction_deg": 274.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.4,
+      "humidity_pct": 62.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:08200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.1,
+      "wind_gust_ms": 5.2,
+      "wind_direction_deg": 274.1,
+      "gust_direction_deg": null,
+      "temperature_c": 9.9,
+      "humidity_pct": 52.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:09700MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.6,
+      "wind_gust_ms": 9.0,
+      "wind_direction_deg": 259.1,
+      "gust_direction_deg": null,
+      "temperature_c": 11.3,
+      "humidity_pct": 56.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:11400MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.2,
+      "wind_direction_deg": 95.7,
+      "gust_direction_deg": null,
+      "temperature_c": 1.8,
+      "humidity_pct": 67.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:15000SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -8.0,
+      "humidity_pct": 73.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:15050WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 6.0,
+      "wind_gust_ms": 10.5,
+      "wind_direction_deg": 30.0,
+      "gust_direction_deg": null,
+      "temperature_c": -10.0,
+      "humidity_pct": 85.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:15590SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.2,
+      "humidity_pct": 72.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:15800MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 2.8,
+      "humidity_pct": 99.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:19300MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.2,
+      "wind_gust_ms": 3.1,
+      "wind_direction_deg": 83.5,
+      "gust_direction_deg": null,
+      "temperature_c": 6.4,
+      "humidity_pct": 83.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:20050SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.0,
+      "wind_gust_ms": 8.0,
+      "wind_direction_deg": 157.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.0,
+      "humidity_pct": 57.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:20500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 0.5,
+      "wind_direction_deg": 187.8,
+      "gust_direction_deg": null,
+      "temperature_c": 2.8,
+      "humidity_pct": 70.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:20690SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 170.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.3,
+      "humidity_pct": 83.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:20720WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 4.0,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 290.0,
+      "gust_direction_deg": null,
+      "temperature_c": -8.4,
+      "humidity_pct": 84.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:20910MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 0.5,
+      "wind_direction_deg": 72.2,
+      "gust_direction_deg": null,
+      "temperature_c": 6.4,
+      "humidity_pct": 73.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:22210MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.8,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 35.6,
+      "gust_direction_deg": null,
+      "temperature_c": 8.2,
+      "humidity_pct": 85.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:23200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.3,
+      "wind_gust_ms": 2.6,
+      "wind_direction_deg": 139.0,
+      "gust_direction_deg": null,
+      "temperature_c": 9.7,
+      "humidity_pct": 69.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:24170WS",
+      "time": "2026-11-21T09:20:00Z",
+      "wind_speed_ms": 3.6,
+      "wind_gust_ms": 8.1,
+      "wind_direction_deg": 276.0,
+      "gust_direction_deg": null,
+      "temperature_c": -10.5,
+      "humidity_pct": 89.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:24300SF",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 0.8,
+      "wind_gust_ms": 2.6,
+      "wind_direction_deg": 75.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.4,
+      "humidity_pct": 46.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:24400MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.9,
+      "humidity_pct": 57.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:25900MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 301.2,
+      "gust_direction_deg": null,
+      "temperature_c": 3.6,
+      "humidity_pct": 98.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:27100MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.6,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 219.6,
+      "gust_direction_deg": null,
+      "temperature_c": 9.1,
+      "humidity_pct": 69.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:31410MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 2.7,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:31810SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.4,
+      "wind_gust_ms": 1.8,
+      "wind_direction_deg": 104.2,
+      "gust_direction_deg": null,
+      "temperature_c": -0.8,
+      "humidity_pct": 98.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:33500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.7,
+      "wind_gust_ms": 2.0,
+      "wind_direction_deg": 134.1,
+      "gust_direction_deg": null,
+      "temperature_c": 0.6,
+      "humidity_pct": 99.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:34200WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 4.1,
+      "wind_gust_ms": 10.1,
+      "wind_direction_deg": 281.0,
+      "gust_direction_deg": null,
+      "temperature_c": -12.1,
+      "humidity_pct": 89.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:34500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 2.8,
+      "humidity_pct": 97.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:35100WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.8,
+      "wind_gust_ms": 8.6,
+      "wind_direction_deg": 66.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.9,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:35205SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.8,
+      "wind_gust_ms": 4.7,
+      "wind_direction_deg": 0.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.0,
+      "humidity_pct": 96.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:37100MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 0.6,
+      "wind_direction_deg": 77.7,
+      "gust_direction_deg": null,
+      "temperature_c": 5.7,
+      "humidity_pct": 96.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:37700MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 4.4,
+      "wind_gust_ms": 6.7,
+      "wind_direction_deg": 236.3,
+      "gust_direction_deg": null,
+      "temperature_c": 6.3,
+      "humidity_pct": 79.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:39100MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.4,
+      "wind_direction_deg": 349.5,
+      "gust_direction_deg": null,
+      "temperature_c": 7.8,
+      "humidity_pct": 71.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:41000MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.1,
+      "wind_gust_ms": 4.3,
+      "wind_direction_deg": 309.4,
+      "gust_direction_deg": null,
+      "temperature_c": -0.2,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:42700MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": -1.6,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:43200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.4,
+      "wind_gust_ms": 0.9,
+      "wind_direction_deg": 123.3,
+      "gust_direction_deg": null,
+      "temperature_c": 1.3,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:44500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.8,
+      "wind_gust_ms": 2.6,
+      "wind_direction_deg": 210.2,
+      "gust_direction_deg": null,
+      "temperature_c": 1.4,
+      "humidity_pct": 98.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:45100WS",
+      "time": "2026-11-21T08:30:00Z",
+      "wind_speed_ms": 1.1,
+      "wind_gust_ms": 6.3,
+      "wind_direction_deg": 253.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 83.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:45200SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 1.1,
+      "wind_direction_deg": 222.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.5,
+      "humidity_pct": 67.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:47400MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.9,
+      "wind_direction_deg": 227.3,
+      "gust_direction_deg": null,
+      "temperature_c": 1.3,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:50360SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.6,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 51.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.4,
+      "humidity_pct": 55.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:50400WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.7,
+      "wind_gust_ms": 5.3,
+      "wind_direction_deg": 6.0,
+      "gust_direction_deg": null,
+      "temperature_c": -10.4,
+      "humidity_pct": 96.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:50500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.6,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": 267.4,
+      "gust_direction_deg": null,
+      "temperature_c": 2.0,
+      "humidity_pct": 85.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:53200SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.6,
+      "wind_gust_ms": 1.3,
+      "wind_direction_deg": 336.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.9,
+      "humidity_pct": 91.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:54100SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.1,
+      "wind_gust_ms": 0.6,
+      "wind_direction_deg": 105.0,
+      "gust_direction_deg": null,
+      "temperature_c": -3.8,
+      "humidity_pct": 70.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:54500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.4,
+      "wind_gust_ms": 1.4,
+      "wind_direction_deg": 126.6,
+      "gust_direction_deg": null,
+      "temperature_c": 0.8,
+      "humidity_pct": 97.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:56500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 2.2,
+      "humidity_pct": 99.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:56900MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.4,
+      "wind_gust_ms": 2.4,
+      "wind_direction_deg": 177.7,
+      "gust_direction_deg": null,
+      "temperature_c": 5.3,
+      "humidity_pct": 86.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:59700MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 1.7,
+      "wind_direction_deg": 329.3,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 85.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:61300MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.7,
+      "wind_gust_ms": 1.8,
+      "wind_direction_deg": 211.4,
+      "gust_direction_deg": null,
+      "temperature_c": 1.5,
+      "humidity_pct": 83.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:61690SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 0.6,
+      "wind_direction_deg": 170.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.6,
+      "humidity_pct": 58.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:61720WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.8,
+      "wind_gust_ms": 9.4,
+      "wind_direction_deg": 281.0,
+      "gust_direction_deg": null,
+      "temperature_c": -7.1,
+      "humidity_pct": 77.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:62270SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.2,
+      "wind_gust_ms": 3.6,
+      "wind_direction_deg": 259.0,
+      "gust_direction_deg": null,
+      "temperature_c": -1.8,
+      "humidity_pct": 70.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:62600MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.8,
+      "wind_gust_ms": 1.5,
+      "wind_direction_deg": 167.3,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 88.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:65350MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.9,
+      "wind_gust_ms": 2.6,
+      "wind_direction_deg": 112.6,
+      "gust_direction_deg": null,
+      "temperature_c": 4.6,
+      "humidity_pct": 90.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:65600MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.3,
+      "wind_direction_deg": 118.4,
+      "gust_direction_deg": null,
+      "temperature_c": 2.6,
+      "humidity_pct": 97.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:66000WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 4.3,
+      "wind_direction_deg": 275.0,
+      "gust_direction_deg": null,
+      "temperature_c": -6.5,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:66100SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.7,
+      "wind_gust_ms": 1.6,
+      "wind_direction_deg": 182.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.6,
+      "humidity_pct": 80.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:66500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.8,
+      "wind_gust_ms": 1.8,
+      "wind_direction_deg": 145.5,
+      "gust_direction_deg": null,
+      "temperature_c": 2.3,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:68600MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.0,
+      "wind_gust_ms": 7.0,
+      "wind_direction_deg": 265.3,
+      "gust_direction_deg": null,
+      "temperature_c": 3.7,
+      "humidity_pct": 72.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:69900MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.0,
+      "wind_gust_ms": 4.3,
+      "wind_direction_deg": 295.6,
+      "gust_direction_deg": null,
+      "temperature_c": -5.3,
+      "humidity_pct": 86.8,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:71510MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.6,
+      "wind_gust_ms": 1.2,
+      "wind_direction_deg": 138.8,
+      "gust_direction_deg": null,
+      "temperature_c": 5.7,
+      "humidity_pct": 58.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:73500MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 81.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:74200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.9,
+      "wind_gust_ms": 2.2,
+      "wind_direction_deg": 59.3,
+      "gust_direction_deg": null,
+      "temperature_c": 0.4,
+      "humidity_pct": 62.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:74900MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.8,
+      "wind_gust_ms": 3.8,
+      "wind_direction_deg": 27.2,
+      "gust_direction_deg": null,
+      "temperature_c": 6.2,
+      "humidity_pct": 80.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:75600MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.6,
+      "wind_gust_ms": 2.9,
+      "wind_direction_deg": 157.8,
+      "gust_direction_deg": null,
+      "temperature_c": 8.1,
+      "humidity_pct": 67.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:78110MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.2,
+      "wind_direction_deg": 259.6,
+      "gust_direction_deg": null,
+      "temperature_c": 3.2,
+      "humidity_pct": 53.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:78305MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 1.0,
+      "humidity_pct": 89.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:78480SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.2,
+      "wind_gust_ms": 2.4,
+      "wind_direction_deg": 325.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.1,
+      "humidity_pct": 61.5,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:79300MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 3.2,
+      "wind_direction_deg": 191.7,
+      "gust_direction_deg": null,
+      "temperature_c": 5.9,
+      "humidity_pct": 79.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:80100SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.4,
+      "wind_gust_ms": 2.0,
+      "wind_direction_deg": 304.0,
+      "gust_direction_deg": null,
+      "temperature_c": -0.4,
+      "humidity_pct": 82.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:80300MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 2.6,
+      "humidity_pct": 82.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:82200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.1,
+      "wind_gust_ms": 4.3,
+      "wind_direction_deg": 182.9,
+      "gust_direction_deg": null,
+      "temperature_c": 7.5,
+      "humidity_pct": 76.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:82500WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.8,
+      "wind_gust_ms": 3.1,
+      "wind_direction_deg": 219.0,
+      "gust_direction_deg": null,
+      "temperature_c": -2.1,
+      "humidity_pct": 75.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:82910MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 2.0,
+      "wind_direction_deg": 199.7,
+      "gust_direction_deg": null,
+      "temperature_c": 7.6,
+      "humidity_pct": 64.1,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:83200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.6,
+      "wind_direction_deg": 165.6,
+      "gust_direction_deg": null,
+      "temperature_c": 8.6,
+      "humidity_pct": 74.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:85120MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.5,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": 86.7,
+      "gust_direction_deg": null,
+      "temperature_c": 5.3,
+      "humidity_pct": 56.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:85700MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.8,
+      "wind_gust_ms": 2.8,
+      "wind_direction_deg": 98.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.4,
+      "humidity_pct": 83.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:86600MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 2.7,
+      "wind_direction_deg": 7.7,
+      "gust_direction_deg": null,
+      "temperature_c": 7.6,
+      "humidity_pct": 80.6,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:86900MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": null,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 3.7,
+      "humidity_pct": 99.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:87300MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.0,
+      "wind_gust_ms": 3.9,
+      "wind_direction_deg": 290.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.1,
+      "humidity_pct": 54.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:89190MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.8,
+      "wind_gust_ms": 4.3,
+      "wind_direction_deg": 42.5,
+      "gust_direction_deg": null,
+      "temperature_c": 8.0,
+      "humidity_pct": 71.4,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:90005SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.1,
+      "wind_gust_ms": 8.7,
+      "wind_direction_deg": 334.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.9,
+      "humidity_pct": 49.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:90200MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.5,
+      "wind_gust_ms": 4.5,
+      "wind_direction_deg": 288.4,
+      "gust_direction_deg": null,
+      "temperature_c": 2.1,
+      "humidity_pct": 60.7,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:91180SF",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.3,
+      "wind_gust_ms": 2.8,
+      "wind_direction_deg": 211.9,
+      "gust_direction_deg": null,
+      "temperature_c": -0.1,
+      "humidity_pct": 65.3,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:91210WS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.2,
+      "wind_gust_ms": 4.8,
+      "wind_direction_deg": 271.9,
+      "gust_direction_deg": null,
+      "temperature_c": -7.7,
+      "humidity_pct": 100.0,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:91510MS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 0.9,
+      "wind_direction_deg": 228.2,
+      "gust_direction_deg": null,
+      "temperature_c": 0.2,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "suedtirol-meteo",
+    "requests": 2,
+    "failures": [],
+    "skipped": [
+      {
+        "what": "suedtirol-meteo:88820MS",
+        "reason": "observations for a station that is not in the station list or lies outside the area"
+      }
+    ],
+    "rejected": [
+      {
+        "station": "suedtirol-meteo:43200MS",
+        "time": "2026-11-21T10:20:00Z",
+        "field": "humidity_pct",
+        "value": 100.3,
+        "reason": "outside 0..=100"
+      },
+      {
+        "station": "suedtirol-meteo:47400MS",
+        "time": "2026-11-21T10:20:00Z",
+        "field": "humidity_pct",
+        "value": 100.1,
+        "reason": "outside 0..=100"
+      }
+    ],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 96,
+    "observations": 95,
+    "newest_observation": "2026-11-21T10:20:00Z"
+  }
+}

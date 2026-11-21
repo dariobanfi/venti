@@ -1,0 +1,18 @@
+[package]
+name = "venti-sources-suedtirol"
+description = "Adapter for the weather stations of the Autonomous Province of Bolzano - South Tyrol."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+venti-domain.workspace = true
+venti-sources.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,50 @@
+The files in this folder are airfield weather reports (METAR) as the
+Aviation Weather Center of the United States' National Weather Service
+publishes them, https://aviationweather.gov/data/api/. The reports are
+written by the weather offices of the airfields, here in Germany, Austria,
+Switzerland, Italy, Slovenia and Hungary, and exchanged between the
+world's aviation weather services; the centre decodes and serves them. Its
+site's disclaimer, https://www.weather.gov/disclaimer, says of the
+information on the service's pages that it is "in the public domain,
+unless specifically noted otherwise", and may be used for any lawful
+purpose by whoever does not claim it as their own, imply an endorsement by
+the service, or present changed content as official. The files are not
+covered by the licence of the code around them.
+
+They were recorded on 2026-11-21 from https://aviationweather.gov/api/data/,
+without a key, with curl under a user agent of its own.
+
+    metar.json              GET /metar?bbox=46.3,9.4,48.5,17.2&format=json
+                            at 10:37:30 UTC: the whole answer to the
+                            adapter's request for the first region,
+                            unchanged. 22 reports, 9,586 bytes.
+    metar_2026-11-18.json   the same request with
+                            &date=2026-11-18T19:05:00Z, asked at
+                            10:39:00 UTC: the whole answer, unchanged. 20
+                            reports, 8,667 bytes. The adapter never asks
+                            with a date.
+
+metar_evening.json is NOT an answer of the service as it gave one. It is a
+sample for the server's development mode, whose clock stands at 19:05 UTC
+on 2026-11-18, three days before this source was recorded: three reports
+of metar_2026-11-18.json, those of EDJA (Memmingen), LOWI (Innsbruck) and
+LSZS (Samedan), each byte for byte as the service wrote it, in the
+answer's form. All three are of 18:50 UTC and reached the service between
+18:52 and 18:56 UTC, so the service had them at the moment of that clock.
+A test of this crate holds the sample against the answer it is cut from.
+
+metar_damaged.json is not the service's data: it is six entries, five of
+them reports of metar_2026-11-18.json changed by hand and one that is no
+report, to test how the adapter reports what it cannot read. The test that
+uses it says what was changed.
+
+To record them again: fetch the first address and replace metar.json; set
+the moment in tests/pipeline.rs; run the tests with VENTI_UPDATE_GOLDEN=1
+and review what changed. The values the test pins are of that moment and
+will differ. The evening sample stays as it is for as long as the
+development mode's clock does. The service keeps thirty days, so the
+answer for 2026-11-18 cannot be fetched again after 2026-12-18.
+
+A METAR is the weather at an airfield, written for aircraft that land
+there. It is no statement about the air at a take-off, and none that a
+place can be flown.

@@ -1,0 +1,33 @@
+id = "suedtirol-meteo"
+# The province publishes the data; its Agency for Civil Protection runs the
+# stations and is named in the credit.
+provider = "Autonome Provinz Bozen - Südtirol"
+kinds = ["observations"]
+countries = ["IT"]
+# A station has a value every ten minutes (144 in the 24 hours asked for on
+# 2026-11-21).
+cadence_seconds = 600
+auth = "none"
+# The larger of the two answers of a run was 184 kB on 2026-11-21: the newest
+# value of every sensor of every station. The station list was 95 kB.
+max_response_kb = 2048
+
+# The province publishes no limit on requests. A run makes two.
+
+[licence]
+name = "CC0 1.0"
+commercial = true
+redistribution = true
+share_alike = false
+# CC0 asks for no credit. The source is named all the same, as every source
+# is, with the name the dataset's page gives its author.
+attribution = "Data source: Autonome Provinz Bozen - Südtirol, Agentur für Bevölkerungsschutz"
+link = "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche"
+constraints = [
+    "The values are raw data that the province has not validated; its documentation says so.",
+]
+verified_on = "2026-11-21"
+verified_from = [
+    "https://data.civis.bz.it/de/dataset/misure-meteo-e-idrografiche",
+    "https://data.civis.bz.it/de/faq",
+]

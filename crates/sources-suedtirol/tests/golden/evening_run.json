@@ -1,0 +1,78 @@
+{
+  "stations": [
+    {
+      "id": "suedtirol-meteo:35100WS",
+      "name": "Jaufenkamm",
+      "position": {
+        "lat": 46.8401,
+        "lon": 11.3184
+      },
+      "elevation_m": 2145.0
+    },
+    {
+      "id": "suedtirol-meteo:37100MS",
+      "name": "Sterzing",
+      "position": {
+        "lat": 46.885,
+        "lon": 11.4386
+      },
+      "elevation_m": 943.0
+    },
+    {
+      "id": "suedtirol-meteo:83200MS",
+      "name": "Bozen",
+      "position": {
+        "lat": 46.4977,
+        "lon": 11.3128
+      },
+      "elevation_m": 245.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "suedtirol-meteo:35100WS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 4.5,
+      "wind_gust_ms": 6.3,
+      "wind_direction_deg": 215.0,
+      "gust_direction_deg": null,
+      "temperature_c": 0.1,
+      "humidity_pct": 99.9,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:37100MS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 0.8,
+      "wind_gust_ms": 3.0,
+      "wind_direction_deg": 161.6,
+      "gust_direction_deg": null,
+      "temperature_c": 3.2,
+      "humidity_pct": 98.2,
+      "pressure_hpa": null
+    },
+    {
+      "station": "suedtirol-meteo:83200MS",
+      "time": "2026-11-18T18:50:00Z",
+      "wind_speed_ms": 0.5,
+      "wind_gust_ms": 1.7,
+      "wind_direction_deg": 69.5,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": 90.8,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "suedtirol-meteo",
+    "requests": 2,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 3,
+    "observations": 3,
+    "newest_observation": "2026-11-18T18:50:00Z"
+  }
+}

@@ -57,6 +57,7 @@ What the model reads for "the wind within 60 km of the Zugspitze":
   },
   "radius_km": 60.0,
   "sources": [
+    "Data source: Aviation Weather Center, aviationweather.gov (Public domain, U.S. Government)",
     "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
     "Data source: GeoSphere Austria - https://data.hub.geosphere.at (CC BY 4.0)"
   ],
@@ -87,6 +88,19 @@ What the model reads for "the wind within 60 km of the Zugspitze":
       "wind_from": "N",
       "wind_from_deg": 350.0,
       "wind_km_h": 5.0
+    },
+    {
+      "age_min": 15,
+      "direction_from_place": "ESE",
+      "distance_km": 32.7,
+      "elevation_m": 570.0,
+      "measured_utc": "2026-11-18 18:50",
+      "name": "Innsbruck Arpt, TI, AT",
+      "station_id": "awc-metar:LOWI",
+      "temperature_c": 7.0,
+      "wind_from": "NW",
+      "wind_from_deg": 320.0,
+      "wind_km_h": 7.0
     },
     {
       "age_min": 5,

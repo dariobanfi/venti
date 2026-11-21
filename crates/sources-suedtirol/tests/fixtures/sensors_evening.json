@@ -1,0 +1,152 @@
+[
+{
+"SCODE":"37100MS",
+"TYPE":"WG",
+"DESC_D":"Windgeschwindigkeit",
+"DESC_I":"Velocità del vento",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":0.8
+},
+{
+"SCODE":"37100MS",
+"TYPE":"WG.BOE",
+"DESC_D":"Windgeschwindigkeit Böe",
+"DESC_I":"Velocitá raffica",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":3.0
+},
+{
+"SCODE":"37100MS",
+"TYPE":"WR",
+"DESC_D":"Windrichtung",
+"DESC_I":"Direzione del vento",
+"DESC_L":"Direzion dl vënt",
+"UNIT":"° ",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":161.6
+},
+{
+"SCODE":"37100MS",
+"TYPE":"LT",
+"DESC_D":"Lufttemperatur",
+"DESC_I":"Temperatura dell´aria",
+"DESC_L":"Temperatura dl’aria",
+"UNIT":"°C",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":3.2
+},
+{
+"SCODE":"37100MS",
+"TYPE":"LF",
+"DESC_D":"relative Luftfeuchte",
+"DESC_I":"Umidità relativa",
+"DESC_L":"Tume relatif",
+"UNIT":"%",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":98.2
+},
+{
+"SCODE":"35100WS",
+"TYPE":"WG",
+"DESC_D":"Windgeschwindigkeit",
+"DESC_I":"Velocità del vento",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":4.5
+},
+{
+"SCODE":"35100WS",
+"TYPE":"WG.BOE",
+"DESC_D":"Windgeschwindigkeit Böe",
+"DESC_I":"Velocitá raffica",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":6.3
+},
+{
+"SCODE":"35100WS",
+"TYPE":"WR",
+"DESC_D":"Windrichtung",
+"DESC_I":"Direzione del vento",
+"DESC_L":"Direzion dl vënt",
+"UNIT":"° ",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":215.0
+},
+{
+"SCODE":"35100WS",
+"TYPE":"LT",
+"DESC_D":"Lufttemperatur",
+"DESC_I":"Temperatura dell´aria",
+"DESC_L":"Temperatura dl’aria",
+"UNIT":"°C",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":0.1
+},
+{
+"SCODE":"35100WS",
+"TYPE":"LF",
+"DESC_D":"relative Luftfeuchte",
+"DESC_I":"Umidità relativa",
+"DESC_L":"Tume relatif",
+"UNIT":"%",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":99.9
+},
+{
+"SCODE":"83200MS",
+"TYPE":"WG",
+"DESC_D":"Windgeschwindigkeit",
+"DESC_I":"Velocità del vento",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":0.5
+},
+{
+"SCODE":"83200MS",
+"TYPE":"WG.BOE",
+"DESC_D":"Windgeschwindigkeit Böe",
+"DESC_I":"Velocitá raffica",
+"DESC_L":"Slune dl vënt",
+"UNIT":"m/s",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":1.7
+},
+{
+"SCODE":"83200MS",
+"TYPE":"WR",
+"DESC_D":"Windrichtung",
+"DESC_I":"Direzione del vento",
+"DESC_L":"Direzion dl vënt",
+"UNIT":"° ",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":69.5
+},
+{
+"SCODE":"83200MS",
+"TYPE":"LT",
+"DESC_D":"Lufttemperatur",
+"DESC_I":"Temperatura dell´aria",
+"DESC_L":"Temperatura dl’aria",
+"UNIT":"°C",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":6.0
+},
+{
+"SCODE":"83200MS",
+"TYPE":"LF",
+"DESC_D":"relative Luftfeuchte",
+"DESC_I":"Umidità relativa",
+"DESC_L":"Tume relatif",
+"UNIT":"%",
+"DATE":"2026-11-18T19:50:00CET",
+"VALUE":90.8
+}
+]

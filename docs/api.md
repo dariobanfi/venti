@@ -18,7 +18,7 @@ cargo run -p venti-server -- dev
 curl 'http://127.0.0.1:8080/v1/stations?bbox=10.9,47.0,11.5,47.5'
 ```
 
-The development mode serves this API over recorded data: six stations, three German and three Austrian, as they were on 2026-11-18 at 19:05 UTC, and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
+The development mode serves this API over recorded data: twelve stations, three of each of four sources, as they were on 2026-11-18 at 19:05 UTC (three German and three Austrian as recorded then; three of South Tyrol and three airfields with what their services, asked three days later, gave for 18:50 UTC of that evening), and 192 airspaces recorded from openAIP the day after and served as if fetched at that same moment: 88 of the northern Alps around Munich, Innsbruck and Salzburg, and 104 small ones from the six other countries the first region's box takes in. They are a sample. The development mode says of them what a real server says of its whole set, that they [cover](#get-v1airspacebboxwestsoutheastnorth) the first region, so that a screen can be built and tested in the state a pilot will see; nobody flies with them. The flying sites are not a sample: they are the 502 that OpenStreetMap had for the first region on 2026-11-18, recorded the day after and served as if fetched at the same moment as everything else. Forecasts were recorded for five places around the Tegernsee and in the middle of the region, three days after the wind, and are [served as of that moment](#get-v1forecastlatlon). The mode needs no network and no database, its clock stands still at that moment, and every start gives the same answers. The examples below are its answers; the tests keep them in `crates/server/tests/golden` and check that this document shows them unchanged.
 
 Map regions are the one thing the mode does not carry inside it. It hands out those of a folder it is told, as a real server hands out those of its own, and none otherwise. The repository holds one region, the valley of the sample flight that the apps bundle:
 
@@ -117,7 +117,7 @@ Because its clock stands still, this mode takes live fixes of **any time**, wher
 
 **Missing values.** A value that is not known is left out of the answer. It is never `null` and never a placeholder number. A station without a temperature sensor has readings without `temperature_c`.
 
-**Sources and credit.** Every station, every airspace, every flying site and every forecast series comes from exactly one data source and names it. The same physical station reported by two sources appears twice: data under different licences is never merged into one record. Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
+**Sources and credit.** Every station, every airspace, every flying site and every forecast series comes from exactly one data source and names it. A place where two sources measure, such as an airfield by its weather report and by the weather service's own station, is two stations with two identifiers, and nothing of one is copied into the other: data of two sources is never merged into one record. The list of an area holds one of the two; see [the stations of a box](#get-v1stationsbboxwestsoutheastnorth). Every answer that carries data has an `attributions` list with one entry for each source the answer draws on, and only those:
 
 | Field | Meaning |
 |---|---|
@@ -237,6 +237,15 @@ How the server and each of its data sources are doing.
   },
   "sources": [
     {
+      "source": "awc-metar",
+      "provider": "Aviation Weather Center",
+      "cadence_seconds": 600,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:50:00Z",
+      "stale": false,
+      "stations": 3
+    },
+    {
       "source": "dwd-10min",
       "provider": "Deutscher Wetterdienst",
       "cadence_seconds": 600,
@@ -295,6 +304,15 @@ How the server and each of its data sources are doing.
       "stations": 0,
       "sites": 502,
       "sites_as_of": "2026-11-18T19:05:00Z"
+    },
+    {
+      "source": "suedtirol-meteo",
+      "provider": "Autonome Provinz Bozen - Südtirol",
+      "cadence_seconds": 600,
+      "last_success": "2026-11-18T19:05:00Z",
+      "newest_observation": "2026-11-18T18:50:00Z",
+      "stale": false,
+      "stations": 3
     }
   ]
 }
@@ -393,9 +411,18 @@ Stations are sorted by source and then by identifier.
 
 The server does not decide what is too old to show. A station that stopped reporting yesterday is listed with yesterday's reading and its time; the client greys it out or hides it.
 
+**One station for one place.** Where two sources have a station at the same place, the list holds one of the two, since 2026-11-21. A client does nothing for it and sees it only in what is missing:
+
+- *The same place* is two stations of different sources that stand no farther apart than 2.75 km and differ by no more than 50 m in height. A station without `elevation_m` is at the same place as no other, and two stations of one source never are.
+- *Listed* is the one whose source the server's regions prefer: in the first region DWD, then GeoSphere Austria, then South Tyrol, then the airfields' reports. With one exception: a station that has no `wind_speed_ms` of the last hour does not stand for one that has, so while a weather service's station on an airfield is silent, the airfield's report is listed in its place.
+- *The other is not in the list*, whatever the box: a station at the edge of a box is judged against its neighbour outside it. Nothing of it is copied into the station that is listed, and its source is in `attributions` only if another of its stations is listed. Only in an answer that is `truncated` may both of two show at the box's edge.
+- *It is still there.* The server goes on collecting it, and its [observations](#get-v1stationsidobservationsfromto) answer by its identifier as before. An identifier an app has kept stays good. Which of two is listed can change from one answer to the next, when a station falls silent or is heard again; an app that shows a station by an identifier it kept should therefore not conclude from the list that the station is gone.
+
+In the first region this left out the reports of ten airfields among 435 stations on 2026-11-21. The development mode lists all twelve of its stations: no two of them are one place.
+
 ## `GET /v1/stations/{id}/observations?from=&to=`
 
-What one station measured in a window of time, oldest first.
+What one station measured in a window of time, oldest first. Every station the server collects answers here, also one that the [list of a box](#get-v1stationsbboxwestsoutheastnorth) leaves out because another source's station stands for its place.
 
 | Parameter | Meaning | Default |
 |---|---|---|

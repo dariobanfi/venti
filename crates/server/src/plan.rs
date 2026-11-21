@@ -74,13 +74,28 @@ pub enum PlanError {
     TwoKinds(SourceId),
 }
 
-/// Reads the region packs at `paths` and plans their sources.
-pub fn load(paths: &[PathBuf], registry: &Registry) -> Result<Vec<Job>, PlanError> {
-    let mut packs = Vec::new();
-    for path in paths {
-        packs.push(read_pack(path, registry)?);
+/// Reads the region packs at `paths`, each checked against the registry.
+/// [`plan`] makes the jobs of them.
+pub fn read(paths: &[PathBuf], registry: &Registry) -> Result<Vec<RegionPack>, PlanError> {
+    paths.iter().map(|path| read_pack(path, registry)).collect()
+}
+
+/// The sources of observations in the order they are preferred where two of
+/// them have a station at the same place: the `priority` lists of the
+/// regions, one after the other.
+///
+/// A source keeps the place the first region gave it. An order that
+/// differs from region to region is not built: there is one region. A
+/// source that no list names is not in the answer and comes after all that
+/// are.
+pub fn station_priority(packs: &[RegionPack]) -> Vec<SourceId> {
+    let mut order: Vec<SourceId> = Vec::new();
+    for source in packs.iter().flat_map(|pack| &pack.observations.priority) {
+        if !order.contains(source) {
+            order.push(source.clone());
+        }
     }
-    plan(&packs, registry)
+    order
 }
 
 fn read_pack(path: &Path, registry: &Registry) -> Result<RegionPack, PlanError> {
@@ -363,16 +378,42 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../regions/alps-de-at/region.toml"
         ));
-        let jobs = load(&[path], &adapters::registry()).unwrap();
+        let packs = read(&[path], &adapters::registry()).unwrap();
+        let jobs = plan(&packs, &adapters::registry()).unwrap();
         let sources: Vec<&str> = jobs.iter().map(|job| job.source.as_str()).collect();
         assert_eq!(
             sources,
-            ["dwd-10min", "geosphere-tawes", "openaip", "osm-free-flying"]
+            [
+                "awc-metar",
+                "dwd-10min",
+                "geosphere-tawes",
+                "openaip",
+                "osm-free-flying",
+                "suedtirol-meteo"
+            ]
+        );
+
+        // Where a weather service and an airfield's report measure at one
+        // place, the weather service's station is the one to hand out: it
+        // measures every ten minutes, with gusts, humidity and pressure.
+        // So the three weather services come before the reports.
+        let preferred: Vec<String> = station_priority(&packs)
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(
+            preferred,
+            [
+                "dwd-10min",
+                "geosphere-tawes",
+                "suedtirol-meteo",
+                "awc-metar"
+            ]
         );
 
         let missing = PathBuf::from("regions/nowhere/region.toml");
         assert!(matches!(
-            load(&[missing], &adapters::registry()),
+            read(&[missing], &adapters::registry()),
             Err(PlanError::Read { .. })
         ));
     }

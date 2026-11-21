@@ -237,7 +237,14 @@ pub fn wind_stations(
             json!("More stations lie in this area than are listed. Ask with a smaller radius to see the nearest in full."),
         );
     }
-    result.insert("sources".to_owned(), sources(&answer.attributions));
+    // The credits of the sources whose stations are listed. The server
+    // credits every source that has a station in the box it was asked for,
+    // and the box holds more than the circle and than the list.
+    let listed = answer.attributions.iter().filter(|attribution| {
+        near.iter()
+            .any(|(_, entry)| entry.station.source == attribution.source)
+    });
+    result.insert("sources".to_owned(), sources(listed));
     Value::Object(result)
 }
 
@@ -363,10 +370,10 @@ fn reading_fields(reading: &Reading, now: DateTime<Utc>) -> Map<String, Value> {
 
 /// Whose data a result holds, with the licence. The model is told to name
 /// the source; the licences ask for that.
-pub(crate) fn sources(attributions: &[Attribution]) -> Value {
+pub(crate) fn sources<'a>(attributions: impl IntoIterator<Item = &'a Attribution>) -> Value {
     json!(
         attributions
-            .iter()
+            .into_iter()
             .take(MAX_CREDITS)
             .map(credit)
             .collect::<Vec<_>>()
@@ -740,6 +747,39 @@ mod tests {
             json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0)"])
         );
         assert!(result.get("note").is_none());
+    }
+
+    #[test]
+    fn a_result_credits_the_sources_of_the_stations_it_lists_and_no_other() {
+        // The server's answer for the box, with the credit of both sources
+        // that have a station in it.
+        let mut answer: Value = serde_json::from_str(STATIONS).unwrap();
+        answer["attributions"].as_array_mut().unwrap().push(json!({
+            "source": "geosphere-tawes", "provider": "GeoSphere Austria", "licence": "CC BY 4.0",
+            "text": "Data source: GeoSphere Austria", "url": "https://data.hub.geosphere.at"
+        }));
+        let answer: StationsResponse = serde_json::from_value(answer).unwrap();
+        let place = GeoPoint::new(47.45, 11.0).unwrap();
+        let sources = |radius_km| {
+            wind_stations(&answer, place, radius_km, at("2026-11-18T19:05:00Z"))["sources"].clone()
+        };
+
+        // Within 20 km stand Garmisch and the Zugspitze, both DWD's. The
+        // Patscherkofel, 44 km away, is in the box and not in the circle.
+        assert_eq!(
+            sources(20.0),
+            json!(["Quelle: Deutscher Wetterdienst (CC BY 4.0)"])
+        );
+        // Within 50 km it is listed, and its source credited.
+        assert_eq!(
+            sources(50.0),
+            json!([
+                "Quelle: Deutscher Wetterdienst (CC BY 4.0)",
+                "Data source: GeoSphere Austria (CC BY 4.0)"
+            ])
+        );
+        // Where nothing is listed, nobody is credited.
+        assert_eq!(sources(1.0), json!([]));
     }
 
     #[test]

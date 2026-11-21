@@ -14,9 +14,15 @@ west = 9.4
 north = 48.5
 east = 17.2
 
+# Stations of wind and weather. The box's south takes in South Tyrol down to
+# 46.3° N, which is all of the province's weather stations but Salurn. The
+# airfield reports come last in the priority: where a weather service has a
+# station of its own on an airfield, that station is the better one, and the
+# server hands it out alone (docs/data-sources.md, "The same station from two
+# sources").
 [observations]
-sources = ["dwd-10min", "geosphere-tawes"]
-priority = ["dwd-10min", "geosphere-tawes"]
+sources = ["dwd-10min", "geosphere-tawes", "suedtirol-meteo", "awc-metar"]
+priority = ["dwd-10min", "geosphere-tawes", "suedtirol-meteo", "awc-metar"]
 
 # Airspace from openAIP, which may not be used commercially and stays a
 # layer of its own. Its adapter fetches every country the box above takes in:

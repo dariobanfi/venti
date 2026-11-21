@@ -16,7 +16,7 @@ use venti_api_types::v1::{
     ErrorCode, ErrorResponse, HealthResponse, HealthStatus, MAX_STATIONS, ObservationsRequest,
     ObservationsResponse, StationsRequest, StationsResponse,
 };
-use venti_domain::{BoundingBox, GeoPoint, SourceId, Station, StationId};
+use venti_domain::{BoundingBox, GeoPoint, Observation, SourceId, Station, StationId};
 use venti_server::adapters;
 use venti_server::api::{Api, Cors};
 use venti_server::clock::FixedClock;
@@ -62,20 +62,22 @@ async fn health_reports_every_source_fresh() {
     assert_eq!(
         stations,
         [
+            ("awc-metar", 3),
             ("dwd-10min", 3),
             ("geosphere-tawes", 3),
             ("open-meteo", 0),
             ("openaip", 0),
-            ("osm-free-flying", 0)
+            ("osm-free-flying", 0),
+            ("suedtirol-meteo", 3)
         ]
     );
     // The airspace source says how much airspace the server holds, and
     // the sources of everything else say nothing about airspace.
     let airspaces: Vec<Option<u32>> = health.sources.iter().map(|s| s.airspaces).collect();
-    assert_eq!(airspaces, [None, None, None, Some(192), None]);
+    assert_eq!(airspaces, [None, None, None, None, Some(192), None, None]);
     // The same for the flying sites.
     let sites: Vec<Option<u32>> = health.sources.iter().map(|s| s.sites).collect();
-    assert_eq!(sites, [None, None, None, None, Some(502)]);
+    assert_eq!(sites, [None, None, None, None, None, Some(502), None]);
     // The forecast source says which run each of its models is at. The
     // development mode's forecasts were recorded three days after its
     // wind, so here the runs are dated after the look that found them.
@@ -83,7 +85,7 @@ async fn health_reports_every_source_fresh() {
         health.forecasts,
         Some(venti_api_types::v1::ForecastsHealth::Available)
     );
-    let models: Vec<(&str, String)> = health.sources[2]
+    let models: Vec<(&str, String)> = health.sources[3]
         .models
         .iter()
         .map(|model| (model.model.as_str(), model.run.to_rfc3339()))
@@ -96,12 +98,12 @@ async fn health_reports_every_source_fresh() {
         ]
     );
     assert!(
-        health.sources[2]
+        health.sources[3]
             .models
             .iter()
             .all(|m| m.checked_at == health.time)
     );
-    assert!(health.sources[3].models.is_empty());
+    assert!(health.sources[4].models.is_empty());
     assert!(health.sources.iter().all(|source| !source.stale));
     assert_golden(&golden("health.json"), &health);
 }
@@ -115,7 +117,15 @@ async fn stations_lists_the_box_with_latest_readings_and_credits() {
     assert_eq!(answer.header(header::CACHE_CONTROL), "public, max-age=60");
     assert!(answer.header(header::ETAG).starts_with("W/\""));
     let stations: StationsResponse = answer.json();
-    assert_eq!(stations.stations.len(), 6);
+    // Three of each of the four sources, and all twelve are handed out:
+    // no two of them are one place measured by two sources. The nearest
+    // such two are in Innsbruck, the airfield by its own report and
+    // GeoSphere's station at the university, 3.03 km apart, and the rule
+    // takes stations of two sources for one place up to 2.75 km. They are
+    // two places: GeoSphere has a station on the airfield as well, which
+    // these recordings do not hold. What happens where they do is tested
+    // further down, with a store that has all three.
+    assert_eq!(stations.stations.len(), 12);
     assert!(!stations.truncated);
     // Every station has a reading, and the newest one of its day.
     let zugspitze = stations
@@ -134,7 +144,7 @@ async fn every_record_names_one_source_and_the_response_credits_it() {
     let stations: StationsResponse = get(&recorded().await, &first_region()).await.json();
 
     let credited: Vec<&SourceId> = stations.attributions.iter().map(|a| &a.source).collect();
-    assert_eq!(credited.len(), 2, "one credit per source, not per station");
+    assert_eq!(credited.len(), 4, "one credit per source, not per station");
     for entry in &stations.stations {
         // A record belongs to the source its identifier names, and to no other.
         assert_eq!(entry.station.id.source(), &entry.station.source);
@@ -607,6 +617,142 @@ async fn data_of_a_source_the_server_does_not_serve_stays_inside() {
     assert!(stations.stations[0].latest.is_none());
     let health: HealthResponse = get(&router, "/v1/health").await.json();
     assert_eq!(health.sources.len(), 1);
+}
+
+/// A station with its height, which the rule for one place needs.
+fn station_at(text: &str, name: &str, lat: f64, lon: f64, height_m: f64) -> Station {
+    Station {
+        name: name.to_owned(),
+        elevation_m: Some(height_m),
+        ..station(text, lat, lon)
+    }
+}
+
+/// A wind of 3 m/s measured so many minutes before the clock's moment.
+fn wind(station: &str, minutes_ago: i64) -> Observation {
+    let time = adapters::recorded_at() - Duration::minutes(minutes_ago);
+    let mut observation = Observation::empty(id(station), time);
+    observation.wind_speed_ms = Some(3.0);
+    observation
+}
+
+/// Innsbruck as two sources gave it on 2026-11-21: GeoSphere's station on
+/// the airfield and its station at the university, and the airfield's own
+/// report, 0.96 km from the first and 3.03 km from the second. The
+/// airfield's station was heard `airfield_minutes_ago`.
+async fn innsbruck(airfield_minutes_ago: i64) -> Router {
+    let store = MemoryStore::new();
+    let airfield = station_at(
+        "geosphere-tawes:11121",
+        "INNSBRUCK-FLUGHAFEN (AUTOMAT)",
+        47.26,
+        11.356_667,
+        578.0,
+    );
+    let university = station_at(
+        "geosphere-tawes:11320",
+        "INNSBRUCK/UNIVERSITAET",
+        47.26,
+        11.384_167,
+        578.0,
+    );
+    let report = station_at(
+        "awc-metar:LOWI",
+        "Innsbruck Arpt, TI, AT",
+        47.26,
+        11.344,
+        570.0,
+    );
+    let heard = [
+        wind("geosphere-tawes:11121", airfield_minutes_ago),
+        wind("geosphere-tawes:11320", 5),
+    ];
+    store
+        .save_run(&run("geosphere-tawes"), &[airfield, university], &heard)
+        .await
+        .unwrap();
+    store
+        .save_run(&run("awc-metar"), &[report], &[wind("awc-metar:LOWI", 15)])
+        .await
+        .unwrap();
+
+    // The sources of the first region, preferred in its pack's order.
+    let registry = adapters::registry();
+    let preferred: Vec<SourceId> = [
+        "dwd-10min",
+        "geosphere-tawes",
+        "suedtirol-meteo",
+        "awc-metar",
+    ]
+    .map(|source| SourceId::new(source).unwrap())
+    .to_vec();
+    let manifests = registry
+        .manifests()
+        .filter(|manifest| preferred.contains(&manifest.id));
+    let clock = Arc::new(FixedClock(adapters::recorded_at()));
+    Api::new(Arc::new(store), clock, manifests, settings())
+        .with_station_priority(preferred)
+        .router(&Cors::Any)
+}
+
+/// The identifiers of the stations listed for a box, and whose credit the
+/// answer carries.
+async fn listed(router: &Router, bbox: &str) -> (Vec<String>, Vec<String>) {
+    let answer: StationsResponse = get(router, &format!("/v1/stations?bbox={bbox}"))
+        .await
+        .json();
+    assert!(!answer.truncated);
+    let stations = answer
+        .stations
+        .iter()
+        .map(|entry| entry.station.id.to_string())
+        .collect();
+    let credited = answer
+        .attributions
+        .iter()
+        .map(|attribution| attribution.source.to_string())
+        .collect();
+    (stations, credited)
+}
+
+#[tokio::test]
+async fn where_two_sources_measure_at_one_place_one_station_is_listed() {
+    let router = innsbruck(5).await;
+
+    // The weather service's station on the airfield stands for the place.
+    // The airfield's report is not listed and its source not credited:
+    // nothing of it is in the answer. The university is another place.
+    let (stations, credited) = listed(&router, "11.2,47.1,11.5,47.4").await;
+    assert_eq!(stations, ["geosphere-tawes:11121", "geosphere-tawes:11320"]);
+    assert_eq!(credited, ["geosphere-tawes"]);
+
+    // The report is still collected and kept, and its own observations
+    // answer by its identifier as before: a link to it, a station an app
+    // remembers and the assistant's question about it keep working.
+    let own = get(&router, "/v1/stations/awc-metar:LOWI/observations").await;
+    assert_eq!(own.status, StatusCode::OK);
+    let own: ObservationsResponse = own.json();
+    assert_eq!(own.station.id, id("awc-metar:LOWI"));
+    assert_eq!(own.observations.len(), 1);
+    // Where a box ends changes nothing. This one holds the report's
+    // position and ends 400 m west of the station that stands for it: the
+    // report is not listed, and the place appears when the map moves on.
+    let (stations, credited) = listed(&router, "11.2,47.1,11.35,47.4").await;
+    assert!(stations.is_empty() && credited.is_empty());
+}
+
+#[tokio::test]
+async fn a_station_that_fell_silent_does_not_keep_the_other_back() {
+    // GeoSphere's station on the airfield was last heard two hours ago.
+    // The report has a wind of the last hour, so it is the one listed.
+    let router = innsbruck(120).await;
+
+    let (stations, credited) = listed(&router, "11.2,47.1,11.5,47.4").await;
+    assert_eq!(stations, ["awc-metar:LOWI", "geosphere-tawes:11320"]);
+    assert_eq!(credited, ["awc-metar", "geosphere-tawes"]);
+    // The silent one answers by its identifier all the same.
+    let own = get(&router, "/v1/stations/geosphere-tawes:11121/observations").await;
+    assert_eq!(own.status, StatusCode::OK);
 }
 
 #[tokio::test]

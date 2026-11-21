@@ -1,0 +1,458 @@
+{
+  "stations": [
+    {
+      "id": "awc-metar:EDDM",
+      "name": "Munich Intl, BY, DE",
+      "position": {
+        "lat": 48.348,
+        "lon": 11.813
+      },
+      "elevation_m": 445.0
+    },
+    {
+      "id": "awc-metar:EDJA",
+      "name": "Memmingerberg Arpt, BY, DE",
+      "position": {
+        "lat": 47.989,
+        "lon": 10.239
+      },
+      "elevation_m": 625.0
+    },
+    {
+      "id": "awc-metar:EDMA",
+      "name": "Augsberg Arpt, BY, DE",
+      "position": {
+        "lat": 48.425,
+        "lon": 10.932
+      },
+      "elevation_m": 462.0
+    },
+    {
+      "id": "awc-metar:EDMO",
+      "name": "Oberpfaffenhofe Arpt, BY, DE",
+      "position": {
+        "lat": 48.081,
+        "lon": 11.283
+      },
+      "elevation_m": 587.0
+    },
+    {
+      "id": "awc-metar:EDNY",
+      "name": "Friedrichshafen Arpt, BW, DE",
+      "position": {
+        "lat": 47.671,
+        "lon": 9.511
+      },
+      "elevation_m": 411.0
+    },
+    {
+      "id": "awc-metar:ETHA",
+      "name": "Altenstadt, BY, DE",
+      "position": {
+        "lat": 47.834,
+        "lon": 10.867
+      },
+      "elevation_m": 738.0
+    },
+    {
+      "id": "awc-metar:ETHL",
+      "name": "Laupheim Arpt, BW, DE",
+      "position": {
+        "lat": 48.218,
+        "lon": 9.91
+      },
+      "elevation_m": 536.0
+    },
+    {
+      "id": "awc-metar:ETSL",
+      "name": "Lechfeld , BY, DE",
+      "position": {
+        "lat": 48.185,
+        "lon": 10.861
+      },
+      "elevation_m": 548.0
+    },
+    {
+      "id": "awc-metar:LHSM",
+      "name": "Sármellék/Balaton Arpt, ZA, HU",
+      "position": {
+        "lat": 46.689,
+        "lon": 17.161
+      },
+      "elevation_m": 119.0
+    },
+    {
+      "id": "awc-metar:LIPB",
+      "name": "Bolzano/Dolomiti Arpt, BO, IT",
+      "position": {
+        "lat": 46.46,
+        "lon": 11.326
+      },
+      "elevation_m": 239.0
+    },
+    {
+      "id": "awc-metar:LJMB",
+      "name": "Maribor/Rusjan Arpt, MA, SI",
+      "position": {
+        "lat": 46.48,
+        "lon": 15.682
+      },
+      "elevation_m": 263.0
+    },
+    {
+      "id": "awc-metar:LOAN",
+      "name": "Wiener-Neustadt Ost, NI, AT",
+      "position": {
+        "lat": 47.843,
+        "lon": 16.26
+      },
+      "elevation_m": 266.0
+    },
+    {
+      "id": "awc-metar:LOAV",
+      "name": "Vöslau Arpt, NI, AT",
+      "position": {
+        "lat": 47.965,
+        "lon": 16.259
+      },
+      "elevation_m": 232.0
+    },
+    {
+      "id": "awc-metar:LOWG",
+      "name": "Graz Arpt, ST, AT",
+      "position": {
+        "lat": 46.997,
+        "lon": 15.447
+      },
+      "elevation_m": 337.0
+    },
+    {
+      "id": "awc-metar:LOWI",
+      "name": "Innsbruck Arpt, TI, AT",
+      "position": {
+        "lat": 47.26,
+        "lon": 11.344
+      },
+      "elevation_m": 570.0
+    },
+    {
+      "id": "awc-metar:LOWK",
+      "name": "Klagenfurt Arpt, KA, AT",
+      "position": {
+        "lat": 46.648,
+        "lon": 14.318
+      },
+      "elevation_m": 450.0
+    },
+    {
+      "id": "awc-metar:LOWL",
+      "name": "Linz Arpt, OB, AT",
+      "position": {
+        "lat": 48.233,
+        "lon": 14.188
+      },
+      "elevation_m": 290.0
+    },
+    {
+      "id": "awc-metar:LOWS",
+      "name": "Salzburg/Mozart Arpt, SA, AT",
+      "position": {
+        "lat": 47.789,
+        "lon": 13.009
+      },
+      "elevation_m": 427.0
+    },
+    {
+      "id": "awc-metar:LOWW",
+      "name": "Vienna Intl, NE, AT",
+      "position": {
+        "lat": 48.117,
+        "lon": 16.582
+      },
+      "elevation_m": 179.0
+    },
+    {
+      "id": "awc-metar:LOXZ",
+      "name": "Zeltweg Arpt, ST, AT",
+      "position": {
+        "lat": 47.203,
+        "lon": 14.744
+      },
+      "elevation_m": 678.0
+    },
+    {
+      "id": "awc-metar:LSZR",
+      "name": "Rheineck/Altenrhein, SG, CH",
+      "position": {
+        "lat": 47.485,
+        "lon": 9.561
+      },
+      "elevation_m": 396.0
+    },
+    {
+      "id": "awc-metar:LSZS",
+      "name": "Samedan Arpt, GR, CH",
+      "position": {
+        "lat": 46.526,
+        "lon": 9.879
+      },
+      "elevation_m": 1708.0
+    }
+  ],
+  "observations": [
+    {
+      "station": "awc-metar:EDDM",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 4.63,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 260.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:EDJA",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.57,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 250.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:EDMA",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.57,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 320.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:EDMO",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.09,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 270.0,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:EDNY",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.06,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 270.0,
+      "gust_direction_deg": null,
+      "temperature_c": 8.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:ETHA",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.09,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 10.0,
+      "gust_direction_deg": null,
+      "temperature_c": 3.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:ETHL",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 3.09,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 250.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:ETSL",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.54,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 320.0,
+      "gust_direction_deg": null,
+      "temperature_c": 4.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LHSM",
+      "time": "2026-11-21T10:15:00Z",
+      "wind_speed_ms": 5.66,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 360.0,
+      "gust_direction_deg": null,
+      "temperature_c": 9.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LIPB",
+      "time": "2026-11-21T09:50:00Z",
+      "wind_speed_ms": 1.54,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 350.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LJMB",
+      "time": "2026-11-21T10:30:00Z",
+      "wind_speed_ms": 5.66,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 10.0,
+      "gust_direction_deg": null,
+      "temperature_c": 12.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOAN",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 5.14,
+      "wind_gust_ms": 10.29,
+      "wind_direction_deg": 320.0,
+      "gust_direction_deg": null,
+      "temperature_c": null,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOAV",
+      "time": "2026-11-21T10:00:00Z",
+      "wind_speed_ms": 7.2,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 330.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWG",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.51,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 11.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWI",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.51,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 7.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWK",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.51,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 5.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWL",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 5.66,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 290.0,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 1.03,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 6.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOWW",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 7.72,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 320.0,
+      "gust_direction_deg": null,
+      "temperature_c": 8.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LOXZ",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.06,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 150.0,
+      "gust_direction_deg": null,
+      "temperature_c": 7.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LSZR",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 2.06,
+      "wind_gust_ms": null,
+      "wind_direction_deg": 300.0,
+      "gust_direction_deg": null,
+      "temperature_c": 8.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    },
+    {
+      "station": "awc-metar:LSZS",
+      "time": "2026-11-21T10:20:00Z",
+      "wind_speed_ms": 0.51,
+      "wind_gust_ms": null,
+      "wind_direction_deg": null,
+      "gust_direction_deg": null,
+      "temperature_c": 0.0,
+      "humidity_pct": null,
+      "pressure_hpa": null
+    }
+  ],
+  "report": {
+    "source": "awc-metar",
+    "requests": 1,
+    "failures": [],
+    "skipped": [],
+    "rejected": [],
+    "merge_conflicts": 0,
+    "budget_exhausted": false,
+    "stations": 22,
+    "observations": 22,
+    "newest_observation": "2026-11-21T10:30:00Z"
+  }
+}

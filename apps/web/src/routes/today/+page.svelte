@@ -69,13 +69,23 @@
 	/** As the core names them by the calendar: "Today", "Tomorrow", "Sat". */
 	const dayNames = $derived(days.map((day) => day.name));
 	const best = $derived(bestOn(shown.places, dayIndex));
+	/** Every take-off in the order the forecast puts them, for the table of a wide screen. */
+	const listed = $derived(inOrder(shown.places, dayIndex));
+	/** The take-off chosen in that table, by its identifier; the best until one is. */
+	let chosenSite = $state<string>();
+	/** The take-off whose hours the card shows: the one chosen on a wide screen, else the best. */
+	const card = $derived.by(() => {
+		const place = wide.current ? shown.places.find((one) => one.site.id === chosenSite) : undefined;
+		const day = place?.outlook?.days[dayIndex];
+		return place && day ? { place, day } : best;
+	});
 	/** The others in the order the forecast puts them: the better first, among equals the nearer. */
 	const others = $derived(inOrder(shown.places, dayIndex).filter((place) => place !== best?.place));
 	/**
 	 * Whether the best take-off's hours show their climbs: only where one of
 	 * them has something to climb in. A day with none says so in its line.
 	 */
-	const climbs = $derived(best?.day.hours.some((hour) => (hour.climbMs ?? 0) > 0) ?? false);
+	const climbs = $derived(card?.day.hours.some((hour) => (hour.climbMs ?? 0) > 0) ?? false);
 	/** Whose forecast it is, and of when: from any take-off that has one. */
 	const outlook = $derived(shown.places.find((place) => place.outlook)?.outlook);
 	/**
@@ -200,15 +210,80 @@
 			{/if}
 
 			<div class="columns">
-				{#if best}
-					{@const day = best.day}
-					<a
+				{#if wide.current}
+					<!-- Every take-off as a table; a row chosen fills the card beside it. -->
+					<div class="card table">
+						<table aria-label="Take-offs">
+							<thead>
+								<tr>
+									<th scope="col">Take-off</th>
+									<th scope="col">Kind of day</th>
+									<th scope="col">Status</th>
+									<th scope="col">Wind</th>
+									<th scope="col" class="number">Away</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each listed as place (place.site.id)}
+									{@const day = place.outlook?.days[dayIndex]}
+									{@const current = card?.place === place}
+									<tr class:current onclick={() => (chosenSite = place.site.id)}>
+										<th scope="row">
+											<button
+												type="button"
+												aria-pressed={current}
+												onclick={() => (chosenSite = place.site.id)}
+											>
+												{place.site.name}
+											</button>
+										</th>
+										<td>
+											{#if day?.thermalWords}
+												<span class="kind-of-day">
+													<ThermalMark climbMs={day.climbMs ?? 0} />
+													{day.thermalWords}
+												</span>
+											{/if}
+										</td>
+										<td class="status">
+											{#if day}
+												<StatusChip verdict={day.verdict} status={day.status} />
+												{#if day.why}<span class="lesser">{day.why}</span>{/if}
+											{:else}
+												<span class="lesser">
+													{place.problem ??
+														(place.outlook ? 'No forecast for this day' : 'Fetching the forecast…')}
+												</span>
+											{/if}
+										</td>
+										<td class="numeric">
+											{#if day?.windKmh}{day.windKmh} km/h{#if day.windFrom}{' '}from {day.windFrom}{/if}{/if}
+										</td>
+										<td class="number numeric">{text.kilometres(place.distanceM)} km</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+
+				{#if card}
+					{@const day = card.day}
+					{@const href = placeHref(card.place.site.position, card.place.site.id)}
+					<svelte:element
+						this={wide.current ? 'section' : 'a'}
 						class="card best"
-						href={placeHref(best.place.site.position, best.place.site.id)}
-						aria-label="{best.place.site.name}: {day.status}"
+						href={wide.current ? undefined : href}
+						aria-label="{card.place.site.name}: {day.status}"
 					>
 						<div class="title">
-							<h2>{best.place.site.name}</h2>
+							<h2>
+								{#if wide.current}
+									<a {href}>{card.place.site.name}</a>
+								{:else}
+									{card.place.site.name}
+								{/if}
+							</h2>
 							<StatusChip verdict={day.verdict} status={day.status} />
 						</div>
 						{#if day.why}
@@ -266,7 +341,7 @@
 						{:else}
 							<p class="why">No daylight hours left on this day.</p>
 						{/if}
-					</a>
+					</svelte:element>
 				{:else if waiting}
 					<p class="waiting card" role="status">
 						Fetching the forecast for the take-offs. Venti fetches a new place’s forecast first,
@@ -274,40 +349,42 @@
 					</p>
 				{/if}
 
-				<ul class="card others" aria-label="Other take-offs">
-					{#each others as place (place.site.id)}
-						{@const day = place.outlook?.days[dayIndex]}
-						<li>
-							<a href={placeHref(place.site.position, place.site.id)}>
-								<span class="sign"><Icon name="takeoff" /></span>
-								<span class="text">
-									<span class="name">{place.site.name}</span>
-									{#if day?.thermalWords}
-										<span class="kind-of-day">
-											<ThermalMark climbMs={day.climbMs ?? 0} />
-											{day.thermalWords}
-										</span>
-									{/if}
-									<span class="lesser">
-										{#if day}
-											{day.why || day.headline}
-										{:else if place.problem}
-											{place.problem}
-										{:else if place.outlook}
-											No forecast for this day
-										{:else}
-											Fetching the forecast…
+				{#if !wide.current}
+					<ul class="card others" aria-label="Other take-offs">
+						{#each others as place (place.site.id)}
+							{@const day = place.outlook?.days[dayIndex]}
+							<li>
+								<a href={placeHref(place.site.position, place.site.id)}>
+									<span class="sign"><Icon name="takeoff" /></span>
+									<span class="text">
+										<span class="name">{place.site.name}</span>
+										{#if day?.thermalWords}
+											<span class="kind-of-day">
+												<ThermalMark climbMs={day.climbMs ?? 0} />
+												{day.thermalWords}
+											</span>
 										{/if}
-										· {text.kilometres(place.distanceM)} km away
+										<span class="lesser">
+											{#if day}
+												{day.why || day.headline}
+											{:else if place.problem}
+												{place.problem}
+											{:else if place.outlook}
+												No forecast for this day
+											{:else}
+												Fetching the forecast…
+											{/if}
+											· {text.kilometres(place.distanceM)} km away
+										</span>
 									</span>
-								</span>
-								{#if day}
-									<StatusChip verdict={day.verdict} status={day.status} />
-								{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
+									{#if day}
+										<StatusChip verdict={day.verdict} status={day.status} />
+									{/if}
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 
 			{#if !shown.nearYou}
@@ -401,11 +478,86 @@
 		gap: var(--space-5);
 	}
 
-	/* Wide: the best take-off beside the others, not a phone's column stretched. */
+	/* Wide: every take-off as a table, and beside it the hours of the one
+	   chosen, not a phone's column stretched. */
+	.body.wide {
+		max-width: 80rem;
+	}
+
 	.wide .columns {
 		display: grid;
 		grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+		gap: var(--space-4);
 		align-items: start;
+	}
+
+	.wide .best {
+		padding: var(--space-4);
+		gap: var(--space-3);
+	}
+
+	.table {
+		overflow-x: auto;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-m);
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	table th,
+	table td {
+		height: 2rem;
+		padding: var(--space-1) var(--space-2);
+		text-align: left;
+		white-space: nowrap;
+	}
+
+	thead th {
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
+		box-shadow: inset 0 -1px 0 var(--color-border);
+	}
+
+	tbody tr {
+		cursor: pointer;
+	}
+
+	tbody tr + tr > * {
+		box-shadow: inset 0 1px 0 var(--separator);
+	}
+
+	tbody th button {
+		font: inherit;
+		font-weight: 600;
+		color: inherit;
+		text-align: left;
+	}
+
+	tr.current {
+		background: var(--fill);
+	}
+
+	table .number {
+		text-align: right;
+	}
+
+	/* What speaks against the day, under its status: the cell may wrap. */
+	table td.status {
+		white-space: normal;
+		min-width: 12rem;
+	}
+
+	table td .lesser {
+		display: block;
+		font-size: var(--caption);
+	}
+
+	table :global(.status) {
+		min-height: 1.5rem;
 	}
 
 	.card {
@@ -429,6 +581,10 @@
 
 	h2 {
 		font-size: var(--title);
+	}
+
+	h2 a {
+		color: var(--link);
 	}
 
 	.why,
@@ -612,7 +768,7 @@
 
 	@media (hover: hover) {
 		.others a:hover,
-		.best:hover {
+		a.best:hover {
 			background: var(--fill);
 		}
 	}

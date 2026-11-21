@@ -6,7 +6,7 @@
  * on tomorrow.
  */
 
-import { expect, test } from './helpers';
+import { expect, rowsOf, test } from './helpers';
 import { madeUpSummer } from './made-up-summer';
 
 /** Where OpenStreetMap has the take-off of the Jägerkamp. */
@@ -15,6 +15,7 @@ const JAEGERKAMP = { latitude: 47.6791413, longitude: 11.9051032 };
 test('today says what the forecast says of the take-offs around', async ({
 	page,
 	keep,
+	wide,
 	problems
 }) => {
 	await page.goto('/today/');
@@ -24,7 +25,10 @@ test('today says what the forecast says of the take-offs around', async ({
 	).toHaveAttribute('aria-current', 'page');
 
 	// The take-offs are listed at once, and each forecast fills in.
-	const others = page.getByRole('list', { name: 'Other take-offs' }).getByRole('listitem');
+	// A wide screen has every take-off in a table; a phone, the others under the best.
+	const others = wide
+		? rowsOf(page, 'Take-offs')
+		: page.getByRole('list', { name: 'Other take-offs' }).getByRole('listitem');
 	await expect(others.first()).toBeVisible();
 	await expect(page.getByText(/^(Flyable|Marginal|Not flyable)$/).first()).toBeVisible({
 		timeout: 30_000
@@ -44,8 +48,17 @@ test('today says what the forecast says of the take-offs around', async ({
 	await days.last().check();
 	await expect(days.last()).toBeChecked();
 
-	// A take-off leads to its page.
-	await others.first().getByRole('link').click();
+	// A take-off leads to its page. On a wide screen a row chosen fills
+	// the card beside the table, whose title leads there.
+	if (wide) {
+		const second = others.nth(1).getByRole('button');
+		const name = (await second.textContent())!.trim();
+		await second.click();
+		await expect(second).toHaveAttribute('aria-pressed', 'true');
+		await page.locator('.best h2').getByRole('link', { name }).click();
+	} else {
+		await others.first().getByRole('link').click();
+	}
 	await expect(page).toHaveURL(/\/logbook\/everyone\/place\/\?lat=/);
 	expect(problems).toEqual([]);
 });
@@ -64,7 +77,12 @@ test('today goes by the pilot’s position once asked to', async ({ context, pag
 	await keep('97-today-near-you');
 });
 
-test('today says when Venti cannot be reached, and asks again', async ({ context, page, keep }) => {
+test('today says when Venti cannot be reached, and asks again', async ({
+	context,
+	page,
+	keep,
+	wide
+}) => {
 	let down = true;
 	await context.route('**/v1/sites**', (route) =>
 		down ? route.fulfill({ status: 503, body: '' }) : route.continue()
@@ -76,13 +94,18 @@ test('today says when Venti cannot be reached, and asks again', async ({ context
 	await keep('98-today-unreachable');
 	down = false;
 	await page.getByRole('button', { name: 'Try again' }).click();
-	await expect(page.getByRole('list', { name: 'Other take-offs' })).toBeVisible();
+	await expect(
+		wide
+			? page.getByRole('table', { name: 'Take-offs' })
+			: page.getByRole('list', { name: 'Other take-offs' })
+	).toBeVisible();
 });
 
 test('a strong day puts the take-offs in the order of their thermals, with the climb hour by hour', async ({
 	context,
 	page,
 	keep,
+	wide,
 	problems
 }) => {
 	// MADE UP: no model forecast this. See `made-up-summer.ts`.
@@ -104,7 +127,9 @@ test('a strong day puts the take-offs in the order of their thermals, with the c
 	await expect(best).toContainText('the climb to expect in thermals, in m/s');
 
 	// The others: a stronger day before a weaker one, each with its kind.
-	const others = page.getByRole('list', { name: 'Other take-offs' }).getByRole('listitem');
+	const others = wide
+		? rowsOf(page, 'Take-offs')
+		: page.getByRole('list', { name: 'Other take-offs' }).getByRole('listitem');
 	await expect(others.first()).toContainText(/Big day|Cross-country day|Local thermals/);
 	const kinds = await others.locator('.kind-of-day').allTextContents();
 	const order = ['Big day', 'Cross-country day', 'Local thermals', 'Weak thermals'];

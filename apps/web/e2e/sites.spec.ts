@@ -117,7 +117,7 @@ test('the map draws the flying sites the server has, lists them and opens one', 
 	await expect(site).toContainText('As of Wed, 18 Nov 2026.');
 	// What its source says beyond that, in the core's sentence, and its web
 	// page, which is somebody else's and opens outside the app.
-	const more = site.getByRole('region', { name: 'What its source says about it' });
+	const more = site.getByRole('region', { name: 'What its source says' });
 	await expect(more).toContainText('A fee is asked for using this site.');
 	const webPage = more.getByRole('link', { name: /^Web page/ });
 	await expect(webPage).toContainText('www.dhv.de');
@@ -441,7 +441,7 @@ test('a site’s page shows its mapper’s description as text', async ({ page, 
 	await page.goto(
 		`/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent('osm-free-flying:node/5964676196')}`
 	);
-	const more = page.getByRole('region', { name: 'What its source says about it' });
+	const more = page.getByRole('region', { name: 'What its source says' });
 	await expect(more).toHaveText('Startrampe (vermutlich für Drachenflieger)');
 	// Nothing is said of a fee, of guests or of a time without flying, and it has no web page.
 	await expect(more.getByRole('link')).toHaveCount(0);

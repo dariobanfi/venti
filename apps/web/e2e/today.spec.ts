@@ -179,7 +179,7 @@ test('a take-off the pilot keeps leads Today under its heading, is listed in the
 	await page.getByRole('button', { name: 'Keep as my take-off' }).click();
 	await expect(page.getByRole('button', { name: 'Kept' })).toHaveAttribute('aria-pressed', 'true');
 	// What its source says of a fee, and its web page.
-	const more = page.getByRole('region', { name: 'What its source says about it' });
+	const more = page.getByRole('region', { name: 'What its source says' });
 	await expect(more).toContainText('A fee is asked for using this site.');
 	await expect(more.getByRole('link', { name: /^Web page/ })).toHaveAttribute(
 		'href',

@@ -45,9 +45,11 @@
 	h2 {
 		font-size: var(--body);
 		font-weight: 600;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		/* A long title takes a second line and is never cut: on a narrow
+		   phone with large text "I took off here and it was good" was. */
+		padding-block: 0.5rem;
+		text-align: center;
+		text-wrap: balance;
 	}
 
 	button {

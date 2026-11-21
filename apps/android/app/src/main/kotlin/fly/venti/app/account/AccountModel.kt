@@ -1,5 +1,6 @@
 package fly.venti.app.account
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,9 +13,11 @@ import fly.venti.core.CoreException
 import fly.venti.core.FiredLine
 import fly.venti.core.FlightSharing
 import fly.venti.core.FlightVisibility
+import fly.venti.core.GoogleSignUp
 import fly.venti.core.ReportReason
 import fly.venti.core.ReportSubject
 import fly.venti.core.ServerRequest
+import fly.venti.core.SignedIn
 import fly.venti.core.SyncStep
 import fly.venti.core.SyncSummary
 import fly.venti.core.reportRequest
@@ -143,29 +146,132 @@ class AccountModel(
                 problem = words(error)
                 return
             }
-            // Without the token every later request would be refused. If
-            // the keystore did not keep it, say that, and do not leave a
-            // session on the server that this phone cannot use.
-            val isKept = withContext(background) { session.save(signedIn.token) && session.read() == signedIn.token }
-            if (!isKept) {
-                val signOut = withContext(background) { runCatching { core.signOutRequest() }.getOrNull() }
-                if (signOut != null) {
-                    quietly { ask(signOut, server, token = signedIn.token) }
-                }
-                withContext(background) {
-                    runCatching { core.signedOut() }
-                    session.remove()
-                }
-                problem = "This phone could not keep the session in its keystore, so you are not signed in. " +
-                    "Restart the phone and try again."
-                return
-            }
-            isSessionLost = false
-            account = signedIn.account
-            runSync()
+            keep(server, signedIn)
         } finally {
             isWorking = false
         }
+    }
+
+    // Signing in with Google
+
+    /** Where the app gets Google's ID tokens: Google itself, or in a UI test the development server. */
+    var google: GoogleIdTokens? = null
+
+    /** Asks [google] for an ID token over the screen of `context`, for Venti at `server`. */
+    fun googleIdTokens(context: Context, server: String): suspend () -> String = {
+        (google ?: throw IllegalStateException("Signing in with Google is not set up in this build.")).idToken(context, server)
+    }
+
+    /**
+     * A first sign-in with a Google account no Venti account is linked to:
+     * the handle step waits for [createGoogleAccount], on this server.
+     */
+    var googleSignUp: Pair<String, GoogleSignUp>? by mutableStateOf(null)
+        private set
+
+    /**
+     * "Continue with Google": asks Google for an ID token and signs in with
+     * it, or goes on to the handle step for a Google account Venti does not
+     * know yet. `idToken` asks Google ([googleIdTokens]). Closing Google's
+     * sheet is no problem to report.
+     */
+    suspend fun signInWithGoogle(server: String, idToken: suspend () -> String) {
+        if (isWorking) return
+        isWorking = true
+        try {
+            val result = try {
+                val token = fromGoogle(idToken) ?: return
+                val answer = ask(withContext(background) { core.googleSignInRequest(token, device) }, server)
+                withContext(background) { core.googleSignIn(server, answer.status16, answer.body) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                problem = words(error)
+                return
+            }
+            result.needsHandle?.let { googleSignUp = server to it }
+            result.signedIn?.let { keep(server, it) }
+        } finally {
+            isWorking = false
+        }
+    }
+
+    /** "Create account" of the handle step: the account is made, linked to the Google account, and signed in. */
+    suspend fun createGoogleAccount(handle: String, displayName: String, invite: String) {
+        val (server, signUp) = googleSignUp ?: return
+        enter(server) {
+            core.googleAccountRequest(signUp.signup, handle, displayName, invite.takeIf { it.isNotBlank() }, device)
+        }
+        if (isSignedIn) googleSignUp = null
+    }
+
+    /** Leaves the handle step without an account. */
+    fun cancelGoogleSignUp() {
+        googleSignUp = null
+    }
+
+    /** "Link Google": the account signs in with the Google account the pilot chooses from now on too. */
+    suspend fun linkGoogle(idToken: suspend () -> String) {
+        val server = account?.server ?: return
+        changeGoogle {
+            val token = fromGoogle(idToken) ?: return@changeGoogle null
+            val answer = ask(withContext(background) { core.linkGoogleRequest(token) }, server)
+            withContext(background) { core.googleLinked(answer.status16, answer.body) }
+        }
+    }
+
+    /** "Unlink Google". The server refuses it, in the core's words, for an account Google is the only way into. */
+    suspend fun unlinkGoogle() {
+        val server = account?.server ?: return
+        changeGoogle {
+            val answer = ask(withContext(background) { core.unlinkGoogleRequest() }, server)
+            withContext(background) { core.googleUnlinked(answer.status16, answer.body) }
+        }
+    }
+
+    private suspend fun changeGoogle(change: suspend () -> AccountView?) {
+        if (isWorking) return
+        isWorking = true
+        try {
+            change()?.let { account = it }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            problem = words(error)
+        } finally {
+            isWorking = false
+        }
+    }
+
+    /** An ID token from Google, or `null` when the pilot closed Google's sheet. */
+    private suspend fun fromGoogle(idToken: suspend () -> String): String? = try {
+        idToken()
+    } catch (_: GoogleCancelled) {
+        null
+    }
+
+    /** Keeps the session of a sign-in, then brings the logbook in step. */
+    private suspend fun keep(server: String, signedIn: SignedIn) {
+        // Without the token every later request would be refused. If
+        // the keystore did not keep it, say that, and do not leave a
+        // session on the server that this phone cannot use.
+        val isKept = withContext(background) { session.save(signedIn.token) && session.read() == signedIn.token }
+        if (!isKept) {
+            val signOut = withContext(background) { runCatching { core.signOutRequest() }.getOrNull() }
+            if (signOut != null) {
+                quietly { ask(signOut, server, token = signedIn.token) }
+            }
+            withContext(background) {
+                runCatching { core.signedOut() }
+                session.remove()
+            }
+            problem = "This phone could not keep the session in its keystore, so you are not signed in. " +
+                "Restart the phone and try again."
+            return
+        }
+        isSessionLost = false
+        account = signedIn.account
+        runSync()
     }
 
     /** Signs this phone out. The flights in the logbook stay. */
@@ -196,6 +302,31 @@ class AccountModel(
         isWorking = true
         try {
             val answer = ask(withContext(background) { core.deleteAccountRequest(password) }, server)
+            withContext(background) { core.accountDeleted(answer.status16, answer.body) }
+            forget()
+            return true
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            problem = words(error)
+            return false
+        } finally {
+            isWorking = false
+        }
+    }
+
+    /**
+     * Deletes the account with a fresh sign-in with its Google account in
+     * place of the password: for an account made with Google, which has
+     * none. Returns whether it is gone.
+     */
+    suspend fun deleteAccountWithGoogle(idToken: suspend () -> String): Boolean {
+        val server = account?.server ?: return false
+        if (isWorking) return false
+        isWorking = true
+        try {
+            val token = fromGoogle(idToken) ?: return false
+            val answer = ask(withContext(background) { core.deleteAccountWithGoogleRequest(token) }, server)
             withContext(background) { core.accountDeleted(answer.status16, answer.body) }
             forget()
             return true

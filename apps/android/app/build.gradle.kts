@@ -12,6 +12,15 @@ val coreAbis: Provider<List<String>> = providers.gradleProperty("venti.abis").ma
 /** The address of Venti the app is built for: `-Pventi.server=https://…`. */
 val ventiServer: String? = providers.gradleProperty("venti.server").orNull?.trimEnd('/')
 
+/**
+ * The OAuth client ID that Google issues the app's ID tokens for: Venti's
+ * web client, which Credential Manager takes as the server's client ID.
+ * Not a secret; it ships in every app. Another Venti's with
+ * `-Pventi.googleClientId=…`.
+ */
+val googleClientId: String = providers.gradleProperty("venti.googleClientId").orNull
+    ?: "490070141586-8k1a3mrggi5fb87iirrcfhq7eint5ef3.apps.googleusercontent.com"
+
 
 android {
     namespace = "fly.venti.app"
@@ -36,6 +45,7 @@ android {
         ndk {
             abiFilters += coreAbis.get()
         }
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
     buildTypes {
@@ -96,6 +106,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre)
     implementation(libs.androidx.work)
+    // "Continue with Google": Android's Credential Manager asks Google's
+    // services on the phone for an ID token, which the app hands to Venti.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
     // The generated bridge calls the core through JNA. On a phone that is
     // the Android archive, with JNA's own native library for each ABI.
     implementation(libs.jna) { artifact { type = "aar" } }

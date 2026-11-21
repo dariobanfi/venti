@@ -88,7 +88,7 @@ fun AlertMeRow(entry: AlertsEntry, tag: String, draft: () -> AlertDraft) {
     var editing by remember { mutableStateOf<AlertDraft?>(null) }
     var asksToSignIn by remember { mutableStateOf(false) }
     val askToNotify = rememberNotificationQuestion()
-    LinkRow(AlertWords.ALERT_ME, R.drawable.ic_chevron_right, Modifier.testTag(tag), leading = R.drawable.ic_notifications) {
+    LinkRow(AlertWords.core.alertMe, R.drawable.ic_chevron_right, Modifier.testTag(tag), leading = R.drawable.ic_notifications) {
         if (entry.model.isSignedIn) editing = draft() else asksToSignIn = true
     }
     editing?.let { shown ->
@@ -97,8 +97,8 @@ fun AlertMeRow(entry: AlertsEntry, tag: String, draft: () -> AlertDraft) {
     if (asksToSignIn) {
         AlertDialog(
             onDismissRequest = { asksToSignIn = false },
-            title = { Text(AlertWords.TITLE) },
-            text = { Text(AlertWords.SIGN_IN_FIRST, Modifier.testTag("alert-sign-in-first")) },
+            title = { Text(AlertWords.core.title) },
+            text = { Text(AlertWords.core.signedOut, Modifier.testTag("alert-sign-in-first")) },
             confirmButton = {
                 TextButton(onClick = {
                     asksToSignIn = false
@@ -145,7 +145,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(AlertWords.TITLE) },
+                title = { Text(AlertWords.core.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
@@ -163,15 +163,16 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                 .padding(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s2, bottom = VentiSpace.s5),
         ) {
             if (!model.isSignedIn) {
-                Quiet(AlertWords.SIGN_IN_FIRST, "alerts-sign-in-first")
+                Quiet(AlertWords.core.signedOut, "alerts-sign-in-first")
                 Spacer(Modifier.height(VentiSpace.s3))
                 Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch)) {
                     Text(AlertWords.SIGN_IN)
                 }
                 return@Column
             }
+            SectionHeader(AlertWords.core.listTitle)
             if (model.held.isEmpty()) {
-                Quiet(AlertWords.NONE, "alerts-empty")
+                Quiet(AlertWords.core.listEmpty, "alerts-empty")
             } else {
                 Group(Modifier.testTag("alerts")) {
                     for (alert in model.held) {
@@ -186,9 +187,9 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                 }
             }
 
-            SectionHeader(AlertWords.WHAT_FIRED, Modifier.testTag("alerts-fired-title"))
+            SectionHeader(AlertWords.core.firedTitle, Modifier.testTag("alerts-fired-title"))
             if (model.fired.isEmpty()) {
-                Quiet(AlertWords.NOTHING_FIRED, "alerts-fired-empty")
+                Quiet(AlertWords.core.firedEmpty, "alerts-fired-empty")
             } else {
                 Group(Modifier.testTag("alerts-fired")) {
                     for (fired in model.fired) {
@@ -210,6 +211,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
                     }
                 }
             }
+            SectionFooter(AlertWords.core.firedNote)
         }
     }
 
@@ -222,7 +224,7 @@ fun AlertsScreen(model: AlertsModel, scope: CoroutineScope, onSignIn: () -> Unit
     problem?.let { words ->
         AlertDialog(
             onDismissRequest = { problem = null },
-            title = { Text(AlertWords.TITLE) },
+            title = { Text(AlertWords.core.title) },
             text = { Text(words) },
             confirmButton = { TextButton(onClick = { problem = null }) { Text(AlertWords.OK) } },
         )
@@ -295,7 +297,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text(if (id == null) AlertWords.ALERT_ME else initial.name) },
+                        title = { Text(if (id == null) AlertWords.core.alertMe else AlertWords.core.changeTitle) },
                         navigationIcon = {
                             IconButton(onClick = onDone) {
                                 Icon(painterResource(R.drawable.ic_close), contentDescription = AlertWords.CANCEL)
@@ -328,7 +330,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                     OutlinedTextField(
                         value = draft.name,
                         onValueChange = { draft = draft.copy(name = it) },
-                        label = { Text(AlertWords.NAME) },
+                        label = { Text(AlertWords.core.name) },
                         singleLine = true,
                         isError = faults.at("name") != null,
                         supportingText = faults.at("name")?.let { fault -> { Text(fault) } },
@@ -357,7 +359,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                         enabled = !isSending,
                         modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("alert-save"),
                     ) {
-                        Text(AlertWords.SAVE)
+                        Text(AlertWords.core.save)
                     }
                     if (id != null) {
                         Spacer(Modifier.height(VentiSpace.s2))
@@ -366,7 +368,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                             enabled = !isSending,
                             modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("alert-delete"),
                         ) {
-                            Text(AlertWords.DELETE, color = MaterialTheme.colorScheme.error)
+                            Text(AlertWords.core.delete, color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -376,7 +378,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
         if (isDeleting && id != null) {
             AlertDialog(
                 onDismissRequest = { isDeleting = false },
-                title = { Text(AlertWords.DELETE_QUESTION) },
+                title = { Text(AlertWords.core.deleteQuestion) },
                 text = { Text(initial.name) },
                 confirmButton = {
                     TextButton(
@@ -390,7 +392,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
                             }
                         },
                         modifier = Modifier.testTag("alert-delete-confirm"),
-                    ) { Text(AlertWords.DELETE, color = MaterialTheme.colorScheme.error) }
+                    ) { Text(AlertWords.core.delete, color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = { TextButton(onClick = { isDeleting = false }) { Text(AlertWords.CANCEL) } },
             )
@@ -398,7 +400,7 @@ fun AlertFormDialog(model: AlertsModel, id: String?, initial: AlertDraft, onSave
         problem?.let { words ->
             AlertDialog(
                 onDismissRequest = { problem = null },
-                title = { Text(AlertWords.TITLE) },
+                title = { Text(AlertWords.core.title) },
                 text = { Text(words, Modifier.testTag("alert-problem")) },
                 confirmButton = { TextButton(onClick = { problem = null }) { Text(AlertWords.OK) } },
             )
@@ -431,9 +433,9 @@ private fun Fault(words: String) {
 @Composable
 private fun WindChoices(model: AlertsModel, draft: AlertDraft, faults: List<AlertFaultView>, onChange: (AlertDraft) -> Unit) {
     faults.at("rule.station", "rule.station_name")?.let { Fault(it) }
-    SectionHeader(AlertWords.FROM)
+    SectionHeader(AlertWords.core.windFrom)
     PointsRow("alert-from") {
-        Choice(AlertWords.ANY, isOn = draft.fromPoint == null, tag = "alert-from-any") {
+        Choice(AlertWords.core.any, isOn = draft.fromPoint == null, tag = "alert-from-any") {
             onChange(draft.copy(fromPoint = null, toPoint = null))
         }
         model.points.forEachIndexed { index, point ->
@@ -443,7 +445,7 @@ private fun WindChoices(model: AlertsModel, draft: AlertDraft, faults: List<Aler
             }
         }
     }
-    SectionHeader(AlertWords.TO)
+    SectionHeader(AlertWords.core.windTo)
     PointsRow("alert-to") {
         model.points.forEachIndexed { index, point ->
             val chosen = index.toUByte()
@@ -457,50 +459,49 @@ private fun WindChoices(model: AlertsModel, draft: AlertDraft, faults: List<Aler
     Spacer(Modifier.height(VentiSpace.s4))
     Group {
         row {
-            Stepper(AlertWords.LEAST_WIND, draft.minKmh?.let { "${it} ${AlertWords.KMH}" }, faults.at("rule.min_kmh"), "alert-min",
+            Stepper(AlertWords.core.least, draft.minKmh?.let { "${it} ${AlertWords.core.kmh}" }, faults.at("rule.min_kmh"), "alert-min",
                 onLess = { onChange(draft.copy(minKmh = AlertSteps.less(draft.minKmh?.toInt(), SPEED_STEP, 0)?.toUShort())) },
                 onMore = { onChange(draft.copy(minKmh = AlertSteps.more(draft.minKmh?.toInt(), SPEED_STEP, LEAST_START).toUShort())) },
             )
         }
         row {
-            Stepper(AlertWords.MOST_WIND, draft.maxKmh?.let { "${it} ${AlertWords.KMH}" }, faults.at("rule.max_kmh"), "alert-max",
+            Stepper(AlertWords.core.most, draft.maxKmh?.let { "${it} ${AlertWords.core.kmh}" }, faults.at("rule.max_kmh"), "alert-max",
                 onLess = { onChange(draft.copy(maxKmh = AlertSteps.less(draft.maxKmh?.toInt(), SPEED_STEP, 0)?.toUShort())) },
                 onMore = { onChange(draft.copy(maxKmh = AlertSteps.more(draft.maxKmh?.toInt(), SPEED_STEP, MOST_START).toUShort())) },
             )
         }
         row {
-            Stepper(AlertWords.GUSTS, draft.gustsMaxKmh?.let { "${it} ${AlertWords.KMH}" }, faults.at("rule.gusts_max_kmh"), "alert-gusts",
+            Stepper(AlertWords.core.gustsAtMost, draft.gustsMaxKmh?.let { "${it} ${AlertWords.core.kmh}" }, faults.at("rule.gusts_max_kmh"), "alert-gusts",
                 onLess = { onChange(draft.copy(gustsMaxKmh = AlertSteps.less(draft.gustsMaxKmh?.toInt(), SPEED_STEP, 0)?.toUShort())) },
                 onMore = { onChange(draft.copy(gustsMaxKmh = AlertSteps.more(draft.gustsMaxKmh?.toInt(), SPEED_STEP, GUSTS_START).toUShort())) },
             )
         }
     }
-    Spacer(Modifier.height(VentiSpace.s4))
+    SectionHeader(AlertWords.core.hoursTitle)
     Group {
         row {
-            Stepper(AlertWords.FROM_HOUR, draft.fromHour?.let { AlertWords.hour(it.toInt()) }, null, "alert-from-hour",
+            Stepper(AlertWords.core.fromHour, draft.fromHour?.let { AlertWords.hour(it.toInt()) }, null, "alert-from-hour",
                 onLess = { onChange(draft.copy(fromHour = AlertSteps.less(draft.fromHour?.toInt(), 1, 0)?.toUByte())) },
                 onMore = { onChange(draft.copy(fromHour = AlertSteps.more(draft.fromHour?.toInt(), 1, FROM_HOUR_START).toUByte())) },
             )
         }
         row {
-            Stepper(AlertWords.TO_HOUR, draft.toHour?.let { AlertWords.hour(it.toInt()) }, null, "alert-to-hour",
+            Stepper(AlertWords.core.toHour, draft.toHour?.let { AlertWords.hour(it.toInt()) }, null, "alert-to-hour",
                 onLess = { onChange(draft.copy(toHour = AlertSteps.less(draft.toHour?.toInt(), 1, 1)?.toUByte())) },
                 onMore = { onChange(draft.copy(toHour = AlertSteps.more(draft.toHour?.toInt(), 1, TO_HOUR_START).toUByte())) },
             )
         }
     }
     faults.at("rule.hours")?.let { Fault(it) }
-    SectionFooter(AlertWords.HOURS_NOTE)
 }
 
 /** The day's choices: which days ahead, and the least kind of day. */
 @Composable
 private fun DayChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange: (AlertDraft) -> Unit) {
     faults.at("rule.place", "rule.place_name")?.let { Fault(it) }
-    SectionHeader(AlertWords.DAYS)
+    SectionHeader(AlertWords.core.days)
     PointsRow("alert-days") {
-        AlertWords.DAY_NAMES.forEachIndexed { index, name ->
+        AlertWords.core.dayNames.forEachIndexed { index, name ->
             val day = index.toByte()
             val isOn = day in draft.daysAhead
             Choice(name, isOn = isOn, tag = "alert-day-$index", ticks = true) {
@@ -510,15 +511,14 @@ private fun DayChoices(draft: AlertDraft, faults: List<AlertFaultView>, onChange
         }
     }
     faults.at("rule.days_ahead")?.let { Fault(it) }
-    SectionHeader(AlertWords.AT_LEAST)
+    SectionHeader(AlertWords.core.atLeast)
     SegmentedPills(
-        AlertWords.DAY_KINDS.map { it.second },
-        AlertWords.DAY_KINDS.indexOfFirst { it.first == draft.atLeast }.coerceAtLeast(0),
+        AlertWords.core.dayKinds.map { it.name },
+        AlertWords.core.dayKinds.indexOfFirst { it.kind == draft.atLeast }.coerceAtLeast(0),
         Modifier.testTag("alert-at-least"),
         fitToWords = true,
-        onChoose = { index -> onChange(draft.copy(atLeast = AlertWords.DAY_KINDS[index].first)) },
+        onChoose = { index -> onChange(draft.copy(atLeast = AlertWords.core.dayKinds[index].kind)) },
     )
-    SectionFooter(AlertWords.HOURS_NOTE)
 }
 
 /** A row of choices that scrolls sideways, as the sites' filter shows the winds. */
@@ -563,7 +563,7 @@ private fun Stepper(title: String, value: String?, fault: String?, tag: String, 
             Icon(painterResource(R.drawable.ic_remove), contentDescription = "Less $title")
         }
         Text(
-            value ?: AlertWords.ANY,
+            value ?: AlertWords.core.any,
             style = MaterialTheme.typography.bodyLarge.numbers,
             color = if (value == null) Venti.colours.textSecondary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.testTag("$tag-value"),

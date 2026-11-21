@@ -42,14 +42,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSize
 import app.venti.design.VentiSpace
 import fly.venti.app.R
 import fly.venti.app.alerts.AlertWords
@@ -63,6 +66,9 @@ import fly.venti.app.design.ValueRow
 import fly.venti.app.wind.WindModel
 import fly.venti.app.wind.WindServer
 import fly.venti.core.AccountView
+import fly.venti.core.GoogleSignUp
+import fly.venti.core.Registration
+import fly.venti.core.googleWords
 import fly.venti.core.syncSummaryInWords
 import fly.venti.core.tokenForm
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +96,8 @@ fun AccountScreen(
     LaunchedEffect(account) {
         scope.launch { account.refresh() }
     }
+    // Whether the server offers Google, and takes accounts by invite only.
+    LaunchedEffect(wind) { wind.readStatus() }
     // "Programs with access" is a page of the account's, laid over it.
     var showsTokens by rememberSaveable { mutableStateOf(false) }
     if (showsTokens && account.isSignedIn) {
@@ -119,10 +127,11 @@ fun AccountScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         ) {
             val signedIn = account.account
-            if (signedIn != null) {
-                SignedIn(signedIn, account, scope, onTokens = { showsTokens = true }, onAlerts = onAlerts)
-            } else {
-                SignInForm(account, (wind.server as? WindServer.Usable)?.url, scope)
+            val signUp = account.googleSignUp
+            when {
+                signedIn != null -> SignedIn(signedIn, account, wind, scope, onTokens = { showsTokens = true }, onAlerts = onAlerts)
+                signUp != null -> ChooseHandle(account, signUp.second, wind.registration, scope)
+                else -> SignInForm(account, (wind.server as? WindServer.Usable)?.url, wind.googleSignIn, scope)
             }
         }
     }
@@ -140,14 +149,23 @@ fun AccountScreen(
 /** A server's name as a pilot knows it: without `https://` and what follows the name. */
 private fun host(server: String): String = runCatching { URI(server).host }.getOrNull() ?: server
 
-/** Signing in, or creating an account. */
+/**
+ * Signing in: "Continue with Google" first where the server offers it, and
+ * the handle and password form behind "Sign in with a handle and password";
+ * the form alone where the server offers no Google.
+ */
 @Composable
 private fun SignInForm(
     account: AccountModel,
     /** The server to sign in to, or `null` if the settings name none the app can ask. */
     server: String?,
+    /** Whether the server offers signing in with Google. */
+    offersGoogle: Boolean,
     scope: CoroutineScope,
 ) {
+    val context = LocalContext.current
+    val google = remember { googleWords() }
+    var showsPassword by rememberSaveable { mutableStateOf(false) }
     var isNew by rememberSaveable { mutableStateOf(false) }
     var handle by rememberSaveable { mutableStateOf("") }
     var displayName by rememberSaveable { mutableStateOf("") }
@@ -175,6 +193,28 @@ private fun SignInForm(
     }
 
     SectionHeader(host(server))
+    if (offersGoogle) {
+        // The pack's primary button with the core's words. Google's own
+        // sheet, with its branding, opens over the screen.
+        Button(
+            onClick = { scope.launch { account.signInWithGoogle(server, account.googleIdTokens(context, server)) } },
+            enabled = !account.isWorking,
+            modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("account-google"),
+        ) {
+            Text(google.continueWithGoogle)
+        }
+        if (!showsPassword) {
+            Spacer(Modifier.height(VentiSpace.s2))
+            TextButton(
+                onClick = { showsPassword = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("account-with-password"),
+            ) {
+                Text(google.withPassword)
+            }
+            return
+        }
+        Spacer(Modifier.height(VentiSpace.s5))
+    }
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         SegmentedButton(
             selected = !isNew,
@@ -271,15 +311,104 @@ private fun SignInForm(
     }
 }
 
+/**
+ * The handle step after a first sign-in with Google: the server's free
+ * handle filled in with the core's line saying where it is from, the name
+ * from Google, an invite code where the server takes accounts by invite,
+ * and "Create account".
+ */
+@Composable
+private fun ChooseHandle(
+    account: AccountModel,
+    signUp: GoogleSignUp,
+    /** Who may create an account on the server; `null` when it has not said, which may mean an invite. */
+    registration: Registration?,
+    scope: CoroutineScope,
+) {
+    val google = remember { googleWords() }
+    var handle by rememberSaveable { mutableStateOf(signUp.suggestedHandle.orEmpty()) }
+    var displayName by rememberSaveable { mutableStateOf(signUp.name.orEmpty()) }
+    var invite by rememberSaveable { mutableStateOf("") }
+    val plain = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false)
+
+    Text(
+        google.chooseHandle,
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier
+            .padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s2)
+            .testTag("account-choose-handle")
+            .semantics { heading() },
+    )
+    Text(
+        google.chooseHandleLine,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = VentiSpace.s1, vertical = VentiSpace.s2),
+    )
+    Spacer(Modifier.height(VentiSpace.s3))
+    OutlinedTextField(
+        value = handle,
+        onValueChange = { handle = it },
+        label = { Text("Handle") },
+        singleLine = true,
+        keyboardOptions = plain,
+        // The core's line holds for the suggestion as it was made.
+        supportingText = signUp.suggestionLine?.takeIf { handle == signUp.suggestedHandle }?.let { line -> { Text(line) } },
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("account-google-handle")
+            .semantics { contentType = ContentType.NewUsername },
+    )
+    Spacer(Modifier.height(VentiSpace.s2))
+    OutlinedTextField(
+        value = displayName,
+        onValueChange = { displayName = it },
+        label = { Text("Name shown to others") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth().testTag("account-google-name"),
+    )
+    if (registration == null || registration == Registration.INVITE) {
+        Spacer(Modifier.height(VentiSpace.s2))
+        OutlinedTextField(
+            value = invite,
+            onValueChange = { invite = it },
+            label = { Text("Invite code") },
+            singleLine = true,
+            keyboardOptions = plain,
+            modifier = Modifier.fillMaxWidth().testTag("account-google-invite"),
+        )
+    }
+    Spacer(Modifier.height(VentiSpace.s5))
+    Button(
+        onClick = { scope.launch { account.createGoogleAccount(handle, displayName, invite) } },
+        enabled = !account.isWorking && handle.isNotEmpty(),
+        modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch).testTag("account-google-create"),
+    ) {
+        Text(google.createAccount)
+    }
+    Spacer(Modifier.height(VentiSpace.s2))
+    TextButton(
+        onClick = account::cancelGoogleSignUp,
+        enabled = !account.isWorking,
+        modifier = Modifier.fillMaxWidth().heightIn(min = VentiSize.touch),
+    ) {
+        Text("Cancel")
+    }
+}
+
 /** The account, and how the logbook and the server stand. */
 @Composable
 private fun SignedIn(
     signedIn: AccountView,
     account: AccountModel,
+    wind: WindModel,
     scope: CoroutineScope,
     onTokens: () -> Unit,
     onAlerts: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val google = remember { googleWords() }
     var isConfirmingSignOut by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -287,6 +416,36 @@ private fun SignedIn(
         row { ValueRow("Handle", "@${signedIn.handle}") }
         row { ValueRow("Name", signedIn.displayName) }
         row { ValueRow("Server", host(signedIn.server)) }
+        // The Google account it signs in with, shown to the pilot alone.
+        signedIn.googleEmail?.let { email ->
+            row { ValueRow("Google", email, Modifier.testTag("account-google-email")) }
+        }
+    }
+    if (account.isSignedIn && (signedIn.googleEmail != null || wind.googleSignIn)) {
+        Spacer(Modifier.height(VentiSpace.s3))
+        Group {
+            row {
+                if (signedIn.googleEmail == null) {
+                    ActionRow(
+                        google.linkGoogle,
+                        MaterialTheme.colorScheme.primary,
+                        Modifier.testTag("account-link-google"),
+                        enabled = !account.isWorking,
+                    ) {
+                        scope.launch { account.linkGoogle(account.googleIdTokens(context, signedIn.server)) }
+                    }
+                } else {
+                    ActionRow(
+                        google.unlinkGoogle,
+                        MaterialTheme.colorScheme.primary,
+                        Modifier.testTag("account-unlink-google"),
+                        enabled = !account.isWorking,
+                    ) {
+                        scope.launch { account.unlinkGoogle() }
+                    }
+                }
+            }
+        }
     }
 
     SectionHeader("Logbook")
@@ -349,7 +508,7 @@ private fun SignedIn(
             }
             row {
                 LinkRow(
-                    AlertWords.TITLE,
+                    AlertWords.core.title,
                     R.drawable.ic_chevron_right,
                     Modifier.testTag("account-alerts"),
                     leading = R.drawable.ic_notifications,
@@ -408,6 +567,16 @@ private fun SignedIn(
                 isDeleting = false
                 scope.launch { account.deleteAccount(password) }
             },
+            // An account made with Google has no password: a fresh sign-in
+            // with its Google account stands in for it.
+            withGoogle = if (signedIn.googleEmail != null) {
+                {
+                    isDeleting = false
+                    scope.launch { account.deleteAccountWithGoogle(account.googleIdTokens(context, signedIn.server)) }
+                }
+            } else {
+                null
+            },
             onDismiss = { isDeleting = false },
         )
     }
@@ -415,8 +584,9 @@ private fun SignedIn(
 
 /** Asks for the password before the account is deleted: a token alone does not do that. */
 @Composable
-private fun DeleteAccountDialog(onDelete: (String) -> Unit, onDismiss: () -> Unit) {
+private fun DeleteAccountDialog(onDelete: (String) -> Unit, withGoogle: (() -> Unit)?, onDismiss: () -> Unit) {
     var password by remember { mutableStateOf("") }
+    val google = remember { googleWords() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete your account?") },
@@ -442,6 +612,15 @@ private fun DeleteAccountDialog(onDelete: (String) -> Unit, onDismiss: () -> Uni
                         .testTag("account-delete-password")
                         .semantics { contentType = ContentType.Password },
                 )
+                if (withGoogle != null) {
+                    TextButton(
+                        onClick = withGoogle,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth().testTag("account-delete-google"),
+                    ) {
+                        Text(google.continueWithGoogle)
+                    }
+                }
             }
         },
         confirmButton = {

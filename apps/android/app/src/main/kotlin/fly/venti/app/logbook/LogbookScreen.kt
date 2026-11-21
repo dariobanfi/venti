@@ -560,11 +560,10 @@ private fun LogbookRow(entry: LogbookEntry, shape: Shape, onOpen: () -> Unit, on
     }
 }
 
-private fun subtitle(entry: LogbookEntry): String {
-    val time = Format.time(entry.startUnixS)
-    val glider = entry.glider
-    return if (glider.isNullOrEmpty()) time else "$time · $glider"
-}
+/** The time, where it took off when the core names the place, and the glider: "10:32 · Brauneck · Sample Wing". */
+private fun subtitle(entry: LogbookEntry): String =
+    listOfNotNull(Format.time(entry.startUnixS), entry.takeoffName, entry.glider?.takeIf { it.isNotEmpty() })
+        .joinToString(" · ")
 
 /** What the logbook says about the folder it brings flights in from by itself. */
 object LogbookWords {

@@ -16,6 +16,8 @@ import fly.venti.core.StationHistory
 import fly.venti.core.WindMap
 import fly.venti.core.WindStation
 import fly.venti.core.forecastPath
+import fly.venti.core.Registration
+import fly.venti.core.ServerStatus
 import fly.venti.core.serverStatus
 import fly.venti.core.serverStatusPath
 import fly.venti.core.StationDay
@@ -130,6 +132,39 @@ class WindModel(
     var takesSitesFromPilots: Boolean by mutableStateOf(false)
         private set
 
+    /** Whether the server offers signing in with Google, as its health answer says: no until it has said so. */
+    var googleSignIn: Boolean by mutableStateOf(false)
+        private set
+
+    /** Who may create an account there, as its health answer says; `null` until it has said so. */
+    var registration: Registration? by mutableStateOf(null)
+        private set
+
+    /** Takes in what the server's health answer says. */
+    private fun take(state: ServerStatus) {
+        serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
+        takesSitesFromPilots = state.takesSitesFromPilots
+        googleSignIn = state.googleSignIn
+        registration = state.registration
+    }
+
+    /**
+     * Reads the server's health again: the account screen asks it when it
+     * opens signed out, for whether to offer Google and an invite code.
+     * Quiet: without an answer what was known stays.
+     */
+    suspend fun readStatus() {
+        val server = url ?: return
+        try {
+            val answer = transport(server + serverStatusPath())
+            take(withContext(background) { serverStatus(answer.status.asStatus(), answer.body) })
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // What was known stays.
+        }
+    }
+
     /** Venti's address. Empty only in a test that names no server. */
     val address: String = address
 
@@ -182,8 +217,7 @@ class WindModel(
             try {
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
-                serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
-                takesSitesFromPilots = state.takesSitesFromPilots
+                take(state)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -236,8 +270,7 @@ class WindModel(
             if (read == null || clock() - read.second >= REFRESH_MILLISECONDS) {
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
-                serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
-                takesSitesFromPilots = state.takesSitesFromPilots
+                take(state)
                 lateProviders = state.lateProviders
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
@@ -290,8 +323,7 @@ class WindModel(
             if (serverClock == null) {
                 val answer = transport(server + serverStatusPath())
                 val state = withContext(background) { serverStatus(answer.status.asStatus(), answer.body) }
-                serverClock = (state.timeUnixS - clock() / 1000.0) to clock()
-                takesSitesFromPilots = state.takesSitesFromPilots
+                take(state)
             }
             val answer = transport(server + windMapPath(area.south, area.west, area.north, area.east))
             withContext(background) { windMap(answer.status.asStatus(), answer.body, now) }

@@ -6,6 +6,14 @@
 # Native (BSD-2-Clause) with OkHttp, Gson and Timber behind it (Apache-2.0).
 # JUnit 4 is EPL-1.0 and Hamcrest BSD-3-Clause; they run the tests and are
 # not part of the app.
+#
+# "Continue with Google" (read 2026-11-21 in the POMs): androidx.credentials
+# and credentials-play-services-auth are Apache-2.0; Google's googleid and
+# the play-services-identity-credentials it pulls in are under the "Android
+# Software Development Kit License", not an open-source licence. They are
+# the one way Android's Credential Manager reaches Google's sign-in; a build
+# without Google's services (F-Droid) would have to leave them out. For the
+# owner to decide.
 
 [versions]
 agp = "9.5.1"
@@ -17,6 +25,8 @@ serialization-json = "1.13.0"
 maplibre = "13.7.1"
 jna = "5.19.1"
 work = "2.11.0"
+credentials = "1.6.0"
+googleid = "1.1.1"
 junit = "4.13.2"
 test-core = "1.7.0"
 test-runner = "1.7.0"
@@ -34,6 +44,9 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 maplibre = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "test-core" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "test-runner" }

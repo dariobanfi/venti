@@ -12,6 +12,8 @@ import android.content.Intent
 import android.os.Build
 import android.text.format.DateFormat
 import fly.venti.app.account.AccountModel
+import fly.venti.app.account.CredentialManagerGoogle
+import fly.venti.app.account.DevelopmentGoogle
 import fly.venti.app.alerts.AlertNotifications
 import fly.venti.app.alerts.AlertsCheck
 import fly.venti.app.alerts.AlertsModel
@@ -144,6 +146,8 @@ sealed interface Session {
             sampleAirspace: Boolean = false,
             sampleTask: Boolean = false,
             slowGlider: Boolean = false,
+            /** A UI test's Google account, for the development server's made-up Google; `null` for Google itself. */
+            googleTestAccount: String? = null,
         ): Session {
             val app = context.applicationContext
             val files = AssetFiles(app)
@@ -284,6 +288,10 @@ sealed interface Session {
                 session = if (isUnderTest) MemorySessionStore() else KeystoreSessionStore(app),
                 device = deviceName(),
             )
+            // "Continue with Google" asks Google on the phone, for Venti's
+            // client ID; a UI test asks the development server instead.
+            account.google = googleTestAccount?.let { DevelopmentGoogle(it, name = LaunchOptions.GOOGLE_TEST_NAME) }
+                ?: CredentialManagerGoogle(BuildConfig.GOOGLE_CLIENT_ID)
             // The pilot's own take-offs are on the account too, once signed in.
             logbook.follow(account, keptSites, scope)
             // The pilot's groups and their plans for a flying day, asked
@@ -404,6 +412,7 @@ class VentiApplication : Application() {
             sampleAirspace = options.usesSampleAirspace,
             sampleTask = options.usesSampleTask,
             slowGlider = options.usesSlowGlider,
+            googleTestAccount = options.googleTestAccount,
         ).also { testSession = it }
     }
 }
@@ -451,6 +460,12 @@ data class LaunchOptions(
      * and that can be tested.
      */
     val usesSlowGlider: Boolean = false,
+    /**
+     * Sign in "with Google" as this email through the development server's
+     * made-up Google (`GET /v1/dev/google-id-token`) instead of Google's
+     * sheet, so that the sign-in can be tested without a Google account.
+     */
+    val googleTestAccount: String? = null,
 ) {
     companion object {
         const val UI_TESTING = "ui-testing"
@@ -462,6 +477,10 @@ data class LaunchOptions(
         const val SAMPLE_AIRSPACE = "sample-airspace"
         const val SAMPLE_TASK = "sample-task"
         const val SLOW_GLIDER = "slow-glider"
+        const val GOOGLE_TEST_ACCOUNT = "google-test-account"
+
+        /** The name the made-up Google gives the test's account. */
+        const val GOOGLE_TEST_NAME = "UI Test"
 
         /**
          * The slow glider's trim speed, km/h: 7 km/h more than the wind of
@@ -523,6 +542,7 @@ data class LaunchOptions(
                 usesSampleAirspace = intent.getBooleanExtra(SAMPLE_AIRSPACE, false),
                 usesSampleTask = intent.getBooleanExtra(SAMPLE_TASK, false),
                 usesSlowGlider = intent.getBooleanExtra(SLOW_GLIDER, false),
+                googleTestAccount = intent.getStringExtra(GOOGLE_TEST_ACCOUNT),
             )
         }
     }

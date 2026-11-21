@@ -77,11 +77,12 @@ object CommunityWords {
         PublicFlightsOrder.BEST -> "Best"
     }
 
-    /** The day and the glider: "Sat, 15 Aug 2026 · Sample Wing". */
-    fun detail(flight: PublicFlight): String {
-        val day = Format.day(flight.startUnixS)
-        return flight.glider?.let { "$day · $it" } ?: day
-    }
+    /**
+     * The day, the site it took off from where the server names one, and
+     * the glider: "Sat, 15 Aug 2026 · Brauneck · Sample Wing".
+     */
+    fun detail(flight: PublicFlight): String =
+        listOfNotNull(Format.day(flight.startUnixS), flight.takeoffName, flight.glider).joinToString(" · ")
 
     /** The scored distance, or the length of the track of a flight too short to score. */
     fun distance(flight: PublicFlight): String =

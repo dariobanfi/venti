@@ -1102,6 +1102,17 @@ class VentiUiTest {
     }
 
     /** From the map to the account screen, by way of the settings. */
+    /**
+     * Waits for the account's sign-in form and opens the handle and
+     * password form, which stands behind "Sign in with a handle and
+     * password" where the server offers Google.
+     */
+    private fun waitForThePasswordForm() {
+        waitFor(hasTestTag("account-handle") or hasTestTag("account-with-password"))
+        if (exists(hasTestTag("account-with-password"))) tap(hasTestTag("account-with-password"))
+        waitFor(hasTestTag("account-handle"))
+    }
+
     private fun openTheAccount() {
         waitFor(described("Show my position"))
         openFromToday("Settings")
@@ -1109,7 +1120,7 @@ class VentiUiTest {
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         assertTrue(exists(hasTestTag("account-link") and hasText("Not signed in")))
         tap(hasTestTag("account-link"))
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
     }
 
     /**
@@ -1344,7 +1355,7 @@ class VentiUiTest {
         waitFor(hasText("Sign out?"))
         assertTrue(exists(hasText("Your flights stay on this phone and on Venti.")))
         tap(hasTestTag("account-sign-out-confirm"))
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
         tap(described("Back"))
         waitFor(hasTestTag("account-link") and hasText("Not signed in"))
         tap(tab("Logbook"))
@@ -1491,8 +1502,80 @@ class VentiUiTest {
         keepScreenshot("account-7-delete-account")
         screen.onNode(hasTestTag("account-delete-password")).performTextInput(password)
         tap(hasTestTag("account-delete-confirm"))
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
         assertFalse(exists(hasText("@$handle")))
+    }
+
+    /**
+     * "Continue with Google" without Google: the development server's
+     * made-up Google gives the ID token (`LaunchOptions.GOOGLE_TEST_ACCOUNT`).
+     * A first sign-in goes through the handle step, with the server's
+     * suggestion and the name from Google filled in, and lands signed in
+     * with the Google email on the account; after signing out the same
+     * Google account signs in at once. Then once more in the dark.
+     * Skipped without a server.
+     */
+    @Test
+    fun continueWithGoogleMakesTheAccountOnceAndThenSignsIn() {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        val withGoogle: Intent.() -> Unit = {
+            putExtra(LaunchOptions.SERVER, server)
+            putExtra(LaunchOptions.GOOGLE_TEST_ACCOUNT, GOOGLE_TEST_EMAIL)
+        }
+        launch(with = withGoogle)
+        openTheGoogleSignIn()
+        assertTrue(exists(hasTestTag("account-google") and hasText("Continue with Google")))
+        assertTrue(exists(hasTestTag("account-with-password") and hasText("Sign in with a handle and password")))
+        assertFalse(exists(hasTestTag("account-handle")))
+        keepScreenshot("account-google-1-signed-out")
+
+        // The first time: the handle step, filled in from the server and Google.
+        tap(hasTestTag("account-google"))
+        waitFor(hasTestTag("account-choose-handle"))
+        assertTrue(exists(hasTestTag("account-choose-handle") and hasText("Choose your handle")))
+        waitFor(hasTestTag("account-google-handle") and hasText("ui_test", substring = true))
+        assertTrue(exists(hasTestTag("account-google-name") and hasText("UI Test", substring = true)))
+        assertTrue(exists(hasText("@ui_test is free.", substring = true)))
+        keepScreenshot("account-google-2-handle")
+        screen.onNode(hasTestTag("account-google-create")).performScrollTo()
+        tap(hasTestTag("account-google-create"))
+        waitFor(hasText("@ui_test"))
+        waitFor(hasText(GOOGLE_TEST_EMAIL) and hasAnyAncestor(hasTestTag("account-google-email")))
+        waitFor(hasText("Sync now"))
+        assertTrue(exists(hasTestTag("account-unlink-google") and hasText("Unlink Google")))
+        keepScreenshot("account-google-3-signed-in")
+
+        // Signed out and in again: Venti knows the Google account now.
+        screen.onNode(hasTestTag("account-sign-out")).performScrollTo()
+        tap(hasTestTag("account-sign-out"))
+        tap(hasTestTag("account-sign-out-confirm"))
+        waitFor(hasTestTag("account-google"))
+        tap(hasTestTag("account-google"))
+        waitFor(hasText(GOOGLE_TEST_EMAIL) and hasAnyAncestor(hasTestTag("account-google-email")))
+        assertFalse(exists(hasTestTag("account-choose-handle")))
+        assertTrue(exists(hasText("@ui_test")))
+
+        // In the dark, on a phone that has not signed in yet: at once.
+        app?.close()
+        launch(dark = true, with = withGoogle)
+        openTheGoogleSignIn()
+        keepScreenshot("account-google-dark-1-signed-out")
+        tap(hasTestTag("account-google"))
+        waitFor(hasText(GOOGLE_TEST_EMAIL) and hasAnyAncestor(hasTestTag("account-google-email")))
+        assertFalse(exists(hasTestTag("account-choose-handle")))
+        waitFor(hasText("Sync now"))
+        keepScreenshot("account-google-dark-3-signed-in")
+    }
+
+    /** Settings, then the account signed out, with "Continue with Google" at its head. */
+    private fun openTheGoogleSignIn() {
+        waitFor(described("Show my position"))
+        openFromToday("Settings")
+        waitFor(hasText("Vario sound"))
+        screen.onNode(hasTestTag("account-link")).performScrollTo()
+        tap(hasTestTag("account-link"))
+        waitFor(hasTestTag("account-google"))
     }
 
     /**
@@ -1527,7 +1610,7 @@ class VentiUiTest {
         waitFor(hasText("Vario sound"))
         screen.onNode(hasTestTag("account-link")).performScrollTo()
         tap(hasTestTag("account-link"))
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
         tap(hasTestTag("account-new"))
         waitFor(hasTestTag("account-invite"))
         screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
@@ -4181,7 +4264,7 @@ class VentiUiTest {
     }
 
     private fun makeAnAccountAndGoBackToTheMap(handle: String) {
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
         tap(hasTestTag("account-new"))
         waitFor(hasTestTag("account-invite"))
         screen.onNode(hasTestTag("account-handle")).performTextInput(handle)
@@ -5054,7 +5137,7 @@ class VentiUiTest {
         openFromToday("Settings")
         waitFor(hasText("Vario sound"))
         screen.onNode(hasTestTag("account-link")).performScrollTo().performClick()
-        waitFor(hasTestTag("account-handle"))
+        waitForThePasswordForm()
     }
 
     /** Today itself, from another tab: a page left over it is left with a second tap. */
@@ -5346,3 +5429,6 @@ class VentiUiTest {
     @Test
     fun theCockpitsTaskPageInDarkAppearance() = lookAtTheTaskPage("dark", dark = true)
 }
+
+/** The made-up Google account of the sign-in test; the development server makes its token. */
+private const val GOOGLE_TEST_EMAIL = "ui.test@example.com"

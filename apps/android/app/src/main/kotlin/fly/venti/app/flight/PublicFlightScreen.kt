@@ -4,6 +4,7 @@ import fly.venti.app.terrain.TerrainModel
 import fly.venti.app.settings.Preferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -134,16 +135,31 @@ fun PublicFlightScreen(
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 2.dp) {
-                    Text(
-                        flight.pilot,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .testTag("public-flight-pilot")
-                            .semantics { heading() },
-                    )
+                    Column(
+                        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            flight.pilot,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .testTag("public-flight-pilot")
+                                .semantics { heading() },
+                        )
+                        // The site it took off from, where the server names one.
+                        flight.takeoffName?.let { takeoff ->
+                            Text(
+                                takeoff,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("public-flight-takeoff"),
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.width(8.dp))

@@ -18,8 +18,8 @@ import fly.venti.core.alertCheck
 import fly.venti.core.alertLine
 import fly.venti.core.alertPoints
 import fly.venti.core.alertRemoveRequest
+import fly.venti.core.alertRemoved
 import fly.venti.core.alertSaved
-import fly.venti.core.alerts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -100,8 +100,8 @@ class AlertsModel(
     /** Removes an alarm. `null` when it is gone; otherwise why not. */
     suspend fun remove(id: String): String? = send {
         val answer = account.answer(withContext(background) { alertRemoveRequest(id) })
-        // A removal answers with the list as it is now, or nothing: the core reads either.
-        if (answer.status !in 200..299) withContext(background) { alerts(answer.status16, answer.body) }
+        // The core reads the removal: an alarm already gone is removed too.
+        withContext(background) { alertRemoved(answer.status16, answer.body) }
     }
 
     private suspend fun send(request: suspend () -> Unit): String? = try {

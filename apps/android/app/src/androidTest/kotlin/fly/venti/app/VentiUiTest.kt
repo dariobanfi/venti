@@ -1778,6 +1778,44 @@ class VentiUiTest {
         waitFor(hasTestTag("today-card"))
     }
 
+    /**
+     * A day with thermals, against the stand-in in front of the development
+     * server whose forecast is a made-up summer day (tools/made-up-day): the
+     * recorded forecasts are of late November and have none. The day is
+     * made up, and so is everything the screenshots say of it. Skipped
+     * without the stand-in.
+     */
+    @Test
+    fun todaySaysWhatKindOfDayTheThermalsMake() {
+        val server = InstrumentationRegistry.getArguments().getString("madeUpDayServer")
+        assumeTrue("No stand-in with a made-up day was named in the madeUpDayServer argument.", !server.isNullOrEmpty())
+        launch(onToday = true) { putExtra(LaunchOptions.SERVER, server) }
+
+        // The best take-off is the one with the best thermals: the head
+        // says its kind of day over the valley, its card the line.
+        waitFor(hasTestTag("today-thermals") and hasText("Big day"))
+        waitFor(hasTestTag("today-card") and described("Big day") and saying("m/s to a cloud base of"))
+        screen.onNode(hasTestTag("today-head")).performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("today-5-big-day")
+
+        // Further down: the hours with their climbs, and the other
+        // take-offs with their kinds of day.
+        screen.onAllNodes(hasTestTag("today-row")).onLast().performScrollTo()
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("today-6-kinds-of-day")
+
+        // The take-off's own page says it too.
+        screen.onNode(hasTestTag("today-card")).performScrollTo()
+        tap(hasTestTag("today-card"))
+        waitFor(hasTestTag("site-status"))
+        waitFor(hasTestTag("thermal-line"))
+        TestDevice.letTheAppRun(screen, 1)
+        keepScreenshot("today-7-site-on-a-big-day")
+        tap(hasText("Done"))
+        waitFor(hasTestTag("today-card"))
+    }
+
     @Test
     fun todaySaysWhatTheForecastSaysOfTheTakeoffs() = lookAtToday("light", dark = false)
 

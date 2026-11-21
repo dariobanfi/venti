@@ -19,6 +19,8 @@ on:
       # map's tests ask.
       - "crates/**"
       - "tools/uniffi-bindgen-swift/**"
+      # The stand-in whose forecast is a made-up summer day.
+      - "tools/made-up-day/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -99,6 +101,18 @@ jobs:
           done
           curl -sf http://127.0.0.1:8080/v1/health
 
+      # In front of it, a stand-in whose forecast is a made-up summer day, for
+      # the screens of a day with thermals (tools/made-up-day/serve.py). The
+      # tests find it at 10.0.2.2:8081, named as madeUpDayServer.
+      - name: Start the stand-in with a made-up day
+        run: |
+          nohup python3 tools/made-up-day/serve.py --behind http://127.0.0.1:8080 --port 8081 > target/made-up-day.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8081/v1/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf "http://127.0.0.1:8081/v1/forecast?lat=47.66&lon=11.8" > /dev/null
+
       # Plain Android 16 without Google's services: the app must not need
       # them. An emulator reaches the machine it runs on at 10.0.2.2, which
       # is where the wind map's test finds the server.
@@ -118,7 +132,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: apps/android
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.ventiServer=http://10.0.2.2:8080 -Pandroid.testInstrumentationRunnerArguments.madeUpDayServer=http://10.0.2.2:8081
 
       - name: Collect the screenshots the UI tests took
         if: always()

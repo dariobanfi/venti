@@ -13,6 +13,10 @@ struct RadarPicture: Equatable {
     /// Whether what the source did not see is drawn as the veil: so for
     /// the lowest picture of a moment, and clear in those above it.
     let drawsUnseen: Bool
+    /// The pictures that lie over it at its moment, by their frames'
+    /// paths, the next above first: where one of them sees a place this
+    /// picture is clear, so under others it is another picture.
+    let above: [String]
     /// The picture, a PNG.
     let png: Data
     let west: Double
@@ -22,7 +26,9 @@ struct RadarPicture: Equatable {
 
     /// Which picture it is, so that the map draws it again only when it
     /// is another.
-    var id: String { "\(source) \(timeUnixS) \(drawsUnseen) \(west) \(south) \(east) \(north)" }
+    var id: String {
+        "\(source) \(timeUnixS) \(drawsUnseen) \(west) \(south) \(east) \(north) under \(above.joined(separator: " "))"
+    }
 }
 
 /// The rain radar of the map tab: the last frames Venti holds of what a
@@ -32,10 +38,12 @@ struct RadarPicture: Equatable {
 /// What to ask, how to read the answer, every word about a frame, which
 /// frame of which layer lies on the map at a moment and the picture in the
 /// app's colours are the core's (`radarPath`, `radar`, `RadarView.moments`,
-/// `radarFrameImage`). This class asks while the map tab's layer is on,
-/// again every five minutes, and reads the answer it has again every
+/// `radarFrameImageUnder`). This class asks while the map tab's layer is
+/// on, again every five minutes, and reads the answer it has again every
 /// minute, so that a frame's age in words stays true. It keeps the
-/// pictures it fetched for this run of the app, by layer and frame.
+/// pictures it fetched for this run of the app as the server sent them,
+/// by layer and frame; a picture in the app's colours is coloured anew
+/// for each moment, as it depends on the pictures that lie over it.
 @MainActor
 @Observable
 final class RadarModel {
@@ -293,7 +301,7 @@ final class RadarModel {
             isFetching = true
             for moment in moments {
                 for one in drawn(at: moment) {
-                    _ = try? await picture(of: one)
+                    _ = try? await served(one.frame.path)
                 }
             }
             isFetching = false
@@ -347,16 +355,18 @@ final class RadarModel {
         return view.moments.indices.contains(first) ? view.moments[first] : view.moments.last
     }
 
-    /// One picture a moment asks for: the layer, which of its frames, and
-    /// whether the veil over what the source did not see is drawn.
+    /// One picture a moment asks for: the layer, which of its frames,
+    /// whether the veil over what the source did not see is drawn, and
+    /// the frames whose pictures lie over it, by their paths.
     private struct Drawn {
         let layer: RadarLayerView
         let frame: RadarFrameView
         let drawsUnseen: Bool
+        var above: [String] = []
 
         func picture(_ png: Data) -> RadarPicture {
             RadarPicture(
-                source: layer.source, timeUnixS: frame.timeUnixS, drawsUnseen: drawsUnseen, png: png,
+                source: layer.source, timeUnixS: frame.timeUnixS, drawsUnseen: drawsUnseen, above: above, png: png,
                 west: layer.west, south: layer.south, east: layer.east, north: layer.north
             )
         }
@@ -366,15 +376,20 @@ final class RadarModel {
     }
 
     /// What a moment draws, the first at the bottom, as the core says it:
-    /// each picture by its layer and its frame.
+    /// each picture by its layer and its frame, and with the frames after
+    /// it, which lie over it.
     private func drawn(at moment: RadarMoment) -> [Drawn] {
         guard let view else { return [] }
-        return moment.frames.compactMap { one in
+        var all: [Drawn] = moment.frames.compactMap { one in
             guard view.layers.indices.contains(Int(one.layer)) else { return nil }
             let layer = view.layers[Int(one.layer)]
             guard layer.frames.indices.contains(Int(one.frame)) else { return nil }
             return Drawn(layer: layer, frame: layer.frames[Int(one.frame)], drawsUnseen: one.drawsUnseen)
         }
+        for place in all.indices {
+            all[place].above = all[(place + 1)...].map(\.frame.path)
+        }
+        return all
     }
 
     /// Puts the chosen moment's pictures on the map, all of them at once.
@@ -393,6 +408,11 @@ final class RadarModel {
                 isFetching = true
             }
             defer { isFetching = false }
+            // All of them from the server first, the lowest first: a
+            // picture is coloured by those that lie over it.
+            for one in wanted {
+                _ = try await served(one.frame.path)
+            }
             var shown: [RadarPicture] = []
             for one in wanted {
                 shown.append(try await picture(of: one))
@@ -417,40 +437,56 @@ final class RadarModel {
         }
     }
 
-    /// A layer's picture of a frame in the app's colours: the server's,
-    /// kept from earlier in this run of the app or fetched, and coloured
-    /// by the core, with what the source did not see as the veil or clear.
-    private func picture(of one: Drawn) async throws -> RadarPicture {
-        guard let server = server(), let view else {
+    /// A frame's picture as the server sent it: kept from earlier in
+    /// this run of the app, or fetched and kept.
+    private func served(_ path: String) async throws -> Data {
+        if let kept = fetched[path] {
+            return kept
+        }
+        guard let server = server(), let url = URL(string: server.absoluteString + path) else {
             throw URLError(.badURL)
         }
-        let kept = fetched[one.frame.path]
-        let body: Data
-        if let kept {
-            body = kept
-        } else {
-            guard let url = URL(string: server.absoluteString + one.frame.path) else {
-                throw URLError(.badURL)
-            }
-            let (status, answer) = try await transport(url)
-            guard status == 200 else {
-                // The core's words for what a server says in place of a picture.
-                _ = try radar(status: UInt16(clamping: status), body: answer, utcOffsetS: 0, nowUnixS: 0)
-                throw URLError(.badServerResponse)
-            }
-            body = answer
+        let (status, answer) = try await transport(url)
+        guard status == 200 else {
+            // The core's words for what a server says in place of a picture.
+            _ = try radar(status: UInt16(clamping: status), body: answer, utcOffsetS: 0, nowUnixS: 0)
+            throw URLError(.badServerResponse)
+        }
+        // The pilot may have changed the address while this was under way.
+        guard server == self.server() else { throw CancellationError() }
+        fetched[path] = answer
+        return answer
+    }
+
+    /// A layer's picture of a frame in the app's colours: the server's,
+    /// coloured by the core, with what the source did not see as the veil
+    /// or clear, and clear wherever a picture that lies over it at the
+    /// moment sees, so that a place has the word of the topmost picture
+    /// that sees it and two pictures' rain never adds up.
+    private func picture(of one: Drawn) async throws -> RadarPicture {
+        guard let view else {
+            throw URLError(.badURL)
+        }
+        let body = try await served(one.frame.path)
+        var above: [Data] = []
+        for path in one.above {
+            above.append(try await served(path))
         }
         let palette = colours(view.key)
-        let png = try radarFrameImage(
-            picture: body, rain: palette.rain, unseen: one.drawsUnseen ? palette.unseen : RadarColours.clear
-        )
-        if kept == nil {
-            guard server == self.server() else { throw CancellationError() }
-            // Kept once the core has read it: what is no picture is asked
-            // for again.
-            fetched[one.frame.path] = body
+        do {
+            let png = try radarFrameImageUnder(
+                picture: body, above: above, rain: palette.rain,
+                unseen: one.drawsUnseen ? palette.unseen : RadarColours.clear
+            )
+            return one.picture(png)
+        } catch {
+            // What the core could not read is not kept: it is asked for
+            // again.
+            for path in [one.frame.path] + one.above {
+                fetched[path] = nil
+            }
+            throw error
         }
-        return one.picture(png)
     }
 
     /// Forgets what was another server's.

@@ -93,7 +93,14 @@ private enum ServerRadar {
 
     /// A picture as a server writes one: two by two pixels with the steps
     /// 0, 3, 7 and 6, a palette of eight greys, a byte a pixel.
-    static let picture: Data = {
+    static let picture = picture(of: [0, 3, 7, 6])
+
+    /// The analysis' picture of the two-layer tests, which lies under
+    /// that one as the radars': rain at all four places.
+    static let analysisSteps: [UInt8] = [5, 3, 4, 6]
+
+    /// A picture of two by two pixels with these steps, row by row.
+    static func picture(of steps: [UInt8]) -> Data {
         func chunk(_ name: String, _ data: [UInt8]) -> [UInt8] {
             let named = Array(name.utf8) + data
             let sum = UInt32(crc32(0, named, UInt32(named.count)))
@@ -104,7 +111,7 @@ private enum ServerRadar {
         }
         // Two rows, each a filter byte and two pixels, in a zlib stream
         // of one stored block.
-        let rows: [UInt8] = [0, 0, 3, 0, 7, 6]
+        let rows: [UInt8] = [0, steps[0], steps[1], 0, steps[2], steps[3]]
         let sum = UInt32(adler32(1, rows, UInt32(rows.count)))
         let packed: [UInt8] = [0x78, 0x01, 0x01, 6, 0, 0xF9, 0xFF] + rows + bytes(sum)
         var png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
@@ -114,7 +121,7 @@ private enum ServerRadar {
         png += chunk("IDAT", packed)
         png += chunk("IEND", [])
         return Data(png)
-    }()
+    }
 }
 
 /// What the server does next, one answer at a time, and what it was asked.
@@ -139,6 +146,11 @@ private actor RadarServer {
         case .body(let status, let text):
             return (status, Data(text.utf8))
         case .picture:
+            // Each source has a picture of its own in the two-layer
+            // tests; one source alone has the first.
+            if url.path.contains(ServerRadar.analysisSource) {
+                return (200, ServerRadar.picture(of: ServerRadar.analysisSteps))
+            }
             return (200, ServerRadar.picture)
         case .unreachable:
             throw URLError(.notConnectedToInternet)
@@ -214,6 +226,23 @@ final class RadarTests: XCTestCase {
         }
     }
 
+    /// The steps of a two by two picture the core coloured under another:
+    /// its pixels are packed anew, in the one piece before the end.
+    private func steps(of png: Data) throws -> [UInt8] {
+        let bytes = [UInt8](png)
+        let name = Array("IDAT".utf8)
+        let at = try XCTUnwrap(bytes.indices.first { bytes[$0...].starts(with: name) })
+        let length = bytes[(at - 4)..<at].reduce(0) { $0 << 8 | Int($1) }
+        let packed = Array(bytes[(at + 4)..<(at + 4 + length)])
+        var rows = [UInt8](repeating: 0, count: 6)
+        var count = uLong(rows.count)
+        XCTAssertEqual(uncompress(&rows, &count, packed, uLong(packed.count)), Z_OK)
+        XCTAssertEqual(count, 6)
+        // Each row a filter byte, none, and its two pixels.
+        XCTAssertEqual([rows[0], rows[3]], [0, 0])
+        return [rows[1], rows[2], rows[4], rows[5]]
+    }
+
     private let analysisNewest = "/v1/radar/geosphere-inca-rr/20261121T1300Z.png"
     private let radarsNewest = "/v1/radar/dwd-radar-ry/20261121T1315Z.png"
     private let radarsBefore = "/v1/radar/dwd-radar-ry/20261121T1310Z.png"
@@ -260,6 +289,29 @@ final class RadarTests: XCTestCase {
         XCTAssertEqual(Array(below[0..<7]), Array(above[0..<7]))
         XCTAssertEqual(Array(below[1..<7]), RadarColours.palette(for: view.key).rain)
 
+        // The analysis is coloured under the radars' picture as the
+        // server sent it: clear where the radars see, dry at the first
+        // place and rain at the second and the fourth, so that one word
+        // stands at a place and two pictures' rain never adds up; its
+        // own at the third, which the radars did not see. The radars'
+        // picture, with none over it, has its pixels as they came.
+        let palette = RadarColours.palette(for: view.key)
+        let analysis = ServerRadar.picture(of: ServerRadar.analysisSteps)
+        XCTAssertEqual(
+            radar.pictures.first?.png,
+            try radarFrameImageUnder(
+                picture: analysis, above: [ServerRadar.picture], rain: palette.rain, unseen: palette.unseen
+            )
+        )
+        XCTAssertEqual(try steps(of: try XCTUnwrap(radar.pictures.first?.png)), [0, 0, 4, 0])
+        XCTAssertEqual(
+            radar.pictures.last?.png,
+            try radarFrameImage(picture: ServerRadar.picture, rain: palette.rain, unseen: RadarColours.clear)
+        )
+        // Which picture one is, for the map to draw it again when it is
+        // another: its frame and the frames over it.
+        XCTAssertEqual(radar.pictures.map(\.above), [[radarsNewest], []])
+
         // The line is the moment's: the radars' time and age, and that
         // the analysis under it is of another moment.
         XCTAssertNotNil(
@@ -286,6 +338,7 @@ final class RadarTests: XCTestCase {
         let server = RadarServer([.body(200, ServerRadar.recorded()), .picture, .picture, .picture])
         let (radar, _) = try recorded(server)
         await radar.load()
+        let newestsAnalysis = try XCTUnwrap(radar.pictures.first)
 
         await radar.choose(0)
 
@@ -299,6 +352,11 @@ final class RadarTests: XCTestCase {
         )
         XCTAssertEqual(radar.pictures.map(\.drawsUnseen), [true, false])
         XCTAssertTrue(radar.label.contains(", 9 minutes ago. Austria's analysis is of "), radar.label)
+        // The analysis' frame is the same and its picture another: it
+        // lies under another picture of the radars, and is named by both.
+        XCTAssertEqual(radar.pictures.map(\.above), [[radarsBefore], []])
+        XCTAssertEqual(radar.pictures.first?.timeUnixS, newestsAnalysis.timeUnixS)
+        XCTAssertNotEqual(radar.pictures.first?.id, newestsAnalysis.id)
 
         // Back and forth, and played: nothing more is asked.
         await radar.choose(1)

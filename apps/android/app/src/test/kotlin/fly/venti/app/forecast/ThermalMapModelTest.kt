@@ -195,7 +195,7 @@ class ThermalMapModelTest {
         // whatever its thermals; the third square has no verdict.
         assertEquals(listOf(Flyability.FLYABLE, Flyability.NOT_FLYABLE), today.cells.map { it.verdict })
         val features = ThermalMapLayer.features(today.cells).features().orEmpty()
-        assertEquals(listOf(4, ThermalMapLayer.NOT_FLYABLE), features.map { it.getNumberProperty(ThermalMapLayer.FILL).toInt() })
+        assertEquals(listOf(5, ThermalMapLayer.NOT_FLYABLE), features.map { it.getNumberProperty(ThermalMapLayer.FILL).toInt() })
         assertEquals(listOf(0, 1), features.map { it.getNumberProperty(ThermalMapLayer.CELL).toInt() })
 
         // A square is a closed ring around its cell's point, half a step each way.
@@ -213,18 +213,21 @@ class ThermalMapModelTest {
         assertEquals(3, tuesday.cells.size)
         assertNull(ThermalMapLayer.fill(tuesday.cells[2]))
         val drawn = ThermalMapLayer.features(tuesday.cells).features().orEmpty()
-        assertEquals(listOf(1, 1), drawn.map { it.getNumberProperty(ThermalMapLayer.FILL).toInt() })
+        assertEquals(listOf(2, 2), drawn.map { it.getNumberProperty(ThermalMapLayer.FILL).toInt() })
         assertEquals(listOf(0, 1), drawn.map { it.getNumberProperty(ThermalMapLayer.CELL).toInt() })
     }
 
     @Test
-    fun theColoursAreThePacksThermalStepsAndItsDangerColour() = runBlocking {
+    fun theColoursAreThePacksThermalStepsAndAVeilForADayThatIsNotFlyable() = runBlocking {
         val forecast = model(Server())
         forecast.load()
         val map = checkNotNull(forecast.map)
         val swatches = map.legend.map { ThermalMapLayer.colour(it.scaleStep?.toInt() ?: ThermalMapLayer.NOT_FLYABLE) }
-        assertEquals(VentiLight.danger, swatches.last())
+        // Not the danger colour, which looks like the scale's darkest step.
+        assertEquals(VentiLight.textMuted, swatches.last())
         assertEquals(VentiLight.thermal[5], swatches.first())
+        // Never the palest step, which is the colour of the drawn map's land.
+        assertFalse(VentiLight.thermal[0] in swatches)
         // Every line of the key has a colour of its own.
         assertEquals(swatches.size, swatches.toSet().size)
     }

@@ -1843,7 +1843,8 @@ class VentiUiTest {
      * against the stand-in with a made-up day (`madeUpDayServer`, as for
      * Today's kinds of day); without it the test is skipped. Its map has
      * every kind of day in clear patches around 47.5 to 47.9 N and 11.5 to
-     * 12.3 E, and two days. What its screenshots show is made up.
+     * 12.3 E, and two days; the middle of the map, 47.7 N 11.9 E, is weak
+     * thermals on both. What its screenshots show is made up.
      */
     @Test
     fun theMapShowsTheKindOfDaySquareBySquare() {
@@ -1868,7 +1869,13 @@ class VentiUiTest {
         // "Not flyable", and the model with its run.
         waitFor(hasTestTag("forecast-key"))
         waitForAll(hasTestTag("forecast-days"), hasText("Big day"), hasText("Not flyable"), hasTestTag("forecast-map-run"))
-        assertTrue(exists(hasText("Today") and hasAnyAncestor(hasTestTag("forecast-days")) and isSelected()))
+        // The first day the map has is shown first. Its name is the core's,
+        // by the server's clock: `venti-server dev`'s stands at 18 November,
+        // so the stand-in's 21st and 22nd are "Sat" and "Sun" there, and
+        // "Today" and "Tomorrow" on a server with a running clock.
+        val days = isSelectable() and hasAnyAncestor(hasTestTag("forecast-days"))
+        waitFor(days)
+        assertTrue(screen.onAllNodes(days)[0].fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected) == true)
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
@@ -1877,10 +1884,13 @@ class VentiUiTest {
         letTheMapDraw()
         keepScreenshot("map-forecast-1-today")
 
-        // Another day swaps the squares.
-        val tomorrow = hasText("Tomorrow") and hasAnyAncestor(hasTestTag("forecast-days"))
-        tap(tomorrow)
-        waitFor(tomorrow and isSelected())
+        // Another day swaps the squares: the second the map has.
+        val second = screen.onAllNodes(days)[1]
+        val secondName = checkNotNull(
+            second.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text },
+        )
+        second.performClick()
+        waitFor(days and hasText(secondName) and isSelected())
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
             (TestDevice.drawnOnTheMap(scenario, "forecast-squares") ?: 0) > 0
         }
@@ -1893,7 +1903,7 @@ class VentiUiTest {
         val sheet = hasTestTag("forecast-square")
         waitFor(sheet)
         waitForAll(
-            hasText("Tomorrow") and hasAnyAncestor(sheet),
+            hasText(secondName) and hasAnyAncestor(sheet),
             hasTestTag("square-status"),
             hasText("Judged at the model's ground, ", substring = true),
             hasTestTag("square-note"),

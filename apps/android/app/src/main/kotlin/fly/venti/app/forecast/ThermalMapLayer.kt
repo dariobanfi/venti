@@ -18,8 +18,9 @@ import org.maplibre.geojson.Polygon
 
 /**
  * How the forecast map's squares are drawn: one source of squares and one
- * layer that fills each in a step of the design pack's thermal scale, or
- * in the danger colour where the day is not flyable, as the core says.
+ * layer that fills each in a step of the design pack's thermal scale, as
+ * the core says, or with a quiet veil where the day is not flyable: the
+ * danger colour would look like the scale's darkest step, a big day.
  * See-through, over the ground and its relief and under everything else
  * on the map: the cable cars, the borders and the names of the base map,
  * then airspace, tracks, sites, wind and pilots. The map is light in both
@@ -35,7 +36,7 @@ object ThermalMapLayer {
     /** The square's place in the list it was drawn from. */
     const val CELL = "cell"
 
-    /** The fill of a square whose day is not flyable. */
+    /** The fill of a square whose day is not flyable: the veil. */
     const val NOT_FLYABLE = 0
 
     /**
@@ -60,11 +61,18 @@ object ThermalMapLayer {
         else -> cell.scaleStep?.toInt()
     }
 
-    /** The colour of a fill on the map, or of its swatch in the key: from the light theme's tokens. */
+    /**
+     * The colour of a fill on the map, or of its swatch in the key, from the
+     * light theme's tokens: a step of the thermal scale, or for a day that
+     * is not flyable the veil, the muted text colour.
+     */
     fun colour(fill: Int?): Color = when (fill) {
-        null, NOT_FLYABLE -> VentiLight.danger
+        null, NOT_FLYABLE -> VEIL
         else -> VentiLight.thermal[(fill - 1).coerceIn(0, VentiLight.thermal.lastIndex)]
     }
+
+    /** The quiet veil over a square whose day is not flyable. */
+    val VEIL: Color = VentiLight.textMuted
 
     /** The squares of a day as the source takes them: those that are drawn, each with its fill. */
     fun features(cells: List<ThermalMapCell>): FeatureCollection =

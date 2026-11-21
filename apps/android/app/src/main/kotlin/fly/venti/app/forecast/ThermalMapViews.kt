@@ -151,7 +151,7 @@ private fun Problem(message: String, onTryAgain: () -> Unit) {
 /**
  * The key, the core's: a swatch in the colour the map fills a square with
  * and the words for it, from the best kind of day down, then "Not flyable"
- * in the danger colour. It wraps at a narrow width or a large text size,
+ * with the veil's swatch, its words like the others'. It wraps at a narrow width or a large text size,
  * and TalkBack reads it as a list.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -179,7 +179,7 @@ private fun Key(legend: List<ThermalLegendEntry>) {
                 Text(
                     entry.words,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (fill == ThermalMapLayer.NOT_FLYABLE) Venti.colours.danger else Venti.colours.textSecondary,
+                    color = Venti.colours.textSecondary,
                 )
             }
         }

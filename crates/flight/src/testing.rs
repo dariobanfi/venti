@@ -16,18 +16,28 @@ const M_PER_DEG_LAT: f64 = 111_194.9;
 /// Where the made-up flight takes off: the Wallberg above the Tegernsee.
 const TAKE_OFF: (f64, f64, f64) = (47.6642, 11.7967, 1620.0);
 
-/// One stretch of the flight.
-enum Leg {
-    /// Straight flight on a heading in degrees clockwise from north.
+/// One stretch of a made-up flight.
+pub enum Leg {
+    /// Straight flight.
     Glide {
+        /// How long, seconds.
         seconds: i64,
+        /// Degrees clockwise from north.
         heading: f64,
+        /// Over the ground, metres per second.
         speed: f64,
+        /// Metres per second; negative is sinking.
         climb: f64,
     },
     /// Circles of 45 m radius, 28 s each, drifting east with a 3 m/s wind.
     /// Climbing in a thermal, or spiralling down when `climb` is negative.
-    Circles { circles: i64, climb: f64 },
+    /// Seen from above the circles turn clockwise: to the right.
+    Circles {
+        /// How many circles.
+        circles: i64,
+        /// Metres per second; negative is sinking.
+        climb: f64,
+    },
 }
 
 /// The glider's state: metres east and north of the take-off, altitude, and
@@ -95,18 +105,7 @@ impl Glider {
 /// second weaker climb, a run up the valley and back, and a spiral down to
 /// just above the valley floor. One fix a second.
 pub fn synthetic_flight() -> IgcFile {
-    let date = NaiveDate::from_ymd_opt(2026, 7, 4).expect("valid date");
-    let mut glider = Glider {
-        start: date.and_hms_opt(10, 30, 0).expect("valid time").and_utc(),
-        east: 0.0,
-        north: 0.0,
-        altitude: TAKE_OFF.2,
-        second: 0,
-        fixes: Vec::new(),
-    };
-    glider.record();
-
-    let legs = [
+    made_up_flight(&[
         Leg::Glide {
             seconds: 90,
             heading: 320.0,
@@ -143,8 +142,24 @@ pub fn synthetic_flight() -> IgcFile {
             circles: 8,
             climb: -1.9,
         },
-    ];
-    for leg in &legs {
+    ])
+}
+
+/// A made-up flight of the legs given, from the made-up flight's take-off
+/// on the same day and with the same headers. One fix a second.
+pub fn made_up_flight(legs: &[Leg]) -> IgcFile {
+    let date = NaiveDate::from_ymd_opt(2026, 7, 4).expect("valid date");
+    let mut glider = Glider {
+        start: date.and_hms_opt(10, 30, 0).expect("valid time").and_utc(),
+        east: 0.0,
+        north: 0.0,
+        altitude: TAKE_OFF.2,
+        second: 0,
+        fixes: Vec::new(),
+    };
+    glider.record();
+
+    for leg in legs {
         glider.fly(leg);
     }
 
@@ -157,6 +172,27 @@ pub fn synthetic_flight() -> IgcFile {
         glider_id: None,
         fixes: glider.fixes,
         skipped_lines: 0,
+    }
+}
+
+/// The same flight mirrored east to west about its first fix: every turn
+/// to the right becomes one to the left, and the wind blows the other way.
+pub fn mirrored(flight: &IgcFile) -> IgcFile {
+    let Some(first) = flight.fixes.first() else {
+        return flight.clone();
+    };
+    let lon0 = first.position.lon();
+    IgcFile {
+        fixes: flight
+            .fixes
+            .iter()
+            .map(|fix| Fix {
+                position: GeoPoint::new(fix.position.lat(), 2.0 * lon0 - fix.position.lon())
+                    .expect("the flight stays near its take-off"),
+                ..*fix
+            })
+            .collect(),
+        ..flight.clone()
     }
 }
 

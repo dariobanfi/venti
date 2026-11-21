@@ -1848,7 +1848,9 @@ class VentiUiTest {
         assertFalse(exists(hasText("Replay in the cockpit")))
         tap(hasText("Flights of $pilot"))
         val theirs = hasTestTag("pilot-flight-row")
-        waitFor(theirs)
+        // Over the flights is what they add up to.
+        waitFor(hasTestTag("pilot-totals"))
+        bringThePilotsFlightsIntoView()
         assertTrue(exists(hasText(pilot)))
         assertTrue(screen.onAllNodes(theirs).fetchSemanticsNodes().all {
             it.config[SemanticsProperties.ContentDescription] == listOf(pilot)
@@ -1872,10 +1874,12 @@ class VentiUiTest {
         screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("report-obstacle")) }
         // One of them opens like the first, and the way back leads through
         // the pilot's page.
+        bringThePilotsFlightsIntoView()
         screen.onAllNodes(theirs).onFirst().performClick()
         waitFor(hasTestTag("public-flight-pilot") and hasText(pilot))
         tap(described("Back"))
-        waitFor(theirs)
+        waitFor(hasTestTag("pilot-flights"))
+        bringThePilotsFlightsIntoView()
         tap(described("Back"))
         waitFor(hasTestTag("public-flight-pilot"))
 
@@ -1909,6 +1913,125 @@ class VentiUiTest {
 
     @Test
     fun everyonesFlightsInDarkAppearance() = lookAtEveryonesFlights("dark", dark = true)
+
+    /**
+     * Finding a pilot, their totals, and the ranking of a month. The field
+     * over everyone's flights asks the server for pilots by name once two
+     * letters stand in it: the development mode's Lena Probe is found by
+     * "le", in the core's line. Her page has what her three public flights
+     * add up to, the take-off she flew from most, which opens its page, and
+     * the twelve months as bars. The ranking offers the months of its year
+     * that have flights, and May 2026 is Lena's. Skipped without a server.
+     */
+    private fun findAPilotAndAMonth(prefix: String, dark: Boolean) {
+        val server = InstrumentationRegistry.getArguments().getString("ventiServer")
+        assumeTrue("No Venti server was named in the ventiServer argument.", !server.isNullOrEmpty())
+        launch(dark = dark) { putExtra(LaunchOptions.SERVER, server) }
+        waitFor(described("Show my position"))
+        tap(tab("League"))
+        waitFor(hasTestTag("league-everyone") and isSelected())
+        val field = hasTestTag("pilot-search")
+        waitFor(field)
+        waitFor(hasTestTag("public-flight-row"))
+
+        // One letter is not asked for: the core says how many it takes.
+        screen.onNode(field).performTextInput("l")
+        waitFor(hasTestTag("pilots-found-words") and hasText("Type at least two letters", substring = true))
+        assertFalse(exists(hasTestTag("pilot-found")))
+        // Two are, once the typing has paused.
+        screen.onNode(field).performTextInput("e")
+        val lena = hasText("Lena Probe (@lena), 3 public flights")
+        waitFor(lena)
+        assertEquals(1, screen.onAllNodes(hasTestTag("pilot-found")).fetchSemanticsNodes().size)
+        assertTrue(exists(hasTestTag("pilots-found-words") and hasText("1 pilot")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-pilots-1-found")
+
+        // Her page: the totals of all years over her flights.
+        tap(lena)
+        waitFor(hasTestTag("pilot-totals"))
+        assertTrue(exists(hasText("Lena Probe")))
+        assertTrue(exists(hasText("Points, best 3 flights")))
+        assertTrue(exists(hasText("28.19")))
+        assertTrue(exists(hasTestTag("pilot-site") and hasText("Musterkogel West, 2 flights")))
+        assertTrue(exists(described("May: 1 flight") and hasAnyAncestor(hasTestTag("pilot-months"))))
+        assertTrue(exists(hasTestTag("pilot-totals-note")))
+        assertTrue(exists(hasTestTag("pilot-totals-terms")))
+        val season = hasText("2026") and hasAnyAncestor(hasTestTag("pilot-seasons"))
+        tap(season)
+        waitFor(season and isSelected())
+        assertTrue(exists(hasText("28.19")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-pilots-2-totals")
+        // Under the totals are the flights they are of.
+        bringThePilotsFlightsIntoView()
+        assertTrue(
+            screen.onAllNodes(hasTestTag("pilot-flight-row")).fetchSemanticsNodes().all {
+                it.config[SemanticsProperties.ContentDescription] == listOf("Lena Probe")
+            },
+        )
+        screen.onNode(hasTestTag("pilot-flights")).performScrollToNode(hasTestTag("pilot-totals"))
+
+        // The longest flight is a row that opens that flight.
+        tap(hasTestTag("pilot-total-flight") and hasText("Longest flight"))
+        waitFor(hasTestTag("public-flight-pilot") and hasText("Lena Probe"))
+        tap(described("Back"))
+        waitFor(hasTestTag("pilot-totals"))
+        // The take-off opens its page, in a sheet over hers.
+        tap(hasTestTag("pilot-site"))
+        waitFor(hasTestTag("site-page"))
+        assertTrue(exists(hasText("Musterkogel West")))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-pilots-3-takeoff")
+        tap(hasText("Done") and hasClickAction())
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) { !exists(hasTestTag("site-page")) }
+
+        // Back to the search as it was left; emptied, the list is everyone's flights again.
+        tap(described("Back"))
+        waitFor(lena)
+        tap(described("Clear"))
+        waitFor(hasTestTag("public-flight-row"))
+
+        // The ranking: the year's months that have flights, the newest
+        // first, and May's ranking under its name.
+        tap(hasTestTag("league-ranking"))
+        waitFor(hasTestTag("ranking-months"))
+        waitFor(hasTestTag("ranking-title") and hasText("2026"))
+        val may = described("May 2026: 1 flight")
+        screen.onNode(may).performScrollTo().performClick()
+        waitFor(hasTestTag("ranking-title") and hasText("May 2026"))
+        waitFor(hasTestTag("ranked-pilot"))
+        assertEquals(
+            listOf("Place 1, Lena Probe"),
+            screen.onAllNodes(hasTestTag("ranked-pilot")).fetchSemanticsNodes().first().config[SemanticsProperties.ContentDescription],
+        )
+        assertTrue(exists(may and isSelected()))
+        letTheMapDraw(1)
+        keepScreenshot("$prefix-pilots-4-month")
+        // Tapped again, the month gives the whole year back.
+        screen.onNode(may).performScrollTo().performClick()
+        waitFor(hasTestTag("ranking-title") and hasText("2026"))
+        assertFalse(exists(may and isSelected()))
+    }
+
+    /**
+     * A pilot's flights stand under what they add up to, and a list makes
+     * only the rows that are in view: waits until the server has answered
+     * with the flights and brings the first of them into view.
+     */
+    private fun bringThePilotsFlightsIntoView() {
+        screen.waitUntil(TestDevice.PATIENCE_SECONDS * 1000L) {
+            runCatching {
+                screen.onNode(hasTestTag("pilot-flights")).performScrollToNode(hasTestTag("pilot-flight-row"))
+            }.isSuccess
+        }
+    }
+
+    @Test
+    fun aPilotIsFoundByNameAndTheRankingHasMonths() = findAPilotAndAMonth("light", dark = false)
+
+    @Test
+    fun findingAPilotInDarkAppearance() = findAPilotAndAMonth("dark", dark = true)
 
     @Test
     fun theMapShowsWhoIsInTheAir() = lookAtWhoIsInTheAir("light", dark = false)

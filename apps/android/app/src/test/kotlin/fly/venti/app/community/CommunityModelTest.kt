@@ -7,7 +7,10 @@ import fly.venti.core.Bounds
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -70,6 +73,10 @@ class CommunityModelTest {
                         HttpAnswer(200, recorded("pilot.json"))
                     }
                 "/v1/ranking" in url -> HttpAnswer(200, recorded("ranking.json"))
+                // The search by name: the one pilot the recording found, or nobody.
+                "/v1/pilots?q=" in url ->
+                    if (url.endsWith("q=zz")) HttpAnswer(200, """{"pilots": []}""".toByteArray()) else HttpAnswer(200, recorded("pilots.json"))
+                url.endsWith("/v1/pilots/lena/statistics") -> HttpAnswer(200, recorded("pilot_statistics.json"))
                 "/v1/pilots/" in url -> HttpAnswer(404, """{"error": {"code": "not_found", "message": "x"}}""".toByteArray())
                 "/v1/flights/public" !in url -> HttpAnswer(404, ByteArray(0))
                 refusal != null -> checkNotNull(refusal)
@@ -98,8 +105,159 @@ class CommunityModelTest {
         }
     }
 
-    private fun model(server: Server, address: () -> String? = { BASE }) =
-        CommunityModel(transport = server::answer).also { it.server = address }
+    private fun model(server: Server, searchPause: Long = 0, address: () -> String? = { BASE }) =
+        CommunityModel(transport = server::answer, searchPauseMilliseconds = searchPause).also { it.server = address }
+
+    @Test
+    fun pilotsAreFoundByNameOnceTheTypingHasPaused() = runBlocking {
+        val server = Server()
+        val community = model(server)
+
+        // One letter is not asked for, and the core says why.
+        community.findPilots("l")
+        assertTrue(server.asked.isEmpty())
+        assertEquals("Type at least two letters of a pilot's name or handle.", community.search.words)
+        assertTrue(community.search.pilots.isEmpty())
+
+        community.findPilots("le")
+        assertEquals(listOf("$BASE/v1/pilots?q=le"), server.asked.toList())
+        val found = community.search
+        assertEquals("le", found.text)
+        assertFalse(found.isLoading)
+        assertEquals("1 pilot", found.words)
+        assertEquals(listOf("Lena Probe (@lena), 3 public flights"), found.pilots.map { it.words })
+        assertEquals("lena" to "Lena Probe", found.pilots.single().let { it.handle to it.name })
+
+        // Nobody by a name: the core's line, and no pilots.
+        community.findPilots("zz")
+        assertTrue(community.search.pilots.isEmpty())
+        assertEquals("No pilot by this name has shared a flight with everyone.", community.search.words)
+
+        // A server that cannot be reached is said in words.
+        server.isReachable = false
+        community.findPilots("len")
+        assertTrue(community.search.words, community.search.words.startsWith("Venti could not be reached to look for pilots."))
+        server.isReachable = true
+
+        // The field emptied: no search, and nothing asked.
+        val asked = server.asked.size
+        community.findPilots(" ")
+        assertEquals(CommunityModel.PilotSearch(" "), community.search)
+        assertEquals(asked, server.asked.size)
+
+        // A letter typed before the pause is over takes the question back:
+        // the server is asked once, for what stands in the field.
+        val slow = model(server, searchPause = 60_000)
+        val typing = launch { slow.findPilots("le") }
+        yield()
+        assertTrue(slow.search.isLoading)
+        typing.cancelAndJoin()
+        assertEquals(asked, server.asked.size)
+    }
+
+    @Test
+    fun theRankingOfAMonthIsAskedByTheServersNameForIt() = runBlocking {
+        val server = Server()
+        val community = model(server)
+        // 20 November 2026.
+        val now = 1_795_132_800L
+        community.rank(nowUnixS = now)
+
+        // The years are those the server says have a ranking, then all
+        // years; under the year shown are its months with flights, the
+        // newest first, in the core's names.
+        assertEquals(listOf("2026", "2025", "All years"), community.ranked.seasons.map { it.name })
+        assertEquals("2026", community.ranked.title)
+        assertNull(community.ranked.month)
+        assertEquals(
+            listOf("September", "August", "July", "June", "May", "April"),
+            community.ranked.months.map { it.name },
+        )
+        val may = community.ranked.months.first { it.month == "2026-05" }
+        assertEquals("May 2026: 1 flight", may.words)
+
+        community.rank("2026", may.month, nowUnixS = now)
+        assertEquals("$BASE/v1/ranking?month=2026-05", server.asked.last())
+        assertEquals("2026-05", community.ranked.month)
+        assertEquals("May 2026", community.ranked.title)
+        assertEquals("2026", community.ranked.season)
+        assertTrue(community.ranked.pilots.isNotEmpty())
+        assertFalse(community.ranked.isLoading)
+
+        // Asked again as it stands, it is the month again.
+        community.rank(nowUnixS = now)
+        assertEquals(2, server.asked.count { it.endsWith("month=2026-05") })
+        assertEquals("May 2026", community.ranked.title)
+
+        // The season alone is the whole year again; another year has its own months.
+        community.rank("2026", nowUnixS = now)
+        assertNull(community.ranked.month)
+        assertEquals("2026", community.ranked.title)
+        assertTrue(server.asked.last(), server.asked.last().startsWith("$BASE/v1/ranking?from="))
+        community.rank("2025", nowUnixS = now)
+        assertEquals(listOf("July"), community.ranked.months.map { it.name })
+        assertEquals("2025", community.ranked.title)
+
+        // All years have no months to choose from.
+        community.rank("All years", nowUnixS = now)
+        assertEquals("$BASE/v1/ranking", server.asked.last())
+        assertTrue(community.ranked.months.isEmpty())
+        assertEquals("All years", community.ranked.title)
+
+        // A month the server cannot be asked for is said in the core's words.
+        community.rank("2026", "May", nowUnixS = now)
+        assertEquals("The app could not ask the server for this ranking.", community.ranked.problem)
+        assertTrue(community.ranked.pilots.isEmpty())
+    }
+
+    @Test
+    fun aPilotsTotalsAreTheCoresRowsSitesAndMonths() = runBlocking {
+        val server = Server()
+        var address: String? = BASE
+        val community = model(server) { address }
+        assertNull(community.pilotTotals)
+
+        community.showPilotTotals("lena")
+        assertEquals(listOf("$BASE/v1/pilots/lena/statistics"), server.asked.toList())
+        val totals = checkNotNull(community.pilotTotals)
+        assertFalse(totals.isLoading)
+        assertNull(totals.problem)
+        val statistics = checkNotNull(totals.statistics)
+        assertEquals("Lena Probe", statistics.name)
+        assertEquals("All years", statistics.overall.name)
+        assertEquals(
+            listOf("Flights" to "3", "Distance scored" to "28.2 km", "Points, best 3 flights" to "28.19"),
+            statistics.overall.rows.take(3).map { it.label to it.value },
+        )
+        // The longest flight is named, for its row to open it.
+        assertTrue(statistics.overall.rows.first { it.label == "Longest flight" }.flightId.isNotEmpty())
+        assertEquals(listOf("Musterkogel West, 2 flights"), statistics.overall.sites.map { it.words })
+        assertEquals(12, statistics.overall.months.size)
+        assertEquals(listOf("2026" to 2026), statistics.seasons.map { it.name to it.year })
+        assertTrue(statistics.note.isNotEmpty())
+        assertTrue(statistics.terms.text.isNotEmpty())
+
+        // They are there: looked at again, nothing is asked.
+        community.showPilotTotals("lena")
+        assertEquals(1, server.asked.size)
+
+        // A pilot the server does not know is said in the core's words.
+        community.showPilotTotals("nobody")
+        assertEquals("The server knows no pilot by this handle.", community.pilotTotals?.problem)
+        assertNull(community.pilotTotals?.statistics)
+
+        // No route to the server.
+        server.isReachable = false
+        community.showPilotTotals("lena")
+        assertTrue(checkNotNull(community.pilotTotals?.problem).startsWith("Venti could not be reached."))
+
+        // Without a server nothing is asked.
+        address = null
+        val asked = server.asked.size
+        community.showPilotTotals("lena")
+        assertEquals("Venti is not connected.", community.pilotTotals?.problem)
+        assertEquals(asked, server.asked.size)
+    }
 
     @Test
     fun theRankingIsOfASeasonAndItsFlightsOpenLikeAnyPublicFlight() = runBlocking {

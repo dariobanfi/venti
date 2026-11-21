@@ -1,6 +1,7 @@
 package fly.venti.app.community
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +50,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,7 +117,7 @@ fun LeagueScreen(
             when {
                 !hasServer -> Unconnected()
                 showsRanking -> RankingList(community, onOpenFlight, onOpenPilot)
-                else -> PublicFlightsList(community, onOpen = onOpenFlight)
+                else -> PublicFlightsList(community, onOpen = onOpenFlight, onOpenPilot = onOpenPilot)
             }
         }
     }
@@ -183,6 +188,39 @@ private fun RankingList(
                             }
                         }
                     }
+                }
+            }
+            if (ranked.months.isNotEmpty()) {
+                // The months of the season that have a ranking, in the
+                // core's names. The one that is chosen, tapped again, gives
+                // the whole season back.
+                item(key = "months") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("ranking-months"),
+                        horizontalArrangement = Arrangement.spacedBy(VentiSpace.s2),
+                    ) {
+                        for (month in ranked.months) {
+                            val isChosen = month.month == ranked.month
+                            FilterChip(
+                                selected = isChosen,
+                                onClick = {
+                                    scope.launch { community.rank(ranked.season, if (isChosen) null else month.month) }
+                                },
+                                label = { Text(month.name, maxLines = 1) },
+                                modifier = Modifier.semantics { contentDescription = month.words },
+                            )
+                        }
+                    }
+                }
+            }
+            if (ranked.title.isNotEmpty()) {
+                // What the ranking is of: "May 2026", "2026", "All years".
+                item(key = "title") {
+                    Text(
+                        ranked.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.testTag("ranking-title").semantics { heading() },
+                    )
                 }
             }
             items(ranked.pilots, key = { it.handle }) { pilot ->

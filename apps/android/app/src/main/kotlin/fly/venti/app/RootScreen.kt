@@ -264,6 +264,8 @@ private fun Sections(
     BackHandler(enabled = navigation.canGoBack) { navigation.back() }
     // A take-off opened from the Today tab: its page, in a sheet over it.
     var todaySite by remember { mutableStateOf<SiteView?>(null) }
+    // A take-off opened from a pilot's page: its page, in a sheet over it.
+    var pilotsSite by remember { mutableStateOf<SiteView?>(null) }
     // The core's line about what was just done to that site, and the form that corrects it.
     var todaySiteSaid by remember { mutableStateOf<String?>(null) }
     var todaySiteForm by remember { mutableStateOf<SiteFormDraft?>(null) }
@@ -628,7 +630,40 @@ private fun Sections(
                         requests = session.scope,
                         onOpen = { navigation.open(LeagueRoute.PublicFlight(it.id)) },
                         onBack = { navigation.back() },
+                        onOpenSite = { flown ->
+                            session.scope.launch {
+                                // The site as the server has it now. One it
+                                // no longer has opens nothing.
+                                val site = try {
+                                    session.siteEdit.page(flown.id).site
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (_: Exception) {
+                                    return@launch
+                                }
+                                // The site's page names its source's credit, from the sites around it.
+                                session.sites.show(around(site))
+                                pilotsSite = site
+                            }
+                        },
                     )
+                    pilotsSite?.let { site ->
+                        SiteSheet(
+                            sites = session.sites,
+                            waypoints = session.waypoints,
+                            own = session.keptSites,
+                            wind = session.wind,
+                            showsList = false,
+                            chosen = site,
+                            onChoose = { pilotsSite = it },
+                            onDismiss = { pilotsSite = null },
+                            community = session.community,
+                            onOpenFlight = { flight ->
+                                pilotsSite = null
+                                navigation.open(LeagueRoute.PublicFlight(flight.id))
+                            },
+                        )
+                    }
                 }
             }
         }

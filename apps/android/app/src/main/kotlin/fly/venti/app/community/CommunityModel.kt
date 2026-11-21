@@ -12,24 +12,34 @@ import fly.venti.core.Bounds
 import fly.venti.core.CoreException
 import fly.venti.core.FlightAnalysis
 import fly.venti.core.FlightView
+import fly.venti.core.FoundPilotLine
+import fly.venti.core.PilotStatistics
 import fly.venti.core.PublicFlight
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.flightAnalysisFromFile
 import fly.venti.core.flightFromFile
 import fly.venti.core.pilotPage
 import fly.venti.core.pilotPagePath
+import fly.venti.core.pilotStatistics
+import fly.venti.core.pilotStatisticsPath
+import fly.venti.core.pilotsFound
+import fly.venti.core.pilotsSearchPath
 import fly.venti.core.publicFlight
 import fly.venti.core.publicFlightPath
 import fly.venti.core.publicFlights
 import fly.venti.core.publicFlightsPath
 import fly.venti.core.RankedPilot
+import fly.venti.core.RankingMonthChoice
 import fly.venti.core.RankingSeason
+import fly.venti.core.RankingYearChoice
 import fly.venti.core.ranking
+import fly.venti.core.rankingMonthPath
 import fly.venti.core.rankingPath
 import fly.venti.core.rankingSeasons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -49,6 +59,11 @@ class CommunityModel(
     private val transport: WindTransport = { url -> Http.get(url, ANSWER_WITHIN_MILLISECONDS, accept = null) },
     /** Where the core reads an answer or a flight's file, so the screen stays responsive. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
+    /**
+     * How long the search for pilots waits for the next letter before it
+     * asks: the server counts every search against a budget of reads.
+     */
+    private val searchPauseMilliseconds: Long = SEARCH_PAUSE_MILLISECONDS,
 ) {
     /** The flights listed so far, in the order shown. */
     var flights: List<PublicFlight> by mutableStateOf(emptyList())
@@ -103,6 +118,16 @@ class CommunityModel(
         val seasons: List<RankingSeason> = emptyList(),
         /** The name of the season the ranking is of. */
         val season: String = "",
+        /**
+         * The months of that season that have a ranking, the newest first,
+         * as the core names them. None for all years, and none from a
+         * server that does not say.
+         */
+        val months: List<RankingMonthChoice> = emptyList(),
+        /** The month the ranking is of, as the server writes it: "2026-05". Absent for the whole season. */
+        val month: String? = null,
+        /** The span the ranking is of, in the core's words: "May 2026", "2026", "All years". */
+        val title: String = "",
         /** The pilots, the one with the most points first. */
         val pilots: List<RankedPilot> = emptyList(),
         /** The rule in a sentence, for under the list. */
@@ -110,10 +135,44 @@ class CommunityModel(
         val isLoading: Boolean = false,
         /** Why it is missing, in words for the pilot. */
         val problem: String? = null,
+        /** The years that have a ranking, each with its months, as the server last said them. */
+        val periods: List<RankingYearChoice> = emptyList(),
     )
 
     /** The ranking of the season last asked for. */
     var ranked: Ranked by mutableStateOf(Ranked())
+        private set
+
+    /** What a search for pilots by name found. */
+    data class PilotSearch(
+        /** The text it is of, as it was typed. */
+        val text: String = "",
+        /** The pilots, in the core's order. */
+        val pilots: List<FoundPilotLine> = emptyList(),
+        /**
+         * The result in a line of the core's, its line when nobody was
+         * found, or why nothing was asked or answered. Empty before any.
+         */
+        val words: String = "",
+        val isLoading: Boolean = false,
+    )
+
+    /** The search for pilots last typed. */
+    var search: PilotSearch by mutableStateOf(PilotSearch())
+        private set
+
+    /** What a pilot's public flights add up to, as the core reads the server's sums. */
+    data class PilotTotals(
+        val handle: String,
+        /** Absent until the server has answered, and when it could not be asked. */
+        val statistics: PilotStatistics? = null,
+        val isLoading: Boolean = false,
+        /** Why they are missing, in words. */
+        val problem: String? = null,
+    )
+
+    /** The totals of the pilot last looked at. */
+    var pilotTotals: PilotTotals? by mutableStateOf(null)
         private set
 
     /** What to ask the next page with. */
@@ -198,35 +257,63 @@ class CommunityModel(
     }
 
     /**
-     * Fetches the ranking of a season, by the name the core gives it.
-     * Without a name it is the season last shown, or the newest. The
-     * seasons are the core's, from the time now.
+     * Fetches the ranking of a season, by the name the core gives it, or
+     * of one of its months, as the server writes it ("2026-05"). Without a
+     * season it is the one last shown, or the newest; without a month the
+     * whole season, and with neither what was last shown, asked again.
+     * The years and their months are the server's once it has said them;
+     * until then the years are the core's, from the time now.
      */
-    suspend fun rank(season: String? = null, nowUnixS: Long = System.currentTimeMillis() / 1000) {
+    suspend fun rank(
+        season: String? = null,
+        month: String? = if (season == null) ranked.month else null,
+        nowUnixS: Long = System.currentTimeMillis() / 1000,
+    ) {
         val server = server()
         if (server == null) {
             ranked = Ranked()
             return
         }
-        val seasons = rankingSeasons(nowUnixS)
         val wanted = season ?: ranked.season
+        val seasons = seasons(ranked.periods, wanted, nowUnixS)
         val chosen = seasons.firstOrNull { it.name == wanted } ?: seasons.firstOrNull() ?: return
-        // Another season's pilots are not this one's.
-        val shown = if (chosen.name == ranked.season) ranked else Ranked()
-        ranked = shown.copy(seasons = seasons, season = chosen.name, problem = null, isLoading = true)
+        // Another span's pilots are not this one's.
+        val shown = if (chosen.name == ranked.season && month == ranked.month) ranked else Ranked(periods = ranked.periods)
+        val months = months(ranked.periods, chosen.name)
+        ranked = shown.copy(
+            seasons = seasons,
+            season = chosen.name,
+            months = months,
+            month = month,
+            title = months.firstOrNull { it.month == month }?.title ?: chosen.name,
+            problem = null,
+            isLoading = true,
+        )
         try {
-            val answer = transport(server + rankingPath(null, chosen.fromUnixS, chosen.toUnixS))
+            val path = if (month != null) rankingMonthPath(null, month) else rankingPath(null, chosen.fromUnixS, chosen.toUnixS)
+            val answer = transport(server + path)
             val ranking = withContext(background) { ranking(answer.status16, answer.body) }
-            // The pilot may have chosen another season or server while this
+            // The pilot may have chosen another span or server while this
             // was under way: that question's answer sets the rest.
-            if (server != this.server() || ranked.season != chosen.name) return
+            if (server != this.server() || ranked.season != chosen.name || ranked.month != month) return
             ranking.pilots.forEach { pilot -> known += pilot.flights.associateBy { it.id } }
-            ranked = ranked.copy(pilots = ranking.pilots, rule = ranking.rule, isLoading = false)
+            // A server that does not name its years leaves those there were.
+            val periods = ranking.periods.ifEmpty { ranked.periods }
+            val named = months(periods, chosen.name)
+            ranked = ranked.copy(
+                seasons = seasons(periods, chosen.name, nowUnixS),
+                months = named,
+                title = named.firstOrNull { it.month == month }?.title ?: chosen.name,
+                pilots = ranking.pilots,
+                rule = ranking.rule,
+                isLoading = false,
+                periods = periods,
+            )
         } catch (error: CancellationException) {
-            if (ranked.season == chosen.name) ranked = ranked.copy(isLoading = false)
+            if (ranked.season == chosen.name && ranked.month == month) ranked = ranked.copy(isLoading = false)
             throw error
         } catch (error: Exception) {
-            if (ranked.season != chosen.name) return
+            if (ranked.season != chosen.name || ranked.month != month) return
             ranked = ranked.copy(
                 isLoading = false,
                 problem = when (error) {
@@ -235,6 +322,96 @@ class CommunityModel(
                 },
             )
         }
+    }
+
+    /**
+     * The seasons a ranking is offered for: the years the server says have
+     * one, as many of the newest as the row has room for, and all years;
+     * the core's years from the time now while the server has not said.
+     * The season that is shown stays among them.
+     */
+    private fun seasons(periods: List<RankingYearChoice>, shown: String, nowUnixS: Long): List<RankingSeason> {
+        val named = rankingSeasons(nowUnixS)
+        if (periods.isEmpty()) return named
+        val years = periods.take(YEARS_OFFERED).map { RankingSeason(it.name, it.fromUnixS, it.toUnixS) }
+        val all = named.filter { it.fromUnixS == null }
+        val kept = named.filter { it.name == shown && years.none { year -> year.name == shown } && it.fromUnixS != null }
+        return kept + years + all
+    }
+
+    /** The months of a season that have a ranking, as the server said them. */
+    private fun months(periods: List<RankingYearChoice>, season: String): List<RankingMonthChoice> =
+        periods.firstOrNull { it.name == season }?.months.orEmpty()
+
+    /**
+     * Looks for the pilots whose name or handle holds a text, once the
+     * pilot has stopped typing for a moment: whoever calls this for the
+     * next letter cancels the call for the one before. Fewer than two
+     * letters are not asked for, and the core says so; no text is no
+     * search.
+     */
+    suspend fun findPilots(text: String) {
+        val server = server()
+        if (server == null || text.isBlank()) {
+            search = PilotSearch(text)
+            return
+        }
+        val path = try {
+            pilotsSearchPath(text)
+        } catch (error: CoreException) {
+            search = PilotSearch(text, words = error.pilotMessage)
+            return
+        }
+        // What was found for the letters before stays until this is answered.
+        search = search.copy(text = text, words = if (search.pilots.isEmpty()) "" else search.words, isLoading = true)
+        try {
+            delay(searchPauseMilliseconds)
+            val answer = transport(server + path)
+            val found = withContext(background) { pilotsFound(answer.status16, answer.body) }
+            if (search.text != text) return
+            search = PilotSearch(text, found.pilots, found.words)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (search.text != text) return
+            search = PilotSearch(
+                text,
+                words = when (error) {
+                    is CoreException -> error.pilotMessage
+                    else -> "Venti could not be reached to look for pilots. ${error.pilotMessage}"
+                },
+            )
+        }
+    }
+
+    /**
+     * Fetches what a pilot's public flights add up to, unless it is there
+     * already.
+     */
+    suspend fun showPilotTotals(handle: String) {
+        val shown = pilotTotals
+        if (shown != null && shown.handle == handle && shown.statistics != null) return
+        pilotTotals = PilotTotals(handle, isLoading = true)
+        val result = try {
+            val server = server() ?: throw NoLongerPublic()
+            val answer = transport(server + withContext(background) { pilotStatisticsPath(handle) })
+            PilotTotals(handle, withContext(background) { pilotStatistics(answer.status16, answer.body) })
+        } catch (error: CancellationException) {
+            // Whoever asked has left the page. The next to look at it asks again.
+            if (pilotTotals?.handle == handle) pilotTotals = null
+            throw error
+        } catch (error: Exception) {
+            PilotTotals(
+                handle,
+                problem = when (error) {
+                    is CoreException -> error.pilotMessage
+                    is NoLongerPublic -> "Venti is not connected."
+                    else -> "Venti could not be reached. ${error.pilotMessage}"
+                },
+            )
+        }
+        // Another pilot's page may have been opened while this was under way.
+        if (pilotTotals?.handle == handle) pilotTotals = result
     }
 
     /**
@@ -356,6 +533,8 @@ class CommunityModel(
         listed = null
         problem = null
         pilot = null
+        pilotTotals = null
+        search = PilotSearch()
         ranked = Ranked()
         known.clear()
     }
@@ -365,5 +544,11 @@ class CommunityModel(
     companion object {
         /** How long an answer is waited for: a long flight's file is a few megabytes. */
         private const val ANSWER_WITHIN_MILLISECONDS = 30_000
+
+        /** How long the search waits for the next letter. */
+        const val SEARCH_PAUSE_MILLISECONDS = 350L
+
+        /** How many years the ranking's row of seasons has room for, beside all years. */
+        private const val YEARS_OFFERED = 4
     }
 }

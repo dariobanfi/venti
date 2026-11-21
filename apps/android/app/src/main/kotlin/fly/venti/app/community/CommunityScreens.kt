@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -22,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -33,9 +35,11 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,20 +50,28 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.venti.design.VentiSpace
 import fly.venti.app.R
 import fly.venti.app.account.AccountModel
 import fly.venti.app.design.Format
+import fly.venti.app.design.Group
+import fly.venti.app.design.LinkRow
 import fly.venti.app.design.SectionFooter
 import fly.venti.app.design.SectionHeader
+import fly.venti.app.design.Venti
 import fly.venti.app.design.numbers
 import fly.venti.app.logbook.TrackThumbnail
 import fly.venti.app.logbook.groupedShape
+import fly.venti.core.FlownSiteLine
+import fly.venti.core.FoundPilotLine
 import fly.venti.core.PublicFlight
 import fly.venti.core.PublicFlightsOrder
 import fly.venti.core.RouteKind
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -70,6 +82,9 @@ object CommunityWords {
             "Venti's own reckoning by the World XContest's rules, not a league's."
 
     const val NONE_YET = "Flights that pilots share with everyone on Venti are listed here."
+
+    /** What the field over the list is for, said in it while it is empty. */
+    const val FIND_A_PILOT = "Find a pilot"
 
     /** The two orders, as the switch above the list names them. */
     fun title(order: PublicFlightsOrder): String = when (order) {
@@ -105,10 +120,111 @@ object CommunityWords {
 /**
  * Everyone's public flights on the pilot's Venti server: the newest first,
  * or the best. More is fetched as the end of the list comes into view.
+ * Over the list is the field that finds a pilot by name: while there is
+ * text in it, the pilots the server found stand in the list's place.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit, modifier: Modifier = Modifier) {
+fun PublicFlightsList(
+    community: CommunityModel,
+    onOpen: (PublicFlight) -> Unit,
+    modifier: Modifier = Modifier,
+    /** Opens a pilot the search found: the handle and the name. Without it there is no search. */
+    onOpenPilot: ((String, String) -> Unit)? = null,
+) {
+    var wanted by rememberSaveable { mutableStateOf("") }
+    Column(modifier.fillMaxSize()) {
+        if (onOpenPilot != null) {
+            OutlinedTextField(
+                value = wanted,
+                onValueChange = { wanted = it },
+                placeholder = { Text(CommunityWords.FIND_A_PILOT) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
+                trailingIcon = {
+                    if (wanted.isNotEmpty()) {
+                        IconButton(onClick = { wanted = "" }) {
+                            Icon(painterResource(R.drawable.ic_close), contentDescription = "Clear")
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false),
+                shape = MaterialTheme.shapes.extraLarge,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s2)
+                    .testTag("pilot-search"),
+            )
+            // Asked once the typing has paused: each letter cancels the
+            // question of the one before.
+            LaunchedEffect(community, wanted) { community.findPilots(wanted) }
+        }
+        if (onOpenPilot != null && wanted.isNotBlank()) {
+            PilotsFound(community.search.takeIf { it.text == wanted }, onOpenPilot)
+        } else {
+            EveryonesFlights(community, onOpen)
+        }
+    }
+}
+
+/** The pilots a search found, each of which opens that pilot's page, and the core's line for the result. */
+@Composable
+private fun PilotsFound(search: CommunityModel.PilotSearch?, onOpenPilot: (String, String) -> Unit) {
+    val pilots: List<FoundPilotLine> = search?.pilots.orEmpty()
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().testTag("pilots-found"),
+        contentPadding = PaddingValues(start = VentiSpace.s4, end = VentiSpace.s4, top = VentiSpace.s1, bottom = VentiSpace.s5),
+    ) {
+        if (pilots.isNotEmpty()) {
+            item(key = "pilots") {
+                Group {
+                    for (line in pilots) {
+                        row {
+                            LinkRow(
+                                line.words,
+                                R.drawable.ic_chevron_right,
+                                modifier = Modifier.testTag("pilot-found"),
+                                leading = R.drawable.ic_person,
+                                onClick = { onOpenPilot(line.handle, line.name) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (search != null && search.words.isNotEmpty()) {
+            item(key = "words") {
+                if (pilots.isEmpty()) {
+                    // Nobody by this name, too few letters, or no answer: in the words there are for it.
+                    Text(
+                        search.words,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Venti.colours.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = VentiSpace.s4, vertical = VentiSpace.s7)
+                            .testTag("pilots-found-words"),
+                    )
+                } else {
+                    SectionFooter(search.words, Modifier.testTag("pilots-found-words"))
+                }
+            }
+        }
+        if (search == null || (search.isLoading && pilots.isEmpty() && search.words.isEmpty())) {
+            item(key = "loading") {
+                Box(Modifier.fillMaxWidth().padding(vertical = VentiSpace.s5), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(VentiSpace.s6))
+                }
+            }
+        }
+    }
+}
+
+/** The list itself: the switch between the two orders, the flights, and whose reckoning they are. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EveryonesFlights(community: CommunityModel, onOpen: (PublicFlight) -> Unit) {
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
     // Fetched when the list is first looked at, and again for another server.
@@ -126,7 +242,7 @@ fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit,
                 isRefreshing = false
             }
         },
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("public-flights"),
@@ -185,8 +301,9 @@ fun PublicFlightsList(community: CommunityModel, onOpen: (PublicFlight) -> Unit,
 }
 
 /**
- * One pilot's public flights, the newest first: reached from the menu of
- * one of that pilot's flights.
+ * One pilot's page: what their public flights add up to, in all years or
+ * in one, and under it the flights, the newest first. Reached from one of
+ * that pilot's flights, from the ranking, and from the search by name.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -203,19 +320,41 @@ fun PilotFlightsScreen(
     requests: CoroutineScope,
     onOpen: (PublicFlight) -> Unit,
     onBack: () -> Unit,
+    /** Opens the page of a take-off the pilot flew from; `null` where there is none to open. */
+    onOpenSite: ((FlownSiteLine) -> Unit)? = null,
 ) {
     LaunchedEffect(handle) {
         community.showPilot(handle)
+    }
+    LaunchedEffect(handle) {
+        community.showPilotTotals(handle)
     }
     var isShowingMenu by remember { mutableStateOf(false) }
     var reporting by remember { mutableStateOf<Reported?>(null) }
     val pilot = community.pilot?.takeIf { it.handle == handle }
     val flights = pilot?.flights.orEmpty()
+    val totals = community.pilotTotals?.takeIf { it.handle == handle }
+    // The year the totals are of: 0 for all years, as the core numbers them.
+    var year by rememberSaveable(handle) { mutableIntStateOf(0) }
+    // A total that is one flight's opens that flight, once the list of
+    // everyone's flights knows it.
+    var opening by remember(handle) { mutableStateOf<String?>(null) }
+    LaunchedEffect(opening) {
+        val id = opening ?: return@LaunchedEffect
+        try {
+            onOpen(community.publicFlightById(id))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Taken back since the totals were added up: nothing opens.
+        }
+        opening = null
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(totals?.statistics?.name ?: name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
@@ -247,6 +386,24 @@ fun PilotFlightsScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
             item(key = "handle") { SectionHeader("@$handle") }
+            totals?.statistics?.let { statistics ->
+                item(key = "totals") {
+                    PilotTotalsSection(
+                        statistics,
+                        year = year,
+                        onYear = { year = it },
+                        onOpenFlight = { opening = it },
+                        onOpenSite = onOpenSite,
+                        modifier = Modifier.padding(bottom = VentiSpace.s4),
+                    )
+                }
+            }
+            // Why the totals are missing, unless the flights are missing for the same reason.
+            totals?.problem?.takeIf { pilot?.problem == null }?.let { problem ->
+                item(key = "totals-problem") {
+                    SectionFooter(problem, Modifier.padding(bottom = VentiSpace.s4).testTag("pilot-totals-problem"))
+                }
+            }
             if (flights.isEmpty() && pilot?.isLoading == false && (pilot.isLoaded || pilot.problem != null)) {
                 item(key = "none") {
                     NoFlights(

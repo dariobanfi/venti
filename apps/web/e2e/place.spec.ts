@@ -20,7 +20,8 @@ import {
 const RAMP = 'osm-free-flying:node/5964676196';
 const WALLBERG = `/logbook/everyone/place/?lat=47.66522&lon=11.79542&site=${encodeURIComponent(RAMP)}`;
 
-const flights = (page: Page) => rowsOf(page, 'Flights from here');
+// Exactly: the site's own "The best flights from here" is another list.
+const flights = (page: Page) => rowsOf(page, /^Flights from here$/);
 const ranked = (page: Page) =>
 	page.getByRole('list', { name: /^Ranking from here/ }).locator('> li');
 
@@ -75,14 +76,19 @@ test('a site’s page lists what was flown from it, the best first, and ranks it
 	await expect(ranked(page)).toHaveCount(3);
 
 	// A flight opens like any other pilot's.
-	await flights(page).first().getByRole('link').last().click();
+	await flights(page).first().getByRole('link').filter({ hasNotText: '°' }).last().click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
 	expect(problems).toEqual([]);
 });
 
 test('a flight leads to the flights from its take-off', async ({ page, wide }) => {
 	await page.goto('/logbook/everyone/');
-	await rowsOf(page, 'Everyone’s flights').first().getByRole('link').last().click();
+	await rowsOf(page, 'Everyone’s flights')
+		.first()
+		.getByRole('link')
+		.filter({ hasNotText: '°' })
+		.last()
+		.click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);
 
 	if (!wide) await page.getByRole('button', { name: 'Flight details' }).click();

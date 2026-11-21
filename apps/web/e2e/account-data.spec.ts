@@ -67,7 +67,10 @@ test('a kept take-off goes to the pilot’s account and comes back in a browser 
 		await second.goto('/settings/');
 		await expect(second.getByRole('list', { name: 'Your take-offs' })).toHaveText('None kept');
 		await expect(second.getByText(/^Kept on this device only: sign in/)).toBeVisible();
-		await second.getByRole('link', { name: /^Account/ }).click();
+		await second
+			.locator('.settings-page')
+			.getByRole('link', { name: /^Account/ })
+			.click();
 		await field(second, 'Handle').fill(handle);
 		await field(second, 'Password').fill(PASSWORD);
 		await second.getByRole('button', { name: 'Sign in' }).click();

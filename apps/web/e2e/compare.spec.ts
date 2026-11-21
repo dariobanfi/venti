@@ -14,6 +14,8 @@ async function openMarasFlight(page: Page) {
 	await rowsOf(page, 'Everyone’s flights')
 		.filter({ hasText: 'Mara Muster' })
 		.getByRole('link')
+		// Not the take-off's, whose place is written in degrees.
+		.filter({ hasNotText: '°' })
 		.last()
 		.click();
 	await expect(page).toHaveURL(/\/logbook\/everyone\/flight\/\?id=/);

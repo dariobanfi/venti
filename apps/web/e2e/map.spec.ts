@@ -76,7 +76,10 @@ test('the navigation leads to every section, and says where one is', async ({ pa
 	// The settings, and the account under them, are one section.
 	await navigation.getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page).toHaveTitle('Settings · Venti');
-	await page.getByRole('link', { name: /^Account/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Account/ })
+		.click();
 	await expect(page).toHaveTitle('Account · Venti');
 	await expect(navigation.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute(
 		'aria-current',

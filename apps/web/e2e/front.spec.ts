@@ -11,6 +11,7 @@ import { expect, test } from './helpers';
 test('everyone’s flights begin with the best of the day and the top of the year', async ({
 	page,
 	keep,
+	wide,
 	problems
 }) => {
 	// A day on which two pilots flew.
@@ -24,8 +25,9 @@ test('everyone’s flights begin with the best of the day and the top of the yea
 		'href',
 		/order=best&from=2026-08-16&to=2026-08-16/
 	);
+	// A phone has the first three, a wide screen's side column the first ten: all six of them.
 	const top = page.getByRole('list', { name: /^Top of \d{4}$/ }).getByRole('listitem');
-	await expect(top).toHaveCount(3);
+	await expect(top).toHaveCount(wide ? 6 : 3);
 	await expect(top.first()).toContainText('Lena Probe');
 	await expect(top.first()).toContainText('28.19');
 	await keep('91-everyone-front');

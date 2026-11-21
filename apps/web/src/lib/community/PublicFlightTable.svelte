@@ -1,20 +1,25 @@
 <!--
 	Other pilots' flights as a table, on a wide screen: rows 32 px high with
-	the day, the pilot, the glider and the figures in columns that line up,
-	whose headings sort what has been fetched so far. A click anywhere on a
-	row opens the flight; the pilot's name is a link of its own.
+	the pilot, the day, the take-off, the glider, the kind of route and the
+	figures in columns that line up, under a heading that stays at the top
+	while the page scrolls and sorts what has been fetched so far. A click
+	anywhere on a row opens the flight; the pilot's name and the take-off
+	are links of their own.
+
+	A flight's record has no name for its take-off: the column is the place,
+	which leads to what else was flown from there.
 
 	What another pilot wrote, a name or a glider, is set as text.
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { pilotHref, publicFlightHref } from '#lib/app/routes.ts';
+	import { pilotHref, placeHref, publicFlightHref } from '#lib/app/routes.ts';
 	import type { PublicFlight } from '#lib/core/index.ts';
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
-	import { distance, shape } from './words';
+	import { distance, kindOf, shape } from './words';
 
 	interface Props {
 		/** What the table is called, for a screen reader. */
@@ -28,18 +33,21 @@
 
 	const text = format();
 
-	type Key = 'date' | 'pilot' | 'glider' | 'distance' | 'airtime' | 'points' | 'highest';
-	const WORDS: Key[] = ['pilot', 'glider'];
+	type Key =
+		'date' | 'pilot' | 'glider' | 'kind' | 'distance' | 'airtime' | 'points' | 'highest' | 'climb';
+	const WORDS: Key[] = ['pilot', 'glider', 'kind'];
 	let sort = $state<Sort<Key>>();
 
 	const VALUE: Record<Key, (flight: PublicFlight) => number | string> = {
 		date: (flight) => flight.startUnixS,
 		pilot: (flight) => flight.pilot,
 		glider: (flight) => flight.glider ?? '',
+		kind: (flight) => kindOf(flight),
 		distance: (flight) => flight.score?.distanceM ?? flight.trackLengthM,
 		airtime: (flight) => flight.airtimeS,
 		points: (flight) => flight.score?.points ?? 0,
-		highest: (flight) => flight.maxAltitudeM
+		highest: (flight) => flight.maxAltitudeM,
+		climb: (flight) => flight.maxClimbMs
 	};
 	const rows = $derived(sorted(flights, sort, (flight, key) => VALUE[key](flight)));
 	const onsort = (key: Key) => (sort = sortBy(sort, key, WORDS));
@@ -58,11 +66,14 @@
 				<SortHeading key="pilot" {sort} {onsort}>Pilot</SortHeading>
 			{/if}
 			<SortHeading key="date" {sort} {onsort}>Date</SortHeading>
+			<th class="plain" scope="col">Take-off</th>
 			<SortHeading key="glider" {sort} {onsort}>Glider</SortHeading>
 			<SortHeading key="distance" {sort} {onsort} numeric>Distance</SortHeading>
-			<SortHeading key="airtime" {sort} {onsort} numeric>Airtime</SortHeading>
+			<SortHeading key="kind" {sort} {onsort}>Kind</SortHeading>
 			<SortHeading key="points" {sort} {onsort} numeric>Points</SortHeading>
+			<SortHeading key="airtime" {sort} {onsort} numeric>Airtime</SortHeading>
 			<SortHeading key="highest" {sort} {onsort} numeric>Highest</SortHeading>
+			<SortHeading key="climb" {sort} {onsort} numeric>Best climb</SortHeading>
 		</tr>
 	</thead>
 	<tbody>
@@ -75,16 +86,25 @@
 				<td>
 					<a class="flight" href={publicFlightHref(flight.id)}>{text.day(flight.startUnixS)}</a>
 				</td>
+				<td class="words lesser">
+					{#if flight.takeoff}
+						<a class="place" href={placeHref(flight.takeoff)}>
+							{text.place(flight.takeoff.lat, flight.takeoff.lon)}
+						</a>
+					{/if}
+				</td>
 				<td class="words">{flight.glider ?? ''}</td>
 				<td class="number">
 					{#if triangle}
-						<span class="shape" role="img" aria-label={triangle}><Icon name="triangle" /></span>
+						<span class="shape" aria-hidden="true"><Icon name="triangle" /></span>
 					{/if}
 					{distance(flight, text)} km
 				</td>
+				<td class="lesser">{kindOf(flight)}</td>
+				<td class="number strong">{flight.score ? text.points(flight.score.points) : '–'}</td>
 				<td class="number">{text.hoursMinutes(flight.airtimeS)} h</td>
-				<td class="number">{flight.score ? text.points(flight.score.points) : '–'}</td>
 				<td class="number">{text.metres(flight.maxAltitudeM)} m</td>
+				<td class="number">{text.climb(flight.maxClimbMs)} m/s</td>
 			</tr>
 		{/each}
 	</tbody>
@@ -94,6 +114,27 @@
 	table {
 		width: 100%;
 		border-collapse: collapse;
+	}
+
+	/* The heading stays in view while the rows scroll under it, below the
+	   site's bar. */
+	thead :global(th) {
+		position: sticky;
+		top: var(--nav-top);
+		z-index: 1;
+		background: var(--surface);
+	}
+
+	/* A heading that does not sort, as those that do look. */
+	.plain {
+		height: 2rem;
+		padding: 0 var(--space-2);
+		text-align: left;
+		white-space: nowrap;
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
+		box-shadow: inset 0 -1px 0 var(--color-border);
 	}
 
 	td {
@@ -120,8 +161,18 @@
 		text-align: right;
 	}
 
-	.pilot {
+	.pilot,
+	.strong {
 		font-weight: 600;
+	}
+
+	.lesser {
+		color: var(--text-secondary);
+	}
+
+	.place {
+		color: var(--link);
+		font-variant-numeric: tabular-nums;
 	}
 
 	a {

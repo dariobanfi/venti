@@ -3,9 +3,10 @@
 	numbers and altitude profile.
 
 	On a narrow screen the map fills the screen and the panel floats over its
-	lower part, as on the iPhone. On a wide one the panel stands beside the map
-	with everything else known about the flight under it, and the map has the
-	rest. Either way the map is told how much of it is covered, and fits the
+	lower part, as on the iPhone. On a wide one the map has the left two
+	thirds with the altitude profile under it across their width, and a
+	column at the right holds the flight's numbers with everything else
+	known about it under them. Either way the map is told how much of it is covered, and fits the
 	track into the part that shows.
 -->
 <script lang="ts">
@@ -28,6 +29,7 @@
 	import { type Beside, otherAt } from './beside';
 	import { nearestIndex } from './chart';
 	import ComparisonSheet from './ComparisonSheet.svelte';
+	import FlightChart from './FlightChart.svelte';
 	import FlightDetails from './FlightDetails.svelte';
 	import FlightMap from './FlightMap.svelte';
 	import FlightPanel from './FlightPanel.svelte';
@@ -290,6 +292,19 @@
 		</div>
 	</div>
 
+	{#if wide}
+		<div class="under-map">
+			<FlightChart
+				{flight}
+				{ground}
+				bind:cursor
+				{playing}
+				{beside}
+				onbeside={() => (sideBySide = true)}
+			/>
+		</div>
+	{/if}
+
 	<div class="dock" bind:this={dock} bind:clientHeight={dockHeight}>
 		<div class="side" class:glass={!wide}>
 			<div class="top">
@@ -311,6 +326,7 @@
 					score={analysis?.score}
 					{onleague}
 					ondetails={wide ? undefined : () => (showingDetails = true)}
+					chart={!wide}
 				/>
 			</div>
 			{#if wide}
@@ -438,17 +454,33 @@
 		display: none;
 	}
 
-	/* Wide: the panel is a column beside the map, with the details under it. */
+	/* Wide: the map at the left two thirds with the profile under it, the
+	   numbers and the details in a column at the right. */
 	.screen.wide {
 		display: grid;
-		grid-template-columns: 26rem minmax(0, 1fr);
+		grid-template-columns: minmax(0, 2fr) minmax(22rem, 1fr);
+		grid-template-rows: minmax(0, 1fr) auto;
 	}
 
 	.wide .map-area {
 		position: relative;
 		inset: auto;
-		grid-column: 2;
+		grid-column: 1;
 		grid-row: 1;
+	}
+
+	.under-map {
+		grid-column: 1;
+		grid-row: 2;
+		padding: var(--space-3) var(--space-4);
+		background: var(--surface);
+		border-top: 1px solid var(--separator);
+		--profile-height: 9rem;
+	}
+
+	.under-map :global(.chart-card) {
+		padding: 0;
+		border: 0;
 	}
 
 	.wide .bar {
@@ -468,13 +500,13 @@
 
 	.wide .dock {
 		position: static;
-		grid-column: 1;
-		grid-row: 1;
+		grid-column: 2;
+		grid-row: 1 / 3;
 		display: block;
 		padding: 0;
 		overflow-y: auto;
 		background: var(--background);
-		border-right: 0.5px solid var(--separator);
+		border-left: 0.5px solid var(--separator);
 		pointer-events: auto;
 	}
 

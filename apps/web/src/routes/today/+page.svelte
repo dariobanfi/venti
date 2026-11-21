@@ -193,6 +193,9 @@
 		return `${name}, ${shown.nearYou ? 'near you' : 'around the Tegernsee'}`;
 	});
 
+	/** The pack's status icons, as the status chip has them. */
+	const MARKS = { flyable: 'good', marginal: 'warning', notFlyable: 'danger' } as const;
+
 	/** How tall an hour's bar stands: tall for flyable, low for not. */
 	const BAR = { flyable: 1, marginal: 0.6, notFlyable: 0.25 } as const;
 
@@ -297,9 +300,11 @@
 							<thead>
 								<tr>
 									<th scope="col">Take-off</th>
-									<th scope="col">Kind of day</th>
 									<th scope="col">Status</th>
 									<th scope="col">Wind</th>
+									<th scope="col">Thermals</th>
+									<th scope="col" class="number">Cloud base</th>
+									<th scope="col">Days</th>
 									<th scope="col" class="number">Away</th>
 								</tr>
 							</thead>
@@ -307,7 +312,7 @@
 								<tbody>
 									{#if group.title}
 										<tr class="group-head">
-											<th scope="rowgroup" colspan="5">{group.title}</th>
+											<th scope="rowgroup" colspan="7">{group.title}</th>
 										</tr>
 									{/if}
 									{#each group.places as place (place.site.id)}
@@ -323,14 +328,6 @@
 													{place.site.name}
 												</button>
 											</th>
-											<td>
-												{#if day?.thermalWords}
-													<span class="kind-of-day">
-														<ThermalMark climbMs={day.climbMs ?? 0} />
-														{day.thermalWords}
-													</span>
-												{/if}
-											</td>
 											<td class="status">
 												{#if day}
 													<StatusChip verdict={day.verdict} status={day.status} />
@@ -347,6 +344,36 @@
 											</td>
 											<td class="numeric">
 												{#if day?.windKmh}{day.windKmh} km/h{#if day.windFrom}{' '}from {day.windFrom}{/if}{/if}
+												{#if day?.gustKmh}<span class="lesser">gusts {day.gustKmh} km/h</span>{/if}
+											</td>
+											<td>
+												{#if day?.thermalWords}
+													<span class="kind-of-day">
+														<ThermalMark climbMs={day.climbMs ?? 0} />
+														{day.thermalWords}
+													</span>
+												{/if}
+											</td>
+											<td class="number numeric">
+												{#if day?.cloudBaseM !== undefined}{text.metres(day.cloudBaseM)} m{/if}
+											</td>
+											<td>
+												<!-- Each day of the forecast by its status's mark: an icon and a colour, the day's name for whoever cannot see it. -->
+												{#if place.outlook}
+													<span class="marks">
+														{#each place.outlook.days as one, index (one.startUnixS)}
+															<span
+																class="mark {one.verdict}"
+																class:chosen={index === dayIndex}
+																role="img"
+																aria-label="{one.name}: {one.status}"
+																title="{one.name}: {one.status}"
+															>
+																<Icon name={MARKS[one.verdict]} />
+															</span>
+														{/each}
+													</span>
+												{/if}
 											</td>
 											<td class="number numeric">
 												{#if place.distanceM !== undefined}{text.kilometres(place.distanceM)} km{/if}
@@ -615,12 +642,12 @@
 	/* Wide: every take-off as a table, and beside it the hours of the one
 	   chosen, not a phone's column stretched. */
 	.body.wide {
-		max-width: 80rem;
+		max-width: var(--content-max);
 	}
 
 	.wide .columns {
 		display: grid;
-		grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+		grid-template-columns: minmax(0, 2fr) minmax(22rem, 1fr);
 		gap: var(--space-4);
 		align-items: start;
 	}
@@ -700,6 +727,44 @@
 
 	table :global(.status) {
 		min-height: 1.5rem;
+	}
+
+	/* The days of the forecast in a row of marks, the chosen one underlined. */
+	.marks {
+		display: inline-flex;
+		gap: var(--space-1);
+	}
+
+	.mark {
+		display: inline-grid;
+		place-items: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border-radius: var(--radius-s);
+	}
+
+	.mark :global(svg) {
+		width: 0.875rem;
+		height: 0.875rem;
+	}
+
+	.mark.chosen {
+		box-shadow: inset 0 -2px 0 currentColor;
+	}
+
+	.mark.flyable {
+		background: var(--color-good-soft);
+		color: var(--color-good);
+	}
+
+	.mark.marginal {
+		background: var(--color-caution-soft);
+		color: var(--color-caution);
+	}
+
+	.mark.notFlyable {
+		background: var(--color-danger-soft);
+		color: var(--color-danger);
 	}
 
 	.card {

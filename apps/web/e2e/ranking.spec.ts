@@ -15,8 +15,16 @@ const pilots = (page: Page) => rowsOf(page, /^Ranking of /);
 /** How many pilots the development mode ranks, in all years and in 2026: 6 since 2026-11-21. */
 const RANKED = 6;
 const whose = (page: Page) => page.getByRole('navigation', { name: 'Whose flights' });
+/** The flights of a pilot that count: a list under the name on a phone, a column each in a wide table. */
 const counted = (page: Page, pilot: string) =>
-	page.getByRole('list', { name: `The flights of ${pilot} that count` }).getByRole('listitem');
+	page
+		.getByRole('list', { name: `The flights of ${pilot} that count` })
+		.getByRole('listitem')
+		.or(
+			pilots(page)
+				.filter({ has: page.getByRole('link', { name: pilot, exact: true }) })
+				.locator('td.counted')
+		);
 
 test('the pilots are ranked by their best flights, in a year or in all years', async ({
 	page,

@@ -136,5 +136,7 @@
 	.card.wide {
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-m);
+		/* Clipped, not scrolled: the table's heading then sticks to the page. */
+		overflow: clip;
 	}
 </style>

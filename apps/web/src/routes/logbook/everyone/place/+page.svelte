@@ -231,8 +231,8 @@
 		display: flex;
 		flex-direction: column;
 		min-height: calc(100dvh - var(--nav-top));
-		/* Room for the list's columns beside the site. */
-		max-width: 76rem;
+		/* The whole width of the site's column: the table's columns beside the site. */
+		max-width: var(--content-max);
 		margin: 0 auto;
 		padding: calc(0.75rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))
 			calc(1.5rem + var(--nav-bottom)) calc(var(--gutter) + var(--safe-left));
@@ -280,7 +280,7 @@
 	/* Wide: the site stands beside the flights, which are what the page is for. */
 	.columns.wide {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 21rem;
+		grid-template-columns: minmax(0, 1fr) 24rem;
 		align-items: start;
 	}
 

@@ -12,9 +12,8 @@
 	import { format } from '#lib/design/format.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Metric from '#lib/design/Metric.svelte';
-	import AltitudeChart from './AltitudeChart.svelte';
-	import { type Beside, otherInWords } from './beside';
-	import ClimbLegend from './ClimbLegend.svelte';
+	import type { Beside } from './beside';
+	import FlightChart from './FlightChart.svelte';
 	import { heightAboveGround } from './ground';
 
 	interface Props {
@@ -37,6 +36,8 @@
 		score?: FlightScore;
 		/** Hands the flight to a league: for a flight of the pilot's own. */
 		onleague?: () => void;
+		/** Whether the altitude profile is in the panel: not where the screen has it under the map. */
+		chart?: boolean;
 	}
 
 	let {
@@ -49,7 +50,8 @@
 		beside,
 		onbeside,
 		score,
-		onleague
+		onleague,
+		chart = true
 	}: Props = $props();
 
 	/** What kind of flight it was, by its score, and the day: "FAI triangle, Sat, 4 Jul 2026". */
@@ -163,27 +165,9 @@
 		{/if}
 	</dl>
 
-	<div class="chart-card">
-		<div class="profile">
-			<AltitudeChart {flight} {ground} bind:cursor other={beside} />
-		</div>
-		{#if beside}
-			<!-- Whose the second line is, and where its glider was at the marked moment. -->
-			<button class="beside" type="button" onclick={onbeside}>
-				<span class="swatch" aria-hidden="true"></span>
-				<span class="who">
-					<span class="name">{beside.name}</span>
-					<span class="said" aria-live={playing ? 'off' : 'polite'}>
-						{cursor === undefined
-							? beside.comparison.words
-							: otherInWords(beside, flight.track[cursor], text)}
-					</span>
-				</span>
-				<span class="open">Side by side</span>
-			</button>
-		{/if}
-		<ClimbLegend />
-	</div>
+	{#if chart}
+		<FlightChart {flight} {ground} bind:cursor {playing} {beside} {onbeside} />
+	{/if}
 	{#if onleague}
 		<button class="button-prominent league" type="button" onclick={onleague}>
 			Send to a league
@@ -192,51 +176,6 @@
 </div>
 
 <style>
-	.beside {
-		display: flex;
-		align-items: center;
-		gap: 0.625rem;
-		min-height: var(--target);
-		padding: 0.375rem 0.625rem;
-		border: 1px solid var(--separator);
-		border-radius: var(--radius-control);
-		text-align: left;
-		font-size: var(--subheadline);
-	}
-
-	.swatch {
-		flex: none;
-		width: 1rem;
-		height: 0.25rem;
-		border-radius: var(--radius-pill);
-		background: var(--other);
-	}
-
-	.who {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.name {
-		font-weight: 600;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.said {
-		color: var(--metric-secondary, var(--text-secondary));
-		font-variant-numeric: tabular-nums;
-	}
-
-	.open {
-		flex: none;
-		color: var(--link);
-		font-weight: 500;
-	}
-
 	.panel {
 		display: flex;
 		flex-direction: column;
@@ -276,16 +215,6 @@
 	h1 {
 		font-size: var(--body);
 		font-weight: 500;
-	}
-
-	/* The altitude profile and its legend, on a card of their own. */
-	.chart-card {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		padding: 0.75rem;
-		border: 1px solid var(--separator);
-		border-radius: var(--radius-card);
 	}
 
 	.league {
@@ -350,9 +279,5 @@
 	.numbers {
 		display: flex;
 		gap: 0.5rem;
-	}
-
-	.profile {
-		height: var(--profile-height, 7.75rem);
 	}
 </style>

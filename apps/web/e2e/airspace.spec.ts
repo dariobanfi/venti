@@ -93,7 +93,10 @@ const sections = (page: Page) => page.getByRole('navigation', { name: 'Sections'
 /** Opens the screen that lists the pilot's airspace, from wherever the navigation shows. */
 async function openAirspace(page: Page): Promise<void> {
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	await page.getByRole('link', { name: /^Airspace/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Airspace/ })
+		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Airspace' })).toBeVisible();
 }
 
@@ -148,7 +151,7 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await mapTabDrawn(page, mapDrawn);
 	await expect(page.getByText('Airspace: openAIP, not certified')).toBeVisible();
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	const row = page.getByRole('link', { name: /^Airspace/ });
+	const row = page.locator('.settings-page').getByRole('link', { name: /^Airspace/ });
 	await expect(row).toHaveText(/openAIP, \d+ airspaces/);
 	await row.click();
 	await expect(page).toHaveTitle('Airspace · Venti');
@@ -221,13 +224,16 @@ test('the airspace screen says what is kept and whose it is, takes files in and 
 	await asking.getByRole('button', { name: 'Remove file' }).click();
 	await expect(files.getByRole('listitem').filter({ hasText: 'more' })).toBeHidden();
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	await expect(page.getByRole('link', { name: /^Airspace/ })).toHaveText(
+	await expect(page.locator('.settings-page').getByRole('link', { name: /^Airspace/ })).toHaveText(
 		/openAIP, \d+ airspaces · 1 file/
 	);
 
 	// Switched off, the server's airspace is deleted and no longer asked for;
 	// the pilot's own file is still drawn.
-	await page.getByRole('link', { name: /^Airspace/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Airspace/ })
+		.click();
 	await fromTheServer.uncheck();
 	await expect(page.getByText('Switched off: only your own files are used.')).toBeVisible();
 	await expect(fromServer).not.toContainText('openAIP');

@@ -20,9 +20,12 @@
 		 * flights when nobody flew today: not where the page is that list.
 		 */
 		toEveryone?: boolean;
+		/** How many of the ranking's pilots are shown: three, or ten in a wide screen's side column. */
+		ranked?: number;
 	}
 
-	let { front, toEveryone = true }: Props = $props();
+	let { front, toEveryone = true, ranked = 3 }: Props = $props();
+	const top = $derived(front.top.slice(0, ranked));
 
 	const text = format();
 	const todaysBest = $derived(
@@ -57,14 +60,14 @@
 			</section>
 		{/if}
 
-		{#if front.top.length > 0}
+		{#if top.length > 0}
 			<section aria-labelledby="front-top">
 				<div class="head">
 					<h2 id="front-top">Top of {front.season}</h2>
 					<a class="more" href={rankingHref()}>The whole ranking</a>
 				</div>
 				<ol class="card top" aria-label="Top of {front.season}">
-					{#each front.top as pilot (pilot.handle)}
+					{#each top as pilot (pilot.handle)}
 						<li>
 							<span class="place numeric">
 								<span class="visually-hidden">Place</span>

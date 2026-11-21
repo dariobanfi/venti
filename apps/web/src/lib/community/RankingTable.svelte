@@ -1,7 +1,9 @@
 <!--
 	The pilots of a season as a table, on a wide screen: the place, the
-	name, the points, what counts and the flights that count, each a link to
-	the flight. The headings of place, pilot and points sort.
+	name, the points, what counts, and each flight that counts in a small
+	column of its own, the best first, as a league's ranking has them: its
+	points, a link to the flight, over its day and distance. The headings of
+	place, pilot and points sort.
 
 	What another pilot wrote, a name, is set as text.
 -->
@@ -12,7 +14,7 @@
 	import Icon from '#lib/design/Icon.svelte';
 	import SortHeading from '#lib/design/SortHeading.svelte';
 	import { type Sort, sortBy, sorted } from '#lib/design/sort.ts';
-	import { distance, shape } from './words';
+	import { distance, ordinal, shape } from './words';
 
 	interface Props {
 		/** What the table is called, for a screen reader. */
@@ -34,16 +36,25 @@
 	};
 	const rows = $derived(sorted(pilots, sort, (pilot, key) => VALUE[key](pilot)));
 	const onsort = (key: Key) => (sort = sortBy(sort, key, ['pilot']));
+	/** As many columns of counted flights as the pilot with the most has. */
+	const counts = $derived(
+		Array.from({ length: Math.max(0, ...pilots.map((pilot) => pilot.flights.length)) }, (_, i) => i)
+	);
 </script>
 
 <table aria-label={label}>
+	<caption class="visually-hidden">
+		Each flight that counts has a column of its own, the best first.
+	</caption>
 	<thead>
 		<tr>
 			<SortHeading key="place" {sort} {onsort} numeric>Place</SortHeading>
 			<SortHeading key="pilot" {sort} {onsort}>Pilot</SortHeading>
 			<SortHeading key="points" {sort} {onsort} numeric>Points</SortHeading>
 			<th scope="col">What counts</th>
-			<th scope="col">Flights that count</th>
+			{#each counts as i (i)}
+				<th class="number" scope="col">{ordinal(i + 1)}</th>
+			{/each}
 		</tr>
 	</thead>
 	<tbody>
@@ -53,28 +64,29 @@
 				<td class="name"><a href={pilotHref(pilot.handle)}>{pilot.name}</a></td>
 				<td class="number">{text.points(pilot.points)}</td>
 				<td class="lesser">{pilot.counted}</td>
-				<td>
-					<ul class="flights" aria-label="The flights of {pilot.name} that count">
-						{#each pilot.flights as flight (flight.id)}
-							{@const triangle = shape(flight)}
-							<li>
-								<a href={publicFlightHref(flight.id)}>
-									{text.day(flight.startUnixS)} ·
-									<span class="numeric">
-										{#if triangle}
-											<span class="shape" role="img" aria-label={triangle}>
-												<Icon name="triangle" />
-											</span>
-										{/if}
-										{distance(flight, text)} km ·
-										<span class="visually-hidden">Points</span>
-										{flight.score ? text.points(flight.score.points) : '–'}
+				{#each counts as i (i)}
+					{@const flight = pilot.flights[i]}
+					{#if flight}
+						{@const triangle = shape(flight)}
+						<td class="counted number">
+							<a href={publicFlightHref(flight.id)}>
+								<span class="visually-hidden">Points</span>
+								{flight.score ? text.points(flight.score.points) : '–'}
+							</a>
+							<span class="lesser small">
+								{text.day(flight.startUnixS)} ·
+								{#if triangle}
+									<span class="shape" role="img" aria-label={triangle}>
+										<Icon name="triangle" />
 									</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				</td>
+								{/if}
+								{distance(flight, text)} km
+							</span>
+						</td>
+					{:else}
+						<td></td>
+					{/if}
+				{/each}
 			</tr>
 		{/each}
 	</tbody>
@@ -128,18 +140,40 @@
 		white-space: nowrap;
 	}
 
-	.flights {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0 var(--space-4);
-		margin: 0;
-		padding: 0;
-		list-style: none;
+	/* A counted flight: its points, and under them its day and distance. */
+	.counted {
+		width: 9.5rem;
+		line-height: 1.25rem;
+		padding-top: var(--space-1);
+		padding-bottom: var(--space-1);
 	}
 
-	.flights a {
+	.counted a {
+		display: block;
 		color: var(--link);
+		font-weight: 600;
+	}
+
+	.small {
+		display: block;
+		font-size: var(--caption);
+		line-height: 1rem;
+	}
+
+	/* The headings that do not sort, as those that do look. */
+	thead th {
+		height: 2rem;
+		padding: 0 var(--space-2);
+		text-align: left;
 		white-space: nowrap;
+		font-size: var(--subheadline);
+		font-weight: 600;
+		color: var(--text-secondary);
+		box-shadow: inset 0 -1px 0 var(--color-border);
+	}
+
+	thead th.number {
+		text-align: right;
 	}
 
 	.shape {

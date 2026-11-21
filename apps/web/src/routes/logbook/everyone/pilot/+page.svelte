@@ -1,12 +1,19 @@
 <!--
 	One pilot's public flights, the newest first. Which pilot is in the
 	address: `?handle=`.
+
+	On a wide screen the head is a row: the name and handle, the pilot's
+	place and points in the newest season's ranking, and what the flights
+	listed so far add up to; the table under it has the whole width.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import { getApp } from '#lib/app/app.svelte.ts';
-	import { everyoneHref } from '#lib/app/routes.ts';
+	import { everyoneHref, publicFlightHref } from '#lib/app/routes.ts';
+	import { NOT_RANKED } from '#lib/community/model.svelte.ts';
+	import { totalsOf } from '#lib/community/totals.ts';
+	import { format } from '#lib/design/format.ts';
 	import { NOT_LISTED, queryOf } from '#lib/community/pages.ts';
 	import PublicFlightList from '#lib/community/PublicFlightList.svelte';
 	import { reportedPilot } from '#lib/community/report.ts';
@@ -31,6 +38,13 @@
 	/** Whether the form that reports the pilot's page is open. */
 	let reporting = $state(false);
 
+	// The pilot's place in the newest season, for the head.
+	$effect(() => everyone?.showRanking(''));
+	const ranking = $derived(everyone?.ranking ?? NOT_RANKED);
+	const ranked = $derived(ranking.pilots.find((one) => one.handle === handle));
+	const totals = $derived(totalsOf(list.flights));
+	const text = format();
+
 	/** Back to everyone's flights as they were asked for. */
 	const back = $derived(everyoneHref(everyone ? queryOf(everyone.asked) : ''));
 </script>
@@ -39,15 +53,49 @@
 	<title>{name} · Venti</title>
 </svelte:head>
 
-<div class="page">
+<div class="desk page">
 	<a class="back" href={back}>
 		<Icon name="back" />
 		Everyone
 	</a>
 	<header>
-		<h1>{name}</h1>
-		{#if pilot?.name && handle}
-			<p>@{handle}</p>
+		<div class="who">
+			<h1>{name}</h1>
+			{#if pilot?.name && handle}
+				<p>@{handle}</p>
+			{/if}
+		</div>
+		{#if list.flights.length > 0}
+			<dl class="totals numeric">
+				{#if ranked}
+					<div>
+						<dt>Place in {ranking.season}</dt>
+						<dd>{ranked.place}</dd>
+					</div>
+					<div>
+						<dt>Points in {ranking.season}</dt>
+						<dd>{text.points(ranked.points)}</dd>
+					</div>
+				{/if}
+				<div>
+					<dt>{list.more ? 'Flights listed' : 'Flights'}</dt>
+					<dd>{text.count(totals.flights)}</dd>
+				</div>
+				<div>
+					<dt>Distance</dt>
+					<dd>{text.kilometres(totals.distanceM)}<small>km</small></dd>
+				</div>
+				{#if totals.best?.score}
+					<div>
+						<dt>Best</dt>
+						<dd>
+							<a href={publicFlightHref(totals.best.id)}>
+								{text.points(totals.best.score.points)}<small>points</small>
+							</a>
+						</dd>
+					</div>
+				{/if}
+			</dl>
 		{/if}
 	</header>
 
@@ -90,14 +138,11 @@
 </div>
 
 <style>
+	/* The `.desk`'s column, of the whole width on a wide screen. */
 	.page {
 		display: flex;
 		flex-direction: column;
 		min-height: calc(100dvh - var(--nav-top));
-		max-width: 60rem;
-		margin: 0 auto;
-		padding: calc(0.75rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))
-			calc(1.5rem + var(--nav-bottom)) calc(var(--gutter) + var(--safe-left));
 	}
 
 	.back {
@@ -124,6 +169,36 @@
 
 	header p {
 		color: var(--text-secondary);
+	}
+
+	/* What the pilot's flights add up to: in a row under the name on a
+	   phone, at the right of the head on a wide screen. */
+	.totals {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-5);
+		margin-top: var(--space-3);
+	}
+
+	.totals dt {
+		font-size: var(--caption);
+		color: var(--text-secondary);
+	}
+
+	.totals dd {
+		font-size: var(--title);
+		font-weight: 600;
+	}
+
+	.totals small {
+		margin-left: 0.2em;
+		font-size: var(--caption);
+		font-weight: 400;
+		color: var(--text-secondary);
+	}
+
+	.totals a {
+		color: var(--link);
 	}
 
 	.report {
@@ -160,8 +235,17 @@
 	}
 
 	@media (min-width: 56rem) {
-		.page {
-			padding-top: 1.5rem;
+		header {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: flex-end;
+			justify-content: space-between;
+			gap: var(--space-3) var(--space-6);
+		}
+
+		.totals {
+			margin-top: 0;
+			gap: var(--space-6);
 		}
 	}
 </style>

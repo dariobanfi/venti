@@ -125,7 +125,7 @@ export interface FrontState {
 	flights: PublicFlight[];
 	/** Whether `flights` are today's best (or, when not, the newest of any day). */
 	ofToday: boolean;
-	/** The first three of this year's ranking. */
+	/** The first ten of this year's ranking. */
 	top: RankedPilot[];
 	/** The season `top` is of: "2026". */
 	season: string;
@@ -135,8 +135,10 @@ export interface FrontState {
 	absent: boolean;
 }
 
-/** How many flights and pilots the front shows. */
+/** How many flights the front shows. */
 const ON_THE_FRONT = 3;
+/** How many pilots of the ranking it holds: a wide screen's side column has room for ten, a phone shows three. */
+const TOP_OF_SEASON = 10;
 
 export class CommunityModel {
 	/** The ranking of the server's pilots in the season last asked for. */
@@ -306,7 +308,7 @@ export class CommunityModel {
 				known: true,
 				flights: flights.slice(0, ON_THE_FRONT),
 				ofToday,
-				top: ranked?.ranking.pilots.slice(0, ON_THE_FRONT) ?? [],
+				top: ranked?.ranking.pilots.slice(0, TOP_OF_SEASON) ?? [],
 				season: ranked?.season.name ?? '',
 				problem: undefined,
 				absent: !best

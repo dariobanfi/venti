@@ -49,9 +49,19 @@
 	<title>Ranking · Venti</title>
 </svelte:head>
 
-<div class="page">
-	<header>
+<div class="desk page">
+	<header class="page-head">
 		<h1>Logbook</h1>
+		<!-- On a wide screen the season is chosen in the page's head. -->
+		{#if wide.current && !app.failure && ranking.seasons.length > 0}
+			<div class="actions season-head">
+				<Segmented
+					label="Season"
+					options={ranking.seasons}
+					bind:value={() => ranking.season, (chosen) => ask(chosen)}
+				/>
+			</div>
+		{/if}
 	</header>
 	<div class="whose">
 		<WhoseFlights current="ranking" query={everyone ? queryOf(everyone.asked) : ''} />
@@ -64,7 +74,7 @@
 			<p>{app.failure}</p>
 		</div>
 	{:else}
-		{#if ranking.seasons.length > 0}
+		{#if ranking.seasons.length > 0 && !wide.current}
 			<div class="season">
 				<Segmented
 					label="Season"
@@ -101,21 +111,21 @@
 </div>
 
 <style>
+	/* The `.desk`'s column, of the whole width on a wide screen. */
 	.page {
 		display: flex;
 		flex-direction: column;
 		min-height: calc(100dvh - var(--nav-top));
-		max-width: 60rem;
-		margin: 0 auto;
-		padding: calc(1rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))
-			calc(1.5rem + var(--nav-bottom)) calc(var(--gutter) + var(--safe-left));
 	}
 
 	header {
-		display: flex;
-		align-items: center;
 		min-height: 3.25rem;
 		margin-bottom: 0.75rem;
+	}
+
+	.actions.season-head {
+		display: block;
+		width: 30rem;
 	}
 
 	.whose {
@@ -178,8 +188,8 @@
 	}
 
 	@media (min-width: 56rem) {
-		.page {
-			padding-top: 2rem;
+		header {
+			min-height: 0;
 		}
 	}
 

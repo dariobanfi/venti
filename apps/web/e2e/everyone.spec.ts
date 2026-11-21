@@ -129,7 +129,7 @@ test('a pilot’s name leads to that pilot’s flights', async ({ page, keep, wi
 	const own = rowsOf(page, 'Flights of Jonas Beispiel');
 	await expect(own).toHaveCount(2);
 	// The rows of one pilot's flights begin with the day.
-	await expect(own.first().getByRole('link')).toHaveText(
+	await expect(own.first().getByRole('link').first()).toHaveText(
 		wide ? /^Sun, 6 Sept? 2026$/ : /Sun, 6 Sept? 2026\s*Sample Wing/
 	);
 	await expect(own.first()).toContainText('Sample Wing');

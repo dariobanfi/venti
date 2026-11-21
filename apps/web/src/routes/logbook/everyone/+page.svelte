@@ -3,6 +3,11 @@
 	everyone, the newest first or the best by points, on any day or on the
 	days chosen. What is asked for is in the address, so the list can be come
 	back to and handed on: `?order=best&from=2026-08-15&to=2026-08-16`.
+
+	A wide screen has the whole width: what is asked in one row, the table,
+	and beside it the best of today and the top ten of the season. The box
+	for a pilot's name narrows what is listed so far; the server is not
+	asked by name.
 -->
 <script lang="ts">
 	import { browser } from '$app/env';
@@ -25,6 +30,7 @@
 	import { nothingListed, RECKONING } from '#lib/community/words.ts';
 	import Icon from '#lib/design/Icon.svelte';
 	import Segmented from '#lib/design/Segmented.svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 
 	const app = getApp();
 	const everyone = $derived(app.everyone);
@@ -49,6 +55,25 @@
 
 	const ORDERS = ['Newest', 'Best'] as const;
 
+	/** A wide screen has the head of the list in a column beside it. */
+	const wide = new MediaQuery('min-width: 56rem', false);
+
+	/** The name, or part of it, of the pilot looked for among the flights listed. */
+	let who = $state('');
+	const looked = $derived(who.trim().toLocaleLowerCase());
+	const shown = $derived(
+		looked
+			? {
+					...list,
+					flights: list.flights.filter((flight) =>
+						`${flight.pilot} @${flight.handle}`.toLocaleLowerCase().includes(looked)
+					)
+				}
+			: list
+	);
+	/** Whether the side column stands beside the table. */
+	const beside = $derived(wide.current && plain && Boolean(everyone?.front));
+
 	const id = $props.id();
 </script>
 
@@ -56,7 +81,7 @@
 	<title>Everyone’s flights · Venti</title>
 </svelte:head>
 
-<div class="page">
+<div class="desk page">
 	<header>
 		<h1>Logbook</h1>
 	</header>
@@ -71,7 +96,7 @@
 			<p>{app.failure}</p>
 		</div>
 	{:else if !list.absent}
-		{#if plain && everyone?.front}
+		{#if plain && everyone?.front && !wide.current}
 			<FrontHead front={everyone.front} toEveryone={false} />
 		{/if}
 		<div class="asked">
@@ -117,31 +142,55 @@
 					</button>
 				{/if}
 			</div>
+			{#if wide.current}
+				<span class="day who">
+					<label for="{id}-who">Pilot</label>
+					<input
+						id="{id}-who"
+						type="search"
+						placeholder="Name or handle"
+						autocomplete="off"
+						bind:value={who}
+					/>
+				</span>
+			{/if}
 		</div>
 	{/if}
 
 	{#if !app.failure}
-		<PublicFlightList
-			label="Everyone’s flights"
-			{list}
-			named
-			nothing={nothingListed(list, asked)}
-			reckoning={RECKONING}
-			onmore={() => everyone?.more()}
-			onagain={() => everyone?.again()}
-		/>
+		<div class="columns">
+			<div class={beside ? 'span-9' : 'span-12'}>
+				{#if looked && list.flights.length > 0 && shown.flights.length === 0}
+					<p class="none" role="status">
+						No pilot of the {list.flights.length} flights listed so far is called “{who.trim()}”.
+					</p>
+				{:else}
+					<PublicFlightList
+						label="Everyone’s flights"
+						list={shown}
+						named
+						nothing={nothingListed(list, asked)}
+						reckoning={RECKONING}
+						onmore={() => everyone?.more()}
+						onagain={() => everyone?.again()}
+					/>
+				{/if}
+			</div>
+			{#if beside && everyone?.front}
+				<aside class="span-3" aria-label="Best of today and the top of the season">
+					<FrontHead front={everyone.front} toEveryone={false} ranked={10} />
+				</aside>
+			{/if}
+		</div>
 	{/if}
 </div>
 
 <style>
+	/* The `.desk`'s column, of the whole width on a wide screen. */
 	.page {
 		display: flex;
 		flex-direction: column;
 		min-height: calc(100dvh - var(--nav-top));
-		max-width: 60rem;
-		margin: 0 auto;
-		padding: calc(1rem + var(--safe-top)) calc(var(--gutter) + var(--safe-right))
-			calc(1.5rem + var(--nav-bottom)) calc(var(--gutter) + var(--safe-left));
 	}
 
 	header {
@@ -241,9 +290,47 @@
 		color: var(--text-secondary);
 	}
 
+	.none {
+		padding: var(--space-6) var(--space-4);
+		text-align: center;
+		color: var(--text-secondary);
+	}
+
+	/* Wide: what is asked in one row, at the controls' height of a pointer. */
 	@media (min-width: 56rem) {
-		.page {
-			padding-top: 2rem;
+		header {
+			min-height: 0;
+			margin-bottom: var(--space-3);
+		}
+
+		.asked {
+			justify-content: flex-start;
+			gap: var(--space-3) var(--space-6);
+			padding: var(--space-2) var(--space-3);
+			border: 1px solid var(--color-border);
+			border-radius: var(--radius-m);
+			background: var(--surface);
+		}
+
+		.order {
+			flex: none;
+			width: 12rem;
+		}
+
+		input {
+			min-height: var(--target);
+		}
+
+		.days button {
+			min-height: var(--target);
+		}
+
+		.who {
+			margin-left: auto;
+		}
+
+		.who input {
+			width: 14rem;
 		}
 	}
 </style>

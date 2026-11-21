@@ -26,7 +26,7 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	const legs = card.getByRole('list', { name: 'Legs' }).getByRole('listitem');
 	await expect(words).toHaveText('Tap the map where the route begins.');
 
-	// Three places in the upper part of the map, clear of the card at its
+	// Three places in the upper third of the map, clear of the card at its
 	// side or its foot and of the round buttons: a triangle.
 	const map = (await page.locator('canvas.maplibregl-canvas').boundingBox())!;
 	const at = (x: number, y: number) =>
@@ -36,7 +36,9 @@ test('a route is drawn on the map, scored by the core and kept', async ({
 	await at(0.7, 0.22);
 	await expect(legs).toHaveCount(1);
 	await expect(words).toContainText('A third place inside a dashed area makes an FAI triangle');
-	await at(0.55, 0.38);
+	// A phone's card at the foot is tall by now, with the weather along
+	// the route under the legs, and reaches up to about the map's middle.
+	await at(0.55, 0.32);
 	await expect(legs).toHaveCount(2);
 	await expect(words).toContainText('km along the route. Flown like this it scores as');
 	await expect(card.getByRole('heading', { level: 3 })).toBeVisible();

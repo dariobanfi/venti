@@ -36,7 +36,10 @@ async function signIn(page: Page, { handle, password } = DEMO): Promise<void> {
 /** Opens the account screen from wherever the pilot is, without loading the site anew. */
 async function openAccount(page: Page): Promise<void> {
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	await page.getByRole('link', { name: /^Account/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Account/ })
+		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeVisible();
 }
 
@@ -49,7 +52,7 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 	await page.goto('/map/');
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page).toHaveTitle('Settings · Venti');
-	const account = page.getByRole('link', { name: /^Account/ });
+	const account = page.locator('.settings-page').getByRole('link', { name: /^Account/ });
 	await expect(account).toContainText('Not signed in');
 	await expect(metric(page, 'Version')).toHaveText(/^\d+\.\d+\.\d+$/);
 	await keep('23-settings');
@@ -90,10 +93,15 @@ test('a pilot signs in, gets the flights from the server, and signs out', async 
 		page.getByRole('main').getByRole('link', { name: /(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d+ / })
 	).toHaveCount(3);
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	await expect(page.getByRole('link', { name: /^Account/ })).toContainText('@demo');
+	await expect(
+		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
+	).toContainText('@demo');
 
 	// Asked for again, a sync has nothing to do.
-	await page.getByRole('link', { name: /^Account/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Account/ })
+		.click();
 	await page.getByRole('button', { name: 'Sync now' }).click();
 	await expect(metric(page, 'Last sync')).toHaveText('Nothing to send or fetch');
 
@@ -294,7 +302,9 @@ test('a sync that fails says why, and a session that ended asks to sign in again
 
 	// The flights fetched before are still in the logbook.
 	await sections(page).getByRole('link', { name: 'Settings', exact: true }).click();
-	await expect(page.getByRole('link', { name: /^Account/ })).toContainText('Signed out');
+	await expect(
+		page.locator('.settings-page').getByRole('link', { name: /^Account/ })
+	).toContainText('Signed out');
 });
 
 test('a flight cannot be shared before the pilot is signed in, and the sheet says where to', async ({
@@ -378,7 +388,10 @@ test('a site without a server has no account to sign in to, and says so', async 
 		page.getByText('This copy of the app is served without Venti behind it.')
 	).toBeVisible();
 
-	await page.getByRole('link', { name: /^Account/ }).click();
+	await page
+		.locator('.settings-page')
+		.getByRole('link', { name: /^Account/ })
+		.click();
 	await expect(
 		page.getByText('This copy of the app is served without Venti behind it, so there is no account')
 	).toBeVisible();

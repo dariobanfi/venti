@@ -32,6 +32,25 @@ export function shape(flight: PublicFlight): string | undefined {
 	return flight.score.kind === 'faiTriangle' ? 'FAI triangle' : 'Triangle';
 }
 
+/** What a route is called, as a flight's details name it. The rules that tell them apart are the core's. */
+const ROUTES = {
+	freeFlight: 'Free flight',
+	freeTriangle: 'Free triangle',
+	faiTriangle: 'FAI triangle'
+} as const;
+
+/** What kind of flight it scored as: "FAI triangle". Nothing for a flight too short to score. */
+export function kindOf(flight: PublicFlight): string {
+	return flight.score ? ROUTES[flight.score.kind] : '';
+}
+
+/** A place in a row of counted flights: "1st", "2nd", "3rd", "4th". */
+export function ordinal(place: number): string {
+	const tens = place % 100;
+	if (tens >= 11 && tens <= 13) return `${place}th`;
+	return `${place}${{ 1: 'st', 2: 'nd', 3: 'rd' }[place % 10] ?? 'th'}`;
+}
+
 /** Why a ranking has no pilots, and what would change that. */
 export function nothingRanked(state: {
 	absent: boolean;

@@ -288,7 +288,7 @@ dialog::backdrop {
 
 /* A wide screen's page: a centred column as wide as the content may be,
    its head (`.page-head`: the title and the page's actions on one row) and
-   twelve columns that panels span (`.columns`, `.span-4` and so on). On a
+   twelve columns that panels span (`.columns`, `.span-3` to `.span-9`, `.span-12`). On a
    narrow screen it is the phone's column and the panels stand one under
    the other. */
 .desk {
@@ -358,6 +358,10 @@ dialog::backdrop {
 
 	.span-8 {
 		grid-column: span 8;
+	}
+
+	.span-9 {
+		grid-column: span 9;
 	}
 
 	.span-12 {

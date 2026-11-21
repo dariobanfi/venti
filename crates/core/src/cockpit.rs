@@ -50,11 +50,13 @@ use venti_sensors::{Battery, SentenceReader};
 use crate::ahead::{self, AirspaceAhead};
 use crate::airspace::{AirspaceWatch, compass};
 use crate::cables::{CableKind, CableSet};
+use crate::cockpit_others::{OthersHeard, OthersNear};
 use crate::live::{self as sharing, LiveAudience, LiveShare, LiveShareView};
-use crate::task::{TaskEventView, TaskFlown, TaskStatusView};
+use crate::route_plan::{ClosingCircleView, closing_circle_view};
+use crate::task::{TaskEventView, TaskFlown, TaskReadings, TaskStatusView};
 use crate::{
     AirspaceCheck, AirspaceLevel, AirspaceProximity, AirspaceSet, AirspaceWarning, Coordinate,
-    CoreError, RouteKind, ServerRequest, Terrain,
+    CoreError, LiveOthers, RouteKind, ServerRequest, Terrain,
 };
 
 /// The cockpit's warning of a cable ahead.
@@ -471,6 +473,12 @@ pub struct CockpitView {
     /// with a height and where the pilot's airspace does not reach, and
     /// once positions have stopped it is the last one made.
     pub airspace_proximity: Option<AirspaceProximity>,
+    /// The competition page's readings for the task being flown: the
+    /// next turnpoint and goal with the altitude needed in the wind, the
+    /// start gate, the speed section's average. Absent without a task and
+    /// until there is a position.
+    #[uniffi(default = None)]
+    pub task_readings: Option<TaskReadings>,
 }
 
 /// How the flight scores as a cross-country flight so far, by the same
@@ -490,6 +498,13 @@ pub struct LiveScore {
     pub closing_m: Option<f64>,
     /// The route the score runs along, for drawing.
     pub route: Vec<Coordinate>,
+    /// For a triangle still open, the circle around its start that its
+    /// finish has to come into, with the distance to its edge from the
+    /// glider and what the triangle scores closed. It is there also while
+    /// a free flight scores more, so long as the flight makes a triangle
+    /// that counts. Absent for a closed triangle and without one.
+    #[uniffi(default = None)]
+    pub closing: Option<ClosingCircleView>,
 }
 
 /// Where to fly for an FAI triangle: a triangle whose shortest side is at
@@ -722,13 +737,16 @@ struct Inner {
     /// scoring it in the air.
     flown: Vec<Fix>,
     /// The latest score, and how many positions it was worked out from.
-    score: Option<(usize, scoring::Score)>,
+    score: Option<(usize, scoring::Scores)>,
     /// The two fixes of `flown` that lie farthest apart, and how far.
     longest: Option<(GeoPoint, GeoPoint, f64)>,
     /// The task being flown, if the pilot set one.
     task: Option<TaskFlown>,
     /// The flight as others may watch it, if the pilot shares it.
     live: Option<LiveShare>,
+    /// The aircraft other networks hear around the glider, with their
+    /// tracks of the last minutes, from the answers the shell handed in.
+    others: OthersHeard,
     /// Whether a recorded flight was played into this session. What is
     /// replayed is never shared: it would put a glider on other people's
     /// maps that is not there.
@@ -847,6 +865,7 @@ impl FlightSession {
                 longest: None,
                 task: None,
                 live: None,
+                others: OthersHeard::default(),
                 replayed: false,
             }),
         })
@@ -974,7 +993,7 @@ impl FlightSession {
                 _ => inner.flown.clone(),
             }
         };
-        let score = scoring::score(&flown)?;
+        let score = scoring::scores(&flown)?;
         let view = live_score(&score, &flown);
         self.lock().score = Some((flown.len(), score));
         Some(view)
@@ -1376,6 +1395,26 @@ impl FlightSession {
             .transpose()?;
         self.lock().task = task;
         Ok(())
+    }
+
+    /// Takes in the server's answer about others in the air around the
+    /// glider, as [`crate::live_others`] read it from the path that
+    /// [`crate::cockpit_others_path`] gave. `now_unix_s` is when the
+    /// answer came. The session keeps each aircraft's track of the last
+    /// five minutes from the answers it is given.
+    pub fn on_others(&self, others: LiveOthers, now_unix_s: f64) {
+        self.lock().others.take(others, now_unix_s);
+    }
+
+    /// The aircraft of other networks around the glider for the cockpit's
+    /// map, nearest first, each with its track of the last five minutes.
+    /// Empty until there is a position and an answer.
+    pub fn others_near(&self, now_unix_s: f64) -> OthersNear {
+        let inner = self.lock();
+        let state = inner.computer.state(now_unix_s);
+        inner
+            .others
+            .near(state.position, state.altitude_m, now_unix_s)
     }
 
     /// The task as the cockpit shows it. `None` without a task, and until
@@ -1858,12 +1897,32 @@ impl FlightSession {
                 damaged: instrument.damaged,
             }),
             airspace_proximity: inner.watch.as_ref().and_then(AirspaceWatch::proximity),
+            task_readings: inner.task.as_ref().and_then(|task| {
+                task.readings(
+                    now_unix_s,
+                    state.altitude_m,
+                    state.ground_speed_ms,
+                    state.circling,
+                    state.wind,
+                    &inner.glider,
+                )
+            }),
         }
     }
 }
 
 /// A score as the cockpit shows it.
-fn live_score(score: &scoring::Score, flown: &[Fix]) -> LiveScore {
+fn live_score(scores: &scoring::Scores, flown: &[Fix]) -> LiveScore {
+    let score = &scores.best;
+    // The circle that closes the best triangle, while it is open: also
+    // while a free flight scores more, for a triangle that may still be
+    // closed.
+    let closing = scores
+        .triangle
+        .as_ref()
+        .filter(|triangle| !triangle.closed)
+        .and_then(|triangle| scoring::closing_circle(triangle, flown))
+        .map(|circle| closing_circle_view(&circle, flown.last().map(|fix| fix.position)));
     LiveScore {
         kind: match score.kind {
             scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
@@ -1883,6 +1942,7 @@ fn live_score(score: &scoring::Score, flown: &[Fix]) -> LiveScore {
                 lon: fix.position.lon(),
             })
             .collect(),
+        closing,
     }
 }
 
@@ -3171,6 +3231,68 @@ mod tests {
             whole.distance_m,
             finished.distance_m
         );
+    }
+
+    #[test]
+    fn an_open_triangle_shows_its_closing_circle_and_what_it_scores_closed() {
+        // Round a triangle of some 12 km a side and back towards the
+        // start, a fix every ten seconds as the cockpit keeps them, and
+        // stop 4 km short of it.
+        let start = DateTime::from_timestamp(1_783_150_000, 0).unwrap();
+        let place = |east_km: f64, north_km: f64| {
+            GeoPoint::new(
+                47.0 + north_km / 111.195,
+                11.0 + east_km / (111.195 * 47.0_f64.to_radians().cos()),
+            )
+            .unwrap()
+        };
+        let corners: [(f64, f64); 4] = [(0.0, 0.0), (12.0, 0.0), (7.0, 12.0), (2.0, 3.46)];
+        let mut flown = Vec::new();
+        for leg in corners.windows(2) {
+            let ((e0, n0), (e1, n1)) = (leg[0], leg[1]);
+            let steps = (e1 - e0).hypot(n1 - n0).mul_add(10.0, 1.0) as usize;
+            for step in 0..steps {
+                let part = step as f64 / steps as f64;
+                flown.push(Fix {
+                    time: start + chrono::Duration::seconds(10 * flown.len() as i64),
+                    position: place(e0 + (e1 - e0) * part, n0 + (n1 - n0) * part),
+                    gps_altitude_m: 2000,
+                    pressure_altitude_m: 2000,
+                    valid: true,
+                });
+            }
+        }
+        let scores = scoring::scores(&flown).unwrap();
+        let view = live_score(&scores, &flown);
+        assert!(!view.closed);
+        let circle = view.closing.unwrap();
+        // 5% of some 37 km around the start; the glider is 4 km from the
+        // start, so a little over 2 km from the edge.
+        assert!((circle.radius_m - 0.05 * circle.perimeter_m).abs() < 1e-6);
+        let edge = circle.distance_to_edge_m.unwrap();
+        let here = flown.last().unwrap().position;
+        let centre = GeoPoint::new(circle.centre.lat, circle.centre.lon).unwrap();
+        assert!((edge - (here.distance_m(centre) - circle.radius_m)).abs() < 1e-6);
+        assert!(edge > 1_500.0 && edge < 3_500.0, "{edge}");
+        assert!(
+            circle.words.starts_with("Closing circle 2.")
+                && circle.words.contains("closed FAI triangle of"),
+            "{}",
+            circle.words
+        );
+        assert!(circle.closed_points > view.points);
+
+        // A closed triangle has nothing left to close.
+        flown.push(Fix {
+            time: flown.last().unwrap().time + chrono::Duration::seconds(600),
+            position: place(0.1, 0.1),
+            gps_altitude_m: 2000,
+            pressure_altitude_m: 2000,
+            valid: true,
+        });
+        let closed = live_score(&scoring::scores(&flown).unwrap(), &flown);
+        assert!(closed.closed);
+        assert_eq!(closed.closing, None);
     }
 
     #[test]

@@ -13,7 +13,9 @@ use std::io;
 
 use venti_domain::GeoPoint;
 use venti_flight::geodesy::Earth;
-use venti_flight::live::navigation::Target;
+use venti_flight::live::Wind;
+use venti_flight::live::navigation::{Glider, Target};
+use venti_flight::task::glide;
 use venti_flight::task::progress::{Fix, Phase, TaskEvent, TaskFlight, TaskStatus};
 use venti_flight::task::route::Zone;
 use venti_flight::task::{
@@ -279,6 +281,138 @@ pub struct TaskEventView {
     /// The same in words a voice can say: "Start taken", "WEST reached",
     /// "Speed section done", "Goal".
     pub words: String,
+}
+
+/// One place ahead on the competition page: the next turnpoint, or goal.
+/// The height to arrive at is the place's own as the task gives it; for
+/// goal, with the finish altitude the task sets on top.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct TaskLegReading {
+    /// Its name.
+    pub name: String,
+    /// Whether it is the goal.
+    pub is_goal: bool,
+    /// How far it is along the shortest way through the cylinders before
+    /// it, metres.
+    pub distance_m: f64,
+    /// The height to arrive at, metres above sea level. Absent where the
+    /// task gives none: a waypoint of a route written with zero.
+    pub arrive_at_m: Option<f64>,
+    /// The altitude the glider needs now to arrive at that height: it plus
+    /// what the glide along the shortest way costs at trim speed in the
+    /// wind last worked out. Absent without a height to arrive at, and
+    /// when the wind lets the glider make no way on a leg.
+    pub altitude_needed_m: Option<f64>,
+    /// How far the glider is over that altitude, metres; negative under
+    /// it.
+    pub over_needed_m: Option<f64>,
+    /// The same in words: "+180 m", "-60 m".
+    pub over_needed_words: Option<String>,
+    /// The glide ratio over the ground that reaches the height to arrive
+    /// at along the way. Absent when the glider is not above it.
+    pub glide_needed: Option<f64>,
+    /// When the glider arrives at the speed it makes, seconds since
+    /// 1970-01-01 UTC. The speed is the speed section's average once the
+    /// clock has run a minute, else the speed over the ground while not
+    /// circling. Absent while neither is above walking pace.
+    pub arrives_unix_s: Option<i64>,
+    /// How long until then, seconds.
+    pub arrives_in_s: Option<i64>,
+    /// In one line: "WEST · 12.4 km · +180 m · glide 8.2 · in 23 min".
+    pub words: String,
+}
+
+/// The start gate as the competition page says it, until the start is
+/// taken.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct TaskStartReading {
+    /// Seconds until the gate opens; negative once it is open. Absent for
+    /// a start that is always open.
+    pub opens_in_s: Option<i64>,
+    /// How long the glider takes to the start's edge at its speed over the
+    /// ground, seconds. Absent while it hardly moves.
+    pub arrives_in_s: Option<i64>,
+    /// How much earlier than the gate the glider arrives at the edge,
+    /// seconds; negative when it arrives after the gate opened. Absent
+    /// once the gate is open, and without an arrival.
+    pub early_by_s: Option<i64>,
+    /// "Start opens in 12:30; you arrive 3 min early", "Start opens in
+    /// 4:10; you arrive 2 min after it opens", "Start is open; next gate in
+    /// 15:00", "Start is open".
+    pub words: String,
+}
+
+/// The readings of an instrument's competition page, for a task in
+/// flight.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct TaskReadings {
+    /// The turnpoint to fly to. Absent in goal.
+    pub next: Option<TaskLegReading>,
+    /// The goal, while it is ahead. The same place as `next` on the last
+    /// leg.
+    pub goal: Option<TaskLegReading>,
+    /// The start gate, until the start is taken.
+    pub start: Option<TaskStartReading>,
+    /// The speed section's average speed, metres per second: the part of
+    /// its shortest way flown over the time on the clock. Absent before
+    /// the start and for its first minute.
+    pub speed_section_average_ms: Option<f64>,
+    /// The same in words: "31.2 km/h".
+    pub speed_section_average_words: Option<String>,
+    /// Whether a wind was known for the altitudes needed. Without one,
+    /// still air is assumed, and the screen should say so.
+    pub wind_known: bool,
+}
+
+/// Below this speed, metres per second, no time of arrival is given.
+const WALKING_PACE_MS: f64 = 1.0;
+
+/// A gate met within this many seconds is met on time.
+const ON_TIME_S: i64 = 30;
+
+/// "12:30", "1:05:00".
+fn countdown(seconds: i64) -> String {
+    let seconds = seconds.max(0);
+    let (hours, minutes, seconds) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes}:{seconds:02}")
+    }
+}
+
+/// "3 min", "1 h 05 min", at least one minute.
+fn minutes_in_words(seconds: i64) -> String {
+    let minutes = ((seconds.max(0) as f64) / 60.0).round().max(1.0) as i64;
+    if minutes >= 60 {
+        format!("{} h {:02} min", minutes / 60, minutes % 60)
+    } else {
+        format!("{minutes} min")
+    }
+}
+
+fn start_words(
+    opens_in_s: Option<i64>,
+    next_gate_in_s: Option<i64>,
+    early_by_s: Option<i64>,
+) -> String {
+    match opens_in_s {
+        Some(opens) if opens > 0 => {
+            let arrival = match early_by_s {
+                Some(early) if early.abs() < ON_TIME_S => "; you arrive as it opens".to_owned(),
+                Some(early) if early > 0 => {
+                    format!("; you arrive {} early", minutes_in_words(early))
+                }
+                Some(late) => format!("; you arrive {} after it opens", minutes_in_words(-late)),
+                None => String::new(),
+            };
+            format!("Start opens in {}{arrival}", countdown(opens))
+        }
+        _ => match next_gate_in_s.filter(|seconds| *seconds > 0) {
+            Some(next) => format!("Start is open; next gate in {}", countdown(next)),
+            None => "Start is open".to_owned(),
+        },
+    }
 }
 
 fn coordinate(point: GeoPoint) -> Coordinate {
@@ -711,6 +845,142 @@ impl TaskFlown {
             name: next.name.clone(),
             position: next.aim,
             elevation_m,
+        })
+    }
+
+    /// The readings of the competition page. `None` until there is a
+    /// position.
+    pub(crate) fn readings(
+        &self,
+        now_unix_s: f64,
+        altitude_m: Option<f64>,
+        ground_speed_ms: Option<f64>,
+        circling: bool,
+        wind: Option<Wind>,
+        glider: &Glider,
+    ) -> Option<TaskReadings> {
+        let (fix, status) = self.status.as_ref()?;
+        let task = self.flight.task();
+        let now = now_unix_s as i64;
+        let points = status.way.get(1..).unwrap_or_default();
+        let glide = glide::along_way(task.earth, fix.position, points, wind, glider);
+        let speed_ms = status
+            .speed_section_average_ms
+            .or_else(|| ground_speed_ms.filter(|_| !circling))
+            .filter(|speed| *speed > WALKING_PACE_MS);
+        let goal_index = task.goal_index();
+
+        let leg =
+            |name: &str, is_goal: bool, distance_m: f64, arrive_at_m: Option<f64>, at: usize| {
+                let lost = glide
+                    .as_ref()
+                    .and_then(|glide| glide.get(at))
+                    .map(|to| to.height_lost_m);
+                let altitude_needed_m = arrive_at_m.zip(lost).map(|(arrive, lost)| arrive + lost);
+                let over_needed_m = altitude_m
+                    .zip(altitude_needed_m)
+                    .map(|(altitude, needed)| altitude - needed);
+                let glide_needed = altitude_m
+                    .zip(arrive_at_m)
+                    .map(|(altitude, arrive)| altitude - arrive)
+                    .filter(|above| *above > 0.0)
+                    .map(|above| distance_m / above);
+                let arrives_in_s = speed_ms.map(|speed| (distance_m / speed).round() as i64);
+                let over_needed_words = over_needed_m.map(|over| format!("{over:+.0} m"));
+                let mut words = vec![
+                    if name.is_empty() {
+                        "Goal".to_owned()
+                    } else {
+                        name.to_owned()
+                    },
+                    format!("{:.1} km", distance_m / 1000.0),
+                ];
+                words.extend(over_needed_words.clone());
+                words.extend(glide_needed.map(|glide| format!("glide {glide:.1}")));
+                words.extend(
+                    arrives_in_s.map(|seconds| format!("in {}", minutes_in_words(seconds))),
+                );
+                TaskLegReading {
+                    name: name.to_owned(),
+                    is_goal,
+                    distance_m,
+                    arrive_at_m,
+                    altitude_needed_m,
+                    over_needed_m,
+                    over_needed_words,
+                    glide_needed,
+                    arrives_unix_s: arrives_in_s.map(|seconds| now + seconds),
+                    arrives_in_s,
+                    words: words.join(" · "),
+                }
+            };
+        let goal_height = task
+            .turnpoints
+            .last()
+            .map(|goal| goal.altitude_m + task.goal.finish_altitude_m.unwrap_or(0.0));
+        let next = status.next.as_ref().map(|next| {
+            let is_goal = next.index == goal_index;
+            let arrive_at_m = if is_goal {
+                goal_height
+            } else {
+                match task.kind {
+                    TaskKind::Route => (next.altitude_m != 0.0).then_some(next.altitude_m),
+                    // The start is left or entered at whatever height:
+                    // there is nothing to arrive at.
+                    TaskKind::Competition if Some(next.index) == task.start_index() => None,
+                    TaskKind::Competition => Some(next.altitude_m),
+                }
+            };
+            leg(&next.name, is_goal, next.distance_m, arrive_at_m, 0)
+        });
+        let goal = status
+            .next
+            .as_ref()
+            .filter(|_| !points.is_empty())
+            .and_then(|_| task.turnpoints.last())
+            .map(|last| {
+                leg(
+                    &last.name,
+                    true,
+                    status.to_goal_m,
+                    goal_height,
+                    points.len() - 1,
+                )
+            });
+
+        let start = status
+            .start
+            .filter(|_| status.phase == Phase::BeforeStart)
+            .map(|start| {
+                let opens_in_s = start.gate_unix_s.map(|gate| gate - now);
+                let arrives_in_s = ground_speed_ms
+                    .filter(|speed| *speed > WALKING_PACE_MS)
+                    .map(|speed| (start.distance_m / speed).round() as i64);
+                let early_by_s = opens_in_s
+                    .filter(|opens| *opens > 0)
+                    .zip(arrives_in_s)
+                    .map(|(opens, arrives)| opens - arrives);
+                TaskStartReading {
+                    opens_in_s,
+                    arrives_in_s,
+                    early_by_s,
+                    words: start_words(
+                        opens_in_s,
+                        start.next_gate_unix_s.map(|gate| gate - now),
+                        early_by_s,
+                    ),
+                }
+            });
+
+        Some(TaskReadings {
+            next,
+            goal,
+            start,
+            speed_section_average_ms: status.speed_section_average_ms,
+            speed_section_average_words: status
+                .speed_section_average_ms
+                .map(|speed| format!("{:.1} km/h", speed * 3.6)),
+            wind_known: wind.is_some(),
         })
     }
 
@@ -1150,5 +1420,133 @@ mod tests {
             earth.destination(west, 90.0, 1_990.0),
         );
         assert_eq!(flown.take_event().unwrap().words, "WEST reached");
+    }
+
+    #[test]
+    fn the_competition_page_reads_the_next_turnpoint_goal_and_gate() {
+        let glider = Glider {
+            trim_speed_ms: 10.0,
+            glide_ratio: 8.0,
+        };
+        let mut flown = TaskFlown::begin(FILE_TEXT, at(9, 30)).unwrap();
+        assert!(
+            flown
+                .readings(at(10, 50) as f64, Some(2_000.0), None, false, None, &glider)
+                .is_none()
+        );
+        let earth = Earth::Wgs84;
+        let launch = GeoPoint::new(47.30, 11.40).unwrap();
+
+        // Two kilometres west of the launch, inside the start, ten minutes
+        // before the gate: 3 km to the edge at 10 m/s is five minutes.
+        flown.feed(at(10, 50) as f64, earth.destination(launch, 270.0, 2_000.0));
+        let waiting = flown
+            .readings(
+                at(10, 50) as f64,
+                Some(2_400.0),
+                Some(10.0),
+                false,
+                None,
+                &glider,
+            )
+            .unwrap();
+        let start = waiting.start.clone().unwrap();
+        assert_eq!(start.opens_in_s, Some(600));
+        let arrives = start.arrives_in_s.unwrap();
+        assert!((arrives - 300).abs() < 6, "{start:?}");
+        assert_eq!(start.early_by_s, Some(600 - arrives));
+        assert_eq!(start.words, "Start opens in 10:00; you arrive 5 min early");
+        // The start has no height to arrive at; the goal has.
+        let next = waiting.next.clone().unwrap();
+        assert_eq!(next.name, "LAUNCH");
+        assert_eq!(next.arrive_at_m, None);
+        assert_eq!(next.over_needed_m, None);
+        let goal = waiting.goal.clone().unwrap();
+        assert!(goal.is_goal);
+        assert_eq!(goal.arrive_at_m, Some(700.0));
+        // Still air: the whole way over the glide of 8.
+        let needed = goal.altitude_needed_m.unwrap();
+        assert!(
+            (needed - (700.0 + goal.distance_m / 8.0)).abs() < 1.0,
+            "{goal:?}"
+        );
+        assert!((goal.over_needed_m.unwrap() - (2_400.0 - needed)).abs() < 1e-9);
+        assert!((goal.glide_needed.unwrap() - goal.distance_m / 1_700.0).abs() < 1e-9);
+        assert_eq!(waiting.speed_section_average_ms, None);
+        assert!(!waiting.wind_known);
+        // A headwind on the way out costs height.
+        let windy = flown
+            .readings(
+                at(10, 50) as f64,
+                Some(2_400.0),
+                Some(10.0),
+                false,
+                Some(Wind {
+                    from_deg: 270.0,
+                    speed_ms: 4.0,
+                }),
+                &glider,
+            )
+            .unwrap();
+        assert!(windy.wind_known);
+        assert!(windy.goal.unwrap().altitude_needed_m.unwrap() > needed + 50.0);
+        // While circling the speed over the ground says nothing about
+        // when the glider arrives.
+        let circling = flown
+            .readings(
+                at(10, 50) as f64,
+                Some(2_400.0),
+                Some(10.0),
+                true,
+                None,
+                &glider,
+            )
+            .unwrap();
+        assert_eq!(circling.goal.unwrap().arrives_in_s, None);
+        assert_eq!(
+            circling.start.unwrap().arrives_in_s.map(|s| s > 0),
+            Some(true)
+        );
+
+        // Out of the start after the second gate, and ten minutes on.
+        flown.feed(at(11, 25) as f64, earth.destination(launch, 270.0, 4_990.0));
+        flown.feed(
+            at(11, 25) as f64 + 1.0,
+            earth.destination(launch, 270.0, 5_010.0),
+        );
+        flown.feed(at(11, 30) as f64, earth.destination(launch, 270.0, 8_000.0));
+        let racing = flown
+            .readings(
+                at(11, 30) as f64,
+                Some(2_000.0),
+                Some(12.0),
+                false,
+                None,
+                &glider,
+            )
+            .unwrap();
+        assert_eq!(racing.start, None);
+        let next = racing.next.unwrap();
+        assert_eq!(next.name, "WEST");
+        assert_eq!(next.arrive_at_m, Some(1_200.0));
+        assert!(
+            next.over_needed_words
+                .as_deref()
+                .unwrap()
+                .starts_with(['+', '-'])
+        );
+        // The clock runs from 11:20: ten minutes, and the average speed
+        // gives the times of arrival.
+        let average = racing.speed_section_average_ms.unwrap();
+        assert!(average > 0.0 && average < 12.0, "{average}");
+        assert_eq!(
+            racing.speed_section_average_words,
+            Some(format!("{:.1} km/h", average * 3.6))
+        );
+        let arrives = next.arrives_in_s.unwrap();
+        assert_eq!(arrives, (next.distance_m / average).round() as i64);
+        assert_eq!(next.arrives_unix_s, Some(at(11, 30) + arrives));
+        assert!(next.words.starts_with("WEST · "), "{}", next.words);
+        assert!(next.words.contains(" km · "), "{}", next.words);
     }
 }

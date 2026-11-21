@@ -29,6 +29,10 @@ use venti_domain::GeoPoint;
 use super::route::{self, Zone};
 use super::{Measured, StartKind, Task};
 
+/// The speed section's average speed is given once the clock has run
+/// this long, seconds.
+const MIN_AVERAGE_S: i64 = 60;
+
 /// Where the glider is at a moment.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fix {
@@ -141,6 +145,12 @@ pub struct TaskStatus {
     pub clock_from_unix_s: Option<i64>,
     /// How long the speed section took, seconds, once it is flown.
     pub speed_section_time_s: Option<i64>,
+    /// The speed made along the speed section since the clock started,
+    /// metres per second: the part of its shortest way flown, over the
+    /// time on the clock. Once the section is flown, its length over its
+    /// time. `None` before the start and for the first minute after it,
+    /// when a few metres make a speed of nothing.
+    pub speed_section_average_ms: Option<f64>,
     /// When the goal was reached.
     pub goal_unix_s: Option<i64>,
     /// When the task ends.
@@ -475,6 +485,19 @@ impl TaskFlight {
             }
         });
 
+        let speed_section_average_ms = self.clock_from.and_then(|from| {
+            let length = self.measured.speed_section_m?;
+            let (flown_m, elapsed_s) = match end_reached {
+                Some(end) => (length, end - from),
+                None if phase == Phase::OnTask => (
+                    (length - to_end_of_speed_m?).max(0.0),
+                    now.time_unix_s - from,
+                ),
+                None => return None,
+            };
+            (elapsed_s >= MIN_AVERAGE_S).then(|| flown_m / elapsed_s as f64)
+        });
+
         let mut line = Vec::with_capacity(way.points.len() + 1);
         if !way.points.is_empty() {
             line.push(now.position);
@@ -492,6 +515,7 @@ impl TaskFlight {
             speed_section_time_s: end_reached
                 .zip(self.clock_from)
                 .map(|(end, from)| end - from),
+            speed_section_average_ms,
             goal_unix_s,
             deadline_unix_s: self.deadline(),
             reached_unix_s: self.reached.clone(),
@@ -564,6 +588,7 @@ mod tests {
         // Before the gate, waiting inside the start cylinder.
         let before = flight.status(here(at(10, 50, 0), launch));
         assert_eq!(before.phase, Phase::BeforeStart);
+        assert_eq!(before.speed_section_average_ms, None);
         let start = before.start.unwrap();
         assert_eq!(start.gate_unix_s, Some(at(11, 0, 0)));
         assert_eq!(start.opens_in_s, Some(600));
@@ -623,6 +648,10 @@ mod tests {
         let part = on_task.speed_section_part.unwrap();
         assert!(part > 0.1 && part < 0.4, "{part}");
         assert!(on_task.to_end_of_speed_m.unwrap() < on_task.to_goal_m);
+        // The clock runs from the gate, and the glider crossed a minute
+        // after it at 15 m/s: the average is a little under that.
+        let average = on_task.speed_section_average_ms.unwrap();
+        assert!(average > 10.0 && average < 15.0, "{average}");
 
         // To EAST, then to goal from the north-east.
         let east = turnpoints[3].position;
@@ -658,6 +687,8 @@ mod tests {
         assert_eq!(end.to_goal_m, 0.0);
         assert_eq!(end.speed_section_part, Some(1.0));
         assert_eq!(end.speed_section_time_s, Some(done));
+        let length = flight.measured().speed_section_m.unwrap();
+        assert_eq!(end.speed_section_average_ms, Some(length / done as f64));
         // The time runs from the gate, not from the crossing.
         assert_eq!(end.reached_unix_s[4].unwrap() - at(11, 0, 0), done);
         assert!(end.goal_unix_s.unwrap() > end.reached_unix_s[4].unwrap());

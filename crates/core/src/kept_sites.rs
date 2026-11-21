@@ -464,6 +464,121 @@ impl Core {
     }
 }
 
+/// The most take-offs the cockpit's map is given.
+const COCKPIT_TAKEOFFS: usize = 50;
+
+/// A take-off on the cockpit's map.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CockpitTakeoff {
+    /// The site, as the answer or the pilot's own record has it.
+    pub site: SiteView,
+    /// Whether it is one of the pilot's own.
+    pub is_kept: bool,
+    /// How far it is from the glider, metres.
+    pub distance_m: f64,
+    /// The direction to it, degrees clockwise from north.
+    pub bearing_deg: f64,
+}
+
+/// The take-offs around the glider, for the cockpit's map.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CockpitTakeoffs {
+    /// Nearest first, at most fifty.
+    pub takeoffs: Vec<CockpitTakeoff>,
+    /// Credits to show with the map while they are drawn: one for each
+    /// source with a take-off in the list.
+    pub credits: Vec<Credit>,
+}
+
+#[uniffi::export]
+impl Core {
+    /// The take-offs to draw on the cockpit's map: those the app holds
+    /// around the glider, nearest first, at most fifty. They are the
+    /// pilot's own take-offs, which need no network, and those of `near`:
+    /// the server's answer for [`today_area`] around the glider, as
+    /// [`crate::sites_map`] read it, which the shell asks for again when
+    /// the glider has flown out of the area it asked for. A site that is
+    /// both is drawn once, as the answer has it.
+    ///
+    /// Every take-off is drawn, those the source marks as discouraged and
+    /// those from pilots among them, each with its record saying what it
+    /// is: on a map in the air a place is a landmark, not advice to fly
+    /// from it.
+    pub fn cockpit_takeoffs(
+        &self,
+        glider: Coordinate,
+        near: Option<SitesMap>,
+    ) -> Result<CockpitTakeoffs, CoreError> {
+        let Ok(here) = GeoPoint::new(glider.lat, glider.lon) else {
+            return Ok(CockpitTakeoffs {
+                takeoffs: Vec::new(),
+                credits: Vec::new(),
+            });
+        };
+        let layers = self.kept_layers()?;
+        let is_kept = |id: &str| {
+            layers
+                .iter()
+                .flat_map(|layer| &layer.sites)
+                .any(|kept| kept.site.id.to_string() == id)
+        };
+        let answered: Vec<&SiteView> = near
+            .iter()
+            .flat_map(|seen| &seen.sites)
+            .filter(|site| site.uses.contains(&SiteKind::Takeoff))
+            .collect();
+        let own = layers
+            .iter()
+            .flat_map(|layer| &layer.sites)
+            .filter(|kept| kept.site.is(SiteUse::Takeoff))
+            .filter(|kept| {
+                !answered
+                    .iter()
+                    .any(|site| site.id == kept.site.id.to_string())
+            })
+            .map(|kept| (site_view(&kept.site, kept.standing.as_ref()), true));
+        let around = answered
+            .iter()
+            .map(|site| ((*site).clone(), is_kept(&site.id)));
+        let mut takeoffs: Vec<CockpitTakeoff> = own
+            .chain(around)
+            .filter_map(|(site, is_kept)| {
+                let position = GeoPoint::new(site.position.lat, site.position.lon).ok()?;
+                Some(CockpitTakeoff {
+                    distance_m: here.distance_m(position),
+                    bearing_deg: bearing_deg(here, position),
+                    site,
+                    is_kept,
+                })
+            })
+            .collect();
+        takeoffs.sort_by(|a, b| a.distance_m.total_cmp(&b.distance_m));
+        takeoffs.truncate(COCKPIT_TAKEOFFS);
+
+        let mut credits: Vec<Credit> = Vec::new();
+        for takeoff in &takeoffs {
+            let source = &takeoff.site.source;
+            if credits.iter().any(|credit| &credit.source == source) {
+                continue;
+            }
+            let from_answer = near
+                .iter()
+                .flat_map(|seen| &seen.credits)
+                .find(|credit| &credit.source == source)
+                .cloned();
+            let from_kept = || {
+                layers
+                    .iter()
+                    .find(|layer| layer.source.as_str() == source)
+                    .and_then(|layer| layer.attribution.as_ref())
+                    .map(site_credit)
+            };
+            credits.extend(from_answer.or_else(from_kept));
+        }
+        Ok(CockpitTakeoffs { takeoffs, credits })
+    }
+}
+
 impl Core {
     /// Every source's kept sites. A file that storage has yet to fetch is
     /// an error and not "nothing kept": the host fetches it and makes its
@@ -762,6 +877,74 @@ mod tests {
             .iter()
             .map(|takeoff| (takeoff.site.id.rsplit('/').next().unwrap(), takeoff.is_kept))
             .collect()
+    }
+
+    #[test]
+    fn the_cockpit_map_has_the_take_offs_around_the_glider_nearest_first() {
+        on_every_storage(|backing| {
+            let core = Core::with_storage(backing.open()).unwrap();
+            // Nothing held: nothing to draw, and no credit.
+            let none = core.cockpit_takeoffs(WALLBERG, None).unwrap();
+            assert!(none.takeoffs.is_empty() && none.credits.is_empty());
+
+            // A kept take-off far away, held without a network.
+            let far = made_up(&takeoff(1, Some("Far"), 80.0, ""));
+            keep(&core, &far, "osm-free-flying:node/1");
+            let kept = core.cockpit_takeoffs(WALLBERG, None).unwrap();
+            assert_eq!(kept.takeoffs.len(), 1);
+            assert!(kept.takeoffs[0].is_kept);
+            assert!((kept.takeoffs[0].distance_m - 80_000.0).abs() < 200.0);
+            assert_eq!(kept.credits.len(), 1);
+
+            // Sixty take-offs around, a discouraged one among them, and a
+            // landing: the fifty nearest take-offs, the kept one too far
+            // to be among them, the landing never.
+            let mut sites: Vec<String> = (10..70)
+                .map(|number| {
+                    let more = if number == 10 {
+                        r#", "discouraged": true"#
+                    } else {
+                        ""
+                    };
+                    takeoff(number, None, f64::from(number - 9) * 0.5, more)
+                })
+                .collect();
+            sites.push(
+                r#"{"id": "osm-free-flying:node/99", "position": {"lat": 47.6643, "lon": 11.7967}, "uses": ["landing"]}"#
+                    .to_owned(),
+            );
+            let near = made_up(&sites.join(","));
+            let drawn = core.cockpit_takeoffs(WALLBERG, Some(near.clone())).unwrap();
+            assert_eq!(drawn.takeoffs.len(), 50);
+            assert!(
+                drawn
+                    .takeoffs
+                    .windows(2)
+                    .all(|pair| pair[0].distance_m <= pair[1].distance_m)
+            );
+            assert_eq!(drawn.takeoffs[0].site.id, "osm-free-flying:node/10");
+            assert!(drawn.takeoffs[0].site.discouraged);
+            assert!((drawn.takeoffs[0].bearing_deg).abs() < 1.0);
+            assert!(drawn.takeoffs.iter().all(|takeoff| !takeoff.is_kept));
+            assert!(
+                drawn
+                    .takeoffs
+                    .iter()
+                    .all(|takeoff| takeoff.site.id != "osm-free-flying:node/99")
+            );
+            assert_eq!(drawn.credits, near.credits);
+
+            // A kept take-off that the answer holds is drawn once, as kept.
+            keep(&core, &near, "osm-free-flying:node/11");
+            let again = core.cockpit_takeoffs(WALLBERG, Some(near)).unwrap();
+            let elevens: Vec<&CockpitTakeoff> = again
+                .takeoffs
+                .iter()
+                .filter(|takeoff| takeoff.site.id == "osm-free-flying:node/11")
+                .collect();
+            assert_eq!(elevens.len(), 1);
+            assert!(elevens[0].is_kept);
+        });
     }
 
     #[test]

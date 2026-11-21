@@ -18,6 +18,8 @@
 //! a flight has been compared with XContest's result, the points are ours,
 //! not the league's.
 
+use venti_domain::GeoPoint;
+
 use crate::igc::Fix;
 use crate::track;
 
@@ -71,14 +73,94 @@ pub struct Score {
     pub closing_m: Option<f64>,
 }
 
+/// A triangle closes when start and finish lie closer together than this
+/// share of its perimeter.
+pub const CLOSED_SHARE: f64 = 0.05;
+
+/// A triangle counts at all when start and finish lie closer together
+/// than this share of its perimeter.
+pub const COUNTS_SHARE: f64 = 0.2;
+
 /// Scores a track. Give it the flown part of a recording. Returns `None`
 /// for a track of fewer than two fixes.
 pub fn score(fixes: &[Fix]) -> Option<Score> {
+    scores(fixes).map(|scores| scores.best)
+}
+
+/// The best score of a track, and its best triangle even where a free
+/// flight scores more: an open triangle that a pilot may still close.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Scores {
+    /// The score that counts.
+    pub best: Score,
+    /// The triangle that scores the most, if the track has one that
+    /// counts.
+    pub triangle: Option<Score>,
+}
+
+/// Scores a track as [`score`] does and keeps its best triangle too.
+pub fn scores(fixes: &[Fix]) -> Option<Scores> {
     let free = free_flight(fixes)?;
-    match triangle(fixes) {
-        Some(triangle) if triangle.points > free.points => Some(triangle),
-        _ => Some(free),
+    let triangle = triangle(fixes);
+    let best = match &triangle {
+        Some(triangle) if triangle.points > free.points => triangle.clone(),
+        _ => free,
+    };
+    Some(Scores { best, triangle })
+}
+
+/// Where a triangle closes: the circle around its start that its finish
+/// must come into.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClosingCircle {
+    /// The triangle's start, the circle's centre.
+    pub centre: GeoPoint,
+    /// The radius in metres: 5% of the triangle's perimeter. A finish
+    /// inside it closes the triangle.
+    pub radius_m: f64,
+    /// 20% of the perimeter: with the finish farther from the start than
+    /// this the flight is no triangle at all.
+    pub counts_radius_m: f64,
+    /// The perimeter of the triangle through its three turnpoints, metres.
+    pub perimeter_m: f64,
+    /// What the triangle is.
+    pub kind: RouteKind,
+    /// What it scores closed with its finish on the circle's edge, the
+    /// least a closed triangle of these turnpoints scores: the perimeter
+    /// less the radius, metres.
+    pub closed_distance_m: f64,
+    /// The points for that.
+    pub closed_points: f64,
+}
+
+/// The closing circle of a triangle, from its score and the fixes it was
+/// scored from. `None` for a free flight.
+///
+/// The rule is XContest's ([module](self)): the triangle's three
+/// turnpoints stay as they are, and the finish has to come within 5% of
+/// the perimeter of the start. Flying on can find other turnpoints, and
+/// then another circle.
+pub fn closing_circle(triangle: &Score, fixes: &[Fix]) -> Option<ClosingCircle> {
+    if triangle.kind == RouteKind::FreeFlight {
+        return None;
     }
+    let [start, a, b, c, _] = triangle.route.as_slice() else {
+        return None;
+    };
+    let at = |index: &usize| fixes.get(*index).map(|fix| fix.position);
+    let (start, a, b, c) = (at(start)?, at(a)?, at(b)?, at(c)?);
+    let perimeter_m = a.distance_m(b) + b.distance_m(c) + c.distance_m(a);
+    let radius_m = CLOSED_SHARE * perimeter_m;
+    let closed_distance_m = perimeter_m - radius_m;
+    Some(ClosingCircle {
+        centre: start,
+        radius_m,
+        counts_radius_m: COUNTS_SHARE * perimeter_m,
+        perimeter_m,
+        kind: triangle.kind,
+        closed_distance_m,
+        closed_points: closed_distance_m / 1000.0 * triangle.kind.points_per_km(true),
+    })
 }
 
 /// The longest path start, up to three turnpoints, finish, with the points
@@ -187,7 +269,7 @@ fn triangle(fixes: &[Fix]) -> Option<Score> {
             for b in a + 1..c {
                 let legs = [distance[a][b], distance[b][c], distance[c][a]];
                 let perimeter: f64 = legs.iter().sum();
-                if closing >= 0.2 * perimeter {
+                if closing >= COUNTS_SHARE * perimeter {
                     continue;
                 }
                 let shortest = legs.iter().copied().fold(f64::MAX, f64::min);
@@ -196,7 +278,7 @@ fn triangle(fixes: &[Fix]) -> Option<Score> {
                 } else {
                     RouteKind::FreeTriangle
                 };
-                let closed = closing < 0.05 * perimeter;
+                let closed = closing < CLOSED_SHARE * perimeter;
                 let distance_m = perimeter - closing;
                 let points = distance_m / 1000.0 * kind.points_per_km(closed);
                 if best.as_ref().is_none_or(|score| points > score.points) {
@@ -360,6 +442,55 @@ mod tests {
         assert!(score.points > 10.0, "{score:?}");
         assert!(score.route.windows(2).all(|pair| pair[0] <= pair[1]));
         assert!(*score.route.last().unwrap() < flight.fixes.len());
+    }
+
+    #[test]
+    fn an_open_triangle_has_a_closing_circle_around_its_start() {
+        // The triangle left 4 km open: the circle stands on the start,
+        // 5% of the perimeter wide, and closed on its edge the triangle
+        // scores the perimeter less the radius as a closed FAI triangle.
+        let fixes = track_through(&[(0.0, 0.0), (12.0, 0.0), (7.0, 12.0), (2.0, 3.46)]);
+        let scores = scores(&fixes).unwrap();
+        let triangle = scores.triangle.clone().unwrap();
+        assert_eq!(scores.best, triangle);
+        let circle = closing_circle(&triangle, &fixes).unwrap();
+
+        let perimeter = 12.0 + 5.0_f64.hypot(12.0) + 7.0_f64.hypot(12.0);
+        assert!(
+            (circle.perimeter_m / 1000.0 - perimeter).abs() < 0.2,
+            "{circle:?}"
+        );
+        assert!((circle.radius_m - 0.05 * circle.perimeter_m).abs() < 1e-6);
+        assert!((circle.counts_radius_m - 0.2 * circle.perimeter_m).abs() < 1e-6);
+        assert!(
+            circle.centre.distance_m(fixes[0].position) < 300.0,
+            "{circle:?}"
+        );
+        assert_eq!(circle.kind, RouteKind::FaiTriangle);
+        assert!((circle.closed_distance_m - 0.95 * circle.perimeter_m).abs() < 1e-6);
+        assert!((circle.closed_points - circle.closed_distance_m / 1000.0 * 1.6).abs() < 1e-6);
+        // The glider at the end of the track is outside it: the gap is
+        // about 4 km, the radius under 2.
+        let last = fixes.last().unwrap().position;
+        assert!(circle.centre.distance_m(last) > circle.radius_m);
+    }
+
+    #[test]
+    fn the_best_triangle_is_kept_where_a_free_flight_scores_more() {
+        // Out and back past the start: a free flight scores the most, and
+        // a triangle that counts is still there to close.
+        let fixes = track_through(&[
+            (0.0, 0.0),
+            (12.0, 0.0),
+            (7.0, 12.0),
+            (2.0, 3.46),
+            (-30.0, 0.0),
+        ]);
+        let scores = scores(&fixes).unwrap();
+        assert_eq!(scores.best.kind, RouteKind::FreeFlight);
+        assert!(scores.triangle.is_some());
+        // A free flight has no closing circle.
+        assert_eq!(closing_circle(&scores.best, &fixes), None);
     }
 
     #[test]

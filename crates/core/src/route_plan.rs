@@ -9,6 +9,7 @@
 
 use chrono::DateTime;
 use venti_domain::GeoPoint;
+use venti_flight::geodesy::Earth;
 use venti_flight::igc::Fix;
 use venti_flight::live::navigation::bearing_deg;
 use venti_flight::{fai, scoring};
@@ -63,6 +64,95 @@ pub struct PlannedScore {
     pub name: String,
 }
 
+/// Where a triangle closes: the circle around its start that the finish
+/// has to come into, by XContest's rule that the engine scores with
+/// ([`venti_flight::scoring`]): within 5% of the perimeter of the start.
+/// The triangle's three turnpoints are taken as they stand; flying on can
+/// find others, and then another circle.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+pub struct ClosingCircleView {
+    /// The triangle's start, the circle's centre.
+    pub centre: Coordinate,
+    /// Its radius, metres: 5% of the perimeter.
+    pub radius_m: f64,
+    /// The circle for the map, closed: a point every five degrees and the
+    /// first again at the end.
+    pub outline: Vec<Coordinate>,
+    /// 20% of the perimeter, metres: a finish farther than this from the
+    /// start makes no triangle at all.
+    pub counts_radius_m: f64,
+    /// The perimeter through the three turnpoints, metres.
+    pub perimeter_m: f64,
+    /// What it is closed: "Closed FAI triangle", "Closed triangle".
+    pub kind_words: String,
+    /// What it scores closed with the finish on the circle's edge, the
+    /// least it scores closed: the perimeter less the radius, metres.
+    pub closed_distance_m: f64,
+    /// The points for that.
+    pub closed_points: f64,
+    /// How far the glider is from the circle's edge, metres; zero inside
+    /// it. Absent for a route planned on the map.
+    pub distance_to_edge_m: Option<f64>,
+    /// In a line. In flight: "Closing circle 2.1 km away: closed FAI
+    /// triangle of 57.0 km, 91.2 points"; inside it: "In the closing
+    /// circle: …". Planned: "Closes within 1.6 km of the start: …".
+    pub words: String,
+}
+
+/// The closing circle of a triangle as a map draws it, with the distance
+/// to its edge from `from` when there is a glider.
+pub(crate) fn closing_circle_view(
+    circle: &scoring::ClosingCircle,
+    from: Option<GeoPoint>,
+) -> ClosingCircleView {
+    let point = |point: GeoPoint| Coordinate {
+        lat: point.lat(),
+        lon: point.lon(),
+    };
+    let kind_words = match circle.kind {
+        scoring::RouteKind::FaiTriangle => "Closed FAI triangle",
+        _ => "Closed triangle",
+    };
+    let distance_to_edge_m =
+        from.map(|from| (from.distance_m(circle.centre) - circle.radius_m).max(0.0));
+    let scored = format!(
+        "{} of {:.1} km, {:.1} points",
+        kind_words.to_lowercase().replace("fai", "FAI"),
+        circle.closed_distance_m / 1000.0,
+        circle.closed_points
+    );
+    let words = match distance_to_edge_m {
+        Some(edge) if edge <= 0.0 => format!("In the closing circle: {scored}"),
+        Some(edge) => format!("Closing circle {:.1} km away: {scored}", edge / 1000.0),
+        None => format!(
+            "Closes within {:.1} km of the start: {scored}",
+            circle.radius_m / 1000.0
+        ),
+    };
+    ClosingCircleView {
+        centre: point(circle.centre),
+        radius_m: circle.radius_m,
+        outline: (0..=72)
+            .map(|step| {
+                point(Earth::FaiSphere.destination(
+                    circle.centre,
+                    f64::from(step) * 5.0,
+                    circle.radius_m,
+                ))
+            })
+            .collect(),
+        counts_radius_m: circle.counts_radius_m,
+        perimeter_m: circle.perimeter_m,
+        kind_words: kind_words.to_owned(),
+        closed_distance_m: circle.closed_distance_m,
+        closed_points: circle.closed_points,
+        distance_to_edge_m,
+        words,
+    }
+}
+
 /// A drawn route in numbers.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
@@ -78,6 +168,16 @@ pub struct RoutePlan {
     /// which a third place makes an FAI triangle with that leg as one
     /// side. Empty otherwise.
     pub fai_areas: Vec<Vec<Coordinate>>,
+    /// Where the route closes as a triangle, when the drawn line makes
+    /// one: the circle around its start that its finish has to come into.
+    /// Absent for a free flight.
+    #[uniffi(default = None)]
+    #[cfg_attr(
+        feature = "wasm",
+        serde(skip_serializing_if = "Option::is_none"),
+        tsify(optional)
+    )]
+    pub closing_circle: Option<ClosingCircleView>,
     /// In a sentence or two: "42.3 km along the route. Flown like this it
     /// scores as a closed FAI triangle: 40.1 km, 64.2 points."
     pub words: String,
@@ -104,7 +204,8 @@ pub fn plan_route(points: Vec<Coordinate>) -> RoutePlan {
         })
         .collect();
     let distance_m: f64 = legs.iter().map(|leg| leg.distance_m).sum();
-    let score = planned_score(&places, distance_m);
+    let (score, closing_circle) = planned_score(&places, distance_m).unzip();
+    let closing_circle = closing_circle.flatten();
     // With one leg, where a third place would make an FAI triangle of it.
     let areas = match places.as_slice() {
         [from, to] => fai::areas(*from, *to),
@@ -162,12 +263,17 @@ pub fn plan_route(points: Vec<Coordinate>) -> RoutePlan {
                     .collect()
             })
             .unwrap_or_default(),
+        closing_circle,
         words,
     }
 }
 
-/// Scores the drawn line as a flight along it would be scored.
-fn planned_score(places: &[GeoPoint], distance_m: f64) -> Option<PlannedScore> {
+/// Scores the drawn line as a flight along it would be scored, with the
+/// closing circle of its best triangle if it makes one.
+fn planned_score(
+    places: &[GeoPoint],
+    distance_m: f64,
+) -> Option<(PlannedScore, Option<ClosingCircleView>)> {
     if places.len() < 2 || distance_m <= 0.0 {
         return None;
     }
@@ -203,7 +309,13 @@ fn planned_score(places: &[GeoPoint], distance_m: f64) -> Option<PlannedScore> {
         })
         .collect::<Option<_>>()?;
 
-    let score = scoring::score(&fixes)?;
+    let scores = scoring::scores(&fixes)?;
+    let closing = scores
+        .triangle
+        .as_ref()
+        .and_then(|triangle| scoring::closing_circle(triangle, &fixes))
+        .map(|circle| closing_circle_view(&circle, None));
+    let score = scores.best;
     let kind = match score.kind {
         scoring::RouteKind::FreeFlight => RouteKind::FreeFlight,
         scoring::RouteKind::FreeTriangle => RouteKind::FreeTriangle,
@@ -216,7 +328,7 @@ fn planned_score(places: &[GeoPoint], distance_m: f64) -> Option<PlannedScore> {
         (RouteKind::FaiTriangle, false) => "FAI triangle",
         (RouteKind::FaiTriangle, true) => "Closed FAI triangle",
     };
-    Some(PlannedScore {
+    let planned = PlannedScore {
         kind,
         closed: score.closed,
         distance_m: score.distance_m,
@@ -233,7 +345,8 @@ fn planned_score(places: &[GeoPoint], distance_m: f64) -> Option<PlannedScore> {
             .collect(),
         closing_m: score.closing_m,
         name: name.to_owned(),
-    })
+    };
+    Some((planned, closing))
 }
 
 /// "a free flight", "an FAI triangle", "a closed triangle".
@@ -291,6 +404,7 @@ mod tests {
         let plan = plan_route(vec![at(WALLBERG.0, WALLBERG.1), at(EAST.0, EAST.1)]);
 
         assert_eq!(plan.legs.len(), 1);
+        assert_eq!(plan.closing_circle, None);
         assert_eq!(plan.legs[0].words, "10.0 km E");
         let score = plan.score.unwrap();
         assert_eq!(score.kind, RouteKind::FreeFlight);
@@ -337,6 +451,23 @@ mod tests {
         assert!((score.points - score.distance_m / 1000.0 * 1.6).abs() < 0.01);
         assert_eq!(score.route.len(), 5);
         assert_eq!(score.name, "Closed FAI triangle");
+        // Its closing circle stands on the start, a twentieth of the way
+        // round wide, drawn as a ring.
+        let circle = plan.closing_circle.clone().unwrap();
+        let start = GeoPoint::new(WALLBERG.0, WALLBERG.1).unwrap();
+        let centre = GeoPoint::new(circle.centre.lat, circle.centre.lon).unwrap();
+        assert!(centre.distance_m(start) < 600.0, "{circle:?}");
+        assert!((circle.radius_m - 0.05 * circle.perimeter_m).abs() < 1e-6);
+        assert_eq!(circle.outline.len(), 73);
+        assert_eq!(circle.outline.first(), circle.outline.last());
+        assert_eq!(circle.distance_to_edge_m, None);
+        assert_eq!(circle.kind_words, "Closed FAI triangle");
+        assert!(
+            circle.words.starts_with("Closes within 1.")
+                && circle.words.contains("closed FAI triangle of"),
+            "{}",
+            circle.words
+        );
         assert!(
             plan.words.contains("scores as a closed FAI triangle"),
             "{}",

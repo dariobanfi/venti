@@ -17,9 +17,11 @@
 //!   itself asks for the FAI sphere, which the task format allows.
 //!
 //! The format tasks travel in is XCTrack's, read and written by
-//! [`xctsk`]. The shortest way through a task is found by [`route`], and
-//! [`progress`] follows a flight through it.
+//! [`xctsk`]. The shortest way through a task is found by [`route`],
+//! [`progress`] follows a flight through it, and [`glide`] says what the
+//! rest of the way costs in height.
 
+pub mod glide;
 pub mod progress;
 pub mod route;
 pub mod xctsk;
